@@ -2,9 +2,9 @@
 
 ## Current state
 
-### Existing Kubernetes chart
+### Existing Helm chart
 
-- Chart path: `hosting/helm/agenta-oss`
+- Chart path: `hosting/kubernetes/helm`
 - Guide path: `docs/docs/self-host/guides/03-deploy-to-kubernetes.mdx`
 - Current chart is OSS-specific
 
@@ -15,7 +15,7 @@ The current Helm chart is missing workloads that now exist in Docker Compose for
 - `worker-webhooks`
 - `worker-events`
 
-This is not an EE-specific issue. It is a Kubernetes chart/runtime drift issue.
+This is not an EE-specific issue. It is a Helm chart/runtime drift issue.
 
 ### Current OSS Kubernetes validation result
 

@@ -21,6 +21,7 @@ import DeploymentsTable from "./Table/DeploymentsTable"
 interface DeploymentsDashboardProps {
     environmentId: string | null
     environmentName: string
+    environmentSlug: string
     /** The currently deployed app revision ID (for disabling revert on current deploy) */
     currentDeployedRevisionId?: string | null
 }
@@ -28,6 +29,7 @@ interface DeploymentsDashboardProps {
 const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
     environmentId,
     environmentName,
+    environmentSlug,
     currentDeployedRevisionId,
 }) => {
     const {mutateAsync: publish} = useAtomValue(publishMutationAtom)
@@ -94,17 +96,20 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
                 onConfirm: async (noteValue) => {
                     await publish({
                         revisionId: record.deployedRevisionId!,
-                        environmentSlug: environmentName,
+                        environmentSlug,
                         applicationId: workflowData?.workflow_id || "",
                         workflowVariantId: workflowData?.workflow_variant_id ?? undefined,
-                        variantSlug: workflowData?.slug ?? undefined,
+                        variantSlug:
+                            workflowData?.workflow_variant_slug ??
+                            workflowData?.variant_slug ??
+                            undefined,
                         revisionVersion: workflowData?.version ?? undefined,
                         note: noteValue,
                     })
                 },
             })
         },
-        [environmentName, openDeploymentConfirmationModal, publish],
+        [environmentSlug, environmentName, openDeploymentConfirmationModal, publish],
     )
 
     const columnActions = useMemo<DeploymentColumnActions>(

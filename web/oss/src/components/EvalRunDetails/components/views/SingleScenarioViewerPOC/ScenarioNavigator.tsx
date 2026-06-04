@@ -150,7 +150,7 @@ const ScenarioNavigator = ({
                 />
             </div>
             {showScenarioIdTag && selectedOption?.description ? (
-                <Tag bordered={false} className="bg-[#0517290F] font-normal">
+                <Tag bordered={false} className="bg-[var(--ag-c-0517290F)] font-normal">
                     <Typography.Text copyable={{text: selectedOption.description}}>
                         {selectedOption.description}
                     </Typography.Text>

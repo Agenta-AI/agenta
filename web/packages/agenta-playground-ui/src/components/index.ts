@@ -31,8 +31,9 @@ export {default as ToolCallView, ToolCallViewHeader, createToolCallPayloads} fro
 // Chat controls
 export {default as ControlsBar, type ControlsBarProps} from "./ControlsBar"
 
-// Focus drawer
-export {default as PlaygroundFocusDrawer} from "./FocusDrawer"
+// Playground outputs (Outputs panel — header + single/comparison body)
+export {default as PlaygroundOutputs} from "./PlaygroundOutputs"
+export type {PlaygroundOutputsProps} from "./PlaygroundOutputs"
 
 // Execution items
 export {

@@ -1,4 +1,4 @@
-import {useEffect, useMemo} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {PageLayout} from "@agenta/ui"
 import {Tabs} from "antd"
@@ -125,7 +125,42 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     const defaultView =
         evaluationType === "human" ? (isTerminalStatus ? "overview" : "focus") : "overview"
     const [activeViewParam, setActiveViewParam] = useQueryParam("view", defaultView, "replace")
-    const activeView = (activeViewParam as ViewKey) ?? defaultView
+    const rawView = (activeViewParam as ViewKey) ?? defaultView
+
+    // `useQueryParam` reads the in-flight route's query, which Next updates at
+    // `routeChangeStart` — before this page unmounts. Navigating away drops the
+    // `view` param, which would snap the active tab back to the default and, via
+    // the `destroyOnHidden` Tabs below, tear down the active tab's table (e.g.
+    // the Scenarios IVT) mid-navigation. Freeze the view while a navigation that
+    // actually leaves this run is in flight; the page is replaced on completion.
+    // Shallow tab switches keep the runId in the URL, so they still update.
+    const navigatingAwayRef = useRef(false)
+    const [activeView, setActiveView] = useState<ViewKey>(rawView)
+    useEffect(() => {
+        if (!navigatingAwayRef.current) setActiveView(rawView)
+    }, [rawView])
+    useEffect(() => {
+        const onStart = (url: string) => {
+            navigatingAwayRef.current = typeof url === "string" && !url.includes(runId)
+        }
+        // routeChangeComplete passes (url); routeChangeError passes (err, url) —
+        // so the first arg isn't always the URL string. Guard before calling
+        // string methods on it.
+        const onSettle = (urlOrErr: unknown) => {
+            navigatingAwayRef.current = false
+            // Adopt whatever the committed route asks for once navigation settles
+            // (covers landing back on this run via a route with no `view` param).
+            if (typeof urlOrErr === "string" && urlOrErr.includes(runId)) setActiveView(rawView)
+        }
+        Router.events.on("routeChangeStart", onStart)
+        Router.events.on("routeChangeComplete", onSettle)
+        Router.events.on("routeChangeError", onSettle)
+        return () => {
+            Router.events.off("routeChangeStart", onStart)
+            Router.events.off("routeChangeComplete", onSettle)
+            Router.events.off("routeChangeError", onSettle)
+        }
+    }, [runId, rawView])
 
     return (
         <PageLayout
@@ -140,7 +175,7 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
             headerClassName="px-4 pt-2"
         >
             <div className="flex h-full min-h-0 flex-col gap-2 [&_.ant-tabs-content]:h-full [&_.ant-tabs-tabpane]:h-full">
-                <PreviewEvalRunMeta runId={runId} projectId={projectId} />
+                <PreviewEvalRunMeta runId={runId} projectId={projectId} activeView={activeView} />
                 <Tabs
                     className="flex-1 min-h-0 overflow-hidden"
                     activeKey={activeView}

@@ -21,12 +21,13 @@
 
 import {z} from "zod"
 
+// See testcase/api/api.ts for rationale — the shared barrel pulls in CSS deps.
 import {
     createEntitySchemaSet,
     COMMON_SERVER_FIELDS,
     jsonValueSchema,
     safeParseWithLogging,
-} from "../../shared"
+} from "../../shared/utils/zodSchema"
 
 // ============================================================================
 // HELPER SCHEMAS

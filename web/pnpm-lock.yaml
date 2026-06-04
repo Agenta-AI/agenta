@@ -1050,6 +1050,9 @@ importers:
       usehooks-ts:
         specifier: ^3.0.0
         version: 3.1.1(react@19.2.6)
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(vite@8.0.12(@types/node@20.19.39)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.47.0)(tsx@4.21.0)(yaml@2.8.4))
 
   packages/agenta-playground:
     dependencies:
@@ -1087,12 +1090,18 @@ importers:
       '@types/react':
         specifier: ^19.0.10
         version: 19.2.14
+      '@vitest/coverage-v8':
+        specifier: ^4.1.4
+        version: 4.1.6(vitest@4.1.6)
       jotai-family:
         specifier: ^1.0.1
         version: 1.0.1(jotai@2.20.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.14)(react@19.2.6))
       typescript:
         specifier: 5.8.3
         version: 5.8.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(vite@8.0.12(@types/node@20.19.39)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.47.0)(tsx@4.21.0)(yaml@2.8.4))
 
   packages/agenta-playground-ui:
     dependencies:
@@ -6107,6 +6116,7 @@ packages:
   recharts@2.15.4:
     resolution: {integrity: sha512-UT/q6fwS3c1dHbXv2uFgYJ9BMFHu3fwnd7AYZaEQhXuYQ4hgsxLvsUXzGdKeZrW5xopzDCvuA2N41WJ88I7zIw==}
     engines: {node: '>=14'}
+    deprecated: 1.x and 2.x branches are no longer active. Bump to Recharts v3 to receive latest features and bugfixes. See https://github.com/recharts/recharts/wiki/3.0-migration-guide
     peerDependencies:
       react: ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0

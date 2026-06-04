@@ -6,14 +6,15 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
-import {
-    fetchRevision,
-    NEW_TESTSET_ID,
-    revisionsListQueryAtomFamily,
-    testsetEntityAtomFamily,
-    type Revision,
-    type RevisionListItem,
-} from "../testset"
+// Import from specific testset files (NOT the barrel `../testset`) to avoid a
+// circular dep: `testset/index.ts` re-exports `currentRevisionIdAtom` from this
+// file (`testcase/queries.ts`). Loading the barrel here would create a cycle
+// that surfaces as `Cannot access 'currentRevisionIdAtom' before initialization`
+// in any standalone consumer that imports the testcase state graph (e.g. the
+// design-mockups app under `web/apps/design-mockups/`).
+import {revisionsListQueryAtomFamily} from "../testset/revisionEntity"
+import type {Revision, RevisionListItem} from "../testset/revisionSchema"
+import {fetchRevision, NEW_TESTSET_ID, testsetEntityAtomFamily} from "../testset/store"
 
 import {flattenTestcase, testcasesResponseSchema, type FlattenedTestcase} from "./schema"
 

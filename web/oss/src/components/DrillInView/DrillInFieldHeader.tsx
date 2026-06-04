@@ -1,4 +1,4 @@
-import {memo, useCallback, useState} from "react"
+import {memo, useCallback, useState, type ReactNode} from "react"
 
 import {message} from "@agenta/ui/app-message"
 import {
@@ -13,7 +13,8 @@ import {
     Trash,
     X,
 } from "@phosphor-icons/react"
-import {Button, Input, Popover, Select, Tooltip} from "antd"
+import {Button, Dropdown, Input, Popover, Tooltip} from "antd"
+import type {MenuProps} from "antd"
 
 export interface DrillInFieldHeaderProps {
     /** Field name to display */
@@ -68,6 +69,8 @@ export interface DrillInFieldHeaderProps {
     onViewModeChange?: (mode: string) => void
     /** Show collapse toggle in the header (default: true) */
     showCollapseToggle?: boolean
+    /** Optional chip rendered after the field name. */
+    typeChip?: ReactNode
     /** Show drill-in action button in the header (default: true) */
     showDrillInButton?: boolean
 }
@@ -146,7 +149,7 @@ const MappingPopover = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className="justify-start text-blue-600"
+                                className="justify-start text-blue-600 dark:text-[#58a6ff]"
                                 onClick={() => setShowNewColumnInput(true)}
                             >
                                 + Create new column
@@ -202,6 +205,56 @@ const MappingPopover = memo(
 
 MappingPopover.displayName = "MappingPopover"
 
+function ViewModeDropdown({
+    value,
+    options,
+    onChange,
+}: {
+    value: string
+    options: {value: string; label: string}[]
+    onChange: (mode: string) => void
+}) {
+    const selectedOption = options.find((option) => option.value === value)
+    const items: MenuProps["items"] = options.map((option) => ({
+        key: option.value,
+        className: "!p-0 !rounded-lg !bg-transparent",
+        label: (
+            <div
+                className={`flex min-h-[34px] items-center justify-between gap-4 rounded-lg px-3.5 py-1.5 ${
+                    option.value === value ? "bg-[var(--ag-rgba-051729-04)]" : ""
+                }`}
+            >
+                <span className="text-[13px] font-medium text-[var(--ag-c-051729)]">
+                    {option.label}
+                </span>
+                {option.value === value ? (
+                    <span className="text-[11px] text-[var(--ag-rgba-051729-55)]">default</span>
+                ) : null}
+            </div>
+        ),
+        onClick: () => onChange(option.value),
+    }))
+
+    return (
+        <Dropdown
+            menu={{items, selectedKeys: [value]}}
+            trigger={["click"]}
+            placement="bottomRight"
+            overlayClassName="[&_.ant-dropdown-menu]:min-w-[220px] [&_.ant-dropdown-menu]:rounded-xl [&_.ant-dropdown-menu]:p-2.5 [&_.ant-dropdown-menu]:shadow-[0_12px_32px_rgba(5,23,41,0.16)]"
+        >
+            <Button type="text" size="small" className="inline-flex items-center gap-1 px-2 h-6">
+                <span className="text-[12px] text-[var(--ag-rgba-051729-55)]">
+                    View as{" "}
+                    <span className="font-semibold text-[var(--ag-c-051729)]">
+                        {selectedOption?.label ?? value}
+                    </span>
+                </span>
+                <CaretDown size={12} className="text-[var(--ag-rgba-051729-55)]" />
+            </Button>
+        </Dropdown>
+    )
+}
+
 /**
  * Reusable field header component for drill-in views
  * Used by TestcaseEditDrawer and TraceDataDrillIn
@@ -212,7 +265,6 @@ const DrillInFieldHeader = memo(
         value,
         isCollapsed,
         onToggleCollapse,
-        itemCount,
         expandable = false,
         onDrillIn,
         showRawToggle = false,
@@ -234,6 +286,7 @@ const DrillInFieldHeader = memo(
         viewMode,
         onViewModeChange,
         showCollapseToggle = true,
+        typeChip,
         showDrillInButton = true,
     }: DrillInFieldHeaderProps) => {
         const [copiedField, setCopiedField] = useState<string | null>(null)
@@ -249,45 +302,47 @@ const DrillInFieldHeader = memo(
         const showCopyButton = alwaysShowCopy || isCollapsed || expandable
 
         return (
-            <div className="drill-in-field-header flex items-center justify-between py-2 px-3 bg-[#FAFAFA] rounded-md border-solid border-[1px] border-[rgba(5,23,41,0.06)]">
+            <div className="drill-in-field-header flex items-center justify-between py-2 px-3 bg-[var(--ag-c-FAFAFA)] rounded-md border-solid border-[1px] border-[var(--ag-rgba-051729-06)]">
                 <div className="flex items-center gap-2">
                     {showCollapseToggle ? (
-                        <button
-                            type="button"
-                            onClick={onToggleCollapse}
-                            className="flex items-center gap-2 text-left hover:text-gray-700 transition-colors bg-transparent border-none p-0 cursor-pointer"
-                        >
-                            {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
+                        <>
+                            <button
+                                type="button"
+                                onClick={onToggleCollapse}
+                                className="flex items-center hover:text-gray-700 transition-colors bg-transparent border-none p-0 cursor-pointer"
+                            >
+                                {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
+                            </button>
                             <span className="text-gray-700 font-medium">{name}</span>
-                        </button>
+                            {typeChip}
+                        </>
                     ) : (
-                        <span className="text-gray-700 font-medium">{name}</span>
+                        <>
+                            <span className="text-gray-700 font-medium">{name}</span>
+                            {typeChip}
+                        </>
                     )}
                     {mappedColumn ? (
-                        <span className="text-xs text-green-600 font-medium">
+                        <span className="text-xs text-green-600 dark:text-green-400 font-medium">
                             mapped to {mappedColumn}
                         </span>
                     ) : nestedMappingCount > 0 ? (
-                        <span className="text-xs text-green-600 font-medium">
+                        <span className="text-xs text-green-600 dark:text-green-400 font-medium">
                             contains {nestedMappingCount} mapping
                             {nestedMappingCount > 1 ? "s" : ""}
                         </span>
-                    ) : (
-                        itemCount && <span className="text-xs text-gray-400">[{itemCount}]</span>
-                    )}
+                    ) : null}
+                    {/* itemCount && <span className="text-xs text-gray-400">[{itemCount}]</span> */}
                 </div>
                 <div className="flex items-center gap-2">
                     {viewModeOptions &&
                         viewModeOptions.length > 1 &&
                         viewMode &&
                         onViewModeChange && (
-                            <Select
-                                size="small"
+                            <ViewModeDropdown
                                 value={viewMode}
                                 options={viewModeOptions}
                                 onChange={onViewModeChange}
-                                className="min-w-[126px]"
-                                popupMatchSelectWidth={false}
                             />
                         )}
                     {showCopyButton && (
@@ -308,7 +363,7 @@ const DrillInFieldHeader = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500" : "text-gray-500"}`}
+                                className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
                                 icon={<Code size={12} />}
                                 onClick={onToggleRawMode}
                             />
@@ -319,7 +374,7 @@ const DrillInFieldHeader = memo(
                             <Button
                                 type="text"
                                 size="small"
-                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-blue-500" : "text-gray-500"}`}
+                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
                                 icon={
                                     isMarkdownView ? (
                                         <TextAa size={12} />

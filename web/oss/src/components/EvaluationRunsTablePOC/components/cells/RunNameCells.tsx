@@ -1,8 +1,7 @@
 import {memo} from "react"
 
+import {SkeletonLine} from "@agenta/ui/table"
 import {Typography} from "antd"
-
-import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 
 import {useRunRowSummary} from "../../context/RunRowDataContext"
 import type {EvaluationRunTableRow} from "../../types"
@@ -10,10 +9,10 @@ import type {EvaluationRunTableRow} from "../../types"
 const CELL_CLASS = "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2"
 
 export const PreviewRunNameCellSkeleton = () => (
-    <>
-        <SkeletonLine width="70%" />
-        <SkeletonLine width="40%" />
-    </>
+    <div className="flex h-full flex-col justify-center gap-1">
+        <SkeletonLine width="70%" center={false} />
+        <SkeletonLine width="40%" center={false} />
+    </div>
 )
 
 const PreviewRunNameCellContent = memo(({summary, runId}: {summary: any; runId: string | null}) => {

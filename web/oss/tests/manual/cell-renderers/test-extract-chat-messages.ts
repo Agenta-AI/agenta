@@ -50,7 +50,8 @@ const run = () => {
     assert.deepEqual(extractChatMessages(choices), [{role: "assistant", content: "from choices"}])
     assert.deepEqual(extractChatMessages(single), [{role: "assistant", content: "single message"}])
     assert.equal(extractChatMessages(plainJson), null)
-    assert.deepEqual(extractChatMessages(stringified), JSON.parse(stringified))
+    assert.equal(extractChatMessages(stringified), null)
+    assert.deepEqual(extractChatMessages(JSON.parse(stringified)), JSON.parse(stringified))
 
     assert.deepEqual(getBeautifiedJsonEntries({context: "you are a helpful chat bot"}), [
         {key: "context", value: "you are a helpful chat bot"},

@@ -70,20 +70,22 @@ const QueryFiltersSummaryCard = ({
     return (
         <div
             className={clsx(
-                "rounded-lg border border-solid border-[#E4E7EC] bg-[#F9FAFB] p-4",
+                "rounded-lg border border-solid border-[var(--ag-c-E4E7EC)] bg-[var(--ag-c-F9FAFB)] p-4",
                 className,
             )}
         >
             <div className="mb-3 flex items-center justify-between">
-                <span className="text-xs font-medium uppercase tracking-[0.08em] text-[#667085]">
+                <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--ag-c-667085)]">
                     Query filters
                 </span>
-                {loading ? <span className="text-xs text-[#98A2B3]">Loading…</span> : null}
+                {loading ? (
+                    <span className="text-xs text-[var(--ag-c-98A2B3)]">Loading…</span>
+                ) : null}
             </div>
             <div className="flex flex-col gap-2 text-left">
                 {loading ? null : <FiltersPreview filtering={filtering ?? undefined} compact />}
                 {historicalLabel ? (
-                    <span className="text-xs text-[#667085]">{historicalLabel}</span>
+                    <span className="text-xs text-[var(--ag-c-667085)]">{historicalLabel}</span>
                 ) : null}
             </div>
         </div>

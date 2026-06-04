@@ -28,10 +28,12 @@ from oss.src.utils.caching import set_cache, get_cache
 
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 from oss.src.core.events.utils import publish_revision_event
+from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 
 from oss.src.core.shared.dtos import (
     Reference,
 )
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.testcases.dtos import (
     Testcase,
 )
@@ -338,7 +340,7 @@ class TestsetsRouter:
             self.create_testset_variant,
             methods=["POST"],
             operation_id="create_testset_variant",
-            status_code=status.HTTP_201_CREATED,
+            status_code=status.HTTP_200_OK,
             response_model=TestsetVariantResponse,
             response_model_exclude_none=True,
         )
@@ -968,17 +970,19 @@ class TestsetsRouter:
     # TESTSET REVISIONS --------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def create_testset_revision(
         self,
         request: Request,
         *,
         testset_revision_create_request: TestsetRevisionCreateRequest,
     ) -> TestsetRevisionResponse:
-        """Create a new revision on an existing variant.
+        """Create and commit the initial revision for a testset variant.
 
-        Creates a revision row without committing content. Most callers
-        instead use `/testsets/revisions/commit`, which writes the
-        testcases and the revision together.
+        Most callers instead use `/testsets/revisions/commit`, which writes
+        the testcases and the revision together. This endpoint commits an
+        initial revision with the `initial` guard, preventing duplicate
+        initial revisions for the same variant.
         """
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -988,12 +992,20 @@ class TestsetsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        testset_revision = await self.testsets_service.create_testset_revision(
+        testset_revision = await self.testsets_service.commit_testset_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            testset_revision_create=testset_revision_create_request.testset_revision,
+            testset_revision_commit=TestsetRevisionCommit(
+                **testset_revision_create_request.testset_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
             include_testcases=testset_revision_create_request.include_testcases,
+            #
+            initial=True,
         )
 
         testset_revision_response = TestsetRevisionResponse(
@@ -1443,6 +1455,7 @@ class TestsetsRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=TestsetRevisionResponse(), exclude=[HTTPException])
+    @handle_git_exceptions()
     async def retrieve_testset_revision(
         self,
         request: Request,
@@ -1496,8 +1509,16 @@ class TestsetsRouter:
             else None
         )
 
-        if not testset_revision:
-            testset_revision = await self.testsets_service.fetch_testset_revision(
+        if testset_revision:
+            retrieval_info = build_retrieval_info(
+                revision=testset_revision,
+                entity_type="testset",
+            )
+        else:
+            (
+                testset_revision,
+                retrieval_info,
+            ) = await self.testsets_service.retrieve_testset_revision(
                 project_id=UUID(request.state.project_id),
                 #
                 testset_ref=testset_revision_retrieve_request.testset_ref,
@@ -1522,6 +1543,7 @@ class TestsetsRouter:
         testset_revision_response = TestsetRevisionResponse(
             count=1 if testset_revision else 0,
             testset_revision=testset_revision,
+            retrieval_info=retrieval_info,
         )
 
         await publish_revision_event(

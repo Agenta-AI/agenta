@@ -49,6 +49,13 @@ import {
 } from "../state/focusDrawerAtom"
 import {clearFocusDrawerQueryParams} from "../state/urlFocusDrawer"
 import {renderScenarioChatMessages} from "../utils/chatMessages"
+import {
+    MetricValuePill,
+    isRunMetricColumn,
+    resolveRunMetricScalar,
+    stripGroupPrefix,
+    type RunMetricColumn,
+} from "../utils/runMetricHelpers"
 
 import EvaluationRunTag from "./EvaluationRunTag"
 import FocusDrawerHeader from "./FocusDrawerHeader"
@@ -90,48 +97,6 @@ const buildStaticMetricColumn = (
 
 const {Text} = Typography
 
-type FocusDrawerColumn = EvaluationTableColumn & {__source?: "runMetric"}
-
-const isRunMetricColumn = (
-    column: EvaluationTableColumn,
-): column is FocusDrawerColumn & {__source: "runMetric"} =>
-    (column as FocusDrawerColumn).__source === "runMetric"
-
-const resolveRunMetricScalar = (stats: any): unknown => {
-    if (!stats || typeof stats !== "object" || Array.isArray(stats)) {
-        return stats
-    }
-
-    const candidates = [
-        stats.value,
-        stats.total,
-        stats.sum,
-        stats.mean,
-        stats.avg,
-        stats.average,
-        stats.median,
-        stats.max,
-        stats.min,
-    ]
-
-    for (const candidate of candidates) {
-        if (candidate !== undefined && candidate !== null) return candidate
-    }
-
-    if (Array.isArray(stats.frequency) && stats.frequency.length) {
-        const [first] = [...stats.frequency].sort(
-            (a: any, b: any) => (b?.count ?? 0) - (a?.count ?? 0),
-        )
-        if (first?.value !== undefined) return first.value
-    }
-
-    if (Array.isArray(stats.unique) && stats.unique.length) {
-        return stats.unique[0]
-    }
-
-    return undefined
-}
-
 const FocusValueCard = ({
     label,
     children,
@@ -141,21 +106,15 @@ const FocusValueCard = ({
     children: ReactNode
     className?: string
 }) => (
-    <div className={clsx("rounded-xl bg-[#F8FAFC] px-4 py-3 text-[#1D2939]", className)}>
-        <Text className="text-xs font-medium text-[#101828]">{label}</Text>
-        <div className="mt-2 text-sm whitespace-pre-wrap break-words">{children}</div>
-    </div>
-)
-
-const MetricValuePill = ({value, muted}: {value: ReactNode; muted?: boolean}) => (
-    <span
+    <div
         className={clsx(
-            "inline-flex w-fit rounded-md bg-[#F2F4F7] px-2 py-1 text-xs font-medium",
-            muted ? "text-[#98A2B3]" : "text-[#344054]",
+            "rounded-xl bg-[var(--ag-c-F8FAFC)] px-4 py-3 text-[var(--ag-c-1D2939)]",
+            className,
         )}
     >
-        {value}
-    </span>
+        <Text className="text-xs font-medium text-[var(--ag-c-101828)]">{label}</Text>
+        <div className="mt-2 text-sm whitespace-pre-wrap break-words">{children}</div>
+    </div>
 )
 
 interface FocusDrawerContentProps {
@@ -348,7 +307,7 @@ const RunMetricValue = memo(
     }: {
         runId: string
         scenarioId: string
-        column: FocusDrawerColumn & {__source: "runMetric"}
+        column: RunMetricColumn & {__source: "runMetric"}
         descriptor: ColumnValueDescriptor
     }) => {
         const {selection: scenarioMetric, showSkeleton} = useScenarioCellValue({
@@ -422,42 +381,6 @@ const RunMetricValue = memo(
 )
 
 RunMetricValue.displayName = "RunMetricValue"
-
-/**
- * Strip evaluator/group name prefix from a label to avoid redundancy.
- * e.g., "New Human IsAwesome" -> "IsAwesome" when groupLabel is "New Human"
- */
-const stripGroupPrefix = (label: string, groupLabel?: string): string => {
-    if (!groupLabel || !label) return label
-    const normalizedGroup = groupLabel.toLowerCase().replace(/[-_\s]+/g, "")
-    const normalizedLabel = label.toLowerCase().replace(/[-_\s]+/g, "")
-    if (!normalizedLabel.startsWith(normalizedGroup)) return label
-
-    // Find where the prefix ends in the original label
-    let prefixEndIndex = 0
-    let groupIndex = 0
-    while (prefixEndIndex < label.length && groupIndex < groupLabel.length) {
-        const labelChar = label[prefixEndIndex].toLowerCase()
-        const groupChar = groupLabel[groupIndex].toLowerCase()
-        if (labelChar === groupChar) {
-            groupIndex++
-        } else if (/[-_\s]/.test(label[prefixEndIndex])) {
-            // Skip separators in label
-        } else if (/[-_\s]/.test(groupLabel[groupIndex])) {
-            // Skip separators in group
-            groupIndex++
-            continue
-        } else {
-            break
-        }
-        prefixEndIndex++
-    }
-    // Skip any trailing separators after the prefix
-    while (prefixEndIndex < label.length && /[-_\s]/.test(label[prefixEndIndex])) {
-        prefixEndIndex++
-    }
-    return label.slice(prefixEndIndex) || label
-}
 
 const ScenarioColumnValue = memo(
     ({
@@ -583,7 +506,13 @@ const ScenarioColumnValue = memo(
                 }
                 if (isLongTextMetric) {
                     return (
-                        <span className={isPlaceholder ? "text-[#98A2B3]" : "text-[#1D2939]"}>
+                        <span
+                            className={
+                                isPlaceholder
+                                    ? "text-[var(--ag-c-98A2B3)]"
+                                    : "text-[var(--ag-c-1D2939)]"
+                            }
+                        >
                             {formattedValue}
                         </span>
                     )
@@ -615,7 +544,9 @@ const ScenarioColumnValue = memo(
 
             return (
                 <div className="flex flex-col gap-2">
-                    <Text className="text-xs font-medium text-[#475467]">{displayLabel}</Text>
+                    <Text className="text-xs font-medium text-[var(--ag-c-475467)]">
+                        {displayLabel}
+                    </Text>
                     {metricContent}
                 </div>
             )
@@ -770,7 +701,7 @@ const EvalOutputMetaRow = memo(
         const resolvedCompareIndex = compareIndex ?? 0
 
         return (
-            <div className="flex flex-wrap items-center justify-between gap-2 py-2 px-4 min-w-[480px] border-[0.5px] border-solid border-[#EAEFF5]">
+            <div className="flex flex-wrap items-center justify-between gap-2 py-2 px-4 min-w-[480px] border-[0.5px] border-solid border-[var(--ag-c-EAEFF5)]">
                 <EvaluationRunTag
                     label={runDisplayName || "Evaluation"}
                     compareIndex={resolvedCompareIndex}
@@ -807,7 +738,7 @@ const FocusSectionHeader = ({
         <div
             className={clsx(
                 "flex items-center justify-between py-1 px-3 h-10 sticky top-0 bg-zinc-1 z-20 cursor-pointer",
-                "border-b border-b-[rgba(5,23,41,0.06)]",
+                "border-b border-b-[var(--ag-rgba-051729-06)]",
             )}
             style={{borderBottomStyle: "solid"}}
             role="button"
@@ -815,7 +746,7 @@ const FocusSectionHeader = ({
             onClick={onToggle}
             onKeyDown={handleKeyDown}
         >
-            <Text className="text-sm font-semibold text-[#344054]">{title}</Text>
+            <Text className="text-sm font-semibold text-[var(--ag-c-344054)]">{title}</Text>
             <Button
                 type="link"
                 size="small"
@@ -955,12 +886,14 @@ const InvocationMetaChips = memo(
 
         return (
             <div className="flex flex-col">
-                {appLabel ? <span className="font-medium text-[#101828]">{appLabel}</span> : null}
+                {appLabel ? (
+                    <span className="font-medium text-[var(--ag-c-101828)]">{appLabel}</span>
+                ) : null}
                 {variantLabel ? (
-                    <div className="flex items-center gap-2 text-[#475467]">
+                    <div className="flex items-center gap-2 text-[var(--ag-c-475467)]">
                         <span>{variantLabel}</span>
                         {revisionBadge ? (
-                            <span className="rounded-full bg-[#F2F4F7] px-2 py-0.5 text-xs font-semibold text-[#344054]">
+                            <span className="rounded-full bg-[var(--ag-c-F2F4F7)] px-2 py-0.5 text-xs font-semibold text-[var(--ag-c-344054)]">
                                 {revisionBadge}
                             </span>
                         ) : null}

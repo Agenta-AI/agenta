@@ -417,7 +417,7 @@ services:
 
     supertokens:
         # === IMAGE ================================================ #
-        image: registry.supertokens.io/supertokens/supertokens-postgresql
+        image: supertokens/supertokens-postgresql:11
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}

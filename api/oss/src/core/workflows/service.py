@@ -11,6 +11,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.helpers import parse_url
+from oss.src.core.events.utils import publish_revision_event
 
 from agenta.sdk.engines.running.utils import (
     infer_flags_from_data,
@@ -28,6 +29,7 @@ from oss.src.core.git.dtos import (
     ArtifactEdit,
     ArtifactQuery,
     ArtifactFork,
+    RetrievalInfo,
     #
     VariantCreate,
     VariantEdit,
@@ -39,6 +41,7 @@ from oss.src.core.git.dtos import (
     RevisionCommit,
     RevisionsLog,
 )
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.workflows.dtos import (
     JsonSchemas,
     WorkflowArtifactFlags,
@@ -78,6 +81,12 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
+)
+from oss.src.core.git.types import (
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
+    needs_default_variant_resolution,
+    validate_retrieve_refs_consistent,
 )
 
 # Resolution is now handled by EmbedsService
@@ -524,14 +533,14 @@ class WorkflowsService:
                 if workflow_ref and workflow_ref.slug
                 else None
             )
-            workflow_revision, _ = await self.retrieve_workflow_revision(
+            workflow_revision, _, _ = await self.retrieve_workflow_revision(
                 project_id=project_id,
                 environment_ref=refs["environment"],
                 key=key,
             )
 
         elif "workflow_revision" in refs or "workflow" in refs:
-            workflow_revision, _ = await self.retrieve_workflow_revision(
+            workflow_revision, _, _ = await self.retrieve_workflow_revision(
                 project_id=project_id,
                 workflow_ref=workflow_ref,
                 workflow_variant_ref=refs.get("workflow_variant"),
@@ -828,6 +837,10 @@ class WorkflowsService:
         #
         include_archived: Optional[bool] = True,
     ) -> Optional[WorkflowVariant]:
+        validate_variant_refs_sufficient(
+            variant_ref=workflow_variant_ref,
+            entity_type="workflow",
+        )
         variant = await self.workflows_dao.fetch_variant(
             project_id=project_id,
             #
@@ -1079,7 +1092,25 @@ class WorkflowsService:
         if not workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
             return None
 
-        if workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
+        validate_variant_refs_sufficient(
+            variant_ref=workflow_variant_ref,
+            entity_type="workflow",
+        )
+        validate_revision_refs_sufficient(
+            artifact_ref=workflow_ref,
+            variant_ref=workflow_variant_ref,
+            revision_ref=workflow_revision_ref,
+            entity_type="workflow",
+        )
+
+        _original_workflow_ref = workflow_ref
+        _original_workflow_variant_ref = workflow_variant_ref
+
+        if needs_default_variant_resolution(
+            artifact_ref=workflow_ref,
+            variant_ref=workflow_variant_ref,
+            revision_ref=workflow_revision_ref,
+        ):
             workflow = await self.fetch_workflow(
                 project_id=project_id,
                 #
@@ -1124,6 +1155,26 @@ class WorkflowsService:
         if not revision:
             return None
 
+        validate_retrieve_refs_consistent(
+            artifact_ref=_original_workflow_ref,
+            variant_ref=_original_workflow_variant_ref,
+            revision_ref=workflow_revision_ref,
+            resolved_artifact_ref=Reference(
+                id=revision.artifact_id,
+                slug=revision.artifact_slug,
+            ),
+            resolved_variant_ref=Reference(
+                id=revision.variant_id,
+                slug=revision.variant_slug,
+            ),
+            resolved_revision_ref=Reference(
+                id=revision.id,
+                slug=revision.slug,
+                version=revision.version,
+            ),
+            entity_type="workflow",
+        )
+
         _workflow_revision = WorkflowRevision(
             **revision.model_dump(mode="json"),
         )
@@ -1148,15 +1199,25 @@ class WorkflowsService:
         workflow_revision_ref: Optional[Reference] = None,
         #
         resolve: bool = False,
-    ) -> tuple[Optional[WorkflowRevision], Optional[ResolutionInfo]]:
-        if environment_ref or environment_variant_ref or environment_revision_ref:
+    ) -> tuple[
+        Optional[WorkflowRevision],
+        Optional[ResolutionInfo],
+        Optional[RetrievalInfo],
+    ]:
+        environment_retrieval_info: Optional[RetrievalInfo] = None
+        is_environment_backed = bool(
+            environment_ref or environment_variant_ref or environment_revision_ref
+        )
+
+        if is_environment_backed:
             if not self.environments_service:
                 log.warning("retrieve_workflow_revision: no environments_service")
-                return None, None
+                return None, None, None
 
             (
-                env_revision,
+                environment_revision,
                 _,
+                environment_retrieval_info,
             ) = await self.environments_service.retrieve_environment_revision(
                 project_id=project_id,
                 #
@@ -1164,33 +1225,36 @@ class WorkflowsService:
                 environment_variant_ref=environment_variant_ref,
                 environment_revision_ref=environment_revision_ref,
             )
-            # log.info(
-            #     "retrieve_workflow_revision: env_revision=%r env_data=%r",
-            #     env_revision and env_revision.id,
-            #     env_revision and env_revision.data,
-            # )
 
             references_by_key = (
-                env_revision.data.references
-                if env_revision and env_revision.data
+                environment_revision.data.references
+                if environment_revision and environment_revision.data
                 else None
             )
             workflow_references = (
                 references_by_key.get(key) if references_by_key and key else None
             )
-            # log.info(
-            #     "retrieve_workflow_revision: key=%r references_by_key keys=%r workflow_references=%r",
-            #     key,
-            #     list(references_by_key.keys()) if references_by_key else None,
-            #     workflow_references,
-            # )
 
             if not workflow_references:
-                return None, None
+                return None, None, None
 
-            workflow_ref = workflow_references.get("workflow")
-            workflow_variant_ref = workflow_references.get("workflow_variant")
-            workflow_revision_ref = workflow_references.get("workflow_revision")
+            env_workflow_ref = workflow_references.get("workflow")
+            env_workflow_variant_ref = workflow_references.get("workflow_variant")
+            env_workflow_revision_ref = workflow_references.get("workflow_revision")
+
+            validate_retrieve_refs_consistent(
+                artifact_ref=workflow_ref,
+                variant_ref=workflow_variant_ref,
+                revision_ref=workflow_revision_ref,
+                resolved_artifact_ref=env_workflow_ref,
+                resolved_variant_ref=env_workflow_variant_ref,
+                resolved_revision_ref=env_workflow_revision_ref,
+                entity_type="workflow",
+            )
+
+            workflow_ref = env_workflow_ref
+            workflow_variant_ref = env_workflow_variant_ref
+            workflow_revision_ref = env_workflow_revision_ref
 
         if resolve:
             result = await self.resolve_workflow_revision(
@@ -1200,16 +1264,36 @@ class WorkflowsService:
                 workflow_variant_ref=workflow_variant_ref,
                 workflow_revision_ref=workflow_revision_ref,
             )
-            return result if result else (None, None)
+            workflow_revision, resolution_info = result if result else (None, None)
+        else:
+            workflow_revision = await self.fetch_workflow_revision(
+                project_id=project_id,
+                #
+                workflow_ref=workflow_ref,
+                workflow_variant_ref=workflow_variant_ref,
+                workflow_revision_ref=workflow_revision_ref,
+            )
+            resolution_info = None
 
-        workflow_revision = await self.fetch_workflow_revision(
-            project_id=project_id,
-            #
-            workflow_ref=workflow_ref,
-            workflow_variant_ref=workflow_variant_ref,
-            workflow_revision_ref=workflow_revision_ref,
-        )
-        return workflow_revision, None
+        if is_environment_backed:
+            environment_references = (
+                environment_retrieval_info.references
+                if environment_retrieval_info
+                else None
+            )
+            retrieval_info = build_retrieval_info(
+                revision=workflow_revision,
+                entity_type="workflow",
+                environment_references=environment_references,
+                selector_key=key,
+            )
+        else:
+            retrieval_info = build_retrieval_info(
+                revision=workflow_revision,
+                entity_type="workflow",
+            )
+
+        return workflow_revision, resolution_info, retrieval_info
 
     async def edit_workflow_revision(
         self,
@@ -1324,6 +1408,10 @@ class WorkflowsService:
         user_id: UUID,
         #
         workflow_revision_commit: WorkflowRevisionCommit,
+        #
+        initial: bool = False,
+        #
+        emit: bool = True,
     ) -> Optional[WorkflowRevision]:
         data = workflow_revision_commit.data
         if data and data.uri and not data.url:
@@ -1405,6 +1493,8 @@ class WorkflowsService:
             user_id=user_id,
             #
             revision_commit=_revision_commit,
+            #
+            initial=initial,
         )
 
         if not revision:
@@ -1414,9 +1504,15 @@ class WorkflowsService:
             **revision.model_dump(mode="json"),
         )
 
-        # Do not publish workflow commits here: applications/evaluators delegate
-        # through this method and would double-emit their own commit events.
-        # await publish_revision_event(domain="workflow", action="commit", ...)
+        if emit:
+            await publish_revision_event(
+                domain="workflow",
+                action="commit",
+                project_id=project_id,
+                user_id=user_id,
+                revision=_workflow_revision,
+                message=workflow_revision_commit.message,
+            )
 
         return await self._normalize_revision_for_read(
             project_id=project_id,

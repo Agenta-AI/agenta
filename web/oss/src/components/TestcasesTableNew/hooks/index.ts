@@ -5,5 +5,5 @@ export type {
     UseTestcasesTableOptions,
     UseTestcasesTableResult,
 } from "./types"
-export {SYSTEM_COLUMNS} from "./constants"
+export {isSystemColumnPath} from "./constants"
 export {PAGE_SIZE} from "./api"

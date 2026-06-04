@@ -84,8 +84,8 @@ async def _get_posthog_string_entries(feature_flag: str) -> Set[str]:
 
 
 async def get_blocked_domains() -> Set[str]:
-    if env.agenta.blocked_domains:
-        return _normalize_string_set(env.agenta.blocked_domains)
+    if env.agenta.access.blocked_domains:
+        return _normalize_string_set(env.agenta.access.blocked_domains)
 
     if env.posthog.enabled:
         return await _get_posthog_string_entries("blocked-domains")
@@ -94,8 +94,8 @@ async def get_blocked_domains() -> Set[str]:
 
 
 async def get_blocked_emails() -> Set[str]:
-    if env.agenta.blocked_emails:
-        return _normalize_string_set(env.agenta.blocked_emails)
+    if env.agenta.access.blocked_emails:
+        return _normalize_string_set(env.agenta.access.blocked_emails)
 
     if env.posthog.enabled:
         return await _get_posthog_string_entries("blocked-emails")
@@ -104,7 +104,7 @@ async def get_blocked_emails() -> Set[str]:
 
 
 async def get_allowed_domains() -> Set[str]:
-    return _normalize_string_set(env.agenta.allowed_domains)
+    return _normalize_string_set(env.agenta.access.allowed_domains)
 
 
 def matches_exact_or_subdomain(

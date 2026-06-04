@@ -16,7 +16,8 @@
 
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 
-import {safeParseWithLogging} from "../../shared"
+// See testcase/api/api.ts for rationale — the shared barrel pulls in CSS deps.
+import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
     spansResponseSchema,
     tracesResponseSchema,

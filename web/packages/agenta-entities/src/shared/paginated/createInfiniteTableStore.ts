@@ -7,13 +7,18 @@
  * Copied from @agenta/ui to avoid dependency.
  */
 
-import {atom} from "jotai"
+import {atom, getDefaultStore} from "jotai"
 import type {Atom, WritableAtom} from "jotai"
-import {atomFamily} from "jotai-family"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 import type {AtomWithQueryResult} from "jotai-tanstack-query"
 import {v4 as uuidv4} from "uuid"
 
+// Use the instrumented wrapper so each paginated/table store can be
+// `dispose()`-d to release its atomFamily entries. `skipRegistry: true`
+// keeps these out of the global diagnostic surface (we'd otherwise get
+// one registry entry per scopeId, which gets noisy). The factory collects
+// its own families and exposes a private clear via its return shape.
+import {instrumentedAtomFamily} from "../molecule/instrumentedAtomFamily"
 import type {
     InfiniteTableFetchParams,
     InfiniteTableFetchResult,
@@ -74,6 +79,10 @@ export interface InfiniteTableStore<TableRow extends InfiniteTableRowBase, ApiRo
         ) => WritableAtom<AtomWithQueryResult<InfiniteTableFetchResult<ApiRow>>, [], void>
     }
     createInitialPage: (pageSize: number) => InfiniteTablePage
+    /** Release every atomFamily entry this store owns. Returns count removed. */
+    dispose: () => number
+    /** Diagnostic: active param counts per internal family. */
+    familySizes: () => {name: string; size: number}[]
 }
 
 interface CreateInfiniteTableStoreOptions<
@@ -162,6 +171,46 @@ export const createInfiniteTableStore = <
             return a.scopeId === b.scopeId && a.pageSize === b.pageSize
         })
 
+    // Per-store collector for atom families so dispose() can release them.
+    // Each family is name-tagged for diagnostic visibility via .name.
+    interface ManagedFamily {
+        clear: () => void
+        size: () => number
+        readonly name: string
+    }
+    const ownedFamilies: ManagedFamily[] = []
+    // Accepts both `atomFamily(create, name)` and the original
+    // `atomFamily(create, areEqual, name)` shape — see equivalent comment
+    // in createPaginatedEntityStore for why this matters (without
+    // preserving the original areEqual fns, params would dedup by
+    // reference and break memoization → pagination state loss).
+    // Constrain `A extends Atom<unknown>` to match `instrumentedAtomFamily`'s
+    // signature so the atom-type generic survives the wrapper. Returning the
+    // erased `…<P, never>` shape (as the earlier version did) collapsed every
+    // `get(family(params))` call to `unknown` — that's the leak the `as never`
+    // casts were papering over.
+    const atomFamily = <P, A extends Atom<unknown>>(
+        create: (p: P) => A,
+        areEqualOrName?: ((a: P, b: P) => boolean) | string,
+        nameArg?: string,
+    ) => {
+        let resolvedName: string | undefined
+        let resolvedAreEqual: ((a: P, b: P) => boolean) | undefined
+        if (typeof areEqualOrName === "function") {
+            resolvedAreEqual = areEqualOrName
+            resolvedName = nameArg
+        } else if (typeof areEqualOrName === "string") {
+            resolvedName = areEqualOrName
+        }
+        const fam = instrumentedAtomFamily<P, A>(create, {
+            name: resolvedName,
+            skipRegistry: true,
+            areEqual: resolvedAreEqual,
+        })
+        ownedFamilies.push(fam as unknown as ManagedFamily)
+        return fam
+    }
+
     const tableRowsQueryAtomFamily = atomFamily(
         (params: TableRowAtomKey) =>
             atomWithQuery<InfiniteTableFetchResult<ApiRow>>((get) => {
@@ -213,6 +262,7 @@ export const createInfiniteTableStore = <
                 }
             }),
         rowsKeyEquals,
+        "infiniteTable.tableRowsQueryAtomFamily",
     )
 
     const tableSkeletonRowsAtomFamily = atomFamily(
@@ -221,6 +271,7 @@ export const createInfiniteTableStore = <
                 return ensureSkeletonRows(key)
             }),
         rowsKeyEquals,
+        "infiniteTable.tableSkeletonRowsAtomFamily",
     )
 
     const tableRowsAtomFamily = atomFamily(
@@ -244,34 +295,39 @@ export const createInfiniteTableStore = <
                 })
             }),
         rowsKeyEquals,
+        "infiniteTable.tableRowsAtomFamily",
     )
 
-    const tablePagesAtomFamily = atomFamily(({scopeId, pageSize}: TablePagesKey) => {
-        const baseAtom = atom<{pages: InfiniteTablePage[]}>({
-            pages: [
-                {
-                    offset: 0,
-                    limit: pageSize,
-                    cursor: null,
-                    windowing: null,
-                },
-            ],
-        })
+    const tablePagesAtomFamily = atomFamily(
+        ({scopeId, pageSize}: TablePagesKey) => {
+            const baseAtom = atom<{pages: InfiniteTablePage[]}>({
+                pages: [
+                    {
+                        offset: 0,
+                        limit: pageSize,
+                        cursor: null,
+                        windowing: null,
+                    },
+                ],
+            })
 
-        return atom(
-            (get) => get(baseAtom),
-            (
-                get,
-                set,
-                update:
-                    | {pages: InfiniteTablePage[]}
-                    | ((prev: {pages: InfiniteTablePage[]}) => {pages: InfiniteTablePage[]}),
-            ) => {
-                const nextValue = typeof update === "function" ? update(get(baseAtom)) : update
-                set(baseAtom, nextValue)
-            },
-        )
-    }, pagesKeyEquals)
+            return atom(
+                (get) => get(baseAtom),
+                (
+                    get,
+                    set,
+                    update:
+                        | {pages: InfiniteTablePage[]}
+                        | ((prev: {pages: InfiniteTablePage[]}) => {pages: InfiniteTablePage[]}),
+                ) => {
+                    const nextValue = typeof update === "function" ? update(get(baseAtom)) : update
+                    set(baseAtom, nextValue)
+                },
+            )
+        },
+        pagesKeyEquals,
+        "infiniteTable.tablePagesAtomFamily",
+    )
 
     const tableCombinedRowsAtomFamily = atomFamily(
         ({scopeId, pageSize}: TablePagesKey) =>
@@ -287,6 +343,7 @@ export const createInfiniteTableStore = <
                 return combined
             }),
         pagesKeyEquals,
+        "infiniteTable.tableCombinedRowsAtomFamily",
     )
 
     const tablePaginationInfoAtomFamily = atomFamily(
@@ -324,6 +381,7 @@ export const createInfiniteTableStore = <
                 }
             }),
         pagesKeyEquals,
+        "infiniteTable.tablePaginationInfoAtomFamily",
     )
 
     const createInitialPage = (pageSize: number): InfiniteTablePage => ({
@@ -362,6 +420,7 @@ export const createInfiniteTableStore = <
                 })
             }),
         pagesKeyEquals,
+        "infiniteTable.tableScheduleNextPageAtomFamily",
     )
 
     return {
@@ -375,5 +434,31 @@ export const createInfiniteTableStore = <
             rowsQueryAtomFamily: tableRowsQueryAtomFamily,
         },
         createInitialPage,
+        // Release every atom family entry this store owns. Call after a
+        // long-run loop finishes (or per-iteration in an ETL pass that
+        // rotates scopeId) to avoid the linear growth that comes from
+        // jotai-family's monotonic memoization.
+        dispose() {
+            let total = 0
+            for (const f of ownedFamilies) {
+                total += f.size()
+                f.clear()
+            }
+            // Also remove TanStack queries this store wrote. Each query
+            // keyed by `[options.key, scopeId, ...]` — clearing the
+            // prefix releases all of them. Without this, long-running ETL
+            // accumulates ~50 KB/iter of TanStack observer state.
+            try {
+                const qc = getDefaultStore().get(queryClientAtom)
+                if (qc) qc.removeQueries({queryKey: [options.key]})
+            } catch {
+                // No queryClient available
+            }
+            return total
+        },
+        // Diagnostic: per-family active param counts for this store instance.
+        familySizes() {
+            return ownedFamilies.map((f) => ({name: f.name, size: f.size()}))
+        },
     }
 }

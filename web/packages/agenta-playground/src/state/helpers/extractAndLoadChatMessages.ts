@@ -219,6 +219,20 @@ export const extractAndLoadChatMessagesAtom = atom(
 
         if (!testcaseRows || testcaseRows.length === 0) return
 
+        // Defensive single-row guard for chat. The canonical gate lives at
+        // each `playgroundController` entrypoint that builds the row list
+        // for a chat playground — `connectToTestsetAtom`,
+        // `importTestcasesAtom`. This guard catches callers that bypass
+        // that controller (URL hydration, direct atom sets in tests, future
+        // entrypoints) and prevents the multi-row concatenation regression
+        // Mahmoud reported on 2026-06-01: passing N rows here would
+        // interleave every row's `messages` into the single shared
+        // `messageIdsAtomFamily(loadableId)` queue, producing a nonsensical
+        // "row1 user → row1 assistant → row2 user → row2 assistant → …"
+        // thread. Take only the first row in chat; the chat UI only ever
+        // displays one row (see `generationVariableRowIdsAtom`).
+        const effectiveRows = testcaseRows.length > 1 ? [testcaseRows[0]] : testcaseRows
+
         // Clear existing messages
         set(clearAllMessagesAtom, {loadableId})
 
@@ -235,8 +249,11 @@ export const extractAndLoadChatMessagesAtom = atom(
             return undefined
         }
 
-        // Parse messages from each row
-        const datasetMessages = testcaseRows.map((row) =>
+        // Parse messages from each row. After the chat single-row guard
+        // above, `effectiveRows` is at most one row; we keep the
+        // `datasetMessages.map(...)` structure so the loop semantics stay
+        // identical in case a future change re-enables multi-row seeding.
+        const datasetMessages = effectiveRows.map((row) =>
             normalizeMessagesFromField(resolveMessages(row)),
         )
         const allMessages = datasetMessages.flat()
@@ -290,38 +307,15 @@ export const extractAndLoadChatMessagesAtom = atom(
                 cursor = nextUserIndex === -1 ? rowMessages.length : nextUserIndex
 
                 const userContent = normalizeMessageContent(userMessage.content) as MessageContent
-                const assistantSource = [...turnMessages]
-                    .reverse()
-                    .find((m) => m.role !== "user" && m.role !== "tool")
-                const assistantContent = assistantSource
-                    ? (normalizeMessageContent(assistantSource.content) as MessageContent)
-                    : ""
 
-                let finalAssistantContent = assistantContent
-                const toolCalls = assistantSource?.tool_calls
-                if (
-                    (!finalAssistantContent ||
-                        (Array.isArray(finalAssistantContent) &&
-                            finalAssistantContent.length === 0)) &&
-                    Array.isArray(toolCalls) &&
-                    toolCalls.length > 0
-                ) {
-                    const firstCall = asObject(toolCalls[0]) || {}
-                    const fn = asObject(firstCall.function)
-                    const argValue = firstCall.arguments ?? fn?.arguments ?? fn?.args
-
-                    if (typeof argValue === "string" && argValue.trim().length > 0) {
-                        finalAssistantContent = argValue
-                    } else if (argValue != null) {
-                        try {
-                            finalAssistantContent = JSON.stringify(argValue, null, 2)
-                        } catch {
-                            finalAssistantContent = String(argValue)
-                        }
-                    }
-                }
-
-                const toolMessagesForTurn = turnMessages.filter((m) => m.role === "tool")
+                // Every non-user message in the turn, in original order. A turn
+                // may hold more than one assistant: the assistant that calls a
+                // tool, the tool result, then the assistant that replies. We
+                // must keep all of them and preserve the order so the
+                // assistant `tool_calls` and the tool `tool_call_id` stay paired
+                // (OpenAI rejects a tool message that has no preceding assistant
+                // with matching tool_calls).
+                const responseMessages = turnMessages.filter((m) => m && m.role !== "user")
 
                 // User message → shared
                 const userMsgId = `msg-${generateId()}`
@@ -334,52 +328,60 @@ export const extractAndLoadChatMessagesAtom = atom(
                 flatMessageIds.push(userMsgId)
                 flatMessagesById[userMsgId] = userChatMsg
 
-                // Per-session assistant + tool responses
+                // Per-session assistant + tool responses, in source order.
                 for (const revId of revisionIds) {
                     const sessId = `sess:${revId}`
+                    let toolIdx = 0
 
-                    const aMsgId = `msg-${generateId()}`
-                    const aChatMsg: ChatMessage = {
-                        id: aMsgId,
-                        role: assistantSource?.role ?? "assistant",
-                        content: finalAssistantContent,
-                        ...(assistantSource && Array.isArray(assistantSource.tool_calls)
-                            ? {tool_calls: assistantSource.tool_calls}
-                            : {}),
-                        sessionId: sessId,
-                        parentId: userMsgId,
-                    }
-                    flatMessageIds.push(aMsgId)
-                    flatMessagesById[aMsgId] = aChatMsg
+                    for (const srcMsg of responseMessages) {
+                        const msgObj = asObject(srcMsg) || {}
+                        const role = asString(msgObj.role) ?? "assistant"
+                        const msgId = `msg-${generateId()}`
 
-                    for (const [idx, toolMsg] of toolMessagesForTurn.entries()) {
-                        const msgObj = asObject(toolMsg) || {}
-                        const fn = asObject(msgObj.function)
-                        const contentValue = toolContentToString(msgObj.content)
-                        const toolName =
-                            asString(msgObj.name) ??
-                            asString(msgObj.tool_name) ??
-                            asString(msgObj.toolName) ??
-                            asString(fn?.name)
-                        const toolCallId =
-                            asString(msgObj.toolCallId) ??
-                            asString(msgObj.tool_call_id) ??
-                            asString(msgObj.toolCallID) ??
-                            asString(msgObj.id) ??
-                            asString(asObject(msgObj.function_call)?.id)
+                        if (role === "tool") {
+                            const fn = asObject(msgObj.function)
+                            const contentValue = toolContentToString(msgObj.content)
+                            const toolName =
+                                asString(msgObj.name) ??
+                                asString(msgObj.tool_name) ??
+                                asString(msgObj.toolName) ??
+                                asString(fn?.name)
+                            const toolCallId =
+                                asString(msgObj.toolCallId) ??
+                                asString(msgObj.tool_call_id) ??
+                                asString(msgObj.toolCallID) ??
+                                asString(msgObj.id) ??
+                                asString(asObject(msgObj.function_call)?.id)
 
-                        const tMsgId = `msg-${generateId()}`
-                        const tChatMsg: ChatMessage = {
-                            id: tMsgId,
-                            role: "tool",
-                            name: toolName ?? `tool_${idx + 1}`,
-                            tool_call_id: toolCallId,
-                            content: contentValue,
-                            sessionId: sessId,
-                            parentId: userMsgId,
+                            const tChatMsg: ChatMessage = {
+                                id: msgId,
+                                role: "tool",
+                                name: toolName ?? `tool_${toolIdx + 1}`,
+                                tool_call_id: toolCallId,
+                                content: contentValue,
+                                sessionId: sessId,
+                                parentId: userMsgId,
+                            }
+                            toolIdx += 1
+                            flatMessageIds.push(msgId)
+                            flatMessagesById[msgId] = tChatMsg
+                        } else {
+                            // Assistant (or other non-tool role). Keep content as
+                            // is, including an empty string for a pure tool-call
+                            // turn, and carry tool_calls through unchanged.
+                            const aChatMsg: ChatMessage = {
+                                id: msgId,
+                                role,
+                                content: normalizeMessageContent(msgObj.content) as MessageContent,
+                                ...(Array.isArray(msgObj.tool_calls)
+                                    ? {tool_calls: msgObj.tool_calls}
+                                    : {}),
+                                sessionId: sessId,
+                                parentId: userMsgId,
+                            }
+                            flatMessageIds.push(msgId)
+                            flatMessagesById[msgId] = aChatMsg
                         }
-                        flatMessageIds.push(tMsgId)
-                        flatMessagesById[tMsgId] = tChatMsg
                     }
                 }
             }

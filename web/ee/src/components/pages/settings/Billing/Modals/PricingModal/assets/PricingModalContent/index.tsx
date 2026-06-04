@@ -71,7 +71,11 @@ const PricingModalContent = ({onCancelSubscription, onCloseModal}: PricingModalC
             switchSubscription,
             mutateSubscription,
             mutateUsage,
+            subscription,
+            isOnFreePlan,
+            freePlanSlug,
             projectURL,
+            onCloseModal,
         ],
     )
 

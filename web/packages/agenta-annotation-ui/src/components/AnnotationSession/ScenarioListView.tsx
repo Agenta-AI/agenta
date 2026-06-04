@@ -84,7 +84,7 @@ const TestcaseDataCell = memo(function TestcaseDataCell({
 }: {
     scenarioId: string
     dataKey: string
-    chatPreference?: "input" | "output"
+    chatPreference?: ChatExtractionPreference
 }) {
     const testcaseRef = useAtomValue(
         annotationSessionController.selectors.scenarioTestcaseRef(scenarioId),
@@ -1095,7 +1095,7 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
                     </div>
 
                     {/* Right panel: Annotation form */}
-                    <div className="w-[340px] min-w-[280px] shrink-0 border border-solid border-[rgba(5,23,41,0.06)] rounded-lg overflow-hidden bg-white">
+                    <div className="w-[340px] min-w-[280px] shrink-0 border border-solid border-[rgba(5,23,41,0.06)] rounded-lg overflow-hidden bg-[var(--ag-c-FFFFFF)]">
                         <AnnotationPanel
                             scenarioId={scenarioId}
                             queueId={queueId}

@@ -48,7 +48,7 @@ async def _retrieve_application(
         "application_ref": (
             {
                 "id": str(application_id) if application_id else None,
-                "slug": str(application_slug),
+                "slug": application_slug,
             }
             if application_id or application_slug
             else None
@@ -65,8 +65,6 @@ async def _retrieve_application(
         ),
         "resolve": resolve,
     }
-
-    # print(" --- payload:", payload)
 
     response = authed_api()(
         method="POST",

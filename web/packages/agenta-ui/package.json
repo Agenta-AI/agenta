@@ -31,7 +31,9 @@
         "./utils": "./src/utils/index.ts",
         "./hooks": "./src/hooks/index.ts",
         "./copy-tooltip": "./src/CopyTooltip/index.ts",
-        "./drill-in": "./src/drill-in/index.ts"
+        "./drill-in": "./src/drill-in/index.ts",
+        "./drawer": "./src/drawer/index.ts",
+        "./type-chip": "./src/type-chip/index.ts"
     },
     "peerDependencies": {
         "@lexical/code": ">=0.38.0",

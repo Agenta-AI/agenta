@@ -69,6 +69,7 @@ import {
 import EvaluatorPlaygroundHeader from "@/oss/components/Evaluators/components/ConfigureEvaluator/EvaluatorPlaygroundHeader"
 import {clearEvaluatorWorkflowCache} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
 import {invalidateAppManagementWorkflowQueries} from "@/oss/components/pages/app-management/store"
+import {invalidatePromptsWorkflowQueries} from "@/oss/components/pages/prompts/store"
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "@/oss/components/Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
 import PlaygroundTestcaseEditor from "@/oss/components/Playground/Components/PlaygroundTestcaseEditor"
@@ -533,6 +534,13 @@ const useDrawerCreateCommitCallback = () => {
                     // (commit.ts:590) doesn't cover the app-management
                     // paginated store.
                     void invalidateAppManagementWorkflowQueries()
+
+                    // Same problem on the Prompts page: it reads its own
+                    // ["prompts-workflows"] query, which neither the shared
+                    // invalidation nor the app-management one touches. Without
+                    // this the new prompt is missing from the list until a
+                    // manual reload.
+                    void invalidatePromptsWorkflowQueries()
 
                     drawerCallbackRef.current?.({
                         newAppId,

@@ -11,7 +11,7 @@ export interface CreateTestsetCardProps {
 
 export function CreateTestsetCard({onFileUpload, onBuildInUI}: CreateTestsetCardProps) {
     return (
-        <div className="mt-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/70 px-3 py-3 flex flex-col gap-3">
+        <div className="mt-3 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-3 flex flex-col gap-3">
             <Typography.Text className="font-medium">Create a new testset</Typography.Text>
             <Upload.Dragger
                 accept=".csv,.json"
@@ -21,7 +21,7 @@ export function CreateTestsetCard({onFileUpload, onBuildInUI}: CreateTestsetCard
                 }}
                 showUploadList={false}
                 disabled={!onFileUpload}
-                className="!bg-white !border-gray-200 !rounded-xl"
+                className="!bg-[var(--ag-c-FFFFFF)] !border-gray-200 !rounded-xl"
             >
                 <div className="flex flex-col items-center justify-center gap-2 py-1">
                     <InboxOutlined className="text-gray-400 text-xl" />

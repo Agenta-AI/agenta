@@ -4,8 +4,7 @@
  * Read-only audit-log surface backed by `POST /events/query`. Lists platform
  * events (revision retrieve/fetch/query/log/commit across applications,
  * queries, testsets, evaluators, environments — plus trace and testcase
- * reads) with keyset pagination and `event_type` / `request_type` /
- * `request_id` filtering.
+ * reads) with keyset pagination and audit-table filtering.
  *
  * No draft/commit semantics: unlike `testcase` there is no molecule, no
  * imperative get/set, no isDirty tracking — the audit log only appends.
@@ -29,6 +28,7 @@ export type {
     EventTableRow,
     EventFilters,
     EventPaginatedMeta,
+    EventTimestampRange,
     EventListParams,
     EventsPage,
 } from "./core"
@@ -49,6 +49,8 @@ export {
     eventTypeFilterAtom,
     requestTypeFilterAtom,
     requestIdFilterAtom,
+    eventIdFilterAtom,
+    eventTimestampRangeFilterAtom,
     eventFilters,
     eventsByIdAtom,
     upsertEventsAtom,

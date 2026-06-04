@@ -6,6 +6,7 @@ export type {
     EventsQueryResponse,
     EventTableRow,
     EventFilters,
+    EventTimestampRange,
     EventPaginatedMeta,
     EventListParams,
     EventsPage,

@@ -23,7 +23,17 @@ import {
     X,
 } from "@phosphor-icons/react"
 
+import type {FieldHeaderVariant, FieldViewModeOption, ViewMode} from "../coreTypes"
+
+import {ViewModeDropdown} from "./ViewModeDropdown"
+
 export interface DrillInFieldHeaderProps {
+    /**
+     * Visual variant. Defaults to "card" (legacy grey-card chrome with full
+     * control set). "flat" renders a white row with bottom-divider chrome and
+     * hides the copy/raw/markdown/drill-in controls (Proposal V2 testcase).
+     */
+    variant?: FieldHeaderVariant
     /** Field name to display */
     name: string
     /** Field value (for copy functionality) */
@@ -69,15 +79,20 @@ export interface DrillInFieldHeaderProps {
     /** Callback when markdown view is toggled */
     onToggleMarkdownView?: () => void
     /** Available content view modes for this field */
-    viewModeOptions?: {value: string; label: string}[]
+    viewModeOptions?: FieldViewModeOption[]
     /** Current content view mode */
-    viewMode?: string
+    viewMode?: ViewMode
     /** Callback when content view mode changes */
-    onViewModeChange?: (mode: string) => void
+    onViewModeChange?: (mode: ViewMode) => void
     /** Whether to show collapse toggle (default: true) */
     showCollapse?: boolean
     /** Show collapse toggle in the header (default: true) */
     showCollapseToggle?: boolean
+    /**
+     * Optional chip rendered after the field name.
+     * Pass <TypeChip value={fieldValue} /> for Axis 1.
+     */
+    typeChip?: ReactNode
     /** Show drill-in action button in the header (default: true) */
     showDrillInButton?: boolean
     /** Injectable message display function (for clipboard notifications) */
@@ -141,15 +156,6 @@ export interface DrillInFieldHeaderProps {
         onPressEnter?: () => void
         autoFocus?: boolean
     }>
-    /** Custom select component */
-    Select?: React.ComponentType<{
-        size?: "small"
-        value: string
-        options: {value: string; label: string}[]
-        onChange: (value: string) => void
-        className?: string
-        popupMatchSelectWidth?: boolean
-    }>
 }
 
 /**
@@ -190,35 +196,6 @@ const DefaultButton = ({
  * Default tooltip implementation (no-op, just renders children)
  */
 const DefaultTooltip = ({children}: {title?: string; children: ReactNode}) => <>{children}</>
-
-/**
- * Default select implementation using native HTML
- */
-const DefaultSelect = ({
-    value,
-    options,
-    onChange,
-    className,
-}: {
-    size?: "small"
-    value: string
-    options: {value: string; label: string}[]
-    onChange: (value: string) => void
-    className?: string
-    popupMatchSelectWidth?: boolean
-}) => (
-    <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={`h-6 text-xs border border-gray-300 rounded px-1 bg-white ${className ?? ""}`}
-    >
-        {options.map((option) => (
-            <option key={option.value} value={option.value}>
-                {option.label}
-            </option>
-        ))}
-    </select>
-)
 
 /**
  * Default icons using Phosphor icons
@@ -334,7 +311,7 @@ const MappingPopoverContent = memo(
                     <Button
                         type="text"
                         size="small"
-                        className="justify-start text-blue-600"
+                        className="justify-start text-blue-600 dark:text-[#58a6ff]"
                         onClick={() => setShowNewColumnInput(true)}
                     >
                         + Create new column
@@ -369,6 +346,7 @@ MappingPopoverContent.displayName = "MappingPopoverContent"
  */
 const DrillInFieldHeader = memo(
     ({
+        variant = "card",
         name,
         value,
         isCollapsed,
@@ -398,6 +376,7 @@ const DrillInFieldHeader = memo(
         viewMode,
         onViewModeChange,
         showMessage,
+        typeChip,
         // Icons
         caretDownIcon = defaultIcons.caretDown,
         caretRightIcon = defaultIcons.caretRight,
@@ -415,7 +394,6 @@ const DrillInFieldHeader = memo(
         Tooltip = DefaultTooltip,
         Popover,
         Input,
-        Select = DefaultSelect,
     }: DrillInFieldHeaderProps) => {
         const [copiedField, setCopiedField] = useState<string | null>(null)
         const [popoverOpen, setPopoverOpen] = useState(false)
@@ -429,7 +407,22 @@ const DrillInFieldHeader = memo(
             setTimeout(() => setCopiedField(null), 1000)
         }, [value, name, showMessage])
 
-        const showCopyButton = alwaysShowCopy || isCollapsed || expandable
+        const isFlat = variant === "flat"
+        // In the flat (V2) variant, the right side is intentionally minimal:
+        // only the "View as ▾" dropdown + delete/map (when present). Copy,
+        // raw, markdown, and drill-in are suppressed regardless of input flags.
+        const showCopyButton = !isFlat && (alwaysShowCopy || isCollapsed || expandable)
+        const showRawInVariant = !isFlat && showRawToggle
+        const showMarkdownInVariant = !isFlat && showMarkdownToggle
+        const showDrillInInVariant = !isFlat && showDrillInButton
+        // Whole header is a click target for collapse — gives users a generous
+        // hit area instead of the small caret icon.
+        const headerInteractive = shouldShowCollapse
+            ? "cursor-pointer hover:bg-[var(--ag-rgba-051729-04)] transition-colors"
+            : ""
+        const headerClassName = isFlat
+            ? `flex items-center justify-between py-1 px-3 bg-[var(--ag-c-FFFFFF)] ${headerInteractive}`
+            : `flex items-center justify-between py-2 px-3 bg-[var(--ag-c-FAFAFA)] rounded-md border-solid border-[1px] border-[var(--ag-rgba-051729-06)] ${headerInteractive}`
 
         // Mapping popover content
         const mappingContent = onMapToColumn && (
@@ -446,45 +439,65 @@ const DrillInFieldHeader = memo(
         )
 
         return (
-            <div className="flex items-center justify-between py-2 px-3 bg-[#FAFAFA] rounded-md border-solid border-[1px] border-[rgba(5,23,41,0.06)]">
+            <div
+                className={headerClassName}
+                onClick={shouldShowCollapse ? onToggleCollapse : undefined}
+                role={shouldShowCollapse ? "button" : undefined}
+                tabIndex={shouldShowCollapse ? 0 : undefined}
+                onKeyDown={
+                    shouldShowCollapse
+                        ? (event) => {
+                              if (event.currentTarget !== event.target) return
+                              if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault()
+                                  onToggleCollapse()
+                              }
+                          }
+                        : undefined
+                }
+            >
                 <div className="flex items-center gap-2">
                     {shouldShowCollapse ? (
-                        <button
-                            type="button"
-                            onClick={onToggleCollapse}
-                            className="flex items-center gap-2 text-left hover:text-gray-700 transition-colors bg-transparent border-none p-0 cursor-pointer"
-                        >
-                            {isCollapsed ? caretRightIcon : caretDownIcon}
+                        <>
+                            <span className="flex items-center text-gray-500">
+                                {isCollapsed ? caretRightIcon : caretDownIcon}
+                            </span>
                             <span className="text-gray-700 font-medium">{name}</span>
-                        </button>
+                            {typeChip}
+                        </>
                     ) : (
-                        <span className="text-gray-700 font-medium">{name}</span>
+                        <>
+                            <span className="text-gray-700 font-medium">{name}</span>
+                            {typeChip}
+                        </>
                     )}
                     {mappedColumn ? (
-                        <span className="text-xs text-green-600 font-medium">
+                        <span className="text-xs text-green-600 dark:text-green-400 font-medium">
                             mapped to {mappedColumn}
                         </span>
                     ) : nestedMappingCount > 0 ? (
-                        <span className="text-xs text-green-600 font-medium">
+                        <span className="text-xs text-green-600 dark:text-green-400 font-medium">
                             contains {nestedMappingCount} mapping
                             {nestedMappingCount > 1 ? "s" : ""}
                         </span>
-                    ) : (
-                        itemCount && <span className="text-xs text-gray-400">[{itemCount}]</span>
-                    )}
+                    ) : null}
+                    {itemCount ? (
+                        <span className="text-xs text-[var(--ag-rgba-051729-45)]">{itemCount}</span>
+                    ) : null}
                 </div>
-                <div className="flex items-center gap-2">
+                {/* Right-side controls stop click bubbling so they don't toggle collapse */}
+                <div
+                    className="flex items-center gap-2"
+                    onClick={(event) => event.stopPropagation()}
+                >
                     {viewModeOptions &&
                         viewModeOptions.length > 1 &&
                         viewMode &&
                         onViewModeChange && (
-                            <Select
-                                size="small"
+                            <ViewModeDropdown
                                 value={viewMode}
                                 options={viewModeOptions}
                                 onChange={onViewModeChange}
-                                className="min-w-[126px]"
-                                popupMatchSelectWidth={false}
                             />
                         )}
                     {showCopyButton && (
@@ -498,29 +511,29 @@ const DrillInFieldHeader = memo(
                             />
                         </Tooltip>
                     )}
-                    {showRawToggle && onToggleRawMode && (
+                    {showRawInVariant && onToggleRawMode && (
                         <Tooltip title={isRawMode ? "Show formatted" : "Show raw"}>
                             <Button
                                 type="text"
                                 size="small"
-                                className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500" : "text-gray-500"}`}
+                                className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
                                 icon={codeIcon}
                                 onClick={onToggleRawMode}
                             />
                         </Tooltip>
                     )}
-                    {showMarkdownToggle && onToggleMarkdownView && (
+                    {showMarkdownInVariant && onToggleMarkdownView && (
                         <Tooltip title={isMarkdownView ? "Preview text" : "Preview markdown"}>
                             <Button
                                 type="text"
                                 size="small"
-                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-blue-500" : "text-gray-500"}`}
+                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
                                 icon={isMarkdownView ? textIcon : markdownIcon}
                                 onClick={onToggleMarkdownView}
                             />
                         </Tooltip>
                     )}
-                    {showDrillInButton && expandable && onDrillIn && (
+                    {showDrillInInVariant && expandable && onDrillIn && (
                         <Button
                             type="text"
                             size="small"
@@ -561,7 +574,7 @@ const DrillInFieldHeader = memo(
                                     />
                                 </Tooltip>
                                 {popoverOpen && (
-                                    <div className="absolute right-0 top-full mt-1 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                                    <div className="absolute right-0 top-full mt-1 bg-[var(--ant-color-bg-elevated)] rounded-md shadow-lg border border-gray-200 dark:shadow-none dark:border-[rgba(255,255,255,0.16)] z-50">
                                         {mappingContent}
                                     </div>
                                 )}

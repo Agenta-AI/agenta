@@ -1,0 +1,335 @@
+---
+title: Migrate to v0.100.3 (Helm chart relocation + config reshape)
+sidebar_label: pre-v0.100.3 → v0.100.3 (Helm)
+description: 'Step-by-step migration for self-hosted Agenta Helm deployments going from the pre-v0.100.3 chart (`hosting/helm/agenta-oss/`) to the v0.100.3 layout (`hosting/kubernetes/helm/`). Covers folder relocation, `values.yaml` key reshape, env-var aliases, and the new `defaultPlanOverlay` knob.'
+---
+
+:::info When you need this guide
+You're on this page if your existing deployment uses the **pre-v0.100.3** Helm chart at `hosting/helm/agenta-oss/` and you want to move to v0.100.3 (or any v0.100.x ≥ .2). v0.100.3 relocates the chart, restructures `values.yaml`, and renames many environment variables. **Every renamed env var keeps its old name as a legacy alias**, so encrypted data and existing pods stay readable. The Helm `values.yaml` key reshape is also backwards-compatible: the chart ships a compat layer that accepts your pre-v0.100.3 file as-is, folds it into the canonical v0.100.3 shape at render time, and warns once at `helm install`. You can upgrade today with no values rewrite, then migrate to the new shape at your own pace.
+
+If you're already on v0.100.3+, this guide does not apply. Use [Helm Chart Upgrade](/self-host/upgrading#helm-chart-upgrade) instead.
+:::
+
+:::caution Compat layer is transitional
+The compat layer is a migration aid, not a permanent API. It's planned for removal one minor release after v0.100.3 (target: v0.103). Run `helm install` once with your pre-v0.100.3 file to confirm the chart renders cleanly, then move to the canonical shape using the rewrite tables below.
+:::
+
+## What changed in v0.100.3
+
+Three layers were restructured to align around a single canonical model.
+
+### 1. Chart folder relocation
+
+| pre-v0.100.3 | v0.100.3 |
+|---|---|
+| `hosting/helm/agenta-oss/` (chart + example values together) | `hosting/kubernetes/helm/` (chart only) |
+| `hosting/helm/agenta-oss/values-oss.example.yaml` | `hosting/kubernetes/oss/values.oss.example.yaml` |
+| `hosting/helm/agenta-oss/values-ee.example.yaml` | `hosting/kubernetes/ee/values.ee.example.yaml` |
+| (your local copy: `values.yaml`) | (your local copy: `hosting/kubernetes/<edition>/.values.<edition>.yaml`, gitignored) |
+
+The new layout separates the **publishable chart** (`hosting/kubernetes/helm/`) from the **edition-specific example values** (`hosting/kubernetes/{oss,ee}/`). A convenience launcher at `hosting/kubernetes/run.sh` wraps the common `helm upgrade --install` invocation.
+
+### 2. `values.yaml` keys regrouped by domain instead of by Kubernetes concern
+
+Before, settings were bucketed under `global.*`, `secrets.*`, `accessControl.*`, `email.*`, `integrations.*`, etc. After, every knob lives under its canonical domain — so an operator who already knows the Agenta env-var names recognizes the yaml structure on sight.
+
+| pre-v0.100.3 path | v0.100.3 path |
+|---|---|
+| `global.webUrl` | `agenta.webUrl` |
+| `global.apiUrl` | `agenta.apiUrl` |
+| `global.servicesUrl` | `agenta.servicesUrl` |
+| `global.posthogApiKey` | `posthog.apiKey` |
+| `secrets.agentaAuthKey` | `agenta.authKey` |
+| `secrets.agentaCryptKey` | `agenta.cryptKey` |
+| `secrets.postgresPassword` | `postgres.password` |
+| `secrets.supertokensApiKey` | `supertokens.apiKey` |
+| `secrets.oauth.GOOGLE_OAUTH_CLIENT_ID` | `identity.google.clientId` *(rewrite optional — see note below)* |
+| `secrets.oauth.GITHUB_OAUTH_CLIENT_ID` | `identity.github.clientId` *(rewrite optional — see note below)* |
+| `secrets.llmProviders.OPENAI_API_KEY` | `llm.openai` *(rewrite optional — see note below)* |
+| `secrets.llmProviders.ANTHROPIC_API_KEY` | `llm.anthropic` *(rewrite optional — see note below)* |
+| `accessControl.plans` | `agenta.access.plans` |
+| `accessControl.roles` | `agenta.access.roles` |
+| `accessControl.rolesOverlay` | `agenta.access.rolesOverlay` |
+| `accessControl.defaultPlan` | `agenta.access.defaultPlan` |
+| `accessControl.allowedDomains` | `agenta.access.allowedDomains` |
+| `accessControl.blockedDomains` | `agenta.access.blockedDomains` |
+| `accessControl.blockedEmails` | `agenta.access.blockedEmails` |
+| `accessControl.emailDisabled` | `agenta.access.emailDisabled` |
+| `accessControl.defaultPlanOverlay` | `agenta.access.defaultPlanOverlay` |
+| `accessControl.orgCreationAllowlist` | `agenta.access.allowedOwnerEmails` |
+| `email.sendgrid.apiKey` | `sendgrid.apiKey` |
+| `email.sendgrid.fromAddress` | `sendgrid.fromAddress` |
+| `integrations.composio.apiKey` | `composio.apiKey` |
+| `integrations.composio.apiUrl` | `composio.apiUrl` |
+| `observability.newRelic.licenseKey` | `newrelic.licenseKey` |
+| `captcha.turnstile.siteKey` | `cloudflare.turnstile.siteKey` |
+| `captcha.turnstile.secretKey` | `cloudflare.turnstile.secretKey` |
+
+Full mapping: [Environment configuration reference](/self-host/configuration).
+
+:::note `secrets.oauth.*` and `secrets.llmProviders.*` — rewrite is optional
+The v0.100.3 chart still reads the legacy `secrets.oauth.*` and `secrets.llmProviders.*` flat maps as-is. You can leave them in place and the chart will produce the same Kubernetes Secret keys as before — the new `identity.<provider>.*` and `llm.<provider>` shapes are presentational improvements, not breaking renames.
+
+Plan to rewrite them when you have time, but it's safe to defer: these will be removed in a future major release alongside the rest of the compat layer (track the deprecation timeline in [Deprecated environment variables](/self-host/configuration#deprecated-environment-variables)).
+:::
+
+The `secrets.existingSecret` Helm-only escape hatch (point a pre-created Kubernetes Secret at the chart) is unchanged. If you used it pre-v0.100.3, keep using it — just make sure the Secret carries the v0.100.3 env-var key names (e.g. `GOOGLE_OAUTH_CLIENT_SECRET` and `OPENAI_API_KEY`, not the legacy nested-map keys).
+
+### 3. Environment variables renamed (old names still read as fallbacks)
+
+The Pydantic env loader reads the new name first and falls back to the old one when the new isn't set. Old env vars set in your existing deployment will keep working through one release cycle.
+
+| pre-v0.100.3 env var | v0.100.3 env var |
+|---|---|
+| `AGENTA_ALLOWED_DOMAINS` | `AGENTA_ACCESS_ALLOWED_DOMAINS` |
+| `AGENTA_BLOCKED_DOMAINS` | `AGENTA_ACCESS_BLOCKED_DOMAINS` |
+| `AGENTA_BLOCKED_EMAILS` | `AGENTA_ACCESS_BLOCKED_EMAILS` |
+| `AGENTA_ORG_CREATION_ALLOWLIST` / `AGENTA_ACCESS_ORG_CREATION_ALLOWLIST` / `AGENTA_ACCESS_ALLOWED_ORGANIZATION_OWNERS` | `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` |
+| `AGENTA_DEFAULT_PLAN` | `AGENTA_ACCESS_DEFAULT_PLAN` |
+| `AGENTA_AUTO_MIGRATIONS` | `ALEMBIC_AUTO_MIGRATIONS` |
+| `AGENTA_DEMOS` | `AGENTA_EXTRAS_DEMOS` |
+| `AGENTA_LOG_*` | `AGENTA_LOGGING_*` |
+| `AGENTA_CACHE_ENABLED` / `AGENTA_CACHING_ENABLED` | `AGENTA_API_CACHING_ENABLED` |
+| `AGENTA_WEBHOOK_ALLOW_INSECURE` | `AGENTA_WEBHOOKS_ALLOW_INSECURE` (API) / `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` (SDK) |
+| `AGENTA_SERVICES_SANDBOX_RUNNER` | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` |
+| `AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED` (singular SERVICE) | `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` |
+| `AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED` (singular SERVICE) | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` |
+| `SUPERTOKENS_CONNECTION_URI` | `SUPERTOKENS_URI_CORE` |
+| `SUPERTOKENS_EMAIL_DISABLED` | `AGENTA_ACCESS_EMAIL_DISABLED` |
+| `AGENTA_AUTHN_EMAIL_FROM` / `AGENTA_SEND_EMAIL_FROM_ADDRESS` | `SENDGRID_FROM_ADDRESS` |
+| `POSTHOG_HOST` | `POSTHOG_API_URL` |
+| `STRIPE_TARGET` | `STRIPE_WEBHOOK_TARGET` |
+| `AGENTA_PRICING` / `STRIPE_PRICING` | `AGENTA_BILLING_PRICING` |
+| `NEW_RELIC_LICENSE_KEY` / `NRIA_LICENSE_KEY` | `NEWRELIC_LICENSE_KEY` |
+| `ACTIVE_DIRECTORY_OAUTH_CLIENT_ID` / `_SECRET` / `_DIRECTORY_ID` | `AZURE_AD_OAUTH_*` |
+| `AGENTA_RUNTIME_PREFIX` | _(removed — was unused; safe to delete)_ |
+
+Full deprecation table: [Deprecated environment variables](/self-host/configuration#deprecated-environment-variables).
+
+## Migration steps
+
+You can perform this migration **without downtime** as long as you keep the same `agenta.authKey` and `agenta.cryptKey` (any encrypted column would be unreadable with a new crypt key) and the same `postgres.password`.
+
+### 1. Snapshot your existing values
+
+Capture what the running release is configured with so nothing is lost:
+
+```bash
+helm -n agenta get values agenta -o yaml > pre-v0.100.3-values.yaml
+```
+
+That captures the user-supplied overrides on top of the old chart's defaults.
+
+If you also want the merged result including chart defaults (useful as a reference):
+
+```bash
+helm -n agenta get values agenta --all -o yaml > pre-v0.100.3-values-full.yaml
+```
+
+If your release was deployed with `--set secrets.agentaAuthKey=…` instead of a values file, those values still appear in `helm get values` output — they're stored inside the Helm release Secret.
+
+If `helm` is unavailable on the upgrade host, pull the same data straight from the release Secret with `kubectl`:
+
+```bash
+# find the newest revision Secret
+kubectl -n agenta get secret \
+  -l owner=helm,name=agenta \
+  -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' \
+  | sort | tail -1
+
+# decode it (replace <N> with the revision number you got above)
+kubectl -n agenta get secret sh.helm.release.v1.agenta.v<N> \
+  -o jsonpath='{.data.release}' \
+  | base64 -d | base64 -d | gunzip \
+  | jq -r '.config'
+```
+
+The release blob is gzipped and double-base64-encoded; the pipeline above unwraps it.
+
+### 2. Pull the new chart layout
+
+```bash
+git fetch
+git checkout release/v0.100.3   # or any v0.100.x tag ≥ .2
+```
+
+The chart now lives at `hosting/kubernetes/helm/`. The old path `hosting/helm/agenta-oss/` no longer exists on this branch.
+
+### Two paths from here
+
+You have two options for how the rest of this migration goes. Pick whichever fits your appetite for a one-shot rewrite vs. an incremental cleanup.
+
+**Path A — Reuse your pre-v0.100.3 values file as-is (recommended for a fast upgrade).** The chart accepts the old shape via a built-in compat layer. Use your `pre-v0.100.3-values.yaml` from step 1 as the `-f` argument to `helm upgrade` in step 5 (skip steps 3 and 4 entirely). `helm upgrade` will print a one-line `NOTE:` confirming the compat layer fired; the chart will warn but install cleanly. You can move to the canonical shape later by re-running steps 3 and 4 at any time.
+
+**Path B — Rewrite the values file into the canonical v0.100.3 shape.** Slower but produces a clean file you can keep long-term. The compat layer is transitional and is planned for removal one minor release after v0.100.3; doing the rewrite now means you don't have to do it under deadline later.
+
+If you pick Path A, jump to [Step 5 (Run the upgrade)](#5-run-the-upgrade) — reuse your `pre-v0.100.3-values.yaml` as the `-f` argument.
+
+If you pick Path B, continue with step 3 below.
+
+### 3. Create your edition-specific values file
+
+```bash
+# OSS
+cp hosting/kubernetes/oss/values.oss.example.yaml \
+   hosting/kubernetes/oss/.values.oss.yaml
+
+# EE
+cp hosting/kubernetes/ee/values.ee.example.yaml \
+   hosting/kubernetes/ee/.values.ee.yaml
+```
+
+The `.values.<edition>.yaml` file is gitignored. Edit only this copy — never the `.example` original.
+
+### 4. Translate your pre-v0.100.3 values into the new shape
+
+Open `pre-v0.100.3-values.yaml` from step 1 side by side with the new example file. Walk it section by section, copying each setting into the new file under the canonical path from the mapping table above.
+
+The four essentials are uncommented in the example for you — fill them with your real values:
+
+```yaml
+agenta:
+  license: oss                          # or "ee"
+  webUrl: "https://agenta.example.com"
+  apiUrl: "https://agenta.example.com/api"
+  servicesUrl: "https://agenta.example.com/services"
+  authKey: "<from old: secrets.agentaAuthKey>"
+  cryptKey: "<from old: secrets.agentaCryptKey>"
+
+postgres:
+  password: "<from old: secrets.postgresPassword>"
+```
+
+Worked example — turning an old `accessControl.plans` JSON object into the new path:
+
+```yaml
+# OLD (pre-v0.100.3 values.yaml)
+accessControl:
+  plans:
+    free:
+      counters: {traces_ingested: {limit: 10000}}
+  defaultPlan: free
+
+# NEW (.values.oss.yaml or .values.ee.yaml)
+agenta:
+  access:
+    plans:
+      free:
+        counters: {traces_ingested: {limit: 10000}}
+    defaultPlan: free
+```
+
+For LLM provider keys, the `secrets.llmProviders` flat map becomes typed fields under `llm.*`:
+
+```yaml
+# OLD
+secrets:
+  llmProviders:
+    OPENAI_API_KEY: "sk-…"
+    ANTHROPIC_API_KEY: "sk-ant-…"
+
+# NEW
+llm:
+  openai: "sk-…"
+  anthropic: "sk-ant-…"
+```
+
+Same idea for OAuth providers (`secrets.oauth.<KEY>` becomes `identity.<provider>.{clientId,clientSecret}`):
+
+```yaml
+# OLD
+secrets:
+  oauth:
+    GOOGLE_OAUTH_CLIENT_ID: "abc.apps.googleusercontent.com"
+    GOOGLE_OAUTH_CLIENT_SECRET: "GOCSPX-…"
+
+# NEW
+identity:
+  google:
+    clientId: "abc.apps.googleusercontent.com"
+    clientSecret: "GOCSPX-…"
+```
+
+:::tip Adding the new `defaultPlanOverlay`
+v0.100.3 introduces `agenta.access.defaultPlanOverlay` — a JSON object that patches the entitlements of the default plan only, without forcing you to redefine the full `plans` JSON. The example values file shows it commented out:
+
+```yaml
+# agenta:
+#   access:
+#     defaultPlanOverlay:
+#       counters:
+#         traces_retrieved:
+#           limit: 1000
+#           strict: true
+#           period: daily
+#           scope: user
+```
+
+Uncomment and edit to set per-tenant entitlement overrides. See [Dynamic access controls](/self-host/dynamic-access-controls) for the full schema.
+:::
+
+### 5. Run the upgrade
+
+```bash
+helm upgrade agenta hosting/kubernetes/helm \
+  --namespace agenta \
+  -f hosting/kubernetes/oss/.values.oss.yaml   # or .values.ee.yaml for EE
+```
+
+Or via the convenience launcher (equivalent):
+
+```bash
+./hosting/kubernetes/run.sh --oss --wait        # or --ee --wait
+```
+
+The Alembic migration job runs automatically as a post-upgrade hook. Watch the rollout:
+
+```bash
+kubectl -n agenta get jobs
+kubectl -n agenta get pods -w
+```
+
+### 6. Verify
+
+```bash
+# All pods Running
+kubectl -n agenta get pods
+
+# PVCs still bound (Postgres + Redis durable data survived)
+kubectl -n agenta get pvc
+
+# Migration job completed
+kubectl -n agenta get jobs
+kubectl -n agenta logs job/agenta-alembic -c alembic --tail=20
+
+# API health — via the ingress so it's naming-agnostic
+curl -fsS http://<your-ingress-host>/api/health
+```
+
+:::note Alembic job retries
+Helm re-rolls the bundled Postgres StatefulSet on the upgrade, so the first one or two alembic pods may show `Error` with `CannotConnectNowError: the database system is shutting down`. The Job retries (`backoffLimit=3`) and the final pod completes. As long as `kubectl get jobs` shows `agenta-alembic` as `Complete 1/1`, you're fine. If `kubectl logs job/...` happened to pick an Errored pod, run `kubectl logs <completed-pod-name> -c alembic` directly.
+:::
+
+Open the web UI and confirm existing projects, prompts, traces, and evaluations are present before deleting `pre-v0.100.3-values.yaml`.
+
+### 7. Optional: rename env vars in any external systems
+
+If you inject env vars into the pods from outside the Helm chart (sealed secrets, an external secrets operator, ConfigMaps you maintain), schedule a follow-up to rename the legacy variables to their v0.100.3 names per the table above. The fallbacks will be removed in a future major release; plan to migrate within one quarter.
+
+## Rollback
+
+If the upgrade fails, roll back to your previous release:
+
+```bash
+helm -n agenta history agenta
+helm -n agenta rollback agenta <revision>
+```
+
+Your `pre-v0.100.3-values.yaml` from step 1 can be re-applied directly with the old chart path (`hosting/helm/agenta-oss/`, if you still have a checkout that contains it) — the on-disk database is untouched by the chart change.
+
+## Reference
+
+- [Environment configuration](/self-host/configuration) — canonical env vars + values paths + deprecation table
+- [Deploy on Kubernetes](/self-host/guides/deploy-to-kubernetes) — fresh-install flow
+- [Helm Chart Upgrade](/self-host/upgrading#helm-chart-upgrade) — evergreen upgrade flow (use after this one-time migration)
+- [Dynamic access controls](/self-host/dynamic-access-controls) — `plans`, `roles`, `defaultPlanOverlay` schema

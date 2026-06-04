@@ -57,12 +57,16 @@ h1 {
     min-height: 150px;
     resize: none;
     /* font-size: 15px; */
-    caret-color: rgb(5, 5, 5);
+    /* Theme-aware caret: follows the text color so the cursor is visible
+       in both light and dark. Previously hardcoded to `#444` (dark grey)
+       which read as dark-on-dark in dark mode — invisible for the user.
+       Affects all `.editor-input` instances: chat-message editors, the
+       FormView leaf editors, the prompt template, etc. */
+    caret-color: var(--ag-colorText);
     position: relative;
     tab-size: 1;
     outline: 0;
     /* padding: 15px 10px; */
-    caret-color: #444;
 }
 
 .editor-placeholder {
@@ -658,4 +662,94 @@ pre::-webkit-scrollbar-thumb {
         background-color: #adf;
         mix-blend-mode: color;
     }
+}
+
+/* === Dark theme overrides === */
+.dark .editor-container {
+    color: rgba(255, 255, 255, 0.85);
+}
+.dark .editor-text-code,
+.dark .code-only .editor-code {
+    background-color: #1f1f1f;
+    color: rgba(255, 255, 255, 0.85);
+}
+.dark .toolbar {
+    background: #141414;
+}
+.dark .toolbar .toolbar-item:hover:not([disabled]) {
+    background-color: #2a2a2a;
+}
+.dark .toolbar .divider {
+    background-color: #303030;
+}
+.dark .toolbar .toolbar-item .text,
+.dark .other a {
+    color: rgba(255, 255, 255, 0.65);
+}
+.dark .editor-heading-h1 {
+    color: rgba(255, 255, 255, 0.85);
+}
+.dark .editor-heading-h2,
+.dark .editor-quote {
+    color: rgba(255, 255, 255, 0.65);
+}
+.dark .editor-quote {
+    border-left-color: #424242;
+}
+.dark .editor-placeholder {
+    color: rgba(255, 255, 255, 0.45);
+}
+.dark .editor-link {
+    color: #79c0ff;
+}
+.dark .editor-tableFrozenRow tr:nth-of-type(1) > td,
+.dark .editor-tableFrozenColumn tr > td:first-child {
+    background-color: #141414;
+}
+.dark .editor-tableFrozenRow tr:nth-of-type(1) > th,
+.dark .editor-tableFrozenColumn tr > th:first-child,
+.dark .editor-tableCellHeader {
+    background-color: #1f1f1f;
+}
+.dark .editor-tableRowStriping tr:nth-child(even) {
+    background-color: #1a1a1a;
+}
+.dark .editor-tableCell {
+    border-color: #424242;
+}
+.dark .editor-tableFrozenRow tr:nth-of-type(1) > th:after,
+.dark .editor-tableFrozenRow tr:nth-of-type(1) > td:after,
+.dark .editor-tableFrozenColumn tr > :first-child::after {
+    border-color: #424242;
+}
+.dark .editor-tableAddColumns,
+.dark .editor-tableAddRows,
+.dark .editor-tableCellActionButton {
+    background-color: #2a2a2a;
+}
+.dark .editor-tableCellActionButton {
+    color: rgba(255, 255, 255, 0.85);
+}
+.dark .editor-tableAddColumns:hover,
+.dark .editor-tableAddRows:hover,
+.dark .editor-tableCellActionButton:hover {
+    background-color: #383838;
+}
+.dark .editor-tokenComment {
+    color: #8b949e;
+}
+.dark .editor-tokenProperty,
+.dark .editor-tokenFunction {
+    color: #d2a8ff;
+}
+.dark .editor-tokenSelector {
+    color: #7ee787;
+}
+.dark .editor-tokenOperator,
+.dark .editor-tokenVariable,
+.dark .editor-tokenClassName {
+    color: #ffa657;
+}
+.dark .editor-tokenAttr {
+    color: #79c0ff;
 }

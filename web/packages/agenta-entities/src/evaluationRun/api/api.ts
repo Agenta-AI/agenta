@@ -9,19 +9,23 @@
 
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 
-import {safeParseWithLogging} from "../../shared"
+// See testcase/api/api.ts for rationale — the shared barrel pulls in CSS deps.
+import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
     evaluationRunResponseSchema,
     evaluationRunsResponseSchema,
     evaluationResultsResponseSchema,
+    evaluationMetricsResponseSchema,
     type EvaluationRun,
     type EvaluationRunsResponse,
     type EvaluationResult,
+    type EvaluationMetric,
 } from "../core"
 import type {
     EvaluationRunDetailParams,
     EvaluationRunQueryParams,
     EvaluationResultsQueryParams,
+    EvaluationMetricsQueryParams,
 } from "../core"
 
 // ============================================================================
@@ -125,4 +129,43 @@ export async function queryEvaluationResults({
         "[queryEvaluationResults]",
     )
     return validated?.results ?? []
+}
+
+// ============================================================================
+// QUERY EVALUATION METRICS
+// ============================================================================
+
+/**
+ * Query evaluation metrics by run ID and (optionally) scenario IDs.
+ *
+ * Metrics carry the actual scores / stat blobs. Per-scenario metrics have
+ * `scenario_id` populated; run-level aggregates have `scenario_id = null`.
+ *
+ * Endpoint: `POST /evaluations/metrics/query`
+ */
+export async function queryEvaluationMetrics({
+    projectId,
+    runId,
+    scenarioIds,
+}: EvaluationMetricsQueryParams): Promise<EvaluationMetric[]> {
+    if (!projectId || !runId) return []
+    if (scenarioIds && scenarioIds.length === 0) return []
+
+    const body: Record<string, unknown> = {
+        metrics: {
+            run_id: runId,
+            ...(scenarioIds?.length ? {scenario_ids: scenarioIds} : {}),
+        },
+    }
+
+    const response = await axios.post(`${getAgentaApiUrl()}/evaluations/metrics/query`, body, {
+        params: {project_id: projectId},
+    })
+
+    const validated = safeParseWithLogging(
+        evaluationMetricsResponseSchema,
+        response.data,
+        "[queryEvaluationMetrics]",
+    )
+    return validated?.metrics ?? []
 }

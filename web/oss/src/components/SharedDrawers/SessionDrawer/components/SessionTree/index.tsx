@@ -12,6 +12,7 @@ import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 import {TreeContent} from "../../../TraceDrawer/components/TraceTree"
 import TraceTreeSettings from "../../../TraceDrawer/components/TraceTreeSettings"
+import {TraceTreeSettingsState} from "../../../TraceDrawer/components/TraceTreeSettings/types"
 import {openTraceDrawerAtom} from "../../../TraceDrawer/store/traceDrawerStore"
 import {useSessionDrawer} from "../../hooks/useSessionDrawer"
 
@@ -21,11 +22,17 @@ const SessionTree = ({selected, setSelected}: SessionTreeProps) => {
     const [searchValue, setSearchValue] = useState("")
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
 
-    const [traceTreeSettings, setTraceTreeSettings] = useLocalStorage("traceTreeSettings", {
-        latency: true,
-        cost: true,
-        tokens: true,
-    })
+    // Shares the "traceTreeSettings" key with the trace drawer. SessionTree does
+    // not filter spans, so it renders the settings popover without the visibility
+    // section and never reads `visibility`.
+    const [traceTreeSettings, setTraceTreeSettings] = useLocalStorage<TraceTreeSettingsState>(
+        "traceTreeSettings",
+        {
+            latency: true,
+            cost: true,
+            tokens: true,
+        },
+    )
     const {sessionTraces, aggregatedStats} = useSessionDrawer()
 
     const turnsTree: TraceSpanNode[] = useMemo(() => {

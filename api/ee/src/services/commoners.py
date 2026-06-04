@@ -53,11 +53,11 @@ DEMO_ROLE = "viewer"
 def can_create_organization(email: str) -> bool:
     """Check if a user is allowed to create organizations.
 
-    When AGENTA_ORG_CREATION_ALLOWLIST is set, only listed emails can create orgs.
+    When AGENTA_ACCESS_ALLOWED_OWNER_EMAILS is set, only listed emails can create orgs.
     When not set (None), anyone can create orgs (default behavior).
     """
 
-    allowlist = env.agenta.org_creation_allowlist
+    allowlist = env.agenta.access.allowed_owner_emails
 
     if allowlist is None:
         return True

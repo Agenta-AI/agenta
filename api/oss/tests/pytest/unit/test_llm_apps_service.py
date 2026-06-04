@@ -1,6 +1,7 @@
 from oss.src.services.llm_apps_service import (
     _build_inspect_url,
     _extract_batch_invoke_metadata,
+    parse_legacy_inputs,
     build_invoke_request,
     get_parameters_from_inspect,
     get_parameters_from_schemas,
@@ -215,6 +216,46 @@ def test_extract_batch_invoke_metadata_prefers_explicit_overrides():
     assert parameters == {"prompt": {"temperature": 0.7}}
     assert schemas == {"inputs": {"type": "object", "properties": {"country": {}}}}
     assert is_chat is True
+
+
+def test_parse_legacy_inputs_prefers_input_keys_over_full_datapoint():
+    inputs = parse_legacy_inputs(
+        datapoint={
+            "country": "Spain",
+            "correct_answer": "Madrid",
+            "testcase_id": "tc-1",
+            "testcase_dedup_id": "dedup-1",
+        },
+        parameters={
+            "prompt": {
+                "input_keys": ["country"],
+            }
+        },
+    )
+
+    assert inputs == {"country": "Spain"}
+
+
+def test_parse_legacy_inputs_falls_back_to_schema_inputs_when_input_keys_missing():
+    inputs = parse_legacy_inputs(
+        datapoint={
+            "country": "Germany",
+            "correct_answer": "Berlin",
+            "testcase_id": "tc-2",
+            "testcase_dedup_id": "dedup-2",
+        },
+        parameters={},
+        schemas={
+            "inputs": {
+                "type": "object",
+                "properties": {
+                    "country": {"type": "string"},
+                },
+            }
+        },
+    )
+
+    assert inputs == {"country": "Germany"}
 
 
 @pytest.mark.asyncio

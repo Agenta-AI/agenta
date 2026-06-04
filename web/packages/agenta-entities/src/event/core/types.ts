@@ -57,17 +57,27 @@ export interface EventTableRow extends InfiniteTableRowBase {
 
 /** Filters that map 1:1 to the backend `EventQuery`. */
 export interface EventFilters {
-    eventType: EventType | null
     requestType: RequestType | null
     requestId: string | null
+    eventType: EventType | null
+    eventId: string | null
+    timestampRange: EventTimestampRange | null
 }
 
 /** Reactive query metadata consumed by the paginated store. */
 export interface EventPaginatedMeta {
     projectId: string | null
-    eventType: EventType | null
     requestType: RequestType | null
     requestId: string | null
+    eventType: EventType | null
+    eventId: string | null
+    timestampRange: EventTimestampRange | null
+}
+
+export interface EventTimestampRange {
+    from?: string | null
+    to?: string | null
+    preset?: string | null
 }
 
 /** Params for a single page fetch. */

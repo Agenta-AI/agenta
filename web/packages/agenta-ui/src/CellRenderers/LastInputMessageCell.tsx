@@ -2,8 +2,9 @@ import {memo, useMemo} from "react"
 
 import CellContentPopover from "./CellContentPopover"
 import ChatMessagesCellContent from "./ChatMessagesCellContent"
+import {extractPreview} from "./extractPreview"
 import SmartCellContent from "./SmartCellContent"
-import {extractChatMessages, safeJsonStringify, tryParseJson} from "./utils"
+import {safeJsonStringify} from "./utils"
 
 interface LastInputMessageCellProps {
     value: unknown
@@ -18,7 +19,8 @@ interface LastInputMessageCellProps {
  * In a table cell, shows only the last message (most recent/relevant).
  * On hover, shows the full conversation in a popover with copy support.
  *
- * Falls back to SmartCellContent for non-chat values.
+ * For non-chat values, delegates to SmartCellContent so the new dispatch rules
+ * (e.g. beautified extraction) apply.
  */
 const LastInputMessageCell = ({
     value,
@@ -26,11 +28,9 @@ const LastInputMessageCell = ({
     className = "",
     maxLines = 4,
 }: LastInputMessageCellProps) => {
-    const {parsed} = useMemo(() => tryParseJson(value), [value])
-    const messages = useMemo(() => extractChatMessages(parsed, {prefer: "input"}), [parsed])
-    const copyText = useMemo(() => safeJsonStringify(parsed), [parsed])
+    const preview = useMemo(() => extractPreview(value, "input"), [value])
 
-    if (!messages || messages.length === 0) {
+    if (preview.renderer !== "chat" || preview.data.length === 0) {
         return (
             <SmartCellContent
                 value={value}
@@ -41,7 +41,9 @@ const LastInputMessageCell = ({
         )
     }
 
+    const messages = preview.data
     const lastMessageOnly = [messages[messages.length - 1]]
+    const copyText = safeJsonStringify(messages)
 
     return (
         <CellContentPopover

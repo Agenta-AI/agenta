@@ -180,4 +180,7 @@ export {
     // Error classes
     SpanNotFoundError,
     TraceNotFoundError,
+    // Cache-aware bulk prefetch (ETL hydrate path). Writes results to the
+    // shared TanStack cache at `["trace-entity", projectId, traceId]`.
+    prefetchTracesByIds,
 } from "./state"

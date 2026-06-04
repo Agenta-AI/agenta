@@ -18,11 +18,14 @@ import {
     customWorkflowConfiguringAtom,
 } from "@/oss/state/customWorkflow/modalAtoms"
 
-import {useStyles} from "../assets/styles"
-
 import CustomWorkflowModalFooter from "./CustomWorkflowModalFooter"
 
 const {Text} = Typography
+
+const modalClass = "flex flex-col gap-6"
+const headerTextClass =
+    "[&_.ant-typography]:leading-[1.5714285714285714] [&_.ant-typography]:text-base [&_.ant-typography]:font-semibold"
+const labelClass = "font-medium leading-[1.6666666666666667]"
 
 interface CustomWorkflowModalContentProps {
     appId?: string | null
@@ -37,7 +40,6 @@ const CustomWorkflowModalContent = ({
     onSuccess,
     onCreateApp,
 }: CustomWorkflowModalContentProps) => {
-    const classes = useStyles()
     const [testConnectionStatus, setTestConnectionStatus] = useAtom(customWorkflowTestStatusAtom)
     const [isConfiguringWorkflow, setIsConfiguringWorkflow] = useAtom(customWorkflowConfiguringAtom)
 
@@ -168,9 +170,9 @@ const CustomWorkflowModalContent = ({
     }, [workflowUrlInput, runTestConnection])
 
     return (
-        <section className={classes.modal}>
+        <section className={modalClass}>
             <div className="flex items-center justify-between">
-                <Space className={classes.headerText}>
+                <Space className={headerTextClass}>
                     {configureWorkflow ? (
                         <Typography.Text>Configure</Typography.Text>
                     ) : (
@@ -203,7 +205,7 @@ const CustomWorkflowModalContent = ({
 
             <div className="space-y-1">
                 <SharedEditor
-                    header={<Typography className={classes.label}>App name *</Typography>}
+                    header={<Typography className={labelClass}>App name *</Typography>}
                     initialValue={values.appName}
                     handleChange={(value) => {
                         setValues((draft) => {
@@ -236,7 +238,7 @@ const CustomWorkflowModalContent = ({
             </div>
 
             <SharedEditor
-                header={<Typography className={classes.label}>Workflow URL *</Typography>}
+                header={<Typography className={labelClass}>Workflow URL *</Typography>}
                 initialValue={workflowUrlInput}
                 handleChange={(value) => {
                     setValues((draft) => {

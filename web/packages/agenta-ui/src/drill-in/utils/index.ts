@@ -36,3 +36,5 @@ export {
     canToggleRawMode,
     detectDataType,
 } from "./drillInUtils"
+export {getViewOptions} from "./getViewOptions"
+export type {ViewMode, ViewOption} from "./getViewOptions"

@@ -81,12 +81,16 @@ export type {DrillInUIComponents, DrillInUIProviderProps, GatewayToolsBridge} fr
 // ============================================================================
 
 export {DrillInBreadcrumb, DrillInControls, DrillInFieldHeader, DrillInContent} from "./core"
+export {DrillInRootToolbar} from "./core/DrillInRootToolbar"
 export type {
     DrillInBreadcrumbProps,
     DrillInControlsProps,
     DrillInFieldHeaderProps,
     DrillInContentWithRenderersProps,
 } from "./core"
+export type {DrillInRootToolbarProps, RootViewMode} from "./core/DrillInRootToolbar"
+export {ViewModeDropdown} from "./core/ViewModeDropdown"
+export type {ViewModeDropdownOption, ViewModeDropdownProps} from "./core/ViewModeDropdown"
 
 // ============================================================================
 // CORE UTILITIES
@@ -122,6 +126,8 @@ export {
     canToggleRawMode,
     detectDataType,
 } from "./utils"
+export {getViewOptions} from "./utils/getViewOptions"
+export type {ViewMode, ViewOption} from "./utils/getViewOptions"
 
 // ============================================================================
 // FIELD RENDERERS

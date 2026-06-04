@@ -19,7 +19,7 @@ const TreeSelectItemRenderer = ({
     const {inputRef} = useFocusInput({isOpen})
     return (
         <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between border-0 border-b border-solid border-[#f0f0f0]">
+            <div className="flex items-center justify-between border-0 border-b border-solid border-[var(--ag-c-F0F0F0)]">
                 <Input
                     ref={inputRef}
                     placeholder="Search"
@@ -35,7 +35,7 @@ const TreeSelectItemRenderer = ({
                             type="link"
                             size="small"
                             onClick={() => setSearchTerm("")}
-                            className="!text-[#758391]"
+                            className="!text-[var(--ag-c-758391)]"
                         >
                             clear
                         </Button>

@@ -235,6 +235,7 @@ const playgroundTests = () => {
         "should open compare mode and display two variants side by side",
         {tag: compareTags},
         async ({page, apiHelpers, navigateToPlayground}) => {
+            basePlaygroundTest.setTimeout(120000)
             let appId = ""
 
             await scenarios.given("the user is authenticated", async () => {
@@ -252,7 +253,9 @@ const playgroundTests = () => {
                 async () => {
                     // The "Compare" button creates a local draft copy of the current revision,
                     // immediately adding a second panel without requiring variant selection.
-                    await page.getByRole("button", {name: "Compare"}).click()
+                    const compareButton = page.getByRole("button", {name: "Compare"})
+                    await expect(compareButton).toBeEnabled({timeout: 15000})
+                    await compareButton.click()
                 },
             )
 

@@ -1,8 +1,9 @@
-import {useCallback, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 
+import type {RunSchema} from "@agenta/entities/evaluationRun/etl"
 import {message} from "@agenta/ui/app-message"
 import clsx from "clsx"
-import {useAtomValue, useStore} from "jotai"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
 import {
@@ -17,13 +18,23 @@ import {
 } from "@/oss/components/InfiniteVirtualTable/hooks/useTableExport"
 
 import useComparisonPaginations from "../EvalRunDetails2/hooks/useComparisonPaginations"
+import useComparisonSchemas from "../EvalRunDetails2/hooks/useComparisonSchemas"
 
 import {MAX_COMPARISON_RUNS, compareRunIdsAtom, getComparisonColor} from "./atoms/compare"
+import {effectiveProjectIdAtom} from "./atoms/run"
 import {runDisplayNameAtomFamily} from "./atoms/runDerived"
 import type {EvaluationTableColumn} from "./atoms/table"
-import {DEFAULT_SCENARIO_PAGE_SIZE} from "./atoms/table"
+import {DEFAULT_SCENARIO_PAGE_SIZE, evaluationRunQueryAtomFamily} from "./atoms/table"
 import type {PreviewTableRow} from "./atoms/tableRows"
 import ScenarioColumnVisibilityPopoverContent from "./components/columnVisibility/ColumnVisibilityPopoverContent"
+import {CellMaterializerContext} from "./etl/cellMaterializerContext"
+import {scenarioFilterStatusAtomFamily} from "./etl/scenarioFilterState"
+import {useCellMaterialization} from "./etl/useCellMaterialization"
+import {useEtlColumns} from "./etl/useEtlColumns"
+import {useHydrateScenarios} from "./etl/useHydrateScenarios"
+import {useScenarioFilter} from "./etl/useScenarioFilter"
+import {useScenarioLiveUpdates} from "./etl/useScenarioLiveUpdates"
+import {useScopeChangeEviction} from "./etl/useScopeChangeEviction"
 import {
     evaluationPreviewDatasetStore,
     evaluationPreviewTableStore,
@@ -87,6 +98,160 @@ const EvalRunDetailsTable = ({
 
     const previewColumns = usePreviewColumns({columnResult, evaluationType})
 
+    // ── ETL schema columns + self-hydrating cells (Phase 1 — T2 + T3) ──
+    // The schema columns (testset / application / evaluator / metrics /
+    // other) are derived from the run graph and rendered by cells that
+    // resolve from molecule caches. `usePreviewColumns` / `columnResult`
+    // stay alive above for the CSV export path (keyed off `columnResult`
+    // ids) — only the *display* columns swap here.
+    const effectiveProjectId = useAtomValue(effectiveProjectIdAtom)
+    const projectId = _projectId ?? effectiveProjectId
+
+    const runQuery = useAtomValue(useMemo(() => evaluationRunQueryAtomFamily(runId), [runId]))
+    // Run-level status — drives the live-update loop below. While the run
+    // is non-terminal completed scenarios must refresh; once terminal the
+    // loop stops.
+    const runStatus = useMemo<string | null>(
+        () => runQuery.data?.rawRun?.status ?? runQuery.data?.camelRun?.status ?? null,
+        [runQuery.data],
+    )
+    const runSchema = useMemo<RunSchema | null>(() => {
+        const data = runQuery.data?.rawRun?.data
+        const steps = data?.steps
+        const mappings = data?.mappings
+        if (!Array.isArray(steps) || !Array.isArray(mappings)) return null
+        return {steps, mappings}
+    }, [runQuery.data])
+
+    // Phase 2 — multi-predicate filtering (D8). Filters the base run's
+    // rows; each comparison group follows its base row.
+    const {filteredBaseRows, effectiveFilter, active, confirmedMatchCount, isFilling} =
+        useScenarioFilter({
+            projectId,
+            runId,
+            schema: runSchema,
+            baseRows: basePagination.rows,
+            loadNextPage: basePagination.loadNextPage,
+            hasMore: basePagination.paginationInfo.hasMore,
+            isFetching: basePagination.paginationInfo.isFetching,
+        })
+
+    // Comparison + filter: the viewport-fill loop scans base pages, but a
+    // strict filter means the table may never scroll — so compare runs
+    // would stay on page 1 and the testcase-id join in `mergedRows` would
+    // miss most counterparts. While a filter is active, eagerly load every
+    // compare-run page so each matched base row can find its counterpart.
+    useEffect(() => {
+        if (!active) return
+        comparePaginations.forEach((pagination, idx) => {
+            if (!compareSlots[idx]) return
+            const {hasMore, isFetching} = pagination.paginationInfo
+            if (hasMore && !isFetching) pagination.loadNextPage()
+        })
+    }, [active, comparePaginations, compareSlots])
+
+    // Each comparison run's own schema — comparison rows resolve their
+    // application/output cells against it (step keys differ from base run).
+    const comparisonSchemas = useComparisonSchemas({compareSlots})
+
+    const etlColumns = useEtlColumns({projectId, runId, schema: runSchema, comparisonSchemas})
+
+    // Page-level hydrate — predicate-aware: with an active filter it
+    // fetches the entity slices the filter needs to be evaluated; with no
+    // filter it is inert and cells materialize their own visible data.
+    const hydration = useHydrateScenarios({
+        projectId,
+        runId,
+        rows: basePagination.rows,
+        schema: runSchema,
+        predicate: effectiveFilter,
+        sliceMode: "auto",
+    })
+
+    // The filter scan is actively working — the viewport-fill loop still
+    // wants more pages (`isFilling`), a page is being fetched, or a
+    // hydrate batch is in flight. Once enough matches are found the loop
+    // stops, so this goes false even though the dataset has more pages
+    // (`hasMore`) — it only shows "scanning" while real work is happening.
+    const scanInProgress =
+        isFilling || (active && (basePagination.paginationInfo.isFetching || hydration.isHydrating))
+    // Nothing has confirmed-matched yet — show the full empty + loading
+    // overlay. Once the first match lands, rows show and grow (no overlay,
+    // no flicker — `filteredBaseRows` only ever grows during a scan).
+    const isScanning = scanInProgress && confirmedMatchCount === 0
+
+    // Publish the scan status so the filter bar — which lives in the run
+    // header, a separate part of the tree — can show the match count.
+    const setFilterStatus = useSetAtom(
+        useMemo(() => scenarioFilterStatusAtomFamily(runId), [runId]),
+    )
+    useEffect(() => {
+        setFilterStatus({matchCount: confirmedMatchCount, scanning: scanInProgress})
+    }, [setFilterStatus, confirmedMatchCount, scanInProgress])
+
+    // Cell-side lazy materializer — coalesces visible cells' slice
+    // requests into one bulk fetch per (slice, run).
+    const cellMaterializer = useCellMaterialization({projectId, runId})
+
+    // Evict molecule caches written for the outgoing run on scope change.
+    useScopeChangeEviction({projectId, runId})
+
+    // Live updates (T6) — while the run is executing, periodically refetch
+    // the loaded scenario pages (row statuses) and refresh the molecule
+    // caches of running / just-finished scenarios so completed cells leave
+    // the "Running" state. Inert once the run is terminal.
+    useScenarioLiveUpdates({projectId, runId, runStatus, pageSize})
+
+    // Production metric-group ids. The scenario table's "Metrics" group is
+    // the static invocation metrics (cost / duration / tokens) — injected
+    // by the backend-metadata path, not run-mapping-derived — so it is kept
+    // as-is rather than replaced by ETL columns.
+    const metricGroupKeys = useMemo(
+        () =>
+            new Set(
+                (columnResult?.groups ?? [])
+                    .filter((g) => g.kind === "metric")
+                    .map((g) => String(g.id)),
+            ),
+        [columnResult?.groups],
+    )
+
+    // Final rendered column set: production meta columns (index / status,
+    // timestamp, action), the column-visibility trigger, and the static
+    // metric group(s) are kept; the testset / application / evaluator /
+    // other schema groups are replaced by the ETL-derived ones. While the
+    // run schema is still loading, the production columns are used whole
+    // (their skeleton groups cover the gap).
+    const tableColumns = useMemo(() => {
+        const src = previewColumns.columns
+        if (!runSchema || etlColumns.length === 0) return src
+        const out: typeof src = []
+        let inserted = false
+        for (const col of src) {
+            const children = (col as {children?: unknown[]}).children
+            const isGroup = Array.isArray(children) && children.length > 0
+            const key = String((col as {key?: unknown}).key ?? "")
+            const isMetricGroup = isGroup && metricGroupKeys.has(key)
+            if (isGroup && !isMetricGroup) {
+                if (!inserted) {
+                    out.push(...(etlColumns as typeof src))
+                    inserted = true
+                }
+                // drop the production schema group column (replaced by ETL)
+            } else {
+                // keep: meta / visibility columns AND static metric groups
+                out.push(col)
+            }
+        }
+        if (!inserted) {
+            // No replaceable production group columns — insert ETL groups
+            // before the trailing column-visibility trigger.
+            const at = Math.max(out.length - 1, 0)
+            out.splice(at, 0, ...(etlColumns as typeof src))
+        }
+        return out
+    }, [previewColumns.columns, etlColumns, runSchema, metricGroupKeys])
+
     // Inject synthetic columns for comparison exports (do not render in UI)
     const exportColumns = useMemo(() => {
         const hasCompareRuns = compareSlots.some(Boolean)
@@ -125,7 +290,7 @@ const EvalRunDetailsTable = ({
 
     const mergedRows = useMemo(() => {
         if (!compareSlots.some(Boolean)) {
-            return basePagination.rows.map((row) => ({
+            return filteredBaseRows.map((row) => ({
                 ...row,
                 baseScenarioId: row.scenarioId ?? row.id,
                 compareIndex: 0,
@@ -133,7 +298,7 @@ const EvalRunDetailsTable = ({
             }))
         }
 
-        const baseRows = basePagination.rows.map((row) => ({
+        const baseRows = filteredBaseRows.map((row) => ({
             ...row,
             baseScenarioId: row.scenarioId ?? row.id,
             compareIndex: 0,
@@ -215,7 +380,7 @@ const EvalRunDetailsTable = ({
         })
 
         return result
-    }, [basePagination.rows, compareSlots, compareRowsBySlot])
+    }, [filteredBaseRows, compareSlots, compareRowsBySlot])
 
     const handleRowClick = useCallback(
         (record: TableRowData) => {
@@ -230,12 +395,42 @@ const EvalRunDetailsTable = ({
             const hasComparisons = compareRunIds.length > 0
             const shouldCompare = isBaseRow && hasComparisons
 
+            // Resolve each compared run's matching scenarioId from the rows the
+            // table already paginated, using the same testcaseId → scenarioIndex
+            // matching as mergedRows. Carried forward so the focus drawer renders
+            // compare outputs without re-resolving from an orphaned paginated atom.
+            let compareScenarioIds: Record<string, string | null> | undefined
+            if (shouldCompare) {
+                const baseTestcaseId = record.testcaseId
+                const baseScenarioIndex = record.scenarioIndex
+                const resolved: Record<string, string | null> = {}
+                compareSlots.forEach((slotRunId, idx) => {
+                    if (!slotRunId) return
+                    const slotRows = compareRowsBySlot[idx] ?? []
+                    let counterpart: PreviewTableRow | undefined
+                    if (baseTestcaseId) {
+                        counterpart = slotRows.find(
+                            (row) => row && !row.__isSkeleton && row.testcaseId === baseTestcaseId,
+                        )
+                    }
+                    if (!counterpart && typeof baseScenarioIndex === "number") {
+                        counterpart = slotRows.find(
+                            (row) =>
+                                row && !row.__isSkeleton && row.scenarioIndex === baseScenarioIndex,
+                        )
+                    }
+                    resolved[slotRunId] = counterpart?.scenarioId ?? counterpart?.id ?? null
+                })
+                compareScenarioIds = resolved
+            }
+
             const focusTarget = {
                 focusRunId: targetRunId,
                 focusScenarioId: scenarioId,
                 compareMode: shouldCompare,
                 testcaseId: shouldCompare ? record.testcaseId : undefined,
                 scenarioIndex: shouldCompare ? record.scenarioIndex : undefined,
+                compareScenarioIds,
             }
             if (process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true") {
                 console.info("[EvalRunDetails2][Table] row click", {focusTarget, record})
@@ -245,7 +440,7 @@ const EvalRunDetailsTable = ({
             // (the table has an isolated Jotai Provider, so useSetAtom would write to the wrong store)
             patchFocusDrawerQueryParams(focusTarget)
         },
-        [runId, compareRunIds],
+        [runId, compareRunIds, compareSlots, compareRowsBySlot],
     )
 
     const handleLoadMore = useCallback(() => {
@@ -276,6 +471,9 @@ const EvalRunDetailsTable = ({
 
     const paginationForShell = useMemo<TableFeaturePagination<TableRowData>>(
         () => ({
+            // `mergedRows` is monotonic during a scan (confirmed matches
+            // only), so it can be handed to the table directly — no empty
+            // placeholder swap needed.
             rows: mergedRows,
             loadNextPage: handleLoadMore,
             resetPages: handleResetPages,
@@ -828,74 +1026,94 @@ const EvalRunDetailsTable = ({
     const hasCompareRuns = compareSlots.some(Boolean)
 
     return (
-        <section className="bg-zinc-1 w-full h-full overflow-hidden flex flex-col px-2">
-            <div className="w-full grow min-h-0 overflow-auto">
-                <InfiniteVirtualTableFeatureShell<TableRowData>
-                    datasetStore={evaluationPreviewDatasetStore}
-                    tableScope={tableScope}
-                    store={store}
-                    columns={previewColumns.columns}
-                    rowKey={(record) => record.key}
-                    tableClassName={clsx(
-                        "agenta-scenario-table",
-                        `agenta-scenario-table--row-${rowHeight}`,
-                    )}
-                    resizableColumns
-                    useSettingsDropdown
-                    settingsDropdownMenuItems={rowHeightMenuItems}
-                    columnVisibilityMenuRenderer={(
-                        controls,
-                        close,
-                        {scopeId, onExport, isExporting},
-                    ) => (
-                        <ScenarioColumnVisibilityPopoverContent
-                            controls={controls}
-                            onClose={close}
-                            scopeId={scopeId}
-                            runId={runId}
-                            evaluationType={evaluationType}
-                            onExport={onExport}
-                            isExporting={isExporting}
-                        />
-                    )}
-                    pagination={paginationForShell}
-                    exportOptions={exportOptions}
-                    tableProps={{
-                        rowClassName: (record) =>
-                            clsx("scenario-row", {
-                                "scenario-row--comparison": record.isComparisonRow,
-                            }),
-                        size: "small",
-                        sticky: true,
-                        virtual: true,
-                        bordered: true,
-                        tableLayout: "fixed",
-                        onRow: (record) => {
-                            const backgroundColor = hasCompareRuns
-                                ? getComparisonColor(
-                                      typeof record.compareIndex === "number"
-                                          ? record.compareIndex
-                                          : 0,
-                                  )
-                                : "#fff"
-
-                            return {
-                                onClick: (event) => {
-                                    const target = event.target as HTMLElement | null
-                                    if (target?.closest("[data-ivt-stop-row-click]")) return
-                                    handleRowClick(record as TableRowData)
-                                },
-                                className: clsx({
-                                    "comparison-row": record.isComparisonRow,
+        <CellMaterializerContext.Provider value={cellMaterializer}>
+            <section className="bg-zinc-1 w-full h-full overflow-hidden flex flex-col px-2">
+                <div className="w-full grow min-h-0 overflow-auto">
+                    <InfiniteVirtualTableFeatureShell<TableRowData>
+                        /*
+                         * Remount on filter change. Applying a filter
+                         * shrinks the row set sharply; remounting resets
+                         * the virtual render window to the new length so
+                         * its row renderer can't index past the end.
+                         * Column visibility survives (localStorage-backed).
+                         */
+                        key={`scenario-table-${runId}-${JSON.stringify(effectiveFilter)}`}
+                        datasetStore={evaluationPreviewDatasetStore}
+                        tableScope={tableScope}
+                        store={store}
+                        columns={tableColumns}
+                        /*
+                         * Defensive rowKey — antd's virtual table can hand
+                         * this an out-of-range `undefined` record for a
+                         * frame while the filtered row set is shrinking.
+                         */
+                        rowKey={(record, index) => record?.key ?? `__phantom_${index ?? 0}`}
+                        tableClassName={clsx(
+                            "agenta-scenario-table",
+                            `agenta-scenario-table--row-${rowHeight}`,
+                        )}
+                        resizableColumns
+                        useSettingsDropdown
+                        settingsDropdownMenuItems={rowHeightMenuItems}
+                        columnVisibilityMenuRenderer={(
+                            controls,
+                            close,
+                            {scopeId, onExport, isExporting},
+                        ) => (
+                            <ScenarioColumnVisibilityPopoverContent
+                                controls={controls}
+                                onClose={close}
+                                scopeId={scopeId}
+                                runId={runId}
+                                evaluationType={evaluationType}
+                                onExport={onExport}
+                                isExporting={isExporting}
+                            />
+                        )}
+                        pagination={paginationForShell}
+                        exportOptions={exportOptions}
+                        tableProps={{
+                            rowClassName: (record) =>
+                                clsx("scenario-row", {
+                                    "scenario-row--comparison": record.isComparisonRow,
                                 }),
-                                style: backgroundColor ? {backgroundColor} : undefined,
-                            }
-                        },
-                    }}
-                />
-            </div>
-            <VirtualizedScenarioTableAnnotateDrawer runId={runId} />
-        </section>
+                            size: "small",
+                            sticky: true,
+                            virtual: true,
+                            bordered: true,
+                            tableLayout: "fixed",
+                            // One steady overlay while a filter scans for
+                            // its first match — replaces per-page flicker.
+                            loading: isScanning
+                                ? {spinning: true, tip: "Scanning for matches…"}
+                                : false,
+                            onRow: (record) => {
+                                const backgroundColor = hasCompareRuns
+                                    ? getComparisonColor(
+                                          typeof record.compareIndex === "number"
+                                              ? record.compareIndex
+                                              : 0,
+                                      )
+                                    : "var(--ag-colorBgContainer)"
+
+                                return {
+                                    onClick: (event) => {
+                                        const target = event.target as HTMLElement | null
+                                        if (target?.closest("[data-ivt-stop-row-click]")) return
+                                        handleRowClick(record as TableRowData)
+                                    },
+                                    className: clsx({
+                                        "comparison-row": record.isComparisonRow,
+                                    }),
+                                    style: backgroundColor ? {backgroundColor} : undefined,
+                                }
+                            },
+                        }}
+                    />
+                </div>
+                <VirtualizedScenarioTableAnnotateDrawer runId={runId} />
+            </section>
+        </CellMaterializerContext.Provider>
     )
 }
 

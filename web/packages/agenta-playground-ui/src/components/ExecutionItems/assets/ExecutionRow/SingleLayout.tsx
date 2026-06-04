@@ -16,7 +16,6 @@ import {
     ExamIcon,
     Info,
     LightningIcon,
-    MarkdownLogoIcon,
     MinusCircleIcon,
     PlayIcon,
     RowsIcon,
@@ -28,7 +27,11 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
 import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
-import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
+import {PlaygroundInputsBodyHost} from "@agenta/playground-ui/playground-inputs-body"
+import {
+    openPlaygroundFocusDrawerAtom,
+    useNewPlaygroundInputsBodyAtom,
+} from "@agenta/playground-ui/state"
 
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
@@ -77,7 +80,7 @@ const SectionBlock: React.FC<{
     <div
         role="group"
         aria-label={ariaLabel}
-        className="flex flex-col gap-2 pl-3 border-0 border-l-2 border-solid border-[#1677FF22]"
+        className="flex flex-col gap-2 pl-3 border-0 border-l-2 border-solid border-[var(--ag-c-1677FF22)]"
     >
         {children}
     </div>
@@ -166,7 +169,7 @@ const RowHeaderActions = ({
 const StepTag = ({icon, name}: {icon: React.ReactNode; name: string}) => (
     <Tag
         variant="filled"
-        className="flex items-center gap-1 !m-0 self-start whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium bg-[#0517290F] text-[#344054] border border-solid border-transparent"
+        className="flex items-center gap-1 !m-0 self-start whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium bg-[var(--ag-c-0517290F)] text-[var(--ag-c-344054)] border border-solid border-transparent"
     >
         {icon}
         {name}
@@ -619,6 +622,25 @@ const SingleView = ({
         useMemo(() => workflowMolecule.selectors.isDirty(entityId), [entityId]),
     )
 
+    // Resolve the active prompt template_format from the primary entity's
+    // parameters. Passed into `PlaygroundInputsBodyHost` so chat-mode
+    // variable inputs tokenize `{{...}}` with the right rules (mustache
+    // sections, jinja2, etc). Falls back to `"curly"` to match the
+    // editor stack's default when no value is stored yet.
+    const promptTemplateFormat = useMemo<"mustache" | "curly" | "fstring" | "jinja2">(() => {
+        const params = primaryWorkflowData?.data?.parameters as Record<string, unknown> | undefined
+        const prompt = params?.prompt as Record<string, unknown> | undefined
+        const raw =
+            (prompt?.template_format as string | undefined) ??
+            (prompt?.templateFormat as string | undefined) ??
+            (params?.template_format as string | undefined) ??
+            (params?.templateFormat as string | undefined)
+        if (raw === "mustache") return "mustache"
+        if (raw === "jinja2" || raw === "jinja") return "jinja2"
+        if (raw === "fstring") return "fstring"
+        return "curly"
+    }, [primaryWorkflowData?.data?.parameters])
+
     const executionRowIds = useAtomValue(
         executionItemController.selectors.executionRowIds,
     ) as string[]
@@ -666,10 +688,6 @@ const SingleView = ({
         return variableRefsMap.current.get(id)!
     }, [])
 
-    const [markdownToggles, setMarkdownToggles] = useState<
-        Record<string, (() => void) | undefined>
-    >({})
-
     const toggleVariableInputCollapse = useCallback((id: string) => {
         setCollapsedVariableInputs((prev) => ({...prev, [id]: !prev[id]}))
     }, [])
@@ -678,6 +696,11 @@ const SingleView = ({
     const isExecutionExpanded = inputOnly || !isCollapsed
     const isWaitingForVariableControls =
         variableIds.length === 0 && (schemaInputKeys.length > 0 || Boolean(runnableQuery.isPending))
+
+    // Feature flag — when true, the non-grouped (flat) variable list renders
+    // through `PlaygroundInputsBodyHost` (V2-aligned bordered cards with
+    // type chips + "View as ▾" dropdown). Off by default; OSS opts in.
+    const useNewInputsBody = useAtomValue(useNewPlaygroundInputsBodyAtom)
     const collapseDurationMs = hasInteractedWithCollapse ? 300 : 0
 
     useEffect(() => {
@@ -732,7 +755,7 @@ const SingleView = ({
                         renderLabel={(label) => (
                             <Tag
                                 variant="filled"
-                                className="flex items-center gap-1 !m-0 whitespace-nowrap rounded px-2 py-0.5 text-xs bg-[#0517290F] text-[#344054] border border-solid border-transparent cursor-pointer select-none hover:bg-[#0517291A] transition-colors"
+                                className="flex items-center gap-1 !m-0 whitespace-nowrap rounded px-2 py-0.5 text-xs bg-[var(--ag-c-0517290F)] text-[var(--ag-c-344054)] border border-solid border-transparent cursor-pointer select-none hover:bg-[var(--ag-c-0517291A)] transition-colors"
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     openFocusDrawer({rowId, entityId})
@@ -848,28 +871,8 @@ const SingleView = ({
                                                 collapsed={isVariableInputCollapsed}
                                                 containerRef={getVariableRef(id)}
                                                 className="*:!border-none overflow-hidden"
-                                                onMarkdownToggleReady={(toggle) => {
-                                                    setMarkdownToggles((prev) => ({
-                                                        ...(prev[id] === (toggle ?? undefined)
-                                                            ? prev
-                                                            : {
-                                                                  ...prev,
-                                                                  [id]: toggle ?? undefined,
-                                                              }),
-                                                    }))
-                                                }}
                                                 headerActions={
                                                     <>
-                                                        <EnhancedButton
-                                                            size="small"
-                                                            type="text"
-                                                            icon={<MarkdownLogoIcon size={14} />}
-                                                            onClick={() => markdownToggles[id]?.()}
-                                                            disabled={!markdownToggles[id]}
-                                                            tooltipProps={{
-                                                                title: "Preview markdown",
-                                                            }}
-                                                        />
                                                         <CopyVariableButton
                                                             rowId={rowId}
                                                             variableKey={id}
@@ -890,27 +893,69 @@ const SingleView = ({
                                     )
                                 }
 
-                                // Flat layout — apps, and evaluators with no
-                                // extracted field ports (default template).
+                                // New playground inputs body — V2-aligned
+                                // bordered cards with type chips + "View
+                                // as ▾" dropdowns. Behind a feature flag
+                                // so the existing per-variable layout stays
+                                // default until the new UX is signed off.
+                                if (useNewInputsBody) {
+                                    // Grouped layout — evaluators with
+                                    // extracted field ports. Field ports +
+                                    // the `inputs` envelope catch-all share
+                                    // `data.inputs` at runtime; the new
+                                    // inputs body renders both inside the
+                                    // same left-border "inputs" section,
+                                    // and the `outputs` envelope in its
+                                    // own section. The section blocks come
+                                    // through the host's `sections` prop.
+                                    if (useGroupedLayout) {
+                                        const groupedSections = [
+                                            {
+                                                ariaLabel: "inputs",
+                                                variableNames: [
+                                                    ...fieldPortIds,
+                                                    ...(hasInputsEnvelope ? ["inputs"] : []),
+                                                ],
+                                            },
+                                            ...(hasOutputsEnvelope
+                                                ? [
+                                                      {
+                                                          ariaLabel: "outputs",
+                                                          variableNames: ["outputs"],
+                                                      },
+                                                  ]
+                                                : []),
+                                        ]
+                                        return (
+                                            <PlaygroundInputsBodyHost
+                                                rowId={rowId}
+                                                downstreamKey={downstreamKey}
+                                                editable={!isWaitingForVariableControls}
+                                                sections={groupedSections}
+                                                templateFormat={promptTemplateFormat}
+                                            />
+                                        )
+                                    }
+                                    return (
+                                        <PlaygroundInputsBodyHost
+                                            rowId={rowId}
+                                            downstreamKey={downstreamKey}
+                                            editable={!isWaitingForVariableControls}
+                                            templateFormat={promptTemplateFormat}
+                                        />
+                                    )
+                                }
+
+                                // Legacy path (flag off) — flat layout for
+                                // apps and evaluators-with-no-fields, grouped
+                                // legacy SectionBlock layout for evaluators
+                                // with extracted field ports. Each port renders
+                                // through the per-variable
+                                // `VariableControlAdapter` with its full header
+                                // (label + ⓘ tooltip + hover-revealed actions).
                                 if (!useGroupedLayout) {
                                     return variableIds.map((id) => renderVariable(id))
                                 }
-
-                                // Grouped layout — evaluators with field
-                                // ports. Field ports + the envelope catch-all
-                                // share `data.inputs` at runtime, so we wrap
-                                // them in one left-border block to surface
-                                // that relationship visually. Each port
-                                // renders with its full header (label + ⓘ
-                                // tooltip + hover-revealed action cluster:
-                                // JSON/text toggle, markdown, copy, collapse)
-                                // and the editor's own border, so envelope
-                                // and field rows look identical and the
-                                // hover affordances stay intact. The group
-                                // identity comes from the container; we
-                                // intentionally don't add a separate header
-                                // label to avoid colliding with the envelope
-                                // port's own header.
                                 return (
                                     <>
                                         <SectionBlock ariaLabel="inputs">
@@ -932,7 +977,7 @@ const SingleView = ({
                     <div
                         className={clsx([
                             "w-full flex flex-col gap-3 pb-2 relative group/output",
-                            "border-0 border-t border-solid border-[rgba(5,23,41,0.06)] pt-3",
+                            "border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] pt-3",
                         ])}
                     >
                         {/* Primary node */}
@@ -945,7 +990,7 @@ const SingleView = ({
                             <div
                                 className={clsx(
                                     "min-w-0",
-                                    !currentDisplayResult && !isBusy && "text-[#bdc7d1]",
+                                    !currentDisplayResult && !isBusy && "text-[var(--ag-c-BDC7D1)]",
                                 )}
                             >
                                 <ExecutionResultView

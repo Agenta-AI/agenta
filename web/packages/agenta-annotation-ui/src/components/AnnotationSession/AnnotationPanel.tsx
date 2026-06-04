@@ -191,7 +191,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
                                 {evaluator.name ?? slug}
                             </Typography.Text>
                             <Typography.Text
-                                className="text-[#758391] truncate max-w-[40%] text-end"
+                                className="text-[var(--ag-c-758391)] truncate max-w-[40%] text-end"
                                 title={slug}
                             >
                                 {slug}
@@ -210,7 +210,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
     }, [evaluators, metrics, handleFieldChange])
 
     const panelHeader = (
-        <div className="flex items-center justify-between px-3 py-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
+        <div className="flex items-center justify-between px-3 py-3 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
             <div className="flex items-center gap-1">
                 <Typography.Text className="font-medium">Annotations</Typography.Text>
                 {queueDescription && (
@@ -242,7 +242,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
                             type="text"
                             size="small"
                             icon={<Info size={14} />}
-                            className="!text-[#758391] !w-6 !h-6 !min-w-0 !p-0"
+                            className="!text-[var(--ag-c-758391)] !w-6 !h-6 !min-w-0 !p-0"
                         />
                     </Popover>
                 )}
@@ -323,14 +323,14 @@ const AnnotationPanel = memo(function AnnotationPanel({
                     activeKey={activeKeys}
                     onChange={handleCollapseChange}
                     items={collapseItems}
-                    className="rounded-none [&_.ant-collapse-item]:!bg-white [&_.ant-collapse-header]:!bg-[#05172905] [&_.ant-collapse-content-box]:!p-0 [&_.ant-collapse-content]:!bg-white [&_.ant-collapse-content]:p-3 [&_.playground-property-control]:!mb-0 [&_.ant-slider]:!mb-0 [&_.ant-slider]:!mt-1"
+                    className="rounded-none [&_.ant-collapse-item]:!bg-[var(--ag-c-FFFFFF)] [&_.ant-collapse-header]:!bg-[var(--ag-c-05172905)] [&_.ant-collapse-content-box]:!p-0 [&_.ant-collapse-content]:!bg-[var(--ag-c-FFFFFF)] [&_.ant-collapse-content]:p-3 [&_.playground-property-control]:!mb-0 [&_.ant-slider]:!mb-0 [&_.ant-slider]:!mt-1"
                     bordered={false}
                 />
             </div>
 
             {/* Mark completed button (drawer mode) */}
             {showMarkComplete && (
-                <div className="shrink-0 border-0 border-t border-solid border-[rgba(5,23,41,0.06)] px-3 py-3">
+                <div className="shrink-0 border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] px-3 py-3">
                     <Button
                         type="primary"
                         block

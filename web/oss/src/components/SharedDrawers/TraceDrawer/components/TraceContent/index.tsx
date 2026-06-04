@@ -10,7 +10,7 @@ import {traceSidePanelOpenAtom} from "@/oss/components/SharedDrawers/TraceDrawer
 
 import TraceSidePanel from "../TraceSidePanel"
 
-import {useStyles} from "./assets/styles"
+import {getRawTraceSpanData} from "./assets/helpers"
 import {TraceContentProps} from "./assets/types"
 import AnnotationTabItem from "./components/AnnotationTabItem"
 import LinkedSpansTabItem from "./components/LinkedSpansTabItem"
@@ -35,7 +35,6 @@ const TraceContent = ({
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useAtom(traceSidePanelOpenAtom)
     const activeTrace = active
     const spanEntityId = activeTrace?.span_id || activeTrace?.invocationIds?.span_id || activeId
-    const classes = useStyles()
     const [tab, setTab] = useState("overview")
 
     const items: TabsProps["items"] = useMemo(() => {
@@ -71,6 +70,8 @@ const TraceContent = ({
             ]
         }
 
+        const rawActiveTrace = getRawTraceSpanData(activeTrace)
+
         return [
             {
                 key: "overview",
@@ -85,7 +86,7 @@ const TraceContent = ({
                         {spanEntityId ? (
                             <TraceSpanDrillInView
                                 spanId={spanEntityId}
-                                spanDataOverride={activeTrace}
+                                spanDataOverride={rawActiveTrace}
                                 title="Raw Data"
                                 editable={false}
                                 rootScope="span"
@@ -94,7 +95,7 @@ const TraceContent = ({
                         ) : (
                             <AccordionTreePanel
                                 label={"Raw Data"}
-                                value={activeTrace ?? {}}
+                                value={rawActiveTrace}
                                 enableFormatSwitcher
                                 fullEditorHeight
                                 enableSearch
@@ -125,7 +126,12 @@ const TraceContent = ({
     }, [itemKeys.join("|"), tab])
 
     return (
-        <div className={clsx("flex w-full h-full flex-1", classes.container)}>
+        <div
+            className={clsx(
+                "flex w-full h-full flex-1",
+                "[&_.ant-tag]:m-0 [&_.ant-tag]:flex [&_.ant-tag]:items-center [&_.ant-tag]:gap-2",
+            )}
+        >
             <div className="flex-1 flex flex-col overflow-auto">
                 <TraceTypeHeader
                     activeTrace={activeTrace}
@@ -136,7 +142,7 @@ const TraceContent = ({
                     traces={traces}
                 />
 
-                <Splitter className="h-[87vh] flex">
+                <Splitter className="flex-1 min-h-0">
                     <Splitter.Panel min={400} className="w-full flex-1">
                         <div className="flex-1">
                             <Tabs
@@ -145,8 +151,11 @@ const TraceContent = ({
                                 onChange={setTab}
                                 items={items}
                                 className={clsx(
-                                    "flex flex-col h-full [&_.ant-tabs-nav]:!sticky [&_.ant-tabs-nav]:!top-0 [&_.ant-tabs-nav]:!z-10 [&_.ant-tabs-nav]:!bg-white",
-                                    classes.tabs,
+                                    "flex flex-col h-full [&_.ant-tabs-nav]:!sticky [&_.ant-tabs-nav]:!top-0 [&_.ant-tabs-nav]:!z-10 [&_.ant-tabs-nav]:!bg-[var(--ag-c-FFFFFF)]",
+                                    "[&_.ant-tabs-nav]:mb-2 [&_.ant-tabs-nav]:flex-wrap-reverse [&_.ant-tabs-nav-wrap]:px-4",
+                                    "[&_.ant-tabs-content-holder]:p-3 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-content]:h-full [&_.ant-tabs-tabpane]:h-full",
+                                    "[&_.ant-tabs-nav-operations]:!hidden",
+                                    "[&_.ant-tabs-extra-content]:pt-[10px] [&_.ant-tabs-extra-content]:pb-[10px] [&_.ant-tabs-extra-content]:pl-4",
                                 )}
                             />
                         </div>

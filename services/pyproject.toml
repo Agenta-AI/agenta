@@ -1,6 +1,6 @@
 [project]
 name = "services"
-version = "0.100.1"
+version = "0.101.0"
 description = "Agenta Services (Chat & Completion)"
 requires-python = ">=3.11,<3.14"
 authors = [
@@ -9,7 +9,7 @@ authors = [
 ]
 dependencies = [
     "agenta",
-    "uvicorn[standard]>=0.47,<0.48",
+    "uvicorn[standard]>=0.48,<0.49",
     "gunicorn>=26,<27",
     "structlog>=25,<26",
     "newrelic>=13,<14",

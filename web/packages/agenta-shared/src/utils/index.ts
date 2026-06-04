@@ -66,6 +66,8 @@ export {
     getAttachmentInfo,
     getAttachments,
     hasAttachments,
+    isChatMessageObject,
+    isChatMessagesArray,
     messageHasContent,
     messageHasToolCalls,
     normalizeMessagesFromField,
@@ -88,6 +90,7 @@ export {keyToString, stringToKeyPath} from "./keyUtils"
 // JSON detection utilities
 export {
     canExpandAsJson,
+    inferLogicalType,
     isJsonArray,
     isJsonObject,
     isJsonString,
@@ -97,7 +100,7 @@ export {
     tryParseJson,
     tryParseJsonValue,
 } from "./jsonDetection"
-export type {JsonParseResult} from "./jsonDetection"
+export type {JsonParseResult, LogicalType} from "./jsonDetection"
 
 // Editor language detection utilities
 export {
@@ -215,3 +218,21 @@ export {llmAvailableProviders, llmAvailableProvidersToken} from "./llmProviders"
 
 // Object cleanup utilities
 export {removeEmptyFromObjects} from "./objectUtils"
+
+// Mustache template parser (AST + structural validation)
+export {parseMustache, walkMustache} from "./mustache"
+export type {
+    MustacheNode,
+    TextNode,
+    VariableNode,
+    SectionNode,
+    CommentNode,
+    PartialNode,
+    BlockNode,
+    ParentNode,
+    DelimiterNode,
+    ParseError,
+    ParseErrorKind,
+    ParseResult,
+    SourceSpan,
+} from "./mustache"

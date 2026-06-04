@@ -97,13 +97,13 @@ const DeploymentDrawer = ({
 
         const built = createParams(
             synthesized,
-            selectedEnvironment?.name || "none",
+            selectedEnvironment?.slug || "none",
             "add_a_value",
             currentApp,
             {flags: {is_chat: isChat}},
         )
         return built
-    }, [inputPorts, currentApp, selectedEnvironment?.name, isChat])
+    }, [inputPorts, currentApp, selectedEnvironment?.slug, isChat])
 
     const invokeLlmUrl = (uri && uri.trim()) || ""
 
@@ -114,21 +114,9 @@ const DeploymentDrawer = ({
     }
 
     const fetchConfigCodeSnippet: Record<string, string> = {
-        python: fetchConfigpythonCode(
-            currentApp?.slug ?? currentApp?.name ?? "",
-            selectedEnvironment?.name!,
-            "",
-        ),
-        bash: fetchConfigcURLCode(
-            currentApp?.slug ?? currentApp?.name ?? "",
-            selectedEnvironment?.name!,
-            "",
-        ),
-        typescript: fetchConfigtsCode(
-            currentApp?.slug ?? currentApp?.name ?? "",
-            selectedEnvironment?.name!,
-            "",
-        ),
+        python: fetchConfigpythonCode(currentApp?.slug ?? "", selectedEnvironment?.slug!, ""),
+        bash: fetchConfigcURLCode(currentApp?.slug ?? "", selectedEnvironment?.slug!, ""),
+        typescript: fetchConfigtsCode(currentApp?.slug ?? "", selectedEnvironment?.slug!, ""),
     }
 
     const handleOpenSelectDeployVariantModal = () => {
@@ -216,7 +204,7 @@ const DeploymentDrawer = ({
                             className={clsx([
                                 "[&_.ant-tabs-nav]:sticky",
                                 "[&_.ant-tabs-nav]:-top-[25px]",
-                                "[&_.ant-tabs-nav]:bg-white",
+                                "[&_.ant-tabs-nav]:bg-[var(--ag-c-FFFFFF)]",
                                 "[&_.ant-tabs-nav]:z-[1]",
                             ])}
                         >
@@ -307,7 +295,7 @@ const DeploymentDrawer = ({
                 environmentVariantId={entityEnv?.variant_id ?? null}
                 currentAppRevisionId={selectedEnvironment.deployedRevisionId ?? null}
                 appId={appId}
-                appSlug={currentApp?.slug ?? currentApp?.name ?? null}
+                appSlug={currentApp?.slug ?? null}
             />
         </>
     )

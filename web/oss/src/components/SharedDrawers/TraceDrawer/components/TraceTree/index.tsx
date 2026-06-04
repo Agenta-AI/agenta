@@ -1,6 +1,13 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {Coins, MagnifyingGlass, PlusCircle, SlidersHorizontal, Timer} from "@phosphor-icons/react"
+import {
+    Coins,
+    Info,
+    MagnifyingGlass,
+    PlusCircle,
+    SlidersHorizontal,
+    Timer,
+} from "@phosphor-icons/react"
 import {Button, Divider, Input, Popover, Space, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -18,14 +25,19 @@ import {
 
 import useTraceDrawer from "../../hooks/useTraceDrawer"
 import TraceTreeSettings from "../TraceTreeSettings"
+import {TraceTreeSettingsState} from "../TraceTreeSettings/types"
 
-import {useStyles} from "./assets/styles"
+import {filterKeySpans} from "./assets/spanVisibility"
 import {TraceTreeProps} from "./assets/types"
+
+const treeHeaderClass =
+    "[&_.ant-typography]:text-sm [&_.ant-typography]:leading-[1.5714285714285714] [&_.ant-typography]:font-medium"
+const treeTitleClass = "text-xs leading-[1.6666666666666667]"
+const treeContentContainerClass = "text-colorTextSecondary"
+const treeContentClass = "flex items-center font-mono gap-0.5"
 
 export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: any}) => {
     const {span_name, span_id, status_code} = value || {}
-
-    const classes = useStyles()
 
     const formattedTokens = useAtomValue(formattedSpanTokensAtomFamily(value))
     const formattedCost = useAtomValue(formattedSpanCostAtomFamily(value))
@@ -39,8 +51,8 @@ export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: 
                     <Typography.Text
                         className={
                             status_code === StatusCode.STATUS_CODE_ERROR
-                                ? `${classes.treeTitle} text-[#D61010] font-[500]`
-                                : classes.treeTitle
+                                ? `${treeTitleClass} text-[var(--ag-c-D61010)] font-[500]`
+                                : treeTitleClass
                         }
                     >
                         {span_name}
@@ -48,14 +60,14 @@ export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: 
                 </Tooltip>
             </Space>
 
-            <Space className={classes.treeContentContainer}>
+            <Space className={treeContentContainerClass}>
                 {settings.latency && (
                     <Tooltip
                         title={`Latency: ${formattedLatency}`}
                         mouseEnterDelay={0.25}
                         placement="bottom"
                     >
-                        <div className={classes.treeContent}>
+                        <div className={treeContentClass}>
                             <Timer />
                             {formattedLatency}
                         </div>
@@ -68,7 +80,7 @@ export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: 
                         mouseEnterDelay={0.25}
                         placement="bottom"
                     >
-                        <div className={classes.treeContent}>
+                        <div className={treeContentClass}>
                             <Coins />
                             {formattedCost}
                         </div>
@@ -81,7 +93,7 @@ export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: 
                         mouseEnterDelay={0.25}
                         placement="bottom"
                     >
-                        <div className={classes.treeContent}>
+                        <div className={treeContentClass}>
                             <PlusCircle />
                             {formattedTokens}
                         </div>
@@ -93,14 +105,17 @@ export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: 
 }
 
 const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: TraceTreeProps) => {
-    const classes = useStyles()
     const [searchValue, setSearchValue] = useState("")
 
-    const [traceTreeSettings, setTraceTreeSettings] = useLocalStorage("traceTreeSettings", {
-        latency: true,
-        cost: true,
-        tokens: true,
-    })
+    const [traceTreeSettings, setTraceTreeSettings] = useLocalStorage<TraceTreeSettingsState>(
+        "traceTreeSettings",
+        {
+            latency: true,
+            cost: true,
+            tokens: true,
+            visibility: "key",
+        },
+    )
 
     const {getTraceById, traces: allTraces} = useTraceDrawer()
     const activeTrace = active || getTraceById(activeTraceId)
@@ -132,11 +147,21 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
         return nodes[0] || activeTrace
     }, [activeTrace, allTraces])
 
-    const filteredTree = useMemo(() => {
+    // Tree after the text search filter (the original behaviour).
+    const searchedTree = useMemo(() => {
         if (!searchValue.trim()) return treeRoot as any
         const result = filterTree(treeRoot as any, searchValue)
         return result || {...treeRoot, children: []}
     }, [searchValue, treeRoot])
+
+    // Apply the span visibility filter on top of the searched tree.
+    const {displayTree, hiddenCount} = useMemo(() => {
+        if ((traceTreeSettings.visibility ?? "key") !== "key" || !searchedTree) {
+            return {displayTree: searchedTree, hiddenCount: 0}
+        }
+        const {tree, hiddenCount: count} = filterKeySpans(searchedTree as TraceSpanNode)
+        return {displayTree: (tree as any) || {...searchedTree, children: []}, hiddenCount: count}
+    }, [searchedTree, traceTreeSettings.visibility])
 
     const renderTraceLabel = useCallback(
         (node: TraceSpanNode) => <TreeContent value={node} settings={traceTreeSettings} />,
@@ -152,7 +177,7 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
             <div
                 className={clsx(
                     "flex items-center justify-between h-[43px] pl-2 pr-2",
-                    classes.treeHeader,
+                    treeHeaderClass,
                 )}
             >
                 <Input
@@ -171,10 +196,11 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                         <TraceTreeSettings
                             settings={traceTreeSettings}
                             setSettings={setTraceTreeSettings}
+                            showVisibility
                         />
                     }
                     placement="bottomRight"
-                    classNames={{body: "!p-0 w-[200px]"}}
+                    classNames={{body: "!p-0 w-[240px]"}}
                     arrow={false}
                 >
                     <Button icon={<SlidersHorizontal size={14} />} type="text" size="small" />
@@ -182,15 +208,37 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
             </div>
             <Divider orientation="horizontal" className="m-0" />
 
-            <CustomTreeComponent
-                data={filteredTree}
-                getKey={(node) => node.span_id}
-                getChildren={(node) => node.children as TraceSpanNode[] | undefined}
-                renderLabel={renderTraceLabel}
-                selectedKey={selected}
-                onSelect={(key) => setSelected(key)}
-                defaultExpanded
-            />
+            <div className="flex-1 min-h-0 overflow-y-auto">
+                <CustomTreeComponent
+                    data={displayTree}
+                    getKey={(node) => node.span_id}
+                    getChildren={(node) => node.children as TraceSpanNode[] | undefined}
+                    renderLabel={renderTraceLabel}
+                    selectedKey={selected}
+                    onSelect={(key) => setSelected(key)}
+                    defaultExpanded
+                />
+
+                {hiddenCount > 0 && (
+                    <div className="flex items-center gap-2 mx-2 mb-2 px-3 py-2 rounded-md bg-colorFillTertiary border border-solid border-colorBorderSecondary">
+                        <Info size={14} className="shrink-0 text-colorTextTertiary" />
+                        <Typography.Text className="text-[12px] text-colorTextSecondary">
+                            <span className="font-medium text-colorText">{hiddenCount}</span>{" "}
+                            {hiddenCount === 1 ? "span" : "spans"} hidden by key spans
+                        </Typography.Text>
+                        <Button
+                            type="link"
+                            size="small"
+                            className="ml-auto !px-0 !h-auto text-[12px]"
+                            onClick={() =>
+                                setTraceTreeSettings((prev) => ({...prev, visibility: "all"}))
+                            }
+                        >
+                            Show all
+                        </Button>
+                    </div>
+                )}
+            </div>
         </div>
     )
 }

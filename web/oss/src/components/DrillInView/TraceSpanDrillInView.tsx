@@ -98,6 +98,8 @@ export interface TraceSpanDrillInViewProps extends Omit<
     viewModePreset?: "default" | "message"
     /** Controls collapse behavior for rootScope="span" */
     allowSpanCollapse?: boolean
+    /** When collapsible, start collapsed (default: false) */
+    defaultCollapsed?: boolean
     /** Optional override data for rootScope="span" rendering */
     spanDataOverride?: unknown
 }
@@ -220,7 +222,7 @@ const TextModeViewer = ({
             showToolbar={false}
             enableTokens={false}
             readOnly
-            className="[&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-container]:!bg-transparent [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-4 [&_.editor-input]:!py-[6px] [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.editor-input.markdown-view_.editor-code]:!m-0 [&_.editor-input.markdown-view_.editor-code]:!p-0 [&_.editor-input.markdown-view_.editor-code]:!bg-transparent"
+            className="[&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-container]:!bg-transparent [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-4 [&_.editor-input]:!py-[6px] [&_.editor-input]:!text-[12.5px] [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.editor-input.markdown-view_.editor-code]:!m-0 [&_.editor-input.markdown-view_.editor-code]:!p-0 [&_.editor-input.markdown-view_.editor-code]:!bg-transparent"
         >
             <MarkdownModeSync isMarkdownView={mode === "text"} />
             <EditorWrapper
@@ -292,6 +294,7 @@ export const TraceSpanDrillInView = memo(
         rootScope = "attributes",
         viewModePreset = "default",
         allowSpanCollapse = true,
+        defaultCollapsed = false,
         spanDataOverride,
     }: TraceSpanDrillInViewProps) => {
         const spanEntityData = useAtomValue(traceSpanMolecule.selectors.data(spanId))
@@ -304,7 +307,7 @@ export const TraceSpanDrillInView = memo(
             imageAttachments,
         } = useMemo(() => sanitizeDataWithBlobUrls(spanData), [spanData])
 
-        const [isCollapsed, setIsCollapsed] = useState(false)
+        const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
         const [isSearchOpen, setIsSearchOpen] = useState(false)
         const [searchTerm, setSearchTerm] = useState("")
         const [currentResultIndex, setCurrentResultIndex] = useState(0)
@@ -463,9 +466,9 @@ export const TraceSpanDrillInView = memo(
         if (rootScope === "span") {
             const showTitle = Boolean(title)
             return (
-                <div className="rounded-md overflow-hidden bg-white">
+                <div className="rounded-md overflow-hidden bg-[var(--ag-c-FFFFFF)]">
                     <div
-                        className={`drill-in-field-header rounded-md flex items-center justify-between py-2 px-3 bg-white border border-solid border-[rgba(5,23,41,0.06)] ${allowSpanCollapse ? "cursor-pointer" : ""}`}
+                        className={`drill-in-field-header rounded-md flex items-center justify-between py-2 px-3 bg-[var(--ag-c-FFFFFF)] border border-solid border-[var(--ag-rgba-051729-06)] ${allowSpanCollapse ? "cursor-pointer" : ""}`}
                         onClick={allowSpanCollapse ? toggleCollapsed : undefined}
                     >
                         <div className="flex items-center gap-2 text-gray-700 font-medium min-h-[16px]">
@@ -480,7 +483,7 @@ export const TraceSpanDrillInView = memo(
                             <Button
                                 size="small"
                                 type={isSearchOpen ? "primary" : "text"}
-                                className={`${isSearchOpen ? "!bg-[#17324D] !border-[#17324D]" : "text-gray-500"} !px-1 !h-6 text-xs`}
+                                className={`${isSearchOpen ? "!bg-[var(--ag-c-17324D)] !border-[var(--ag-c-17324D)]" : "text-gray-500"} !px-1 !h-6 text-xs`}
                                 icon={<MagnifyingGlassIcon size={14} />}
                                 onClick={() => setIsSearchOpen((prev) => !prev)}
                                 disabled={!isCodeMode}
@@ -508,7 +511,7 @@ export const TraceSpanDrillInView = memo(
                     {(!allowSpanCollapse || !isCollapsed) && (
                         <div className="relative overflow-hidden">
                             {isSearchOpen && isCodeMode && (
-                                <div className="absolute right-4 top-3 z-20 flex items-center gap-2 rounded-xl border border-[rgba(5,23,41,0.14)] bg-white px-2 py-2 shadow-[0_8px_24px_rgba(5,23,41,0.12)] max-w-[calc(100%-2rem)]">
+                                <div className="absolute right-4 top-3 z-20 flex items-center gap-2 rounded-xl border border-[var(--ag-rgba-051729-14)] bg-[var(--ag-c-FFFFFF)] px-2 py-2 shadow-[0_8px_24px_rgba(5,23,41,0.12)] max-w-[calc(100%-2rem)]">
                                     <Input
                                         className="w-[180px] min-w-[80px]"
                                         placeholder="Search..."
@@ -580,7 +583,7 @@ export const TraceSpanDrillInView = memo(
                                     />
                                 </div>
                             ) : (
-                                <div className="mx-1 my-2 rounded-md bg-[#F6F8FB]">
+                                <div className="mx-1 my-2 rounded-md bg-[var(--ag-c-FFFFFF)]">
                                     <TextModeViewer
                                         editorId={`trace-span-${textViewerId}`}
                                         value={textOutput}

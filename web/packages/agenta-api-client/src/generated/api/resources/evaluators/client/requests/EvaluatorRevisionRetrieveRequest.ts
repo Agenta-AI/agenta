@@ -7,11 +7,11 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface EvaluatorRevisionRetrieveRequest {
-    /** Retrieve the latest revision of this evaluator. */
+    /** Evaluator artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of the evaluator's default variant. */
     evaluator_ref?: AgentaApi.Reference | null;
-    /** Retrieve the latest revision on this variant. */
+    /** Evaluator variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant. */
     evaluator_variant_ref?: AgentaApi.Reference | null;
-    /** Retrieve this specific revision. */
+    /** Evaluator revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with an `evaluator_variant_ref`. Sending only `version` without a variant ref returns HTTP 400. */
     evaluator_revision_ref?: AgentaApi.Reference | null;
     /** Environment to resolve through. Requires `key`. */
     environment_ref?: AgentaApi.Reference | null;

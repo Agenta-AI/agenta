@@ -47,18 +47,20 @@ import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
-import {
-    createMolecule,
-    extendMolecule,
-    normalizeValueForComparison,
-    createControllerAtomFamily,
-    type AtomFamily,
-    type StoreOptions,
-    type FlexibleWritableAtomFamily,
-} from "../../shared"
+// Deep-import from shared/molecule to bypass the contaminated shared barrel.
+import {createControllerAtomFamily} from "../../shared/molecule/createControllerAtomFamily"
+import {normalizeValueForComparison} from "../../shared/molecule/createEntityDraftState"
+import {createMolecule} from "../../shared/molecule/createMolecule"
+import {extendMolecule} from "../../shared/molecule/extendMolecule"
+import type {
+    AtomFamily,
+    StoreOptions,
+    FlexibleWritableAtomFamily,
+} from "../../shared/molecule/types"
 import type {TraceSpan} from "../core"
 import {extractAgData, extractInputs, extractOutputs} from "../utils"
 
+import {evictTracesByIds, prefetchTracesByIds} from "./prefetch"
 import {spanQueryAtomFamily} from "./store"
 
 // ============================================================================
@@ -461,6 +463,29 @@ export const traceSpanMolecule = {
          * Atom family for local data (for reactive reads)
          */
         dataAtom: localDataAtomFamily,
+    },
+
+    /**
+     * Bulk actions on the trace cache (the ["trace-entity", projectId, traceId]
+     * shared TanStack slot). Symmetric with the other ETL-hydrated entities:
+     *
+     *   evaluationResultMolecule.actions.prefetchByScenarioIds
+     *   evaluationMetricMolecule.actions.prefetchByScenarioIds
+     *   testcaseMolecule.actions.prefetchByIds
+     *   traceSpanMolecule.actions.prefetchByIds  ← here
+     *
+     * The standalone `prefetchTracesByIds` export stays for backwards
+     * compatibility; this is the convention-aligned entry point.
+     */
+    actions: {
+        prefetchByIds: prefetchTracesByIds,
+        /**
+         * Cache-aware bulk eviction by trace ID list — the per-chunk
+         * counterpart of `prefetchByIds`. An ETL chunk-release hook calls
+         * this once the sink has consumed a chunk so heap stays bounded
+         * by chunk size. Wraps `evictTracesByIds`.
+         */
+        evictByIds: evictTracesByIds,
     },
 }
 

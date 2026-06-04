@@ -743,13 +743,13 @@ class EvaluatorsClient:
         Parameters
         ----------
         evaluator_ref : typing.Optional[Reference]
-            Retrieve the latest revision of this evaluator.
+            Evaluator artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of the evaluator's default variant.
         
         evaluator_variant_ref : typing.Optional[Reference]
-            Retrieve the latest revision on this variant.
+            Evaluator variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         evaluator_revision_ref : typing.Optional[Reference]
-            Retrieve this specific revision.
+            Evaluator revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with an `evaluator_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         environment_ref : typing.Optional[Reference]
             Environment to resolve through. Requires `key`.
@@ -845,11 +845,11 @@ class EvaluatorsClient:
     
     def create_evaluator_revision(self, *, evaluator_revision: EvaluatorRevisionCreate, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
-        Create a new revision on an evaluator variant.
+        Create and commit the initial revision for an evaluator variant.
         
         Prefer `/evaluators/revisions/commit` for the standard commit
-        flow. This endpoint exists for internal create paths that need
-        to insert a revision without the commit semantics.
+        flow. This endpoint commits an initial revision with the `initial`
+        guard, preventing duplicate initial revisions for the same variant.
         
         Parameters
         ----------
@@ -2277,13 +2277,13 @@ class AsyncEvaluatorsClient:
         Parameters
         ----------
         evaluator_ref : typing.Optional[Reference]
-            Retrieve the latest revision of this evaluator.
+            Evaluator artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of the evaluator's default variant.
         
         evaluator_variant_ref : typing.Optional[Reference]
-            Retrieve the latest revision on this variant.
+            Evaluator variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         evaluator_revision_ref : typing.Optional[Reference]
-            Retrieve this specific revision.
+            Evaluator revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with an `evaluator_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         environment_ref : typing.Optional[Reference]
             Environment to resolve through. Requires `key`.
@@ -2395,11 +2395,11 @@ class AsyncEvaluatorsClient:
     
     async def create_evaluator_revision(self, *, evaluator_revision: EvaluatorRevisionCreate, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
-        Create a new revision on an evaluator variant.
+        Create and commit the initial revision for an evaluator variant.
         
         Prefer `/evaluators/revisions/commit` for the standard commit
-        flow. This endpoint exists for internal create paths that need
-        to insert a revision without the commit semantics.
+        flow. This endpoint commits an initial revision with the `initial`
+        guard, preventing duplicate initial revisions for the same variant.
         
         Parameters
         ----------

@@ -295,3 +295,12 @@ class TestDefaults:
 
     def test_trial_enabled_false_when_stripe_disabled_by_default(self):
         assert settings.trial_enabled() is settings.env.stripe.enabled
+
+    def test_get_effective_pricing_includes_resolved_defaults(self):
+        result = settings.get_effective_pricing()
+
+        assert result[settings.get_free_plan()]["free"] is True
+        if settings.trial_enabled():
+            assert (
+                result[settings.get_trial_plan()]["trial"] == settings.get_trial_days()
+            )

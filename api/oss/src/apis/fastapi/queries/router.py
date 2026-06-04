@@ -9,11 +9,13 @@ from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import get_cache, set_cache
 
 from oss.src.core.events.utils import publish_revision_event
+from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 
 from oss.src.core.shared.dtos import (
     Reference,
 )
-from oss.src.core.queries.dtos import QueryRevision
+from oss.src.core.git.utils import build_retrieval_info
+from oss.src.core.queries.dtos import QueryRevision, QueryRevisionCommit
 from oss.src.core.queries.service import (
     QueriesService,
     SimpleQueriesService,
@@ -686,6 +688,7 @@ class QueriesRouter:
     # QUERY REVISIONS ----------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def create_query_revision(
         self,
         request: Request,
@@ -700,11 +703,19 @@ class QueriesRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        query_revision = await self.queries_service.create_query_revision(
+        query_revision = await self.queries_service.commit_query_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            query_revision_create=query_revision_create_request.query_revision,
+            query_revision_commit=QueryRevisionCommit(
+                **query_revision_create_request.query_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
+            #
+            initial=True,
         )
 
         query_revision_response = QueryRevisionResponse(
@@ -958,6 +969,7 @@ class QueriesRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=QueryRevisionResponse(), exclude=[HTTPException])
+    @handle_git_exceptions()
     async def retrieve_query_revision(
         self,
         request: Request,
@@ -1018,8 +1030,16 @@ class QueriesRouter:
             else None
         )
 
-        if not query_revision:
-            query_revision = await self.queries_service.fetch_query_revision(
+        if query_revision:
+            retrieval_info = build_retrieval_info(
+                revision=query_revision,
+                entity_type="query",
+            )
+        else:
+            (
+                query_revision,
+                retrieval_info,
+            ) = await self.queries_service.retrieve_query_revision(
                 project_id=UUID(request.state.project_id),
                 #
                 query_ref=query_revision_retrieve_request.query_ref,
@@ -1044,6 +1064,7 @@ class QueriesRouter:
         query_revision_response = QueryRevisionResponse(
             count=1 if query_revision else 0,
             query_revision=query_revision,
+            retrieval_info=retrieval_info,
         )
 
         await publish_revision_event(

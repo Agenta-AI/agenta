@@ -9,7 +9,11 @@
 
 import {z} from "zod"
 
-import {auditFieldsSchema, timestampFieldsSchema} from "../../shared"
+// Import from the pure zodSchema source rather than the shared barrel. The
+// shared barrel transitively re-exports paginated/table helpers that depend on
+// agenta-ui (CSS modules), which breaks Node-side execution. Schemas must stay
+// Node-safe so they can be reused in scripts, tests, and ETL adapters.
+import {auditFieldsSchema, timestampFieldsSchema} from "../../shared/utils/zodSchema"
 
 // ============================================================================
 // ENUMS
@@ -41,6 +45,7 @@ export const evaluationRunStepInputSchema = z.object({
 export const evaluationRunStepReferenceSchema = z.object({
     id: z.string(),
     slug: z.string().nullable().optional(),
+    version: z.coerce.number().nullable().optional(),
 })
 
 export const evaluationRunDataStepSchema = z.object({
@@ -168,3 +173,49 @@ export const evaluationResultsResponseSchema = z.object({
     results: z.array(evaluationResultSchema).default([]),
 })
 export type EvaluationResultsResponse = z.infer<typeof evaluationResultsResponseSchema>
+
+// ============================================================================
+// EVALUATION METRIC SCHEMAS
+// ============================================================================
+
+/**
+ * A single evaluation metric — carries the actual scores / stat blobs for a
+ * scenario (when `scenario_id` is set) or for the whole run (when null = aggregate).
+ *
+ * `data` is a nested dict keyed by step_key, with values that are either raw
+ * scores or stat objects (e.g. `{type: "numeric/continuous", mean: 7.5, ...}` or
+ * `{type: "binary", freq: [...]}`). The shape of `data` is run-specific and
+ * driven by run.data.mappings — consumers should join through mappings to
+ * resolve column names.
+ *
+ * Fetched via `POST /evaluations/metrics/query`.
+ */
+export const evaluationMetricSchema = z
+    .object({
+        id: z.string(),
+        run_id: z.string(),
+        // null on run-level aggregates, populated on per-scenario metrics
+        scenario_id: z.string().nullable().optional(),
+        status: z.string().nullable().optional(),
+        // Used for temporal metrics; null on point-in-time metrics
+        interval: z.number().nullable().optional(),
+        timestamp: z.string().nullable().optional(),
+        // The actual values keyed by step_key → mapping path
+        data: z.record(z.string(), z.unknown()).nullable().optional(),
+        flags: z.record(z.string(), z.unknown()).nullable().optional(),
+        tags: z.array(z.string()).nullable().optional(),
+        meta: z.record(z.string(), z.unknown()).nullable().optional(),
+    })
+    .merge(timestampFieldsSchema)
+    .merge(auditFieldsSchema)
+
+export type EvaluationMetric = z.infer<typeof evaluationMetricSchema>
+
+/**
+ * Response envelope for evaluation metrics query.
+ */
+export const evaluationMetricsResponseSchema = z.object({
+    count: z.number().optional().default(0),
+    metrics: z.array(evaluationMetricSchema).default([]),
+})
+export type EvaluationMetricsResponse = z.infer<typeof evaluationMetricsResponseSchema>

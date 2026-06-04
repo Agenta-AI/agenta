@@ -65,11 +65,9 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
 )
 from oss.src.core.queries.dtos import (
-    QueryRevisionData,
     QueryRevision,
 )
 from oss.src.core.evaluators.dtos import (
-    EvaluatorRevisionData,
     EvaluatorRevision,
 )
 
@@ -80,6 +78,7 @@ from oss.src.core.evaluations.utils import (
     make_hash,
     select_traces_for_reuse,
 )
+from oss.src.core.git.utils import revision_references
 
 
 log = get_module_logger(__name__)
@@ -166,6 +165,100 @@ annotations_service = AnnotationsService(
 )
 
 # ------------------------------------------------------------------------------
+
+
+async def _resolve_query_revisions(
+    *,
+    queries_service: QueriesService,
+    project_id: UUID,
+    query_revision_refs: Dict[str, Reference],
+) -> Dict[str, QueryRevision]:
+    """Fetch each referenced query revision and skip ones missing identity or data."""
+    resolved: Dict[str, QueryRevision] = dict()
+
+    for query_step_key, query_revision_ref in query_revision_refs.items():
+        query_revision = await queries_service.fetch_query_revision(
+            project_id=project_id,
+            #
+            query_revision_ref=query_revision_ref,
+        )
+
+        if not query_revision:
+            log.warn(
+                "Skipping query revision: not found.",
+                query_step_key=query_step_key,
+                query_revision_ref=query_revision_ref.model_dump(mode="json"),
+            )
+            continue
+
+        if not query_revision.id or not query_revision.slug:
+            log.warn(
+                "Skipping query revision: found but missing identity.",
+                query_step_key=query_step_key,
+                query_revision_ref=query_revision_ref.model_dump(mode="json"),
+                has_id=bool(query_revision.id),
+                has_slug=bool(query_revision.slug),
+            )
+            continue
+
+        if not query_revision.data:
+            log.warn(
+                "Skipping query revision: found but missing data.",
+                query_step_key=query_step_key,
+                query_revision_ref=query_revision_ref.model_dump(mode="json"),
+            )
+            continue
+
+        resolved[query_step_key] = query_revision
+
+    return resolved
+
+
+async def _resolve_evaluator_revisions(
+    *,
+    evaluators_service: EvaluatorsService,
+    project_id: UUID,
+    evaluator_revision_refs: Dict[str, Reference],
+) -> Dict[str, EvaluatorRevision]:
+    """Fetch each referenced evaluator revision and skip ones missing identity or data."""
+    resolved: Dict[str, EvaluatorRevision] = dict()
+
+    for evaluator_step_key, evaluator_revision_ref in evaluator_revision_refs.items():
+        evaluator_revision = await evaluators_service.fetch_evaluator_revision(
+            project_id=project_id,
+            #
+            evaluator_revision_ref=evaluator_revision_ref,
+        )
+
+        if not evaluator_revision:
+            log.warn(
+                "Skipping evaluator revision: not found.",
+                evaluator_step_key=evaluator_step_key,
+                evaluator_revision_ref=evaluator_revision_ref.model_dump(mode="json"),
+            )
+            continue
+
+        if not evaluator_revision.id or not evaluator_revision.slug:
+            log.warn(
+                "Skipping evaluator revision: found but missing identity.",
+                evaluator_step_key=evaluator_step_key,
+                evaluator_revision_ref=evaluator_revision_ref.model_dump(mode="json"),
+                has_id=bool(evaluator_revision.id),
+                has_slug=bool(evaluator_revision.slug),
+            )
+            continue
+
+        if not evaluator_revision.data:
+            log.warn(
+                "Skipping evaluator revision: found but missing data.",
+                evaluator_step_key=evaluator_step_key,
+                evaluator_revision_ref=evaluator_revision_ref.model_dump(mode="json"),
+            )
+            continue
+
+        resolved[evaluator_step_key] = evaluator_revision
+
+    return resolved
 
 
 async def evaluate_live_query(
@@ -280,65 +373,25 @@ async def evaluate_live_query(
         # ----------------------------------------------------------------------
 
         # fetch query revisions ------------------------------------------------
-        for (
-            query_step_key,
-            query_revision_ref,
-        ) in query_revision_refs.items():
-            query_revision = await queries_service.fetch_query_revision(
-                project_id=project_id,
-                #
-                query_revision_ref=query_revision_ref,
-            )
-
-            if query_revision and not query_revision.data:
-                query_revision.data = QueryRevisionData()
-
-            if (
-                not query_revision
-                or not query_revision.id
-                or not query_revision.slug
-                or not query_revision.data
-            ):
-                log.warn(
-                    f"Query revision with ref {query_revision_ref.model_dump(mode='json')} not found!"
-                )
-                continue
-
-            query_step = input_steps[query_step_key]
-
-            query_revisions[query_step_key] = query_revision
-            query_references[query_step_key] = query_step.references
+        query_revisions = await _resolve_query_revisions(
+            queries_service=queries_service,
+            project_id=project_id,
+            query_revision_refs=query_revision_refs,
+        )
+        for query_step_key in query_revisions:
+            query_references[query_step_key] = input_steps[query_step_key].references
         # ----------------------------------------------------------------------
 
         # fetch evaluator revisions --------------------------------------------
-        for (
-            evaluator_step_key,
-            evaluator_revision_ref,
-        ) in evaluator_revision_refs.items():
-            evaluator_revision = await evaluators_service.fetch_evaluator_revision(
-                project_id=project_id,
-                #
-                evaluator_revision_ref=evaluator_revision_ref,
-            )
-
-            if evaluator_revision and not evaluator_revision.data:
-                evaluator_revision.data = EvaluatorRevisionData()
-
-            if (
-                not evaluator_revision
-                or not evaluator_revision.id
-                or not evaluator_revision.slug
-                or not evaluator_revision.data
-            ):
-                log.warn(
-                    f"Evaluator revision with ref {evaluator_revision_ref.model_dump(mode='json')} not found!"
-                )
-                continue
-
-            evaluator_step = annotation_steps[evaluator_step_key]
-
-            evaluator_revisions[evaluator_step_key] = evaluator_revision
-            evaluator_references[evaluator_step_key] = evaluator_step.references
+        evaluator_revisions = await _resolve_evaluator_revisions(
+            evaluators_service=evaluators_service,
+            project_id=project_id,
+            evaluator_revision_refs=evaluator_revision_refs,
+        )
+        for evaluator_step_key in evaluator_revisions:
+            evaluator_references[evaluator_step_key] = annotation_steps[
+                evaluator_step_key
+            ].references
         # ----------------------------------------------------------------------
 
         # run query revisions --------------------------------------------------
@@ -540,10 +593,32 @@ async def evaluate_live_query(
                         scenario_has_pending[idx] = True
                         continue
 
+                    # skip annotation steps whose evaluator revision was not
+                    # resolved (missing identity or data) — both maps are only
+                    # populated for successfully resolved revisions.
+                    if annotation_step_key not in evaluator_revisions:
+                        log.error(
+                            "Evaluator revision not resolved; skipping annotation step.",
+                            run_id=run_id,
+                            annotation_step_key=annotation_step_key,
+                        )
+                        scenario_has_errors[idx] += 1
+                        scenario_status[idx] = EvaluationStatus.ERRORS
+                        continue
+
                     step_status = EvaluationStatus.SUCCESS
 
+                    evaluator_revision = evaluator_revisions[annotation_step_key]
+                    query_revision = query_revisions[query_step_key]
                     references: Dict[str, Any] = {
-                        **evaluator_references[annotation_step_key],
+                        **revision_references(
+                            revision=query_revision,
+                            entity_type="query",
+                        ),
+                        **revision_references(
+                            revision=evaluator_revision,
+                            entity_type="evaluator",
+                        ),
                     }
                     links: Dict[str, Any] = {
                         query_step_key: dict(
@@ -553,19 +628,6 @@ async def evaluate_live_query(
                     }
 
                     # invoke annotation workflow -------------------------------
-                    evaluator_revision = evaluator_revisions[annotation_step_key]
-
-                    if not evaluator_revision:
-                        log.error(
-                            f"Evaluator revision for {annotation_step_key} not found!"
-                        )
-                        scenario_has_errors[idx] += 1
-                        # run_has_errors += 1
-                        step_status = EvaluationStatus.FAILURE
-                        scenario_status[idx] = EvaluationStatus.ERRORS
-                        # run_status = EvaluationStatus.ERRORS
-                        continue
-
                     _revision = evaluator_revision.model_dump(
                         mode="json",
                         exclude_none=True,

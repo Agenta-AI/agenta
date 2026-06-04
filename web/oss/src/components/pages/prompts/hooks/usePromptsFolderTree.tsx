@@ -59,7 +59,7 @@ export const usePromptsFolderTree = ({
                 const hasChildren = (childNodes?.length ?? 0) > 0
 
                 const icon = isFolder ? (
-                    <FolderOpenOutlined style={{fontSize: 16, color: "#1C2C3D"}} />
+                    <FolderOpenOutlined style={{fontSize: 16, color: "var(--ag-c-1C2C3D)"}} />
                 ) : (
                     getAppTypeIcon(node.appType)
                 )

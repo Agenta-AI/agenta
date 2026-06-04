@@ -12,4 +12,6 @@ export interface EvaluatorRevisionResolveResponse {
     evaluator_revision?: (AgentaApi.EvaluatorRevision | null) | undefined;
     /** Diagnostic information about the resolution pass (depth, embed count, errors). */
     resolution_info?: (AgentaApi.ResolutionInfo | null) | undefined;
+    /** References (artifact / variant / revision) actually used to retrieve this revision. */
+    retrieval_info?: (AgentaApi.RetrievalInfo | null) | undefined;
 }

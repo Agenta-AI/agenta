@@ -209,6 +209,19 @@ export interface DrillInUIComponents {
      * Used by: ResponseFormatControl for parsing JSON with relaxed syntax
      */
     tryParsePartialJson?: (jsonString: string) => Record<string, unknown>
+
+    /**
+     * Feature flags for opt-in drill-in behaviours.
+     * Injected via DrillInUIProvider so any component in the tree
+     * can read them via useDrillInUI() without prop drilling.
+     */
+    featureFlags?: {
+        /**
+         * When true, Form is available as a view-mode option for object fields.
+         * Default false - ships hidden until the rail renderer is validated.
+         */
+        enableFormView?: boolean
+    }
 }
 
 /**

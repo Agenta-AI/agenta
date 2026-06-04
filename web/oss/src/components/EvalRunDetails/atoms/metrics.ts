@@ -13,6 +13,7 @@ import {getProjectValues} from "@/oss/state/project"
 import {previewEvalTypeAtom} from "../state/evalType"
 import {resolveValueBySegments, splitPath} from "../utils/valueAccess"
 
+import {isTerminalStatus} from "./compare"
 import {
     createMetricProcessor,
     isLegacyValueLeaf,
@@ -782,6 +783,15 @@ export const evaluationMetricQueryAtomFamily = atomFamily(
             const batcher = get(evaluationMetricBatcherFamily({runId: effectiveRunId}))
             const projectId = resolveProjectId(get)
 
+            // While the run is still executing, poll so a completing
+            // scenario's metrics surface in the table cells + focus drawer
+            // without a manual reload. Stops once the run is terminal.
+            const runQuery = effectiveRunId
+                ? get(evaluationRunQueryAtomFamily(effectiveRunId))
+                : undefined
+            const runStatus = runQuery?.data?.rawRun?.status ?? runQuery?.data?.camelRun?.status
+            const runTerminal = isTerminalStatus(runStatus)
+
             return {
                 queryKey: ["preview", "evaluation-metric", effectiveRunId, projectId, scenarioId],
                 enabled: Boolean(projectId && effectiveRunId && batcher && scenarioId),
@@ -789,6 +799,7 @@ export const evaluationMetricQueryAtomFamily = atomFamily(
                 gcTime: 5 * 60 * 1000,
                 refetchOnWindowFocus: false,
                 refetchOnReconnect: false,
+                refetchInterval: runTerminal ? false : 5000,
                 // Enable structural sharing to prevent unnecessary re-renders when data hasn't changed
                 structuralSharing: true,
                 queryFn: async () => {

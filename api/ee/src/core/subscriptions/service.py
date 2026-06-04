@@ -364,6 +364,12 @@ class SubscriptionsService:
 
             subscription = await self.update(subscription=subscription)
 
+        elif subscription.plan == free_plan and event == Event.SUBSCRIPTION_CANCELLED:
+            log.info(
+                "Subscription already cancelled for organization ID: %s",
+                organization_id,
+            )
+
         else:
             log.warn("Invalid subscription event: %s ", subscription)
 

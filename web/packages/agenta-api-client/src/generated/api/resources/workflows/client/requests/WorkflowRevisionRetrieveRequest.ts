@@ -7,11 +7,11 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface WorkflowRevisionRetrieveRequest {
-    /** Return the latest revision across all variants of this workflow. */
+    /** Workflow artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of the workflow's default variant. */
     workflow_ref?: AgentaApi.Reference | null;
-    /** Return the latest revision of this variant. */
+    /** Workflow variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant. */
     workflow_variant_ref?: AgentaApi.Reference | null;
-    /** Return this exact revision (by `id`, or by `slug` + `version`). */
+    /** Workflow revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with a `workflow_variant_ref`. Sending only `version` without a variant ref returns HTTP 400. */
     workflow_revision_ref?: AgentaApi.Reference | null;
     /** Environment artifact backing the deployment to resolve from. */
     environment_ref?: AgentaApi.Reference | null;

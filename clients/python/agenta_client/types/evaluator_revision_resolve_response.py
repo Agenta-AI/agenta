@@ -6,6 +6,7 @@ import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 from .evaluator_revision import EvaluatorRevision
 from .resolution_info import ResolutionInfo
+from .retrieval_info import RetrievalInfo
 
 
 class EvaluatorRevisionResolveResponse(UniversalBaseModel):
@@ -25,6 +26,11 @@ class EvaluatorRevisionResolveResponse(UniversalBaseModel):
     resolution_info: typing.Optional[ResolutionInfo] = pydantic.Field(default=None)
     """
     Diagnostic information about the resolution pass (depth, embed count, errors).
+    """
+    
+    retrieval_info: typing.Optional[RetrievalInfo] = pydantic.Field(default=None)
+    """
+    References (artifact / variant / revision) actually used to retrieve this revision.
     """
     
     

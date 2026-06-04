@@ -1,1 +1,6 @@
-export {fetchEvaluationRun, queryEvaluationRuns, queryEvaluationResults} from "./api"
+export {
+    fetchEvaluationRun,
+    queryEvaluationRuns,
+    queryEvaluationResults,
+    queryEvaluationMetrics,
+} from "./api"

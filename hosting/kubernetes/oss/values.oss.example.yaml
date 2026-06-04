@@ -1,0 +1,506 @@
+# ================================================================== #
+# Agenta — License, Endpoints, Secrets
+# (https://agenta.ai/pricing)
+# ================================================================== #
+agenta:
+  # --- License ---
+  license: oss
+
+  # --- Core endpoints ---
+  webUrl: "http://localhost"
+  servicesUrl: "http://localhost/services"
+  apiUrl: "http://localhost/api"
+  # apiInternalUrl:
+
+  # --- Secrets (REPLACE in production!) ---
+  authKey: "replace-me"
+  cryptKey: "replace-me"
+
+# ================================================================== #
+# === Images ===
+# Image repository is supplied by the chart's edition-aware helper.
+# Override tag/pullPolicy here if you need to pin a specific build.
+# ================================================================== #
+# api:
+#   image:
+#     tag: latest
+#     pullPolicy: IfNotPresent
+# web:
+#   image:
+#     tag: latest
+#     pullPolicy: IfNotPresent
+# services:
+#   image:
+#     tag: latest
+#     pullPolicy: IfNotPresent
+
+# ================================================================== #
+# === agenta.access ===
+# ================================================================== #
+# agenta:
+#   access:
+#     allowedDomains:
+#     allowedOwnerEmails:
+#     blockedDomains:
+#     blockedEmails:
+#     defaultPlan:
+#     defaultPlanOverlay:
+#     emailDisabled: false
+#     plans:
+#     roles:
+#     rolesOverlay:
+
+# ================================================================== #
+# === agenta.aiServices ===
+# ================================================================== #
+# agenta:
+#   aiServices:
+#     apiKey:
+#     apiUrl:
+#     environmentSlug:
+#     refinePromptKey:
+
+# ================================================================== #
+# === agenta.api ===
+# ================================================================== #
+# agenta:
+#   api:
+#     caching:
+#       enabled: true
+
+# ================================================================== #
+# === agenta.extras ===
+# Consumed by EE (AGENTA_DEMOS): seeds demo workspaces/apps.
+# ================================================================== #
+# agenta:
+#   extras:
+#     demos:
+
+# ================================================================== #
+# === agenta.logging ===
+# ================================================================== #
+# agenta:
+#   logging:
+#     consoleEnabled: true
+#     consoleLevel: TRACE
+#     fileEnabled: true
+#     fileLevel: WARNING
+#     filePath: error
+#     otlpEnabled: false
+#     otlpLevel: INFO
+
+# ================================================================== #
+# === agenta.otlp ===
+# ================================================================== #
+# agenta:
+#   otlp:
+#     maxBatchBytes: 10485760
+
+# ================================================================== #
+# === agenta.services ===
+# Consumed by the agenta SDK running inside services pods:
+#   - hook.allowInsecure   → AGENTA_SERVICES_HOOK_ALLOW_INSECURE
+#   - code.sandboxRunner   → AGENTA_SERVICES_CODE_SANDBOX_RUNNER (local|daytona)
+#   - middleware.authEnabled    → AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED
+#   - middleware.cachingEnabled → AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED
+# ================================================================== #
+# agenta:
+#   services:
+#     hook:
+#       allowInsecure: false
+#     code:
+#       sandboxRunner: local
+#     middleware:
+#       authEnabled: true
+#       cachingEnabled: true
+
+# ================================================================== #
+# === agenta.webhooks ===
+# ================================================================== #
+# agenta:
+#   webhooks:
+#     allowInsecure: false
+
+# ================================================================== #
+# === alembic ===
+# ================================================================== #
+# alembic:
+#   autoMigrations: true
+#   cfgPathCore: /app/oss/databases/postgres/migrations/core/alembic.ini
+#   cfgPathTracing: /app/oss/databases/postgres/migrations/tracing/alembic.ini
+#   # --- k8s-only job knobs ---
+#   activeDeadlineSeconds: 600
+#   backoffLimit: 3
+#   ttlSecondsAfterFinished: 300
+#   resources:
+#     requests:
+#       cpu: 100m
+#       memory: 256Mi
+#     limits:
+#       memory: 512Mi
+
+# ================================================================== #
+# === cloudflare ===
+# ================================================================== #
+# cloudflare:
+#   turnstile:
+#     allowedHostnames:
+#     secretKey:
+#     siteKey:
+
+# ================================================================== #
+# === composio ===
+# ================================================================== #
+# composio:
+#   apiKey:
+#   apiUrl: https://backend.composio.dev/api/v3
+
+# ================================================================== #
+# === crisp ===
+# Surfaced to the web container as NEXT_PUBLIC_CRISP_WEBSITE_ID for the
+# in-app support widget.
+# ================================================================== #
+# crisp:
+#   websiteId:
+
+# ================================================================== #
+# === daytona ===
+# Consumed by the agenta SDK when running user code in Daytona sandboxes.
+# ================================================================== #
+# daytona:
+#   apiKey:
+#   apiUrl: https://app.daytona.io/api
+#   snapshot: daytona-small
+#   target: eu
+
+# ================================================================== #
+# docker (compose-only — no-op on Kubernetes, kept commented so this
+# file mirrors the compose env surface without affecting K8s behavior).
+# ================================================================== #
+# docker:
+#   networkMode: "bridge"
+
+# ================================================================== #
+# === identity — OIDC providers ===
+# ================================================================== #
+# identity:
+#   apple:
+#     clientId:
+#     clientSecret:
+#     keyId:
+#     privateKey:
+#     teamId:
+#   azureAd:
+#     clientId:
+#     clientSecret:
+#     directoryId:
+#   bitbucket:
+#     clientId:
+#     clientSecret:
+#   boxySaml:
+#     clientId:
+#     clientSecret:
+#     url:
+#   discord:
+#     clientId:
+#     clientSecret:
+#   facebook:
+#     clientId:
+#     clientSecret:
+#   github:
+#     clientId:
+#     clientSecret:
+#   gitlab:
+#     baseUrl:
+#     clientId:
+#     clientSecret:
+#   google:
+#     clientId:
+#     clientSecret:
+#   googleWorkspaces:
+#     clientId:
+#     clientSecret:
+#     hd:
+#   linkedin:
+#     clientId:
+#     clientSecret:
+#   okta:
+#     clientId:
+#     clientSecret:
+#     domain:
+#   twitter:
+#     clientId:
+#     clientSecret:
+
+# ================================================================== #
+# === llm — provider API keys ===
+# ================================================================== #
+# llm:
+#   alephalpha:
+#   anthropic:
+#   anyscale:
+#   cohere:
+#   deepinfra:
+#   gemini:
+#   groq:
+#   minimax:
+#   mistral:
+#   openai:
+#   openrouter:
+#   perplexityai:
+#   togetherai:
+
+# ================================================================== #
+# === loops ===
+# ================================================================== #
+# loops:
+#   apiKey:
+
+# ================================================================== #
+# === newrelic ===
+# ================================================================== #
+# newrelic:
+#   licenseKey:
+
+# ================================================================== #
+# postgres — Agenta-managed connection settings
+# ================================================================== #
+postgres:
+  password: "password"
+  # user: username
+  # port: 5432
+  # uriCore: postgresql+asyncpg://username:password@postgres:5432/agenta_oss_core
+  # uriSupertokens: postgresql://username:password@postgres:5432/agenta_oss_supertokens
+  # uriTracing: postgresql+asyncpg://username:password@postgres:5432/agenta_oss_tracing
+
+# ================================================================== #
+# posthog — analytics
+# OSS and EE use different PostHog project keys so usage telemetry
+# stays in separate streams. Override or unset to disable.
+# ================================================================== #
+posthog:
+  apiKey: "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
+  # apiUrl:
+
+# ================================================================== #
+# === redis — Agenta connection settings ===
+# ================================================================== #
+# redis:
+#   uri: redis://redis:6379/0
+#   uriDurable: redis://redis-durable:6381/0
+#   uriVolatile: redis://redis-volatile:6379/0
+
+# ================================================================== #
+# === sendgrid ===
+# ================================================================== #
+# sendgrid:
+#   apiKey:
+#   fromAddress:
+
+# ================================================================== #
+# === supertokens ===
+# ================================================================== #
+# supertokens:
+#   apiKey:
+#   application: default
+#   passwordMaxLength:
+#   passwordMinLength: 8
+#   passwordPolicy: strong
+#   passwordRegex:
+#   tenant: tenant
+#   uriCore: http://supertokens:3567
+#   # --- k8s-only bundled deployment knobs ---
+#   enabled: true
+#   image:
+#     tag: latest
+#     pullPolicy: IfNotPresent
+#   replicas: 1
+#   port: 3567
+#   resources:
+#     requests:
+#       cpu: 100m
+#       memory: 256Mi
+#     limits:
+#       memory: 512Mi
+
+# ================================================================== #
+# === Global (Bitnami subchart conventions, image pull secrets) ===
+# OSS images live on a public registry, so no pull secret is required.
+# If you mirror the images to a private registry, uncomment and set
+# imagePullSecrets to the name of a Secret in this namespace.
+# ================================================================== #
+# global:
+#   imagePullSecrets:
+#     - name: ghcr-pull-secret
+
+# ================================================================== #
+# === serviceAccount ===
+# ================================================================== #
+# serviceAccount:
+#   create: false
+#   name: agenta
+
+# ================================================================== #
+# === postgresql — Bitnami subchart (bundled deployment) ===
+# ================================================================== #
+# postgresql:
+#   enabled: true
+#   auth:
+#     username: agenta
+#   primary:
+#     persistence:
+#       size: 10Gi
+#   external:
+#     host:
+#     port: 5432
+#     username: agenta
+#     sslmode: prefer
+
+# ================================================================== #
+# === redisVolatile — bundled Redis (cache, pub/sub) ===
+# ================================================================== #
+# The bundled Redis runs ClusterIP-only and ships without a password by
+# default — Redis itself has no AUTH unless we set one. That's fine for
+# local/dev clusters where pod-to-pod traffic is trusted. For shared or
+# production clusters, set `password` (and optionally add a NetworkPolicy
+# limiting access to the agenta pods) — the password is read from the
+# chart-managed Secret and surfaced into REDIS_URI_VOLATILE.
+# redisVolatile:
+#   enabled: true
+#   password: ""            # default: no auth; set to enable AUTH
+#   image:
+#     repository: redis
+#     tag: "8"
+#     pullPolicy: IfNotPresent
+#   port: 6379
+#   maxmemory: 512mb
+#   maxmemoryPolicy: volatile-lru
+#   resources:
+#     requests:
+#       cpu: 50m
+#       memory: 128Mi
+#     limits:
+#       memory: 512Mi
+
+# ================================================================== #
+# === redisDurable — bundled Redis (queues, persistent state) ===
+# ================================================================== #
+# Same security note as redisVolatile above: ClusterIP-only, no AUTH by
+# default. Set `password` for shared/production clusters.
+#
+# Note: persistence.enabled writes a StatefulSet `volumeClaimTemplates`,
+# which is immutable post-create. Once installed, toggling this flag on
+# an upgrade is rejected by the API server — the chart catches this in
+# _validations.tpl with a fail-fast error explaining the manual VCT
+# recreation steps. Pick a value at install time and stick with it.
+# redisDurable:
+#   enabled: true
+#   password: ""            # default: no auth; set to enable AUTH
+#   image:
+#     repository: redis
+#     tag: "8"
+#     pullPolicy: IfNotPresent
+#   port: 6381
+#   maxmemory: 512mb
+#   maxmemoryPolicy: noeviction
+#   persistence:
+#     enabled: true
+#     size: 5Gi
+#   resources:
+#     requests:
+#       cpu: 50m
+#       memory: 128Mi
+#     limits:
+#       memory: 512Mi
+
+# ================================================================== #
+# === api / web / services / workers / cron — deployment knobs ===
+# ================================================================== #
+# api:
+#   enabled: true
+#   replicas: 1
+#   port: 8000
+#   workers: 2
+#   resources:
+#     requests:
+#       cpu: 250m
+#       memory: 512Mi
+#     limits:
+#       memory: 1Gi
+# web:
+#   enabled: true
+#   replicas: 1
+#   port: 3000
+#   resources:
+#     requests:
+#       cpu: 100m
+#       memory: 256Mi
+#     limits:
+#       memory: 512Mi
+# services:
+#   enabled: true
+#   replicas: 1
+#   port: 80
+#   workers: 2
+#   resources:
+#     requests:
+#       cpu: 250m
+#       memory: 512Mi
+#     limits:
+#       memory: 1Gi
+# workerEvaluations:
+#   enabled: true
+#   replicas: 1
+# workerTracing:
+#   enabled: true
+#   replicas: 1
+# workerWebhooks:
+#   enabled: true
+#   replicas: 1
+# workerEvents:
+#   enabled: true
+#   replicas: 1
+# cron:
+#   enabled: true
+#   replicas: 1
+
+# ================================================================== #
+# === ingress ===
+# Path routing: / → web, /api → api (prefix-stripped), /services → services
+# (prefix-stripped).  When running behind Traefik, attach the StripPrefix
+# Middleware defined under extraObjects below.
+# ================================================================== #
+# ingress:
+#   enabled: true
+#   className: traefik
+#   host: agenta.example.com
+#   annotations:
+#     traefik.ingress.kubernetes.io/router.middlewares: agenta-strip-prefixes@kubernetescrd
+#   paths:
+#     api:
+#       path: /api
+#       pathType: Prefix
+#     services:
+#       path: /services
+#       pathType: Prefix
+#     web:
+#       path: /
+#       pathType: Prefix
+
+# ================================================================== #
+# === extraObjects — arbitrary Kubernetes resources ===
+# Includes the Traefik v3 StripPrefix Middleware referenced from the
+# ingress.annotations above.  Required so /api and /services backends
+# receive requests without the prefix.
+# ================================================================== #
+# extraObjects:
+#   - apiVersion: traefik.io/v1alpha1
+#     kind: Middleware
+#     metadata:
+#       name: strip-prefixes
+#       namespace: "{{ .Release.Namespace }}"
+#     spec:
+#       stripPrefix:
+#         prefixes:
+#           - /api
+#           - /services

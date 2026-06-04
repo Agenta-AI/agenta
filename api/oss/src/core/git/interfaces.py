@@ -294,6 +294,8 @@ class GitDAOInterface(ABC):
         user_id: UUID,
         #
         revision_commit: RevisionCommit,
+        #
+        initial: bool = False,
     ) -> Optional[Revision]:
         raise NotImplementedError
 

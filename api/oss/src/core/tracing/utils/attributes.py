@@ -5,6 +5,7 @@ from json import loads as json_loads, JSONDecodeError
 from re import match
 from typing import Any, Dict, Optional, Tuple, Union
 
+from agenta.sdk.models.shared import URL_SAFE_SLUG
 from pydantic import ValidationError
 
 from oss.src.core.shared.dtos import Data, Flags, Meta, Tags
@@ -20,8 +21,6 @@ from oss.src.core.tracing.dtos import (
     SpanType,
     TraceType,
 )
-
-URL_SAFE = r"^[a-zA-Z0-9_-]+$"
 
 REFERENCE_KEYS = [
     "testcase",
@@ -220,7 +219,7 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
                     entry["id"] = str(references_dict[key]["id"])
                 if references_dict[key].get("slug") is not None:
                     entry["slug"] = str(references_dict[key]["slug"])
-                    if entry["slug"] and not match(URL_SAFE, entry["slug"]):
+                    if entry["slug"] and not match(URL_SAFE_SLUG, entry["slug"]):
                         entry["slug"] = None
                 if references_dict[key].get("version") is not None:
                     entry["version"] = str(references_dict[key]["version"])
@@ -245,7 +244,7 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
     else:
         cleaned_ag["user"] = None
 
-    for key in ["flags", "tags", "meta", "exception", "hashes"]:
+    for key in ["flags", "tags", "meta", "exception", "hashes", "selector"]:
         cleaned_ag[key] = ag.get(key, None)
 
     if "meta" in cleaned_ag and cleaned_ag["meta"] is not None:
@@ -265,7 +264,8 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
     cleaned_ag["unsupported"] = unsupported or None
     try:
         cleaned_ag = AgAttributes(**cleaned_ag).model_dump(
-            mode="json", exclude_none=True
+            mode="json",
+            exclude_none=True,
         )
     except ValidationError as e:
         try:

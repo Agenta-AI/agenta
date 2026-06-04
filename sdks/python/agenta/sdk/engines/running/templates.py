@@ -66,13 +66,11 @@ const correct_answer = params.correct_answer;
 {user_code}
 
 // Execute and capture result
-let result = evaluate(app_params, inputs, output, correct_answer);
+let result: number | null = evaluate(app_params, inputs, output, correct_answer);
 
 // Ensure result is a number
-result = Number(result);
-if (!Number.isFinite(result)) {{
-    result = null;
-}}
+const resultNum = Number(result);
+result = Number.isFinite(resultNum) ? resultNum : null;
 
 // Print result for capture
 console.log(JSON.stringify({{ result: result }}));
@@ -137,13 +135,11 @@ const trace = params.trace;
 {user_code}
 
 // Execute and capture result
-let result = evaluate(inputs, outputs, trace);
+let result: number | null = evaluate(inputs, outputs, trace);
 
 // Ensure result is a number
-result = Number(result);
-if (!Number.isFinite(result)) {{
-    result = null;
-}}
+const resultNum = Number(result);
+result = Number.isFinite(resultNum) ? resultNum : null;
 
 // Print result for capture
 console.log(JSON.stringify({{ result: result }}));

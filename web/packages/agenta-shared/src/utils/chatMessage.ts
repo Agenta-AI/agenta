@@ -193,6 +193,59 @@ export function getAttachments(content: MessageContent): (ImageContentPart | Fil
 // Message inspection utilities
 // ============================================================================
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === "object" && !Array.isArray(value)
+
+export interface ChatMessageShape extends Record<string, unknown> {
+    role?: string
+    sender?: string
+    author?: string
+    content?: MessageContent
+    text?: string
+    message?: string
+    parts?: unknown[]
+    tool_calls?: unknown[]
+    function_call?: unknown
+    tool_call_id?: unknown
+    delta?: {content?: unknown}
+}
+
+/**
+ * Check whether an arbitrary object has a chat-message shape.
+ *
+ * This is data-shape detection, not runnable/app chat-mode detection. It accepts
+ * standard `{role, content}` messages plus common provider variants that use
+ * `sender`/`author`, `text`/`message`, content parts, or tool/function calls.
+ */
+export function isChatMessageObject(value: unknown): value is ChatMessageShape {
+    if (!isRecord(value)) return false
+
+    const hasMessageActor =
+        typeof value.role === "string" ||
+        typeof value.sender === "string" ||
+        typeof value.author === "string"
+
+    if (!hasMessageActor) return false
+
+    return (
+        value.content !== undefined ||
+        value.text !== undefined ||
+        value.message !== undefined ||
+        Array.isArray(value.parts) ||
+        Array.isArray(value.tool_calls) ||
+        value.function_call !== undefined ||
+        value.tool_call_id !== undefined ||
+        typeof (value.delta as Record<string, unknown> | undefined)?.content === "string"
+    )
+}
+
+/**
+ * Check whether a value is an array containing chat-message-shaped objects.
+ */
+export function isChatMessagesArray(value: unknown): value is ChatMessageShape[] {
+    return Array.isArray(value) && value.length > 0 && value.some(isChatMessageObject)
+}
+
 /**
  * Check whether a message has meaningful content.
  * Handles string content, array content with text/image/file parts.

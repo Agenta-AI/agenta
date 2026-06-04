@@ -73,7 +73,7 @@ class TestNoOverride:
         # parent env (e.g. a loaded .env.ee.dev) doesn't take precedence.
         out = _ok(
             "from oss.src.utils.env import env; "
-            "print(env.billing.pricing['cloud_v0_pro']['base']['price'])",
+            "print(env.agenta.billing.pricing['cloud_v0_pro']['base']['price'])",
             {
                 "AGENTA_BILLING_PRICING": "",
                 "AGENTA_PRICING": json.dumps(
@@ -87,7 +87,7 @@ class TestNoOverride:
         # See note above: clear higher-priority sources so STRIPE_PRICING wins.
         out = _ok(
             "from oss.src.utils.env import env; "
-            "print(env.billing.pricing['cloud_v0_pro']['base']['price'])",
+            "print(env.agenta.billing.pricing['cloud_v0_pro']['base']['price'])",
             {
                 "AGENTA_BILLING_PRICING": "",
                 "AGENTA_PRICING": "",
@@ -101,7 +101,7 @@ class TestNoOverride:
     def test_billing_pricing_prefers_canonical_env_over_legacy_aliases(self):
         out = _ok(
             "from oss.src.utils.env import env; "
-            "print(env.billing.pricing['cloud_v0_pro']['base']['price'])",
+            "print(env.agenta.billing.pricing['cloud_v0_pro']['base']['price'])",
             {
                 "AGENTA_BILLING_PRICING": json.dumps(
                     {"cloud_v0_pro": {"base": {"price": "price_billing"}}}
@@ -619,14 +619,14 @@ class TestRolesOverride:
 class TestEnvTypeValidation:
     def test_plans_as_list_fails(self):
         _fails(
-            "from oss.src.utils.env import env; print(env.access_controls.plans)",
+            "from oss.src.utils.env import env; print(env.agenta.access.plans)",
             {"AGENTA_ACCESS_PLANS": "[1,2,3]"},
             "must be a JSON object",
         )
 
     def test_catalog_as_dict_fails(self):
         _fails(
-            "from oss.src.utils.env import env; print(env.billing.catalog)",
+            "from oss.src.utils.env import env; print(env.agenta.billing.catalog)",
             {"AGENTA_BILLING_CATALOG": "{}"},
             "must be a JSON array",
         )

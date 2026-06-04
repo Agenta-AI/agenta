@@ -4,366 +4,325 @@ sidebar_label: Configuring Environment
 description: Learn how to configure the environment variables to self-host Agenta through Docker Compose or Helm
 ---
 
-This guide lists the env vars in the same order as the `.example` files in `hosting/docker-compose`. These variables control various aspects of the platform, from core functionality to third-party integrations.
+Agenta encodes the same nesting at three layers: the environment variable name,
+the Python `env.py` attribute path, and the Helm `values.yaml` path. Every
+section below lists the canonical names in those three forms.
+
+For deprecated/legacy environment variable names that still work via fallback,
+see [Deprecated environment variables](#deprecated-environment-variables) at
+the bottom.
 
 :::tip Kubernetes / Helm
-If you deployed Agenta using the Helm chart, configuration is done through `values.yaml` rather than environment variables. See the [Deploy on Kubernetes](/self-host/guides/deploy-to-kubernetes#reference) guide for the full Helm values reference. The environment variables listed below still apply — the Helm chart maps its values to the same variables internally.
+For Helm deployments, set the `values.yaml` path instead of the env var. The
+chart maps every value to the same canonical env var internally.
 :::
 
-## Configuration file location
-
-Defaults live in `hosting/docker-compose/*/env.*.example`. Use `--env-file` to point to your own file.
-
-## Environment file sections (in file order)
-
-### Agenta - License
-Controls OSS vs EE behavior and defaults.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `AGENTA_LICENSE` | License type (`oss` or `ee`) | `oss` |
-
-### Agenta - Secrets
-Used for internal authorization and encryption. Change in production.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `AGENTA_AUTH_KEY` | Authorization key | `replace-me` |
-| `AGENTA_CRYPT_KEY` | Encryption key | `replace-me` |
-
-### Agenta - Endpoints
-Public URLs and internal API URL.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `AGENTA_WEB_URL` | Web URL | `http://localhost` |
-| `AGENTA_API_URL` | API URL | `http://localhost/api` |
-| `AGENTA_SERVICES_URL` | Services URL | `http://localhost/services` |
-| `AGENTA_API_INTERNAL_URL` | Internal API URL | _(empty)_ |
-
-### Agenta - Images
-Override Docker image names or tags.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `AGENTA_WEB_IMAGE_NAME` | Web image name | `agenta-web` |
-| `AGENTA_WEB_IMAGE_TAG` | Web image tag | `latest` |
-| `AGENTA_API_IMAGE_NAME` | API image name | `agenta-api` |
-| `AGENTA_API_IMAGE_TAG` | API image tag | `latest` |
-| `AGENTA_SERVICES_IMAGE_NAME` | Services image name | `agenta-services` |
-| `AGENTA_SERVICES_IMAGE_TAG` | Services image tag | `latest` |
-
-### Agenta - OTLP
-Tracing batch size limit.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `AGENTA_OTLP_MAX_BATCH_BYTES` | Max OTLP batch bytes | `10485760` |
-
-### Agenta - API
-Basic backend options.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `AGENTA_DEMOS` | Enable demos | _(empty)_ |
-| `AGENTA_ALLOWED_DOMAINS` | Allowed email domains | _(empty)_ |
-
-### Agenta - Services
-Middleware cache and sandbox runner.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `AGENTA_SERVICES_MIDDLEWARE_CACHE_ENABLED` | Enable cache | `true` |
-| `AGENTA_SERVICES_SANDBOX_RUNNER` | `local` or `daytona` | `local` |
-
-### Network - Traefik
-Reverse proxy and TLS settings.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `TRAEFIK_PROTOCOL` | `http` or `https` | `http` |
-| `TRAEFIK_DOMAIN` | Hostname | `localhost` |
-| `TRAEFIK_PORT` | HTTP port | `80` |
-| `TRAEFIK_UI_PORT` | Dashboard port | `8080` |
-| `TRAEFIK_HTTPS_PORT` | HTTPS port | `443` |
-| `TRAEFIK_SSL_DIR` | SSL cert dir | `/home/user/ssl_certificates` |
-
-### Network - Nginx
-Only used if you enable Nginx.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `NGINX_PORT` | Nginx port | `80` |
-
-### Docker - Compose
-Project name affects container naming.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `COMPOSE_PROJECT_NAME` | Compose project name | `agenta-oss-dev` |
-
-### Databases - Postgres
-User, password, ports, and connection strings.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `POSTGRES_USER` | DB user | `username` |
-| `POSTGRES_PASSWORD` | DB password | `password` |
-| `POSTGRES_PORT` | DB port | `5432` |
-| `POSTGRES_URI_CORE` | Core DB URI | `postgresql+asyncpg://username:password@postgres:5432/agenta_oss_core` |
-| `POSTGRES_URI_TRACING` | Tracing DB URI | `postgresql+asyncpg://username:password@postgres:5432/agenta_oss_tracing` |
-| `POSTGRES_URI_SUPERTOKENS` | SuperTokens DB URI | `postgresql://username:password@postgres:5432/agenta_oss_supertokens` |
-
-### Databases - Alembic (migrations)
-Controls migrations and config paths.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `ALEMBIC_AUTO_MIGRATIONS` | Auto migrations | `true` |
-| `ALEMBIC_CFG_PATH_CORE` | Core alembic path | `/app/oss/databases/postgres/migrations/core/alembic.ini` |
-| `ALEMBIC_CFG_PATH_TRACING` | Tracing alembic path | `/app/oss/databases/postgres/migrations/tracing/alembic.ini` |
-
-### Databases - Redis {#redis-caching}
-Use one Redis or split to volatile/durable.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `REDIS_URI` | Single Redis URI | `redis://redis:6379/0` |
-| `REDIS_URI_VOLATILE` | Volatile Redis URI | `redis://redis-volatile:6379/0` |
-| `REDIS_URI_DURABLE` | Durable Redis URI | `redis://redis-durable:6381/0` |
-
-### Authentication - SuperTokens
-Auth service connection and email auth toggle.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `SUPERTOKENS_API_KEY` | SuperTokens API key | _(empty)_ |
-| `SUPERTOKENS_CONNECTION_URI` | SuperTokens URL | `http://supertokens:3567` |
-| `SUPERTOKENS_EMAIL_DISABLED` | Disable email auth | `false` |
-
-### Authentication - Email providers
-Used for email login (OTP).
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `SENDGRID_API_KEY` | SendGrid key | _(empty)_ |
-| `SENDGRID_FROM_ADDRESS` | SendGrid sender | _(empty)_ |
-
-### Authentication - OIDC providers
-Set the provider pairs you use.
-
-| Variable | Purpose |
-|----------|---------|
-| `GOOGLE_OAUTH_CLIENT_ID` | Google client ID |
-| `GOOGLE_OAUTH_CLIENT_SECRET` | Google client secret |
-| `GOOGLE_WORKSPACES_OAUTH_CLIENT_ID` | Google Workspaces client ID |
-| `GOOGLE_WORKSPACES_OAUTH_CLIENT_SECRET` | Google Workspaces client secret |
-| `GOOGLE_WORKSPACES_HD` | Google Workspaces hosted domain |
-| `GITHUB_OAUTH_CLIENT_ID` | GitHub client ID |
-| `GITHUB_OAUTH_CLIENT_SECRET` | GitHub client secret |
-| `APPLE_OAUTH_CLIENT_ID` | Apple client ID |
-| `APPLE_OAUTH_CLIENT_SECRET` | Apple client secret |
-| `APPLE_KEY_ID` | Apple key ID |
-| `APPLE_TEAM_ID` | Apple team ID |
-| `APPLE_PRIVATE_KEY` | Apple private key |
-| `DISCORD_OAUTH_CLIENT_ID` | Discord client ID |
-| `DISCORD_OAUTH_CLIENT_SECRET` | Discord client secret |
-| `FACEBOOK_OAUTH_CLIENT_ID` | Facebook client ID |
-| `FACEBOOK_OAUTH_CLIENT_SECRET` | Facebook client secret |
-| `GITLAB_OAUTH_CLIENT_ID` | GitLab client ID |
-| `GITLAB_OAUTH_CLIENT_SECRET` | GitLab client secret |
-| `GITLAB_BASE_URL` | GitLab base URL |
-| `BITBUCKET_OAUTH_CLIENT_ID` | Bitbucket client ID |
-| `BITBUCKET_OAUTH_CLIENT_SECRET` | Bitbucket client secret |
-| `LINKEDIN_OAUTH_CLIENT_ID` | LinkedIn client ID |
-| `LINKEDIN_OAUTH_CLIENT_SECRET` | LinkedIn client secret |
-| `OKTA_OAUTH_CLIENT_ID` | Okta client ID |
-| `OKTA_OAUTH_CLIENT_SECRET` | Okta client secret |
-| `OKTA_DOMAIN` | Okta domain |
-| `AZURE_AD_OAUTH_CLIENT_ID` | Azure AD client ID |
-| `AZURE_AD_OAUTH_CLIENT_SECRET` | Azure AD client secret |
-| `AZURE_AD_DIRECTORY_ID` | Azure AD directory ID |
-| `BOXY_SAML_OAUTH_CLIENT_ID` | BoxyHQ SAML client ID |
-| `BOXY_SAML_OAUTH_CLIENT_SECRET` | BoxyHQ SAML client secret |
-| `BOXY_SAML_URL` | BoxyHQ SAML URL |
-| `TWITTER_OAUTH_CLIENT_ID` | Twitter client ID |
-| `TWITTER_OAUTH_CLIENT_SECRET` | Twitter client secret |
-
-### Access controls [ee-only]
-
-Operators can override the built-in plans and role catalogs via JSON
-environment variables. Values are parsed once at API
-startup; restart all API and worker processes after changing them.
-
-When any of these are present, validation is strict — invalid JSON, unknown
-plan slugs, missing required roles, or inconsistent references across vars
-fail startup with a clear error. All default to the in-code values when
-unset.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `AGENTA_ACCESS_PLANS` | JSON object: plan slug → entitlements (flags, counters, gauges, throttles). | _(code defaults)_ |
-| `AGENTA_ACCESS_ROLES` | JSON object: scope → list of custom roles (additive over the `owner`/`viewer` minima). | _(code defaults)_ |
-| `AGENTA_ACCESS_ROLES_OVERLAY` | JSON object: per-role patch applied to both workspace + project scopes. Accepts either role slugs at the root or `{ "project": { ... } }`. Avoids restating the full scope catalog via `AGENTA_ACCESS_ROLES`. | _(no overlay)_ |
-| `AGENTA_ACCESS_DEFAULT_PLAN` | Plan slug assigned to new orgs on signup. (Legacy: `AGENTA_DEFAULT_PLAN`.) | `self_hosted_enterprise` |
-| `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` | JSON object: partial entitlement patch applied to the default plan only (trace retention, throttle rates, single flags). Avoids restating the full plan in `AGENTA_ACCESS_PLANS`. | _(no overlay)_ |
-
-For full JSON schemas and examples, see
-[Dynamic access controls](./04-dynamic-access-controls.mdx) — plans,
-entitlements, roles.
-
-### Proxy - LLM Providers
-API keys for the LLM proxy.
-
-| Variable | Purpose |
-|----------|---------|
-| `OPENAI_API_KEY` | OpenAI key |
-| `ANTHROPIC_API_KEY` | Anthropic key |
-| `COHERE_API_KEY` | Cohere key |
-| `GROQ_API_KEY` | Groq key |
-| `GEMINI_API_KEY` | Gemini key |
-| `MISTRAL_API_KEY` | Mistral key |
-| `ALEPHALPHA_API_KEY` | Aleph Alpha key |
-| `ANYSCALE_API_KEY` | Anyscale key |
-| `DEEPINFRA_API_KEY` | DeepInfra key |
-| `OPENROUTER_API_KEY` | OpenRouter key |
-| `PERPLEXITYAI_API_KEY` | Perplexity key |
-| `TOGETHERAI_API_KEY` | Together key |
-
-### Sandbox - Daytona
-Used when `AGENTA_SERVICES_SANDBOX_RUNNER=daytona`.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `DAYTONA_API_KEY` | Daytona API key | _(empty)_ |
-| `DAYTONA_API_URL` | Daytona API URL | `https://app.daytona.io/api` |
-| `DAYTONA_TARGET` | Region (`AGENTA_REGION` or `eu`) | `eu` |
-| `DAYTONA_SNAPSHOT` | Snapshot ID | `daytona-small` |
-
-### Analytics - PostHog
-Analytics key for OSS.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `POSTHOG_API_KEY` | PostHog key | `phc_xxxxxxxx` |
-
-## Self-hosting basics
-
-- Pick a file: `hosting/docker-compose/oss/env.oss.dev.example` (development) or `hosting/docker-compose/oss/env.oss.gh.example`. EE has matching `env.ee.*.example`.
-- Copy it and edit the values you need.
-- Use it with Docker Compose:
-
-```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file .my-env-file --profile with-web --profile with-traefik up -d
-```
-
-Key environments variables for self-hosting:
-
-- `AGENTA_LICENSE`
-- `AGENTA_AUTH_KEY`
-- `AGENTA_CRYPT_KEY`
-- `AGENTA_WEB_URL`
-- `AGENTA_API_URL`
-- `AGENTA_SERVICES_URL`
-- `AGENTA_API_INTERNAL_URL`
-- `TRAEFIK_PROTOCOL`
-- `TRAEFIK_DOMAIN`
-- `TRAEFIK_PORT`
-- `TRAEFIK_HTTPS_PORT`
-- `TRAEFIK_SSL_DIR`
-- `POSTGRES_URI_CORE`
-- `POSTGRES_URI_TRACING`
-- `POSTGRES_URI_SUPERTOKENS`
-- `REDIS_URI` (or `REDIS_URI_VOLATILE` + `REDIS_URI_DURABLE`)
-
-## Deprecated variables
-
-These are deprecated and will be removed later:
-
-| Deprecated Variable | New Variable(s) | Migration Note |
-|-------------------|-----------------|----------------|
-| `AGENTA_PORT` | `TRAEFIK_PORT` | Port configuration moved to Traefik |
-| `BARE_DOMAIN_NAME` | `TRAEFIK_DOMAIN` | Domain configuration moved to Traefik |
-| `DOMAIN_NAME` | `AGENTA_API_URL` | More specific API URL configuration |
-| `WEBSITE_DOMAIN_NAME` | `AGENTA_WEB_URL` | More specific web URL configuration |
-| `SERVICE_URL_TEMPLATE` | `AGENTA_SERVICES_URL` | Simplified service URL template |
-| `POSTGRES_DB` | _(removed)_ | Database names now hardcoded |
-| `POSTGRES_URI` | `POSTGRES_URI_CORE`, `POSTGRES_URI_TRACING`, `POSTGRES_URI_SUPERTOKENS` | Split into separate database connections |
-| `ALEMBIC_CFG_PATH` | `ALEMBIC_CFG_PATH_CORE`, `ALEMBIC_CFG_PATH_TRACING` | Split migration configs |
-| `AGENTA_HOST` | _(removed)_ | No longer needed |
-
-### Migration of Deprecated Environment Variables
-
-When you start Agenta with deprecated variables, you'll see a warning message. To migrate:
-
-1. **Update your environment file** with the new variable names
-2. **Remove the deprecated variables** from your configuration
-3. **Restart Agenta** to apply the changes
-
-Example migration:
-```bash
-# Old (deprecated)
-AGENTA_PORT=80
-BARE_DOMAIN_NAME=mydomain.com
-DOMAIN_NAME=http://mydomain.com
-SERVICE_URL_TEMPLATE=http://localhost:80/services/{path}
-
-# New (current)
-TRAEFIK_PORT=80
-TRAEFIK_DOMAIN=mydomain.com
-AGENTA_API_URL=http://mydomain.com/api
-AGENTA_WEB_URL=http://mydomain.com
-AGENTA_SERVICES_URL=http://mydomain.com/services
-```
-
-## Configuration Examples
-
-### Local Development
-```bash
-AGENTA_LICENSE=oss
-AGENTA_API_URL=http://localhost/api
-AGENTA_WEB_URL=http://localhost
-TRAEFIK_DOMAIN=localhost
-TRAEFIK_PORT=80
-```
-
-### Production with Custom Domain
-```bash
-AGENTA_LICENSE=oss
-AGENTA_API_URL=https://agenta.mydomain.com/api
-AGENTA_WEB_URL=https://agenta.mydomain.com
-TRAEFIK_DOMAIN=agenta.mydomain.com
-TRAEFIK_PORT=80
-TRAEFIK_HTTPS_PORT=443
-TRAEFIK_SSL_DIR=/home/user/ssl_certificates
-```
-
-### Production with IP Address
-```bash
-AGENTA_LICENSE=oss
-AGENTA_API_URL=http://192.168.1.100/api
-AGENTA_WEB_URL=http://192.168.1.100
-TRAEFIK_DOMAIN=192.168.1.100
-TRAEFIK_PORT=80
-```
-
-## Security Considerations
-
-- **Replace default secrets**: Always change `AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, and `SUPERTOKENS_API_KEY` in production
-- **Secure database credentials**: Use strong passwords for `POSTGRES_PASSWORD`
-- **Use HTTPS in production**: Configure SSL/TLS for production deployments
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Services can't connect**: Verify database URIs and service URLs are correct
-2. **Authentication failures**: Check that auth keys match across services
-3. **SSL certificate issues**: Ensure `AGENTA_SSL_DIR` points to a directory with proper permissions
-4. **Deprecated variable warnings**: Follow the migration guide to update your configuration
-
-### Getting Help
-
-For configuration assistance:
-- Check the [GitHub issues](https://github.com/Agenta-AI/agenta/issues)
-- Join our [Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw)
+:::note Helm-only — pre-existing Secret
+The Helm chart accepts a single Helm-only key, `secrets.existingSecret`, that
+points at a pre-created Kubernetes Secret. When set, the chart will not create
+or update the Secret object; it just wires `envFrom`/`secretKeyRef` references
+to the name you provide. Your Secret must contain the canonical env-var keys
+(`AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `POSTGRES_PASSWORD`, and any optional
+keys such as `SUPERTOKENS_API_KEY`, `OPENAI_API_KEY`, OAuth client secrets,
+etc.) — see [Deploy to Kubernetes — Secrets](/self-host/guides/deploy-to-kubernetes#secrets).
+This key has no env-var or `env.py` equivalent.
+:::
+
+## Agenta — core
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_LICENSE` | `agenta.license` | `agenta.license` |
+| `AGENTA_WEB_URL` | `agenta.web_url` | `agenta.webUrl` |
+| `AGENTA_SERVICES_URL` | `agenta.services_url` | `agenta.servicesUrl` |
+| `AGENTA_API_URL` | `agenta.api_url` | `agenta.apiUrl` |
+| `AGENTA_API_INTERNAL_URL` | `agenta.api_internal_url` | `agenta.apiInternalUrl` |
+| `AGENTA_AUTH_KEY` | `agenta.auth_key` | `agenta.authKey` |
+| `AGENTA_CRYPT_KEY` | `agenta.crypt_key` | `agenta.cryptKey` |
+
+## Agenta — access
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_ACCESS_ALLOWED_DOMAINS` | `agenta.access.allowed_domains` | `agenta.access.allowedDomains` |
+| `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` | `agenta.access.allowed_owner_emails` | `agenta.access.allowedOwnerEmails` |
+| `AGENTA_ACCESS_BLOCKED_DOMAINS` | `agenta.access.blocked_domains` | `agenta.access.blockedDomains` |
+| `AGENTA_ACCESS_BLOCKED_EMAILS` | `agenta.access.blocked_emails` | `agenta.access.blockedEmails` |
+| `AGENTA_ACCESS_DEFAULT_PLAN` | `agenta.access.default_plan` | `agenta.access.defaultPlan` |
+| `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` | `agenta.access.default_plan_overlay` | `agenta.access.defaultPlanOverlay` |
+| `AGENTA_ACCESS_EMAIL_DISABLED` | `agenta.access.email_disabled` | `agenta.access.emailDisabled` |
+| `AGENTA_ACCESS_PLANS` | `agenta.access.plans` | `agenta.access.plans` |
+| `AGENTA_ACCESS_ROLES` | `agenta.access.roles` | `agenta.access.roles` |
+| `AGENTA_ACCESS_ROLES_OVERLAY` | `agenta.access.roles_overlay` | `agenta.access.rolesOverlay` |
+
+## Agenta — AI services
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_AI_SERVICES_API_KEY` | `agenta.ai_services.api_key` | `agenta.aiServices.apiKey` |
+| `AGENTA_AI_SERVICES_API_URL` | `agenta.ai_services.api_url` | `agenta.aiServices.apiUrl` |
+| `AGENTA_AI_SERVICES_ENVIRONMENT_SLUG` | `agenta.ai_services.environment_slug` | `agenta.aiServices.environmentSlug` |
+| `AGENTA_AI_SERVICES_REFINE_PROMPT_KEY` | `agenta.ai_services.refine_prompt_key` | `agenta.aiServices.refinePromptKey` |
+
+## Agenta — billing
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_BILLING_CATALOG` | `agenta.billing.catalog` | `agenta.billing.catalog` |
+| `AGENTA_BILLING_PRICING` | `agenta.billing.pricing` | `agenta.billing.pricing` |
+
+## Agenta — API
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_API_CACHING_ENABLED` | `agenta.api.caching.enabled` | `agenta.api.caching.enabled` |
+
+## Agenta — extras
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_EXTRAS_DEMOS` | `agenta.extras.demos` | `agenta.extras.demos` |
+
+## Agenta — logging
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_LOGGING_CONSOLE_ENABLED` | `agenta.logging.console_enabled` | `agenta.logging.consoleEnabled` |
+| `AGENTA_LOGGING_CONSOLE_LEVEL` | `agenta.logging.console_level` | `agenta.logging.consoleLevel` |
+| `AGENTA_LOGGING_FILE_ENABLED` | `agenta.logging.file_enabled` | `agenta.logging.fileEnabled` |
+| `AGENTA_LOGGING_FILE_LEVEL` | `agenta.logging.file_level` | `agenta.logging.fileLevel` |
+| `AGENTA_LOGGING_FILE_PATH` | `agenta.logging.file_path` | `agenta.logging.filePath` |
+| `AGENTA_LOGGING_OTLP_ENABLED` | `agenta.logging.otlp_enabled` | `agenta.logging.otlpEnabled` |
+| `AGENTA_LOGGING_OTLP_LEVEL` | `agenta.logging.otlp_level` | `agenta.logging.otlpLevel` |
+
+## Agenta — OTLP
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_OTLP_MAX_BATCH_BYTES` | `agenta.otlp.max_batch_bytes` | `agenta.otlp.maxBatchBytes` |
+
+## Agenta — services
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` | `agenta.services.code.sandbox_runner` | `agenta.services.code.sandboxRunner` |
+| `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` | `agenta.services.hook.allow_insecure` | `agenta.services.hook.allowInsecure` |
+| `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
+
+## Agenta — webhooks
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_WEBHOOKS_ALLOW_INSECURE` | `agenta.webhooks.allow_insecure` | `agenta.webhooks.allowInsecure` |
+
+## alembic
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `ALEMBIC_AUTO_MIGRATIONS` | `alembic.auto_migrations` | `alembic.autoMigrations` |
+| `ALEMBIC_CFG_PATH_CORE` | `alembic.cfg_path_core` | `alembic.cfgPathCore` |
+| `ALEMBIC_CFG_PATH_TRACING` | `alembic.cfg_path_tracing` | `alembic.cfgPathTracing` |
+
+## cloudflare
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `CLOUDFLARE_TURNSTILE_ALLOWED_HOSTNAMES` | `cloudflare.turnstile.allowed_hostnames` | `cloudflare.turnstile.allowedHostnames` |
+| `CLOUDFLARE_TURNSTILE_SECRET_KEY` | `cloudflare.turnstile.secret_key` | `cloudflare.turnstile.secretKey` |
+| `CLOUDFLARE_TURNSTILE_SITE_KEY` | `cloudflare.turnstile.site_key` | `cloudflare.turnstile.siteKey` |
+
+## composio
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `COMPOSIO_API_KEY` | `composio.api_key` | `composio.apiKey` |
+| `COMPOSIO_API_URL` | `composio.api_url` | `composio.apiUrl` |
+
+## crisp
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `CRISP_WEBSITE_ID` | `crisp.website_id` | `crisp.websiteId` |
+
+## daytona
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `DAYTONA_API_KEY` | `daytona.api_key` | `daytona.apiKey` |
+| `DAYTONA_API_URL` | `daytona.api_url` | `daytona.apiUrl` |
+| `DAYTONA_SNAPSHOT` | `daytona.snapshot` | `daytona.snapshot` |
+| `DAYTONA_TARGET` | `daytona.target` | `daytona.target` |
+
+## docker
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `DOCKER_NETWORK_MODE` | `docker.network_mode` | `docker.networkMode` |
+
+## identity (OIDC providers)
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `APPLE_OAUTH_CLIENT_ID` | `identity.apple.client_id` | `identity.apple.clientId` |
+| `APPLE_OAUTH_CLIENT_SECRET` | `identity.apple.client_secret` | `identity.apple.clientSecret` |
+| `APPLE_KEY_ID` | `identity.apple.key_id` | `identity.apple.keyId` |
+| `APPLE_PRIVATE_KEY` | `identity.apple.private_key` | `identity.apple.privateKey` |
+| `APPLE_TEAM_ID` | `identity.apple.team_id` | `identity.apple.teamId` |
+| `AZURE_AD_OAUTH_CLIENT_ID` | `identity.azure_ad.client_id` | `identity.azureAd.clientId` |
+| `AZURE_AD_OAUTH_CLIENT_SECRET` | `identity.azure_ad.client_secret` | `identity.azureAd.clientSecret` |
+| `AZURE_AD_DIRECTORY_ID` | `identity.azure_ad.directory_id` | `identity.azureAd.directoryId` |
+| `BITBUCKET_OAUTH_CLIENT_ID` | `identity.bitbucket.client_id` | `identity.bitbucket.clientId` |
+| `BITBUCKET_OAUTH_CLIENT_SECRET` | `identity.bitbucket.client_secret` | `identity.bitbucket.clientSecret` |
+| `BOXY_SAML_OAUTH_CLIENT_ID` | `identity.boxy_saml.client_id` | `identity.boxySaml.clientId` |
+| `BOXY_SAML_OAUTH_CLIENT_SECRET` | `identity.boxy_saml.client_secret` | `identity.boxySaml.clientSecret` |
+| `BOXY_SAML_URL` | `identity.boxy_saml.url` | `identity.boxySaml.url` |
+| `DISCORD_OAUTH_CLIENT_ID` | `identity.discord.client_id` | `identity.discord.clientId` |
+| `DISCORD_OAUTH_CLIENT_SECRET` | `identity.discord.client_secret` | `identity.discord.clientSecret` |
+| `FACEBOOK_OAUTH_CLIENT_ID` | `identity.facebook.client_id` | `identity.facebook.clientId` |
+| `FACEBOOK_OAUTH_CLIENT_SECRET` | `identity.facebook.client_secret` | `identity.facebook.clientSecret` |
+| `GITHUB_OAUTH_CLIENT_ID` | `identity.github.client_id` | `identity.github.clientId` |
+| `GITHUB_OAUTH_CLIENT_SECRET` | `identity.github.client_secret` | `identity.github.clientSecret` |
+| `GITLAB_BASE_URL` | `identity.gitlab.base_url` | `identity.gitlab.baseUrl` |
+| `GITLAB_OAUTH_CLIENT_ID` | `identity.gitlab.client_id` | `identity.gitlab.clientId` |
+| `GITLAB_OAUTH_CLIENT_SECRET` | `identity.gitlab.client_secret` | `identity.gitlab.clientSecret` |
+| `GOOGLE_OAUTH_CLIENT_ID` | `identity.google.client_id` | `identity.google.clientId` |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | `identity.google.client_secret` | `identity.google.clientSecret` |
+| `GOOGLE_WORKSPACES_OAUTH_CLIENT_ID` | `identity.google_workspaces.client_id` | `identity.googleWorkspaces.clientId` |
+| `GOOGLE_WORKSPACES_OAUTH_CLIENT_SECRET` | `identity.google_workspaces.client_secret` | `identity.googleWorkspaces.clientSecret` |
+| `GOOGLE_WORKSPACES_HD` | `identity.google_workspaces.hd` | `identity.googleWorkspaces.hd` |
+| `LINKEDIN_OAUTH_CLIENT_ID` | `identity.linkedin.client_id` | `identity.linkedin.clientId` |
+| `LINKEDIN_OAUTH_CLIENT_SECRET` | `identity.linkedin.client_secret` | `identity.linkedin.clientSecret` |
+| `OKTA_OAUTH_CLIENT_ID` | `identity.okta.client_id` | `identity.okta.clientId` |
+| `OKTA_OAUTH_CLIENT_SECRET` | `identity.okta.client_secret` | `identity.okta.clientSecret` |
+| `OKTA_DOMAIN` | `identity.okta.domain` | `identity.okta.domain` |
+| `TWITTER_OAUTH_CLIENT_ID` | `identity.twitter.client_id` | `identity.twitter.clientId` |
+| `TWITTER_OAUTH_CLIENT_SECRET` | `identity.twitter.client_secret` | `identity.twitter.clientSecret` |
+
+## llm (provider API keys)
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `ALEPHALPHA_API_KEY` | `llm.alephalpha` | `llm.alephalpha` |
+| `ANTHROPIC_API_KEY` | `llm.anthropic` | `llm.anthropic` |
+| `ANYSCALE_API_KEY` | `llm.anyscale` | `llm.anyscale` |
+| `COHERE_API_KEY` | `llm.cohere` | `llm.cohere` |
+| `DEEPINFRA_API_KEY` | `llm.deepinfra` | `llm.deepinfra` |
+| `GEMINI_API_KEY` | `llm.gemini` | `llm.gemini` |
+| `GROQ_API_KEY` | `llm.groq` | `llm.groq` |
+| `MINIMAX_API_KEY` | `llm.minimax` | `llm.minimax` |
+| `MISTRAL_API_KEY` | `llm.mistral` | `llm.mistral` |
+| `OPENAI_API_KEY` | `llm.openai` | `llm.openai` |
+| `OPENROUTER_API_KEY` | `llm.openrouter` | `llm.openrouter` |
+| `PERPLEXITYAI_API_KEY` | `llm.perplexityai` | `llm.perplexityai` |
+| `TOGETHERAI_API_KEY` | `llm.togetherai` | `llm.togetherai` |
+
+## loops
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `LOOPS_API_KEY` | `loops.api_key` | `loops.apiKey` |
+
+## newrelic
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `NEWRELIC_LICENSE_KEY` | `newrelic.license_key` | `newrelic.licenseKey` |
+
+## postgres
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `POSTGRES_USER` | `postgres.user` | `postgres.user` |
+| `POSTGRES_PASSWORD` | `postgres.password` | `postgres.password` |
+| `POSTGRES_PORT` | `postgres.port` | `postgres.port` |
+| `POSTGRES_URI_CORE` | `postgres.uri_core` | `postgres.uriCore` |
+| `POSTGRES_URI_SUPERTOKENS` | `postgres.uri_supertokens` | `postgres.uriSupertokens` |
+| `POSTGRES_URI_TRACING` | `postgres.uri_tracing` | `postgres.uriTracing` |
+
+## posthog
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `POSTHOG_API_KEY` | `posthog.api_key` | `posthog.apiKey` |
+| `POSTHOG_API_URL` | `posthog.api_url` | `posthog.apiUrl` |
+
+## redis
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `REDIS_URI` | `redis.uri` | `redis.uri` |
+| `REDIS_URI_DURABLE` | `redis.uri_durable` | `redis.uriDurable` |
+| `REDIS_URI_VOLATILE` | `redis.uri_volatile` | `redis.uriVolatile` |
+
+## sendgrid
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `SENDGRID_API_KEY` | `sendgrid.api_key` | `sendgrid.apiKey` |
+| `SENDGRID_FROM_ADDRESS` | `sendgrid.from_address` | `sendgrid.fromAddress` |
+
+## stripe
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `STRIPE_API_KEY` | `stripe.api_key` | `stripe.apiKey` |
+| `STRIPE_WEBHOOK_SECRET` | `stripe.webhook_secret` | `stripe.webhookSecret` |
+| `STRIPE_WEBHOOK_TARGET` | `stripe.webhook_target` | `stripe.webhookTarget` |
+
+## supertokens
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `SUPERTOKENS_API_KEY` | `supertokens.api_key` | `supertokens.apiKey` |
+| `SUPERTOKENS_APPLICATION` | `supertokens.application` | `supertokens.application` |
+| `SUPERTOKENS_PASSWORD_MAX_LENGTH` | `supertokens.password_max_length` | `supertokens.passwordMaxLength` |
+| `SUPERTOKENS_PASSWORD_MIN_LENGTH` | `supertokens.password_min_length` | `supertokens.passwordMinLength` |
+| `SUPERTOKENS_PASSWORD_POLICY` | `supertokens.password_policy` | `supertokens.passwordPolicy` |
+| `SUPERTOKENS_PASSWORD_REGEX` | `supertokens.password_regex` | `supertokens.passwordRegex` |
+| `SUPERTOKENS_TENANT` | `supertokens.tenant` | `supertokens.tenant` |
+| `SUPERTOKENS_URI_CORE` | `supertokens.uri_core` | `supertokens.uriCore` |
+
+## Deprecated environment variables
+
+The following legacy names still work via fallback (the Pydantic env loader
+reads the new name first, then the legacy one). They will be removed in a
+future major release.
+
+| Legacy env var | Canonical replacement |
+|---|---|
+| `AGENTA_ALLOWED_DOMAINS` | `AGENTA_ACCESS_ALLOWED_DOMAINS` |
+| `AGENTA_ORG_CREATION_ALLOWLIST` | `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` |
+| `AGENTA_ACCESS_ORG_CREATION_ALLOWLIST` | `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` |
+| `AGENTA_ACCESS_ALLOWED_ORGANIZATION_OWNERS` | `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` |
+| `AGENTA_BLOCKED_DOMAINS` | `AGENTA_ACCESS_BLOCKED_DOMAINS` |
+| `AGENTA_BLOCKED_EMAILS` | `AGENTA_ACCESS_BLOCKED_EMAILS` |
+| `AGENTA_DEFAULT_PLAN` | `AGENTA_ACCESS_DEFAULT_PLAN` |
+| `SUPERTOKENS_EMAIL_DISABLED` | `AGENTA_ACCESS_EMAIL_DISABLED` |
+| `AGENTA_PRICING` | `AGENTA_BILLING_PRICING` |
+| `STRIPE_PRICING` | `AGENTA_BILLING_PRICING` |
+| `AGENTA_CACHE_ENABLED` | `AGENTA_API_CACHING_ENABLED` |
+| `AGENTA_CACHING_ENABLED` | `AGENTA_API_CACHING_ENABLED` |
+| `AGENTA_DEMOS` | `AGENTA_EXTRAS_DEMOS` |
+| `AGENTA_LOG_CONSOLE_ENABLED` | `AGENTA_LOGGING_CONSOLE_ENABLED` |
+| `AGENTA_LOG_CONSOLE_LEVEL` | `AGENTA_LOGGING_CONSOLE_LEVEL` |
+| `AGENTA_LOG_FILE_ENABLED` | `AGENTA_LOGGING_FILE_ENABLED` |
+| `AGENTA_LOG_FILE_LEVEL` | `AGENTA_LOGGING_FILE_LEVEL` |
+| `AGENTA_LOG_FILE_PATH` | `AGENTA_LOGGING_FILE_PATH` |
+| `AGENTA_LOG_OTLP_ENABLED` | `AGENTA_LOGGING_OTLP_ENABLED` |
+| `AGENTA_LOG_OTLP_LEVEL` | `AGENTA_LOGGING_OTLP_LEVEL` |
+| `AGENTA_SERVICES_SANDBOX_RUNNER` | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` |
+| `AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED` (singular SERVICE) | `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` |
+| `AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED` (singular SERVICE) | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` |
+| `AGENTA_WEBHOOK_ALLOW_INSECURE` | `AGENTA_WEBHOOKS_ALLOW_INSECURE` (API), `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` (SDK) |
+| `AGENTA_AUTO_MIGRATIONS` | `ALEMBIC_AUTO_MIGRATIONS` |
+| `AGENTA_RUNTIME_PREFIX` | _(removed; no consumer in API)_ |
+| `ACTIVE_DIRECTORY_OAUTH_CLIENT_ID` | `AZURE_AD_OAUTH_CLIENT_ID` |
+| `ACTIVE_DIRECTORY_OAUTH_CLIENT_SECRET` | `AZURE_AD_OAUTH_CLIENT_SECRET` |
+| `ACTIVE_DIRECTORY_DIRECTORY_ID` | `AZURE_AD_DIRECTORY_ID` |
+| `NEW_RELIC_LICENSE_KEY` | `NEWRELIC_LICENSE_KEY` |
+| `NRIA_LICENSE_KEY` | `NEWRELIC_LICENSE_KEY` |
+| `POSTHOG_HOST` | `POSTHOG_API_URL` |
+| `AGENTA_AUTHN_EMAIL_FROM` | `SENDGRID_FROM_ADDRESS` |
+| `AGENTA_SEND_EMAIL_FROM_ADDRESS` | `SENDGRID_FROM_ADDRESS` |
+| `STRIPE_TARGET` | `STRIPE_WEBHOOK_TARGET` |
+| `SUPERTOKENS_CONNECTION_URI` | `SUPERTOKENS_URI_CORE` |

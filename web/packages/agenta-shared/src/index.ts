@@ -133,6 +133,8 @@ export {
     addFileToContent,
     removeAttachmentFromContent,
     getAttachments,
+    isChatMessageObject,
+    isChatMessagesArray,
     messageHasContent,
     messageHasToolCalls,
     tryParseArrayFromString,

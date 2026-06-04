@@ -20,6 +20,13 @@ from oss.src.core.workflows.dtos import (
     #
 )
 from oss.src.core.shared.dtos import Windowing, Reference
+from oss.src.core.git.dtos import RetrievalInfo
+from oss.src.core.git.utils import build_retrieval_info
+from oss.src.core.git.types import (
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
+    validate_retrieve_refs_consistent,
+)
 from oss.src.core.workflows.service import WorkflowsService
 
 # Resolution is now handled by EmbedsService
@@ -552,6 +559,17 @@ class EvaluatorsService:
         #
         include_archived: Optional[bool] = True,
     ) -> Optional[EvaluatorRevision]:
+        validate_variant_refs_sufficient(
+            variant_ref=evaluator_variant_ref,
+            entity_type="evaluator",
+        )
+        validate_revision_refs_sufficient(
+            artifact_ref=evaluator_ref,
+            variant_ref=evaluator_variant_ref,
+            revision_ref=evaluator_revision_ref,
+            entity_type="evaluator",
+        )
+
         workflow_revision = await self.workflows_service.fetch_workflow_revision(
             project_id=project_id,
             #
@@ -588,15 +606,25 @@ class EvaluatorsService:
         evaluator_revision_ref: Optional[Reference] = None,
         #
         resolve: bool = False,
-    ) -> tuple[Optional[EvaluatorRevision], Optional[ResolutionInfo]]:
-        if environment_ref or environment_variant_ref or environment_revision_ref:
+    ) -> tuple[
+        Optional[EvaluatorRevision],
+        Optional[ResolutionInfo],
+        Optional[RetrievalInfo],
+    ]:
+        environment_retrieval_info: Optional[RetrievalInfo] = None
+        is_environment_backed = bool(
+            environment_ref or environment_variant_ref or environment_revision_ref
+        )
+
+        if is_environment_backed:
             environments_service = self.workflows_service.environments_service
             if not environments_service:
-                return None, None
+                return None, None, None
 
             (
-                env_revision,
+                environment_revision,
                 _,
+                environment_retrieval_info,
             ) = await environments_service.retrieve_environment_revision(
                 project_id=project_id,
                 #
@@ -606,8 +634,8 @@ class EvaluatorsService:
             )
 
             references_by_key = (
-                env_revision.data.references
-                if env_revision and env_revision.data
+                environment_revision.data.references
+                if environment_revision and environment_revision.data
                 else None
             )
             evaluator_references = (
@@ -615,11 +643,25 @@ class EvaluatorsService:
             )
 
             if not evaluator_references:
-                return None, None
+                return None, None, None
 
-            evaluator_ref = evaluator_references.get("evaluator")
-            evaluator_variant_ref = evaluator_references.get("evaluator_variant")
-            evaluator_revision_ref = evaluator_references.get("evaluator_revision")
+            env_evaluator_ref = evaluator_references.get("evaluator")
+            env_evaluator_variant_ref = evaluator_references.get("evaluator_variant")
+            env_evaluator_revision_ref = evaluator_references.get("evaluator_revision")
+
+            validate_retrieve_refs_consistent(
+                artifact_ref=evaluator_ref,
+                variant_ref=evaluator_variant_ref,
+                revision_ref=evaluator_revision_ref,
+                resolved_artifact_ref=env_evaluator_ref,
+                resolved_variant_ref=env_evaluator_variant_ref,
+                resolved_revision_ref=env_evaluator_revision_ref,
+                entity_type="evaluator",
+            )
+
+            evaluator_ref = env_evaluator_ref
+            evaluator_variant_ref = env_evaluator_variant_ref
+            evaluator_revision_ref = env_evaluator_revision_ref
 
         if resolve:
             result = await self.resolve_evaluator_revision(
@@ -629,16 +671,36 @@ class EvaluatorsService:
                 evaluator_variant_ref=evaluator_variant_ref,
                 evaluator_revision_ref=evaluator_revision_ref,
             )
-            return result if result else (None, None)
+            evaluator_revision, resolution_info = result if result else (None, None)
+        else:
+            evaluator_revision = await self.fetch_evaluator_revision(
+                project_id=project_id,
+                #
+                evaluator_ref=evaluator_ref,
+                evaluator_variant_ref=evaluator_variant_ref,
+                evaluator_revision_ref=evaluator_revision_ref,
+            )
+            resolution_info = None
 
-        evaluator_revision = await self.fetch_evaluator_revision(
-            project_id=project_id,
-            #
-            evaluator_ref=evaluator_ref,
-            evaluator_variant_ref=evaluator_variant_ref,
-            evaluator_revision_ref=evaluator_revision_ref,
-        )
-        return evaluator_revision, None
+        if is_environment_backed:
+            environment_references = (
+                environment_retrieval_info.references
+                if environment_retrieval_info
+                else None
+            )
+            retrieval_info = build_retrieval_info(
+                revision=evaluator_revision,
+                entity_type="evaluator",
+                environment_references=environment_references,
+                selector_key=key,
+            )
+        else:
+            retrieval_info = build_retrieval_info(
+                revision=evaluator_revision,
+                entity_type="evaluator",
+            )
+
+        return evaluator_revision, resolution_info, retrieval_info
 
     async def edit_evaluator_revision(
         self,
@@ -784,6 +846,8 @@ class EvaluatorsService:
         user_id: UUID,
         #
         evaluator_revision_commit: EvaluatorRevisionCommit,
+        #
+        initial: bool = False,
     ) -> Optional[EvaluatorRevision]:
         workflow_revision_commit = WorkflowRevisionCommit(
             **evaluator_revision_commit.model_dump(
@@ -796,6 +860,10 @@ class EvaluatorsService:
             user_id=user_id,
             #
             workflow_revision_commit=workflow_revision_commit,
+            #
+            initial=initial,
+            #
+            emit=False,
         )
 
         if not workflow_revision:
@@ -810,10 +878,10 @@ class EvaluatorsService:
         # Write-action emission lives in the SERVICE layer (read actions live
         # in the router). Every caller of commit_evaluator_revision — direct
         # commit route, simple-service create/edit, etc. — therefore emits
-        # exactly one `evaluators.revisions.committed` event. See
+        # exactly one `workflows.revisions.committed` event. See
         # core/events/utils.py for the read-vs-write split rationale.
         await publish_revision_event(
-            domain="evaluator",
+            domain="workflow",
             action="commit",
             project_id=project_id,
             user_id=user_id,

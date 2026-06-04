@@ -30,10 +30,10 @@ from ee.src.core.entitlements.types import Tracker, Quota, Period, Scope
 from ee.src.core.entitlements.controls import get_plan_entitlements, get_plans
 from ee.src.core.subscriptions.settings import (
     get_catalog,
-    get_pricing,
     get_pricing_plan,
     get_stripe_line_items,
     get_free_plan,
+    get_effective_pricing,
 )
 from ee.src.core.subscriptions.types import Event
 from ee.src.core.meters.service import MetersService
@@ -876,17 +876,45 @@ class BillingRouter:
             )
 
         if not subscription.subscription_id:
+            if subscription.plan == get_free_plan():
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content={"status": "success"},
+                )
+
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Subscription (Stripe) not found",
             )
 
         try:
-            stripe.Subscription.cancel(subscription.subscription_id)
+            stripe_subscription = stripe.Subscription.retrieve(
+                subscription.subscription_id
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Could not cancel subscription. Please try again or contact support.",
+                detail="Could not fetch subscription. Please try again or contact support.",
+            ) from e
+
+        if _stripe_get(stripe_subscription, "status") != "canceled":
+            try:
+                stripe.Subscription.cancel(subscription.subscription_id)
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Could not cancel subscription. Please try again or contact support.",
+                ) from e
+
+        try:
+            await self.subscription_service.process_event(
+                organization_id=organization_id,
+                event=Event.SUBSCRIPTION_CANCELLED,
+            )
+        except EventException as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(e),
             ) from e
 
         await self._reset_organization_flags(organization_id)
@@ -1009,10 +1037,10 @@ class BillingRouter:
     async def fetch_pricing(self) -> Dict[str, Dict[str, Any]]:
         """Return the effective pricing map: plan slug -> normalized pricing.
 
-        Mirrors `AGENTA_BILLING_PRICING` after validation/normalization
-        (see `ee.src.core.subscriptions.settings._normalize_pricing_entry`).
+        Includes backend-resolved free/trial fallback markers so clients do
+        not need to duplicate billing default rules.
         """
-        return get_pricing()
+        return get_effective_pricing()
 
     @intercept_exceptions()
     async def report_usage(

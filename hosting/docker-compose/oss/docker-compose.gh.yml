@@ -451,7 +451,7 @@ services:
         profiles:
             - with-nginx
         # === IMAGE ================================================ #
-        image: nginx:latest
+        image: nginx:1
         # === STORAGE ============================================== #
         volumes:
             - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
@@ -472,7 +472,7 @@ services:
 
     supertokens:
         # === IMAGE ================================================ #
-        image: registry.supertokens.io/supertokens/supertokens-postgresql
+        image: supertokens/supertokens-postgresql:11
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}

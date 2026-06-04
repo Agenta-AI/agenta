@@ -50,15 +50,15 @@ const Automations = dynamic(
     },
 )
 
-const AuditLog = dynamic(() => import("@/oss/components/pages/settings/AuditLog/AuditLog"), {
-    ssr: false,
-})
+interface SettingsProps {
+    AuditLogComponent?: React.ComponentType
+}
 
-const Settings: React.FC = () => {
+export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
     const settingsTab = useAtomValue(settingsTabAtom)
     const tab = tabQuery ?? settingsTab ?? "workspace"
-    const {canViewApiKeys} = useProjectPermissions()
+    const {canViewApiKeys, canViewEvents} = useProjectPermissions()
     const canShowOrganization = isEE()
     const {user} = useProfileData()
     const {selectedOrg} = useOrgData()
@@ -66,11 +66,13 @@ const Settings: React.FC = () => {
     const canShowBilling = isEE() && isOwner
     const billingEnabled = isBillingEnabled()
     const canShowTools = isToolsEnabled()
+    const canShowAuditLog = isEE() && canViewEvents
     const resolvedTab =
         (tab === "organization" && !canShowOrganization) ||
         (tab === "billing" && !canShowBilling) ||
         (tab === "tools" && !canShowTools) ||
-        (tab === "apiKeys" && !canViewApiKeys)
+        (tab === "apiKeys" && !canViewApiKeys) ||
+        (tab === "auditLog" && !canShowAuditLog)
             ? "workspace"
             : tab
     const {project} = useProjectData()
@@ -101,26 +103,25 @@ const Settings: React.FC = () => {
     }, [selectedOrg?.default_workspace?.id])
 
     const breadcrumbs = useMemo(() => {
-        const organizationLabel = isEE() ? "Organization" : "Agenta"
         return {
             settings: {
                 label: (() => {
                     switch (resolvedTab) {
                         case "organization":
-                            return organizationLabel
+                            return "Access & Security"
                         case "workspace":
                             return "Members"
                         case "projects":
                             return "Projects"
                         case "secrets":
-                            return "Models"
+                            return "Providers & Models"
                         case "tools":
                             return "Tools"
                         case "apiKeys":
                             return "API Keys"
                         case "automations":
                             return "Automations"
-                        case "audit-log":
+                        case "auditLog":
                             return "Audit Log"
                         case "billing":
                             return billingEnabled ? "Usage & Billing" : "Usage"
@@ -137,31 +138,34 @@ const Settings: React.FC = () => {
     const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
 
     const {content, title} = useMemo(() => {
-        const organizationLabel = isEE() ? "Organization" : "Agenta"
         switch (resolvedTab) {
             case "organization":
                 return {
                     content: <Organization />,
                     title: (
                         <div className="flex items-center gap-2">
-                            <span>{organizationLabel}</span>
-                            <Tooltip title={isOrgIdCopied ? "Copied!" : "Click to copy ID"}>
+                            <span>Access & Security</span>
+                            <Tooltip
+                                title={isOrgIdCopied ? "Copied!" : "Click to copy organization ID"}
+                            >
                                 <Tag
                                     className="cursor-pointer flex items-center gap-1"
                                     onClick={handleCopyOrgId}
                                 >
                                     <Link size={14} weight="bold" />
-                                    <span>ID</span>
+                                    <span>Organization ID</span>
                                 </Tag>
                             </Tooltip>
                             {isDemoOrg && (
-                                <Tag className="bg-[#0517290F] m-0 font-normal">demo</Tag>
+                                <Tag className="bg-[var(--ag-c-0517290F)] m-0 font-normal">
+                                    demo
+                                </Tag>
                             )}
                         </div>
                     ),
                 }
             case "secrets":
-                return {content: <Secrets />, title: "Models"}
+                return {content: <Secrets />, title: "Providers & Models"}
             case "tools":
                 return {content: <Tools />, title: "Tools"}
             case "apiKeys":
@@ -173,8 +177,11 @@ const Settings: React.FC = () => {
                 }
             case "automations":
                 return {content: <Automations />, title: "Automations"}
-            case "audit-log":
-                return {content: <AuditLog />, title: "Audit Log"}
+            case "auditLog":
+                return {
+                    content: AuditLogComponent ? <AuditLogComponent /> : <WorkspaceManage />,
+                    title: "Audit Log",
+                }
             case "projects":
                 return {content: <ProjectsSettings />, title: "Projects"}
             default:
@@ -192,6 +199,7 @@ const Settings: React.FC = () => {
         isDemoOrg,
         isOwner,
         billingEnabled,
+        AuditLogComponent,
     ])
 
     return (
@@ -201,7 +209,7 @@ const Settings: React.FC = () => {
             // The Audit Log tab hosts a full-height InfiniteVirtualTable, which
             // needs a bounded parent so it scrolls internally instead of growing
             // the page. Other tabs keep PageLayout's default `min-h-full` flow.
-            className={resolvedTab === "audit-log" ? "h-full min-h-0" : undefined}
+            className={resolvedTab === "auditLog" ? "h-full min-h-0" : undefined}
         >
             {content}
         </PageLayout>

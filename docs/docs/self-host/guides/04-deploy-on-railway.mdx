@@ -62,7 +62,9 @@ If you skip this step, the scripts use placeholder keys (`000...` and `111...`).
 ## Step 2: Clone the Repository
 
 ```bash
-git clone --depth 1 https://github.com/Agenta-AI/agenta && cd agenta
+git clone --depth 1 --filter=blob:none --sparse https://github.com/Agenta-AI/agenta
+cd agenta
+git sparse-checkout set hosting/railway
 ```
 
 ## Step 3: Bootstrap the Project

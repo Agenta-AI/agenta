@@ -185,8 +185,8 @@ export const OverviewLoadingPlaceholder = ({
     return (
         <div
             className={clsx(
-                "flex w-full items-center justify-center rounded-lg bg-[#F8FAFC]",
-                "border border-dashed border-[#E2E8F0]",
+                "flex w-full items-center justify-center rounded-lg bg-[var(--ag-c-F8FAFC)]",
+                "border border-dashed border-[var(--ag-c-E2E8F0)]",
                 "h-full",
             )}
             style={{minHeight}}
@@ -203,8 +203,8 @@ export const OverviewEmptyPlaceholder = ({
 }: PlaceholderProps) => (
     <div
         className={clsx(
-            "flex w-full flex-col items-center justify-center gap-2 rounded-lg bg-[#F8FAFC] px-6 py-10",
-            "border border-dashed border-[#E2E8F0] text-center",
+            "flex w-full flex-col items-center justify-center gap-2 rounded-lg bg-[var(--ag-c-F8FAFC)] px-6 py-10",
+            "border border-dashed border-[var(--ag-c-E2E8F0)] text-center",
             "h-full",
         )}
         style={{minHeight}}

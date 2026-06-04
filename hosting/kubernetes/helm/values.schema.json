@@ -1,0 +1,473 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Agenta Helm values",
+  "description": "Schema for all values consumed by the Agenta chart and the env vars it emits into pods. Sections that map to env vars are listed leaf-by-leaf so misspelled keys fail at `helm install` instead of silently being ignored. `additionalProperties` stays open on most objects so Bitnami subchart wiring (postgresql.*), per-component knobs (resources, securityContext, nodeSelector, …) and arbitrary annotations/labels continue to pass through.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "agenta": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "license": { "type": "string", "enum": ["oss", "ee"], "description": "Edition. Emitted as AGENTA_LICENSE." },
+        "webUrl": { "type": "string", "description": "Public web URL. Emitted as AGENTA_WEB_URL." },
+        "servicesUrl": { "type": "string", "description": "Public services URL. Emitted as AGENTA_SERVICES_URL." },
+        "apiUrl": { "type": "string", "description": "Public API URL. Emitted as AGENTA_API_URL." },
+        "apiInternalUrl": { "type": "string", "description": "Internal API URL (in-cluster). Emitted as AGENTA_API_INTERNAL_URL." },
+        "authKey": { "type": "string", "minLength": 1, "description": "Authorization key. Emitted as AGENTA_AUTH_KEY via Secret." },
+        "cryptKey": { "type": "string", "minLength": 1, "description": "Encryption key. Emitted as AGENTA_CRYPT_KEY via Secret." },
+        "access": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Access controls (EE).",
+          "properties": {
+            "allowedDomains":      { "type": "string", "description": "Comma-separated. AGENTA_ACCESS_ALLOWED_DOMAINS." },
+            "blockedDomains":      { "type": "string", "description": "Comma-separated. AGENTA_ACCESS_BLOCKED_DOMAINS." },
+            "blockedEmails":       { "type": "string", "description": "Comma-separated. AGENTA_ACCESS_BLOCKED_EMAILS." },
+            "allowedOwnerEmails":  { "type": "string", "description": "Comma-separated. AGENTA_ACCESS_ALLOWED_OWNER_EMAILS." },
+            "emailDisabled":       { "type": ["boolean", "string"], "description": "AGENTA_ACCESS_EMAIL_DISABLED — disable email/password auth." },
+            "defaultPlan":         { "type": "string", "description": "AGENTA_ACCESS_DEFAULT_PLAN." },
+            "defaultPlanOverlay":  { "type": "object", "additionalProperties": true, "description": "AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY (JSON)." },
+            "plans":               { "type": "object", "additionalProperties": true, "description": "AGENTA_ACCESS_PLANS (JSON)." },
+            "roles":               { "type": "object", "additionalProperties": true, "description": "AGENTA_ACCESS_ROLES (JSON)." },
+            "rolesOverlay":        { "type": "object", "additionalProperties": true, "description": "AGENTA_ACCESS_ROLES_OVERLAY (JSON)." }
+          }
+        },
+        "aiServices": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Agenta AI services (refine prompts, etc.).",
+          "properties": {
+            "apiUrl":            { "type": "string", "description": "AGENTA_AI_SERVICES_API_URL." },
+            "apiKey":            { "type": "string", "description": "AGENTA_AI_SERVICES_API_KEY via Secret." },
+            "environmentSlug":   { "type": "string", "description": "AGENTA_AI_SERVICES_ENVIRONMENT_SLUG." },
+            "refinePromptKey":   { "type": "string", "description": "AGENTA_AI_SERVICES_REFINE_PROMPT_KEY via Secret." }
+          }
+        },
+        "api": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "API server tunables (the API container deployment knobs live at the top-level `api:` block).",
+          "properties": {
+            "caching": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": ["boolean", "string"], "description": "AGENTA_API_CACHING_ENABLED." }
+              }
+            }
+          }
+        },
+        "extras": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "demos": { "type": "string", "description": "AGENTA_DEMOS / AGENTA_EXTRAS_DEMOS — seeds demo workspaces (EE)." }
+          }
+        },
+        "logging": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "consoleEnabled": { "type": ["boolean", "string"], "description": "AGENTA_LOGGING_CONSOLE_ENABLED." },
+            "consoleLevel":   { "type": "string", "description": "AGENTA_LOGGING_CONSOLE_LEVEL (TRACE|DEBUG|INFO|WARNING|ERROR|CRITICAL)." },
+            "fileEnabled":    { "type": ["boolean", "string"], "description": "AGENTA_LOGGING_FILE_ENABLED." },
+            "fileLevel":      { "type": "string", "description": "AGENTA_LOGGING_FILE_LEVEL." },
+            "filePath":       { "type": "string", "description": "AGENTA_LOGGING_FILE_PATH." },
+            "otlpEnabled":    { "type": ["boolean", "string"], "description": "AGENTA_LOGGING_OTLP_ENABLED." },
+            "otlpLevel":      { "type": "string", "description": "AGENTA_LOGGING_OTLP_LEVEL." }
+          }
+        },
+        "otlp": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxBatchBytes": { "type": ["integer", "string"], "description": "AGENTA_OTLP_MAX_BATCH_BYTES." }
+          }
+        },
+        "services": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Workflow services / SDK behavior.",
+          "properties": {
+            "hook": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "allowInsecure": { "type": ["boolean", "string"], "description": "AGENTA_SERVICES_HOOK_ALLOW_INSECURE." }
+              }
+            },
+            "code": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "sandboxRunner": { "type": "string", "enum": ["local", "daytona"], "description": "AGENTA_SERVICES_CODE_SANDBOX_RUNNER." }
+              }
+            },
+            "middleware": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "authEnabled":    { "type": ["boolean", "string"], "description": "AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED." },
+                "cachingEnabled": { "type": ["boolean", "string"], "description": "AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED." }
+              }
+            }
+          }
+        },
+        "webhooks": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "allowInsecure": { "type": ["boolean", "string"], "description": "AGENTA_WEBHOOKS_ALLOW_INSECURE." }
+          }
+        }
+      }
+    },
+    "postgres": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Agenta's view of PostgreSQL connection settings. The bundled Bitnami chart is configured separately under top-level `postgresql:` (subchart) and `global.postgresql:`.",
+      "properties": {
+        "user":           { "type": "string", "description": "POSTGRES_USER." },
+        "password":       { "type": "string", "description": "POSTGRES_PASSWORD via Secret." },
+        "port":           { "type": ["integer", "string"], "description": "POSTGRES_PORT." },
+        "uriCore":        { "type": "string", "description": "POSTGRES_URI_CORE (override)." },
+        "uriSupertokens": { "type": "string", "description": "POSTGRES_URI_SUPERTOKENS (override)." },
+        "uriTracing":     { "type": "string", "description": "POSTGRES_URI_TRACING (override)." }
+      }
+    },
+    "redis": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "uri":         { "type": "string", "description": "REDIS_URI (volatile default)." },
+        "uriVolatile": { "type": "string", "description": "REDIS_URI_VOLATILE." },
+        "uriDurable":  { "type": "string", "description": "REDIS_URI_DURABLE." }
+      }
+    },
+    "supertokens": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "SuperTokens config consumed by api/web/services. Top-level `supertokens.enabled`, `image`, `port`, `resources`, `external` knobs control the bundled SuperTokens deployment (additionalProperties:true).",
+      "properties": {
+        "enabled":          { "type": "boolean" },
+        "apiKey":           { "type": "string", "description": "SUPERTOKENS_API_KEY via Secret." },
+        "uriCore":          { "type": "string", "description": "SUPERTOKENS_URI_CORE (override; ignored when bundled)." },
+        "application":      { "type": "string", "description": "SUPERTOKENS_APPLICATION." },
+        "tenant":           { "type": "string", "description": "SUPERTOKENS_TENANT." },
+        "passwordPolicy":   { "type": "string", "enum": ["none", "basic", "strong"], "description": "SUPERTOKENS_PASSWORD_POLICY." },
+        "passwordMinLength":{ "type": ["integer", "string"], "description": "SUPERTOKENS_PASSWORD_MIN_LENGTH." },
+        "passwordMaxLength":{ "type": ["integer", "string"], "description": "SUPERTOKENS_PASSWORD_MAX_LENGTH." },
+        "passwordRegex":    { "type": "string", "description": "SUPERTOKENS_PASSWORD_REGEX." }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "existingSecret": { "type": "string", "description": "Name of a pre-created Secret to use instead of the chart-managed one. If using bundled PostgreSQL, also set global.postgresql.auth.existingSecret to the same name." },
+        "oauth":        { "type": "object", "additionalProperties": { "type": "string" }, "description": "Extra OAuth/OIDC secret keys to surface from the Secret as env vars on the web container." },
+        "llmProviders": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Extra LLM provider secret keys to surface on backend pods." }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "OIDC providers. Each provider's clientSecret/keyId/privateKey are surfaced through the Secret; clientId and similar public values are emitted directly as env vars.",
+      "properties": {
+        "apple":            { "$ref": "#/$defs/identityApple" },
+        "azureAd":          { "$ref": "#/$defs/identityAzureAd" },
+        "bitbucket":        { "$ref": "#/$defs/identityClientPair" },
+        "boxySaml":         { "$ref": "#/$defs/identityBoxySaml" },
+        "discord":          { "$ref": "#/$defs/identityClientPair" },
+        "facebook":         { "$ref": "#/$defs/identityClientPair" },
+        "github":           { "$ref": "#/$defs/identityClientPair" },
+        "gitlab":           { "$ref": "#/$defs/identityGitlab" },
+        "google":           { "$ref": "#/$defs/identityClientPair" },
+        "googleWorkspaces": { "$ref": "#/$defs/identityGoogleWorkspaces" },
+        "linkedin":         { "$ref": "#/$defs/identityClientPair" },
+        "okta":             { "$ref": "#/$defs/identityOkta" },
+        "twitter":          { "$ref": "#/$defs/identityClientPair" }
+      }
+    },
+    "llm": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "LLM provider API keys. Each value is surfaced as <PROVIDER>_API_KEY via Secret.",
+      "properties": {
+        "alephalpha":   { "type": "string" },
+        "anthropic":    { "type": "string" },
+        "anyscale":     { "type": "string" },
+        "cohere":       { "type": "string" },
+        "deepinfra":    { "type": "string" },
+        "gemini":       { "type": "string" },
+        "groq":         { "type": "string" },
+        "minimax":      { "type": "string" },
+        "mistral":      { "type": "string" },
+        "openai":       { "type": "string" },
+        "openrouter":   { "type": "string" },
+        "perplexityai": { "type": "string" },
+        "togetherai":   { "type": "string" }
+      }
+    },
+    "cloudflare": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "turnstile": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "siteKey":          { "type": "string", "description": "CLOUDFLARE_TURNSTILE_SITE_KEY." },
+            "secretKey":        { "type": "string", "description": "CLOUDFLARE_TURNSTILE_SECRET_KEY via Secret." },
+            "allowedHostnames": { "type": "string", "description": "CLOUDFLARE_TURNSTILE_ALLOWED_HOSTNAMES (comma-separated)." }
+          }
+        }
+      }
+    },
+    "composio": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "apiKey": { "type": "string", "description": "COMPOSIO_API_KEY via Secret." },
+        "apiUrl": { "type": "string", "description": "COMPOSIO_API_URL." }
+      }
+    },
+    "crisp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "websiteId": { "type": "string", "description": "NEXT_PUBLIC_CRISP_WEBSITE_ID (web only)." }
+      }
+    },
+    "daytona": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Daytona sandbox runner config.",
+      "properties": {
+        "apiKey":   { "type": "string", "description": "DAYTONA_API_KEY via Secret." },
+        "apiUrl":   { "type": "string", "description": "DAYTONA_API_URL." },
+        "snapshot": { "type": "string", "description": "DAYTONA_SNAPSHOT." },
+        "target":   { "type": "string", "description": "DAYTONA_TARGET." }
+      }
+    },
+    "loops": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "apiKey": { "type": "string", "description": "LOOPS_API_KEY via Secret." }
+      }
+    },
+    "newrelic": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "licenseKey": { "type": "string", "description": "NEWRELIC_LICENSE_KEY via Secret." }
+      }
+    },
+    "posthog": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "apiKey": { "type": "string", "description": "POSTHOG_API_KEY." },
+        "apiUrl": { "type": "string", "description": "POSTHOG_API_URL." }
+      }
+    },
+    "sendgrid": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "apiKey":      { "type": "string", "description": "SENDGRID_API_KEY via Secret." },
+        "fromAddress": { "type": "string", "description": "SENDGRID_FROM_ADDRESS." }
+      }
+    },
+    "alembic": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Alembic migration job config + k8s job knobs.",
+      "properties": {
+        "autoMigrations":          { "type": ["boolean", "string"], "description": "ALEMBIC_AUTO_MIGRATIONS." },
+        "cfgPathCore":             { "type": "string", "description": "ALEMBIC_CFG_PATH_CORE." },
+        "cfgPathTracing":          { "type": "string", "description": "ALEMBIC_CFG_PATH_TRACING." },
+        "activeDeadlineSeconds":   { "type": "integer" },
+        "backoffLimit":            { "type": "integer" },
+        "ttlSecondsAfterFinished": { "type": "integer" },
+        "resources":               { "type": "object", "additionalProperties": true }
+      }
+    },
+    "docker": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "docker-compose-only knobs; ignored on Kubernetes (kept for parity).",
+      "properties": {
+        "networkMode": { "type": "string" }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled":     { "type": "boolean" },
+        "className":   { "type": "string", "description": "IngressClass name. Default 'traefik'." },
+        "host":        { "type": "string" },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+        "tls":         { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+        "paths": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "api":      { "$ref": "#/$defs/ingressPath" },
+            "services": { "$ref": "#/$defs/ingressPath" },
+            "web":      { "$ref": "#/$defs/ingressPath" }
+          }
+        }
+      }
+    },
+    "extraObjects": { "type": "array", "items": { "type": "object", "additionalProperties": true }, "description": "Arbitrary Kubernetes resources to apply with the release (e.g. Traefik StripPrefix Middleware)." },
+    "global": { "type": "object", "additionalProperties": true, "description": "Bitnami subchart conventions (imagePullSecrets, postgresql.auth.existingSecret, …)." },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "create":      { "type": "boolean" },
+        "name":        { "type": "string" },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "postgresql": { "type": "object", "additionalProperties": true, "description": "Bitnami PostgreSQL subchart values. Full schema lives in the subchart; we keep this open." },
+    "redisVolatile": { "$ref": "#/$defs/bundledRedis" },
+    "redisDurable":  { "$ref": "#/$defs/bundledRedis" },
+    "api":               { "$ref": "#/$defs/component" },
+    "web":               { "$ref": "#/$defs/component" },
+    "services":          { "$ref": "#/$defs/component" },
+    "workerEvaluations": { "$ref": "#/$defs/component" },
+    "workerTracing":     { "$ref": "#/$defs/component" },
+    "workerWebhooks":    { "$ref": "#/$defs/component" },
+    "workerEvents":      { "$ref": "#/$defs/component" },
+    "cron":              { "$ref": "#/$defs/component" },
+    "nameOverride":     { "type": "string" },
+    "fullnameOverride": { "type": "string" }
+  },
+  "$defs": {
+    "ingressPath": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path":     { "type": "string" },
+        "pathType": { "type": "string", "enum": ["Exact", "Prefix", "ImplementationSpecific"] }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Per-deployment knobs. `additionalProperties:true` so per-component overrides (nodeSelector, tolerations, affinity, env, …) pass through.",
+      "properties": {
+        "enabled":  { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "port":     { "type": ["integer", "string"] },
+        "workers":  { "type": "integer", "minimum": 1 },
+        "image": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "repository": { "type": "string" },
+            "tag":        { "type": "string" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "resources":   { "type": "object", "additionalProperties": true },
+        "env":         { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+        "labels":      { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "bundledRedis": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled":         { "type": "boolean" },
+        "password":        { "type": "string", "description": "Optional; rendered into REDIS_URI_VOLATILE / REDIS_URI_DURABLE." },
+        "port":            { "type": ["integer", "string"] },
+        "maxmemory":       { "type": "string" },
+        "maxmemoryPolicy": { "type": "string" },
+        "persistence":     { "type": "object", "additionalProperties": true },
+        "image":           { "type": "object", "additionalProperties": true },
+        "resources":       { "type": "object", "additionalProperties": true },
+        "external": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "host":     { "type": "string" },
+            "port":     { "type": ["integer", "string"] },
+            "password": { "type": "string" },
+            "uri":      { "type": "string" }
+          }
+        }
+      }
+    },
+    "identityClientPair": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clientId":     { "type": "string" },
+        "clientSecret": { "type": "string" }
+      }
+    },
+    "identityApple": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clientId":     { "type": "string" },
+        "clientSecret": { "type": "string" },
+        "keyId":        { "type": "string" },
+        "privateKey":   { "type": "string" },
+        "teamId":       { "type": "string" }
+      }
+    },
+    "identityAzureAd": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clientId":     { "type": "string" },
+        "clientSecret": { "type": "string" },
+        "directoryId":  { "type": "string" }
+      }
+    },
+    "identityBoxySaml": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clientId":     { "type": "string" },
+        "clientSecret": { "type": "string" },
+        "url":          { "type": "string" }
+      }
+    },
+    "identityGitlab": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "baseUrl":      { "type": "string" },
+        "clientId":     { "type": "string" },
+        "clientSecret": { "type": "string" }
+      }
+    },
+    "identityGoogleWorkspaces": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clientId":     { "type": "string" },
+        "clientSecret": { "type": "string" },
+        "hd":           { "type": "string", "description": "Hosted-domain restriction." }
+      }
+    },
+    "identityOkta": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clientId":     { "type": "string" },
+        "clientSecret": { "type": "string" },
+        "domain":       { "type": "string" }
+      }
+    }
+  }
+}

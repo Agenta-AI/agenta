@@ -55,9 +55,10 @@ import {
     type BuildEntityColumnsOptions,
     type RowHeightFeatureConfig,
     type TableScopeConfig,
+    type TypeChipConfig,
 } from "@agenta/ui/table"
 import type {GroupColumnsOptions} from "@agenta/ui/utils"
-import {Checkbox} from "antd"
+import {Checkbox, Radio} from "antd"
 import type {ColumnType, ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -140,6 +141,12 @@ export interface EntityTableProps<
     showSettings?: boolean
     /** Enable table export action (default: true) */
     enableExport?: boolean
+    /**
+     * Type chip config. When omitted, a default config is built from
+     * `getCellValue`/`getRowData` so chip rendering doesn't depend on each
+     * caller wiring it up. Pass `null` to disable chips entirely.
+     */
+    typeChips?: TypeChipConfig<TRow> | null
     /** Jotai store for entity atom access (default: global store) */
     store?: ReturnType<typeof getDefaultStore>
     /** Page size for table scope (default: 100) */
@@ -210,6 +217,7 @@ export function EntityTable<
     rowHeightConfig = DEFAULT_ROW_HEIGHT_CONFIG,
     showSettings = true,
     enableExport = true,
+    typeChips,
     store,
     pageSize,
     emptyMessage = "No data found",
@@ -396,7 +404,14 @@ export function EntityTable<
 
     // Build table columns
     const tableColumns: ColumnsType<TRow> = useMemo(() => {
-        // Selection column
+        // Selection column. Header is `Checkbox` (select-all) ONLY when the
+        // table is multi-select — single-select has no select-all concept.
+        // Row control mirrors that: `Checkbox` for multi-select, `Radio` for
+        // single-select. Without the radio, single-select callers (e.g. the
+        // chat playground testset picker) render visually identical
+        // checkboxes whose behaviour silently replaces the previous
+        // selection on every click — the "we do something else behind the
+        // curtains" UX wart Arda flagged on 2026-06-01.
         const selectionColumn: ColumnType<TRow> = {
             key: "__selection",
             title: multiSelect ? (
@@ -409,14 +424,36 @@ export function EntityTable<
             ) : null,
             width: SELECTION_COLUMN_WIDTH,
             fixed: "left",
-            render: (_, record) => (
-                <Checkbox
-                    checked={selectedIdsSet.has(record.id)}
-                    onChange={(e) => handleRowSelect(record.id, e.target.checked)}
-                    disabled={selectionDisabled}
-                    onClick={(e) => e.stopPropagation()}
-                />
-            ),
+            render: (_, record) => {
+                const checked = selectedIdsSet.has(record.id)
+                if (multiSelect) {
+                    return (
+                        <Checkbox
+                            checked={checked}
+                            onChange={(e) => handleRowSelect(record.id, e.target.checked)}
+                            disabled={selectionDisabled}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    )
+                }
+                // Single-select: render a Radio. Clicking an unchecked radio
+                // selects (and replaces the previous selection via the
+                // `multiSelect ? … : [rowId]` branch in `handleRowSelect`).
+                // Clicking a checked radio is a no-op in antd by default —
+                // we don't try to "uncheck" because single-select tables
+                // are semantically "pick one"; the user can pick a
+                // different row instead.
+                return (
+                    <Radio
+                        checked={checked}
+                        onChange={() => {
+                            if (!checked) handleRowSelect(record.id, true)
+                        }}
+                        disabled={selectionDisabled}
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                )
+            },
         }
 
         // Build entity columns using the helper
@@ -460,6 +497,28 @@ export function EntityTable<
         return <TableEmptyState message={emptyMessage} />
     }
 
+    // Default type chip wiring. Reuses existing data accessors so chips appear
+    // for every consumer (eg. testset preview modal in edit mode) without each
+    // caller having to opt in. Pass `typeChips={null}` to disable.
+    const defaultGetRowValue = useCallback(
+        (record: TRow, columnKey: string): unknown => {
+            if (getCellValue) return getCellValue(record, columnKey)
+            const data = getRowData(record)
+            return data ? data[columnKey] : undefined
+        },
+        [getCellValue, getRowData],
+    )
+
+    const effectiveTypeChips = useMemo<TypeChipConfig<TRow> | undefined>(() => {
+        if (typeChips === null) return undefined
+        if (typeChips) return typeChips
+        return {
+            defaultEnabled: true,
+            storageKey: "agenta:entity-table:type-chips-enabled",
+            getRowValue: defaultGetRowValue,
+        }
+    }, [typeChips, defaultGetRowValue])
+
     return (
         <div className="h-full">
             <InfiniteVirtualTableFeatureShell<TRow>
@@ -471,6 +530,7 @@ export function EntityTable<
                 autoHeight={autoHeight}
                 useSettingsDropdown={showSettings}
                 enableExport={enableExport}
+                typeChips={effectiveTypeChips}
                 store={globalStore}
                 tableProps={{
                     size: "small",

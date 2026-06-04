@@ -6,6 +6,7 @@ from oss.src.core.shared.dtos import (
     Reference,
     Windowing,
 )
+from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.applications.dtos import (
     Application,
     ApplicationCatalogType,
@@ -361,25 +362,39 @@ class ApplicationRevisionCommitRequest(BaseModel):
 class ApplicationRevisionRetrieveRequest(BaseModel):
     """Request body for `POST /applications/revisions/retrieve`.
 
-    Resolves to a single revision by one of several reference types. Exactly one
-    reference path is needed; the most specific wins when several are provided.
-    See the [Applications guide](/reference/api-guide/applications#invocation).
+    Resolves to a single revision by one or more reference types. Every
+    reference supplied must agree with the resolved revision; contradictions
+    return HTTP 400. See the [Applications guide](/reference/api-guide/applications#invocation).
     """
 
     application_ref: Optional[Reference] = Field(
         default=None,
         description=(
-            "Application reference. When only an application is supplied, the "
-            "latest revision of its default variant is returned."
+            "Application artifact to look up. Identifies the artifact by `id` "
+            "or `slug` (both project-unique). When no variant_ref or "
+            "revision_ref is provided, returns the latest revision of the "
+            "application's default variant."
         ),
     )
     application_variant_ref: Optional[Reference] = Field(
         default=None,
-        description="Variant reference. Returns the latest revision on that variant.",
+        description=(
+            "Application variant to look up. Identifies the variant by `id` "
+            "or `slug` (both project-unique). When no revision_ref is "
+            "provided, returns the latest revision of this variant."
+        ),
     )
     application_revision_ref: Optional[Reference] = Field(
         default=None,
-        description="Revision reference. Returns that exact revision.",
+        description=(
+            "Application revision to look up. "
+            "`id` alone identifies a revision (project-unique). "
+            "`slug` alone identifies a revision (project-unique). "
+            "`version` alone is a per-variant sequence number and is **not** "
+            "sufficient on its own; it must be combined with an "
+            "`application_variant_ref`. Sending only `version` without a "
+            "variant ref returns HTTP 400."
+        ),
     )
     environment_ref: Optional[Reference] = Field(
         default=None,
@@ -485,6 +500,10 @@ class ApplicationRevisionResponse(BaseModel):
             "Present only when the request set `resolve: true`. Describes which "
             "embedded references were resolved and any errors that occurred."
         ),
+    )
+    retrieval_info: Optional[RetrievalInfo] = Field(
+        default=None,
+        description="References used to retrieve the top-level revision.",
     )
 
 
@@ -666,6 +685,10 @@ class ApplicationRevisionResolveResponse(BaseModel):
     resolution_info: Optional[ResolutionInfo] = Field(
         default=None,
         description="Diagnostic info about which references were resolved.",
+    )
+    retrieval_info: Optional[RetrievalInfo] = Field(
+        default=None,
+        description="References (artifact / variant / revision) actually used to retrieve this revision.",
     )
 
 

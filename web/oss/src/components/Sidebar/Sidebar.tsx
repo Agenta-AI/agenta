@@ -93,7 +93,7 @@ const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
         <div className="border-0 border-r border-solid border-gray-100">
             <Sider
                 theme={appTheme}
-                className="sticky top-0 bottom-0 h-screen bg-white"
+                className="sticky top-0 bottom-0 h-screen bg-[var(--ag-sidebar-bg)]"
                 collapsible
                 width={collapsed ? 80 : 236}
                 trigger={null}

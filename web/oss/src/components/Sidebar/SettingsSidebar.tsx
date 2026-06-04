@@ -20,7 +20,6 @@ import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 import {isBillingEnabled, isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
-import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {settingsTabAtom} from "@/oss/state/settings"
@@ -40,15 +39,15 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
     const [settingsTab, setSettingsTab] = useAtom(settingsTabAtom)
     const {selectedOrg} = useOrgData()
     const {user} = useProfileData()
-    const {canViewApiKeys} = useProjectPermissions()
+    const {canViewApiKeys, canViewEvents} = useProjectPermissions()
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
     const canShowOrganization = isEE()
     const canShowUsageBilling = isEE() && isOwner
     const billingEnabled = isBillingEnabled()
     const canShowTools = isToolsEnabled()
-    // Audit log is always available in OSS; in EE it is gated by `Flag.AUDIT`.
-    const {hasAudit} = useEntitlements()
-    const canShowAuditLog = isEE() ? hasAudit : true
+    // Audit Log is an EE feature. Within EE the tab is gated by `view_events`;
+    // the page content is gated separately by the `Flag.AUDIT` entitlement.
+    const canShowAuditLog = isEE() && canViewEvents
     const activeTab = useMemo(() => {
         const requestedTab = tab ?? settingsTab ?? "workspace"
 
@@ -56,13 +55,22 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
             (requestedTab === "organization" && !canShowOrganization) ||
             (requestedTab === "billing" && !canShowUsageBilling) ||
             (requestedTab === "tools" && !canShowTools) ||
-            (requestedTab === "apiKeys" && !canViewApiKeys)
+            (requestedTab === "apiKeys" && !canViewApiKeys) ||
+            (requestedTab === "auditLog" && !canShowAuditLog)
         ) {
             return "workspace"
         }
 
         return requestedTab
-    }, [canShowUsageBilling, canShowOrganization, canShowTools, canViewApiKeys, settingsTab, tab])
+    }, [
+        canShowUsageBilling,
+        canShowOrganization,
+        canShowTools,
+        canViewApiKeys,
+        canShowAuditLog,
+        settingsTab,
+        tab,
+    ])
 
     useEffect(() => {
         if (tab && tab !== settingsTab) {
@@ -83,7 +91,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                 : []),
             {
                 key: "secrets",
-                title: "Models",
+                title: "Providers & Models",
                 icon: <Sparkle size={16} className="mt-0.5" />,
             },
             ...(canShowTools
@@ -116,18 +124,18 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                   ]
                 : []),
         ]
+        if (canShowAuditLog) {
+            list.push({
+                key: "auditLog",
+                title: "Audit Log",
+                icon: <ClockCounterClockwise size={16} className="mt-0.5" />,
+            })
+        }
         if (canShowUsageBilling) {
             list.push({
                 key: "billing",
                 title: billingEnabled ? "Usage & Billing" : "Usage",
                 icon: <Receipt size={16} className="mt-0.5" />,
-            })
-        }
-        if (canShowAuditLog) {
-            list.push({
-                key: "audit-log",
-                title: "Audit Log",
-                icon: <ClockCounterClockwise size={16} className="mt-0.5" />,
             })
         }
         return list

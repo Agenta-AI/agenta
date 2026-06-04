@@ -1,22 +1,20 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import React, {useCallback, useEffect, useLayoutEffect, useMemo, useState} from "react"
 
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {getCollapseStyle} from "@agenta/ui/components/presentational"
+import {getViewOptions, ViewModeDropdown, type ViewMode} from "@agenta/ui/drill-in"
 import {
     DrillInProvider,
-    TOGGLE_MARKDOWN_VIEW,
     EditorProvider,
-    $getRoot,
-    $isCodeBlockNode,
-    $createCodeBlockNode,
-    createHighlightedNodes,
-    $wrapLinesInSegments,
+    SET_MARKDOWN_VIEW,
     useLexicalComposerContext,
 } from "@agenta/ui/editor"
 import type {EditorProps} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Code, Info, TextAa} from "@phosphor-icons/react"
-import {Button, InputNumber, Switch, Tooltip, Typography} from "antd"
+import {TypeChip} from "@agenta/ui/type-chip"
+import type {ChipVariant} from "@agenta/ui/type-chip"
+import {Info} from "@phosphor-icons/react"
+import {InputNumber, Switch, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -34,36 +32,11 @@ export interface VariableControlAdapterProps {
     // forwarded to SimpleInput when `as` includes "SimpleInput"
     editorProps?: EditorProps
     headerActions?: React.ReactNode
-    onMarkdownToggleReady?: (toggle: (() => void) | null) => void
     collapsed?: boolean
     /** Ref attached to the outer container — used for overflow detection by CollapseToggleButton */
     containerRef?: React.RefObject<HTMLDivElement | null>
     /** When true, hides the variable name label (useful when an outer wrapper already shows it) */
     hideLabel?: boolean
-}
-
-const MarkdownToggleRegistrar: React.FC<{
-    onMarkdownToggleReady?: (toggle: (() => void) | null) => void
-}> = ({onMarkdownToggleReady}) => {
-    const [editor] = useLexicalComposerContext()
-    const callbackRef = useRef<typeof onMarkdownToggleReady>(onMarkdownToggleReady)
-    const toggleRef = useRef<(() => void) | null>(null)
-
-    useEffect(() => {
-        callbackRef.current = onMarkdownToggleReady
-    }, [onMarkdownToggleReady])
-
-    useEffect(() => {
-        toggleRef.current = () => editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)
-        callbackRef.current?.(toggleRef.current)
-
-        return () => {
-            callbackRef.current?.(null)
-            toggleRef.current = null
-        }
-    }, [editor])
-
-    return null
 }
 
 /**
@@ -82,12 +55,14 @@ const VariableHeader: React.FC<{
     name: string | undefined
     headerActions?: React.ReactNode
     helpText?: string
-}> = ({name, headerActions, helpText}) => (
+    typeChip?: React.ReactNode
+}> = ({name, headerActions, helpText, typeChip}) => (
     <div className="w-full flex items-start justify-between gap-2">
         <div className="flex items-center gap-1 min-w-0">
-            <Typography className="playground-property-control-label font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono truncate">
+            <Typography className="playground-property-control-label font-[500] text-[12px] leading-[20px] text-[var(--ag-c-1677FF)] font-mono truncate">
                 {name}
             </Typography>
+            {typeChip}
             {helpText ? (
                 <Tooltip title={helpText} placement="topLeft" overlayStyle={{maxWidth: 360}}>
                     <Info
@@ -106,130 +81,36 @@ const VariableHeader: React.FC<{
     </div>
 )
 
-/**
- * Inline JSON code editor used by the schema-typed branch of
- * `VariableControlAdapter`. Mirrors `JsonEditorWithLocalState`'s composition
- * exactly (EditorProvider with codeOnly+json wrapping SharedEditor with
- * showLineNumbers, disableLongText, syncWithInitialValueChanges, and local
- * state that swallows invalid JSON instead of propagating it) — but accepts
- * a `header` slot so we can render the standard `VariableHeader` (blue mono
- * label + action buttons) above the editor surface, and a `footer` slot for
- * the schema shape hint.
- */
-/**
- * Seeds the JSON editor with a 3-line `{ \n \n }` skeleton on mount so an
- * empty cell visually invites the user to type fields inside the braces
- * instead of presenting a blank box. The cell value tracks the editor's
- * onChange — once the editor renders `"{\n\n}"`, the cell value matches,
- * which parses to `{}` at submission (the SDK's `parseIfJsonObject`
- * round-trips identically).
- *
- * Why we don't use `INITIAL_CONTENT_COMMAND`: that handler runs
- * `JSON.stringify(JSON5.parse(content), null, 2)` on language=json
- * payloads. An empty object stringifies to single-line `"{}"`, collapsing
- * the multi-line skeleton. We build the Lexical node tree directly to
- * preserve the exact visual.
- *
- * Deferred to the next animation frame because this component mounts as
- * a sibling of `SharedEditor`. React fires sibling effects in document
- * order, so a synchronous edit here would run before `SharedEditor` had
- * a chance to initialize the Lexical state. Deferring lets the editor
- * settle first.
- *
- * Mounted as a sibling plugin inside the JSON editor's `EditorProvider`.
- * Fires once per editor instance.
- */
-const EmptyCodeBlockSeed: React.FC<{shouldSeed: boolean}> = ({shouldSeed}) => {
+const MarkdownViewSynchronizer: React.FC<{enabled: boolean}> = ({enabled}) => {
     const [editor] = useLexicalComposerContext()
-    const seededRef = useRef(false)
+
+    useLayoutEffect(() => {
+        editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)
+    }, [editor, enabled])
+
     useEffect(() => {
-        if (!shouldSeed || seededRef.current) return
-        let cancelled = false
-        let attempts = 0
-        const maxAttempts = 10
-        const trySeed = () => {
-            if (cancelled || seededRef.current) return
-            attempts += 1
-            let seeded = false
-            editor.update(() => {
-                const root = $getRoot()
-                // Bail when the editor already holds *non-empty* user
-                // content — we never clobber typed JSON. But the
-                // CodeEditorPlugin may have already created a single-line
-                // `{}` CodeBlockNode from the stale `"{}"` initial value
-                // before our deferred effect runs; that block parses to an
-                // empty object and we *do* want to replace it with the
-                // 3-line skeleton. The `shouldSeed` gate upstream already
-                // confirmed the cell is effectively empty (either truly
-                // empty or `{}`-equivalent), so reaching here means it's
-                // safe to rebuild.
-                const existing = root.getChildren().find($isCodeBlockNode)
-                if (existing) {
-                    const text = existing.getTextContent().trim()
-                    if (text) {
-                        try {
-                            const parsed = JSON.parse(text)
-                            const isEmptyObject =
-                                parsed &&
-                                typeof parsed === "object" &&
-                                !Array.isArray(parsed) &&
-                                Object.keys(parsed).length === 0
-                            if (!isEmptyObject) {
-                                seeded = true
-                                return
-                            }
-                        } catch {
-                            // Invalid JSON the user typed — don't clobber.
-                            seeded = true
-                            return
-                        }
-                    }
-                }
-                root.clear()
-                const codeBlock = $createCodeBlockNode("json")
-                // Use the editor's own `createHighlightedNodes` helper so the
-                // resulting `CodeLineNode`s contain properly-tokenized
-                // `CodeHighlightNode` + `CodeTabNode` children. A naive
-                // `$createTextNode` approach renders the right glyphs but
-                // the syntax-highlight transform pipeline doesn't recognise
-                // plain `TextNode`s as canonical code content and ends up
-                // pruning my middle/close lines on the next tick.
-                //
-                // `createHighlightedNodes` skips its JSON reformat path
-                // when the input has `\n  ` (multi-line indent), so the
-                // 3-line skeleton survives intact. The two-space indent on
-                // the middle line becomes a `CodeTabNode` so the user's
-                // typed content lands nested inside the braces.
-                const highlighted = createHighlightedNodes("{\n  \n}", "json", true)
-                $wrapLinesInSegments(highlighted).forEach((node) => {
-                    codeBlock.append(node)
-                })
-                root.append(codeBlock)
-                seeded = true
-            })
-            if (seeded) {
-                seededRef.current = true
-                return
-            }
-            if (attempts < maxAttempts) {
-                requestAnimationFrame(trySeed)
-            } else {
-                seededRef.current = true
-            }
-        }
-        const id = requestAnimationFrame(trySeed)
-        return () => {
-            cancelled = true
-            cancelAnimationFrame(id)
-        }
-    }, [editor, shouldSeed])
+        const frameId = requestAnimationFrame(() => {
+            editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)
+        })
+        return () => cancelAnimationFrame(frameId)
+    }, [editor, enabled])
+
     return null
 }
 
+/**
+ * Inline JSON/YAML code editor used by the schema-typed branch of
+ * `VariableControlAdapter`. It mirrors `JsonEditorWithLocalState`'s
+ * composition (EditorProvider wrapping SharedEditor with line numbers,
+ * disabled long text, syncWithInitialValueChanges, and local state that
+ * swallows invalid JSON instead of propagating it), while accepting header
+ * and footer slots for the standard variable chrome and schema hint.
+ */
 const JsonVariableEditor: React.FC<{
     editorKey: string
     initialValue: string
     onValidChange: (value: string) => void
+    language: "json" | "yaml"
     readOnly?: boolean
     header?: React.ReactNode
     footer?: React.ReactNode
@@ -240,6 +121,7 @@ const JsonVariableEditor: React.FC<{
     editorKey,
     initialValue,
     onValidChange,
+    language,
     readOnly,
     header,
     footer,
@@ -247,39 +129,7 @@ const JsonVariableEditor: React.FC<{
     collapsed,
     placeholder,
 }) => {
-    // Empty cells render with a 3-line `{ \n \n }` skeleton on mount via
-    // `EmptyCodeBlockSeed` below — gives the user a JSON-shaped invitation
-    // instead of a blank box. We previously seeded the cell *value* with
-    // `"{}"` for the same purpose, but that surfaced as a single-line
-    // artifact (QA: "Inputs always start with `{}`, why??"). The direct
-    // Lexical mutation preserves the multi-line visual.
-    //
-    // "Effectively empty" covers both truly empty cells (no value yet) AND
-    // cells whose value parses to an empty object/array. The latter happens
-    // when a stale `"{}"` value is still in the testcase store from earlier
-    // builds of this code; we want the new skeleton to apply there too,
-    // not show single-line `{}` lingering from the old default. The cell
-    // value then tracks the editor's onChange, becoming `"{\n\n}"` after
-    // the seed runs — which parses to the same `{}` at submit time.
     const [localValue, setLocalValue] = useState(initialValue)
-    const shouldSeedEmptyLine = useMemo(() => {
-        if (!initialValue) return true
-        try {
-            const parsed = JSON.parse(initialValue)
-            if (
-                parsed &&
-                typeof parsed === "object" &&
-                !Array.isArray(parsed) &&
-                Object.keys(parsed).length === 0
-            ) {
-                return true
-            }
-        } catch {
-            // Invalid JSON — leave alone; the user has content that doesn't
-            // parse and we'd rather not clobber whatever they typed.
-        }
-        return false
-    }, [initialValue])
 
     useEffect(() => {
         setLocalValue(initialValue)
@@ -288,6 +138,10 @@ const JsonVariableEditor: React.FC<{
     const handleChange = useCallback(
         (value: string) => {
             setLocalValue(value)
+            if (language === "yaml") {
+                onValidChange(value)
+                return
+            }
             try {
                 JSON.parse(value)
                 onValidChange(value)
@@ -295,7 +149,7 @@ const JsonVariableEditor: React.FC<{
                 // Invalid JSON — keep local state but don't sync to parent.
             }
         },
-        [onValidChange],
+        [language, onValidChange],
     )
 
     return (
@@ -305,8 +159,7 @@ const JsonVariableEditor: React.FC<{
             style={collapsed ? getCollapseStyle(collapsed) : undefined}
         >
             <DrillInProvider value={{enabled: false, decodeEscapedJsonStrings: false}}>
-                <EditorProvider key={editorKey} codeOnly language="json" showToolbar={false}>
-                    <EmptyCodeBlockSeed shouldSeed={shouldSeedEmptyLine} />
+                <EditorProvider key={editorKey} codeOnly language={language} showToolbar={false}>
                     <SharedEditor
                         key={`${editorKey}-shared`}
                         initialValue={localValue}
@@ -333,7 +186,7 @@ const JsonVariableEditor: React.FC<{
                         state={readOnly ? "readOnly" : undefined}
                         editorProps={{
                             codeOnly: true,
-                            language: "json",
+                            language,
                             showLineNumbers: true,
                             disableLongText: true,
                         }}
@@ -366,7 +219,6 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     appType,
     editorProps,
     headerActions,
-    onMarkdownToggleReady,
     collapsed = false,
     containerRef,
     hideLabel,
@@ -398,30 +250,13 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     const portSchema = schemaMap[variableKey]?.schema
     const helpText = schemaMap[variableKey]?.helpText
 
-    // Explicit text/JSON toggle. The button lives in the variable header
-    // (see `composedHeaderActions` below) and lets the user flip between
-    // editor surfaces — JSON code editor (line numbers + syntax) vs. plain
-    // text — for any port whose declared type is `string`, `object`, or
-    // `array`. Both surfaces edit the same stored string value; the
-    // runtime's `parseIfJsonObject` round-trips JSON-shaped strings either
-    // way. We deliberately don't auto-detect from content: swapping
-    // editors mid-keystroke yanks the user's caret.
-    //
-    // `forceMode` is the per-session user override. When unset, the
-    // editor surface follows the declared port type: `object`/`array`
-    // start in JSON; `string` starts as text. Numeric/boolean ports route
-    // through dedicated controls (InputNumber/Switch) below and never
-    // hit this toggle path.
-    const [forceMode, setForceMode] = useState<"json" | "text" | null>(null)
-    const declaredIsJson = declaredPortType === "object" || declaredPortType === "array"
-    const declaredIsToggleable = declaredIsJson || declaredPortType === "string"
-    const effectiveSurface: "json" | "text" = forceMode ?? (declaredIsJson ? "json" : "text")
-    // `portType` retains the full type union for the number/boolean/array
-    // branches below; we only override it when the user has explicitly
-    // flipped the surface via the JSON/text toggle.
-    const portType: string =
-        forceMode === "json" ? "object" : forceMode === "text" ? "string" : declaredPortType
-    const canToggleJson = declaredIsToggleable
+    const isStructuredPort = declaredPortType === "object" || declaredPortType === "array"
+    const [viewMode, setViewMode] = useState<ViewMode>("text")
+    const supportsViewMode =
+        declaredPortType === "string" ||
+        declaredPortType === "object" ||
+        declaredPortType === "array"
+    const isCodeEditor = viewMode === "json" || viewMode === "yaml"
 
     const name = useMemo(
         () =>
@@ -449,9 +284,8 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     // outside the editor as help text so the user can see which fields the
     // template references without us pre-filling the editor with content
     // that won't actually be submitted.
-    const isJsonType = portType === "object" || portType === "array"
     const shapeHint = useMemo(() => {
-        if (portType === "array") return null
+        if (declaredPortType === "array") return null
         const props =
             portSchema && typeof portSchema === "object"
                 ? (portSchema as {properties?: Record<string, unknown>}).properties
@@ -462,16 +296,8 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
         const obj: Record<string, string> = {}
         for (const k of keys) obj[k] = ""
         return JSON.stringify(obj)
-    }, [portType, portSchema])
+    }, [declaredPortType, portSchema])
 
-    // Editor mode is controlled exclusively by `portType` (= the declared
-    // port type, optionally overridden via the explicit JSON/text toggle
-    // button in the header — see `forceMode` / `composedHeaderActions`).
-    // The previous content-sniffing "sticky" behaviour (`detectedAsJson`
-    // flip based on whether the value started with `{`/`[`) was removed
-    // in favour of explicit user action so the editor never swaps out
-    // from under the user mid-keystroke.
-    const isJsonEditor = isJsonType
     const isCellEmpty = !value || value === ""
     // The editor reflects the actual cell content. Earlier the empty cell was
     // back-filled with a schema-derived default for display only, but that
@@ -509,14 +335,6 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
         [setCellValue, rowId, variableKey],
     )
 
-    // Intercept Cmd/Ctrl+A followed by Delete/Backspace — the most common
-    // Content-driven mode-flip helpers (`handleKeyDownCapture`,
-    // `handlePasteCapture`, `shouldFocusAfterMountRef`) were removed
-    // alongside the `detectedAsJson` magic. Editor mode is now toggled only
-    // by the explicit JSON/Text button in the header, so paste and select-
-    // all-delete never need to bypass Lexical to coordinate a swap —
-    // Lexical's own paste / keyboard handling is correct in single-mode.
-
     const {isComparisonView} = useAtomValue(
         useMemo(() => playgroundController.selectors.playgroundLayout(), []),
     )
@@ -530,45 +348,39 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
 
     const isEffectivelyDisabled = disabled || disableForCustom
 
-    // Compose the variable header's actions: prepend our JSON/text toggle
-    // ahead of whatever actions the parent passed in. Mirrors the markdown
-    // toggle pattern from `ChatMessage` — explicit user control over the
-    // editor surface, no content-sniffing magic. Visible for every port
-    // type; clicking flips between JSON code editor (line numbers +
-    // syntax) and plain text editor surfaces. Both edit the same stored
-    // string value.
-    const isCurrentlyJson = effectiveSurface === "json"
+    const viewOptions = useMemo(
+        () => (supportsViewMode ? getViewOptions(value ?? "") : []),
+        [supportsViewMode, value],
+    )
+    const typeChipVariant = useMemo<ChipVariant | undefined>(() => {
+        if (declaredPortType === "object") return "json-object"
+        if (declaredPortType === "array") return "json-array"
+        return undefined
+    }, [declaredPortType])
+    const typeChip = supportsViewMode ? (
+        <TypeChip variant={typeChipVariant} value={typeChipVariant ? undefined : value} />
+    ) : null
     const composedHeaderActions = useMemo(() => {
-        if (!canToggleJson) return headerActions
-        const toggle = (
-            <Tooltip
-                key="json-toggle"
-                title={isCurrentlyJson ? "Switch to text editor" : "Switch to JSON editor"}
-            >
-                <Button
-                    type="text"
-                    size="small"
-                    icon={isCurrentlyJson ? <TextAa size={14} /> : <Code size={14} />}
-                    onClick={() => setForceMode(isCurrentlyJson ? "text" : "json")}
-                    aria-label={
-                        isCurrentlyJson
-                            ? "Switch variable to text editor"
-                            : "Switch variable to JSON editor"
-                    }
-                />
-            </Tooltip>
-        )
-        if (!headerActions) return toggle
+        const dropdown = supportsViewMode ? (
+            <ViewModeDropdown
+                key="view-mode"
+                value={viewMode}
+                options={viewOptions}
+                onChange={setViewMode}
+            />
+        ) : null
+        if (!dropdown) return headerActions
+        if (!headerActions) return dropdown
         return (
             <>
-                {toggle}
+                {dropdown}
                 {headerActions}
             </>
         )
-    }, [canToggleJson, isCurrentlyJson, headerActions])
+    }, [headerActions, supportsViewMode, viewMode, viewOptions])
 
     // Number/integer type → InputNumber
-    if (portType === "number" || portType === "integer") {
+    if (declaredPortType === "number" || declaredPortType === "integer") {
         const numValue = value !== "" && value != null ? Number(value) : undefined
         return (
             <div ref={containerRef} className="w-full" style={getCollapseStyle(collapsed)}>
@@ -580,7 +392,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                             : clsx(
                                   "p-[11px] rounded-lg border border-solid",
                                   viewType === "single" && view !== "focus"
-                                      ? "border-[#BDC7D1]"
+                                      ? "border-[var(--ag-c-BDC7D1)]"
                                       : "border-transparent bg-transparent",
                               ),
                         className,
@@ -607,7 +419,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     }
 
     // Boolean type → Switch
-    if (portType === "boolean") {
+    if (declaredPortType === "boolean") {
         return (
             <div ref={containerRef} className="w-full" style={getCollapseStyle(collapsed)}>
                 <div
@@ -618,7 +430,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                             : clsx(
                                   "p-[11px] rounded-lg border border-solid",
                                   viewType === "single" && view !== "focus"
-                                      ? "border-[#BDC7D1]"
+                                      ? "border-[var(--ag-c-BDC7D1)]"
                                       : "border-transparent bg-transparent",
                               ),
                         className,
@@ -643,34 +455,29 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
         )
     }
 
-    // Object/array types (and detected JSON strings) → JSON code editor
-    const mergedEditorProps: EditorProps = isJsonEditor
-        ? {codeOnly: true, language: "json", enableResize: false, boundWidth: true, ...editorProps}
-        : {enableResize: false, boundWidth: true, ...editorProps}
+    const mergedEditorProps: EditorProps = {
+        enableResize: false,
+        boundWidth: true,
+        ...editorProps,
+    }
 
     // Show the schema-derived shape as help text on empty object cells, so
     // the user knows which fields the template references without us
     // pre-filling the editor with a value that wouldn't get submitted.
-    const showShapeHint = isJsonType && isCellEmpty && !!shapeHint
+    const showShapeHint = isStructuredPort && isCodeEditor && isCellEmpty && !!shapeHint
 
-    // Schema-typed JSON (object/array): render the same editor stack the
-    // DrillIn / Testcase JSON editors use — code-only Lexical with line
-    // numbers and syntax highlighting. Inlined (not delegated to
-    // `JsonEditorWithLocalState`) so we can preserve the variable header
-    // and route the change handler through the testcase cell store directly.
-    // The string-typed branch below stays as-is for detected-JSON sticky
-    // mode flips, which only the rich-text editor surface supports.
-    //
     // We deliberately keep the parent's `className` away from this branch —
     // generation rows pass `*:!border-none overflow-hidden` for the rich-text
     // cell strip, and applying it here strips the SharedEditor's own border
     // and the line-number gutter.
-    if (isJsonType) {
+    if (isCodeEditor) {
+        const codeLanguage = viewMode as "json" | "yaml"
         return (
             <JsonVariableEditor
-                editorKey={editorId}
+                editorKey={`${editorId}-${codeLanguage}-${schemaKey}`}
                 initialValue={effectiveValue ?? ""}
                 onValidChange={handleChange}
+                language={codeLanguage}
                 readOnly={isEffectivelyDisabled}
                 placeholder={effectivePlaceholder}
                 header={
@@ -679,6 +486,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                             name={name}
                             headerActions={composedHeaderActions}
                             helpText={helpText}
+                            typeChip={typeChip}
                         />
                     ) : null
                 }
@@ -705,17 +513,16 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 // remount — preserves cursor position). Flips only when the
                 // port's schema changes, which happens when the prompt
                 // introduces new sub-paths or a different envelope root.
-                key={`${editorId}-${isJsonEditor}-${schemaKey}`}
+                key={`${editorId}-${viewMode}-${schemaKey}`}
                 id={editorId}
                 initialValue={effectiveValue}
                 placeholder={effectivePlaceholder}
                 showToolbar={false}
-                codeOnly={isJsonEditor || !!editorProps?.codeOnly}
-                language={isJsonEditor ? "json" : undefined}
-                enableTokens={!isJsonEditor && !editorProps?.codeOnly}
+                codeOnly={!!editorProps?.codeOnly}
+                enableTokens={!editorProps?.codeOnly}
                 disabled={isEffectivelyDisabled}
             >
-                <MarkdownToggleRegistrar onMarkdownToggleReady={onMarkdownToggleReady} />
+                <MarkdownViewSynchronizer enabled={viewMode === "markdown"} />
                 <SharedEditor
                     id={editorId}
                     noProvider
@@ -725,6 +532,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                                 name={name}
                                 headerActions={composedHeaderActions}
                                 helpText={helpText}
+                                typeChip={typeChip}
                             />
                         ) : undefined
                     }
@@ -751,7 +559,6 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                             : viewType === "single" && view !== "focus"
                               ? ""
                               : "bg-transparent",
-                        isJsonEditor && "!pt-[11px] !pb-0 [&_.agenta-editor-wrapper]:!mb-0",
                         className,
                     )}
                     editorProps={mergedEditorProps}

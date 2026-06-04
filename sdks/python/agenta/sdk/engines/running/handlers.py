@@ -67,13 +67,16 @@ from agenta.sdk.engines.running.errors import (
 log = get_module_logger(__name__)
 
 _WEBHOOK_RESPONSE_MAX_BYTES = 1 * 1024 * 1024.0  # 1 MB
-_WEBHOOK_ALLOW_INSECURE = (
-    os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE") or "true"
+_HOOK_ALLOW_INSECURE = (
+    os.getenv("AGENTA_SERVICES_HOOK_ALLOW_INSECURE")
+    or os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
+    or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
+    or "true"
 ).lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
 
 
 def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
-    if _WEBHOOK_ALLOW_INSECURE:
+    if _HOOK_ALLOW_INSECURE:
         return False
     return (
         ip.is_private
@@ -93,7 +96,7 @@ def _validate_webhook_url(url: str) -> None:
     scheme = parsed.scheme.lower()
     if scheme not in {"http", "https"}:
         raise ValueError("Webhook URL must use http or https.")
-    if scheme == "http" and not _WEBHOOK_ALLOW_INSECURE:
+    if scheme == "http" and not _HOOK_ALLOW_INSECURE:
         raise ValueError("Webhook URL must use https.")
     if not parsed.netloc:
         raise ValueError("Webhook URL must include a host.")
@@ -103,10 +106,7 @@ def _validate_webhook_url(url: str) -> None:
     hostname = (parsed.hostname or "").lower()
     if not hostname:
         raise ValueError("Webhook URL must include a valid hostname.")
-    if (
-        hostname in {"localhost", "localhost.localdomain"}
-        and not _WEBHOOK_ALLOW_INSECURE
-    ):
+    if hostname in {"localhost", "localhost.localdomain"} and not _HOOK_ALLOW_INSECURE:
         raise ValueError("Webhook URL hostname is not allowed.")
 
     try:
@@ -200,7 +200,7 @@ def _format_with_template(
     structured renderers, which raise on Jinja failures.
     """
 
-    if format not in ("curly", "fstring", "jinja2"):
+    if format not in ("mustache", "curly", "fstring", "jinja2"):
         return content
 
     return render_template(template=content, mode=format, context=kwargs)
@@ -905,9 +905,19 @@ async def auto_ai_critique_v0(
             got=prompt_template,
         )
 
-    template_version = parameters.get("version") or "3"
+    template_version = str(parameters.get("version") or "3")
 
-    default_format = "fstring" if template_version == "2" else "curly"
+    # Per-version default template format. Existing versions are unchanged:
+    # v2 -> fstring, v3/v4 -> curly. v5 introduces mustache as the default so
+    # newly created auto_ai_critique evaluators render with mustache while old
+    # revisions keep their original behavior. An explicit ``template_format``
+    # always wins over the version default.
+    if template_version == "2":
+        default_format = "fstring"
+    elif template_version == "5":
+        default_format = "mustache"
+    else:
+        default_format = "curly"
 
     template_format = str(parameters.get("template_format") or default_format)
 
@@ -1425,9 +1435,14 @@ def auto_json_diff_v0(
             path=correct_answer_key, expected=["dict", "str"], got=correct_answer
         )
 
-    correct_answer_dict = (
-        correct_answer if isinstance(correct_answer, dict) else loads(correct_answer)
-    )
+    correct_answer_dict = correct_answer
+    if isinstance(correct_answer, str):
+        try:
+            correct_answer_dict = loads(correct_answer)
+        except json.JSONDecodeError as e:
+            raise InvalidInputV0Error(
+                path=correct_answer_key, expected="dict", got=correct_answer
+            ) from e
 
     if not isinstance(outputs, str) and not isinstance(outputs, dict):
         raise InvalidOutputsV0Error(expected=["dict", "str"], got=outputs)
@@ -3420,7 +3435,8 @@ async def llm_v0(
         llms:            Ordered list of LLM configs. Runtime tries each in order on
                          auth / rate-limit / availability errors.
         messages:        System/initial messages. Template substitution applied.
-        template_format: "curly" (default), "fstring", or "jinja2".
+        template_format: "mustache" (default for new apps), "curly" (legacy),
+                         "fstring", or "jinja2".
         loop:            null → single LLM call (prompt mode).
                          dict → agent loop config with max_iterations etc.
         tools:           {"internal": [...], "external": [...]}. null → no tools.

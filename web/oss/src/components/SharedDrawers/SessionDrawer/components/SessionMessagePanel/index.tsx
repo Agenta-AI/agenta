@@ -49,8 +49,8 @@ const SessionMessagePanel = ({
                 defaultActiveKey={[label]}
                 className={clsx(
                     "border border-solid border-colorBorder overflow-hidden",
-                    "[&_.ant-collapse-header]:bg-[#05172905] [&_.ant-collapse-header]:border-0 [&_.ant-collapse-header]:border-b [&_.ant-collapse-header]:border-solid [&_.ant-collapse-header]:border-colorSplit",
-                    "[&_.ant-collapse-body]:!bg-white [&_.ant-collapse-body]:!p-0",
+                    "[&_.ant-collapse-header]:bg-[var(--ag-c-05172905)] [&_.ant-collapse-header]:border-0 [&_.ant-collapse-header]:border-b [&_.ant-collapse-header]:border-solid [&_.ant-collapse-header]:border-colorSplit",
+                    "[&_.ant-collapse-body]:!bg-[var(--ag-c-FFFFFF)] [&_.ant-collapse-body]:!p-0",
                 )}
                 items={[
                     {
@@ -64,7 +64,7 @@ const SessionMessagePanel = ({
                                     tooltipProps={{placement: "top", arrow: true}}
                                 >
                                     <Tag
-                                        className="font-mono truncate bg-[#0517290F]"
+                                        className="font-mono truncate bg-[var(--ag-c-0517290F)]"
                                         bordered={false}
                                     >
                                         # {trace?.span_id || "-"}
@@ -85,7 +85,7 @@ const SessionMessagePanel = ({
                                                         <SimpleSharedEditor
                                                             headerName={val.role}
                                                             initialValue={val.content as string}
-                                                            className="bg-[#0517290A] !w-[96%]"
+                                                            className="bg-[var(--ag-c-0517290A)] !w-[96%]"
                                                             headerClassName={
                                                                 val.role === "exception"
                                                                     ? "capitalize text-red-500"
@@ -134,7 +134,7 @@ const SessionMessagePanel = ({
                                                     <SimpleSharedEditor
                                                         headerName={val.role}
                                                         initialValue={val.content as string}
-                                                        className="bg-[#0517290A] !w-[96%]"
+                                                        className="bg-[var(--ag-c-0517290A)] !w-[96%]"
                                                         headerClassName={
                                                             val.role === "exception"
                                                                 ? "capitalize text-red-500"

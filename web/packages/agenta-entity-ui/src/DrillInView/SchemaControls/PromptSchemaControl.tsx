@@ -13,7 +13,7 @@
  * - Object with "messages" property that is an array of role/content items
  */
 
-import {memo, useCallback, useEffect, useMemo, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import type {SimpleChatMessage} from "@agenta/shared/types"
@@ -21,8 +21,8 @@ import {ChatMessageList} from "@agenta/ui/chat-message"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {Plus} from "@phosphor-icons/react"
-import {Button, Select} from "antd"
+import {Info, Plus} from "@phosphor-icons/react"
+import {Alert, Button, Select} from "antd"
 import {v4 as uuidv4} from "uuid"
 
 import {ResponseFormatControl, type ResponseFormatValue} from "./ResponseFormatControl"
@@ -34,6 +34,7 @@ import {
     normalizeMessages,
     schemaSupportsTools,
 } from "./schemaUtils"
+import {buildTemplateFormatOptions, type TemplateFormat} from "./templateFormatOptions"
 import {ToolItemControl} from "./ToolItemControl"
 import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover"
 import {type ToolObj} from "./toolUtils"
@@ -54,9 +55,9 @@ export interface PromptSchemaControlProps {
     /** Additional CSS classes */
     className?: string
     /** Template format for variable highlighting */
-    templateFormat?: "curly" | "fstring" | "jinja2"
+    templateFormat?: TemplateFormat
     /** Callback when template format changes (for syncing to entity) */
-    onTemplateFormatChange?: (format: "curly" | "fstring" | "jinja2") => void
+    onTemplateFormatChange?: (format: TemplateFormat) => void
     /** Available template variables for token highlighting */
     variables?: string[]
     /** Entity ID for response format modal state tracking */
@@ -124,12 +125,6 @@ export function isPromptValue(value: unknown): value is Record<string, unknown> 
     )
 }
 
-// Template format options
-const TEMPLATE_FORMAT_OPTIONS = [
-    {label: "Prompt Syntax: Curly", value: "curly"},
-    {label: "Prompt Syntax: F-string", value: "fstring"},
-    {label: "Prompt Syntax: Jinja2", value: "jinja2"},
-]
 const EMPTY_VARIABLES: string[] = []
 
 /**
@@ -211,9 +206,10 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     }, [value])
 
     // Read template format from value, falling back to prop
-    const resolvedTemplateFormat = useMemo((): "curly" | "fstring" | "jinja2" => {
+    const resolvedTemplateFormat = useMemo((): TemplateFormat => {
         if (!value) return templateFormat
         const raw = value.template_format ?? value.templateFormat
+        if (raw === "mustache") return "mustache"
         if (raw === "fstring") return "fstring"
         if (raw === "jinja2" || raw === "jinja") return "jinja2"
         if (raw === "curly") return "curly"
@@ -221,14 +217,41 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     }, [value, templateFormat])
 
     // Local template format state (initialized from value or prop)
-    const [localTemplateFormat, setLocalTemplateFormat] = useState<"curly" | "fstring" | "jinja2">(
-        resolvedTemplateFormat,
-    )
+    const [localTemplateFormat, setLocalTemplateFormat] =
+        useState<TemplateFormat>(resolvedTemplateFormat)
 
     // Sync local state when value changes externally (e.g., discard/revert)
     useEffect(() => {
         setLocalTemplateFormat(resolvedTemplateFormat)
     }, [resolvedTemplateFormat])
+
+    // Sticky reference to the persisted format for THIS revision — the
+    // user's escape hatch back to a legacy format while they have an
+    // uncommitted draft.
+    //
+    // Reported by Kaosiso on 2026-06-01: switching `curly → mustache`
+    // made the curly option vanish from the dropdown before the user had
+    // committed anything; they couldn't switch back. Arda's clarification
+    // in the follow-up DM: "until their config change" — i.e. curly
+    // stays selectable WHILE the change is still a draft, and drops once
+    // it's persisted.
+    //
+    // Implementation: capture the format at mount, then re-capture
+    // whenever `entityId` changes. A commit produces a new revision with
+    // a new entityId, so the ref naturally resets to the new
+    // server-persisted format. Draft changes within the same revision
+    // (which don't change entityId) leave the ref alone — that's the
+    // escape-hatch window.
+    const originalTemplateFormatRef = useRef<TemplateFormat>(resolvedTemplateFormat)
+    const prevEntityIdRef = useRef<string | undefined>(entityId)
+    useEffect(() => {
+        if (entityId !== prevEntityIdRef.current) {
+            // New revision — reset the escape hatch to the format that
+            // was just persisted (now reflected in `resolvedTemplateFormat`).
+            originalTemplateFormatRef.current = resolvedTemplateFormat
+            prevEntityIdRef.current = entityId
+        }
+    }, [entityId, resolvedTemplateFormat])
     const stableVariables = variables ?? EMPTY_VARIABLES
 
     // Determine if llm_config is nested
@@ -487,6 +510,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                 templateFormat={localTemplateFormat}
                 tokens={stableVariables}
                 loadingFallback="static"
+                viewModes={["text", "markdown"]}
             />
 
             {/* Tools list */}
@@ -572,7 +596,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                         size="small"
                         value={localTemplateFormat}
                         onChange={(val) => {
-                            const format = val as "curly" | "fstring" | "jinja2"
+                            const format = val as TemplateFormat
                             setLocalTemplateFormat(format)
                             onTemplateFormatChange?.(format)
                             // Propagate to entity draft via onChange
@@ -581,13 +605,59 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                                 [templateFormatKey]: format,
                             })
                         }}
-                        options={TEMPLATE_FORMAT_OPTIONS}
+                        options={buildTemplateFormatOptions(
+                            localTemplateFormat,
+                            originalTemplateFormatRef.current,
+                        )}
                         className="min-w-[130px]"
                         popupMatchSelectWidth={false}
                         style={{height: 24}}
                     />
                 </div>
             )}
+
+            {/* One-way migration warning for legacy formats. Surfaces ONLY
+             *  while the user has:
+             *    1. an original (server-persisted) format of `curly` or
+             *       `fstring` — the two legacy formats hidden from the
+             *       picker for new prompts, and
+             *    2. picked a non-legacy alternative in the dropdown
+             *       (`localTemplateFormat !== original`), and
+             *    3. not yet committed the draft (the original ref is
+             *       sticky for the lifetime of THIS revision — once the
+             *       draft commits, a new revision is loaded and the ref
+             *       resets to the now-persisted non-legacy format,
+             *       legitimately dropping curly/fstring from the picker).
+             *
+             *  Placed BELOW the action bar so toggling visibility doesn't
+             *  push the action-bar buttons downward — users picking the
+             *  format wouldn't lose their click target as the banner
+             *  appears/disappears.
+             *
+             *  So the banner is the actionable window: "you can still
+             *  bail by discarding". Once committed, it disappears with
+             *  the legacy option itself. */}
+            {!disabled &&
+                (originalTemplateFormatRef.current === "curly" ||
+                    originalTemplateFormatRef.current === "fstring") &&
+                localTemplateFormat !== originalTemplateFormatRef.current && (
+                    <Alert
+                        type="info"
+                        showIcon
+                        icon={<Info size={14} />}
+                        className="!py-1 !px-2 !rounded-md"
+                        message={
+                            <span className="text-[12px]">
+                                Switching from{" "}
+                                <code className="font-mono text-[11px] bg-[#e6f4ff] px-1 rounded">
+                                    {originalTemplateFormatRef.current}
+                                </code>{" "}
+                                is permanent — once you commit, you won&apos;t be able to switch
+                                back. Discard the draft to revert.
+                            </span>
+                        }
+                    />
+                )}
         </div>
     )
 })

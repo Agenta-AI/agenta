@@ -13,6 +13,7 @@ import {RowHeightContext} from "../context/RowHeightContext"
 import type {InfiniteDatasetStore} from "../createInfiniteDatasetStore"
 import {useRowHeightFeature, type RowHeightFeatureConfig} from "../hooks/useRowHeightFeature"
 import useTableExport, {type TableExportOptions} from "../hooks/useTableExport"
+import {useTypeChipFeature} from "../hooks/useTypeChipFeature"
 import InfiniteVirtualTable from "../InfiniteVirtualTable"
 import type {
     ColumnVisibilityMenuRenderer,
@@ -194,6 +195,7 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      * Useful for programmatic scrolling via `tableRef.current?.scrollTo({ index })`.
      */
     tableRef?: InfiniteVirtualTableProps<Row>["tableRef"]
+    typeChips?: InfiniteVirtualTableProps<Row>["typeChips"]
     /**
      * Built-in row height feature configuration.
      * When provided, the shell manages row height state internally and:
@@ -309,6 +311,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         expandable,
         dataSource,
         tableRef,
+        typeChips,
         store,
         rowHeightConfig,
         paginationMode = "infinite",
@@ -320,17 +323,25 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
 
     // Built-in row height feature (when rowHeightConfig is provided)
     const rowHeightFeature = rowHeightConfig ? useRowHeightFeature(rowHeightConfig) : null
+    const typeChipFeature = useTypeChipFeature(typeChips)
 
     // Resolve row height: use feature if configured, otherwise use prop
     const rowHeight = rowHeightFeature?.heightPx ?? rowHeightProp
 
-    // Combine settings dropdown menu items with row height menu items
+    // Combine settings dropdown menu items with built-in table feature items
     const combinedSettingsDropdownMenuItems = useMemo<MenuProps["items"]>(() => {
-        if (!rowHeightFeature) return settingsDropdownMenuItems
-        const rowHeightItems = rowHeightFeature.menuItems ?? []
-        if (!settingsDropdownMenuItems) return rowHeightItems
-        return [...rowHeightItems, {type: "divider" as const}, ...settingsDropdownMenuItems]
-    }, [rowHeightFeature, settingsDropdownMenuItems])
+        const menuGroups = [
+            typeChipFeature.menuItems,
+            rowHeightFeature?.menuItems,
+            settingsDropdownMenuItems,
+        ].filter((items): items is NonNullable<MenuProps["items"]> => Boolean(items?.length))
+
+        if (!menuGroups.length) return undefined
+
+        return menuGroups.flatMap((items, index) =>
+            index === 0 ? items : [{type: "divider" as const}, ...items],
+        )
+    }, [rowHeightFeature?.menuItems, settingsDropdownMenuItems, typeChipFeature.menuItems])
 
     // Responsive breakpoints for built-in action buttons
     const screens = Grid.useBreakpoint()
@@ -719,6 +730,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                     expandable={expandable}
                     onHeaderHeightChange={setTableHeaderHeight}
                     tableRef={tableRef}
+                    typeChips={typeChipFeature.typeChips}
                 />
                 {isPaginated && paginatedSlice && (
                     <div className="flex justify-end px-4 py-2">

@@ -104,7 +104,7 @@ def _create_workflow_with_embed(
     embed_spec = {
         "@ag.embed": {
             "@ag.references": {
-                "workflow_revision": {"slug": base_slug, "version": "v1", "id": None}
+                "workflow_revision": {"slug": base_slug, "version": "1", "id": None}
             },
         }
     }
