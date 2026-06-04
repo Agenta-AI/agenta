@@ -2,12 +2,12 @@ import {useMemo} from "react"
 
 import {useRouter} from "next/router"
 
+import type {EvaluationRunKind} from "@/oss/lib/evaluations/utils/evaluationKind"
+
 import EvalRunPreviewPage from "./components/Page"
 import EvalResultsOnboarding from "./EvalResultsOnboarding"
 
-type EvalRunKind = "auto" | "human" | "online" | "custom"
-
-const EvalRunTestPage = ({type = "auto"}: {type?: EvalRunKind}) => {
+const EvalRunTestPage = ({type = "auto"}: {type?: EvaluationRunKind}) => {
     const router = useRouter()
     const evaluationIdParam = router.query?.evaluation_id
     const projectIdParam = router.query?.project_id
