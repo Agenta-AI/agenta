@@ -56,6 +56,16 @@ async def my_application(capital: str, country: str):
     description="A simple workflow that returns the capital of a country",
     #
     parameters=dict(aloha="mahalo"),
+    #
+    schemas={
+        "outputs": {
+            "type": "object",
+            "properties": {
+                "score": {"type": "integer"},
+                "success": {"type": "boolean"},
+            },
+        },
+    },
 )
 async def my_match_evaluator(capital: str, outputs: str):
     _outputs = {

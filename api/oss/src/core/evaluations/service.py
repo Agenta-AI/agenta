@@ -1421,7 +1421,10 @@ class EvaluationsService:
                 log.warning("[METRICS] No trace_ids found! Cannot extract metrics.")
             return []
 
-        inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
+        # Resolved metric keys per step (declared schema, else trace-inferred);
+        # become the run's `mappings`. Rewrite only when something was inferred.
+        metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
+        any_inferred = False
 
         for step in refreshable_steps:
             steps_metrics_keys[step.key] = deepcopy(DEFAULT_METRICS)
@@ -1478,7 +1481,13 @@ class EvaluationsService:
                         schema=inferred_schema,
                     )
 
-                    inferred_metrics_keys_by_step[step.key] = metrics_keys
+                    if metrics_keys:
+                        any_inferred = True
+
+                # Record declared + inferred keys; skip [] (would wipe the
+                # step's existing mapping without replacing it).
+                if metrics_keys:
+                    metrics_keys_by_step[step.key] = metrics_keys
 
                 steps_metrics_keys[step.key] += [
                     {
@@ -1489,12 +1498,14 @@ class EvaluationsService:
                     for metric_key in metrics_keys
                 ]
 
-        if inferred_metrics_keys_by_step and run and run.data:
+        # Rewrite mappings only if a schema was inferred this pass; declared-only
+        # runs already have correct mappings. Pass the full set (declared + inferred).
+        if any_inferred and metrics_keys_by_step and run and run.data:
             await self._update_run_mappings_from_inferred_metrics(
                 project_id=project_id,
                 user_id=user_id,
                 run=run,
-                inferred_metrics_keys_by_step=inferred_metrics_keys_by_step,
+                inferred_metrics_keys_by_step=metrics_keys_by_step,
             )
 
         steps_specs: Dict[str, List[MetricSpec]] = dict()

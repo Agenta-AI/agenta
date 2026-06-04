@@ -194,12 +194,14 @@ class _BoundResultSetter:
         *,
         cell,
         trace_id=None,
+        hash_id=None,
         testcase_id=None,
         error=None,
     ) -> Any:
         return await self._setter.set(
             cell=cell,
             trace_id=trace_id,
+            hash_id=hash_id,
             testcase_id=testcase_id,
             error=error,
             project_id=self._project_id,

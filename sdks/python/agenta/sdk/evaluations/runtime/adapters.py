@@ -100,6 +100,7 @@ class SDKResultSetter:
         *,
         cell,
         trace_id=None,
+        hash_id=None,
         testcase_id=None,
         error=None,
     ) -> Dict[str, Any]:
@@ -112,6 +113,7 @@ class SDKResultSetter:
             #
             status=getattr(cell.status, "value", cell.status),
             trace_id=trace_id if trace_id is not None else cell.trace_id,
+            hash_id=hash_id if hash_id is not None else getattr(cell, "hash_id", None),
             testcase_id=str(
                 testcase_id if testcase_id is not None else cell.testcase_id
             )

@@ -156,12 +156,10 @@ class APIScenarioCreator:
         """Mint `count` RUNNING scenarios for a run in one DAO call.
 
         The unified ingest flows (run/slice) mint all scenarios up front, then
-        populate and re-execute them. `flags` are the run's flags, stamped on
-        each scenario so they survive the later full-PUT status edit (a scenario
-        minted without flags renders grey). `timestamp`/`interval` are the
-        run-wide temporal coordinates (live query); they stay None for non-live
-        runs. Order is preserved by `create_scenarios`, so the returned list
-        aligns 1:1 with the source items the caller intends to bind.
+        populate and re-execute them. `timestamp`/`interval` are the run-wide
+        temporal coordinates (live query); they stay None for non-live runs.
+        Order is preserved by `create_scenarios`, so the returned list aligns
+        1:1 with the source items the caller intends to bind.
         """
         if count <= 0:
             return []
@@ -209,6 +207,7 @@ class APIResultSetter:
         #
         cell,
         trace_id=None,
+        hash_id=None,
         span_id=None,
         testcase_id=None,
         error=None,
@@ -230,6 +229,11 @@ class APIResultSetter:
                     #
                     status=_status(cell.status),
                     trace_id=(trace_id if trace_id is not None else cell.trace_id),
+                    hash_id=(
+                        hash_id
+                        if hash_id is not None
+                        else getattr(cell, "hash_id", None)
+                    ),
                     testcase_id=(
                         testcase_id if testcase_id is not None else cell.testcase_id
                     ),
@@ -588,6 +592,10 @@ class APICachedRunner:
         results: List[Optional[WorkflowExecutionResult]] = [None] * len(requests)
         missing: List[WorkflowExecutionRequest] = []
         missing_positions: List[int] = []
+        # The cache hash per missing request, so the executed result can record
+        # the hash it is (re)usable under — without it the result row stores no
+        # hash_id and the next run cannot reuse this trace by hash.
+        missing_hash_ids: List[Optional[str]] = []
 
         for idx, request in enumerate(requests):
             cache = await self.cache_resolver.resolve(
@@ -605,12 +613,14 @@ class APICachedRunner:
                 results[idx] = WorkflowExecutionResult(
                     status=SDKEvaluationStatus.SUCCESS,
                     trace_id=str(reusable.trace_id),
+                    hash_id=cache.hash_id,
                     trace=reusable,
                 )
                 continue
 
             missing.append(request)
             missing_positions.append(idx)
+            missing_hash_ids.append(cache.hash_id)
 
         if missing:
             executed = await self.runner.execute_batch(
@@ -621,7 +631,14 @@ class APICachedRunner:
                 #
                 semaphore=semaphore,
             )
-            for idx, execution in zip(missing_positions, executed):
+            for idx, execution, hash_id in zip(
+                missing_positions, executed, missing_hash_ids
+            ):
+                # Tag the freshly-executed result with its cache hash so the
+                # result row records what it is cacheable under (the inner runner
+                # does not compute hashes; the cache layer owns them).
+                if execution.hash_id is None:
+                    execution.hash_id = hash_id
                 results[idx] = execution
 
         return [result for result in results if result is not None]

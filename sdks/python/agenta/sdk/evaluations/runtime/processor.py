@@ -304,12 +304,19 @@ async def process_sources(
                 if execution.outputs is None and execution.trace is not None:
                     execution.outputs = _extract_outputs(execution.trace)
 
+                # Persist the EXECUTED status, not the planned one. `batch_cell`
+                # still carries its pre-execution status (e.g. QUEUED); the result
+                # row must record the verdict the runner produced (SUCCESS/ERRORS)
+                # or the cell stays QUEUED in the DB and renders grey in the UI.
+                batch_cell.status = execution.status
+
                 _remember(
                     batch_cell,
                     await set_results.set(
                         cell=batch_cell,
                         #
                         trace_id=execution.trace_id,
+                        hash_id=execution.hash_id,
                         testcase_id=source_item.testcase_id,
                         error=execution.error,
                     ),

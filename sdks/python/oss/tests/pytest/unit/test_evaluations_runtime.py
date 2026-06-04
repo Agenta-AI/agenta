@@ -232,12 +232,14 @@ async def test_sdk_source_slice_batches_runnable_cells():
             *,
             cell,
             trace_id=None,
+            hash_id=None,
             testcase_id=None,
             error=None,
         ):
             request = SimpleNamespace(
                 cell=cell,
                 trace_id=trace_id,
+                hash_id=hash_id,
                 testcase_id=testcase_id,
                 error=error,
             )
@@ -321,6 +323,7 @@ async def test_sdk_source_slice_isolates_one_scenario_failure():
             *,
             cell,
             trace_id=None,
+            hash_id=None,
             testcase_id=None,
             error=None,
         ):
@@ -395,12 +398,14 @@ async def test_sdk_source_slice_marks_short_runner_batch_as_error():
             *,
             cell,
             trace_id=None,
+            hash_id=None,
             testcase_id=None,
             error=None,
         ):
             request = SimpleNamespace(
                 cell=cell,
                 trace_id=trace_id,
+                hash_id=hash_id,
                 testcase_id=testcase_id,
                 error=error,
             )
@@ -474,12 +479,14 @@ async def test_sdk_source_slice_handles_over_count_runner_batch():
             *,
             cell,
             trace_id=None,
+            hash_id=None,
             testcase_id=None,
             error=None,
         ):
             request = SimpleNamespace(
                 cell=cell,
                 trace_id=trace_id,
+                hash_id=hash_id,
                 testcase_id=testcase_id,
                 error=error,
             )
@@ -536,12 +543,14 @@ async def test_sdk_source_slice_marks_missing_runner_as_error():
             *,
             cell,
             trace_id=None,
+            hash_id=None,
             testcase_id=None,
             error=None,
         ):
             request = SimpleNamespace(
                 cell=cell,
                 trace_id=trace_id,
+                hash_id=hash_id,
                 testcase_id=testcase_id,
                 error=error,
             )
@@ -597,12 +606,14 @@ async def test_sdk_source_slice_can_defer_manual_results_without_metric_refresh(
             *,
             cell,
             trace_id=None,
+            hash_id=None,
             testcase_id=None,
             error=None,
         ):
             request = SimpleNamespace(
                 cell=cell,
                 trace_id=trace_id,
+                hash_id=hash_id,
                 testcase_id=testcase_id,
                 error=error,
             )
@@ -692,6 +703,7 @@ async def test_sdk_source_slice_links_evaluators_to_application_traces():
             *,
             cell,
             trace_id=None,
+            hash_id=None,
             testcase_id=None,
             error=None,
         ):
@@ -785,6 +797,7 @@ async def test_sdk_result_setter_writes_populate_ready_cell_live():
         "repeat_idx": 2,
         "status": "success",
         "trace_id": "trace-repeat",
+        "hash_id": None,
         "testcase_id": str(testcase_id),
         "error": None,
     }
@@ -1209,6 +1222,7 @@ async def test_sdk_source_slice_runs_scenarios_concurrently_up_to_batch_size():
             *,
             cell,
             trace_id=None,
+            hash_id=None,
             testcase_id=None,
             error=None,
         ):
@@ -1291,6 +1305,7 @@ async def test_sdk_source_slice_semaphore_shared_across_repeats():
             *,
             cell,
             trace_id=None,
+            hash_id=None,
             testcase_id=None,
             error=None,
         ):
@@ -1350,6 +1365,7 @@ async def test_sdk_source_slice_no_batch_size_runs_all_concurrently():
             *,
             cell,
             trace_id=None,
+            hash_id=None,
             testcase_id=None,
             error=None,
         ):
@@ -1426,12 +1442,14 @@ async def test_sdk_source_slice_retries_failed_cells_and_succeeds():
             *,
             cell,
             trace_id=None,
+            hash_id=None,
             testcase_id=None,
             error=None,
         ):
             request = SimpleNamespace(
                 cell=cell,
                 trace_id=trace_id,
+                hash_id=hash_id,
                 testcase_id=testcase_id,
                 error=error,
             )
@@ -1499,6 +1517,7 @@ async def test_sdk_source_slice_exhausts_retries_and_marks_error():
             *,
             cell,
             trace_id=None,
+            hash_id=None,
             testcase_id=None,
             error=None,
         ):
@@ -1572,6 +1591,7 @@ async def test_sdk_source_slice_retries_only_failed_cells_in_batch():
             *,
             cell,
             trace_id=None,
+            hash_id=None,
             testcase_id=None,
             error=None,
         ):
