@@ -1,24 +1,17 @@
+import {getWorkflowTypeColor} from "@agenta/entities/workflow"
 import {Tag} from "antd"
 
 interface EvaluatorTypeTagProps {
     label?: string
-    color?: string
-    fallback?: {backgroundColor?: string; textColor?: string}
+    typeKey?: string
 }
 
-const EvaluatorTypeTag = ({label, color, fallback}: EvaluatorTypeTagProps) => {
+const EvaluatorTypeTag = ({label, typeKey}: EvaluatorTypeTagProps) => {
     if (!label) return null
-    const style =
-        color == null
-            ? {
-                  fontSize: 12,
-                  backgroundColor: fallback?.backgroundColor ?? "#EAEFF5",
-                  color: fallback?.textColor ?? "#344054",
-              }
-            : {fontSize: 12}
+    const color = getWorkflowTypeColor(typeKey)?.name
 
     return (
-        <Tag className="!m-0" bordered={false} color={color} style={style}>
+        <Tag className="!m-0" bordered={false} color={color} style={{fontSize: 12}}>
             {label}
         </Tag>
     )

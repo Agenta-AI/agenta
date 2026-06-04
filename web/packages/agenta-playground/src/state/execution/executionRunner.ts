@@ -14,6 +14,8 @@ import {generateId} from "@agenta/shared/utils"
 import type {Getter, Setter} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
+import {messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat/messageAtoms"
+import {SHARED_SESSION_ID, type ChatMessage} from "../chat/messageTypes"
 import type {OutputConnection, PlaygroundNode} from "../types"
 
 import {
@@ -41,6 +43,24 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function readString(value: unknown): string | undefined {
     return typeof value === "string" && value.trim().length > 0 ? value : undefined
+}
+
+function toPlainChatMessage(message: ChatMessage): Record<string, unknown> {
+    const {sessionId: _sessionId, parentId: _parentId, ...plain} = message
+    return plain as Record<string, unknown>
+}
+
+function buildSharedChatInputs(get: Getter, loadableId: string): Record<string, unknown> {
+    const messageIds = get(messageIdsAtomFamily(loadableId))
+    const messagesById = get(messagesByIdAtomFamily(loadableId))
+
+    const messages = messageIds
+        .map((messageId) => messagesById[messageId])
+        .filter((message): message is ChatMessage => Boolean(message))
+        .filter((message) => message.sessionId === SHARED_SESSION_ID)
+        .map(toPlainChatMessage)
+
+    return messages.length > 0 ? {messages} : {}
 }
 
 function normalizeApplicationReferences(
@@ -384,9 +404,17 @@ export async function executeStepForSessionWithExecutionItems(
                                 (stageSchemas?.inputSchema as
                                     | Record<string, unknown>
                                     | undefined) ?? null
+                            const rootChatInputs =
+                                session.mode === "chat"
+                                    ? buildSharedChatInputs(get, loadableId)
+                                    : undefined
+                            const evaluatorTestcaseData =
+                                rootChatInputs && Object.keys(rootChatInputs).length > 0
+                                    ? {...data, ...rootChatInputs}
+                                    : data
 
                             const evaluatorInputContext = {
-                                testcaseData: data,
+                                testcaseData: evaluatorTestcaseData,
                                 upstreamOutput,
                                 settings: stageConfiguration ?? {},
                                 inputSchema,

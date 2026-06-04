@@ -2,9 +2,9 @@ import {memo, useMemo} from "react"
 
 import {
     evaluatorTemplatesDataAtom,
-    getAppTypeColor,
-    getEvaluatorColor,
-    type EvaluatorColor,
+    getWorkflowTypeColor,
+    getWorkflowTypeLabel,
+    type WorkflowTypeColor,
     type WorkflowType,
 } from "@agenta/entities/workflow"
 import {cn} from "@agenta/ui"
@@ -17,23 +17,18 @@ export interface WorkflowTypeTagProps {
     isEvaluator: boolean
     /**
      * Evaluator template key parsed from the URI (e.g. `auto_exact_match`) or
-     * slug. Required when `isEvaluator` is true — used to look up the template
-     * name and compute the hashed color via `getEvaluatorColor`.
+     * slug. Used when `isEvaluator` is true to look up the template name and
+     * category-backed static color.
      */
     workflowKey?: string | null
+    /** Evaluator category/subtype (`ai_llm`/`match`/`code`/...). */
+    evaluatorTypeKey?: string | null
     /**
      * App workflow type (`chat`/`completion`/`custom`/…). Used when
      * `isEvaluator` is false to pick the app-type preset color.
      */
     workflowType?: WorkflowType | string | null
     className?: string
-}
-
-/** Human-readable labels for app workflow types. */
-const APP_TYPE_LABEL: Record<string, string> = {
-    chat: "Chat",
-    completion: "Completion",
-    custom: "Custom",
 }
 
 /**
@@ -47,7 +42,7 @@ const TypePill = ({
     className,
 }: {
     label: string
-    color: EvaluatorColor | null
+    color: WorkflowTypeColor | null
     className?: string
 }) => (
     // Tooltip surfaces the full label when truncated — user-deployed
@@ -58,7 +53,7 @@ const TypePill = ({
             bordered
             // Use antd's preset color name (e.g. "blue", "gold") rather than the
             // resolved hex so the tag adapts to light/dark via the active algorithm.
-            // The preset hex in EvaluatorColor matches antd's light palette exactly,
+            // The preset hex in WorkflowTypeColor matches antd's light palette exactly,
             // so light mode is unchanged.
             color={color?.name}
             className={cn("!m-0 max-w-[160px] truncate", className)}
@@ -70,9 +65,11 @@ const TypePill = ({
 
 const EvaluatorTag = ({
     workflowKey,
+    evaluatorTypeKey,
     className,
 }: {
     workflowKey?: string | null
+    evaluatorTypeKey?: string | null
     className?: string
 }) => {
     // Table cells frequently render inside InfiniteVirtualTable's isolated
@@ -84,15 +81,19 @@ const EvaluatorTag = ({
         [templates, workflowKey],
     )
 
-    if (!workflowKey) return null
+    if (!workflowKey && !evaluatorTypeKey) return null
 
-    return (
-        <TypePill
-            label={template?.name ?? workflowKey}
-            color={getEvaluatorColor(workflowKey)}
-            className={className}
-        />
-    )
+    const typeKey = workflowKey ?? evaluatorTypeKey ?? template?.categories?.[0]
+    const label =
+        template?.name ??
+        workflowKey ??
+        getWorkflowTypeLabel(evaluatorTypeKey) ??
+        evaluatorTypeKey ??
+        null
+
+    if (!label) return null
+
+    return <TypePill label={label} color={getWorkflowTypeColor(typeKey)} className={className} />
 }
 
 const AppTag = ({
@@ -105,8 +106,8 @@ const AppTag = ({
     if (!workflowType) return null
     return (
         <TypePill
-            label={APP_TYPE_LABEL[workflowType] ?? workflowType}
-            color={getAppTypeColor(workflowType)}
+            label={getWorkflowTypeLabel(workflowType) ?? workflowType}
+            color={getWorkflowTypeColor(workflowType)}
             className={className}
         />
     )
@@ -117,16 +118,28 @@ const AppTag = ({
  * render the same bordered-pill shape via `TypePill` — only the label/color
  * source differs:
  *
- * - Evaluators: template `name` + hashed color via `getEvaluatorColor(key)`.
- * - Apps: humanized app type + preset color via `getAppTypeColor(type)`.
+ * - Evaluators: template `name` + key preset color via `getWorkflowTypeColor(key)`.
+ * - Apps: humanized app type + preset color via `getWorkflowTypeColor(type)`.
  *
  * Use this anywhere a workflow row needs a type badge instead of reinventing
  * the Tag styling or duplicating `EvaluatorTypeCell`/`AppTypeCell`.
  */
 const WorkflowTypeTag = memo(
-    ({isEvaluator, workflowKey, workflowType, className}: WorkflowTypeTagProps) => {
+    ({
+        isEvaluator,
+        workflowKey,
+        evaluatorTypeKey,
+        workflowType,
+        className,
+    }: WorkflowTypeTagProps) => {
         if (isEvaluator) {
-            return <EvaluatorTag workflowKey={workflowKey} className={className} />
+            return (
+                <EvaluatorTag
+                    workflowKey={workflowKey}
+                    evaluatorTypeKey={evaluatorTypeKey}
+                    className={className}
+                />
+            )
         }
         return <AppTag workflowType={workflowType} className={className} />
     },
