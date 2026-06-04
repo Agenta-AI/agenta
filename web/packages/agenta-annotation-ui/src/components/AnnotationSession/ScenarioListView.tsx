@@ -275,7 +275,7 @@ const TraceInputKeyCell = memo(function TraceInputKeyCell({
             maxLines={3}
             chatPreference="input"
             chatPreviewStrategy="last-user"
-            beautifyJson
+            prettyJson
         />
     )
 })
@@ -317,7 +317,7 @@ const TraceInputCell = memo(function TraceInputCell({
             maxLines={3}
             chatPreference="input"
             chatPreviewStrategy="last-user"
-            beautifyJson
+            prettyJson
         />
     )
 })
