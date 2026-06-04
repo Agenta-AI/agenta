@@ -16,6 +16,7 @@ import {
     EXPORT_RESOLVE_SKIP,
     type TableExportColumnContext,
 } from "@/oss/components/InfiniteVirtualTable/hooks/useTableExport"
+import type {EvaluationRunKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 
 import useComparisonPaginations from "../EvalRunDetails2/hooks/useComparisonPaginations"
 import useComparisonSchemas from "../EvalRunDetails2/hooks/useComparisonSchemas"
@@ -53,7 +54,7 @@ type TableRowData = PreviewTableRow
 
 interface EvalRunDetailsTableProps {
     runId: string
-    evaluationType: "auto" | "human" | "online"
+    evaluationType: EvaluationRunKind
     skeletonRowCount?: number
     projectId?: string | null
 }

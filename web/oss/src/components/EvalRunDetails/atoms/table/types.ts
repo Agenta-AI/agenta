@@ -1,5 +1,7 @@
 import type {EvaluatorDefinition, MetricColumnDefinition} from "@agenta/entities/workflow"
 
+import type {EvaluationRunKind} from "@/oss/lib/evaluations/utils/evaluationKind"
+
 export type EvaluationColumnKind =
     | "meta"
     | "testset"
@@ -36,7 +38,7 @@ export interface EvaluationTableColumn {
     /** Sticky placement hints */
     sticky?: "left" | "right"
     /** Evaluation types the column should be visible for */
-    visibleFor?: ("auto" | "human" | "online")[]
+    visibleFor?: EvaluationRunKind[]
     /** Last segment of the path used for quick lookups */
     valueKey?: string
     /** Metric key (for annotation columns) */

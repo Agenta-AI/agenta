@@ -7,6 +7,7 @@ import Router from "next/router"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
+import type {EvaluationRunKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 
 import {activePreviewProjectIdAtom, activePreviewRunIdAtom} from "../atoms/run"
@@ -25,7 +26,7 @@ type ViewKey = "overview" | "focus" | "scenarios" | "configuration"
 
 interface EvalRunPreviewPageProps {
     runId: string
-    evaluationType: "auto" | "human" | "online"
+    evaluationType: EvaluationRunKind
     projectId?: string | null
 }
 
@@ -46,12 +47,13 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     // Map evaluation type to display label and URL kind parameter
     // Labels match EvaluationsView.tsx tab labels
     const evaluationTypeBreadcrumb = useMemo(() => {
-        const typeMap: Record<string, {label: string; kind: string}> = {
+        const typeMap: Record<EvaluationRunKind, {label: string; kind: string}> = {
             auto: {label: "Auto Evals", kind: "auto"},
             human: {label: "Human Evals", kind: "human"},
             online: {label: "Live Evals", kind: "online"},
+            custom: {label: "SDK Evals", kind: "custom"},
         }
-        const config = typeMap[evaluationType] ?? {label: "Evaluations", kind: "auto"}
+        const config = typeMap[evaluationType]
         return {
             label: config.label,
             href: projectURL ? `${projectURL}/evaluations?kind=${config.kind}` : undefined,

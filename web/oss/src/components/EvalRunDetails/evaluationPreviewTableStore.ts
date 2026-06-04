@@ -8,6 +8,7 @@ import {
     useInfiniteTablePagination,
 } from "@/oss/components/InfiniteVirtualTable"
 import type {InfiniteDatasetStore} from "@/oss/components/InfiniteVirtualTable/createInfiniteDatasetStore"
+import type {EvaluationRunKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 
 import {effectiveProjectIdAtom} from "./atoms/run"
 import type {WindowingState, EvaluationScenarioRow} from "./atoms/table"
@@ -17,7 +18,7 @@ import {previewEvalTypeAtom} from "./state/evalType"
 
 interface EvaluationPreviewMeta {
     projectId: string | null
-    evaluationType: "auto" | "human" | "online" | null
+    evaluationType: EvaluationRunKind | null
 }
 
 const createSkeletonRow = ({

@@ -5,6 +5,7 @@ import type {ColumnsType, ColumnType} from "antd/es/table"
 import clsx from "clsx"
 
 import {ColumnVisibilityHeader} from "@/oss/components/InfiniteVirtualTable"
+import type {EvaluationRunKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 
 import type {
     EvaluationTableColumn,
@@ -109,7 +110,7 @@ export interface BuildPreviewColumnsArgs<RowType> {
         auto: MetricColumnDefinition[]
         human: MetricColumnDefinition[]
     }
-    evaluationType: "auto" | "human" | "online"
+    evaluationType: EvaluationRunKind
     getRenderer?: (column: EvaluationTableColumn) => ColumnType<RowType>["render"] | undefined
     isSkeletonRow?: (record: RowType) => boolean
     renderSkeleton?: (context: SkeletonRenderContext<RowType>) => React.ReactNode
