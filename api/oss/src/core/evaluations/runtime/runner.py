@@ -69,7 +69,7 @@ class TaskiqEvaluationTaskRunner(EvaluationTaskRunner):
         repeat_idxs: Optional[List[int]] = None,
         process_mode: Optional[str] = None,
     ) -> Any:
-        # Re-execute EXISTING scenarios by coordinate (the tensor process(slice)
+        # Re-execute EXISTING scenarios by coordinate (the run-slice process(slice)
         # op): retry transiently-failed scenarios, run a newly-added evaluator
         # over existing scenarios, re-run a specific repeat, etc. Distinct verb
         # from process_run_from_batch, which ingests NEW source items into NEW

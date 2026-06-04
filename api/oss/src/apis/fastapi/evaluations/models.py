@@ -256,10 +256,10 @@ class EvaluationResultIdsResponse(BaseModel):
     result_ids: List[UUID] = []
 
 
-# - EVALUATION TENSOR SLICE ----------------------------------------------------
+# - EVALUATION RUN SLICE -------------------------------------------------------
 
 
-class TensorSliceRequest(BaseModel):
+class RunSliceRequest(BaseModel):
     # Coordinate projection over EXISTING scenarios. Any omitted dimension is
     # "all" for that axis; an explicit empty list means "none addressed".
     scenario_ids: Optional[List[UUID]] = None
@@ -274,26 +274,26 @@ class PopulateSliceRequest(EvaluationResultsSetRequest):
     pass
 
 
-class ProcessSliceRequest(TensorSliceRequest):
+class ProcessSliceRequest(RunSliceRequest):
     # `overwrite=False` (default) runs only cells without a result (fill-missing);
     # `overwrite=True` re-runs every addressed cell (force).
     overwrite: bool = False
 
 
-class ProbeSliceRequest(TensorSliceRequest):
+class ProbeSliceRequest(RunSliceRequest):
     # Read-side slice op: coordinate projection over existing cells. Its own
     # request type keeps the probe OpenAPI surface independent of the other
-    # tensor ops.
+    # run operations.
     pass
 
 
-class PruneSliceRequest(TensorSliceRequest):
+class PruneSliceRequest(RunSliceRequest):
     # Delete-side slice op: clears the addressed cells (and refreshes metrics).
     # Owns its request type for the same reason.
     pass
 
 
-class RefreshSliceRequest(TensorSliceRequest):
+class RefreshSliceRequest(RunSliceRequest):
     # Metrics-side slice op: recompute the metric rows (variational + aggregate)
     # over the addressed scope without writing or executing cells. Owns its
     # request type for the same reason as the others.
@@ -304,10 +304,10 @@ class RefreshSliceRequest(TensorSliceRequest):
 # return 204 — none carries a body, so there is no response model for them.
 
 
-# - EVALUATION GRAPH-SHAPE OPS -------------------------------------------------
+# - EVALUATION RUN OPERATIONS --------------------------------------------------
 #
-# Reshape the tensor (scenarios x steps x repeats). Paired with the tensor ops
-# above: shape ops add/remove coordinates, tensor ops fill/clear cells within a
+# Reshape the run (scenarios x steps x repeats). Paired with the run operations
+# above: shape ops add/remove coordinates, run operations fill/clear cells within a
 # shape. One request model per axis op; responses reuse the scenario/run/result
 # envelopes already defined above.
 
@@ -326,12 +326,12 @@ class RemoveScenariosRequest(BaseModel):
 
 
 class AddStepsRequest(BaseModel):
-    # Width: append graph step columns (idempotent on key).
+    # Width: append step columns (idempotent on key).
     steps: List[EvaluationRunDataStep]
 
 
 class RemoveStepsRequest(BaseModel):
-    # Width: drop graph step columns by key.
+    # Width: drop step columns by key.
     step_keys: List[str]
 
 

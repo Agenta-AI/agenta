@@ -72,7 +72,7 @@ class EvaluationStep(RuntimeModel):
     inputs: List[str] = Field(default_factory=list)
 
 
-class TensorSlice(RuntimeModel):
+class RunSlice(RuntimeModel):
     run_id: UUID
     scenario_ids: Optional[List[UUID]] = None
     step_keys: Optional[List[str]] = None
@@ -80,7 +80,7 @@ class TensorSlice(RuntimeModel):
     process_mode: SliceProcessMode = "fill-missing"
 
 
-class TensorProbeSummary(RuntimeModel):
+class RunProbeSummary(RuntimeModel):
     existing_count: int = 0
     missing_count: int = 0
     success_count: int = 0

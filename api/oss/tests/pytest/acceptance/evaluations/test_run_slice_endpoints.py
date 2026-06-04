@@ -1,4 +1,4 @@
-"""Acceptance tests for the tensor slice HTTP endpoints (PR: unify eval loops).
+"""Acceptance tests for the run slice HTTP endpoints (PR: unify eval loops).
 
 Covers the coordinate-addressed ops over EXISTING scenarios exposed on the
 simple-evaluations router:
@@ -7,7 +7,7 @@ simple-evaluations router:
   POST /simple/evaluations/{id}/probe     -> read result cells in a slice
   POST /simple/evaluations/{id}/populate  -> bulk-write result cells
 
-These assert the HTTP contract (routes exist, accept the TensorSlice-shaped
+These assert the HTTP contract (routes exist, accept the RunSlice-shaped
 body, return the right envelope) without depending on live-LLM execution, which
 is covered elsewhere and is inherently flaky.
 """
@@ -71,7 +71,7 @@ def _create_testset_evaluator_evaluation(authed_api) -> dict:
         "/simple/evaluations/",
         json={
             "evaluation": {
-                "name": f"tensor-slice-{uuid4().hex[:8]}",
+                "name": f"run-slice-{uuid4().hex[:8]}",
                 "flags": {"is_cached": False, "is_split": False},
                 "data": {
                     "testset_steps": {testset["revision_id"]: "custom"},
@@ -100,7 +100,7 @@ def _input_step_key(authed_api, run_id) -> str:
     return input_steps[0]["key"]
 
 
-class TestTensorSliceEndpoints:
+class TestRunSliceEndpoints:
     def test_probe_returns_results_envelope_for_empty_slice(self, authed_api):
         evaluation = _create_testset_evaluator_evaluation(authed_api)
         run_id = evaluation["id"]

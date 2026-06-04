@@ -519,7 +519,7 @@ class APISliceProcessor:
 
     Unlike `process_evaluation_source_slice` (an INGEST loop that creates a new
     scenario per source item), this re-executes EXISTING scenarios addressed by
-    a `TensorSlice` — the retry / fill-missing / re-run-one-evaluator axis. For
+    a `RunSlice` — the retry / fill-missing / re-run-one-evaluator axis. For
     each scenario in the slice it: rebuilds the source binding from the stored
     input cells, re-hydrates trace/testcase context, plans only the requested
     `step_keys`/`repeat_idxs`, runs the cache-aware runners (so hashed traces are
@@ -548,7 +548,7 @@ class APISliceProcessor:
         *,
         project_id: UUID,
         user_id: UUID,
-        tensor_slice,
+        run_slice,
         seed_bindings: Optional[Dict[UUID, ScenarioBinding]] = None,
         refresh_metrics_without_auto_results: bool = True,
         finalize_run_status: bool = True,
@@ -561,11 +561,11 @@ class APISliceProcessor:
         cells, no per-id trace/testcase re-fetch. Bindings also carry the
         per-scenario `timestamp`/`interval` (live-query temporal coordinates).
 
-        When `seed_bindings` is None (the tensor-retry flow), the source is
+        When `seed_bindings` is None (the run-slice retry flow), the source is
         recovered from the scenario's stored input cells as before.
         """
         seed_bindings = seed_bindings or {}
-        run_id = tensor_slice.run_id
+        run_id = run_slice.run_id
         run = await self.evaluations_service.fetch_run(
             project_id=project_id,
             run_id=run_id,
@@ -583,16 +583,16 @@ class APISliceProcessor:
             project_id=project_id,
             result=EvaluationResultQuery(
                 run_id=run_id,
-                scenario_ids=tensor_slice.scenario_ids,
-                step_keys=tensor_slice.step_keys,
-                repeat_idxs=tensor_slice.repeat_idxs,
+                scenario_ids=run_slice.scenario_ids,
+                step_keys=run_slice.step_keys,
+                repeat_idxs=run_slice.repeat_idxs,
             ),
         )
         # Inputs are always needed to rebuild the source binding even when the
         # slice's step_keys exclude them, so probe inputs separately per scenario.
         scenario_ids = (
-            sorted(set(tensor_slice.scenario_ids or []), key=str)
-            if tensor_slice.scenario_ids is not None
+            sorted(set(run_slice.scenario_ids or []), key=str)
+            if run_slice.scenario_ids is not None
             else sorted(
                 {cell.scenario_id for cell in existing if cell.scenario_id},
                 key=str,
@@ -612,9 +612,9 @@ class APISliceProcessor:
             applications_service=self.applications_service,
         )
 
-        requested_steps = set(tensor_slice.step_keys or [])
-        requested_repeats = set(tensor_slice.repeat_idxs or [])
-        force_rerun = tensor_slice.process_mode == "force"
+        requested_steps = set(run_slice.step_keys or [])
+        requested_repeats = set(run_slice.repeat_idxs or [])
+        force_rerun = run_slice.process_mode == "force"
 
         sdk_steps_all = [
             SdkEvaluationStep(
@@ -764,7 +764,7 @@ class APISliceProcessor:
                 revisions=revisions,
                 # reuse existing scenarios in order; do NOT mint new ones.
                 create_scenario=_OrderedScenarios(scenarios_in_order),
-                # process is a tensor-write op: it refreshes the touched scope's
+                # process is a run-write op: it refreshes the touched scope's
                 # metrics incrementally per-scenario (and rolls up), the same as
                 # ingest — re-execute no longer opts out with a no-op.
                 refresh_metrics=APIMetricsRefresher(

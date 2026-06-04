@@ -1825,7 +1825,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         # ID-only counterpart of `query_results` (mirrors `query_scenario_ids`):
         # selects just the id column so callers that delete/count by id do not
         # hydrate full result DTOs. Supports the slice-coordinate filters that
-        # the tensor ops address by; full-row filters live on `query_results`.
+        # the run operations address by; full-row filters live on `query_results`.
         async with self.engine.session() as session:
             stmt = select(EvaluationResultDBE.id).filter(
                 EvaluationResultDBE.project_id == project_id,

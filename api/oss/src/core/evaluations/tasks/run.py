@@ -7,9 +7,9 @@ from oss.src.core.evaluations.runtime.models import (
     ResolvedSourceItem,
     ScenarioBinding,
     SliceProcessMode,
-    TensorSlice,
+    RunSlice,
 )
-from oss.src.core.evaluations.runtime.tensor import TensorSliceOperations
+from oss.src.core.evaluations.runtime.operations import RunSliceOperations
 from oss.src.core.evaluations.runtime.topology import classify_run_topology
 from oss.src.core.evaluations.runtime.sources import (
     resolve_direct_source_items,
@@ -98,7 +98,7 @@ async def _mint_and_bind(
     first (before any runnable cell), writing the same `trace_id`/`testcase_id`
     and temporal coordinates via `APIResultSetter`. Pre-writing it here would
     just be overwritten by that log — a redundant DB round-trip per scenario.
-    The durable input cell a later tensor retry recovers from is the SDK's.
+    The durable input cell a later run-slice retry recovers from is the SDK's.
     """
     if not source_items:
         return []
@@ -167,7 +167,7 @@ async def _execute_bindings(
     await slice_processor.process(
         project_id=project_id,
         user_id=user_id,
-        tensor_slice=TensorSlice(
+        run_slice=RunSlice(
             run_id=run_id,
             scenario_ids=[binding.scenario_id for binding in bindings],
             process_mode="force",
@@ -635,7 +635,7 @@ async def rerun(
     applications_service: ApplicationsService,
     evaluations_service: EvaluationsService,
 ) -> bool:
-    """Re-execute EXISTING scenarios addressed by a tensor coordinate slice.
+    """Re-execute EXISTING scenarios addressed by a run coordinate slice.
 
     The coordinate counterpart of the ingest flows: it re-runs the runnable
     cells of scenarios that already exist (retry, fill-missing, or run a
@@ -645,7 +645,7 @@ async def rerun(
     `process` is results-only by design; this entry point owns the metrics
     `refresh` boundary, invoking it after execution over the same slice scope.
     """
-    tensor_slice = TensorSlice(
+    run_slice = RunSlice(
         run_id=run_id,
         scenario_ids=scenario_ids,
         step_keys=step_keys,
@@ -660,24 +660,24 @@ async def rerun(
         workflows_service=workflows_service,
         applications_service=applications_service,
     )
-    tensor_ops = TensorSliceOperations(
+    run_operations = RunSliceOperations(
         evaluations_service=evaluations_service,
         slice_processor=slice_processor,
     )
 
-    await tensor_ops.process(
+    await run_operations.process(
         project_id=project_id,
         user_id=user_id,
-        tensor_slice=tensor_slice,
+        run_slice=run_slice,
     )
 
     # Metrics boundary for the slice. `refresh` recomputes both the per-scenario
     # (variational) rows and the AGGREGATE the slice affected — temporal buckets
     # for live runs, the global row for non-live. `process` already refreshed
     # variational inline; recomputing it is idempotent.
-    await tensor_ops.refresh(
+    await run_operations.refresh(
         project_id=project_id,
         user_id=user_id,
-        tensor_slice=tensor_slice,
+        run_slice=run_slice,
     )
     return True

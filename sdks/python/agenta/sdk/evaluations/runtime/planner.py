@@ -35,7 +35,7 @@ def effective_is_split(
 
 
 class EvaluationPlanner:
-    """Build the evaluation result tensor without knowing how steps execute."""
+    """Build the evaluation result grid (scenario x step x repeat) without knowing how steps execute."""
 
     def plan(
         self,

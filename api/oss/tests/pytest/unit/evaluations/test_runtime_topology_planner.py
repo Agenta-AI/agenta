@@ -14,8 +14,8 @@ from oss.src.core.evaluations.runtime.cache import RunnableCacheResolver
 from oss.src.core.evaluations.runtime.models import (
     ProcessSummary,
     ResolvedSourceItem,
-    TensorSlice,
-    TensorProbeSummary,
+    RunSlice,
+    RunProbeSummary,
 )
 from oss.src.core.evaluations.runtime.planner import (
     EvaluationPlanner,
@@ -30,7 +30,7 @@ from oss.src.core.evaluations.runtime.sources import (
     resolve_queue_source_batches,
     resolve_testset_input_specs,
 )
-from oss.src.core.evaluations.runtime.tensor import TensorSliceOperations
+from oss.src.core.evaluations.runtime.operations import RunSliceOperations
 from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
 from oss.src.core.evaluations.runtime.topology import classify_run_topology
 from agenta.sdk.evaluations.runtime.models import (
@@ -810,7 +810,7 @@ async def test_live_query_trace_resolver_uses_revision_windowing_when_requested(
 
 
 @pytest.mark.asyncio
-async def test_tensor_slice_operations_probe_populate_prune_and_process():
+async def test_run_slice_operations_probe_populate_prune_and_process():
     project_id = uuid4()
     user_id = uuid4()
     run_id = uuid4()
@@ -837,8 +837,8 @@ async def test_tensor_slice_operations_probe_populate_prune_and_process():
         ),
         query_scenarios=AsyncMock(return_value=[]),
     )
-    operations = TensorSliceOperations(evaluations_service=evaluations_service)
-    tensor_slice = TensorSlice(
+    operations = RunSliceOperations(evaluations_service=evaluations_service)
+    run_slice = RunSlice(
         run_id=run_id,
         scenario_ids=[scenario_id],
         step_keys=["evaluator-auto"],
@@ -847,7 +847,7 @@ async def test_tensor_slice_operations_probe_populate_prune_and_process():
 
     probed = await operations.probe(
         project_id=project_id,
-        tensor_slice=tensor_slice,
+        run_slice=run_slice,
     )
     populated = await operations.populate(
         project_id=project_id,
@@ -865,7 +865,7 @@ async def test_tensor_slice_operations_probe_populate_prune_and_process():
     pruned = await operations.prune(
         project_id=project_id,
         user_id=user_id,
-        tensor_slice=tensor_slice,
+        run_slice=run_slice,
     )
 
     assert probed == [result]
@@ -876,7 +876,7 @@ async def test_tensor_slice_operations_probe_populate_prune_and_process():
     assert evaluations_service.query_result_ids.await_count == 1
     assert evaluations_service.set_results.await_count == 1
     assert evaluations_service.delete_results.await_count == 1
-    # prune is a tensor-write op: after removing result cells it re-triggers a
+    # prune is a run-write op: after removing result cells it re-triggers a
     # metrics refresh over the affected scope (like populate/process), so
     # aggregates recompute over the now-smaller cell set. refresh() does both the
     # variational and the aggregate (global, here) pass — so prune drives >= 1
@@ -889,7 +889,7 @@ async def test_tensor_slice_operations_probe_populate_prune_and_process():
     await operations.refresh(
         project_id=project_id,
         user_id=user_id,
-        tensor_slice=tensor_slice,
+        run_slice=run_slice,
     )
     assert evaluations_service.refresh_metrics.await_count > after_prune
 
@@ -899,22 +899,22 @@ async def test_tensor_slice_operations_probe_populate_prune_and_process():
         await operations.process(
             project_id=project_id,
             user_id=user_id,
-            tensor_slice=tensor_slice,
+            run_slice=run_slice,
         )
 
 
 @pytest.mark.asyncio
-async def test_tensor_slice_process_delegates_to_injected_processor():
+async def test_run_slice_process_delegates_to_injected_processor():
     project_id = uuid4()
     user_id = uuid4()
     run_id = uuid4()
     expected = ProcessSummary(created=2, pending=1)
     slice_processor = SimpleNamespace(process=AsyncMock(return_value=expected))
-    operations = TensorSliceOperations(
+    operations = RunSliceOperations(
         evaluations_service=SimpleNamespace(),
         slice_processor=slice_processor,
     )
-    tensor_slice = TensorSlice(
+    run_slice = RunSlice(
         run_id=run_id,
         scenario_ids=[uuid4()],
         step_keys=["evaluator-auto"],
@@ -924,19 +924,19 @@ async def test_tensor_slice_process_delegates_to_injected_processor():
     summary = await operations.process(
         project_id=project_id,
         user_id=user_id,
-        tensor_slice=tensor_slice,
+        run_slice=run_slice,
     )
 
     assert summary == expected
     slice_processor.process.assert_awaited_once_with(
         project_id=project_id,
         user_id=user_id,
-        tensor_slice=tensor_slice,
+        run_slice=run_slice,
     )
 
 
 @pytest.mark.asyncio
-async def test_tensor_slice_probe_summary_counts_statuses_and_missing_cells():
+async def test_run_slice_probe_summary_counts_statuses_and_missing_cells():
     project_id = uuid4()
     run_id = uuid4()
     scenario_id = uuid4()
@@ -971,15 +971,15 @@ async def test_tensor_slice_probe_summary_counts_statuses_and_missing_cells():
         )
     )
 
-    summary = await TensorSliceOperations(
+    summary = await RunSliceOperations(
         evaluations_service=evaluations_service
     ).probe_summary(
         project_id=project_id,
-        tensor_slice=TensorSlice(run_id=run_id),
+        run_slice=RunSlice(run_id=run_id),
         expected_count=5,
     )
 
-    assert summary == TensorProbeSummary(
+    assert summary == RunProbeSummary(
         existing_count=3,
         missing_count=2,
         success_count=1,
@@ -990,21 +990,21 @@ async def test_tensor_slice_probe_summary_counts_statuses_and_missing_cells():
 
 
 @pytest.mark.asyncio
-async def test_tensor_slice_empty_dimension_short_circuits_probe_and_process():
+async def test_run_slice_empty_dimension_short_circuits_probe_and_process():
     project_id = uuid4()
     user_id = uuid4()
-    operations = TensorSliceOperations(
+    operations = RunSliceOperations(
         evaluations_service=SimpleNamespace(
             query_results=AsyncMock(),
             refresh_metrics=AsyncMock(),
         )
     )
-    tensor_slice = TensorSlice(run_id=uuid4(), scenario_ids=[])
+    run_slice = RunSlice(run_id=uuid4(), scenario_ids=[])
 
     assert (
         await operations.probe(
             project_id=project_id,
-            tensor_slice=tensor_slice,
+            run_slice=run_slice,
         )
         == []
     )
@@ -1012,7 +1012,7 @@ async def test_tensor_slice_empty_dimension_short_circuits_probe_and_process():
         await operations.process(
             project_id=project_id,
             user_id=user_id,
-            tensor_slice=tensor_slice,
+            run_slice=run_slice,
         )
         == ProcessSummary()
     )
@@ -1645,14 +1645,14 @@ async def test_direct_id_ingest_adds_scenarios_populates_then_processes(monkeypa
             *,
             project_id,
             user_id,
-            tensor_slice,
+            run_slice,
             seed_bindings=None,
             refresh_metrics_without_auto_results=True,
             finalize_run_status=True,
         ):
-            process_calls.append(tensor_slice)
+            process_calls.append(run_slice)
             seed_calls.append(seed_bindings)
-            return ProcessSummary(created=len(tensor_slice.scenario_ids or []))
+            return ProcessSummary(created=len(run_slice.scenario_ids or []))
 
     monkeypatch.setattr(run_tasks, "APISliceProcessor", _FakeSliceProcessor)
 
@@ -1684,10 +1684,10 @@ async def test_direct_id_ingest_adds_scenarios_populates_then_processes(monkeypa
 
     # process: re-execute (force) over exactly the new scenarios
     assert len(process_calls) == 1
-    tensor_slice = process_calls[0]
-    assert tensor_slice.run_id == run_id
-    assert set(tensor_slice.scenario_ids) == {scenario_a, scenario_b}
-    assert tensor_slice.process_mode == "force"
+    run_slice = process_calls[0]
+    assert run_slice.run_id == run_id
+    assert set(run_slice.scenario_ids) == {scenario_a, scenario_b}
+    assert run_slice.process_mode == "force"
 
     # seed bindings carry the hydrated source for each minted scenario (Option A:
     # the executor reuses them instead of re-reading the input cell). Each binds
@@ -1886,7 +1886,7 @@ async def test_run_processor_returns_false_for_missing_or_unsupported_run():
 
 @pytest.mark.asyncio
 async def test_backend_slice_processor_reexecutes_existing_scenario(monkeypatch):
-    # A TensorSlice addresses an EXISTING scenario. The backend slice processor
+    # A RunSlice addresses an EXISTING scenario. The backend slice processor
     # must rebuild that scenario's source binding from its stored input cell,
     # re-hydrate trace context, and re-run the SDK loop AGAINST THE EXISTING
     # scenario (not a freshly created one), returning a populated ProcessSummary.
@@ -1994,7 +1994,7 @@ async def test_backend_slice_processor_reexecutes_existing_scenario(monkeypatch)
     summary = await processor.process(
         project_id=project_id,
         user_id=user_id,
-        tensor_slice=TensorSlice(
+        run_slice=RunSlice(
             run_id=run_id,
             scenario_ids=[scenario_id],
             step_keys=["evaluator-auto"],
@@ -2141,7 +2141,7 @@ async def test_backend_slice_processor_uses_requested_scenarios_for_missing_cell
     summary = await processor.process(
         project_id=project_id,
         user_id=user_id,
-        tensor_slice=TensorSlice(
+        run_slice=RunSlice(
             run_id=run_id,
             scenario_ids=[scenario_id],
             step_keys=["evaluator-auto"],
@@ -2285,7 +2285,7 @@ async def test_backend_slice_processor_distinguishes_fill_missing_and_force(
     fill_missing = await processor.process(
         project_id=project_id,
         user_id=user_id,
-        tensor_slice=TensorSlice(
+        run_slice=RunSlice(
             run_id=run_id,
             scenario_ids=[scenario_id],
             step_keys=["evaluator-auto"],
@@ -2299,7 +2299,7 @@ async def test_backend_slice_processor_distinguishes_fill_missing_and_force(
     force = await processor.process(
         project_id=project_id,
         user_id=user_id,
-        tensor_slice=TensorSlice(
+        run_slice=RunSlice(
             run_id=run_id,
             scenario_ids=[scenario_id],
             step_keys=["evaluator-auto"],

@@ -2394,6 +2394,53 @@ class RawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    def refresh_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[None]:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        scenario_ids : typing.Optional[typing.Sequence[str]]
+        
+        step_keys : typing.Optional[typing.Sequence[str]]
+        
+        repeat_idxs : typing.Optional[typing.Sequence[int]]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[None]
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"simple/evaluations/{jsonable_encoder(evaluation_id)}/refresh",method="POST",
+            json={
+                "scenario_ids": scenario_ids,
+                "step_keys": step_keys,
+                "repeat_idxs": repeat_idxs,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return HttpResponse(response=_response, data=None)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     def add_scenarios(self, evaluation_id: str, *, count: int, timestamp: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationScenariosResponse]:
         """
         Parameters
@@ -5226,6 +5273,53 @@ class AsyncRawEvaluationsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             f"simple/evaluations/{jsonable_encoder(evaluation_id)}/prune",method="POST",
+            json={
+                "scenario_ids": scenario_ids,
+                "step_keys": step_keys,
+                "repeat_idxs": repeat_idxs,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return AsyncHttpResponse(response=_response, data=None)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def refresh_slice(self, evaluation_id: str, *, scenario_ids: typing.Optional[typing.Sequence[str]] = OMIT, step_keys: typing.Optional[typing.Sequence[str]] = OMIT, repeat_idxs: typing.Optional[typing.Sequence[int]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[None]:
+        """
+        Parameters
+        ----------
+        evaluation_id : str
+        
+        scenario_ids : typing.Optional[typing.Sequence[str]]
+        
+        step_keys : typing.Optional[typing.Sequence[str]]
+        
+        repeat_idxs : typing.Optional[typing.Sequence[int]]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[None]
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"simple/evaluations/{jsonable_encoder(evaluation_id)}/refresh",method="POST",
             json={
                 "scenario_ids": scenario_ids,
                 "step_keys": step_keys,

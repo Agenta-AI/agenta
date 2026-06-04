@@ -53,13 +53,13 @@ from oss.src.apis.fastapi.evaluations.models import (
     EvaluationResultsResponse,
     EvaluationResultIdResponse,
     EvaluationResultIdsResponse,
-    # EVALUATION TENSOR SLICE
+    # EVALUATION RUN SLICE
     ProcessSliceRequest,
     PopulateSliceRequest,
     ProbeSliceRequest,
     PruneSliceRequest,
     RefreshSliceRequest,
-    # EVALUATION GRAPH-SHAPE OPS
+    # EVALUATION SHAPE OPS
     AddScenariosRequest,
     RemoveScenariosRequest,
     AddStepsRequest,
@@ -2364,7 +2364,7 @@ class SimpleEvaluationsRouter:
 
         return response
 
-    # TENSOR SLICE OPS ---------------------------------------------------------
+    # RUN SLICE OPS ---------------------------------------------------------
 
     # POST /api/simple/evaluations/{evaluation_id}/populate
     @intercept_exceptions()
@@ -2435,7 +2435,7 @@ class SimpleEvaluationsRouter:
         # Async dispatch via taskiq — the 202 acknowledges acceptance; the work
         # finishes on the worker. No body to return. `overwrite` maps to the
         # internal process mode (force = re-run all; else fill-missing).
-        await self.simple_evaluations_service.dispatch_tensor_slice(
+        await self.simple_evaluations_service.dispatch_run_slice(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
