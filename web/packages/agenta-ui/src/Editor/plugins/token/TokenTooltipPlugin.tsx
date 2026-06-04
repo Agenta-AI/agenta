@@ -7,12 +7,17 @@ import {Tooltip} from "antd"
  * TokenTooltipPlugin
  *
  * Renders an Ant Design `Tooltip` anchored to an invalid template token
- * (e.g. `{{$.input.xx.abc}}` — `input` singular is not a known envelope
- * slot) when the user hovers it. Uses the data-* attributes TokenNode
- * publishes (`data-invalid`, `data-tooltip`, `data-tooltip-suggestion`)
- * so the presentation layer stays in React while the Lexical node itself
- * remains a plain TextNode — no conversion to DecoratorNode needed,
- * inline flow and cursor behavior preserved.
+ * (e.g. `{{$outputs.country}}` — JSONPath root must be followed by `.`)
+ * when the user hovers it. Uses the data-* attributes TokenNode publishes
+ * (`data-invalid`, `data-tooltip`, `data-tooltip-suggestion`) so the
+ * presentation layer stays in React while the Lexical node itself remains
+ * a plain TextNode — no conversion to DecoratorNode needed, inline flow
+ * and cursor behavior preserved.
+ *
+ * `data-tooltip-suggestion` is published only by the JSON Pointer
+ * validation branch (e.g. `/input/x` → "did you mean `/inputs/x`?"). The
+ * JSONPath branch no longer emits suggestions per the post-2026-05-28
+ * mustache QA principle — see `templateVariable.ts`.
  *
  * Delegation pattern: a single mouseover/mouseout listener on the editor
  * root handles all tokens, which avoids per-node listeners and survives

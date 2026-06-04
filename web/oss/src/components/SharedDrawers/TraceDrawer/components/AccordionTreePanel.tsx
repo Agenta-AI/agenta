@@ -25,12 +25,12 @@ import yaml from "js-yaml"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
-import {BeautifiedJsonView} from "@/oss/components/DrillInView/BeautifiedJsonView"
 import {
     buildDecodedJsonOutput,
     normalizeEscapedLineBreaks,
     parseStructuredJson,
 } from "@/oss/components/DrillInView/decodedJsonHelpers"
+import {PrettyJsonView} from "@/oss/components/DrillInView/PrettyJsonView"
 import {getDefaultJsonViewMode} from "@/oss/components/DrillInView/viewModes"
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
@@ -67,17 +67,17 @@ type AccordionTreePanelProps = {
  * - `json` / `yaml`: faithful — data as stored, no cleanup.
  * - `decoded-json`: JSON editor, cleaned (unwrap nested stringified JSON,
  *   decode escaped newlines).
- * - `beautified-json`: custom component tree (chat bubbles, per-key fields,
+ * - `pretty-json`: custom component tree (chat bubbles, per-key fields,
  *   envelope unwrap, noise stripping). Default for structured JSON data.
  * - `text` / `markdown`: prose editor.
  */
-type PanelViewMode = "json" | "yaml" | "decoded-json" | "beautified-json" | "text" | "markdown"
+type PanelViewMode = "json" | "yaml" | "decoded-json" | "pretty-json" | "text" | "markdown"
 
 const PANEL_VIEW_MODE_LABELS: Record<PanelViewMode, string> = {
     json: "JSON",
     yaml: "YAML",
     "decoded-json": "Decoded JSON",
-    "beautified-json": "Beautified JSON",
+    "pretty-json": "Pretty JSON",
     text: "Text",
     markdown: "Markdown",
 }
@@ -315,19 +315,19 @@ const AccordionTreePanel = ({
         if (viewModePreset === "message") {
             const modes: PanelViewMode[] = ["text", "markdown"]
             if (hasStructuredValue) {
-                modes.push("decoded-json", "beautified-json")
+                modes.push("decoded-json", "pretty-json")
             }
             return modes
         }
 
         if (isStringValue) {
             if (parsedStructuredString !== null) {
-                return ["json", "yaml", "decoded-json", "beautified-json", "text", "markdown"]
+                return ["json", "yaml", "decoded-json", "pretty-json", "text", "markdown"]
             }
             return ["text", "markdown"]
         }
 
-        return ["json", "yaml", "decoded-json", "beautified-json"]
+        return ["json", "yaml", "decoded-json", "pretty-json"]
     }, [viewModePreset, isStringValue, hasStructuredValue, parsedStructuredString])
     const [panelViewMode, setPanelViewMode] = useState<PanelViewMode>(() =>
         getDefaultJsonViewMode(availableViewModes),
@@ -341,7 +341,7 @@ const AccordionTreePanel = ({
 
     const isCodeMode =
         panelViewMode === "json" || panelViewMode === "yaml" || panelViewMode === "decoded-json"
-    const isBeautifiedMode = panelViewMode === "beautified-json"
+    const isPrettyMode = panelViewMode === "pretty-json"
 
     useEffect(() => {
         if (!isCodeMode) {
@@ -392,7 +392,7 @@ const AccordionTreePanel = ({
         return buildDecodedJsonOutput(sanitizedValue, parsedStructuredString)
     }, [panelViewMode, sanitizedValue, parsedStructuredString])
 
-    const beautifiedJsonSource = useMemo(() => {
+    const prettyJsonSource = useMemo(() => {
         if (isStringValue) {
             return parsedStructuredString ?? sanitizedValue
         }
@@ -425,8 +425,8 @@ const AccordionTreePanel = ({
               ? decodedJsonOutput
               : panelViewMode === "json"
                 ? jsonOutput
-                : panelViewMode === "beautified-json"
-                  ? JSON.stringify(beautifiedJsonSource, null, 2)
+                : panelViewMode === "pretty-json"
+                  ? JSON.stringify(prettyJsonSource, null, 2)
                   : textOutput
 
     const collapse = (
@@ -528,9 +528,9 @@ const AccordionTreePanel = ({
                                             />
                                         </EditorProvider>
                                     </DrillInProvider>
-                                ) : isBeautifiedMode ? (
-                                    <BeautifiedJsonView
-                                        data={beautifiedJsonSource}
+                                ) : isPrettyMode ? (
+                                    <PrettyJsonView
+                                        data={prettyJsonSource}
                                         keyPrefix={`accordion-${textViewerId}`}
                                     />
                                 ) : (

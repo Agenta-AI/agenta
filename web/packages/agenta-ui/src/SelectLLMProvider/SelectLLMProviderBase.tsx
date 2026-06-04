@@ -173,7 +173,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                     title={renderTooltipContent(option.metadata)}
                     placement="right"
                     mouseEnterDelay={0.3}
-                    color="white"
+                    color="var(--ant-color-bg-elevated)"
+                    overlayInnerStyle={{color: "var(--ant-color-text)"}}
                 >
                     {content}
                 </Tooltip>

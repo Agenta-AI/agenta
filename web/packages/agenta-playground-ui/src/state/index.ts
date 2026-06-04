@@ -6,3 +6,5 @@ export {
     resetPlaygroundFocusDrawerAtom,
     type PlaygroundFocusDrawerState,
 } from "./focusDrawer"
+
+export {useNewPlaygroundInputsBodyAtom} from "./featureFlags"

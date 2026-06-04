@@ -97,13 +97,13 @@ const DeploymentDrawer = ({
 
         const built = createParams(
             synthesized,
-            selectedEnvironment?.name || "none",
+            selectedEnvironment?.slug || "none",
             "add_a_value",
             currentApp,
             {flags: {is_chat: isChat}},
         )
         return built
-    }, [inputPorts, currentApp, selectedEnvironment?.name, isChat])
+    }, [inputPorts, currentApp, selectedEnvironment?.slug, isChat])
 
     const invokeLlmUrl = (uri && uri.trim()) || ""
 
@@ -114,9 +114,9 @@ const DeploymentDrawer = ({
     }
 
     const fetchConfigCodeSnippet: Record<string, string> = {
-        python: fetchConfigpythonCode(currentApp?.slug ?? "", selectedEnvironment?.name!, ""),
-        bash: fetchConfigcURLCode(currentApp?.slug ?? "", selectedEnvironment?.name!, ""),
-        typescript: fetchConfigtsCode(currentApp?.slug ?? "", selectedEnvironment?.name!, ""),
+        python: fetchConfigpythonCode(currentApp?.slug ?? "", selectedEnvironment?.slug!, ""),
+        bash: fetchConfigcURLCode(currentApp?.slug ?? "", selectedEnvironment?.slug!, ""),
+        typescript: fetchConfigtsCode(currentApp?.slug ?? "", selectedEnvironment?.slug!, ""),
     }
 
     const handleOpenSelectDeployVariantModal = () => {
