@@ -690,13 +690,8 @@ def _remember_context(
     span_id: Optional[str],
     outputs: Optional[Any],
 ) -> None:
-    # Dataflow contract (order-independent): each phase reads the prior phase's
-    # output, never a sibling's. Evaluators read the application output (here);
-    # they read inputs separately via source_item.inputs. Only invocation writes
-    # this channel, so a sibling evaluator can never overwrite what the next
-    # evaluator reads — results are invariant to step order/shuffling within a
-    # phase. (One invocation step per run today; multiple would need a separate
-    # input channel so app#2 reads inputs, not app#1.)
+    # Only the application produces path context; evaluators consume it and must
+    # never overwrite a sibling's, so evaluator order stays irrelevant.
     if cell.step_type != "invocation":
         return
 
