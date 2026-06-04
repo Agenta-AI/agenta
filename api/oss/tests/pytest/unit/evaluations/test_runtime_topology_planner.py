@@ -36,7 +36,7 @@ from agenta.sdk.evaluations.runtime.models import (
     WorkflowExecutionRequest,
     WorkflowExecutionResult,
 )
-from agenta.sdk.evaluations.runtime.processor import (
+from agenta.sdk.evaluations.runtime.status import (
     ProcessedScenario as SDKProcessedScenario,
 )
 from agenta.sdk.models.evaluations import EvaluationStatus as SDKEvaluationStatus

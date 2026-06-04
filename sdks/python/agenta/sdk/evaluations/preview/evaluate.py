@@ -395,17 +395,6 @@ async def _prepare_run_data(
     )
 
 
-UNICODE = {
-    "here": "•  ",
-    "root": "┌─ ",
-    "next": "├─ ",
-    "last": "└─ ",
-    "pipe": "│  ",
-    "skip": "   ",
-    "this": "── ",
-}
-
-
 def _build_local_runner() -> AsyncioEvaluationTaskRunner:
     """Wire the in-process runner from the SDK's module-level API wrappers.
 

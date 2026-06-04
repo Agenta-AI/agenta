@@ -8,13 +8,15 @@ from uuid import UUID
 from agenta.sdk.evaluations.runtime.planner import EvaluationPlanner
 from agenta.sdk.evaluations.runtime.processor import (
     process_sources as sdk_process_evaluation_source_slice,
-    run_status as compute_run_status,
     Concurrency,
     CreateScenario,
     InitialContextSeed,
     PlanCellFilter,
-    ProcessedScenario,
     RefreshMetrics,
+)
+from agenta.sdk.evaluations.runtime.status import (
+    run_status as compute_run_status,
+    ProcessedScenario,
 )
 
 from oss.src.utils.logging import get_module_logger

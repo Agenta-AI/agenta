@@ -51,7 +51,9 @@ def _testset_revision(*, slug="t1", testcases):
         slug=slug,
         version="1",
         testset_id=uuid4(),
+        testset_slug="ts-" + slug,
         testset_variant_id=uuid4(),
+        testset_variant_slug="tsv-" + slug,
         data=SimpleNamespace(testcases=testcases),
     )
 
@@ -62,7 +64,9 @@ def _application_revision(*, slug="app1"):
         slug=slug,
         version="1",
         application_id=uuid4(),
+        application_slug="app-" + slug,
         application_variant_id=uuid4(),
+        application_variant_slug="appv-" + slug,
         data=SimpleNamespace(),
     )
 
@@ -73,7 +77,9 @@ def _evaluator_revision(*, slug="ev1"):
         slug=slug,
         version="1",
         evaluator_id=uuid4(),
+        evaluator_slug="ev-" + slug,
         evaluator_variant_id=uuid4(),
+        evaluator_variant_slug="evv-" + slug,
         data=SimpleNamespace(),
     )
 

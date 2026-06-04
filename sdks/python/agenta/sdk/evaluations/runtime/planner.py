@@ -22,6 +22,7 @@ def effective_is_split(
     *,
     is_split: bool,
     is_live: bool = False,
+    #
     has_traces: bool = False,
     has_testcases: bool = False,
     has_application_steps: bool = False,
@@ -41,30 +42,41 @@ class EvaluationPlanner:
         self,
         *,
         run_id: UUID,
-        scenario_id: UUID,
-        source: ResolvedSourceItem,
+        #
         steps: List[EvaluationStep],
         repeats: Optional[int] = None,
+        #
+        scenario_id: UUID,
+        #
+        source: ResolvedSourceItem,
+        #
         is_split: bool = False,
         is_live: bool = False,
+        #
         has_traces: bool = False,
         has_testcases: bool = False,
+        #
         execute_custom: bool = False,
     ) -> ExecutionPlan:
         return self.plan_bindings(
             run_id=run_id,
+            #
+            steps=steps,
+            repeats=repeats,
+            #
             bindings=[
                 ScenarioBinding(
                     scenario_id=scenario_id,
                     source=source,
                 )
             ],
-            steps=steps,
-            repeats=repeats,
+            #
             is_split=is_split,
             is_live=is_live,
+            #
             has_traces=has_traces,
             has_testcases=has_testcases,
+            #
             execute_custom=execute_custom,
         )
 
@@ -72,13 +84,18 @@ class EvaluationPlanner:
         self,
         *,
         run_id: UUID,
-        bindings: List[ScenarioBinding],
+        #
         steps: List[EvaluationStep],
         repeats: Optional[int] = None,
+        #
+        bindings: List[ScenarioBinding],
+        #
         is_split: bool = False,
         is_live: bool = False,
+        #
         has_traces: bool = False,
         has_testcases: bool = False,
+        #
         execute_custom: bool = False,
     ) -> ExecutionPlan:
         repeat_indices = build_repeat_indices(repeats)
@@ -88,8 +105,10 @@ class EvaluationPlanner:
         evaluator_steps = [step for step in steps if step.type == "annotation"]
         app_repeat_indices = self._application_repeat_indices(
             repeat_indices=repeat_indices,
+            #
             is_split=is_split,
             is_live=is_live,
+            #
             has_traces=has_traces,
             has_testcases=has_testcases,
             has_application_steps=bool(application_steps),
@@ -105,11 +124,14 @@ class EvaluationPlanner:
                 cells.extend(
                     PlannedCell(
                         run_id=run_id,
+                        #
                         scenario_id=binding.scenario_id,
                         step_key=step.key,
+                        repeat_idx=repeat_idx,
+                        #
                         step_type=step.type,
                         step_origin=step.origin,
-                        repeat_idx=repeat_idx,
+                        #
                         status=EvaluationStatus.SUCCESS,
                         trace_id=source.trace_id,
                         span_id=source.span_id,
@@ -122,9 +144,10 @@ class EvaluationPlanner:
                 cells.extend(
                     self._runnable_cells(
                         run_id=run_id,
+                        #
+                        step=step,
                         scenario_id=binding.scenario_id,
                         source=source,
-                        step=step,
                         repeat_indices=app_repeat_indices,
                     )
                 )
@@ -133,10 +156,12 @@ class EvaluationPlanner:
                 cells.extend(
                     self._runnable_cells(
                         run_id=run_id,
+                        #
+                        step=step,
                         scenario_id=binding.scenario_id,
                         source=source,
-                        step=step,
                         repeat_indices=repeat_indices,
+                        #
                         execute_custom=execute_custom,
                     )
                 )
@@ -147,8 +172,10 @@ class EvaluationPlanner:
         self,
         *,
         repeat_indices: List[int],
+        #
         is_split: bool,
         is_live: bool,
+        #
         has_traces: bool,
         has_testcases: bool,
         has_application_steps: bool,
@@ -157,6 +184,7 @@ class EvaluationPlanner:
         split = effective_is_split(
             is_split=is_split,
             is_live=is_live,
+            #
             has_traces=has_traces,
             has_testcases=has_testcases,
             has_application_steps=has_application_steps,
@@ -175,10 +203,12 @@ class EvaluationPlanner:
         self,
         *,
         run_id: UUID,
+        #
         scenario_id: UUID,
         source: ResolvedSourceItem,
         step: EvaluationStep,
         repeat_indices: List[int],
+        #
         execute_custom: bool = False,
     ) -> List[PlannedCell]:
         # Who executes an annotation step depends on its origin:
@@ -200,14 +230,18 @@ class EvaluationPlanner:
         return [
             PlannedCell(
                 run_id=run_id,
+                #
                 scenario_id=scenario_id,
                 step_key=step.key,
+                repeat_idx=repeat_idx,
+                #
                 step_type=step.type,
                 step_origin=step.origin,
-                repeat_idx=repeat_idx,
+                #
                 status=status,
-                should_execute=not is_manual_annotation,
                 testcase_id=source.testcase_id,
+                #
+                should_execute=not is_manual_annotation,
             )
             for repeat_idx in repeat_indices
         ]

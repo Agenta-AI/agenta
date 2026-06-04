@@ -5,20 +5,35 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agenta.sdk.models.evaluations import EvaluationStatus, Origin
 
-StepType = Literal["input", "invocation", "annotation"]
-SourceKind = Literal["query", "testset", "trace", "testcase", "direct"]
-TopologyStatus = Literal["supported", "potential", "not_planned", "unsupported"]
-
-# A worker-dispatched topology is two orthogonal axes, not one flat enum:
-#   - source: which input family seeds the run (query / testset / trace / testcase)
-#   - mode:   how items arrive / are executed
-#       live  = scheduler-driven, windowed by the tick (keeps windowing OFF on
-#               the source resolver so each tick's range is preserved)
-#       batch = one-shot over a bounded set (windows from the source's own bounds)
-#       queue = an open queue; nothing runs at start, batches arrive async via
-#               run_from_batch
-DispatchSource = Literal["query", "testset", "trace", "testcase"]
-DispatchMode = Literal["live", "batch", "queue"]
+StepType = Literal[
+    "input",
+    "invocation",
+    "annotation",
+]
+SourceKind = Literal[
+    "query",
+    "testset",
+    "trace",
+    "testcase",
+    "direct",
+]
+TopologyStatus = Literal[
+    "supported",
+    "potential",
+    "not_planned",
+    "unsupported",
+]
+DispatchSource = Literal[
+    "query",
+    "testset",
+    "trace",
+    "testcase",
+]
+DispatchMode = Literal[
+    "live",
+    "batch",
+    "queue",
+]
 
 
 class EvaluationStep(BaseModel):
@@ -27,7 +42,9 @@ class EvaluationStep(BaseModel):
     key: str
     type: StepType
     origin: Origin
+
     references: Dict[str, Any] = Field(default_factory=dict)
+
     inputs: List[str] = Field(default_factory=list)
 
 
@@ -36,12 +53,16 @@ class ResolvedSourceItem(BaseModel):
 
     kind: SourceKind
     step_key: str
+
     references: Dict[str, Any] = Field(default_factory=dict)
+
     trace_id: Optional[str] = None
     span_id: Optional[str] = None
+    trace: Optional[Any] = None
+
     testcase_id: Optional[UUID] = None
     testcase: Optional[Any] = None
-    trace: Optional[Any] = None
+
     inputs: Optional[Any] = None
     outputs: Optional[Any] = None
 
@@ -50,7 +71,9 @@ class ScenarioBinding(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     scenario_id: UUID
+
     source: ResolvedSourceItem
+
     interval: Optional[int] = None
     timestamp: Optional[Any] = None
 
@@ -59,13 +82,18 @@ class PlannedCell(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     run_id: UUID
+
     scenario_id: UUID
     step_key: str
+    repeat_idx: int
+
     step_type: StepType
     step_origin: Origin
-    repeat_idx: int
+
     status: EvaluationStatus
+
     should_execute: bool = False
+
     trace_id: Optional[str] = None
     span_id: Optional[str] = None
     testcase_id: Optional[UUID] = None
@@ -76,6 +104,7 @@ class ExecutionPlan(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     run_id: UUID
+
     cells: List[PlannedCell]
 
     @property
@@ -103,10 +132,12 @@ class WorkflowExecutionRequest(BaseModel):
     step: EvaluationStep
     cell: PlannedCell
     source: ResolvedSourceItem
+
     revision: Any
     parameters: Optional[Any] = None
     references: Dict[str, Any] = Field(default_factory=dict)
     links: Optional[Dict[str, Any]] = None
+
     upstream_trace: Optional[Any] = None
     upstream_outputs: Optional[Any] = None
 
@@ -117,9 +148,11 @@ class WorkflowExecutionResult(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     status: EvaluationStatus
+
     trace_id: Optional[str] = None
     span_id: Optional[str] = None
     hash_id: Optional[str] = None
+
     outputs: Optional[Any] = None
-    trace: Optional[Any] = None
     error: Optional[Dict[str, Any]] = None
+    trace: Optional[Any] = None

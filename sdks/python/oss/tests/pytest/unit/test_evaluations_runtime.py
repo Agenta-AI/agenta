@@ -815,7 +815,9 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
     testset_revision = SimpleNamespace(
         id=testset_revision_id,
         testset_id=testset_id,
+        testset_slug="ts-main",
         testset_variant_id=testset_variant_id,
+        testset_variant_slug="tsv-main",
         slug="main",
         version="1",
         data=SimpleNamespace(testcases=[testcase]),
@@ -823,7 +825,9 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
     application_revision = SimpleNamespace(
         id=application_revision_id,
         application_id=uuid4(),
+        application_slug="app-app",
         application_variant_id=uuid4(),
+        application_variant_slug="appv-app",
         slug="app",
         version="1",
         data=SimpleNamespace(parameters={"temperature": 0}),
@@ -832,7 +836,9 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
     evaluator_revision = SimpleNamespace(
         id=evaluator_revision_id,
         evaluator_id=uuid4(),
+        evaluator_slug="ev-eval",
         evaluator_variant_id=uuid4(),
+        evaluator_variant_slug="evv-eval",
         slug="eval",
         version="1",
         data=SimpleNamespace(parameters={"threshold": 1}),
@@ -991,7 +997,9 @@ async def test_sdk_preview_evaluate_processes_all_scenarios_in_one_slice(monkeyp
     testset_revision = SimpleNamespace(
         id=testset_revision_id,
         testset_id=uuid4(),
+        testset_slug="ts-main",
         testset_variant_id=uuid4(),
+        testset_variant_slug="tsv-main",
         slug="main",
         version="1",
         data=SimpleNamespace(testcases=[_testcase(tc_a, "a"), _testcase(tc_b, "b")]),
@@ -999,7 +1007,9 @@ async def test_sdk_preview_evaluate_processes_all_scenarios_in_one_slice(monkeyp
     application_revision = SimpleNamespace(
         id=application_revision_id,
         application_id=uuid4(),
+        application_slug="app-app",
         application_variant_id=uuid4(),
+        application_variant_slug="appv-app",
         slug="app",
         version="1",
         data=SimpleNamespace(parameters={}),
@@ -1008,7 +1018,9 @@ async def test_sdk_preview_evaluate_processes_all_scenarios_in_one_slice(monkeyp
     evaluator_revision = SimpleNamespace(
         id=evaluator_revision_id,
         evaluator_id=uuid4(),
+        evaluator_slug="ev-eval",
         evaluator_variant_id=uuid4(),
+        evaluator_variant_slug="evv-eval",
         slug="eval",
         version="1",
         data=SimpleNamespace(parameters={}),

@@ -62,6 +62,7 @@ class SDKWorkflowRunner:
         self,
         *,
         requests: list[WorkflowExecutionRequest],
+        #
         semaphore: Optional[Semaphore] = None,
     ) -> list[WorkflowExecutionResult]:
         # Concurrent, semaphore-bounded — same shape as APIWorkflowRunner. The
@@ -104,9 +105,11 @@ class SDKResultSetter:
     ) -> Dict[str, Any]:
         payload = dict(
             run_id=str(cell.run_id),
+            #
             scenario_id=str(cell.scenario_id),
             step_key=cell.step_key,
             repeat_idx=cell.repeat_idx,
+            #
             status=getattr(cell.status, "value", cell.status),
             trace_id=trace_id if trace_id is not None else cell.trace_id,
             testcase_id=str(
@@ -135,7 +138,9 @@ class SDKScenarioEditor:
     async def __call__(self, *, scenario: Any, status: Any) -> Any:
         return await self._edit(
             scenario_id=scenario.id,
+            #
             status=getattr(status, "value", status),
+            #
             tags=getattr(scenario, "tags", None),
             meta=getattr(scenario, "meta", None),
         )
@@ -153,8 +158,18 @@ class SDKMetricsRefresher:
     def __init__(self, *, refresh: Any) -> None:
         self._refresh = refresh
 
-    async def __call__(self, *, run_id: Any, scenario_id: Any = None) -> Any:
-        return await self._refresh(run_id, scenario_id)
+    async def __call__(
+        self,
+        *,
+        run_id: Any,
+        #
+        scenario_id: Any = None,
+    ) -> Any:
+        return await self._refresh(
+            run_id=run_id,
+            #
+            scenario_id=scenario_id,
+        )
 
 
 class SDKTraceFetcher:
@@ -164,11 +179,19 @@ class SDKTraceFetcher:
     client so the engine loads a runner's trace after a step executes.
     """
 
-    def __init__(self, *, fetch: Any) -> None:
+    def __init__(
+        self,
+        *,
+        fetch: Any,
+    ) -> None:
         self._fetch = fetch
 
-    async def __call__(self, *, trace_id: str) -> Any:
-        return await self._fetch(trace_id)
+    async def __call__(
+        self,
+        *,
+        trace_id: str,
+    ) -> Any:
+        return await self._fetch(trace_id=trace_id)
 
 
 def _normalize_service_response(response: Any) -> WorkflowExecutionResult:

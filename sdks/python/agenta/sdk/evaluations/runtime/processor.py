@@ -2,12 +2,16 @@ import asyncio
 from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel
 
 from agenta.sdk.evaluations.runtime.executor import (
     ResultSetter,
     TraceLoader,
     execute_workflow_batch,
+)
+from agenta.sdk.evaluations.runtime.status import (
+    ProcessedScenario,
+    scenario_status,
 )
 from agenta.sdk.evaluations.runtime.models import (
     EvaluationStep,
@@ -47,17 +51,6 @@ class Concurrency(BaseModel):
     retry_delay: Optional[float] = None
 
 
-class ProcessedScenario(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    scenario: Any
-    results: Dict[str, Any] = Field(default_factory=dict)
-    metrics: Optional[Any] = None
-    has_pending: bool = False
-    has_errors: bool = False
-    auto_results_created: bool = False
-
-
 # Keyword-only seam callables. The engine invokes these by keyword
 # (`create_scenario(run_id=...)`, `refresh_metrics(run_id=..., scenario_id=...)`),
 # which `Callable[[...], ...]` (positional-only) can't express, so the aliases use
@@ -84,59 +77,36 @@ InitialContextSeed = Union[
 EditScenario = Callable[..., Awaitable[Any]]
 
 
-def scenario_status(
-    *,
-    has_errors: bool,
-    has_pending: bool,
-) -> EvaluationStatus:
-    """The terminal status of a single scenario from its touched cells.
-
-    Identical ranking on every driver: any error ranks the scenario ERRORS,
-    else any unresolved cell ranks it PENDING, else SUCCESS.
-    """
-    if has_errors:
-        return EvaluationStatus.ERRORS
-    if has_pending:
-        return EvaluationStatus.PENDING
-    return EvaluationStatus.SUCCESS
-
-
-def run_status(processed: List[ProcessedScenario]) -> EvaluationStatus:
-    """The run status rolled up from a slice's touched scenarios.
-
-    One shared rollup for every driver: ERRORS if any scenario errored, else
-    RUNNING if any is still pending (the run is not done), else SUCCESS. Drivers
-    apply this verdict in their own way — the SDK closes the run with it; the API
-    feeds it into the cross-slice floor — but the verdict itself lives here, next
-    to the per-scenario `scenario_status`, so it is computed in exactly one place.
-    """
-    if any(item.has_errors for item in processed):
-        return EvaluationStatus.ERRORS
-    if any(item.has_pending for item in processed):
-        return EvaluationStatus.RUNNING
-    return EvaluationStatus.SUCCESS
-
-
 async def process_sources(
     *,
     run_id: UUID,
-    source_items: List[ResolvedSourceItem],
+    #
     steps: List[EvaluationStep],
     repeats: Optional[int] = None,
-    create_scenario: CreateScenario,
-    set_results: ResultSetter,
-    refresh_metrics: RefreshMetrics,
-    runners: Mapping[str, Any],
+    #
+    source_items: List[ResolvedSourceItem],
+    #
     revisions: Mapping[str, Any],
-    fetch_trace: Optional[TraceLoader] = None,
+    #
+    runners: Mapping[str, Any],
+    #
+    concurrency: Optional[Concurrency] = None,
+    #
     is_split: bool = False,
+    #
     should_set_pending: bool = True,
     should_refresh_metrics: bool = True,
-    concurrency: Optional[Concurrency] = None,
+    #
     execute_custom: bool = False,
+    #
     initial_context_seed: Optional[InitialContextSeed] = None,
     plan_cell_filter: Optional[PlanCellFilter] = None,
+    #
+    create_scenario: CreateScenario,
     edit_scenario: Optional[EditScenario] = None,
+    set_results: ResultSetter,
+    refresh_metrics: RefreshMetrics,
+    fetch_trace: Optional[TraceLoader] = None,
 ) -> List[ProcessedScenario]:
     """Process concrete source items through the SDK-owned runtime contract.
 
@@ -186,11 +156,16 @@ async def process_sources(
 
         plan = EvaluationPlanner().plan(
             run_id=run_id,
-            scenario_id=scenario_id,
-            source=source_item,
+            #
             steps=steps,
             repeats=repeats,
+            #
+            scenario_id=scenario_id,
+            #
+            source=source_item,
+            #
             is_split=is_split,
+            #
             execute_custom=execute_custom,
         )
         if plan_cell_filter is not None:
@@ -302,6 +277,7 @@ async def process_sources(
             requests = [
                 _build_execution_request(
                     cell=batch_cell,
+                    #
                     step=step,
                     source_item=source_item,
                     revision=revision,
@@ -312,8 +288,11 @@ async def process_sources(
 
             executions = await _execute_with_retry(
                 runner=runner,
+                #
                 requests=requests,
+                #
                 semaphore=semaphore,
+                #
                 max_retries=max_retries,
                 retry_delay=retry_delay,
             )
@@ -329,6 +308,7 @@ async def process_sources(
                     batch_cell,
                     await set_results.set(
                         cell=batch_cell,
+                        #
                         trace_id=execution.trace_id,
                         testcase_id=source_item.testcase_id,
                         error=execution.error,
@@ -358,6 +338,7 @@ async def process_sources(
                 if execution.trace_id:
                     _remember_context(
                         cell=batch_cell,
+                        #
                         context_by_repeat=context_by_repeat,
                         trace=execution.trace,
                         trace_id=str(execution.trace_id),
@@ -514,8 +495,11 @@ async def process_sources(
 async def _execute_with_retry(
     *,
     runner: Any,
+    #
     requests: List[WorkflowExecutionRequest],
+    #
     semaphore: Optional[asyncio.Semaphore],
+    #
     max_retries: Optional[int],
     retry_delay: Optional[float],
 ) -> List[WorkflowExecutionResult]:
@@ -523,7 +507,9 @@ async def _execute_with_retry(
     delay = retry_delay or 0.0
     results: List[WorkflowExecutionResult] = await execute_workflow_batch(
         runner=runner,
+        #
         requests=requests,
+        #
         semaphore=semaphore,
     )
     for attempt in range(attempts - 1):
@@ -543,7 +529,9 @@ async def _execute_with_retry(
             await asyncio.sleep(delay)
         retried = await execute_workflow_batch(
             runner=runner,
+            #
             requests=[requests[i] for i in failed_indices],
+            #
             semaphore=semaphore,
         )
         for idx, result in zip(failed_indices, retried):
@@ -596,6 +584,7 @@ def _initial_context_by_repeat(
 def _next_runnable_batch(
     *,
     cells: List[PlannedCell],
+    #
     start_idx: int,
     step_key: str,
 ) -> List[PlannedCell]:
@@ -610,6 +599,7 @@ def _next_runnable_batch(
 def _build_execution_request(
     *,
     cell: PlannedCell,
+    #
     step: EvaluationStep,
     source_item: ResolvedSourceItem,
     revision: Any,
@@ -686,6 +676,7 @@ def _upstream_for_cell(
 def _remember_context(
     *,
     cell: PlannedCell,
+    #
     context_by_repeat: Dict[int, Dict[str, Any]],
     trace: Optional[Any],
     trace_id: str,

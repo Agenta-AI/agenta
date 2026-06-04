@@ -16,10 +16,25 @@ from agenta.sdk.evaluations.runtime.models import (
     WorkflowExecutionRequest,
     WorkflowExecutionResult,
 )
+from agenta.sdk.evaluations.runtime.status import (
+    run_status,
+    scenario_status,
+)
+from agenta.sdk.evaluations.runs import RunData
 from agenta.sdk.models.shared import Reference
 from agenta.sdk.utils.logging import get_module_logger
 
 _log = get_module_logger(__name__)
+
+
+def _step_key(*, kind: str, revision: Any) -> str:
+    """The step key for a revision: `"<kind>-<revision-slug>"`.
+
+    One derivation for every entity (testset / application / evaluator) so the
+    input step and its hydrated source items key off the IDENTICAL string
+    without the caller having to thread the key between them.
+    """
+    return f"{kind}-{revision.slug}"
 
 
 class WorkflowRunner(Protocol):
@@ -44,6 +59,7 @@ class WorkflowBatchRunner(WorkflowRunner, Protocol):
         self,
         *,
         requests: List[WorkflowExecutionRequest],
+        #
         semaphore: Optional[Semaphore] = None,
     ) -> List[WorkflowExecutionResult]: ...
 
@@ -51,7 +67,9 @@ class WorkflowBatchRunner(WorkflowRunner, Protocol):
 async def execute_workflow_batch(
     *,
     runner: WorkflowRunner,
+    #
     requests: List[WorkflowExecutionRequest],
+    #
     semaphore: Optional[Semaphore] = None,
 ) -> List[WorkflowExecutionResult]:
     execute_batch = getattr(runner, "execute_batch", None)
@@ -80,7 +98,9 @@ class EvaluationTaskRunner(Protocol):
         *,
         project_id: UUID,
         user_id: UUID,
+        #
         run_id: UUID,
+        #
         newest: Optional[datetime] = None,
         oldest: Optional[datetime] = None,
     ) -> Any: ...
@@ -90,11 +110,15 @@ class EvaluationTaskRunner(Protocol):
         *,
         project_id: UUID,
         user_id: UUID,
+        #
         run_id: UUID,
+        #
         source_kind: str,
+        #
+        input_step_key: Optional[str] = None,
+        #
         trace_ids: Optional[List[str]] = None,
         testcase_ids: Optional[List[UUID]] = None,
-        input_step_key: Optional[str] = None,
     ) -> Any: ...
 
 
@@ -142,40 +166,45 @@ class AsyncioEvaluationTaskRunner:
         self._retrieve_testset = retrieve_testset
         self._retrieve_application = retrieve_application
         self._retrieve_evaluator = retrieve_evaluator
-        # Stateless dispatcher (branches on step type); one shared instance is
-        # wired into every runnable step — no per-step minting needed.
         self._workflow_runner = workflow_runner
         self._fetch_trace = fetch_trace
 
     def _build_steps_and_runners(
         self,
         *,
-        testset: Tuple[Any, Any],
-        input_step_key: str,
+        testset_revision: Tuple[Any, Any],
         application_revisions: List[Tuple[Any, Any]],
         evaluator_revisions: List[Tuple[Any, Any]],
     ) -> tuple:
         """Build the step graph + wire local runners for one testset revision.
 
-        All three entity kinds arrive as the same `(revision, origin)` shape,
-        consumed symmetrically (testset is a single pair; applications and
-        evaluators are lists of pairs). The input step carries the testset's
-        origin, the invocation step the application's, the annotation step the
-        evaluator's; only evaluators vary (auto / custom / human), and only
-        non-human runnable steps get a local runner. The one shared
-        `SDKWorkflowRunner` is wired into every runnable step; it branches on
-        step type internally.
+        All entity kinds arrive as the same `(revision, origin)` pair shape,
+        consumed symmetrically — the testset is one pair, the applications and
+        evaluators are lists of pairs. Each step's key is derived the same way
+        via `_step_key` (input from the testset, invocation from the application,
+        annotation from the evaluator); only evaluators vary (auto / custom /
+        human), and only non-human runnable steps get a local runner. The one
+        shared `SDKWorkflowRunner` is wired into every runnable step; it branches
+        on step type internally.
         """
-        testset_revision, testset_origin = testset
+        testset_revision, origin = testset_revision
         steps = [
             EvaluationStep(
-                key=input_step_key,
+                key=_step_key(
+                    kind="testset",
+                    revision=testset_revision,
+                ),
                 type="input",
-                origin=testset_origin,
+                origin=origin,
+                #
                 references={
-                    "testset": Reference(id=testset_revision.testset_id),
+                    "testset": Reference(
+                        id=testset_revision.testset_id,
+                        slug=testset_revision.testset_slug,
+                    ),
                     "testset_variant": Reference(
-                        id=testset_revision.testset_variant_id
+                        id=testset_revision.testset_variant_id,
+                        slug=testset_revision.testset_variant_slug,
                     ),
                     "testset_revision": Reference(
                         id=testset_revision.id,
@@ -191,7 +220,10 @@ class AsyncioEvaluationTaskRunner:
         for application_revision, origin in application_revisions:
             if not application_revision or not application_revision.data:
                 continue
-            application_step_key = "application-" + application_revision.slug
+            application_step_key = _step_key(
+                kind="application",
+                revision=application_revision,
+            )
             steps.append(
                 EvaluationStep(
                     key=application_step_key,
@@ -199,10 +231,12 @@ class AsyncioEvaluationTaskRunner:
                     origin=origin,
                     references={
                         "application": Reference(
-                            id=application_revision.application_id
+                            id=application_revision.application_id,
+                            slug=application_revision.application_slug,
                         ),
                         "application_variant": Reference(
                             id=application_revision.application_variant_id,
+                            slug=application_revision.application_variant_slug,
                         ),
                         "application_revision": Reference(
                             id=application_revision.id,
@@ -219,16 +253,23 @@ class AsyncioEvaluationTaskRunner:
         for evaluator_revision, origin in evaluator_revisions:
             if not evaluator_revision or not evaluator_revision.data:
                 continue
-            evaluator_step_key = "evaluator-" + evaluator_revision.slug
+            evaluator_step_key = _step_key(
+                kind="evaluator",
+                revision=evaluator_revision,
+            )
             steps.append(
                 EvaluationStep(
                     key=evaluator_step_key,
                     type="annotation",
                     origin=origin,
                     references={
-                        "evaluator": Reference(id=evaluator_revision.evaluator_id),
+                        "evaluator": Reference(
+                            id=evaluator_revision.evaluator_id,
+                            slug=evaluator_revision.evaluator_slug,
+                        ),
                         "evaluator_variant": Reference(
                             id=evaluator_revision.evaluator_variant_id,
+                            slug=evaluator_revision.evaluator_variant_slug,
                         ),
                         "evaluator_revision": Reference(
                             id=evaluator_revision.id,
@@ -249,9 +290,17 @@ class AsyncioEvaluationTaskRunner:
         self,
         *,
         testset_revision: Any,
-        input_step_key: str,
     ) -> List[Any]:
-        """One hydrated source item per testcase in the revision."""
+        """One hydrated source item per testcase in the revision.
+
+        The source items key off the SAME `_step_key(kind="testset", ...)` as the
+        input step built in `_build_steps_and_runners` — one derivation, so the
+        join is exact without threading the key between the two methods.
+        """
+        input_step_key = _step_key(
+            kind="testset",
+            revision=testset_revision,
+        )
         source_items: List[Any] = []
         for testcase in testset_revision.data.testcases:
             inputs = dict(testcase.data or {})
@@ -262,9 +311,13 @@ class AsyncioEvaluationTaskRunner:
                     step_key=input_step_key,
                     references={
                         "testcase": Reference(id=testcase.id),
-                        "testset": Reference(id=testset_revision.testset_id),
+                        "testset": Reference(
+                            id=testset_revision.testset_id,
+                            slug=testset_revision.testset_slug,
+                        ),
                         "testset_variant": Reference(
                             id=testset_revision.testset_variant_id,
+                            slug=testset_revision.testset_variant_slug,
                         ),
                         "testset_revision": Reference(
                             id=testset_revision.id,
@@ -339,7 +392,8 @@ class AsyncioEvaluationTaskRunner:
         self,
         *,
         run_id: UUID,
-        run_data: Any,
+        #
+        run_data: RunData,
     ) -> Tuple[List[Dict[str, Any]], Any]:
         """Run the evaluation locally via the API-mirroring slice sequence.
 
@@ -350,14 +404,6 @@ class AsyncioEvaluationTaskRunner:
         scenarios (live cell writes, inline + global metric refresh, status
         writes). Empty/unresolved testsets are skipped, not failed.
         """
-        # Local import: processor.py imports from this module, so importing it at
-        # module load would be circular. The verdict→status ranking lives there
-        # so every driver shares one definition.
-        from agenta.sdk.evaluations.runtime.processor import (
-            run_status,
-            scenario_status,
-        )
-
         (
             testset_revisions,
             application_revisions,
@@ -371,8 +417,8 @@ class AsyncioEvaluationTaskRunner:
         # re-derived by the caller at close time.
         all_processed: List[Any] = []
 
-        for testset in testset_revisions:
-            testset_revision, _origin = testset
+        for testset_revision_pair in testset_revisions:
+            testset_revision, _origin = testset_revision_pair
             if not testset_revision.data or not testset_revision.data.testcases:
                 # An empty testset produces no scenarios. Warn per-testset so a
                 # partially-empty run (some testsets have data, others don't) is
@@ -389,21 +435,19 @@ class AsyncioEvaluationTaskRunner:
                 testset_id=str(testset_revision.testset_id),
             )
 
-            input_step_key = "testset-" + testset_revision.slug
             steps, runners, revisions = self._build_steps_and_runners(
-                testset=testset,
-                input_step_key=input_step_key,
+                testset_revision=testset_revision_pair,
                 application_revisions=application_revisions,
                 evaluator_revisions=evaluator_revisions,
             )
             source_items = self._build_source_items(
                 testset_revision=testset_revision,
-                input_step_key=input_step_key,
             )
 
             # add_scenarios — bulk-mint one skeleton per source item, in order.
             minted = await self._add_scenarios(
                 run_id=run_id,
+                #
                 count=len(source_items),
             )
             if len(minted) != len(source_items):
@@ -427,15 +471,19 @@ class AsyncioEvaluationTaskRunner:
             # same variational-inline + global-at-end shape as the API worker.
             processed = await self._process_sources(
                 run_id=run_id,
-                source_items=source_items,
+                #
                 steps=steps,
                 repeats=repeats,
+                #
+                source_items=source_items,
+                #
+                revisions=revisions,
+                runners=runners,
+                #
                 create_scenario=_PreMintedScenarios(minted),
+                edit_scenario=SDKScenarioEditor(edit=self._edit_scenario),
                 set_results=SDKResultSetter(populate=self._populate_slice),
                 refresh_metrics=SDKMetricsRefresher(refresh=self._refresh_metrics),
-                edit_scenario=SDKScenarioEditor(edit=self._edit_scenario),
-                runners=runners,
-                revisions=revisions,
                 fetch_trace=SDKTraceFetcher(fetch=self._fetch_trace),
                 # The SDK evaluate() loop IS the executor for custom-origin steps.
                 execute_custom=True,
