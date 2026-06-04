@@ -69,6 +69,7 @@ const SwitcherRow = memo(
                 <WorkflowTypeTag
                     isEvaluator={isEvaluator}
                     workflowKey={evaluatorKey}
+                    evaluatorTypeKey={appType}
                     workflowType={appType}
                     className="shrink-0"
                 />
@@ -302,6 +303,7 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
                 <WorkflowTypeTag
                     isEvaluator={isEvaluator}
                     workflowKey={evaluatorKey}
+                    evaluatorTypeKey={appType}
                     workflowType={appType}
                 />
             </div>

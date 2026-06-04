@@ -98,7 +98,7 @@ const EvaluatorCard = ({
         evaluatorTypeLookup,
     })
 
-    const {typeLabel, typeColor, fallbackColors} = useEvaluatorTypeMeta({
+    const {typeLabel, typeKey} = useEvaluatorTypeMeta({
         details,
         evaluatorRef: rawEvaluator ? {id: rawEvaluator.id, slug: rawEvaluator.slug} : null,
         matchedPreviewEvaluator: null,
@@ -106,13 +106,12 @@ const EvaluatorCard = ({
         selectedEvaluatorConfig: null,
     })
 
-    const {label: cfgLabel, color: cfgColor} = useEvaluatorTypeFromConfigs({
+    const {label: cfgLabel, typeKey: cfgTypeKey} = useEvaluatorTypeFromConfigs({
         evaluator: rawEvaluator,
     })
 
     const finalTypeLabel = cfgLabel ?? typeLabel
-    const finalTypeColor = cfgColor ?? typeColor
-    const finalFallbackColors = cfgColor ? undefined : fallbackColors
+    const finalTypeKey = cfgTypeKey ?? typeKey
     const finalShowType = Boolean(finalTypeLabel)
     const evaluatorDisplayLabel =
         evaluator.name || evaluator.slug || rawEvaluator?.name || rawEvaluator?.slug
@@ -167,7 +166,7 @@ const EvaluatorCard = ({
             href={evaluatorHref}
             label={evaluatorDisplayLabel}
             toneOverride={null}
-            className="max-w-full !bg-[var(--ag-c-F2F4F7)] !border-[var(--ag-c-D0D5DD)] !text-[var(--ag-c-1D2939)]"
+            className="max-w-full"
         />
     )
 
@@ -236,8 +235,7 @@ const EvaluatorCard = ({
                                     <EvaluatorDetailsPreview
                                         details={details as any}
                                         typeLabel={finalTypeLabel}
-                                        typeColor={finalTypeColor}
-                                        fallbackColors={finalFallbackColors}
+                                        typeKey={finalTypeKey}
                                         showType={finalShowType}
                                     />
                                 )}
