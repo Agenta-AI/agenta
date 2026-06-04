@@ -23,6 +23,9 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceRequestData,
 )
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 
 def _status(status: Any) -> EvaluationStatus:
@@ -76,6 +79,13 @@ def _dump_json(source: Any) -> Any:
     if isinstance(source, list):
         return [_dump_json(value) for value in source]
     return source
+
+
+def _safe_dump(source: Any) -> Any:
+    try:
+        return _dump_json(source)
+    except Exception:  # logging must never break the run
+        return repr(source)
 
 
 class APIWorkflowServiceRunner:
@@ -489,11 +499,47 @@ class APIWorkflowRunner:
                 exclude_none=True,
             )
 
+        raw_inputs = request.source.inputs
+        projected_inputs = _project_inputs(raw_inputs, data)
+
+        schemas = _read_field(data, "schemas") if data is not None else None
+        inputs_schema = _read_field(schemas, "inputs") if schemas is not None else None
+        schema_properties = (
+            _read_field(inputs_schema, "properties")
+            if inputs_schema is not None
+            else None
+        )
+        step = _read_field(request, "step")
+        step_key = _read_field(step, "key")
+        step_type = _read_field(step, "type")
+        log.debug(
+            "[INVOKE] projecting evaluator inputs",
+            step_key=step_key,
+            step_type=step_type,
+            raw_input_keys=(
+                sorted(raw_inputs.keys()) if isinstance(raw_inputs, dict) else None
+            ),
+            projected_input_keys=(
+                sorted(projected_inputs.keys())
+                if isinstance(projected_inputs, dict)
+                else None
+            ),
+            schema_property_keys=(
+                sorted(schema_properties.keys())
+                if isinstance(schema_properties, dict)
+                else None
+            ),
+            has_correct_answer=(
+                isinstance(projected_inputs, dict)
+                and "correct_answer" in projected_inputs
+            ),
+        )
+
         request_data = WorkflowServiceRequestData(
             revision=revision_dump,
             parameters=parameters,
             testcase=testcase,
-            inputs=_project_inputs(request.source.inputs, data),
+            inputs=projected_inputs,
             trace=trace,
             outputs=request.upstream_outputs or request.source.outputs,
         )
@@ -502,6 +548,16 @@ class APIWorkflowRunner:
             data=request_data,
             references=_dump_json(request.references),
             links=request.links or {},
+        )
+
+        log.debug(
+            "[INVOKE] evaluator request",
+            step_key=step_key,
+            step_type=step_type,
+            inputs=_safe_dump(projected_inputs),
+            parameters=_safe_dump(parameters),
+            outputs=_safe_dump(request.upstream_outputs or request.source.outputs),
+            references=_safe_dump(request.references),
         )
 
         response = await self.workflows_service.invoke_workflow(
@@ -525,6 +581,17 @@ class APIWorkflowRunner:
                 if hasattr(status, "model_dump")
                 else {"code": status_code}
             )
+
+        log.debug(
+            "[INVOKE] evaluator response",
+            step_key=step_key,
+            step_type=step_type,
+            status_code=status_code,
+            has_error=has_error,
+            error=_safe_dump(error),
+            outputs=_safe_dump(getattr(response, "outputs", None)),
+            trace_id=getattr(response, "trace_id", None),
+        )
 
         return WorkflowExecutionResult(
             status=(
@@ -609,6 +676,19 @@ class APICachedRunner:
                 required_count=1,
             )
             reusable = cache.reusable_traces[0] if cache.reusable_traces else None
+            step = _read_field(request, "step")
+            log.debug(
+                "[CACHE] resolve",
+                step_key=_read_field(step, "key"),
+                step_type=_read_field(step, "type"),
+                enabled=self.enabled and self.tracing_service is not None,
+                hash_id=cache.hash_id,
+                hit=bool(reusable and getattr(reusable, "trace_id", None)),
+                reused_trace_id=(
+                    str(getattr(reusable, "trace_id", None)) if reusable else None
+                ),
+                reusable_count=len(cache.reusable_traces),
+            )
             if reusable and getattr(reusable, "trace_id", None):
                 results[idx] = WorkflowExecutionResult(
                     status=SDKEvaluationStatus.SUCCESS,

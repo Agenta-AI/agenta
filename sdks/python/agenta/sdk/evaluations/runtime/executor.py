@@ -252,11 +252,22 @@ class AsyncioEvaluationTaskRunner:
 
         for evaluator_revision, origin in evaluator_revisions:
             if not evaluator_revision or not evaluator_revision.data:
+                _log.warning(
+                    "[PLAN] evaluator revision missing data; dropping step",
+                    slug=getattr(evaluator_revision, "slug", None),
+                    evaluator_slug=getattr(evaluator_revision, "evaluator_slug", None),
+                )
                 continue
             evaluator_step_key = _step_key(
                 kind="evaluator",
                 revision=evaluator_revision,
             )
+            if evaluator_step_key in revisions:
+                _log.warning(
+                    "[PLAN] evaluator step_key collision; overwriting prior step",
+                    step_key=evaluator_step_key,
+                    evaluator_slug=getattr(evaluator_revision, "evaluator_slug", None),
+                )
             steps.append(
                 EvaluationStep(
                     key=evaluator_step_key,
@@ -378,12 +389,31 @@ class AsyncioEvaluationTaskRunner:
             application_revisions.append((application_revision, origin))
 
         evaluator_revisions: List[Tuple[Any, Any]] = []
-        for evaluator_revision_id, origin in (run_data.evaluator_steps or {}).items():
+        evaluator_steps = run_data.evaluator_steps or {}
+        _log.debug(
+            "[PLAN] resolving evaluator steps",
+            evaluator_step_ids=[str(k) for k in evaluator_steps.keys()],
+            count=len(evaluator_steps),
+        )
+        for evaluator_revision_id, origin in evaluator_steps.items():
             evaluator_revision = await self._retrieve_evaluator(
                 evaluator_revision_id=evaluator_revision_id,
             )
             if not evaluator_revision:
+                _log.warning(
+                    "[PLAN] evaluator revision not retrieved; dropping",
+                    evaluator_revision_id=str(evaluator_revision_id),
+                    origin=str(origin),
+                )
                 continue
+            _log.debug(
+                "[PLAN] evaluator resolved",
+                evaluator_revision_id=str(evaluator_revision_id),
+                origin=str(origin),
+                slug=getattr(evaluator_revision, "slug", None),
+                evaluator_slug=getattr(evaluator_revision, "evaluator_slug", None),
+                has_data=bool(getattr(evaluator_revision, "data", None)),
+            )
             evaluator_revisions.append((evaluator_revision, origin))
 
         return testset_revisions, application_revisions, evaluator_revisions

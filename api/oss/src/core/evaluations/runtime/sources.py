@@ -23,6 +23,9 @@ from oss.src.core.tracing.dtos import (
     TracingQuery,
     LogicalOperator,
 )
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 
 def _extract_root_span(trace: Any) -> Optional[Any]:
@@ -414,6 +417,29 @@ class SourceResolution:
                     outputs=ag_data.get("outputs"),
                 )
             )
+
+        log.debug(
+            "[REEXEC] resolve_direct_source_items",
+            requested_testcase_ids=[str(t) for t in testcase_ids],
+            fetched_testcase_count=len(testcases),
+            testcase_data_keys={
+                str(tid): (
+                    sorted(getattr(tc, "data", None).keys())
+                    if isinstance(getattr(tc, "data", None), dict)
+                    else None
+                )
+                for tid, tc in testcases_by_id.items()
+            },
+            requested_trace_ids=[str(t) for t in trace_ids],
+            fetched_trace_count=len(traces_by_id),
+            trace_has_outputs={
+                trace_id: (
+                    _extract_ag_data(traces_by_id.get(trace_id)).get("outputs")
+                    is not None
+                )
+                for trace_id in trace_ids
+            },
+        )
 
         return source_items
 

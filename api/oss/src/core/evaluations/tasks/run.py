@@ -518,6 +518,7 @@ class RunProcessor:
                     )
                 return
 
+            tick_scenario_ids: List[UUID] = []
             for step_key, source_items in source_items_by_step.items():
                 if not source_items:
                     continue
@@ -533,6 +534,7 @@ class RunProcessor:
                     timestamp=timestamp,
                     interval=interval,
                 )
+                tick_scenario_ids.extend(binding.scenario_id for binding in bindings)
                 await self._execute_bindings(
                     project_id=project_id,
                     user_id=user_id,
@@ -547,6 +549,28 @@ class RunProcessor:
                     should_refresh_metrics=False,
                     # Live runs (finalize=False) keep ticking; batch runs finalize.
                     finalize_run_status=finalize,
+                )
+
+            # Aggregate metrics boundary for the tick. `_execute_bindings` refreshes
+            # per-scenario rows but writes no run-level aggregate; for a live run
+            # that is the temporal (interval, timestamp) bucket the list/overview
+            # tables read, so without this every metric cell renders empty. Gate it
+            # on auto results existing this tick (an auto annotation step): a
+            # human-only tick executes nothing automatic, so there is nothing to
+            # aggregate — same condition as `should_refresh_metrics` above.
+            has_auto_results = any(
+                step.type == "annotation" and step.origin != "human"
+                for step in (run.data.steps if run.data else [])
+            )
+            if tick_scenario_ids and has_auto_results:
+                await self._slice_operations.refresh(
+                    project_id=project_id,
+                    user_id=user_id,
+                    #
+                    run_slice=RunSlice(
+                        run_id=run.id,
+                        scenario_ids=tick_scenario_ids,
+                    ),
                 )
         except Exception as e:  # pylint: disable=broad-exception-caught
             log.error("[EVAL] [process-run] query flow failed", error=str(e))

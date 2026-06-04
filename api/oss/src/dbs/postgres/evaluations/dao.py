@@ -901,8 +901,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
         try:
             async with self.engine.session() as session:
-                # Reuse this session for the closed-run check so a fanned-out
-                # slice does not exhaust the connection pool.
+                # One connection per call: a fanned-out slice would exhaust the pool.
                 for run_id in {scenario.run_id for scenario in scenarios}:
                     run_flags = await _get_run_flags(
                         project_id=project_id,
