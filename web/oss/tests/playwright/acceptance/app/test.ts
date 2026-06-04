@@ -43,6 +43,11 @@ export const openCreateAppDrawerForType = async (
         .or(page.getByTestId(modalTypeTestId))
         .first()
 
+    const drawer = page
+        .getByRole("dialog")
+        .filter({has: page.getByTestId("app-create-name-input")})
+        .last()
+
     for (let attempt = 0; attempt < 3; attempt += 1) {
         for (const entryPoint of createEntryPoints) {
             if (!(await entryPoint.isVisible().catch(() => false))) continue
@@ -52,34 +57,43 @@ export const openCreateAppDrawerForType = async (
             break
         }
 
-        const opened = await typeSelector
-            .waitFor({state: "visible", timeout: 3000})
+        const typeSelectorVisible = await typeSelector
+            .waitFor({state: "visible", timeout: 4000})
             .then(() => true)
             .catch(() => false)
 
-        if (opened) {
-            // The Popover re-renders when appTemplatesQueryAtom resolves,
-            // making the item briefly unstable. force:true dispatches the
-            // click immediately without waiting for Playwright's stability
-            // check, which otherwise retries until the 60 s test timeout.
-            await typeSelector.click({force: true})
-            const drawer = page
-                .getByRole("dialog")
-                .filter({has: page.getByTestId("app-create-name-input")})
-                .last()
-            await expect(drawer).toBeVisible({timeout: 15000})
+        if (!typeSelectorVisible) {
+            await page.keyboard.press("Escape").catch(() => undefined)
+            continue
+        }
+
+        // The Popover re-renders when appTemplatesQueryAtom resolves, making
+        // the item briefly unstable. dispatchEvent('click') fires a synthetic
+        // DOM event that bypasses both Playwright's stability check AND the
+        // viewport-position check (newer Playwright no longer allows force:true
+        // to click elements outside the viewport). The drawer check below
+        // catches the rare case where the click still missed.
+        await typeSelector.dispatchEvent("click")
+
+        // Check whether the drawer opened. If the click landed on a stale
+        // element during re-render it won't appear — retry rather than throw.
+        const drawerOpened = await drawer
+            .waitFor({state: "visible", timeout: 8000})
+            .then(() => true)
+            .catch(() => false)
+
+        if (drawerOpened) {
             return drawer
         }
 
+        // Drawer didn't open — dismiss any leftover popover and try again.
         await page.keyboard.press("Escape").catch(() => undefined)
+        await page.waitForTimeout(200)
     }
 
+    // Final attempt: surfaces a clear failure if the drawer still won't open.
     await expect(typeSelector).toBeVisible({timeout: 15000})
-    await typeSelector.click()
-    const drawer = page
-        .getByRole("dialog")
-        .filter({has: page.getByTestId("app-create-name-input")})
-        .last()
+    await typeSelector.dispatchEvent("click")
     await expect(drawer).toBeVisible({timeout: 15000})
     return drawer
 }

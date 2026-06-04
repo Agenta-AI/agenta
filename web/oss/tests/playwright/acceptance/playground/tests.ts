@@ -76,6 +76,36 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
             await expect(page.getByRole("button", {name: "Run", exact: true}).first()).toBeVisible({
                 timeout: 30000,
             })
+
+            // Wait for the playground to finish hydrating: at least one variable-card
+            // input or prompt editor must be visible, and no loading spinners should
+            // remain. Without this guard, selectTestModel / input locators can race
+            // against components that are still mounting after the Run button appears.
+            await expect
+                .poll(
+                    async () => {
+                        const hasInput =
+                            (await page
+                                .locator(
+                                    ".agenta-variable-card, .agenta-shared-editor [role='textbox']",
+                                )
+                                .first()
+                                .isVisible()
+                                .catch(() => false)) ||
+                            (await page
+                                .locator(".agenta-shared-editor [role='textbox']")
+                                .first()
+                                .isVisible()
+                                .catch(() => false))
+                        const hasSpinner = await page
+                            .locator(".ant-spin-spinning")
+                            .isVisible()
+                            .catch(() => false)
+                        return hasInput && !hasSpinner
+                    },
+                    {timeout: 20000},
+                )
+                .toBe(true)
         })
     },
 
@@ -145,10 +175,37 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 const message = messages[i]
                 await expect(typeof message).toBe("string")
 
-                // 2. Find out the empty chat textbox
-                const targetTextbox = page.locator(
-                    '.agenta-shared-editor:has(div:text-is("Type your message\u2026")) [role="textbox"]',
-                )
+                // 2. Find the empty chat message textbox.
+                // Old path (VariableControlAdapter / TurnMessageAdapter): "Type your message\u2026"
+                // New path (VariableCard / ChatMessageList): "Enter message..."
+                // Combined selector handles whichever placeholder the current UI renders.
+                let targetTextbox = page
+                    .locator(
+                        '.agenta-shared-editor:has(div:text-is("Type your message\u2026")) [role="textbox"], ' +
+                            '.agenta-shared-editor:has(div:text-is("Enter message...")) [role="textbox"]',
+                    )
+                    .first()
+
+                // If neither placeholder is visible the variable card may have rendered in
+                // "json" mode (empty messages array). Click "Message" / "Add message" to
+                // create an initial user turn, then re-query.
+                const editorVisible = await targetTextbox
+                    .isVisible({timeout: 5000})
+                    .catch(() => false)
+                if (!editorVisible) {
+                    const addMsgButton = page
+                        .getByRole("button", {name: /^(Message|Add message)$/i})
+                        .first()
+                    if (await addMsgButton.isVisible({timeout: 5000}).catch(() => false)) {
+                        await addMsgButton.click()
+                    }
+                    targetTextbox = page
+                        .locator(
+                            '.agenta-shared-editor:has(div:text-is("Type your message\u2026")) [role="textbox"], ' +
+                                '.agenta-shared-editor:has(div:text-is("Enter message...")) [role="textbox"]',
+                        )
+                        .first()
+                }
 
                 await targetTextbox.scrollIntoViewIfNeeded()
                 await targetTextbox.click({force: true})
@@ -158,7 +215,7 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 const runButtons = page.getByRole("button", {name: "Run", exact: true})
                 await waitForSuccessfulRun(
                     async () => {
-                        await runButtons.click({force: true})
+                        await runButtons.first().click({force: true})
                     },
                     async () => {
                         return await apiHelpers.waitForApiResponse<Record<string, any>>({
@@ -187,18 +244,25 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 expect(typeof prompt).toBe("string")
                 expect(typeof role).toBe("string")
 
-                // 2. Click on the message button to create a new prompt
+                // 2. Click on the message button to create a new prompt slot.
+                // Record the current editor count so we can wait for a NEW one to appear
+                // rather than racing against DOM state immediately after the click.
+                const editorSelector =
+                    `.agenta-shared-editor .editor-input[role="textbox"]:has(p:empty), ` +
+                    `.agenta-shared-editor .editor-input[role="textbox"]:has(p:has(br:only-child))`
+                const countBefore = await page.locator(editorSelector).count()
+
                 await page.getByRole("button", {name: "Message"}).first().click()
 
-                // 3. Find the empty editor input
-                const emptyEditorLocator = page
-                    .locator(
-                        `.agenta-shared-editor .editor-input[role="textbox"]:has(p:empty), ` +
-                            `.agenta-shared-editor .editor-input[role="textbox"]:has(p:has(br:only-child))`,
-                    )
-                    .first()
+                // 3. Find the empty editor input — wait for the newly added slot to appear
+                // (count must exceed what existed before the click).
+                await expect
+                    .poll(async () => page.locator(editorSelector).count(), {timeout: 15000})
+                    .toBeGreaterThan(countBefore)
 
-                await expect(emptyEditorLocator).toBeVisible()
+                const emptyEditorLocator = page.locator(editorSelector).first()
+
+                await expect(emptyEditorLocator).toBeVisible({timeout: 10000})
 
                 // Get the parent agenta-shared-editor element
                 const editorContainer = emptyEditorLocator.locator(

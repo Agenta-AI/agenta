@@ -178,15 +178,26 @@ const waitForMatchingResponses = async (
     page: Page,
     predicate: (response: Response) => boolean,
     count: number,
+    timeoutMs = 60_000,
 ) => {
-    return await new Promise<Response[]>((resolve) => {
+    return await new Promise<Response[]>((resolve, reject) => {
         const matches: Response[] = []
+
+        const timer = setTimeout(() => {
+            page.off("response", handleResponse)
+            reject(
+                new Error(
+                    `waitForMatchingResponses: timed out after ${timeoutMs}ms waiting for ${count} responses (got ${matches.length})`,
+                ),
+            )
+        }, timeoutMs)
 
         const handleResponse = (response: Response) => {
             if (!predicate(response)) return
 
             matches.push(response)
             if (matches.length >= count) {
+                clearTimeout(timer)
                 page.off("response", handleResponse)
                 resolve(matches)
             }
@@ -251,6 +262,11 @@ const openCreateAppDrawerForType = async (page: Page, type: CREATABLE_APP_TYPE) 
         .or(page.getByTestId(modalTypeTestId))
         .first()
 
+    const drawer = page
+        .getByRole("dialog")
+        .filter({has: page.getByTestId("app-create-name-input")})
+        .last()
+
     for (let attempt = 0; attempt < 3; attempt += 1) {
         for (const ep of createEntryPoints) {
             if (!(await ep.isVisible().catch(() => false))) continue
@@ -260,30 +276,41 @@ const openCreateAppDrawerForType = async (page: Page, type: CREATABLE_APP_TYPE) 
             break
         }
 
-        const opened = await typeSelector
-            .waitFor({state: "visible", timeout: 3000})
+        const typeSelectorVisible = await typeSelector
+            .waitFor({state: "visible", timeout: 4000})
             .then(() => true)
             .catch(() => false)
 
-        if (opened) {
-            await typeSelector.click()
-            const drawer = page
-                .getByRole("dialog")
-                .filter({has: page.getByTestId("app-create-name-input")})
-                .last()
-            await expect(drawer).toBeVisible({timeout: 15000})
+        if (!typeSelectorVisible) {
+            await page.keyboard.press("Escape").catch(() => undefined)
+            continue
+        }
+
+        // dispatchEvent('click') fires a synthetic DOM event that bypasses both
+        // Playwright's stability/actionability checks AND the newer Playwright
+        // viewport-position check (force:true no longer skips viewport errors).
+        // Needed because the Popover re-renders when appTemplatesQueryAtom
+        // resolves, briefly making the item unstable or off-screen.
+        await typeSelector.dispatchEvent("click")
+
+        // Check whether the drawer opened. If the synthetic click missed (e.g.
+        // event handler not yet wired on first render), catch and retry the
+        // full open sequence rather than propagating the error.
+        const drawerOpened = await drawer
+            .waitFor({state: "visible", timeout: 8000})
+            .then(() => true)
+            .catch(() => false)
+
+        if (drawerOpened) {
             return drawer
         }
 
         await page.keyboard.press("Escape").catch(() => undefined)
+        await page.waitForTimeout(200)
     }
 
     await expect(typeSelector).toBeVisible({timeout: 15000})
-    await typeSelector.click()
-    const drawer = page
-        .getByRole("dialog")
-        .filter({has: page.getByTestId("app-create-name-input")})
-        .last()
+    await typeSelector.dispatchEvent("click")
     await expect(drawer).toBeVisible({timeout: 15000})
     return drawer
 }

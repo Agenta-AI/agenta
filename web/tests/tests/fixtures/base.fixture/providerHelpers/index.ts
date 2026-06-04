@@ -430,25 +430,49 @@ async function selectMockModel(page: Page): Promise<void> {
     const refinePromptButton = page.getByRole("button", {name: "Refine prompt with AI"}).first()
     await expect(refinePromptButton).toBeVisible({timeout: 30000})
 
-    const modelButton = refinePromptButton.locator("xpath=following-sibling::button[1]")
-    await expect(modelButton).toBeVisible({timeout: 15000})
+    // The model selector sits immediately after the "Refine prompt with AI" button in
+    // the toolbar. Use a data-tour attribute if available, otherwise fall back to the
+    // positional sibling. We use getByText on a known model string as a quick-exit
+    // guard before touching the DOM.
+    const modelButton = page
+        .locator('[data-tour="model-selector"], [data-testid="model-selector"]')
+        .or(refinePromptButton.locator("xpath=following-sibling::button[1]"))
+        .first()
 
-    const currentModel = (await modelButton.textContent())?.trim()
-    if (currentModel?.includes(MOCK_MODEL_NAME)) {
+    await expect(modelButton).toBeVisible({timeout: 15000})
+    // Stable text read: wait until the button has non-empty text (it may still be
+    // mounting when first visible).
+    let currentModel = ""
+    await expect
+        .poll(
+            async () => {
+                currentModel = (await modelButton.textContent().catch(() => ""))?.trim() ?? ""
+                return currentModel
+            },
+            {timeout: 10000},
+        )
+        .toBeTruthy()
+
+    if (currentModel.includes(MOCK_MODEL_NAME)) {
         return
     }
 
     await modelButton.click()
 
-    const configurePopover = page.locator(".ant-popover").filter({
-        has: page.getByText("Configure", {exact: true}),
-    })
+    // The configure popover contains "Configure" somewhere in its header area.
+    // Use a partial-text match so "Configure model" and "Configure" both match.
+    const configurePopover = page
+        .locator(".ant-popover")
+        .filter({has: page.getByText(/Configure/i)})
+        .last()
     await expect(configurePopover).toBeVisible({timeout: 15000})
 
-    const modelSelect = configurePopover
-        .locator(".ant-select")
-        .filter({hasText: currentModel || ""})
-        .first()
+    // Find the model selector inside the popover. When currentModel is known, narrow
+    // to the select that displays it; otherwise fall back to the first select.
+    const modelSelect =
+        currentModel.length > 0
+            ? configurePopover.locator(".ant-select").filter({hasText: currentModel}).first()
+            : configurePopover.locator(".ant-select").first()
     await expect(modelSelect).toBeVisible({timeout: 15000})
     await modelSelect.click()
 
@@ -463,7 +487,15 @@ async function selectMockModel(page: Page): Promise<void> {
     await expect(mockModelOption).toBeVisible({timeout: 15000})
     await mockModelOption.click()
 
+    // The dropdown closes after selection; verify the model button now shows the mock model.
+    // The configure popover itself is persistent — it does NOT auto-close on model selection,
+    // so we must not assert it closes. Dismiss it by pressing Escape so it does not overlay
+    // the playground inputs the test needs to interact with next.
     await expect(modelButton).toContainText(MOCK_MODEL_NAME, {timeout: 15000})
+    await page.keyboard.press("Escape")
+    // Give the popover a moment to animate out; if it stays open that is also fine
+    // (subsequent interactions use force:true).
+    await page.waitForTimeout(300)
 }
 
 const PROFILES: Record<TestProviderMode, ProviderProfile> = {

@@ -56,23 +56,45 @@ const openInviteMembersModal = async (page: any) => {
     await expect(inviteButton).toBeEnabled()
 
     const inviteModal = page.getByRole("dialog", {name: "Invite Members"})
-    const emailInput = inviteModal.getByPlaceholder("member@organization.com")
 
-    for (let attempt = 0; attempt < 2; attempt++) {
-        await inviteButton.click()
+    // Use a PAGE-LEVEL (unscoped) locator for the email input.
+    //
+    // Scoping through `inviteModal.getByPlaceholder(...)` is unreliable here because:
+    //   1. InviteUsersModal is a `dynamic()` import — the form mounts AFTER the modal
+    //      wrapper becomes visible, so the dialog-scoped locator resolves to zero elements
+    //      until the JS chunk fully evaluates.
+    //   2. rc-dialog briefly UNMOUNTS content while its `animatedVisible` useEffect
+    //      settles (fires on the next frame after first render), making a dialog-scoped
+    //      locator transiently stale.
+    // Searching the entire page avoids both issues while remaining unique in practice
+    // (only one invite form is ever present at a time).
+    const emailInput = page.getByPlaceholder("member@organization.com").first()
 
-        if (
-            await inviteModal
-                .waitFor({state: "visible", timeout: 5000})
-                .then(() => true)
-                .catch(() => false)
-        ) {
-            await expect(emailInput).toBeVisible({timeout: 20000})
+    for (let attempt = 0; attempt < 3; attempt++) {
+        // Ensure any previous dialog is closed before clicking again.
+        const alreadyOpen = await inviteModal.isVisible().catch(() => false)
+        if (!alreadyOpen) {
+            await inviteButton.click()
+        }
+
+        // Wait for the email input to become visible. This is the most reliable
+        // signal that both the modal wrapper AND its dynamic content are ready.
+        const inputAppeared = await emailInput
+            .waitFor({state: "visible", timeout: 15000})
+            .then(() => true)
+            .catch(() => false)
+
+        if (inputAppeared) {
             return {inviteModal, emailInput}
         }
+
+        // Form never appeared — dismiss any partial modal and retry.
+        await page.keyboard.press("Escape")
+        await page.waitForTimeout(500)
     }
 
-    await expect(emailInput).toBeVisible({timeout: 10000})
+    // Final assertion: surfaces a clear error if the input never appeared.
+    await expect(emailInput).toBeVisible({timeout: 15000})
     return {inviteModal, emailInput}
 }
 
@@ -123,7 +145,8 @@ const membersTests = () => {
         "should invite a member and verify pending state",
         {tag: lightFastTags},
         async ({page, apiHelpers, uiHelpers}) => {
-            test.setTimeout(60000)
+            // 90 s: navigation + up to 3 modal-open attempts × 15 s + fill + submit + assertion
+            test.setTimeout(90000)
             const testEmail = createInviteEmail("test-member-invite")
 
             await scenarios.given("the user is authenticated", async () => {

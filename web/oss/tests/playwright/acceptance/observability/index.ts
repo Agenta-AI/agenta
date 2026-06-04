@@ -58,11 +58,11 @@ const clickFirstTraceRow = async (page: any) => {
  *
  * Traces are indexed asynchronously. The first trace in an ephemeral project can
  * take up to ~150 s to appear. Setup (provider check + app creation + playground run)
- * adds another 30-60 s on top. The function enables auto-refresh (15 s interval)
+ * adds another 60-90 s on top. The function enables auto-refresh (15 s interval)
  * so the page re-fetches automatically, and also performs periodic manual refreshes
- * every 20 s for up to 200 s total while waiting for [data-tour="trace-row"].
+ * every 15 s for up to 240 s total while waiting for [data-tour="trace-row"].
  *
- * Tests using this function must set test.setTimeout to at least 300000 (5 min).
+ * Tests using this function must set test.setTimeout to at least 420000 (7 min).
  */
 const runPlaygroundAndGoToObservability = async (
     page: any,
@@ -129,11 +129,11 @@ const runPlaygroundAndGoToObservability = async (
     // find the wrong element or nothing at all.
     const firstDataRow = getFirstTraceRow(page)
 
-    // Poll every 20 s for up to 200 s. On each iteration we trigger a manual
+    // Poll every 15 s for up to 240 s. On each iteration we trigger a manual
     // refresh so the page re-fetches even if auto-refresh is slower than expected.
-    // Backend trace indexing can take 60-150 s; 200 s gives comfortable headroom.
-    const POLL_INTERVAL_MS = 20000
-    const MAX_POLLS = 10
+    // Backend trace indexing can take 60-150 s; 240 s gives comfortable headroom.
+    const POLL_INTERVAL_MS = 15000
+    const MAX_POLLS = 16
     for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
         if (await firstDataRow.isVisible().catch(() => false)) return
 
@@ -144,7 +144,7 @@ const runPlaygroundAndGoToObservability = async (
     }
 
     // Final assertion — surfaces a clear failure message if trace never arrived.
-    await expect(firstDataRow).toBeVisible({timeout: 10000})
+    await expect(firstDataRow).toBeVisible({timeout: 15000})
 }
 
 const observabilityTests = () => {
@@ -153,9 +153,9 @@ const observabilityTests = () => {
         "view traces",
         {tag: smokeTags},
         async ({page, uiHelpers, apiHelpers, testProviderHelpers}) => {
-            // 5 minutes: setup (provider + app creation + playground run) takes 30-60 s,
-            // and backend trace indexing can take up to 150 s after the invoke completes.
-            test.setTimeout(300000)
+            // 7 minutes: setup (provider + app creation + playground run) ~60-90 s,
+            // trace indexing up to ~150 s, polling 16×15 s = 240 s; total ≈ 390 s.
+            test.setTimeout(420000)
 
             await scenarios.given("the user is authenticated", async () => {
                 await expectAuthenticatedSession(page)
@@ -194,7 +194,7 @@ const observabilityTests = () => {
         "should filter traces by date range and by app",
         {tag: lightSlowTags},
         async ({page, apiHelpers, uiHelpers, testProviderHelpers}) => {
-            test.setTimeout(300000)
+            test.setTimeout(420000)
             await runPlaygroundAndGoToObservability(
                 page,
                 apiHelpers,
@@ -232,7 +232,7 @@ const observabilityTests = () => {
         "should filter traces by span name or attribute",
         {tag: lightSlowTags},
         async ({page, apiHelpers, uiHelpers, testProviderHelpers}) => {
-            test.setTimeout(300000)
+            test.setTimeout(420000)
             await runPlaygroundAndGoToObservability(
                 page,
                 apiHelpers,
@@ -272,7 +272,7 @@ const observabilityTests = () => {
         "should open a span and drill into its attributes",
         {tag: lightSlowTags},
         async ({page, apiHelpers, uiHelpers, testProviderHelpers}) => {
-            test.setTimeout(300000)
+            test.setTimeout(420000)
             await runPlaygroundAndGoToObservability(
                 page,
                 apiHelpers,
@@ -305,7 +305,7 @@ const observabilityTests = () => {
         "should switch between trace tabs and see filtered rows",
         {tag: lightSlowTags},
         async ({page, apiHelpers, uiHelpers, testProviderHelpers}) => {
-            test.setTimeout(300000)
+            test.setTimeout(420000)
             await runPlaygroundAndGoToObservability(
                 page,
                 apiHelpers,
@@ -348,7 +348,7 @@ const observabilityTests = () => {
         "should create a trace after a Playground run",
         {tag: lightSlowTags},
         async ({page, apiHelpers, uiHelpers, testProviderHelpers}) => {
-            test.setTimeout(300000)
+            test.setTimeout(420000)
 
             // runPlaygroundAndGoToObservability handles the full flow:
             // run a variant → navigate to observability → wait for trace row (with Refresh).
