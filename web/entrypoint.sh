@@ -25,6 +25,20 @@ else
   export AGENTA_SENDGRID_ENABLED="false"
 fi
 
+# Infer SMTP email delivery from strict SMTP requirements: host + port + sender
+SMTP_FROM_EMAIL_VALUE="${SMTP_FROM_EMAIL:-${AGENTA_AUTHN_EMAIL_FROM:-${AGENTA_SEND_EMAIL_FROM_ADDRESS}}}"
+if [ -n "$SMTP_HOST" ] && [ -n "$SMTP_PORT" ] && [ -n "$SMTP_FROM_EMAIL_VALUE" ]; then
+  AGENTA_SMTP_ENABLED="true"
+else
+  AGENTA_SMTP_ENABLED="false"
+fi
+
+if [ "${AGENTA_SMTP_ENABLED}" = "true" ] || [ "${AGENTA_SENDGRID_ENABLED}" = "true" ]; then
+  AGENTA_EMAIL_DELIVERY_ENABLED="true"
+else
+  AGENTA_EMAIL_DELIVERY_ENABLED="false"
+fi
+
 # Infer AGENTA_TOOLS_ENABLED from COMPOSIO_API_KEY
 if [ -n "$COMPOSIO_API_KEY" ]; then
   export AGENTA_TOOLS_ENABLED="true"
@@ -125,12 +139,12 @@ if [ -n "${BOXY_SAML_OAUTH_CLIENT_ID}" ] && [ -n "${BOXY_SAML_OAUTH_CLIENT_SECRE
   AUTH_OIDC_ENABLED="true"
 fi
 
-# Derive email auth method from SUPERTOKENS_EMAIL_DISABLED and SendGrid status
+# Derive email auth method from SUPERTOKENS_EMAIL_DISABLED and email delivery status
 SUPERTOKENS_EMAIL_DISABLED_VALUE="${SUPERTOKENS_EMAIL_DISABLED:-false}"
 EFFECTIVE_AUTHN_EMAIL=""
 if [ "${SUPERTOKENS_EMAIL_DISABLED_VALUE}" = "true" ]; then
   EFFECTIVE_AUTHN_EMAIL=""
-elif [ "${AGENTA_SENDGRID_ENABLED}" = "true" ]; then
+elif [ "${AGENTA_EMAIL_DELIVERY_ENABLED}" = "true" ]; then
   EFFECTIVE_AUTHN_EMAIL="otp"
 else
   EFFECTIVE_AUTHN_EMAIL="password"

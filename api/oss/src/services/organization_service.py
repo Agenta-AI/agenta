@@ -154,8 +154,8 @@ async def send_invitation_email(
         f"&project_id={project_param}"
     )
 
-    # If Sendgrid is not configured, return the link for manual sharing (URL-based invitation)
-    if not env.sendgrid.enabled:
+    # If email delivery is not configured, return the link for manual sharing.
+    if not (env.smtp.enabled or env.sendgrid.enabled):
         return invite_link
 
     html_template = email_service.read_email_template("./templates/send_email.html")
@@ -169,11 +169,12 @@ async def send_invitation_email(
         ),
     )
 
-    if not env.sendgrid.from_address:
-        raise ValueError("Sendgrid requires a sender email address to work.")
+    from_email = env.smtp.from_email if env.smtp.enabled else env.sendgrid.from_address
+    if not from_email:
+        raise ValueError("Email delivery requires a sender email address to work.")
 
     await email_service.send_email(
-        from_email=env.sendgrid.from_address,
+        from_email=from_email,
         to_email=email,
         subject=f"{user.username} invited you to join their organization",
         html_content=html_content,

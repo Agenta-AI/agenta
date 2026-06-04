@@ -922,8 +922,31 @@ class RedisConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# sendgrid
+# email delivery
 # ---------------------------------------------------------------------------
+
+
+class SmtpConfig(BaseModel):
+    """SMTP Email configuration"""
+
+    host: str | None = os.getenv("SMTP_HOST")
+    port: int | None = int(os.getenv("SMTP_PORT")) if os.getenv("SMTP_PORT") else None
+    username: str | None = os.getenv("SMTP_USERNAME")
+    password: str | None = os.getenv("SMTP_PASSWORD")
+    from_email: str | None = (
+        os.getenv("SMTP_FROM_EMAIL")
+        or os.getenv("AGENTA_AUTHN_EMAIL_FROM")
+        or os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS")
+    )
+    use_tls: bool = (os.getenv("SMTP_USE_TLS") or "true").lower() in _TRUTHY
+    use_ssl: bool = (os.getenv("SMTP_USE_SSL") or "false").lower() in _TRUTHY
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        """SMTP enabled only if host, port, and sender are present"""
+        return bool(self.host and self.port and self.from_email)
 
 
 class SendgridConfig(BaseModel):
@@ -1037,15 +1060,7 @@ class AuthFacade(BaseModel):
         if env.agenta.access.email_disabled:
             return ""
 
-        sendgrid_enabled = bool(
-            os.getenv("SENDGRID_API_KEY")
-            and (
-                os.getenv("SENDGRID_FROM_ADDRESS")
-                or os.getenv("AGENTA_AUTHN_EMAIL_FROM")
-                or os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS")
-            )
-        )
-        return "otp" if sendgrid_enabled else "password"
+        return "otp" if env.smtp.enabled or env.sendgrid.enabled else "password"
 
     @property
     def email_enabled(self) -> bool:
@@ -1100,6 +1115,7 @@ class EnvironSettings(BaseModel):
     postgres: PostgresConfig = PostgresConfig()
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()
+    smtp: SmtpConfig = SmtpConfig()
     sendgrid: SendgridConfig = SendgridConfig()
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()

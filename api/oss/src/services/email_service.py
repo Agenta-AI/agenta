@@ -1,4 +1,7 @@
 import os
+import smtplib
+import ssl
+from email.message import EmailMessage
 
 import sendgrid
 from sendgrid.helpers.mail import Mail
@@ -10,7 +13,15 @@ from oss.src.utils.logging import get_logger
 
 log = get_logger(__name__)
 
-# Initialize SendGrid only if enabled
+# Initialize email providers only if enabled
+if env.smtp.enabled:
+    log.info("✓ SMTP email enabled")
+else:
+    if (env.smtp.host or env.smtp.port) and not env.smtp.from_email:
+        log.warn("✗ SMTP disabled: missing sender email address")
+    else:
+        log.warn("✗ SMTP disabled")
+
 if env.sendgrid.enabled:
     sg = sendgrid.SendGridAPIClient(api_key=env.sendgrid.api_key)
     log.info("✓ SendGrid enabled")
@@ -54,11 +65,62 @@ async def send_email(
         HTTPException: If there is an error sending the email.
     """
 
-    # No-op if SendGrid is disabled
-    if not env.sendgrid.enabled:
-        log.info(f"[SENDGRID] Email disabled - would send '{subject}' to {to_email}")
-        return True
+    if env.smtp.enabled:
+        return await _send_smtp_email(
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            from_email=from_email,
+        )
 
+    if env.sendgrid.enabled:
+        return await _send_sendgrid_email(
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            from_email=from_email,
+        )
+
+    log.info(f"[EMAIL] Email disabled - would send '{subject}' to {to_email}")
+    return True
+
+
+async def _send_smtp_email(
+    to_email: str, subject: str, html_content: str, from_email: str
+) -> bool:
+    message = EmailMessage()
+    message["From"] = from_email or env.smtp.from_email
+    message["To"] = to_email
+    message["Subject"] = subject
+    message.set_content(html_content, subtype="html")
+
+    context = ssl.create_default_context()
+
+    try:
+        if env.smtp.use_ssl:
+            with smtplib.SMTP_SSL(
+                env.smtp.host,
+                env.smtp.port,
+                context=context,
+            ) as smtp:
+                if env.smtp.username:
+                    smtp.login(env.smtp.username, env.smtp.password)
+                smtp.send_message(message)
+        else:
+            with smtplib.SMTP(env.smtp.host, env.smtp.port) as smtp:
+                if env.smtp.use_tls:
+                    smtp.starttls(context=context)
+                if env.smtp.username:
+                    smtp.login(env.smtp.username, env.smtp.password)
+                smtp.send_message(message)
+        return True
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _send_sendgrid_email(
+    to_email: str, subject: str, html_content: str, from_email: str
+) -> bool:
     message = Mail(
         from_email=from_email,
         to_emails=to_email,
