@@ -544,7 +544,7 @@ class EvaluationsService:
         Checks Redis for eval:run:{run_id}:lock.
         """
         from oss.src.core.evaluations.runtime.locks import (
-            has_mutation_lock as _has_mutation_lock,
+            has_run_lock as _has_mutation_lock,
         )
 
         return await _has_mutation_lock(run_id=str(run_id))

@@ -6,11 +6,11 @@ external Redis process. Install `fakeredis` in the test environment to enable
 them.
 
 Tests cover:
-    - acquire_job_lock / acquire_mutation_lock
+    - acquire_job_lock / acquire_run_lock
     - renew with correct and wrong token
     - release with correct and wrong token
     - list_active_job_locks / is_run_executing
-    - get_mutation_lock / has_mutation_lock
+    - get_run_lock / has_run_lock
     - heartbeat expiration (TTL=1 s test)
     - task wrapper releases lock on exception
 """
@@ -219,18 +219,18 @@ async def test_acquire_job_lock_returns_none_when_singleton_slot_is_held(fake_re
 
 
 # ---------------------------------------------------------------------------
-# acquire_mutation_lock
+# acquire_run_lock
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_acquire_mutation_lock_succeeds(fake_redis):
-    from oss.src.core.evaluations.runtime.locks import acquire_mutation_lock
+    from oss.src.core.evaluations.runtime.locks import acquire_run_lock
 
     run_id = _run_id()
     job_id = _job_id()
 
-    payload = await acquire_mutation_lock(run_id=run_id, job_id=job_id, job_type="web")
+    payload = await acquire_run_lock(run_id=run_id, job_id=job_id, job_type="web")
 
     assert payload is not None
     assert payload.job_type == "web"
@@ -238,14 +238,14 @@ async def test_acquire_mutation_lock_succeeds(fake_redis):
 
 @pytest.mark.asyncio
 async def test_acquire_mutation_lock_returns_none_when_held(fake_redis):
-    from oss.src.core.evaluations.runtime.locks import acquire_mutation_lock
+    from oss.src.core.evaluations.runtime.locks import acquire_run_lock
 
     run_id = _run_id()
 
-    first = await acquire_mutation_lock(run_id=run_id, job_id=_job_id())
+    first = await acquire_run_lock(run_id=run_id, job_id=_job_id())
     assert first is not None
 
-    second = await acquire_mutation_lock(run_id=run_id, job_id=_job_id())
+    second = await acquire_run_lock(run_id=run_id, job_id=_job_id())
     assert second is None
 
 
@@ -379,34 +379,34 @@ async def test_list_active_job_locks_returns_all_jobs(fake_redis):
 
 
 # ---------------------------------------------------------------------------
-# has_mutation_lock / get_mutation_lock
+# has_run_lock / get_run_lock
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_has_mutation_lock_false_when_not_acquired(fake_redis):
-    from oss.src.core.evaluations.runtime.locks import has_mutation_lock
+    from oss.src.core.evaluations.runtime.locks import has_run_lock
 
     run_id = _run_id()
-    assert await has_mutation_lock(run_id=run_id) is False
+    assert await has_run_lock(run_id=run_id) is False
 
 
 @pytest.mark.asyncio
 async def test_has_mutation_lock_true_after_acquire(fake_redis):
     from oss.src.core.evaluations.runtime.locks import (
-        acquire_mutation_lock,
-        has_mutation_lock,
-        get_mutation_lock,
+        acquire_run_lock,
+        has_run_lock,
+        get_run_lock,
     )
 
     run_id = _run_id()
     job_id = _job_id()
 
-    payload = await acquire_mutation_lock(run_id=run_id, job_id=job_id, job_type="sdk")
+    payload = await acquire_run_lock(run_id=run_id, job_id=job_id, job_type="sdk")
     assert payload is not None
-    assert await has_mutation_lock(run_id=run_id) is True
+    assert await has_run_lock(run_id=run_id) is True
 
-    stored = await get_mutation_lock(run_id=run_id)
+    stored = await get_run_lock(run_id=run_id)
     assert stored is not None
     assert stored.job_id == job_id
     assert stored.job_type == "sdk"
@@ -578,7 +578,7 @@ async def test_with_job_lock_cancels_runner_when_heartbeat_fails():
     with (
         patch.object(
             worker_module,
-            "has_mutation_lock",
+            "has_run_lock",
             AsyncMock(return_value=False),
         ),
         patch.object(
@@ -623,7 +623,7 @@ async def test_with_job_lock_raises_specific_skip_error_when_lock_not_acquired()
     with (
         patch.object(
             worker_module,
-            "has_mutation_lock",
+            "has_run_lock",
             AsyncMock(return_value=False),
         ),
         patch.object(

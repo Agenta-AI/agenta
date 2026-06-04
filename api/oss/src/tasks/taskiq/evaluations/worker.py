@@ -25,7 +25,7 @@ from oss.src.core.evaluations.runtime.models import SliceProcessMode
 from oss.src.core.evaluations.runtime.locks import (
     acquire_job_lock,
     release_job_lock,
-    has_mutation_lock,
+    has_run_lock,
     run_job_heartbeat,
 )
 from oss.src.utils.logging import get_module_logger
@@ -110,7 +110,7 @@ class EvaluationsWorker:
         run_id_str = str(run_id)
         lock_id = job_id if allow_concurrency else "singleton"
 
-        if await has_mutation_lock(run_id=run_id_str):
+        if await has_run_lock(run_id=run_id_str):
             log.error(
                 "[LOCK] Mutation lock detected before job start — task failed, re-dispatch required",
                 run_id=run_id_str,
