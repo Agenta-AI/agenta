@@ -608,6 +608,7 @@ export const EvaluatorReferenceLabel = memo(
                 tone={toneOverride === null ? undefined : (toneOverride ?? "evaluator")}
                 openExternally={openExternally}
                 style={workflowTypeStyle}
+                iconColor={workflowTypeColor?.text}
             />
         )
     },
