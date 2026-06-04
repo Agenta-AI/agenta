@@ -86,10 +86,9 @@ const runPlaygroundAndGoToObservability = async (
     // Select the mock test model
     await testProviderHelpers.selectTestModel()
 
-    // Fill in the completion input and run
-    const textbox = page
-        .locator('.agenta-shared-editor:has(div:text-is("Enter a value")) [role="textbox"]')
-        .first()
+    // Fill in the completion input and run.
+    // VariableCard renders antd TextArea (<textarea>), not SharedEditor.
+    const textbox = page.locator(".agenta-variable-card textarea:placeholder-shown").first()
     await expect(textbox).toBeVisible({timeout: 15000})
     await textbox.click({force: true})
     await textbox.pressSequentially("Say hello", {delay: 50})

@@ -92,9 +92,8 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 await expect(typeof message).toBe("string")
 
                 // 2. Find out the empty textbox
-                const textboxes = page.locator(
-                    '.agenta-shared-editor:has(div:text-is("Enter a value")) [role="textbox"]',
-                )
+                // VariableCard renders antd TextArea (<textarea>), not SharedEditor.
+                const textboxes = page.locator(".agenta-variable-card textarea:placeholder-shown")
                 const targetTextbox = textboxes.first()
 
                 await targetTextbox.scrollIntoViewIfNeeded()
