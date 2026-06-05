@@ -31,9 +31,9 @@ describe("validateTemplateVariable — empty / malformed", () => {
 // ---------------------------------------------------------------------------
 
 describe("validateTemplateVariable — JSONPath", () => {
-    it("rejects bare '$' (no envelope slot after root)", () => {
-        // On main: tokens after stripping '$.' are empty → invalid
-        expect(validateTemplateVariable("$").valid).toBe(false)
+    it("accepts bare '$' (whole-context compact JSON)", () => {
+        // Bare '$' resolves the whole context object — valid per the runtime contract.
+        expect(validateTemplateVariable("$").valid).toBe(true)
     })
 
     it("accepts a well-formed JSONPath rooted at a known slot", () => {
@@ -41,16 +41,19 @@ describe("validateTemplateVariable — JSONPath", () => {
         expect(validateTemplateVariable("$.outputs.result").valid).toBe(true)
     })
 
-    it("rejects a JSONPath whose root is not a known envelope slot", () => {
+    it("accepts a JSONPath with an unknown root (permissive — root becomes a testcase column)", () => {
+        // Per post-mustache QA: any well-formed '$.x' is valid; slot mismatches
+        // surface as runtime errors from the API, not UI errors.
         const result = validateTemplateVariable("$.arbitrary_column")
-        expect(result.valid).toBe(false)
-        expect(result.reason).toMatch(/unknown envelope slot/i)
+        expect(result.valid).toBe(true)
     })
 
-    it("includes a 'did-you-mean' suggestion for near-miss slot names", () => {
-        const result = validateTemplateVariable("$.input.country") // 'input' ≈ 'inputs'
-        expect(result.valid).toBe(false)
-        expect(result.suggestion).toBe("inputs")
+    it("accepts a near-miss JSONPath without a typo suggestion (permissive)", () => {
+        // The JSONPath branch no longer emits 'did-you-mean' hints; the user's
+        // literal text wins and the root is treated as a testcase column name.
+        const result = validateTemplateVariable("$.input.country")
+        expect(result.valid).toBe(true)
+        expect(result.suggestion).toBeUndefined()
     })
 })
 
@@ -64,13 +67,15 @@ describe("validateTemplateVariable — JSON Pointer", () => {
         expect(validateTemplateVariable("/outputs/result").valid).toBe(true)
     })
 
-    it("rejects a pointer with an unknown root slot", () => {
+    it("accepts a single-segment identifier (may be a mustache section close tag)", () => {
+        // '/identifier' is ambiguous: it could be '{{/close}}' in mustache or a
+        // JSON Pointer to an envelope slot. Single-segment paths are accepted
+        // unconditionally; the runtime is the source of truth.
         const result = validateTemplateVariable("/section")
-        expect(result.valid).toBe(false)
-        expect(result.reason).toMatch(/unknown envelope slot/i)
+        expect(result.valid).toBe(true)
     })
 
-    it("includes a 'did-you-mean' suggestion for near-miss slot names", () => {
+    it("rejects a multi-segment pointer with an unknown root slot", () => {
         const result = validateTemplateVariable("/input/country")
         expect(result.valid).toBe(false)
         expect(result.suggestion).toBe("inputs")
@@ -107,7 +112,8 @@ describe("isValidTemplateVariable", () => {
 
     it("returns false for an invalid expression", () => {
         expect(isValidTemplateVariable("")).toBe(false)
-        expect(isValidTemplateVariable("$.unknown_slot")).toBe(false)
+        expect(isValidTemplateVariable("$foo")).toBe(false) // missing '.' after '$'
+        expect(isValidTemplateVariable("$.")).toBe(false) // trailing dot, no field
     })
 })
 
