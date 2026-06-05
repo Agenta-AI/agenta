@@ -68,6 +68,13 @@ def get_passwordless_email_delivery():
     if not env.smtp.enabled:
         return None
 
+    if not env.smtp.use_ssl and not env.smtp.use_tls:
+        log.warning(
+            "Passwordless email delivery via SuperTokens may still attempt STARTTLS "
+            "even though SMTP_USE_TLS=false; set SMTP_USE_SSL=true or "
+            "SMTP_USE_TLS=true to avoid this difference."
+        )
+
     return EmailDeliveryConfig(
         service=passwordless.SMTPService(
             SMTPSettings(

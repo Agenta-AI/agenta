@@ -1,3 +1,4 @@
+import asyncio
 import os
 import smtplib
 import ssl
@@ -81,11 +82,30 @@ async def send_email(
             from_email=from_email,
         )
 
-    log.info(f"[EMAIL] Email disabled - would send '{subject}' to {to_email}")
+    log.info("[EMAIL] Email disabled - skipping email send")
     return True
 
 
 async def _send_smtp_email(
+    to_email: str, subject: str, html_content: str, from_email: str
+) -> bool:
+    try:
+        return await asyncio.to_thread(
+            _send_smtp_email_sync,
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            from_email=from_email,
+        )
+    except Exception:
+        log.exception("Failed to send SMTP email")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to send email",
+        )
+
+
+def _send_smtp_email_sync(
     to_email: str, subject: str, html_content: str, from_email: str
 ) -> bool:
     message = EmailMessage()
@@ -96,26 +116,29 @@ async def _send_smtp_email(
 
     context = ssl.create_default_context()
 
-    try:
-        if env.smtp.use_ssl:
-            with smtplib.SMTP_SSL(
-                env.smtp.host,
-                env.smtp.port,
-                context=context,
-            ) as smtp:
-                if env.smtp.username:
-                    smtp.login(env.smtp.username, env.smtp.password)
-                smtp.send_message(message)
-        else:
-            with smtplib.SMTP(env.smtp.host, env.smtp.port) as smtp:
-                if env.smtp.use_tls:
-                    smtp.starttls(context=context)
-                if env.smtp.username:
-                    smtp.login(env.smtp.username, env.smtp.password)
-                smtp.send_message(message)
-        return True
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    if env.smtp.use_ssl:
+        with smtplib.SMTP_SSL(
+            env.smtp.host,
+            env.smtp.port,
+            context=context,
+            timeout=env.smtp.timeout,
+        ) as smtp:
+            if env.smtp.username:
+                smtp.login(env.smtp.username, env.smtp.password)
+            smtp.send_message(message)
+    else:
+        with smtplib.SMTP(
+            env.smtp.host,
+            env.smtp.port,
+            timeout=env.smtp.timeout,
+        ) as smtp:
+            if env.smtp.use_tls:
+                smtp.starttls(context=context)
+            if env.smtp.username:
+                smtp.login(env.smtp.username, env.smtp.password)
+            smtp.send_message(message)
+
+    return True
 
 
 async def _send_sendgrid_email(
