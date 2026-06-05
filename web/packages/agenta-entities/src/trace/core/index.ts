@@ -51,6 +51,10 @@ export {
     type SessionIdsResponse,
     traceIdResponseSchema,
     type TraceIdResponse,
+    metricsBucketSchema,
+    type MetricsBucket,
+    analyticsResponseSchema,
+    type AnalyticsResponse,
     // Parsing utilities
     parseTraceSpan,
     parseTracesResponse,

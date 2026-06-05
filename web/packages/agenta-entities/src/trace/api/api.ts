@@ -24,10 +24,12 @@ import {
     traceIdResponseSchema,
     traceResponseSchema,
     tracesArrayResponseSchema,
+    analyticsResponseSchema,
     type SpansResponse,
     type TracesResponse,
     type SessionIdsResponse,
     type TraceIdResponse,
+    type AnalyticsResponse,
 } from "../core"
 
 import {fernTracesToLegacyTraceMap} from "./adapters"
@@ -277,4 +279,67 @@ export async function fetchSessions(
     )
     if (!data) return null
     return safeParseWithLogging(sessionIdsResponseSchema, data, "[fetchSessions]")
+}
+
+export interface SpansAnalyticsParams {
+    projectId: string
+    appId?: string | null
+    /** Aggregation focus — "trace" mirrors the legacy dashboard query. */
+    focus?: AgentaApi.Focus
+    /** Bucket size in minutes. */
+    interval?: number
+    /** ISO window bounds (inclusive). `newest` undefined means "now". */
+    oldest?: string
+    newest?: string
+    /**
+     * Structured span filter (`{conditions: [...]}`), same dialect as the
+     * legacy analytics `filter` body. Serialized to the JSON-string `filter`
+     * query param expected by the new endpoint.
+     */
+    filter?: unknown
+    abortSignal?: AbortSignal
+}
+
+/**
+ * POST /spans/analytics/query via Fern (`querySpansAnalytics`) — replaces the
+ * deprecated `POST /tracing/spans/analytics` used by the observability
+ * generation dashboard (AGE-3788 Phase 6).
+ *
+ * `specs` is intentionally omitted: when absent, the backend applies its
+ * `DEFAULT_ANALYTICS_SPECS` (duration / errors / costs / tokens cumulative +
+ * trace/span type counts), which is exactly the set the dashboard needs. The
+ * response `buckets[].metrics` dict is keyed by each spec's dotted path; the
+ * OSS transform (`analyticsToGeneration`) reads the numeric fields it needs.
+ */
+export async function fetchSpansAnalytics(
+    params: SpansAnalyticsParams,
+): Promise<AnalyticsResponse | null> {
+    const {
+        projectId,
+        appId,
+        focus = "trace",
+        interval,
+        oldest,
+        newest,
+        filter,
+        abortSignal,
+    } = params
+
+    if (!projectId) return null
+
+    const request: AgentaApi.QuerySpansAnalyticsRequest = {focus}
+    if (interval !== undefined) request.interval = interval
+    if (oldest) request.oldest = oldest
+    if (newest) request.newest = newest
+    // `filter`/`specs` are JSON-string query params on the new endpoint.
+    if (filter !== undefined && filter !== null) request.filter = JSON.stringify(filter)
+
+    const data = await callFern("[fetchSpansAnalytics]", () =>
+        getTracesClient().querySpansAnalytics(
+            request,
+            projectScopedRequest(projectId, appId ?? undefined, abortSignal),
+        ),
+    )
+    if (!data) return null
+    return safeParseWithLogging(analyticsResponseSchema, data, "[fetchSpansAnalytics]")
 }

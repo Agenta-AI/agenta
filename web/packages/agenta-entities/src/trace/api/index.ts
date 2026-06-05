@@ -11,8 +11,10 @@ export {
     fetchPreviewTrace,
     deletePreviewTrace,
     fetchSessions,
+    fetchSpansAnalytics,
     type TraceQueryParams,
     type SessionQueryParams,
+    type SpansAnalyticsParams,
     type PreviewTracesRateLimit,
     type PreviewTracesWithMetaResult,
 } from "./api"

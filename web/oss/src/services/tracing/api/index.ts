@@ -1,19 +1,20 @@
+import {fetchSpansAnalytics} from "@agenta/entities/trace"
 import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 
 import {SortResult} from "@/oss/components/Filters/Sort"
-import {ensureAppId, fetchJson, getBaseUrl} from "@/oss/lib/api/assets/fetchClient"
+import {ensureAppId} from "@/oss/lib/api/assets/fetchClient"
 import {getProjectValues} from "@/oss/state/project"
 
-import {calculateIntervalFromDuration, tracingToGeneration} from "../lib/helpers"
-import {GenerationDashboardData, TracingDashboardData} from "../types"
+import {analyticsToGeneration, calculateIntervalFromDuration} from "../lib/helpers"
+import {GenerationDashboardData} from "../types"
 
 dayjs.extend(utc)
 
-// AGE-3788: fetchAllPreviewTraces / fetchAllPreviewTracesWithMeta / fetchPreviewTrace
-// / deletePreviewTrace / fetchSessions moved to the Fern client under
-// `@agenta/entities/trace` (Phases 1-5). Only the analytics dashboard below
-// remains here, pending the Phase 6 migration (gated on the MetricSpec contract).
+// AGE-3788: every tracing call in this module is now served by the Fern client
+// under `@agenta/entities/trace` — list/detail/delete/sessions (Phases 1-5) and
+// the analytics dashboard below (Phase 6, `fetchSpansAnalytics` ->
+// POST /spans/analytics/query). No raw `/tracing/*` fetch remains.
 
 export const fetchGenerationsDashboardData = async (
     appId: string | null | undefined,
@@ -28,17 +29,12 @@ export const fetchGenerationsDashboardData = async (
     const {projectId: propsProjectId, signal, ...options} = _options
     const {projectId: stateProjectId} = getProjectValues()
 
-    const base = getBaseUrl()
     const projectId = propsProjectId || stateProjectId
     const applicationId = ensureAppId(appId || undefined)
 
     if (signal?.aborted) {
         throw new DOMException("Aborted", "AbortError")
     }
-
-    const url = new URL(`${base}/tracing/spans/analytics`)
-    if (projectId) url.searchParams.set("project_id", projectId)
-    if (applicationId) url.searchParams.set("application_id", applicationId)
 
     const conditions: any[] = []
 
@@ -101,21 +97,18 @@ export const fetchGenerationsDashboardData = async (
     if (durationHours <= 24) rangeString = "24_hours"
     else if (durationHours <= 168) rangeString = "7_days"
 
-    const payload: Record<string, any> = {
+    const analytics = await fetchSpansAnalytics({
+        projectId: projectId ?? "",
+        appId: applicationId,
         focus: "trace",
         interval,
         oldest: startTime,
         newest: endTime,
-        ...(conditions.length ? {filter: {conditions}} : {}),
-    }
-
-    const response = await fetchJson(url, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(payload),
-        signal,
+        filter: conditions.length ? {conditions} : undefined,
+        abortSignal: signal,
     })
 
-    const valTracing = response as TracingDashboardData
-    return tracingToGeneration(valTracing, rangeString) as GenerationDashboardData
+    // `fetchSpansAnalytics` returns null on non-2xx / shape-mismatch; the
+    // dashboard treats that as "no data" rather than throwing.
+    return analyticsToGeneration(analytics ?? {buckets: []}, rangeString) as GenerationDashboardData
 }

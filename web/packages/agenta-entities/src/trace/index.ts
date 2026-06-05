@@ -85,6 +85,11 @@ export {
     spansResponseSchema,
     type SpansResponse,
     type TraceListResponse,
+    // Analytics (AGE-3788 Phase 6)
+    metricsBucketSchema,
+    type MetricsBucket,
+    analyticsResponseSchema,
+    type AnalyticsResponse,
 } from "./core"
 
 // Type definitions
@@ -107,8 +112,10 @@ export {
     fetchPreviewTrace,
     deletePreviewTrace,
     fetchSessions,
+    fetchSpansAnalytics,
     type TraceQueryParams,
     type SessionQueryParams,
+    type SpansAnalyticsParams,
     type PreviewTracesRateLimit,
     type PreviewTracesWithMetaResult,
 } from "./api"

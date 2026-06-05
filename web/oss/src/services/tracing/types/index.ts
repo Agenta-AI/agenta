@@ -120,26 +120,11 @@ export interface SpansResponse {
     spans: TraceSpan[]
 }
 
-export interface TracingDashboardData {
-    buckets: {
-        errors: {
-            costs: number
-            count: number
-            duration: number
-            tokens: number
-        }
-        timestamp: string
-        total: {
-            costs: number
-            count: number
-            duration: number
-            tokens: number
-        }
-        interval: number
-    }[]
-    count: number
-    version: string
-}
+// AGE-3788: `TracingDashboardData` (the old success/error bucket split returned
+// by the deprecated `/tracing/spans/analytics`) was removed. The dashboard now
+// reads spec-based metric buckets from `/spans/analytics/query` via the entities
+// `AnalyticsResponse` type; `analyticsToGeneration` maps them onto
+// `GenerationDashboardData` below.
 
 export interface GenerationDashboardData {
     data: {

@@ -13,10 +13,18 @@ const deleteTrace = vi.fn()
 const fetchTrace = vi.fn()
 const querySpans = vi.fn()
 const queryTraces = vi.fn()
+const querySpansAnalytics = vi.fn()
 
 vi.mock("@agenta/sdk", () => ({
     getAgentaSdkClient: () => ({
-        traces: {querySpansSessions, deleteTrace, fetchTrace, querySpans, queryTraces},
+        traces: {
+            querySpansSessions,
+            deleteTrace,
+            fetchTrace,
+            querySpans,
+            queryTraces,
+            querySpansAnalytics,
+        },
     }),
 }))
 
@@ -27,6 +35,7 @@ import {
     fetchAllPreviewTracesWithMeta,
     fetchPreviewTrace,
     fetchSessions,
+    fetchSpansAnalytics,
     transformTracesResponseToTree,
     transformTracingResponse,
 } from "../../src/trace/api"
@@ -37,6 +46,7 @@ beforeEach(() => {
     fetchTrace.mockReset()
     querySpans.mockReset()
     queryTraces.mockReset()
+    querySpansAnalytics.mockReset()
 })
 
 describe("fetchSessions (Phase 1 — POST /spans/sessions/query)", () => {
@@ -266,5 +276,84 @@ describe("fetchAllPreviewTracesWithMeta (Phase 5 CQ2 — rate-limit pacing)", ()
         await expect(fetchAllPreviewTracesWithMeta({focus: "span"}, "", "proj-9")).rejects.toBe(
             abort,
         )
+    })
+})
+
+describe("fetchSpansAnalytics (Phase 6 — POST /spans/analytics/query)", () => {
+    it("omits `specs` (backend defaults), sends focus/interval/window and JSON-string filter", async () => {
+        querySpansAnalytics.mockResolvedValueOnce({count: 0, buckets: []})
+
+        await fetchSpansAnalytics({
+            projectId: "proj-9",
+            appId: "app-1",
+            focus: "trace",
+            interval: 60,
+            oldest: "2026-01-01T00:00:00Z",
+            newest: "2026-01-02T00:00:00Z",
+            filter: {conditions: [{field: "references", operator: "in", value: [{id: "app-1"}]}]},
+        })
+
+        expect(querySpansAnalytics).toHaveBeenCalledTimes(1)
+        const [request, opts] = querySpansAnalytics.mock.calls[0]
+        // `specs` MUST be absent so the backend applies DEFAULT_ANALYTICS_SPECS.
+        expect(request).not.toHaveProperty("specs")
+        expect(request.focus).toBe("trace")
+        expect(request.interval).toBe(60)
+        expect(request.oldest).toBe("2026-01-01T00:00:00Z")
+        expect(request.newest).toBe("2026-01-02T00:00:00Z")
+        // filter is a JSON-encoded string query param, not a structured body.
+        expect(typeof request.filter).toBe("string")
+        expect(JSON.parse(request.filter)).toEqual({
+            conditions: [{field: "references", operator: "in", value: [{id: "app-1"}]}],
+        })
+        expect(opts.queryParams).toEqual({project_id: "proj-9", application_id: "app-1"})
+    })
+
+    it("omits `filter` when no conditions are supplied", async () => {
+        querySpansAnalytics.mockResolvedValueOnce({count: 0, buckets: []})
+        await fetchSpansAnalytics({projectId: "proj-9", interval: 30})
+        const [request, opts] = querySpansAnalytics.mock.calls[0]
+        expect(request).not.toHaveProperty("filter")
+        expect(request).not.toHaveProperty("specs")
+        expect(request.focus).toBe("trace") // default focus
+        expect(opts.queryParams).toEqual({project_id: "proj-9"})
+    })
+
+    it("returns null without calling Fern when projectId is empty", async () => {
+        const res = await fetchSpansAnalytics({projectId: ""})
+        expect(res).toBeNull()
+        expect(querySpansAnalytics).not.toHaveBeenCalled()
+    })
+
+    it("parses a representative analytics response (metrics keyed by dotted path)", async () => {
+        const buckets = [
+            {
+                timestamp: "2026-01-01T00:00:00Z",
+                interval: 60,
+                metrics: {
+                    "attributes.ag.metrics.costs.cumulative.total": {
+                        type: "numeric/continuous",
+                        count: 3,
+                        sum: 0.42,
+                    },
+                    "attributes.ag.type.trace": {type: "categorical/single", count: 3},
+                },
+            },
+        ]
+        querySpansAnalytics.mockResolvedValueOnce({count: 1, buckets})
+        const res = await fetchSpansAnalytics({projectId: "proj-9"})
+        expect(res).toEqual({count: 1, buckets})
+    })
+
+    it("returns null when the Fern call throws (AgentaApiError -> null)", async () => {
+        querySpansAnalytics.mockRejectedValueOnce(new Error("500"))
+        const res = await fetchSpansAnalytics({projectId: "proj-9"})
+        expect(res).toBeNull()
+    })
+
+    it("rethrows AbortError so TanStack Query can cancel", async () => {
+        const abort = new DOMException("Aborted", "AbortError")
+        querySpansAnalytics.mockRejectedValueOnce(abort)
+        await expect(fetchSpansAnalytics({projectId: "proj-9"})).rejects.toBe(abort)
     })
 })

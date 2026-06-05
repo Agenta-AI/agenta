@@ -301,6 +301,28 @@ export const traceIdResponseSchema = z.object({
 })
 export type TraceIdResponse = z.infer<typeof traceIdResponseSchema>
 
+// POST /spans/analytics/query  -> AnalyticsResponse (Fern `querySpansAnalytics`)
+// Each bucket's `metrics` dict is keyed by the dotted `MetricSpec.path` (e.g.
+// "attributes.ag.metrics.costs.cumulative.total"); each value is a free-form
+// stats blob ({type, count, sum, mean, min, max, ...histogram/percentiles}).
+// Kept deliberately lenient — the dashboard reads a few numeric fields and must
+// tolerate missing/extra keys across metric types and backend revisions.
+export const metricsBucketSchema = z.object({
+    timestamp: z.string(),
+    interval: z.number().optional().nullable(),
+    metrics: z
+        .record(z.string(), z.record(z.string(), z.unknown()).nullable())
+        .optional()
+        .nullable(),
+})
+export type MetricsBucket = z.infer<typeof metricsBucketSchema>
+
+export const analyticsResponseSchema = z.object({
+    count: z.number().optional(),
+    buckets: z.array(metricsBucketSchema).optional().nullable(),
+})
+export type AnalyticsResponse = z.infer<typeof analyticsResponseSchema>
+
 // Combined response type for list queries
 export interface TraceListResponse {
     traces: TraceSpanNode[]
