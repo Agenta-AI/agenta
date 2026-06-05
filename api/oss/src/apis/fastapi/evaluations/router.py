@@ -347,7 +347,7 @@ class EvaluationsRouter:
         # POST /api/evaluations/results/
         self.router.add_api_route(
             path="/results/",
-            methods=["POST"],
+            methods=["POST", "PUT", "PATCH"],
             endpoint=self.set_results,
             response_model=EvaluationResultsResponse,
             response_model_exclude_none=True,
@@ -410,7 +410,7 @@ class EvaluationsRouter:
         # POST /api/evaluations/metrics/
         self.router.add_api_route(
             path="/metrics/",
-            methods=["POST"],
+            methods=["POST", "PUT", "PATCH"],
             endpoint=self.set_metrics,
             response_model=EvaluationMetricsResponse,
             response_model_exclude_none=True,
