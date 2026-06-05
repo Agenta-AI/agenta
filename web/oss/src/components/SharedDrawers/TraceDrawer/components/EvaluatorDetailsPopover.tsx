@@ -38,7 +38,7 @@ const EvaluatorDetailsPopover = ({
     fallbackLabel,
     children,
 }: EvaluatorDetailsPopoverProps) => {
-    const {buildEvaluatorTarget, navigateToEvaluator} = useEvaluatorNavigation()
+    const {buildEvaluatorTarget} = useEvaluatorNavigation()
     const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(evaluator?.id || ""))
 
     const evaluatorName = evaluator?.name || fallbackLabel
@@ -123,10 +123,9 @@ const EvaluatorDetailsPopover = ({
                         type="default"
                         size="small"
                         block
+                        href={target.href}
                         onClick={(event) => {
-                            event?.preventDefault?.()
                             event?.stopPropagation?.()
-                            navigateToEvaluator(isHuman ? evaluator : evaluatorWithLatestRevision)
                         }}
                     >
                         {isHuman ? "Open evaluator registry" : "Open evaluator playground"}
