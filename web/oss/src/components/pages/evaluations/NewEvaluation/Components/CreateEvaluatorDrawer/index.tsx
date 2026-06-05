@@ -40,6 +40,7 @@ import {
     hasAppConnectedAtom,
     selectedAppLabelAtom,
 } from "@/oss/components/Evaluators/components/ConfigureEvaluator/atoms"
+import SelectAppEmptyState from "@/oss/components/Evaluators/components/ConfigureEvaluator/SelectAppEmptyState"
 import {clearEvaluatorWorkflowCache} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
 import PlaygroundTestcaseEditor from "@/oss/components/Playground/Components/PlaygroundTestcaseEditor"
 import {OSSPlaygroundShell} from "@/oss/components/Playground/OSSPlaygroundShell"
@@ -214,18 +215,11 @@ const DrawerContent = ({
 
     const runDisabledContent = useMemo(
         () => (
-            <>
-                <Typography.Text type="secondary" className="text-sm">
-                    Select an app to run the evaluator chain
-                </Typography.Text>
-                <EntityPicker<WorkflowRevisionSelectionResult>
-                    variant="popover-cascader"
-                    adapter={appWorkflowAdapter}
-                    onSelect={handleAppSelect}
-                    size="middle"
-                    placeholder={selectedAppLabel ?? "Select app"}
-                />
-            </>
+            <SelectAppEmptyState
+                adapter={appWorkflowAdapter}
+                onSelect={handleAppSelect}
+                selectedAppLabel={selectedAppLabel}
+            />
         ),
         [appWorkflowAdapter, handleAppSelect, selectedAppLabel],
     )

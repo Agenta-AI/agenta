@@ -20,7 +20,14 @@ import {Button, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {disconnectAppFromEvaluatorAtom, selectedAppLabelAtom} from "./atoms"
+import {
+    disconnectAppFromEvaluatorAtom,
+    effectiveRunOnModeAtom,
+    runOnModeAtom,
+    selectedAppLabelAtom,
+    type RunOnMode,
+} from "./atoms"
+import RunOnSelector from "./RunOnSelector"
 
 const TestsetDropdown = dynamic(
     () => import("@/oss/components/Playground/Components/TestsetDropdown"),
@@ -77,6 +84,23 @@ const EvaluatorPlaygroundHeader: React.FC<EvaluatorPlaygroundHeaderProps> = ({
         disconnectApp()
     }, [disconnectApp])
 
+    // Run-on mode — drives which loaders are surfaced. A connected app forces
+    // "app" mode (see effectiveRunOnModeAtom); the stored mode only matters when
+    // nothing is connected.
+    const runOnMode = useAtomValue(effectiveRunOnModeAtom)
+    const setRunOnMode = useSetAtom(runOnModeAtom)
+    const handlePickRunOn = useCallback(
+        (next: RunOnMode) => {
+            if (next === "trace") return // disabled, not selectable
+            // Leaving "app" mode means dropping the connected app so the graph
+            // returns to standalone-evaluator shape.
+            if (next === "data") disconnectApp()
+            setRunOnMode(next)
+        },
+        [disconnectApp, setRunOnMode],
+    )
+    const isAppMode = runOnMode === "app"
+
     // Check if we have an app node (depth-0 with a different entity than evaluator)
     const hasAppSelected = nodes.some((n) => n.depth === 0 && n.entityId !== evaluatorEntityId)
 
@@ -100,15 +124,18 @@ const EvaluatorPlaygroundHeader: React.FC<EvaluatorPlaygroundHeaderProps> = ({
             </div>
 
             <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
-                <EntityPicker<WorkflowRevisionSelectionResult>
-                    variant="popover-cascader"
-                    adapter={appWorkflowAdapter}
-                    onSelect={onAppSelect}
-                    size="small"
-                    placeholder={selectedAppLabel ?? "Select app"}
-                    popupFooter={popupFooter}
-                />
-                {hasAppSelected && (
+                <RunOnSelector mode={runOnMode} onPick={handlePickRunOn} />
+                {isAppMode && (
+                    <EntityPicker<WorkflowRevisionSelectionResult>
+                        variant="popover-cascader"
+                        adapter={appWorkflowAdapter}
+                        onSelect={onAppSelect}
+                        size="small"
+                        placeholder={selectedAppLabel ?? "Select app"}
+                        popupFooter={popupFooter}
+                    />
+                )}
+                {isAppMode && hasAppSelected && (
                     <Tooltip title="Disconnect app">
                         <Button
                             type="text"
