@@ -2,6 +2,15 @@
 
 End-to-end example demonstrating a realistic hotel concierge agent integrated with Agenta for prompt management, evaluation, observability, online evaluation, and annotation queues.
 
+> **Start here:** `draft/README.md` is the operational guide (setup, how to run, troubleshoot). `draft/design/implementation-status.md` is the handoff report (what is done, what is deferred, next steps). This file is the high-level orientation.
+
+## Current status (2026-06-03)
+
+The example runs end to end. Read `draft/design/implementation-status.md` for detail.
+
+- **Done:** core business layer, three vanilla runtimes (Pydantic-AI, OpenAI Agents SDK, LangChain/LangGraph), FastAPI server with one route per runtime, Next.js frontend with persona + runtime switchers, OpenTelemetry tracing into Agenta, 73 passing tests (no LLM).
+- **Not started:** `with_agenta` runtime variants (prompt management), evals, the Claude Agent SDK runtime, prompt centralization.
+
 ## What we're building
 
 A hotel booking agent that:
@@ -9,8 +18,8 @@ A hotel booking agent that:
 - Has a real SQLite database with real data (no mocks)
 - Has a real knowledge base (hotel policies, FAQ)
 - Has a frontend (Next.js + Vercel AI SDK)
-- Is implemented in **four agent frameworks**: OpenAI Agents SDK, Claude Agent SDK, PydanticAI, LangGraph
-- Each framework has a **vanilla** version (no Agenta) and a **with_agenta** version (full integration)
+- Is implemented in **four agent frameworks**: OpenAI Agents SDK, Claude Agent SDK, PydanticAI, LangGraph (3 of 4 built; Claude Agent SDK pending)
+- Each framework has a **vanilla** version (no Agenta) and a **with_agenta** version (full integration). Only vanilla is built so far.
 - Includes functional tests (no LLM in the loop)
 
 ## Key architectural decision: Inversion of Control
@@ -43,20 +52,29 @@ hotel_agent/
     │   ├── container.py       ← composition root: build_default_deps()
     │   └── db/                ← SQLAlchemy schema + seed for the fake
     ├── runtimes/              ← per-framework agent implementations
-    │   ├── openai_agents/{vanilla,with_agenta}/
-    │   ├── claude_agent_sdk/{vanilla,with_agenta}/
-    │   ├── pydanticai/{vanilla,with_agenta}/
-    │   └── langgraph/{vanilla,with_agenta}/
-    ├── server/                ← FastAPI backend exposing each runtime
-    ├── frontend/              ← Next.js + Vercel AI SDK chat UI
-    ├── tests/                 ← functional tests (PMS-level, adapter-level)
-    └── scripts/               ← seed DB, ingest KB, dev runners
+    │   ├── pydanticai/vanilla/      ← BUILT
+    │   ├── openai_agents/vanilla/   ← BUILT
+    │   ├── langgraph/vanilla/       ← BUILT
+    │   └── (claude_agent_sdk/, *_with_agenta/ ← not built yet)
+    ├── server/                ← FastAPI; /api/chat/{runtime} + 3 stream translators
+    │   ├── main.py            ← routes, startup tracing, pydanticai streamer
+    │   ├── runtimes.py        ← RuntimeSpec registry (slug → kind → agent)
+    │   ├── openai_agents_stream.py  ← OpenAI Agents SDK → Vercel v1 events
+    │   ├── streaming_langgraph.py   ← LangChain → Vercel v1 events
+    │   └── config.py          ← env-derived settings
+    ├── frontend/              ← Next.js + Vercel AI SDK chat UI (persona + runtime switchers)
+    ├── tests/                 ← functional tests: services/ (43) + adapters/ (30), no LLM
+    └── scripts/               ← per-runtime CLI chat runners
 ```
+
+The tool surface (11 tools) is identical across runtimes by name and docstring; only the DI mechanism differs per framework. See `draft/design/implementation-status.md`.
 
 ## What to read for context
 
 | Topic | Read this |
 |-------|-----------|
+| How to set up and run it | `draft/README.md` |
+| What is done / deferred / next steps | `draft/design/implementation-status.md` |
 | Overall plan and doc index | `draft/design/README.md` |
 | What the agent can accomplish, in scope vs out | `draft/design/scope.md` |
 | The hotel rules the agent reasons over | `draft/design/policy.md` |
@@ -75,13 +93,22 @@ hotel_agent/
 6. **Real data, no mocks.** SQLite with deterministic seed data. Real KB markdown. Real LLM calls in integration tests.
 7. **Service layer is async; current user is an explicit param** in `AgentDeps.current_user_id`.
 
+## What's next for another agent
+
+Full detail and ordering live in `draft/design/implementation-status.md` §Next steps. In short:
+
+1. **Write `draft/design/library-matrix.md`.** Three runtimes exist now; capture the side-by-side DI and streaming differences.
+2. **Centralize the system prompt.** It is currently duplicated across the three `runtimes/*/vanilla/agent.py` files with a "keep in sync" note. Pull it into one shared source. This is a prerequisite for clean `with_agenta` variants.
+3. **Build the first `with_agenta` runtime** (start with Pydantic-AI): pull the prompt and model config from Agenta's prompt registry instead of the hardcoded constant. Document in `agenta-integration.md`.
+4. **Add evals.** `draft/design/policy.md` §13 already lists the edge cases (Gold + Advance inside cutoff, Platinum third modification, non-refundable + illness, pet weight/count refusals, Platinum resort-fee exclusion, and so on). Turn them into an Agenta test set and run them (SDK first, then UI). Policy lives only in the prompt, so the eval measures the agent's reasoning, which is the whole point.
+5. **Add the Claude Agent SDK runtime** to complete the four-framework matrix.
+
 ## Decisions still open
 
-- Retrieval implementation choice (LanceDB vs in-memory FAISS-like vs DuckDB-VSS).
 - Whether to expose `AvailabilityAPI.search` raw to the agent or wrap in a higher-level "search rooms" tool.
-- Named seed-data scenarios for evals (Sarah-checks-in-tomorrow, Bob-cancels-late, etc.).
-- How `current_user_id` reaches `AgentDeps` from the FastAPI auth layer.
-- Whether to build a `RecordingPMS` decorator for offline replay (probably yes, after first runtime works).
+- A real vector store (LanceDB / DuckDB-VSS / numpy flat) to replace `InMemoryRetriever`. The Retriever Protocol is the swap-in seam.
+- Whether to build a `RecordingPMS` decorator for offline replay.
+- Real auth for `current_user_id` (currently from the request body; the frontend is an internal playground).
 
 ## Conventions
 

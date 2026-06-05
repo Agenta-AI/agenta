@@ -9,10 +9,22 @@ dependencies = [
     "aiosqlite>=0.20",
     # Pydantic-AI runtime (vanilla)
     "pydantic-ai-slim[openai,anthropic]>=1.89",
+    # OpenAI Agents SDK runtime (vanilla)
+    "openai-agents>=0.2",
+    # LangChain / LangGraph runtime (vanilla). LangChain 1.0 introduced the
+    # `langchain.agents.create_agent` front door and `ToolRuntime` injection.
+    "langchain>=1.0",
+    "langgraph>=1.0",
+    "langchain-openai>=1.0",
     # Server
     "fastapi>=0.110",
     "uvicorn[standard]>=0.30",
     "python-dotenv>=1.0",
+    # Observability — Agenta (OTel) tracing backend
+    "agenta>=0.30",
+    "logfire>=0.50",
+    "openinference-instrumentation-openai-agents>=0.1",
+    "openinference-instrumentation-langchain>=0.1.29",
 ]
 
 [dependency-groups]

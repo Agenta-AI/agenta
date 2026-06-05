@@ -29,9 +29,17 @@ class Settings:
     # Frontend dev-server origin for CORS during local dev.
     FRONTEND_ORIGIN: str = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
 
-    # Agenta — only used by *_with_agenta runtimes once they exist.
+    # Tracing backend: "agenta" (default) or "logfire". Controls how spans
+    # are exported in main.py's startup configuration.
+    TRACING_BACKEND: str = os.getenv("TRACING_BACKEND", "agenta")
+
+    # Agenta — used for the agenta tracing backend and *_with_agenta runtimes.
     AGENTA_API_KEY: str = os.getenv("AGENTA_API_KEY", "")
     AGENTA_HOST: str = os.getenv("AGENTA_HOST", "https://cloud.agenta.ai")
+
+    # Logfire token for the "logfire" tracing backend. The .env names this
+    # LOGFIRE_API_KEY; fall back to LOGFIRE_TOKEN for compatibility.
+    LOGFIRE_TOKEN: str = os.getenv("LOGFIRE_API_KEY", "") or os.getenv("LOGFIRE_TOKEN", "")
 
 
 settings = Settings()

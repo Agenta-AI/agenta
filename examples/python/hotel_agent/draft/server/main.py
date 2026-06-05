@@ -33,7 +33,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, model_validator
-from pydantic_ai import RunContext
+from pydantic_ai import Agent, RunContext
+from pydantic_ai.agent import InstrumentationSettings
 from pydantic_ai.messages import (
     AgentStreamEvent,
     FunctionToolCallEvent,
@@ -50,7 +51,9 @@ from core.container import build_default_deps
 from core.deps import AgentDeps
 
 from server.config import settings
-from server.runtimes import RUNTIMES, get_agent, list_runtimes
+from server.openai_agents_stream import stream_run as stream_openai_agents
+from server.runtimes import RUNTIMES, get_agent, get_spec, list_runtimes
+from server.streaming_langgraph import stream_langgraph
 
 
 # --- Lifecycle ----------------------------------------------------------------
@@ -64,6 +67,13 @@ _BASE_DEPS: Optional[AgentDeps] = None
 _HISTORIES: dict[str, list[ModelMessage]] = {}
 
 
+# Instrumentation is wired once at startup and covers *all* runtimes, since the
+# runtime is chosen per request. Each framework gets its own OTel bridge:
+# PydanticAI via InstrumentationSettings, the OpenAI Agents SDK and LangChain /
+# LangGraph via OpenInference.
+from openinference.instrumentation.langchain import LangChainInstrumentor  # noqa: E402
+from openinference.instrumentation.openai_agents import OpenAIAgentsInstrumentor  # noqa: E402
+
 if settings.TRACING_BACKEND == "logfire":
     logfire.configure(
         service_name="hotel-agent",
@@ -71,13 +81,30 @@ if settings.TRACING_BACKEND == "logfire":
         token=settings.LOGFIRE_TOKEN,
         scrubbing=False,
     )
+    logfire.instrument_pydantic_ai()
+    # logfire.configure() sets the global OTel provider; OpenInference picks it up.
+    OpenAIAgentsInstrumentor().instrument()
+    LangChainInstrumentor().instrument()
 else:
+    # Agenta: ag.init() installs a global OpenTelemetry TracerProvider that
+    # exports OTLP to the Agenta host. Point each framework's instrumentation at
+    # that provider so every agent run emits spans to Agenta.
+    #
+    # We deliberately do NOT configure logfire here. PydanticAI's default
+    # instrumentation prefers logfire as its span sink; with send_to_logfire
+    # off, spans would be silently dropped instead of reaching Agenta. Passing
+    # an explicit tracer_provider routes spans straight to Agenta's exporter.
+    from opentelemetry import trace as _otel_trace
+
     ag.init(api_key=settings.AGENTA_API_KEY, host=settings.AGENTA_HOST)
-    logfire.configure(
-        service_name="hotel-agent",
-        send_to_logfire=False,
-        scrubbing=False,
-    )
+    _provider = _otel_trace.get_tracer_provider()
+    Agent.instrument_all(InstrumentationSettings(tracer_provider=_provider))
+    # OpenInference auto-captures the OpenAI Agents SDK (agents, tools, LLM
+    # calls) and exports OpenInference-convention spans to Agenta's provider.
+    OpenAIAgentsInstrumentor().instrument(tracer_provider=_provider)
+    # Same bridge for LangChain / LangGraph (covers the create_agent graph,
+    # tool nodes, and chat-model calls).
+    LangChainInstrumentor().instrument(tracer_provider=_provider)
 
 
 @asynccontextmanager
@@ -319,8 +346,18 @@ async def chat(runtime: str, request: ChatRequest) -> StreamingResponse:
     persona = request.current_user_id or settings.DEFAULT_PERSONA
     deps = replace(_BASE_DEPS, current_user_id=persona)
 
+    # Pick the streamer for this runtime's framework. Each translates to the same
+    # Vercel AI SDK v1 envelope, so the frontend handles them identically.
+    kind = get_spec(runtime).kind
+    if kind == "openai_agents":
+        generator = stream_openai_agents(get_agent(runtime), user_msg, request.id, deps)
+    elif kind == "langgraph":
+        generator = stream_langgraph(runtime, user_msg, request.id, deps)
+    else:
+        generator = _stream_run(runtime, user_msg, request.id, deps)
+
     return StreamingResponse(
-        _stream_run(runtime, user_msg, request.id, deps),
+        generator,
         media_type="text/event-stream",
         headers={
             "x-vercel-ai-ui-message-stream": "v1",

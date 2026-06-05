@@ -1,179 +1,172 @@
-# Implementation Status — Backend Core
+# Implementation Status — Handoff Report
 
-> **Last updated:** 2026-05-01
-> **Scope of this report:** Backend work from `architecture.md` §Implementation order, steps 1–8. No agent SDKs touched.
+> **Last updated:** 2026-06-03
+> **Scope:** The whole example. Core, three vanilla runtimes, server, frontend,
+> observability, and tests. This is the document to read first if you are
+> picking the project up to extend it.
 
 ## TL;DR
 
-Steps 1–8 of the RFC are complete and green. The framework-agnostic core (`draft/core/`) is in place: domain types, SQLAlchemy schema, deterministic seed, six PMS Protocols + a SQLite-backed `FakePMS`, clock + DI container + composition root, and an in-memory retriever indexing 9 markdown docs. Test surface is **43 service-level pytest tests, all passing in ~1s**, plus an end-to-end smoke check of the composition root. Steps 9–10 (per-runtime adapters) are out of scope for this pass and remain in `library-matrix.md` (TODO).
+The example runs end to end. A user chats in a Next.js UI, picks a persona and a
+runtime, and the FastAPI server drives one of three agent frameworks
+(Pydantic-AI, OpenAI Agents SDK, LangChain/LangGraph) over a shared business
+core. Every run streams to the browser as Vercel AI SDK v1 events and emits
+OpenTelemetry traces to Agenta. **73 tests pass** with no LLM in the loop (43
+service-level, 30 adapter-level).
+
+What is NOT done yet: the `with_agenta` runtime variants (prompt management
+pulled from Agenta), evals, the Claude Agent SDK runtime, and several design
+docs. See "What is deferred" and "Next steps" below.
 
 ## What landed
 
 ```
 draft/
-├── pyproject.toml                          uv-managed; pydantic, sqlalchemy[asyncio], aiosqlite, pytest, ruff
-├── core/
-│   ├── __init__.py
-│   ├── clock.py                            Clock Protocol + SystemClock + FixedClock
-│   ├── deps.py                             AgentDeps (frozen dataclass): pms, retriever, clock, current_user_id
-│   ├── container.py                        build_default_deps() — composition root
-│   ├── domain/
-│   │   ├── __init__.py
-│   │   └── types.py                        Pydantic types: Guest, RoomType, Room, RatePlan,
-│   │                                       Offer, QuoteLine, Quote, Reservation, ReservationModify,
-│   │                                       ServiceCharge + enums (GuestTier, RateType,
-│   │                                       ReservationStatus, ServiceTicketStatus)
-│   ├── db/
-│   │   ├── __init__.py
-│   │   ├── tables.py                       SQLAlchemy schema (7 tables)
-│   │   ├── session.py                      async engine + session factory + create/drop schema
-│   │   ├── seed_data.py                    named-constant fixtures (GUESTS, ROOM_TYPES, RATE_PLANS,
-│   │                                       ROOMS, RESERVATIONS, SERVICE_CATALOG, SERVICE_CHARGES)
-│   │                                       + exported ids + SEED_NOW anchor
-│   │   └── seed.py                         mechanical loader; walks seed_data
-│   ├── integrations/
-│   │   ├── __init__.py
-│   │   └── pms/
-│   │       ├── __init__.py
-│   │       ├── protocol.py                 6 sub-API Protocols + PMSClient + typed errors
-│   │       │                               (PMSError, ReservationNotFoundError,
-│   │       │                               GuestNotFoundError, RoomTypeNotFoundError,
-│   │       │                               RatePlanNotFoundError, InvalidDatesError)
-│   │       └── fake.py                     FakePMS — SQLite-backed; mappers DBE→DTO;
-│   │                                       NO policy enforcement
-│   └── retrieval/
-│       ├── __init__.py
-│       ├── protocol.py                     Retriever Protocol + Chunk
-│       ├── store.py                        InMemoryRetriever (IDF keyword retriever, dependency-free)
-│       └── docs/                           9 markdown files indexed at startup
-│           ├── amenities.md
-│           ├── neighborhood.md
-│           ├── faq.md
-│           └── policy/
-│               ├── cancellation.md         (rationales + worked examples)
-│               ├── modifications.md
-│               ├── upgrades.md
-│               ├── pets.md
-│               ├── fees.md
-│               └── escalation.md
+├── README.md                  operational guide: setup, run, troubleshoot
+├── .env.example               copy to .env
+├── pyproject.toml             uv-managed; all 3 frameworks + server + tracing
+├── core/                      framework-agnostic business core (unchanged since steps 1-8)
+│   ├── domain/types.py        Pydantic types + enums (frozen)
+│   ├── db/                    SQLAlchemy schema, async session, deterministic seed
+│   ├── integrations/pms/      6 sub-API Protocols + typed errors + FakePMS (SQLite)
+│   ├── retrieval/             Retriever Protocol + InMemoryRetriever (IDF keyword)
+│   ├── clock.py deps.py container.py   Clock, AgentDeps, composition root
+├── runtimes/                  per-framework agents, all vanilla (no Agenta)
+│   ├── pydanticai/vanilla/    RunContext[AgentDeps]; @agent.tool; 11 tools
+│   ├── openai_agents/vanilla/ RunContextWrapper[AgentDeps]; tools return JSON strings
+│   └── langgraph/vanilla/     ToolRuntime injection; create_agent(context_schema=AgentDeps)
+├── server/
+│   ├── main.py                /api/chat/{runtime}; instruments all 3 frameworks; pydanticai streamer
+│   ├── runtimes.py            RuntimeSpec registry (slug -> kind -> agent builder)
+│   ├── openai_agents_stream.py  OpenAI Agents SDK -> Vercel v1 events
+│   ├── streaming_langgraph.py   LangChain -> Vercel v1 events
+│   └── config.py              env-derived settings
+├── frontend/                  Next.js 15 + ai@6 + @ai-sdk/react@3 + ai-elements
+│   └── app/page.tsx           persona switcher, runtime switcher, tool-call rendering
+├── scripts/                   chat_pydanticai.py, chat_openai_agents.py, chat_langgraph.py
 └── tests/
-    ├── __init__.py
-    ├── conftest.py                         fixtures: fixed_clock, engine, session_factory, pms
-    │                                       — fresh in-memory SQLite + seed per test
-    └── services/
-        ├── __init__.py
-        ├── test_inventory.py               3 tests
-        ├── test_rates.py                   13 tests (Quote line/total invariants, tier waivers, errors)
-        ├── test_availability.py            5 tests (capacity filter, pet-friendly, overlap reduction)
-        ├── test_reservations.py            14 tests (CRUD + the policy-vs-PMS separation invariants)
-        ├── test_guests.py                  5 tests
-        └── test_services.py                3 tests
+    ├── services/              43 tests, exercise FakePMS directly
+    └── adapters/{pydanticai,openai_agents,langgraph}/   10 each, synthesize tool args, no LLM
 ```
 
-## How to run
+## The three runtimes
 
-```bash
-cd examples/python/hotel_agent/draft
-uv sync                                    # one-time
-uv run pytest                              # 43 passed in ~1s
-ruff format . && ruff check .              # clean
-```
+The tool surface is identical across all three by name and docstring (11 tools:
+search_availability, list_room_types, quote_stay, create_reservation,
+view_my_reservations, modify_reservation, cancel_reservation, request_service,
+answer_question, get_guest_profile, list_rate_plans). Only the dependency
+injection mechanism differs:
 
-End-to-end smoke check (composition root → FakePMS → InMemoryRetriever):
+| Runtime | Library | DI mechanism | Tool return |
+|---------|---------|--------------|-------------|
+| Pydantic-AI | `pydantic-ai-slim>=1.89` | `RunContext[AgentDeps]` via `@agent.tool` | domain DTO |
+| OpenAI Agents SDK | `openai-agents>=0.2` | `RunContextWrapper[AgentDeps]`, `ctx.context` | JSON string |
+| LangChain/LangGraph | `langchain>=1.0`, `langgraph>=1.0` | `ToolRuntime` injection, `runtime.context` | JSON string |
 
-```bash
-uv run python -c "
-import asyncio
-from core.container import build_default_deps
+The server streams each with a dedicated translator chosen by the `kind` field
+in `RuntimeSpec`. Pydantic-AI uses `run_stream_events` semantics (via
+`event_stream_handler`), not `run_stream`, because of a known early-finish bug
+on tool-using flows.
 
-async def main():
-    deps = await build_default_deps(current_user_id='guest_sarah')
-    rooms = await deps.pms.inventory.list_room_types()
-    chunks = await deps.retriever.search('cancellation policy 24 hours', k=3)
-    print(f'{len(rooms)} room types, {len(chunks)} retrieved chunks')
+## Observability
 
-asyncio.run(main())
-"
-```
+`server/main.py` instruments all three frameworks once at startup. With
+`TRACING_BACKEND=agenta`, `ag.init()` installs a global OpenTelemetry provider
+exporting to the Agenta host. Pydantic-AI is instrumented natively through
+`InstrumentationSettings(tracer_provider=...)`. The OpenAI Agents SDK and
+LangChain are bridged with OpenInference instrumentors pointed at the same
+provider. `TRACING_BACKEND=logfire` is the alternative path.
 
-## Architectural invariants enforced (and tested)
+**Trace storage caveat (verified the hard way):** the Agenta OTLP receiver
+returns HTTP 200 even when a span is later dropped, so a 200 does not prove
+storage. Spans land in the project that the `AGENTA_API_KEY` belongs to. If you
+do not see traces, confirm you are viewing that project, and query
+`POST {AGENTA_HOST}/api/traces/query` with `Authorization: ApiKey <key>` to
+confirm storage server-side.
 
-These are the load-bearing invariants from the RFC. Each has at least one direct test.
+## Architectural invariants (each has at least one test)
 
-1. **PMS does not enforce policy.** Three successive `modify()` calls on the same reservation succeed and yield `modification_count=3`. `cancel()` of a non-refundable inside the cutoff succeeds. `cancel()` is idempotent. The agent enforces policy; the PMS persists.
-2. **Quote total = sum of line amounts.** Verified across all rate types (`FLEX`, `ADV`, `NONREF`), tier waivers (Standard/Gold/Platinum), pet/no-pet, multiple night counts.
-3. **Platinum waiver.** When `quote(guest_id=GUEST_EVE_ID, …)`, the resort-fee line amount is `0` with a "Waived (Platinum tier)" detail. Gold and Standard pay `$35/night`.
-4. **Time flows from Clock.** `created_at` and `cancelled_at` come from the injected clock — never `datetime.now()`. Every test runs against `FixedClock(SEED_NOW)`.
-5. **Domain types are returned, not ORM rows.** Every method has an explicit DBE→DTO mapper in `fake.py`. Callers never see SQLAlchemy objects.
-6. **Typed errors.** Six typed exceptions inherit from `PMSError`. No `IntegrityError`/`ValueError` leaks across the seam.
-7. **`FakePMS` satisfies `PMSClient` under the type-checker.** Class-level attribute annotations match the Protocol's mutable-attribute invariance (see "Known wart" below).
+1. **PMS does not enforce policy.** Successive modifies succeed; cancel inside
+   the cutoff succeeds; cancel is idempotent. The agent enforces policy; the PMS
+   persists.
+2. **Quote total = sum of line amounts**, across all rate types and tiers.
+3. **Platinum waiver.** The resort-fee line renders at `$0` for Platinum, full
+   for Gold and Standard.
+4. **Time flows from the injected Clock**, never `datetime.now()`.
+5. **Domain types are returned, not ORM rows.** Explicit DBE to DTO mappers.
+6. **Typed errors.** Six exceptions inherit from `PMSError`.
 
-## Seed data — the redoable pattern
+## Seed data
 
-`core/db/seed_data.py` is the single source of truth. Adding fixtures = adding tuples to one of the lists; nothing else changes. `seed.py` is a mechanical walker.
+`core/db/seed_data.py` is the single source of truth. Anchor is
+`SEED_NOW = datetime(2026, 6, 1, 12, 0, 0)`; tests pin `FixedClock(SEED_NOW)`.
+Coverage: 7 guests across all 3 tiers, 5 room types, 3 rate plans, ~20 rooms
+(some pet-friendly), 9 service-catalog items, 8 reservations spanning
+past/present/future, including fixtures for cancel-cutoff, in-stay, and
+non-refundable scenarios.
 
-- **Anchor:** `SEED_NOW = datetime(2026, 6, 1, 12, 0, 0)`. All relative dates derive from this. Tests pin `FixedClock(SEED_NOW)`.
-- **Exported ids:** `GUEST_SARAH_ID`, `RES_BOB_TOMORROW_ADV_ID`, etc. Tests import these instead of magic strings.
-- **Coverage:** 7 guests across all 3 tiers, 5 room types, 3 rate plans, ~20 rooms (some pet-friendly), 9 service-catalog items, 8 reservations spanning past/present/future incl. `RES_BOB_INSIDE_CUTOFF_ID` for cancel-cutoff tests, `RES_EVE_CURRENT_STAY_ID` for in-stay tests, `RES_CARLA_FUTURE_NONREF_ID` for non-refundable tests.
+## What is deferred
 
-The named scenario fixtures from the open-questions list (Sarah-checks-in-tomorrow, Bob-cancels-late, etc.) are deliberately NOT enumerated yet — that belongs in `testing.md` per the RFC's open questions.
+- **`with_agenta` runtime variants.** No `with_agenta/` folder exists. This is
+  the next major piece: pull each runtime's prompt and config from Agenta's
+  prompt registry instead of the hardcoded `SYSTEM_PROMPT`, so prompts can be
+  versioned and A/B tested in the Agenta UI.
+- **Claude Agent SDK runtime.** Planned as the fourth framework; not built.
+- **Evals.** Nothing yet. `policy.md` §13 already enumerates edge cases that map
+  directly to eval rows (Gold + Advance inside cutoff, Platinum third
+  modification, non-refundable + illness, comp upgrade timing, pet weight/count
+  refusals, Platinum resort-fee exclusion, and so on).
+- **Prompt management.** The system prompt is currently hardcoded and duplicated
+  across the three `agent.py` files with a "keep in sync" note. Centralizing it
+  is a prerequisite for clean `with_agenta` variants.
+- **A real vector store.** `InMemoryRetriever` (IDF keyword) is the v1. The
+  Retriever Protocol is the swap-in seam.
+- **`current_user_id` real auth.** It comes from the request body, set by the
+  frontend persona switcher. There is no auth; the frontend is an internal
+  playground by design.
+- **Persistence.** The DB is in-memory by default and re-seeds on restart.
+- **Replay / `RecordingPMS`.** Not built.
 
-## Decisions made during implementation
+## Design docs status
 
-These extend or concretize the RFC.
+Done: `scope.md`, `policy.md`, `inversion-of-control.md`, `architecture.md`
+(the core RFC), `runtime-pydanticai.md` (first runtime port plan).
 
-1. **`InMemoryRetriever` (IDF keyword overlap)** is the v1 retriever, dependency-free. Resolves "Retrieval implementation choice" open question for this pass. Real vector store (LanceDB / DuckDB-VSS / numpy flat) is a follow-up; the Protocol is the swap-in seam.
-2. **`Quote` fields are immutable tuples**, not lists, to keep the Pydantic model `frozen=True` honest.
-3. **Platinum waiver renders the resort-fee line at `$0` with explanatory detail** (rather than omitting it). Easier for the agent to surface "your tier waives this" in chat.
-4. **`InvalidDatesError`** raises on `check_out <= check_in` everywhere it could land bad data (quote, search, create, modify cross-field check). This is data validity, not policy.
-5. **Cancel is idempotent.** Re-cancelling returns the existing row without re-stamping `cancelled_at`. Documented and tested.
-6. **`uuid.uuid4().hex[:12]`** for new reservation/charge ids. String ids per RFC; uniqueness is sufficient at demo scale.
+Draft: `evals-langgraph.md` (a plan for SDK-driven evals on the LangGraph
+runtime, sourced from the Agenta docs; verify signatures against the installed
+SDK before relying on it).
 
-## Known wart (acknowledged, kept)
-
-**Protocol mutable-attribute invariance forced narrowing on `FakePMS`.**
-
-`PMSClient` declares `inventory: InventoryAPI` (etc.) as mutable attributes. By PEP 484 invariance rules, an implementer's attribute must be typed exactly `InventoryAPI`, not a subtype like `FakeInventoryAPI`. We resolved this by declaring class-level annotations on `FakePMS`:
-
-```python
-class FakePMS:
-    inventory: InventoryAPI
-    rates: RatesAPI
-    ...
-```
-
-…and assigning `FakeInventoryAPI(...)` instances inside `__init__`. This satisfies basedpyright/mypy.
-
-**Cleaner alternative we deliberately did NOT take:** make Protocol attributes read-only via `@property`. That would let implementers declare attributes naturally without invariance-driven narrowing. We chose the narrowing path because Protocol consumers don't ever mutate `pms.inventory`, the workaround is local to `FakePMS`, and `@property` would add six stubs to `protocol.py`. Flag this if you write a second implementer (e.g., `MewsPMS`).
-
-## What's deliberately NOT here
-
-- **Per-runtime adapters** (PydanticAI, OpenAI Agents, Claude Agent SDK, LangGraph). Step 9 of the RFC. → `library-matrix.md`.
-- **Policy enforcement.** Lives only in the agent's system prompt. PMS-level tests assert the *absence* of enforcement.
-- **A real vector store.** Protocol is in place; `InMemoryRetriever` works for demo scale.
-- **Adapter-level tests** (synthesize LLM args, exercise adapter). Step 2 of the RFC's testing strategy. Lands with the first runtime.
-- **Trajectory-level tests / replay.** The recording wrapper (`RecordingPMS` from RFC §Testing strategy) is not built; defer until the first runtime adapter exists.
-- **`current_user_id` provenance** (FastAPI auth → `AgentDeps`). Open question per RFC; defer to `frontend.md`.
-- **Named eval scenarios** (Sarah-tomorrow, Bob-late). Defer to `testing.md`.
+TODO: `library-matrix.md` (now worth writing: three runtimes exist to compare),
+`agenta-integration.md` (prompt mgmt, eval, observability overlay),
+`frontend.md`, `testing.md`, `rollout.md` (draft to parent promotion),
+`domain.md`.
 
 ## Next steps (suggested order)
 
-1. Pick the first runtime to port. RFC suggests **PydanticAI** for ergonomics (cleanest DI story).
-2. Write `runtimes/pydanticai/vanilla/adapters.py` (~5 lines per tool) and `agent.py`. Use `agent.override(deps=...)` for test-time wiring.
-3. Add adapter-level tests (`tests/adapters/pydanticai/…`): synthesize args an LLM would emit; assert the right `deps.pms.*` method got called. No LLM in the loop.
-4. Once one runtime works end-to-end, draft `library-matrix.md` with the side-by-side. Then port the remaining three.
-5. Layer on Agenta integration (separate workstream — `agenta-integration.md`).
+1. **Write `library-matrix.md`.** Three runtimes now exist. Capture the
+   side-by-side DI and streaming differences while they are fresh.
+2. **Centralize the system prompt.** Pull it out of the three `agent.py` files
+   into one shared source so vanilla and `with_agenta` can both read it.
+3. **Build the first `with_agenta` runtime** (start with Pydantic-AI). Pull the
+   prompt and model config from Agenta's prompt registry. Write
+   `agenta-integration.md` alongside.
+4. **Add evals.** A draft plan exists in `evals-langgraph.md`. Turn `policy.md`
+   §13 edge cases into a test set. Run them as an Agenta evaluation (SDK first,
+   then wire the UI). This is the payoff of policy living only in the prompt: the
+   eval measures the agent's reasoning.
+5. **Add the Claude Agent SDK runtime** to complete the four-framework matrix.
+6. Optional: online eval, annotation queue, a real vector store, persistence,
+   replay.
 
 ## Pointers for whoever picks this up cold
 
-Reading order to get oriented in <30 min:
+Reading order to get oriented in under 30 minutes:
 
-1. `examples/python/hotel_agent/CLAUDE.md` — project overview
-2. `draft/design/scope.md` — what the agent does
-3. `draft/design/policy.md` — the rules
-4. `draft/design/architecture.md` — the RFC this implements
-5. `draft/core/integrations/pms/protocol.py` — the contract every runtime sees
-6. `draft/core/db/seed_data.py` — the demo's data model in concrete form
-7. `draft/tests/services/` — the spec, executable
-
-The composition root (`draft/core/container.py`) is where you start to wire a real runtime against this core.
+1. `draft/README.md` — how to run it and what works
+2. `examples/python/hotel_agent/CLAUDE.md` — project overview and decisions
+3. `draft/design/scope.md` — what the agent does
+4. `draft/design/policy.md` — the rules (and the eval cases in §13)
+5. `draft/design/architecture.md` — the core RFC
+6. `draft/core/integrations/pms/protocol.py` — the contract every runtime sees
+7. `draft/runtimes/pydanticai/vanilla/` — the cleanest runtime to read first
+8. `draft/tests/services/` — the spec, executable

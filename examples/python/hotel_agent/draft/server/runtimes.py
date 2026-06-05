@@ -1,42 +1,71 @@
 """Runtime registry.
 
-Maps a runtime slug (the ``{runtime}`` segment of ``/api/chat/{runtime}``) to
-a callable that returns its Pydantic-AI ``Agent``. The agent is module-level
-in each runtime, so this registry just exposes them; per-request DI is done
-via ``deps=`` at run time.
+Maps a runtime slug (the ``{runtime}`` segment of ``/api/chat/{runtime}``) to a
+``RuntimeSpec``: how to build its framework agent and which ``kind`` of streamer
+the server should drive it with. Per-request DI is done via the framework's
+native context at run time, not here.
 
-Adding a runtime: import its agent and add an entry. Each runtime owns its
-own model selection, system prompt, and tool registration.
+Adding a runtime: import its agent and add a ``RuntimeSpec`` entry. Each runtime
+owns its own model selection, system prompt, and tool registration; the server
+only needs the ``kind`` to pick the right event-stream translator.
 """
 
 from __future__ import annotations
 
-from typing import Callable
+from dataclasses import dataclass
+from typing import Any, Callable
 
-from pydantic_ai import Agent
-
+from runtimes.langgraph.vanilla import agent as langgraph_vanilla_agent
+from runtimes.openai_agents.vanilla import agent as openai_agents_vanilla_agent
 from runtimes.pydanticai.vanilla import agent as pydanticai_vanilla_agent
 
 
-# slug -> agent factory. Today every factory just returns a module-level
-# singleton; this leaves room for per-request agent construction (e.g. for
-# Agenta variants that need a fresh prompt per call).
-RUNTIMES: dict[str, Callable[[], Agent]] = {
-    "pydanticai_vanilla": lambda: pydanticai_vanilla_agent,
+@dataclass(frozen=True)
+class RuntimeSpec:
+    slug: str
+    # Which streamer drives it: "pydanticai" | "openai_agents".
+    kind: str
+    # Human-friendly name (handy if the UI wants to show labels).
+    label: str
+    # Returns the framework agent. A thunk so per-request construction stays
+    # possible later (e.g. Agenta variants that need a fresh prompt per call).
+    build: Callable[[], Any]
+
+
+RUNTIMES: dict[str, RuntimeSpec] = {
+    "pydanticai_vanilla": RuntimeSpec(
+        slug="pydanticai_vanilla",
+        kind="pydanticai",
+        label="Pydantic-AI (vanilla)",
+        build=lambda: pydanticai_vanilla_agent,
+    ),
+    "openai_agents_vanilla": RuntimeSpec(
+        slug="openai_agents_vanilla",
+        kind="openai_agents",
+        label="OpenAI Agents SDK (vanilla)",
+        build=lambda: openai_agents_vanilla_agent,
+    ),
+    "langgraph_vanilla": RuntimeSpec(
+        slug="langgraph_vanilla",
+        kind="langgraph",
+        label="LangChain (vanilla)",
+        build=lambda: langgraph_vanilla_agent,
+    ),
     # "pydanticai_with_agenta": ...,
-    # "openai_agents_vanilla": ...,
     # "openai_agents_with_agenta": ...,
     # "claude_sdk_vanilla": ...,
-    # "claude_sdk_with_agenta": ...,
-    # "langgraph_vanilla": ...,
     # "langgraph_with_agenta": ...,
 }
 
 
-def get_agent(runtime: str) -> Agent:
+def get_spec(runtime: str) -> RuntimeSpec:
     if runtime not in RUNTIMES:
         raise KeyError(runtime)
-    return RUNTIMES[runtime]()
+    return RUNTIMES[runtime]
+
+
+def get_agent(runtime: str) -> Any:
+    return get_spec(runtime).build()
 
 
 def list_runtimes() -> list[str]:
