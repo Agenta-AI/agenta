@@ -209,6 +209,20 @@ export const connectAppToEvaluatorAtom = atom(
     ) => {
         const {appRevisionId, appLabel, evaluatorRevisionId, evaluatorLabel} = params
 
+        // [B-repro] TEMP diagnostic for QA bug: re-selecting the same app after
+        // disconnect connects nothing. Remove once root-caused.
+        const summarizeNodes = () =>
+            get(playgroundNodesAtom).map((n) => ({
+                id: n.id,
+                entityId: n.entityId,
+                depth: n.depth,
+            }))
+        console.debug("[B-repro] connectApp entry", {
+            appRevisionId,
+            evaluatorRevisionId,
+            nodesBefore: summarizeNodes(),
+        })
+
         // Replace primary node with the app FIRST — if the graph mutation
         // bails out (changePrimaryNode returns null when there's no current
         // primary to swap), we must not commit a stale persisted record.
@@ -223,16 +237,29 @@ export const connectAppToEvaluatorAtom = atom(
             label: appLabel,
         })
 
-        if (!nodeId) return
+        console.debug("[B-repro] changePrimaryNode result", {
+            nodeId,
+            nodesAfter: summarizeNodes(),
+        })
+
+        if (!nodeId) {
+            console.debug("[B-repro] connectApp BAILED: changePrimaryNode returned null")
+            return
+        }
 
         // Connect evaluator as downstream node (depth 1)
-        set(playgroundController.actions.connectDownstreamNode, {
+        const downstreamResult = set(playgroundController.actions.connectDownstreamNode, {
             sourceNodeId: nodeId,
             entity: {
                 type: "workflow",
                 id: evaluatorRevisionId,
                 label: evaluatorLabel,
             },
+        })
+
+        console.debug("[B-repro] connectDownstreamNode result", {
+            downstreamResult,
+            nodesAfter: summarizeNodes(),
         })
 
         // Clean the shared testcase row against the newly-selected app's input
@@ -255,6 +282,8 @@ export const connectAppToEvaluatorAtom = atom(
         // user who connected an app from "data" mode would snap back to the
         // testcase panel on disconnect instead of the "Select an app" state.
         set(runOnModeAtom, "app")
+
+        console.debug("[B-repro] connectApp done", {finalNodes: summarizeNodes()})
     },
 )
 
