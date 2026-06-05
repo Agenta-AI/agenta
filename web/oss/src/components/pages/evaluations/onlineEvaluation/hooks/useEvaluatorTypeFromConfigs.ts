@@ -1,6 +1,10 @@
 import {useMemo} from "react"
 
-import {collectEvaluatorCandidates, evaluatorConfigsListDataAtom} from "@agenta/entities/workflow"
+import {
+    collectEvaluatorCandidates,
+    evaluatorConfigsListDataAtom,
+    getWorkflowTypeLabel,
+} from "@agenta/entities/workflow"
 import {useAtomValue} from "jotai"
 
 import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
@@ -11,14 +15,19 @@ export interface UseEvaluatorTypeFromConfigsParams {
     evaluator?: any | null
 }
 
+const getEvaluatorTypeLabel = (typeKey: string): string | undefined =>
+    ((EVALUATOR_CATEGORY_LABEL_MAP as any)[typeKey] as string | undefined) ??
+    getWorkflowTypeLabel(typeKey) ??
+    undefined
+
 export const useEvaluatorTypeFromConfigs = ({
     evaluator,
-}: UseEvaluatorTypeFromConfigsParams): {label?: string; color?: string} => {
+}: UseEvaluatorTypeFromConfigsParams): {label?: string; typeKey?: string} => {
     const configs = useAtomValue(evaluatorConfigsListDataAtom)
 
     return useMemo(() => {
         if (!evaluator || !Array.isArray(configs) || configs.length === 0) {
-            return {label: undefined, color: undefined}
+            return {label: undefined, typeKey: undefined}
         }
 
         const candidates = collectEvaluatorCandidates(
@@ -38,7 +47,17 @@ export const useEvaluatorTypeFromConfigs = ({
             return false
         })
 
-        if (!match) return {label: undefined, color: undefined}
+        if (!match) return {label: undefined, typeKey: undefined}
+        const matchKey =
+            (
+                resolveEvaluatorKey(match) ||
+                (match as any)?.key ||
+                (match as any)?.slug ||
+                (match as any)?.name ||
+                ""
+            )
+                .toString()
+                .trim() || undefined
 
         // 1) Try label from config.tags using category map
         const tags: string[] = Array.isArray(match.tags)
@@ -54,8 +73,8 @@ export const useEvaluatorTypeFromConfigs = ({
                 .replace(/[^a-z0-9]+/g, "_")
                 .replace(/_+/g, "_")
                 .replace(/^_|_$/g, "")
-            const label = (EVALUATOR_CATEGORY_LABEL_MAP as any)[slugified]
-            if (label) return {label, color: (match as any)?.color}
+            const label = getEvaluatorTypeLabel(slugified)
+            if (label) return {label, typeKey: matchKey ?? slugified}
         }
 
         // 2) Infer label by scanning evaluator_key/name tokens for known category slugs
@@ -72,18 +91,20 @@ export const useEvaluatorTypeFromConfigs = ({
 
         for (const token of keyTokens) {
             // direct token match
-            if ((EVALUATOR_CATEGORY_LABEL_MAP as any)[token]) {
+            const tokenLabel = getEvaluatorTypeLabel(token)
+            if (tokenLabel) {
                 return {
-                    label: (EVALUATOR_CATEGORY_LABEL_MAP as any)[token],
-                    color: (match as any)?.color,
+                    label: tokenLabel,
+                    typeKey: matchKey ?? token,
                 }
             }
             // token may contain category slug as substring
             const found = categorySlugs.find((slug) => token.includes(slug))
             if (found) {
+                const foundLabel = getEvaluatorTypeLabel(found)
                 return {
-                    label: (EVALUATOR_CATEGORY_LABEL_MAP as any)[found],
-                    color: (match as any)?.color,
+                    label: foundLabel,
+                    typeKey: matchKey ?? found,
                 }
             }
         }
@@ -110,15 +131,15 @@ export const useEvaluatorTypeFromConfigs = ({
 
         for (const token of keyTokens) {
             const cat = keywordToCategory[token]
-            if (cat && (EVALUATOR_CATEGORY_LABEL_MAP as any)[cat]) {
+            const catLabel = cat ? getEvaluatorTypeLabel(cat) : undefined
+            if (cat && catLabel) {
                 return {
-                    label: (EVALUATOR_CATEGORY_LABEL_MAP as any)[cat],
-                    color: (match as any)?.color,
+                    label: catLabel,
+                    typeKey: matchKey ?? cat,
                 }
             }
         }
 
-        // 3) No category determinable from config; return color only
-        return {label: undefined, color: (match as any)?.color}
+        return {label: undefined, typeKey: undefined}
     }, [evaluator, configs])
 }
