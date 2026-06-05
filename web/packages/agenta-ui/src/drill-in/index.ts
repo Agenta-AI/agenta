@@ -128,6 +128,7 @@ export {
 } from "./utils"
 export {getViewOptions} from "./utils/getViewOptions"
 export type {ViewMode, ViewOption} from "./utils/getViewOptions"
+export {messageViewModeAtom} from "./state/messageViewModeAtom"
 
 // ============================================================================
 // FIELD RENDERERS
