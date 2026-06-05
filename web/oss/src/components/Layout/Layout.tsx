@@ -359,7 +359,7 @@ const AppWithVariants = memo(
 
 const App: React.FC<LayoutProps> = ({children}) => {
     const {appTheme} = useAppTheme()
-    const classes = useStyles({themeMode: appTheme} as StyleProps)
+    const classes = useStyles({themeMode: appTheme})
     const {isHumanEval, isPlayground, isAppRoute, isAuthRoute, isEvaluator, isFullHeight} =
         useCommittedLayoutFlags()
 
