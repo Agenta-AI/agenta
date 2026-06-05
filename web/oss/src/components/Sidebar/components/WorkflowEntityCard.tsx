@@ -1,6 +1,7 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {
+    fullPagePlaygroundEvaluatorsAtom,
     nonArchivedAppWorkflowsAtom,
     nonArchivedEvaluatorsAtom,
     parseWorkflowKeyFromUri,
@@ -116,19 +117,26 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     const ctx = useAtomValue(currentWorkflowContextAtom)
     const apps = useAtomValue(nonArchivedAppWorkflowsAtom) as readonly Workflow[]
     const evaluators = useAtomValue(nonArchivedEvaluatorsAtom) as readonly Workflow[]
+    // Only evaluators with a real full-page playground belong in the switcher.
+    // `fullPagePlaygroundEvaluatorsAtom` resolves the type flags from each
+    // evaluator's LATEST REVISION — the workflow LIST records this card reads
+    // from `nonArchivedEvaluatorsAtom` carry NO `data.uri` and NO
+    // `is_feedback`/`is_llm`/`is_code` flags (those live on the revision, not
+    // the parent artifact). That's why the old `!w.flags?.is_feedback` filter
+    // never excluded anything and human/feedback evaluators leaked into the
+    // switcher (QA 2026-06-05). The atom drops human (`is_feedback`) AND
+    // declarative classifier evaluators (match/exact_match/json_*/etc.) — all
+    // of which route to an `/apps/<id>/*` destination the guard redirects back
+    // to /evaluators, so clicking them would be a dead end.
+    const fullPagePlaygroundEvaluators = useAtomValue(
+        fullPagePlaygroundEvaluatorsAtom,
+    ) as readonly Workflow[]
     // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the flag is off, the
-    // switcher dropdown hides the "Evaluators" group entirely. With the flag
-    // on, list every evaluator EXCEPT human/feedback workflows:
-    // `is_feedback` evaluators are drawer-only in /evaluators (they capture
-    // human input, they don't run), so the corresponding `/apps/<id>/*`
-    // surface has no useful UI. PlaygroundRouter falls through to the
-    // generic `<Playground />` for those, which doesn't make sense to
-    // expose via the sidebar switcher — clicking would land on a
-    // run-controls page for a workflow that has nothing to run.
+    // switcher dropdown hides the "Evaluators" group entirely.
     const switcherEvaluators: readonly Workflow[] = useMemo(() => {
         if (!EVALUATOR_FULL_PAGE_NAV_ENABLED) return EMPTY_WORKFLOWS
-        return evaluators.filter((w) => !w.flags?.is_feedback)
-    }, [evaluators])
+        return fullPagePlaygroundEvaluators
+    }, [fullPagePlaygroundEvaluators])
     const recentAppId = useAtomValue(recentAppIdAtom)
     const recentEvaluatorId = useAtomValue(recentEvaluatorIdAtom)
     const navigateToWorkflow = useSetAtom(routerAppNavigationAtom)
