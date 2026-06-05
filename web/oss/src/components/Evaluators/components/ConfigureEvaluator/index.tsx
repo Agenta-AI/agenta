@@ -123,19 +123,7 @@ const ConfigureEvaluatorPageInner = () => {
 
     const handleAppSelect = useCallback(
         (selection: WorkflowRevisionSelectionResult) => {
-            // [B-repro] TEMP diagnostic for QA bug: re-selecting the same app
-            // after disconnect connects nothing. Remove once root-caused.
-            console.debug("[B-repro] handleAppSelect fired", {
-                selectionId: selection.id,
-                selectionLabel: selection.label,
-                hasEvaluatorNode: !!evaluatorNode,
-                evaluatorNodeEntityId: evaluatorNode?.entityId,
-                evaluatorNodeDepth: evaluatorNode?.depth,
-            })
-            if (!evaluatorNode) {
-                console.debug("[B-repro] handleAppSelect BAILED: evaluatorNode is null")
-                return
-            }
+            if (!evaluatorNode) return
             connectApp({
                 appRevisionId: selection.id,
                 appLabel: selection.label,
