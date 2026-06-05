@@ -218,3 +218,21 @@ export {llmAvailableProviders, llmAvailableProvidersToken} from "./llmProviders"
 
 // Object cleanup utilities
 export {removeEmptyFromObjects} from "./objectUtils"
+
+// Mustache template parser (AST + structural validation)
+export {parseMustache, walkMustache} from "./mustache"
+export type {
+    MustacheNode,
+    TextNode,
+    VariableNode,
+    SectionNode,
+    CommentNode,
+    PartialNode,
+    BlockNode,
+    ParentNode,
+    DelimiterNode,
+    ParseError,
+    ParseErrorKind,
+    ParseResult,
+    SourceSpan,
+} from "./mustache"

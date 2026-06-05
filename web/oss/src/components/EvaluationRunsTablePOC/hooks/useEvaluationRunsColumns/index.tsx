@@ -214,7 +214,8 @@ const useEvaluationRunsColumns = ({
             const stepInfoMap = new Map<
                 string,
                 {
-                    slug: string
+                    slug: string | null
+                    groupKey: string
                     label: string
                     id: string | null
                     handles: EvaluatorHandles
@@ -231,10 +232,10 @@ const useEvaluationRunsColumns = ({
                     evaluatorHandles.projectId = projectId
                 }
                 const evaluatorRef = resolveEvaluatorReferenceCandidate(refs)
-                const slugCandidate =
-                    evaluatorHandles.slug ??
-                    normalizeString(evaluatorRef?.slug) ??
-                    normalizeString(evaluatorRef?.key) ??
+                const slugCandidate = evaluatorHandles.slug ?? normalizeString(evaluatorRef?.slug)
+                const groupKey =
+                    slugCandidate ??
+                    evaluatorHandles.id ??
                     normalizeString(evaluatorRef?.id) ??
                     normalizeString(step.key) ??
                     step.key
@@ -242,9 +243,11 @@ const useEvaluationRunsColumns = ({
                     evaluatorHandles.name ??
                     normalizeString(evaluatorRef?.name) ??
                     slugCandidate ??
+                    groupKey ??
                     step.key
                 stepInfoMap.set(step.key, {
-                    slug: slugCandidate ?? step.key,
+                    slug: slugCandidate,
+                    groupKey,
                     label: humanizeEvaluatorName(labelCandidate ?? step.key),
                     id: evaluatorHandles.id ?? normalizeString(evaluatorRef?.id) ?? null,
                     handles: evaluatorHandles,
@@ -261,7 +264,7 @@ const useEvaluationRunsColumns = ({
                 const metricPath = normalizeString(mapping?.path)
                 if (!metricPath) return
                 const canonicalPath = canonicalizeMetricKey(metricPath)
-                const descriptorId = `${stepInfo.slug}:${canonicalPath}`
+                const descriptorId = `${stepInfo.groupKey}:${canonicalPath}`
                 const metricLabelSource = mapping?.name ?? metricPath
                 const metricLabel = humanizeMetricPath(metricLabelSource ?? metricPath)
                 const outputType = normalizeString(mapping?.outputType)?.toLowerCase() ?? null
@@ -273,17 +276,17 @@ const useEvaluationRunsColumns = ({
                 const referenceIdCandidate =
                     handles.id ?? handles.revisionId ?? handles.variantId ?? stepInfo.id ?? null
 
-                let group = groups.get(stepInfo.slug)
+                let group = groups.get(stepInfo.groupKey)
                 if (!group) {
                     group = {
-                        id: stepInfo.slug,
+                        id: stepInfo.groupKey,
                         label: stepInfo.label,
                         referenceId: referenceIdCandidate,
                         projectIds: new Set<string>(),
                         handles: handles,
                         metrics: new Map<string, RunMetricDescriptor>(),
                     }
-                    groups.set(stepInfo.slug, group)
+                    groups.set(stepInfo.groupKey, group)
                 }
                 if (referenceIdCandidate && !group.referenceId) {
                     group.referenceId = referenceIdCandidate
@@ -308,7 +311,7 @@ const useEvaluationRunsColumns = ({
                         stepKeysByRunId: {[runId]: stepKey},
                         metricPathsByRunId: {[runId]: metricPath},
                         evaluatorRef: {
-                            slug: handles.slug ?? stepInfo.slug,
+                            slug: handles.slug ?? stepInfo.slug ?? null,
                             id: handles.id ?? null,
                             variantId: handles.variantId ?? null,
                             variantSlug: handles.variantSlug ?? null,
@@ -336,7 +339,7 @@ const useEvaluationRunsColumns = ({
                     }
                     const priorRef = descriptor.evaluatorRef ?? {}
                     descriptor.evaluatorRef = {
-                        slug: priorRef.slug ?? handles.slug ?? stepInfo.slug,
+                        slug: priorRef.slug ?? handles.slug ?? stepInfo.slug ?? null,
                         id: priorRef.id ?? handles.id ?? null,
                         variantId: priorRef.variantId ?? handles.variantId ?? null,
                         variantSlug: priorRef.variantSlug ?? handles.variantSlug ?? null,

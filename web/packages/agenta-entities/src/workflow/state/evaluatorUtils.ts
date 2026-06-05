@@ -767,6 +767,22 @@ export async function createEvaluatorFromTemplate(templateKey: string): Promise<
         }
     }
 
+    // New LLM-as-a-judge defaults to the `mustache` prompt format. Curly is
+    // legacy and hidden from the picker for new prompts, so a fresh judge
+    // should not start on it (Mahmoud QA 2026-06-03). Only seed when:
+    //   - the evaluator is LLM-based (flat params carry a `prompt_template`
+    //     messages array — non-LLM evaluators like exact-match have no prompt)
+    //   - the catalog template didn't already specify a format.
+    // Stored at the flat level; `nestEvaluatorConfiguration` surfaces it into
+    // `prompt.template_format` for the picker, and `flattenEvaluatorConfiguration`
+    // round-trips it back on commit.
+    if (
+        Array.isArray(parameters.prompt_template) &&
+        typeof parameters.template_format !== "string"
+    ) {
+        parameters.template_format = "mustache"
+    }
+
     const workflow: Workflow = {
         id: localId,
         name: template.name,
