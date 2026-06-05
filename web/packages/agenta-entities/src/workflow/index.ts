@@ -83,10 +83,13 @@ export {
     parseWorkflowKeyFromUri,
     buildWorkflowUri,
     generateSlug,
+    // Workflow type utilities
+    WORKFLOW_TYPE_COLOR_MAP,
+    getWorkflowTypeColor,
+    getWorkflowTypeLabel,
+    normalizeWorkflowTypeKey,
+    type WorkflowTypeColor,
     // Evaluator-specific utilities (for evaluator-type workflows)
-    getEvaluatorColor,
-    type EvaluatorColor,
-    getAppTypeColor,
     parseEvaluatorKeyFromUri,
     buildEvaluatorUri,
     isOnlineCapableEvaluator,

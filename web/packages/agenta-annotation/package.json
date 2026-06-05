@@ -13,6 +13,8 @@
         "test:unit": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "test:all": "pnpm run test:unit && pnpm run test:integration",
         "check": "pnpm run types:check && pnpm run lint"
     },
     "exports": {
