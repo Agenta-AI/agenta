@@ -2942,6 +2942,20 @@ def _mock_score(*, score=0.0, threshold=0.5, **_) -> Any:
     return {"score": _score, "success": _score >= float(threshold)}
 
 
+def _mock_reflect(*, outputs=None, **_) -> Any:
+    # Evaluator-role, contamination-sensitive: score 1.0 iff it received a real
+    # application output under `outputs` (a non-empty dict that is NOT an
+    # evaluator result). A sibling evaluator's leaked {"score","success"} dict
+    # scores 0.0, so this catches evaluator-order cross-contamination.
+    is_app_output = (
+        isinstance(outputs, dict)
+        and bool(outputs)
+        and "score" not in outputs
+        and "success" not in outputs
+    )
+    return {"score": 1.0 if is_app_output else 0.0, "success": is_app_output}
+
+
 def _mock_error(*, message="mock_v0 error behavior", **_) -> Any:
     # Failure path (shared by app and evaluator roles).
     raise MockV0Error(message=str(message))
@@ -2965,6 +2979,7 @@ MOCK_V0_BEHAVIORS = {
     "pass": _mock_pass,
     "fail": _mock_fail,
     "score": _mock_score,
+    "reflect": _mock_reflect,
     # shared
     "error": _mock_error,
     "delay": _mock_delay,
@@ -2990,7 +3005,7 @@ async def mock_v0(
 
     Parameters:
         key:    selector name — one of MOCK_V0_BEHAVIORS
-                (echo, static, pass, fail, score, error, delay).
+                (echo, static, pass, fail, score, reflect, error, delay).
         kwargs: structured args for the selected behavior (optional).
 
     Returns:

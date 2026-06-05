@@ -210,6 +210,60 @@ def wait_for_metrics(
     return query_metrics(authed_api, run_id)
 
 
+# - metric extraction ----------------------------------------------------------
+
+# The evaluator score aggregate lives under each evaluator step, keyed by the
+# canonical output path.
+SCORE_PATH = "attributes.ag.data.outputs.score"
+
+
+def evaluator_score_means(metric):
+    """Map each evaluator step's score mean from a metric row's step-keyed data.
+
+    Returns {step_key: mean} for every evaluator step that carries the score
+    path — lets a multi-evaluator test read each evaluator's value without
+    coupling to the generated step slug.
+    """
+    means = {}
+    for step_key, step_metrics in (metric.get("data") or {}).items():
+        score = (step_metrics or {}).get(SCORE_PATH)
+        if score and "mean" in score:
+            means[step_key] = score["mean"]
+    return means
+
+
+def refresh_global_metric(authed_api, run_id, *, expect_evaluators, attempts=8):
+    """Drive the whole-run metric refresh and return the global metric once all
+    evaluator score aggregates are present and settled.
+
+    The refresh is synchronous, but a run can report terminal a beat before
+    every scenario's result cell is durably persisted under parallel load, so an
+    early refresh may aggregate fewer evaluators/cells. Re-refresh (short) until
+    `expect_evaluators` evaluator score rows appear; return that global metric.
+    """
+    import time
+
+    last = None
+    for attempt in range(attempts):
+        response = authed_api(
+            "POST",
+            "/evaluations/metrics/refresh",
+            json={"metrics": {"run_id": str(run_id)}},
+        )
+        assert response.status_code == 200, response.text
+        metrics = response.json()["metrics"]
+        global_metric = next((m for m in metrics if m.get("scenario_id") is None), None)
+        if global_metric is not None:
+            last = global_metric
+            if len(evaluator_score_means(global_metric)) >= expect_evaluators:
+                return global_metric
+        time.sleep(min(0.5 * (2**attempt), 4.0))
+    raise AssertionError(
+        f"global metric did not reach {expect_evaluators} evaluator(s) "
+        f"(last means={evaluator_score_means(last) if last else None})"
+    )
+
+
 # - lifecycle mutations --------------------------------------------------------
 
 

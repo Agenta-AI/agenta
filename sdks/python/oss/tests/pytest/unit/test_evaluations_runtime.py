@@ -756,6 +756,370 @@ async def test_sdk_source_slice_links_evaluators_to_application_traces():
     ]
 
 
+# ---------------------------------------------------------------------------
+# Evaluator topology and ordering invariant
+#
+# INPUT -> APPLICATION -> EVALUATOR(s), where the application is the sole
+# PRODUCER of the path's upstream context and every evaluator is a pure
+# CONSUMER. Evaluators are conceptually parallel: they read the application's
+# output (and their own source inputs) and never each other's, so their plan
+# order must not change any evaluator's input. These tests pin that invariant —
+# regression guard for the bug where a later evaluator read an earlier
+# evaluator's output instead of the application's (Exact Match → 0%).
+# ---------------------------------------------------------------------------
+
+
+def _input_step():
+    return EvaluationStep(key="testset-main", type="input", origin="custom")
+
+
+def _app_step():
+    return EvaluationStep(key="application-main", type="invocation", origin="custom")
+
+
+def _eval_step(key):
+    return EvaluationStep(key=key, type="annotation", origin="auto")
+
+
+class _RecordingLogger:
+    """A no-op ResultSetter that records nothing — used when a test only cares
+    about what the runners received, not what was persisted."""
+
+    async def set(
+        self,
+        *,
+        cell,
+        trace_id=None,
+        hash_id=None,
+        testcase_id=None,
+        error=None,
+    ):
+        return SimpleNamespace(id=uuid4())
+
+
+def _app_runner(*, outputs, trace_id="app-trace", span_id="app-span"):
+    """An application runner that produces a fixed output as the path's sole
+    producer, with a real trace/span so evaluators can link to it."""
+
+    class _AppRunner:
+        async def execute_batch(self, requests, semaphore=None):
+            return [
+                WorkflowExecutionResult(
+                    status=EvaluationStatus.SUCCESS,
+                    trace_id=trace_id,
+                    span_id=span_id,
+                    outputs=outputs,
+                    trace={
+                        "trace_id": trace_id,
+                        "spans": {
+                            "root": {
+                                "span_id": span_id,
+                                "attributes": {"ag": {"data": {"outputs": outputs}}},
+                            }
+                        },
+                    },
+                )
+                for _ in requests
+            ]
+
+    return _AppRunner()
+
+
+def _recording_eval_runner(sink, *, outputs, trace_prefix):
+    """An evaluator runner that records every request it receives into `sink`
+    (so a test can inspect upstream_outputs/links) and returns its own distinct
+    output + trace_id — the would-be contamination source."""
+
+    class _EvalRunner:
+        async def execute_batch(self, requests, semaphore=None):
+            sink.extend(requests)
+            return [
+                WorkflowExecutionResult(
+                    status=EvaluationStatus.SUCCESS,
+                    trace_id=f"{trace_prefix}-{request.cell.repeat_idx}",
+                    span_id=f"{trace_prefix}-span",
+                    outputs=outputs,
+                )
+                for request in requests
+            ]
+
+    return _EvalRunner()
+
+
+async def _create_scenario(run_id):
+    return SimpleNamespace(id=uuid4())
+
+
+async def _refresh_metrics(run_id, scenario_id):
+    return None
+
+
+@pytest.mark.parametrize(
+    "eval_order",
+    [
+        ["evaluator-a", "evaluator-b"],
+        ["evaluator-b", "evaluator-a"],
+    ],
+)
+@pytest.mark.asyncio
+async def test_sdk_evaluators_consume_app_output_regardless_of_order(eval_order):
+    """Two evaluators after one application: BOTH must receive the application's
+    output as their upstream, in EITHER plan order.
+
+    The first-run evaluator returns a distinct dict output and its own trace_id.
+    Before the producer/consumer guard, _remember_context overwrote the shared
+    upstream channel with that evaluator's output, so the second-run evaluator
+    saw the first evaluator's dict instead of the app's string — the exact
+    Exact-Match-shows-all-false bug. Order must not matter.
+    """
+    app_outputs = {"answer": "the-app-output"}
+    # The first evaluator emits a contaminating dict; if the guard regresses,
+    # the second evaluator would read THIS instead of app_outputs.
+    contaminating = {"score": True}
+
+    requests_by_key = {key: [] for key in eval_order}
+
+    steps = [_input_step(), _app_step()] + [_eval_step(key) for key in eval_order]
+    runners = {
+        "application-main": _app_runner(outputs=app_outputs),
+    }
+    for i, key in enumerate(eval_order):
+        runners[key] = _recording_eval_runner(
+            requests_by_key[key],
+            outputs=contaminating if i == 0 else {"score": False},
+            trace_prefix=key,
+        )
+    revisions = {key: {"id": f"{key}-rev"} for key in runners}
+
+    await process_sources(
+        run_id=uuid4(),
+        source_items=[
+            ResolvedSourceItem(
+                kind="testcase",
+                step_key="testset-main",
+                testcase_id=uuid4(),
+                inputs={"prompt": "hello"},
+            )
+        ],
+        steps=steps,
+        repeats=1,
+        create_scenario=_create_scenario,
+        set_results=_RecordingLogger(),
+        refresh_metrics=_refresh_metrics,
+        runners=runners,
+        revisions=revisions,
+        is_split=False,
+    )
+
+    # Each evaluator ran exactly once and saw the APPLICATION's output — never a
+    # sibling evaluator's — and linked to the application's trace/span.
+    for key in eval_order:
+        assert len(requests_by_key[key]) == 1, key
+        request = requests_by_key[key][0]
+        assert request.upstream_outputs == app_outputs, (
+            f"{key} read a sibling evaluator's output: {request.upstream_outputs}"
+        )
+        assert request.links == {
+            "invocation": {"trace_id": "app-trace", "span_id": "app-span"}
+        }
+
+
+@pytest.mark.asyncio
+async def test_sdk_evaluators_also_receive_their_source_inputs():
+    """Evaluators consume the application output AND their own source inputs
+    (e.g. a correct_answer field), so an exact-match-style evaluator has both
+    sides of the comparison without depending on a sibling."""
+    sink = []
+    inputs = {"prompt": "hello", "correct_answer": "the-app-output"}
+
+    await process_sources(
+        run_id=uuid4(),
+        source_items=[
+            ResolvedSourceItem(
+                kind="testcase",
+                step_key="testset-main",
+                testcase_id=uuid4(),
+                inputs=inputs,
+            )
+        ],
+        steps=[_input_step(), _app_step(), _eval_step("evaluator-a")],
+        repeats=1,
+        create_scenario=_create_scenario,
+        set_results=_RecordingLogger(),
+        refresh_metrics=_refresh_metrics,
+        runners={
+            "application-main": _app_runner(outputs={"answer": "the-app-output"}),
+            "evaluator-a": _recording_eval_runner(
+                sink, outputs={"score": True}, trace_prefix="evaluator-a"
+            ),
+        },
+        revisions={
+            "application-main": {"id": "app-rev"},
+            "evaluator-a": {"id": "eval-rev"},
+        },
+    )
+
+    assert len(sink) == 1
+    request = sink[0]
+    assert request.upstream_outputs == {"answer": "the-app-output"}
+    # the evaluator still carries the testcase inputs on its source item.
+    assert request.source.inputs == inputs
+
+
+@pytest.mark.parametrize("evaluator_keys", [[], ["evaluator-a"]])
+@pytest.mark.asyncio
+async def test_sdk_zero_or_one_evaluator_topologies(evaluator_keys):
+    """The runtime supports 0 evaluators (invocation-only inference) and 1
+    evaluator. Both must execute the application and any evaluator present,
+    keying every repeat under its step_key."""
+    sink = []
+    steps = [_input_step(), _app_step()] + [_eval_step(key) for key in evaluator_keys]
+    runners = {"application-main": _app_runner(outputs={"answer": "x"})}
+    revisions = {"application-main": {"id": "app-rev"}}
+    for key in evaluator_keys:
+        runners[key] = _recording_eval_runner(
+            sink, outputs={"score": True}, trace_prefix=key
+        )
+        revisions[key] = {"id": f"{key}-rev"}
+
+    processed = await process_sources(
+        run_id=uuid4(),
+        source_items=[
+            ResolvedSourceItem(
+                kind="testcase",
+                step_key="testset-main",
+                testcase_id=uuid4(),
+                inputs={"prompt": "hello"},
+            )
+        ],
+        steps=steps,
+        repeats=1,
+        create_scenario=_create_scenario,
+        set_results=_RecordingLogger(),
+        refresh_metrics=_refresh_metrics,
+        runners=runners,
+        revisions=revisions,
+    )
+
+    assert processed[0].has_errors is False
+    results = processed[0].results
+    assert set(results["application-main"].keys()) == {0}
+    for key in evaluator_keys:
+        assert set(results[key].keys()) == {0}
+    # 0-evaluator runs invoke nothing downstream.
+    assert sink == [] if not evaluator_keys else len(sink) == 1
+
+
+@pytest.mark.asyncio
+async def test_sdk_no_application_evaluators_read_source_trace_context():
+    """Topology with NO application (testset/trace -> evaluators directly): each
+    evaluator reads the source item's own trace context, and a first-run
+    evaluator's output still does not leak into a second-run evaluator."""
+    requests_a, requests_b = [], []
+    source_trace_id = "source-trace"
+    source_span_id = "source-span"
+    source_outputs = {"answer": "from-source"}
+
+    await process_sources(
+        run_id=uuid4(),
+        source_items=[
+            ResolvedSourceItem(
+                kind="trace",
+                step_key="query-main",
+                trace_id=source_trace_id,
+                span_id=source_span_id,
+                outputs=source_outputs,
+                trace={
+                    "trace_id": source_trace_id,
+                    "spans": {
+                        "root": {
+                            "span_id": source_span_id,
+                            "attributes": {"ag": {"data": {"outputs": source_outputs}}},
+                        }
+                    },
+                },
+            )
+        ],
+        steps=[
+            EvaluationStep(key="query-main", type="input", origin="custom"),
+            _eval_step("evaluator-a"),
+            _eval_step("evaluator-b"),
+        ],
+        repeats=1,
+        create_scenario=_create_scenario,
+        set_results=_RecordingLogger(),
+        refresh_metrics=_refresh_metrics,
+        runners={
+            "evaluator-a": _recording_eval_runner(
+                requests_a, outputs={"score": True}, trace_prefix="evaluator-a"
+            ),
+            "evaluator-b": _recording_eval_runner(
+                requests_b, outputs={"score": False}, trace_prefix="evaluator-b"
+            ),
+        },
+        revisions={
+            "evaluator-a": {"id": "a-rev"},
+            "evaluator-b": {"id": "b-rev"},
+        },
+    )
+
+    # both evaluators read the SOURCE trace context, not each other's.
+    for sink in (requests_a, requests_b):
+        assert len(sink) == 1
+        assert sink[0].upstream_outputs == source_outputs
+        assert sink[0].links == {
+            "invocation": {
+                "trace_id": source_trace_id,
+                "span_id": source_span_id,
+            }
+        }
+
+
+@pytest.mark.asyncio
+async def test_sdk_evaluator_order_invariant_under_repeats():
+    """Order-invariance must hold per repeat: with repeats=2, every repeat of
+    every evaluator reads the application output for the same path, never a
+    sibling evaluator's, in either order."""
+    for eval_order in (["evaluator-a", "evaluator-b"], ["evaluator-b", "evaluator-a"]):
+        requests_by_key = {key: [] for key in eval_order}
+        app_outputs = {"answer": "app"}
+        runners = {"application-main": _app_runner(outputs=app_outputs)}
+        revisions = {"application-main": {"id": "app-rev"}}
+        for i, key in enumerate(eval_order):
+            runners[key] = _recording_eval_runner(
+                requests_by_key[key],
+                outputs={"score": i == 0},
+                trace_prefix=key,
+            )
+            revisions[key] = {"id": f"{key}-rev"}
+
+        await process_sources(
+            run_id=uuid4(),
+            source_items=[
+                ResolvedSourceItem(
+                    kind="testcase",
+                    step_key="testset-main",
+                    testcase_id=uuid4(),
+                    inputs={"prompt": "hello"},
+                )
+            ],
+            steps=[_input_step(), _app_step()]
+            + [_eval_step(key) for key in eval_order],
+            repeats=2,
+            create_scenario=_create_scenario,
+            set_results=_RecordingLogger(),
+            refresh_metrics=_refresh_metrics,
+            runners=runners,
+            revisions=revisions,
+            is_split=False,
+        )
+
+        for key in eval_order:
+            assert [r.cell.repeat_idx for r in requests_by_key[key]] == [0, 1]
+            for request in requests_by_key[key]:
+                assert request.upstream_outputs == app_outputs, eval_order
+
+
 @pytest.mark.asyncio
 async def test_sdk_result_setter_writes_populate_ready_cell_live():
     """SDKResultSetter writes each cell LIVE via populate as the engine produces it.

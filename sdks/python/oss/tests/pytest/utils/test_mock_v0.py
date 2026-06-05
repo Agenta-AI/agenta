@@ -101,6 +101,29 @@ def test_score_default_threshold():
     assert call("score", kwargs={"score": 0.49})["success"] is False
 
 
+def test_reflect_passes_on_real_app_output():
+    # an application output (echo of the testcase inputs) is a non-empty dict
+    # without an evaluator-result shape -> score 1.0.
+    assert call("reflect", outputs={"input": "hello", "expected": "world"}) == {
+        "score": 1.0,
+        "success": True,
+    }
+
+
+def test_reflect_fails_on_leaked_evaluator_output():
+    # a sibling evaluator's {"score","success"} dict must NOT pass: this is the
+    # cross-evaluator contamination signal.
+    assert call("reflect", outputs={"score": 1.0, "success": True}) == {
+        "score": 0.0,
+        "success": False,
+    }
+
+
+def test_reflect_fails_on_empty_output():
+    assert call("reflect", outputs={})["success"] is False
+    assert call("reflect")["success"] is False
+
+
 # --- shared selectors ------------------------------------------------------
 
 
@@ -142,6 +165,7 @@ def test_registry_covers_documented_selectors():
         "pass",
         "fail",
         "score",
+        "reflect",
         "error",
         "delay",
     }
