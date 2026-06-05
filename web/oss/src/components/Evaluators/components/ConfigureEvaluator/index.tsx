@@ -30,8 +30,15 @@ import {OSSPlaygroundShell} from "@/oss/components/Playground/OSSPlaygroundShell
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 import {playgroundSyncAtom} from "@/oss/state/url/playground"
 
-import {connectAppToEvaluatorAtom, evaluatorConfigEntityIdsAtom} from "./atoms"
+import {
+    connectAppToEvaluatorAtom,
+    effectiveRunOnModeAtom,
+    evaluatorConfigEntityIdsAtom,
+    hasAppConnectedAtom,
+    selectedAppLabelAtom,
+} from "./atoms"
 import EvaluatorPlaygroundHeader from "./EvaluatorPlaygroundHeader"
+import SelectAppEmptyState from "./SelectAppEmptyState"
 
 const PlaygroundMainView = dynamic(
     () => import("@/oss/components/Playground/Components/MainLayout"),
@@ -71,6 +78,14 @@ const ConfigureEvaluatorPageInner = () => {
 
     const configEntityIds = useAtomValue(evaluatorConfigEntityIdsAtom)
     const connectApp = useSetAtom(connectAppToEvaluatorAtom)
+    const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
+    const hasAppConnected = useAtomValue(hasAppConnectedAtom)
+    const runOnMode = useAtomValue(effectiveRunOnModeAtom)
+
+    // In "Run on an app" mode with no app connected yet, the run panel surfaces
+    // the app selector (mirrors the evaluator-creation drawer) so the default
+    // path — pick an app → run against it — is the obvious next step.
+    const runDisabled = runOnMode === "app" && !hasAppConnected
 
     // Read the current evaluator entity from playground nodes
     // Phase 1: evaluator is at depth 0 (primary, standalone run)
@@ -119,6 +134,17 @@ const ConfigureEvaluatorPageInner = () => {
         [connectApp, evaluatorNode],
     )
 
+    const runDisabledContent = useMemo(
+        () => (
+            <SelectAppEmptyState
+                adapter={appWorkflowAdapter}
+                onSelect={handleAppSelect}
+                selectedAppLabel={selectedAppLabel}
+            />
+        ),
+        [appWorkflowAdapter, handleAppSelect, selectedAppLabel],
+    )
+
     const providers = useMemo(
         () =>
             ({
@@ -132,12 +158,21 @@ const ConfigureEvaluatorPageInner = () => {
 
     return (
         <OSSPlaygroundShell providers={providers}>
-            <div className="flex flex-col w-full h-full overflow-hidden">
+            {/* Definite height (viewport minus the app topbar) so the run panel's
+             * `h-full` centering resolves — same pattern as the app playground
+             * (`Playground.tsx`). With a plain `h-full` here the chain collapses
+             * to content height and the empty state sticks to the top. */}
+            <div className="flex flex-col w-full h-[calc(100dvh-75px)] overflow-hidden">
                 <EvaluatorPlaygroundHeader
                     appWorkflowAdapter={appWorkflowAdapter}
                     onAppSelect={handleAppSelect}
                 />
-                <PlaygroundMainView mode="evaluator" configEntityIdsOverride={configEntityIds} />
+                <PlaygroundMainView
+                    mode="evaluator"
+                    configEntityIdsOverride={configEntityIds}
+                    runDisabled={runDisabled}
+                    runDisabledContent={runDisabledContent}
+                />
             </div>
         </OSSPlaygroundShell>
     )

@@ -84,6 +84,53 @@ export const persistedTestsetSelectionAtom = atom(
 )
 
 // ============================================================================
+// RUN-ON MODE
+// ============================================================================
+
+/**
+ * What the evaluator runs on:
+ *  - "data"  → run directly on data you provide (test set or manual input/output)
+ *  - "app"   → run an app over the data, then grade its output (the usual flow)
+ *  - "trace" → grade the input/output of a logged trace (not yet available)
+ *
+ * "app" is the default so a fresh playground guides the user down the most
+ * common path (pick an app → run against it). The "trace" mode is disabled in
+ * the UI for now.
+ */
+export type RunOnMode = "data" | "app" | "trace"
+
+const runOnModeByProjectAtom = atomWithStorage<Record<string, RunOnMode>>(
+    "agenta:evaluator:run-on-mode",
+    {},
+)
+
+/** Read/write the persisted run-on mode for the current project (default "app"). */
+export const runOnModeAtom = atom(
+    (get) => {
+        const projectId = get(projectIdAtom) || "__global__"
+        return get(runOnModeByProjectAtom)[projectId] ?? "app"
+    },
+    (get, set, next: RunOnMode) => {
+        const projectId = get(projectIdAtom) || "__global__"
+        const all = get(runOnModeByProjectAtom)
+        set(runOnModeByProjectAtom, {...all, [projectId]: next})
+    },
+)
+
+/**
+ * The mode actually in effect.
+ *
+ * A connected app (downstream evaluator node) always means we're in "app" mode,
+ * regardless of the stored preference — the node graph is the source of truth.
+ * Only when nothing is connected do we fall back to the stored mode.
+ */
+export const effectiveRunOnModeAtom = atom<RunOnMode>((get) => {
+    const nodes = get(playgroundNodesAtom)
+    if (nodes.some((n) => n.depth > 0)) return "app"
+    return get(runOnModeAtom)
+})
+
+// ============================================================================
 // DERIVED SELECTORS
 // ============================================================================
 
@@ -201,6 +248,13 @@ export const connectAppToEvaluatorAtom = atom(
         // display label is derived from the depth-0 node's `label` via
         // `selectedAppLabelAtom`, so no extra write needed here.
         set(persistedAppSelectionAtom, {appRevisionId, appLabel})
+
+        // Pin the stored run-on mode to "app" too. While connected,
+        // `effectiveRunOnModeAtom` overrides to "app" regardless, but the
+        // stored mode is what we fall back to on disconnect — without this a
+        // user who connected an app from "data" mode would snap back to the
+        // testcase panel on disconnect instead of the "Select an app" state.
+        set(runOnModeAtom, "app")
     },
 )
 
