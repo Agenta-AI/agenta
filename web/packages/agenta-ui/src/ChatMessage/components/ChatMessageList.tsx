@@ -17,7 +17,7 @@ import {useAtom} from "jotai"
 import {CollapseToggleButton, getCollapseStyle} from "../../components/presentational/buttons"
 import {ViewModeDropdown} from "../../drill-in/core/ViewModeDropdown"
 import {messageViewModeAtom} from "../../drill-in/state/messageViewModeAtom"
-import {getViewOptions, type ViewMode} from "../../drill-in/utils/getViewOptions"
+import {getViewOptions, toMessageViewMode, type ViewMode} from "../../drill-in/utils/getViewOptions"
 import {message, modal} from "../../utils/appMessageContext"
 import {cn, flexLayouts, gapClasses} from "../../utils/styles"
 import {createSnippetPdfAttachment} from "../utils/snippetAttachment"
@@ -92,9 +92,12 @@ const ChatMessageItem: React.FC<{
 }) => {
     const containerRef = useRef<HTMLDivElement>(null)
     // Shared + persisted across all message editors (see messageViewModeAtom).
+    // The atom is typed `ViewMode` (can hold "form"), so coerce to a mode this
+    // editor can actually render before deriving any mode-dependent state.
     const [viewMode, setViewMode] = useAtom(messageViewModeAtom)
-    const isCodeMode = viewMode === "json" || viewMode === "yaml"
-    const editorLanguage: "json" | "yaml" = viewMode === "yaml" ? "yaml" : "json"
+    const chatViewMode = toMessageViewMode(viewMode)
+    const isCodeMode = chatViewMode === "json" || chatViewMode === "yaml"
+    const editorLanguage: "json" | "yaml" = chatViewMode === "yaml" ? "yaml" : "json"
 
     const isToolResponse = msg.role === "tool"
     const hasToolCalls = Boolean(msg.tool_calls && msg.tool_calls.length > 0)
@@ -176,7 +179,7 @@ const ChatMessageItem: React.FC<{
                 onChangeText={(text) => onTextChange(index, text)}
                 isJSON={isCodeMode}
                 language={editorLanguage}
-                markdownView={viewMode === "text"}
+                markdownView={chatViewMode === "text"}
                 enableTokens={enableTokens && !isCodeMode}
                 templateFormat={templateFormat}
                 tokens={tokens}
@@ -199,7 +202,7 @@ const ChatMessageItem: React.FC<{
                         )}
                     >
                         <ViewModeDropdown<ChatViewMode>
-                            value={viewMode as ChatViewMode}
+                            value={chatViewMode}
                             options={viewOptions}
                             onChange={setViewMode}
                         />
