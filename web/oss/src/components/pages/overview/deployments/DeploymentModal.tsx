@@ -31,7 +31,7 @@ const DeploymentModal = ({
 
             await publish({
                 revisionId: selectedVariant.id,
-                environmentSlug: selectedEnvironment.name,
+                environmentSlug: selectedEnvironment.slug,
                 applicationId: selectedVariant.workflow_id || "",
                 workflowVariantId: selectedVariant.workflow_variant_id ?? undefined,
                 variantSlug:

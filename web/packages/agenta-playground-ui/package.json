@@ -28,6 +28,7 @@
         "./comparison-view": "./src/components/ExecutionItemComparisonView/index.tsx",
         "./execution-items": "./src/components/ExecutionItems/index.tsx",
         "./execution-item-comparison-view": "./src/components/ExecutionItemComparisonView/index.tsx",
+        "./playground-inputs-body": "./src/components/PlaygroundInputsBody/index.tsx",
         "./workflow-revision-drawer": "./src/components/WorkflowRevisionDrawer/index.ts"
     },
     "dependencies": {

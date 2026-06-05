@@ -1,0 +1,16 @@
+diff --git a/lib/parseDocuments.js b/lib/parseDocuments.js
+index c703296fad630f0a9ec18ae5ef944a652e3af0f1..d14e68ac9a8c4382aa98380086a1e3e7f51bad53 100644
+--- a/lib/parseDocuments.js
++++ b/lib/parseDocuments.js
+@@ -24,6 +24,11 @@ function extractTitle(content, frontMatter) {
+     return title || "";
+ }
+ function extractSectionName(route, siteConfig) {
++    // Blog and non-docs routes have no sidebar. Return a fallback section name.
++    if (!route.sidebar) {
++        const firstSegment = route.path.split('/').filter(Boolean)[0] || 'Documentation';
++        return firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1);
++    }
+     const navbars = siteConfig.themeConfig.navbar || {};
+     const matching_sidebars = navbars.items.filter((item) => item.sidebarId === route.sidebar);
+     if (matching_sidebars.length == 1) {

@@ -219,6 +219,20 @@ export const extractAndLoadChatMessagesAtom = atom(
 
         if (!testcaseRows || testcaseRows.length === 0) return
 
+        // Defensive single-row guard for chat. The canonical gate lives at
+        // each `playgroundController` entrypoint that builds the row list
+        // for a chat playground — `connectToTestsetAtom`,
+        // `importTestcasesAtom`. This guard catches callers that bypass
+        // that controller (URL hydration, direct atom sets in tests, future
+        // entrypoints) and prevents the multi-row concatenation regression
+        // Mahmoud reported on 2026-06-01: passing N rows here would
+        // interleave every row's `messages` into the single shared
+        // `messageIdsAtomFamily(loadableId)` queue, producing a nonsensical
+        // "row1 user → row1 assistant → row2 user → row2 assistant → …"
+        // thread. Take only the first row in chat; the chat UI only ever
+        // displays one row (see `generationVariableRowIdsAtom`).
+        const effectiveRows = testcaseRows.length > 1 ? [testcaseRows[0]] : testcaseRows
+
         // Clear existing messages
         set(clearAllMessagesAtom, {loadableId})
 
@@ -235,8 +249,11 @@ export const extractAndLoadChatMessagesAtom = atom(
             return undefined
         }
 
-        // Parse messages from each row
-        const datasetMessages = testcaseRows.map((row) =>
+        // Parse messages from each row. After the chat single-row guard
+        // above, `effectiveRows` is at most one row; we keep the
+        // `datasetMessages.map(...)` structure so the loop semantics stay
+        // identical in case a future change re-enables multi-row seeding.
+        const datasetMessages = effectiveRows.map((row) =>
             normalizeMessagesFromField(resolveMessages(row)),
         )
         const allMessages = datasetMessages.flat()

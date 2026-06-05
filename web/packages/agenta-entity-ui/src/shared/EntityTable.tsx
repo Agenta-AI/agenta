@@ -33,7 +33,7 @@
  * @module EntityTable
  */
 
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
 
 import type {
     EntityColumnDef,
@@ -58,7 +58,7 @@ import {
     type TypeChipConfig,
 } from "@agenta/ui/table"
 import type {GroupColumnsOptions} from "@agenta/ui/utils"
-import {Checkbox} from "antd"
+import {Checkbox, Radio} from "antd"
 import type {ColumnType, ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -133,6 +133,12 @@ export interface EntityTableProps<
     prependColumns?: ColumnsType<TRow>
     /** Extra columns appended to the column list */
     appendColumns?: ColumnsType<TRow>
+    /** Optional cell renderer override for entity-specific display rules. */
+    renderCell?: (
+        value: unknown,
+        rowData: Record<string, unknown> | null,
+        column: TColumn,
+    ) => ReactNode
 
     // Table features
     /** Row height config */
@@ -214,6 +220,7 @@ export function EntityTable<
     grouping = false,
     prependColumns,
     appendColumns,
+    renderCell,
     rowHeightConfig = DEFAULT_ROW_HEIGHT_CONFIG,
     showSettings = true,
     enableExport = true,
@@ -404,7 +411,14 @@ export function EntityTable<
 
     // Build table columns
     const tableColumns: ColumnsType<TRow> = useMemo(() => {
-        // Selection column
+        // Selection column. Header is `Checkbox` (select-all) ONLY when the
+        // table is multi-select — single-select has no select-all concept.
+        // Row control mirrors that: `Checkbox` for multi-select, `Radio` for
+        // single-select. Without the radio, single-select callers (e.g. the
+        // chat playground testset picker) render visually identical
+        // checkboxes whose behaviour silently replaces the previous
+        // selection on every click — the "we do something else behind the
+        // curtains" UX wart Arda flagged on 2026-06-01.
         const selectionColumn: ColumnType<TRow> = {
             key: "__selection",
             title: multiSelect ? (
@@ -417,14 +431,36 @@ export function EntityTable<
             ) : null,
             width: SELECTION_COLUMN_WIDTH,
             fixed: "left",
-            render: (_, record) => (
-                <Checkbox
-                    checked={selectedIdsSet.has(record.id)}
-                    onChange={(e) => handleRowSelect(record.id, e.target.checked)}
-                    disabled={selectionDisabled}
-                    onClick={(e) => e.stopPropagation()}
-                />
-            ),
+            render: (_, record) => {
+                const checked = selectedIdsSet.has(record.id)
+                if (multiSelect) {
+                    return (
+                        <Checkbox
+                            checked={checked}
+                            onChange={(e) => handleRowSelect(record.id, e.target.checked)}
+                            disabled={selectionDisabled}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    )
+                }
+                // Single-select: render a Radio. Clicking an unchecked radio
+                // selects (and replaces the previous selection via the
+                // `multiSelect ? … : [rowId]` branch in `handleRowSelect`).
+                // Clicking a checked radio is a no-op in antd by default —
+                // we don't try to "uncheck" because single-select tables
+                // are semantically "pick one"; the user can pick a
+                // different row instead.
+                return (
+                    <Radio
+                        checked={checked}
+                        onChange={() => {
+                            if (!checked) handleRowSelect(record.id, true)
+                        }}
+                        disabled={selectionDisabled}
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                )
+            },
         }
 
         // Build entity columns using the helper
@@ -432,6 +468,7 @@ export function EntityTable<
             getRowData,
             getCellValue,
             grouping: groupingOptions,
+            renderCell,
         } as BuildEntityColumnsOptions<TRow, TColumn>)
 
         // Assemble final columns
@@ -454,6 +491,7 @@ export function EntityTable<
         handleRowSelect,
         getRowData,
         getCellValue,
+        renderCell,
         prependColumns,
         appendColumns,
     ])

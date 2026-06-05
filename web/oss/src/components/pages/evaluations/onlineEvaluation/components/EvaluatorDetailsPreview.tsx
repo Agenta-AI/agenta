@@ -13,8 +13,7 @@ const {Text} = Typography
 interface EvaluatorDetailsPreviewProps {
     details: EvaluatorDetails
     typeLabel?: string
-    typeColor?: string
-    fallbackColors?: {backgroundColor?: string; textColor?: string}
+    typeKey?: string
     showType?: boolean
 }
 
@@ -49,8 +48,7 @@ const renderOutputType = (metric: OutputMetric) => {
 const EvaluatorDetailsPreview = ({
     details,
     typeLabel,
-    typeColor,
-    fallbackColors,
+    typeKey,
     showType,
 }: EvaluatorDetailsPreviewProps) => {
     const hasParameters = details.visibleParameters.length > 0
@@ -62,11 +60,7 @@ const EvaluatorDetailsPreview = ({
             {showType && typeLabel ? (
                 <Form.Item label="Evaluator type" style={{marginBottom: 12}}>
                     <div className="flex items-center gap-2">
-                        <EvaluatorTypeTag
-                            label={typeLabel}
-                            color={typeColor}
-                            fallback={fallbackColors}
-                        />
+                        <EvaluatorTypeTag label={typeLabel} typeKey={typeKey} />
                     </div>
                 </Form.Item>
             ) : null}

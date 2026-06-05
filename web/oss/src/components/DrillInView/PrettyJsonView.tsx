@@ -14,7 +14,7 @@ import {
 } from "@agenta/ui/cell-renderers"
 
 /**
- * "Beautified JSON" view.
+ * "Pretty JSON" view.
  *
  * Reshapes data for readability and renders it OUTSIDE the JSON editor as a
  * component tree:
@@ -30,7 +30,7 @@ import {
  * - noisy provider-metadata keys (`providerOptions`, `rawHeaders`, etc.) are
  *   stripped from objects
  *
- * "Beautified JSON" is not JSON -- it hides fields, restructures values, and
+ * "Pretty JSON" is not JSON -- it hides fields, restructures values, and
  * renders via custom React components. When the exact shape of the wire data
  * matters, use "JSON" (faithful) or "Decoded JSON" (faithful shape with
  * string decoding, see `decodedJsonHelpers.ts`).
@@ -123,7 +123,7 @@ const EDITOR_RESET_CLASSES = [
     "[&_.agenta-editor-wrapper]:!min-h-0",
 ].join(" ")
 
-// Allow deep trace payloads to keep expanding in beautified mode.
+// Allow deep trace payloads to keep expanding in pretty mode.
 // Guardrails are still provided by collapsible rendering and natural JSON size.
 const DEFAULT_MAX_RENDER_DEPTH = 100
 const DEFAULT_EXPAND_DEPTH = 2
@@ -1106,7 +1106,7 @@ const RecursiveNode = memo(function RecursiveNode({
 
 // ── Top-level entry point ───────────────────────────────────────────────
 
-export const BeautifiedJsonView = memo(function BeautifiedJsonView({
+export const PrettyJsonView = memo(function PrettyJsonView({
     data: rawData,
     keyPrefix,
 }: {

@@ -599,7 +599,7 @@ class AgLLM(AgSchemaMixin):
     tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = Field(
         default=None,
     )
-    template_format: Literal["curly", "fstring", "jinja2"] = Field(
+    template_format: Literal["mustache", "curly", "fstring", "jinja2"] = Field(
         default="curly",
     )
 
@@ -703,9 +703,9 @@ class PromptTemplate(AgSchemaMixin):
             [Message(role="system", content=""), Message(role="user", content="")]
         )
     )
-    template_format: Literal["fstring", "jinja2", "curly"] = Field(
+    template_format: Literal["mustache", "fstring", "jinja2", "curly"] = Field(
         default="curly",
-        description="Format type for template variables: fstring {var}, jinja2 {{ var }}, or curly {{var}}",
+        description="Format type for template variables: mustache {{var}}, fstring {var}, jinja2 {{ var }}, or curly {{var}}. This model defaults to `curly` for legacy compatibility; app-creation flows and engine interfaces set `mustache` explicitly for new apps.",
     )
     input_keys: Optional[List[str]] = Field(
         default=None,
@@ -799,7 +799,7 @@ class PromptTemplate(AgSchemaMixin):
         with stable, caller-facing messages.
         """
 
-        if self.template_format not in ("curly", "fstring", "jinja2"):
+        if self.template_format not in ("mustache", "curly", "fstring", "jinja2"):
             raise TemplateFormatError(
                 f"Unknown template format: {self.template_format}"
             )
@@ -813,7 +813,7 @@ class PromptTemplate(AgSchemaMixin):
         except UnresolvedVariablesError as e:
             suffix = f" Hint: {e.hint}" if e.hint else ""
             raise TemplateFormatError(
-                f"Unreplaced variables in curly template: "
+                f"Unreplaced variables in {self.template_format} template: "
                 f"{sorted(e.unresolved)}.{suffix}"
             )
         except KeyError as e:
@@ -857,7 +857,7 @@ class PromptTemplate(AgSchemaMixin):
         if isinstance(renderer_error, UnresolvedVariablesError):
             suffix = f" Hint: {renderer_error.hint}" if renderer_error.hint else ""
             return TemplateFormatError(
-                f"Unreplaced variables in curly template: "
+                f"Unreplaced variables in {self.template_format} template: "
                 f"{sorted(renderer_error.unresolved)}.{suffix}",
                 error=renderer_error,
             )

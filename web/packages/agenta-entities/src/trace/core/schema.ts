@@ -213,13 +213,21 @@ export const traceSpanNodeSchema: z.ZodType<TraceSpanNode> = z.lazy(() =>
 
 export const tracesResponseSchema = z.object({
     version: z.string().optional(),
-    count: z.number(),
-    traces: z.record(
-        z.string(),
-        z.object({
-            spans: z.record(z.string(), traceSpanSchema),
-        }),
-    ),
+    // An empty `/tracing/spans/query` result omits `count`/`traces` entirely.
+    // Keep these optional with empty defaults so a no-results response parses
+    // as "empty" instead of failing validation (which logged a spurious
+    // "[fetchAllPreviewTraces] expected record, received undefined" and
+    // returned null to the trace store).
+    count: z.number().optional().default(0),
+    traces: z
+        .record(
+            z.string(),
+            z.object({
+                spans: z.record(z.string(), traceSpanSchema),
+            }),
+        )
+        .optional()
+        .default({}),
 })
 export type TracesResponse = z.infer<typeof tracesResponseSchema>
 

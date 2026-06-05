@@ -274,8 +274,9 @@ export function TestcaseDataEditor({
                 enableFieldViewModes
                 showProperties={resolvedFeatures.showProperties}
                 getFieldViewModeOptions={getTestcaseViewOptions}
-                getDefaultFieldViewMode={({options}) => {
+                getDefaultFieldViewMode={({options, dataType}) => {
                     if (isRootViewControlled) {
+                        if (dataType === "json-object" || dataType === "json-array") return "json"
                         return options[0] ?? "json"
                     }
                     return options.includes(activeRootViewMode as RootViewMode)

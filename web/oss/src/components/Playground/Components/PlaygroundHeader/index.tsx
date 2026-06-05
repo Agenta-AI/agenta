@@ -2,11 +2,13 @@ import React, {useCallback, useMemo, useState} from "react"
 
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {
-    getEvaluatorColor,
+    deriveWorkflowTypeFromRevision,
+    getWorkflowTypeColor,
+    parseWorkflowKeyFromUri,
     workflowMolecule,
     createEvaluatorFromTemplate,
 } from "@agenta/entities/workflow"
-import type {EvaluatorColor, EvaluatorCatalogTemplate} from "@agenta/entities/workflow"
+import type {EvaluatorCatalogTemplate, WorkflowTypeColor} from "@agenta/entities/workflow"
 import {EntityPicker} from "@agenta/entity-ui"
 import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {useEnrichedEvaluatorOnlyAdapter as useEvaluatorOnlyAdapter} from "@agenta/entity-ui/selection"
@@ -103,9 +105,13 @@ const EvaluatorTag: React.FC<{
         useMemo(() => workflowMolecule.selectors.data(node.entityId), [node.entityId]),
     )
 
-    const color: EvaluatorColor | undefined = useMemo(() => {
-        if (!runnableData?.data?.uri) return undefined
-        return getEvaluatorColor(runnableData.data.uri) ?? undefined
+    const color: WorkflowTypeColor | undefined = useMemo(() => {
+        if (!runnableData) return undefined
+        const workflowKey = parseWorkflowKeyFromUri(runnableData.data?.uri ?? null)
+        const keyColor = getWorkflowTypeColor(workflowKey)
+        if (keyColor) return keyColor
+        const workflowType = deriveWorkflowTypeFromRevision(runnableData, {isEvaluator: true})
+        return getWorkflowTypeColor(workflowType) ?? undefined
     }, [runnableData])
 
     const label = useMemo(() => {
