@@ -103,11 +103,14 @@ export type {
 // API functions
 export {
     fetchAllPreviewTraces,
+    fetchAllPreviewTracesWithMeta,
     fetchPreviewTrace,
     deletePreviewTrace,
     fetchSessions,
     type TraceQueryParams,
     type SessionQueryParams,
+    type PreviewTracesRateLimit,
+    type PreviewTracesWithMetaResult,
 } from "./api"
 
 // Helper utilities
