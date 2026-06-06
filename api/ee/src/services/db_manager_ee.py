@@ -2,7 +2,6 @@ from typing import List, Set, Union, NoReturn, Optional, Tuple
 import uuid
 from datetime import datetime, timezone
 
-import sendgrid
 from fastapi import HTTPException
 
 from sqlalchemy import delete, func, update
@@ -59,9 +58,6 @@ from ee.src.services.selectors import get_org_default_workspace
 
 from oss.src.utils.env import env
 
-
-# Initialize sendgrid api client
-sg = sendgrid.SendGridAPIClient(api_key=env.sendgrid.api_key)
 
 log = get_module_logger(__name__)
 

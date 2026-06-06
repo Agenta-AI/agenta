@@ -922,12 +922,40 @@ class RedisConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# sendgrid
+# smtp
+# ---------------------------------------------------------------------------
+
+
+class SmtpConfig(BaseModel):
+    """SMTP Email configuration"""
+
+    host: str | None = os.getenv("SMTP_HOST")
+    port: int = int(os.getenv("SMTP_PORT", "587"))
+    username: str | None = os.getenv("SMTP_USERNAME")
+    password: str | None = os.getenv("SMTP_PASSWORD")
+    from_address: str | None = (
+        os.getenv("SMTP_FROM_ADDRESS")
+        or os.getenv("SENDGRID_FROM_ADDRESS")
+        or os.getenv("AGENTA_AUTHN_EMAIL_FROM")
+        or os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS")
+    )
+    use_tls: bool = os.getenv("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        """SMTP enabled if host and from address are present"""
+        return bool(self.host and self.from_address)
+
+
+# ---------------------------------------------------------------------------
+# sendgrid (legacy — kept for backwards compatibility)
 # ---------------------------------------------------------------------------
 
 
 class SendgridConfig(BaseModel):
-    """SendGrid Email configuration"""
+    """SendGrid Email configuration (legacy)"""
 
     api_key: str | None = os.getenv("SENDGRID_API_KEY")
     from_address: str | None = (
@@ -1037,15 +1065,9 @@ class AuthFacade(BaseModel):
         if env.agenta.access.email_disabled:
             return ""
 
-        sendgrid_enabled = bool(
-            os.getenv("SENDGRID_API_KEY")
-            and (
-                os.getenv("SENDGRID_FROM_ADDRESS")
-                or os.getenv("AGENTA_AUTHN_EMAIL_FROM")
-                or os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS")
-            )
-        )
-        return "otp" if sendgrid_enabled else "password"
+        # SMTP takes priority, then SendGrid fallback
+        email_configured = env.smtp.enabled or env.sendgrid.enabled
+        return "otp" if email_configured else "password"
 
     @property
     def email_enabled(self) -> bool:
@@ -1101,6 +1123,7 @@ class EnvironSettings(BaseModel):
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()
     sendgrid: SendgridConfig = SendgridConfig()
+    smtp: SmtpConfig = SmtpConfig()
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
 

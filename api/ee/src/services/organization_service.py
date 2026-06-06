@@ -104,8 +104,8 @@ async def send_invitation_email(
         f"&project_id={project_param}"
     )
 
-    # If Sendgrid is not configured, return the link for manual sharing (URL-based invitation)
-    if not env.sendgrid.enabled:
+    # If email is not configured, return the link for manual sharing (URL-based invitation)
+    if not env.smtp.enabled and not env.sendgrid.enabled:
         return invite_link
 
     html_content = html_template.format(
@@ -118,8 +118,10 @@ async def send_invitation_email(
         ),
     )
 
+    from_address = env.smtp.from_address or env.sendgrid.from_address or "account@hello.agenta.ai"
+
     await email_service.send_email(
-        from_email="account@hello.agenta.ai",
+        from_email=from_address,
         to_email=email,
         subject=f"{user.username} invited you to join {organization.name}",
         html_content=html_content,
@@ -152,10 +154,12 @@ async def notify_org_admin_invitation(workspace: WorkspaceDB, user: UserDB) -> b
         ),
     )
 
+    from_address = env.smtp.from_address or env.sendgrid.from_address or "account@hello.agenta.ai"
+
     workspace_admins = await db_manager_ee.get_workspace_administrators(workspace)
     for workspace_admin in workspace_admins:
         await email_service.send_email(
-            from_email="account@hello.agenta.ai",
+            from_email=from_address,
             to_email=workspace_admin.email,
             subject=f"New Member Joined {organization.name}",
             html_content=html_content,

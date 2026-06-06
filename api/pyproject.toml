@@ -34,7 +34,6 @@ dependencies = [
     "cachetools>=7,<8",
     "supertokens-python>=0.31,<0.32",
     "openai>=2,<3",
-    "sendgrid>=6,<7",
     "stripe>=15,<16",
     "posthog>=7,<8",
     "newrelic>=13,<14",
