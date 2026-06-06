@@ -81,7 +81,7 @@ export const buildBreadcrumbSegments = ({
             if (seg === "evaluations") {
                 const hasResults = next === "results"
                 const evaluationsHref = `${baseAppsPath}/${appId}/evaluations`
-                items["appPage"] = {label: "auto evaluation", href: evaluationsHref}
+                items["appPage"] = {label: "Evaluations", href: evaluationsHref}
 
                 if (hasResults) {
                     i++

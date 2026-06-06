@@ -8,8 +8,7 @@ import EvalResultsOnboarding from "./EvalResultsOnboarding"
 type EvalRunKind = "auto" | "human" | "online" | "custom"
 
 const EvalRunTestPage = ({type = "auto"}: {type?: EvalRunKind}) => {
-    // Normalize "custom" to "auto", but keep "online" as-is
-    const evaluationType = type === "custom" ? "auto" : type
+    const evaluationType = type
     const router = useRouter()
     const evaluationIdParam = router.query?.evaluation_id
     const projectIdParam = router.query?.project_id

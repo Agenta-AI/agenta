@@ -48,6 +48,7 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     const evaluationTypeBreadcrumb = useMemo(() => {
         const typeMap: Record<string, {label: string; kind: string}> = {
             auto: {label: "Auto Evals", kind: "auto"},
+            custom: {label: "SDK Evals", kind: "custom"},
             human: {label: "Human Evals", kind: "human"},
             online: {label: "Live Evals", kind: "online"},
         }
