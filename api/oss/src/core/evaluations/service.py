@@ -4424,7 +4424,8 @@ class SimpleQueuesService:
                 name=query.name if query else None,
                 description=query.description if query else None,
                 #
-                flags=EvaluationQueueQueryFlags(is_default=True),
+                # Return every queue for the eligible runs; the web layer owns
+                # which queues to display (default-only, direct-source-only).
                 tags=query.tags if query else None,
                 meta=query.meta if query else None,
                 #

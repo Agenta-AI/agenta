@@ -53,6 +53,16 @@ export const simpleQueueSettingsSchema = z.object({
 export type SimpleQueueSettings = z.infer<typeof simpleQueueSettingsSchema>
 
 /**
+ * SimpleQueue flags. Maps to backend `EvaluationQueueFlags`.
+ */
+export const simpleQueueFlagsSchema = z.object({
+    is_sequential: z.boolean().optional(),
+    is_default: z.boolean().optional(),
+})
+
+export type SimpleQueueFlags = z.infer<typeof simpleQueueFlagsSchema>
+
+/**
  * SimpleQueueData — the data payload of a SimpleQueue.
  * Maps to backend `SimpleQueueData`.
  */
@@ -90,6 +100,9 @@ export const simpleQueueSchema = z
 
         // Status
         status: evaluationStatusSchema.nullable().optional(),
+
+        // Flags
+        flags: simpleQueueFlagsSchema.nullable().optional(),
 
         // Data payload
         data: simpleQueueDataSchema.nullable().optional(),
