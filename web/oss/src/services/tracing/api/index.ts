@@ -25,8 +25,8 @@ export const fetchAllPreviewTraces = async (
     const projectId = ensureProjectId()
     const applicationId = ensureAppId(appId)
 
-    // New query endpoint expects POST with JSON body
-    const url = new URL(`${base}/tracing/spans/query`)
+    // POST /spans/query — always returns flat spans (focus param removed)
+    const url = new URL(`${base}/spans/query`)
     if (projectId) url.searchParams.set("project_id", projectId)
     if (applicationId) url.searchParams.set("application_id", applicationId)
 
@@ -41,6 +41,9 @@ export const fetchAllPreviewTraces = async (
             } catch {
                 payload.filter = value
             }
+        } else if (key === "focus") {
+            // `focus` is no longer accepted by POST /spans/query — skip it.
+            return
         } else {
             payload[key] = value
         }
@@ -94,7 +97,7 @@ export const fetchAllPreviewTracesWithMeta = async (
     const projectId = ensureProjectId()
     const applicationId = ensureAppId(appId)
 
-    const url = new URL(`${base}/tracing/spans/query`)
+    const url = new URL(`${base}/spans/query`)
     if (projectId) url.searchParams.set("project_id", projectId)
     if (applicationId) url.searchParams.set("application_id", applicationId)
 
@@ -109,6 +112,8 @@ export const fetchAllPreviewTracesWithMeta = async (
             } catch {
                 payload.filter = value
             }
+        } else if (key === "focus") {
+            return
         } else {
             payload[key] = value
         }
@@ -134,7 +139,7 @@ export const fetchPreviewTrace = async (traceId: string) => {
     const base = getBaseUrl()
     const projectId = ensureProjectId()
 
-    const url = new URL(`${base}/tracing/traces/${traceId}`)
+    const url = new URL(`${base}/traces/${traceId}`)
     if (projectId) url.searchParams.set("project_id", projectId)
 
     return fetchJson(url)
@@ -144,7 +149,7 @@ export const deletePreviewTrace = async (traceId: string) => {
     const base = getBaseUrl()
     const projectId = ensureProjectId()
 
-    const url = new URL(`${base}/tracing/traces/${traceId}`)
+    const url = new URL(`${base}/traces/${traceId}`)
     if (projectId) url.searchParams.set("project_id", projectId)
 
     return fetchJson(url, {method: "DELETE"})
@@ -167,7 +172,7 @@ export const fetchSessions = async (params: {
     const projectId = ensureProjectId()
     const applicationId = params.appId ? ensureAppId(params.appId) : undefined
 
-    const url = new URL(`${base}/tracing/sessions/query`)
+    const url = new URL(`${base}/spans/sessions/query`)
     if (projectId) url.searchParams.set("project_id", projectId)
     if (applicationId) url.searchParams.set("application_id", applicationId)
 

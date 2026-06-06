@@ -5,11 +5,14 @@
  * Uses the shared axios instance which should be configured with auth interceptors
  * by the app at startup.
  *
+ * Migrated from deprecated `/tracing/*` endpoints to canonical `/traces/*` and
+ * `/spans/*` endpoints (see #4492).
+ *
  * @example
  * ```typescript
  * import { fetchAllPreviewTraces, fetchPreviewTrace } from '@agenta/entities/trace'
  *
- * const spans = await fetchAllPreviewTraces({ size: 100, focus: 'span' }, appId)
+ * const spans = await fetchAllPreviewTraces({ size: 100 }, appId, projectId)
  * const trace = await fetchPreviewTrace(traceId, projectId)
  * ```
  */
@@ -19,18 +22,24 @@ import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 // See testcase/api/api.ts for rationale — the shared barrel pulls in CSS deps.
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
+    sessionIdsResponseSchema,
     spansResponseSchema,
-    tracesResponseSchema,
+    traceIdResponseSchema,
+    traceResponseSchema,
+    type SessionIdsResponse,
     type SpansResponse,
-    type TracesResponse,
+    type TraceIdResponse,
+    type TraceResponse,
 } from "../core"
 
 /**
- * Query parameters for fetching traces/spans
+ * Query parameters for fetching spans.
+ *
+ * Note: `focus` is no longer accepted — `POST /spans/query` always returns
+ * flat spans. For trace-tree views, use `fetchPreviewTrace` instead.
  */
 export interface TraceQueryParams {
     size?: number
-    focus?: "trace" | "span" | "chat"
     format?: string
     filter?: string | Record<string, unknown>
     oldest?: string
@@ -40,26 +49,27 @@ export interface TraceQueryParams {
 }
 
 /**
- * Fetch preview traces/spans from the API.
+ * Fetch spans from the API (flat list).
+ *
+ * Calls `POST /spans/query` which always returns a flat `SpansResponse`.
+ * For trace-tree views, use `fetchPreviewTrace` instead.
  *
  * @param params - Query parameters for filtering
  * @param appId - Application ID (optional)
  * @param projectId - Project ID (required)
- * @returns API response with spans (validated)
+ * @returns Validated SpansResponse
  */
 export async function fetchAllPreviewTraces(
     params: TraceQueryParams = {},
     appId: string,
     projectId: string,
-): Promise<SpansResponse | TracesResponse | null> {
+): Promise<SpansResponse | null> {
     const baseUrl = getAgentaApiUrl()
 
-    // Build query parameters
     const queryParams = new URLSearchParams()
     if (projectId) queryParams.set("project_id", projectId)
     if (appId) queryParams.set("application_id", appId)
 
-    // Build request payload
     const payload: Record<string, unknown> = {}
     Object.entries(params).forEach(([key, value]) => {
         if (value === undefined || value === null) return
@@ -71,68 +81,71 @@ export async function fetchAllPreviewTraces(
             } catch {
                 payload.filter = value
             }
+        } else if (key === "focus") {
+            // `focus` is no longer accepted by POST /spans/query — skip it.
+            return
         } else {
             payload[key] = value
         }
     })
 
     const response = await axios.post(
-        `${baseUrl}/tracing/spans/query?${queryParams.toString()}`,
+        `${baseUrl}/spans/query?${queryParams.toString()}`,
         payload,
     )
 
-    // Try parsing as SpansResponse first (spans array format)
-    const spansResult = spansResponseSchema.safeParse(response.data)
-    if (spansResult.success) {
-        return spansResult.data
-    }
-
-    // Fall back to TracesResponse (traces record format)
-    return safeParseWithLogging(tracesResponseSchema, response.data, "[fetchAllPreviewTraces]")
+    return safeParseWithLogging(spansResponseSchema, response.data, "[fetchAllPreviewTraces]")
 }
 
 /**
- * Fetch a single trace by ID.
+ * Fetch a single trace by ID (with trace-tree structure).
+ *
+ * Calls `GET /traces/{id}` which returns a `TraceResponse` with a single
+ * `trace` object containing `trace_id` and a `spans` record.
  *
  * @param traceId - Trace ID to fetch
  * @param projectId - Project ID
- * @returns Trace span data (validated)
+ * @returns Validated TraceResponse
  */
 export async function fetchPreviewTrace(
     traceId: string,
     projectId: string,
-): Promise<TracesResponse | null> {
+): Promise<TraceResponse | null> {
     const baseUrl = getAgentaApiUrl()
 
     const queryParams = new URLSearchParams()
     if (projectId) queryParams.set("project_id", projectId)
 
     const response = await axios.get(
-        `${baseUrl}/tracing/traces/${traceId}?${queryParams.toString()}`,
+        `${baseUrl}/traces/${traceId}?${queryParams.toString()}`,
     )
 
-    // API returns TracesResponse format with count and traces record
-    return safeParseWithLogging(tracesResponseSchema, response.data, "[fetchPreviewTrace]")
+    return safeParseWithLogging(traceResponseSchema, response.data, "[fetchPreviewTrace]")
 }
 
 /**
  * Delete a trace by ID.
  *
+ * Calls `DELETE /traces/{id}`.
+ *
  * @param traceId - Trace ID to delete
  * @param projectId - Project ID
- * @returns Delete response
+ * @returns Validated TraceIdResponse
  */
-export async function deletePreviewTrace(traceId: string, projectId: string): Promise<unknown> {
+export async function deletePreviewTrace(
+    traceId: string,
+    projectId: string,
+): Promise<TraceIdResponse | null> {
     const baseUrl = getAgentaApiUrl()
 
     const queryParams = new URLSearchParams()
     if (projectId) queryParams.set("project_id", projectId)
 
     const response = await axios.delete(
-        `${baseUrl}/tracing/traces/${traceId}?${queryParams.toString()}`,
+        `${baseUrl}/traces/${traceId}?${queryParams.toString()}`,
     )
 
-    return response.data
+    return safeParseWithLogging(traceIdResponseSchema, response.data, "[deletePreviewTrace]")
 }
 
 /**
@@ -155,14 +168,16 @@ export interface SessionQueryParams {
 /**
  * Fetch sessions with filtering and pagination.
  *
+ * Calls `POST /spans/sessions/query`.
+ *
  * @param params - Session query parameters
  * @param projectId - Project ID
- * @returns Session list response
+ * @returns Validated SessionIdsResponse
  */
 export async function fetchSessions(
     params: SessionQueryParams,
     projectId: string,
-): Promise<unknown> {
+): Promise<SessionIdsResponse | null> {
     const baseUrl = getAgentaApiUrl()
 
     const queryParams = new URLSearchParams()
@@ -171,11 +186,8 @@ export async function fetchSessions(
 
     const payload: Record<string, unknown> = {}
 
-    // Initialize windowing if it doesn't exist but we have a cursor
     if (params.windowing || params.cursor) {
         payload.windowing = {...(params.windowing || {})}
-
-        // If cursor is provided, it goes into windowing.next
         if (params.cursor) {
             ;(payload.windowing as Record<string, unknown>).next = params.cursor
         }
@@ -185,15 +197,14 @@ export async function fetchSessions(
         payload.filter = params.filter
     }
 
-    // Add realtime parameter (true = latest/unstable, false/undefined = all/stable)
     if (params.realtime !== undefined) {
         payload.realtime = params.realtime
     }
 
     const response = await axios.post(
-        `${baseUrl}/tracing/sessions/query?${queryParams.toString()}`,
+        `${baseUrl}/spans/sessions/query?${queryParams.toString()}`,
         payload,
     )
 
-    return response.data
+    return safeParseWithLogging(sessionIdsResponseSchema, response.data, "[fetchSessions]")
 }

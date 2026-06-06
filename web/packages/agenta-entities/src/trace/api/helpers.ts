@@ -15,20 +15,33 @@
  * ```
  */
 
-import type {SpansResponse, TracesResponse, TraceSpanNode, TraceSpan} from "../core"
+import type {
+    SpansResponse,
+    TraceResponse,
+    TracesResponse,
+    TraceSpanNode,
+    TraceSpan,
+} from "../core"
 
 /**
- * Type guard for TracesResponse (response with traces object)
+ * Type guard for TracesResponse (legacy response with traces record object).
  */
 export const isTracesResponse = (data: unknown): data is TracesResponse => {
     return typeof data === "object" && data !== null && "traces" in data
 }
 
 /**
- * Type guard for SpansResponse (response with spans array)
+ * Type guard for SpansResponse (response with flat spans array).
  */
 export const isSpansResponse = (data: unknown): data is SpansResponse => {
-    return typeof data === "object" && data !== null && "spans" in data
+    return typeof data === "object" && data !== null && "spans" in data && Array.isArray((data as any).spans)
+}
+
+/**
+ * Type guard for TraceResponse (new single-trace response from GET /traces/{id}).
+ */
+export const isTraceResponse = (data: unknown): data is TraceResponse => {
+    return typeof data === "object" && data !== null && "trace" in data
 }
 
 /**
@@ -76,41 +89,57 @@ export const sortSpansByStartTime = <
 }
 
 /**
- * Transform a TracesResponse into a tree of TraceSpanNodes.
+ * Build a tree of TraceSpanNodes from a spans record.
+ *
+ * Shared by both the legacy `TracesResponse` path and the new `TraceResponse`
+ * path — the inner span structure is identical.
+ */
+const buildSpanTree = (spans: Record<string, unknown> | unknown[]): TraceSpanNode[] => {
+    if (!spans) {
+        return []
+    }
+
+    const spanArray = Object.values(spans).flatMap((span: unknown) => {
+        if (Array.isArray(span)) {
+            return buildSpanTree(span)
+        }
+
+        const spanObj = span as TraceSpan & {spans?: Record<string, unknown>}
+        const node: TraceSpanNode = {
+            ...spanObj,
+        }
+
+        if (spanObj?.spans && Object.keys(spanObj.spans).length > 0) {
+            node.children = buildSpanTree(spanObj.spans)
+        }
+
+        return node
+    })
+
+    return sortSpansByStartTime(spanArray)
+}
+
+/**
+ * Transform a TracesResponse (legacy, with `traces` record) into a tree.
  *
  * @param data - TracesResponse from the API
  * @returns Array of TraceSpanNode trees
  */
 export const transformTracesResponseToTree = (data: TracesResponse): TraceSpanNode[] => {
-    const buildTree = (spans: Record<string, unknown> | unknown[]): TraceSpanNode[] => {
-        if (!spans) {
-            return []
-        }
-
-        const spanArray = Object.values(spans).flatMap((span: unknown) => {
-            if (Array.isArray(span)) {
-                return buildTree(span)
-            }
-
-            const spanObj = span as TraceSpan & {spans?: Record<string, unknown>}
-            const node: TraceSpanNode = {
-                ...spanObj,
-            }
-
-            if (spanObj?.spans && Object.keys(spanObj.spans).length > 0) {
-                node.children = buildTree(spanObj.spans)
-            }
-
-            return node
-        })
-
-        // Sort spans at this hierarchy level by start_time
-        return sortSpansByStartTime(spanArray)
-    }
-
     return Object.values(data.traces).flatMap((trace: {spans?: Record<string, unknown>}) =>
-        buildTree(trace.spans || {}),
+        buildSpanTree(trace.spans || {}),
     )
+}
+
+/**
+ * Transform a TraceResponse (new single-trace from GET /traces/{id}) into a tree.
+ *
+ * @param data - TraceResponse from the API
+ * @returns Array of TraceSpanNode trees (single trace)
+ */
+export const transformTraceResponseToTree = (data: TraceResponse): TraceSpanNode[] => {
+    if (!data.trace?.spans) return []
+    return buildSpanTree(data.trace.spans)
 }
 
 /**

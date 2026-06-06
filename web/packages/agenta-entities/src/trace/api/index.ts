@@ -18,7 +18,9 @@ export {
 export {
     isTracesResponse,
     isSpansResponse,
+    isTraceResponse,
     sortSpansByStartTime,
     transformTracesResponseToTree,
+    transformTraceResponseToTree,
     transformTracingResponse,
 } from "./helpers"

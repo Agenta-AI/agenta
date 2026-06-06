@@ -635,8 +635,15 @@ async function resolveTraceLinkSpanId({
 
     try {
         const traceResponse = await fetchPreviewTrace(traceId, projectId)
-        const traceKey = traceId.replace(/-/g, "")
-        const traceEntry = traceResponse?.traces?.[traceKey] ?? traceResponse?.traces?.[traceId]
+        // New API returns {count, trace: {trace_id, spans}} — extract spans
+        // from the single trace object. Fallback to legacy traces record shape
+        // for backward compatibility during rollout.
+        const traceEntry =
+            traceResponse?.trace ?? (() => {
+                const traceKey = traceId.replace(/-/g, "")
+                return (traceResponse as any)?.traces?.[traceKey] ??
+                    (traceResponse as any)?.traces?.[traceId]
+            })()
         const rawSpans = traceEntry?.spans ? Object.values(traceEntry.spans) : []
         const spans = rawSpans.filter(
             (span): span is TraceSpan =>
