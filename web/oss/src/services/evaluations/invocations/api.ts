@@ -69,7 +69,7 @@ export const upsertStepResultWithInvocation = async ({
     status: string
     references?: InvocationReferences
     outputs?: unknown
-    error?: {message: string; stacktrace?: string}
+    error?: {message: string; stacktrace?: string; type?: string}
 }): Promise<void> => {
     const {projectId} = getProjectValues()
 

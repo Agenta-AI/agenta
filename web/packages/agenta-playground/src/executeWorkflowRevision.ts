@@ -62,7 +62,7 @@ export interface ExecuteWorkflowRevisionResult {
     structuredOutput?: unknown
     traceId?: string | null
     spanId?: string | null
-    error?: {message: string; code?: string}
+    error?: {message: string; code?: string; type?: string; stacktrace?: string}
 }
 
 // ============================================================================

@@ -165,7 +165,7 @@ export interface RunResult {
     /** Hash of result for comparison (optional) */
     resultHash?: string | null
     /** Error details if status is "error" */
-    error?: {message: string; code?: string} | null
+    error?: {message: string; code?: string; type?: string; stacktrace?: string} | null
     /** Timestamp when execution started (ms) */
     startedAt?: number
     /** Timestamp when execution completed (ms) */

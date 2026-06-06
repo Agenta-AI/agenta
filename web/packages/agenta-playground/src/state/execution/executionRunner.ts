@@ -187,7 +187,7 @@ interface ExecutionSessionLifecycleCallbacks {
         chainResults?: RunResult["chainResults"]
     }) => void
     onComplete: (payload: {result: Partial<RunResult>}) => void
-    onFail: (payload: {error: {message: string; code?: string}; traceId?: string | null}) => void
+    onFail: (payload: {error: {message: string; code?: string; type?: string; stacktrace?: string}; traceId?: string | null}) => void
     onCancel: () => void
 }
 
@@ -671,6 +671,9 @@ async function executeViaFetch(params: {
         if (!response.ok) {
             const errorText = await response.text()
             let errorMessage = `Request failed with status ${response.status}`
+            let errorCode: string | undefined
+            let errorType: string | undefined
+            let errorStacktrace: string | undefined
             let traceId: string | null = null
 
             try {
@@ -678,6 +681,10 @@ async function executeViaFetch(params: {
                 traceId = extractTraceIdFromPayload(errorData)
                 if (errorData?.status?.message) {
                     errorMessage = errorData.status.message
+                    errorCode = errorData.status.code?.toString()
+                    errorType = errorData.status.type
+                    const st = errorData.status.stacktrace
+                    errorStacktrace = Array.isArray(st) ? st.join("\n") : st
                 } else if (errorData?.detail?.message) {
                     errorMessage = errorData.detail.message
                 } else if (typeof errorData?.detail === "string") {
@@ -692,12 +699,47 @@ async function executeViaFetch(params: {
                 status: "error",
                 startedAt,
                 completedAt: new Date().toISOString(),
-                error: {message: errorMessage},
+                error: {
+                    message: errorMessage,
+                    ...(errorCode ? {code: errorCode} : {}),
+                    ...(errorType ? {type: errorType} : {}),
+                    ...(errorStacktrace ? {stacktrace: errorStacktrace} : {}),
+                },
                 ...(traceId ? {trace: {id: traceId}} : {}),
             }
         }
 
         const responseData = await response.json()
+
+        // Check for body-level error status (SDK returns HTTP 200 with error in body).
+        // The Python SDK's WorkflowBatchResponse may embed a non-200 status.code
+        // inside the response body even when the HTTP status is 200.
+        const bodyStatus = responseData?.status
+        if (bodyStatus && typeof bodyStatus === "object" && bodyStatus.code && bodyStatus.code !== 200) {
+            const traceId = extractTraceIdFromPayload(responseData)
+            const spanId = extractSpanIdFromPayload(responseData)
+            const st = bodyStatus.stacktrace
+            return {
+                executionId,
+                status: "error",
+                startedAt,
+                completedAt: new Date().toISOString(),
+                error: {
+                    message: bodyStatus.message || "Invocation failed",
+                    ...(bodyStatus.code ? {code: bodyStatus.code.toString()} : {}),
+                    ...(bodyStatus.type ? {type: bodyStatus.type} : {}),
+                    ...(st ? {stacktrace: Array.isArray(st) ? st.join("\n") : st} : {}),
+                },
+                ...(traceId
+                    ? {
+                          trace: {
+                              id: traceId,
+                              ...(spanId ? {spanId} : {}),
+                          },
+                      }
+                    : {}),
+            }
+        }
 
         // Delegate response parsing to entity-level normalizer when provided.
         // Default: unwrap `data` field if present, extract `trace_id`.

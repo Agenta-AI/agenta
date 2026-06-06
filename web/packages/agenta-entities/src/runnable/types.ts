@@ -204,6 +204,8 @@ export interface ExecutionResult {
     error?: {
         message: string
         code?: string
+        type?: string
+        stacktrace?: string
     }
     trace?: TraceInfo
     metrics?: ExecutionMetrics
