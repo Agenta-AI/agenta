@@ -32,18 +32,9 @@ const useEvaluatorNavigation = () => {
             const identifier = getEvaluatorIdentifier(evaluator)
             if (!identifier) return null
 
-            if (isHumanEvaluator(evaluator)) {
-                return {
-                    href: `${projectURL}/evaluators?tab=human&openEvaluator=${encodeURIComponent(
-                        identifier,
-                    )}`,
-                    type: "human",
-                }
-            }
-
             return {
                 href: `${projectURL}/evaluators/playground?revisions=${encodeURIComponent(identifier)}`,
-                type: "auto",
+                type: isHumanEvaluator(evaluator) ? "human" : "auto",
             }
         },
         [projectURL],

@@ -115,7 +115,7 @@ const EvaluatorDetailsPopover = ({
                             navigateToEvaluator(evaluator)
                         }}
                     >
-                        Open evaluator registry
+                        Open evaluator playground
                     </Button>
                 ) : null}
             </div>
