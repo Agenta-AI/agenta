@@ -37,6 +37,28 @@ for provider_kind in StandardProviderKind.__args__[0].__args__:  # type: ignore
 if "mistral" not in _PROVIDER_KINDS:
     _PROVIDER_KINDS.append("mistral")
 
+# Mapping from provider kind to environment variable name.
+# Most providers follow the pattern PROVIDER_API_KEY, but some have
+# underscores in their kind string (e.g. "together_ai") where the env
+# var drops the underscore (TOGETHERAI_API_KEY). This explicit mapping
+# mirrors the one in the Daytona runner and the frontend llmProviders.ts.
+_PROVIDER_ENV_VAR_MAP: Dict[str, str] = {
+    "openai": "OPENAI_API_KEY",
+    "cohere": "COHERE_API_KEY",
+    "anyscale": "ANYSCALE_API_KEY",
+    "deepinfra": "DEEPINFRA_API_KEY",
+    "alephalpha": "ALEPHALPHA_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "minimax": "MINIMAX_API_KEY",
+    "mistral": "MISTRAL_API_KEY",
+    "mistralai": "MISTRAL_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "perplexityai": "PERPLEXITYAI_API_KEY",
+    "together_ai": "TOGETHERAI_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+}
+
 _AUTH_ENABLED = (
     getenv("AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED")
     or getenv("AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED")
@@ -306,7 +328,7 @@ async def get_secrets(
     try:
         for provider_kind in _PROVIDER_KINDS:
             provider = provider_kind
-            key_name = f"{provider.upper()}_API_KEY"
+            key_name = _PROVIDER_ENV_VAR_MAP.get(provider, f"{provider.upper()}_API_KEY")
             key = getenv(key_name)
 
             if not key:
