@@ -84,11 +84,15 @@ const DeployVariantModal = ({
             if (result?.error) message.error(result.error)
             return
         }
-        const env = result.env as string
+        const envs = result.envs as string[]
         onClose()
-        message.success(`Published ${variantName} to ${env}`)
-        posthog?.capture?.("app_deployed", {app_id: appId, environment: env})
+        message.success(`Published ${variantName} to ${envs.join(", ")}`)
+        posthog?.capture?.("app_deployed", {app_id: appId, environment: envs.join(",")})
         recordWidgetEvent("variant_deployed")
+        if (result.error) {
+            // Partial success: some environments failed
+            message.warning(result.error)
+        }
     }, [submitDeploy, onClose, variantName, appId, posthog, recordWidgetEvent])
 
     return (

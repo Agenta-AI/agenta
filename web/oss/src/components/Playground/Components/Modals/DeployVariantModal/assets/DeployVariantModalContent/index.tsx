@@ -51,7 +51,8 @@ const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
     return (
         <section className="flex flex-col gap-4" data-tour="deploy-variant-modal">
             <Typography.Text>
-                Select an environment to deploy <span className="font-medium">{variantName}</span>{" "}
+                Select environments to deploy{" "}
+                <span className="font-medium">{variantName}</span>{" "}
                 {typeof revision !== "undefined" && (
                     <VersionBadge version={revision} variant="chip" />
                 )}
@@ -59,7 +60,7 @@ const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
 
             <Table
                 rowSelection={{
-                    type: "radio",
+                    type: "checkbox",
                     columnWidth: 48,
                     selectedRowKeys: selectedEnvName,
                     onChange: (selectedRowKeys: React.Key[]) => {
@@ -76,7 +77,11 @@ const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
                 onRow={(env) => ({
                     className: "cursor-pointer",
                     onClick: () => {
-                        setSelectedEnvName([env.name])
+                        setSelectedEnvName((prev) =>
+                            prev.includes(env.name)
+                                ? prev.filter((n) => n !== env.name)
+                                : [...prev, env.name],
+                        )
                     },
                 })}
             />

@@ -63,7 +63,8 @@ export const deployResetAtom = atom(null, (get, set) => {
 })
 
 // Async submit action. Optional overrides allow providing ids directly.
-// Returns { ok: boolean, env?: string, error?: string }
+// Deploys to all selected environments.
+// Returns { ok: boolean, envs?: string[], error?: string }
 export const deploySubmitAtom = atom(
     null,
     async (get, set, overrides?: {parentVariantId?: string | null; revisionId?: string | null}) => {
@@ -73,7 +74,7 @@ export const deploySubmitAtom = atom(
             parentVariantId: overrides?.parentVariantId ?? baseState.parentVariantId ?? null,
             revisionId: overrides?.revisionId ?? baseState.revisionId ?? null,
         }
-        const selectedEnvName = get(deploySelectedEnvAtom)
+        const selectedEnvNames = get(deploySelectedEnvAtom)
         const note = get(deployNoteAtom)
         const appId = get(routerAppIdAtom)
         const {mutateAsync: publish} = get(publishMutationAtom)
@@ -82,12 +83,11 @@ export const deploySubmitAtom = atom(
         console.debug("[DeployModal] submit:start", {
             state,
             overrides,
-            selectedEnvName,
+            selectedEnvNames,
             note,
         })
 
-        const env = selectedEnvName[0]
-        if (!env) {
+        if (!selectedEnvNames.length) {
             console.debug("[DeployModal] submit:fail", {reason: "no_env_selected"})
             return {ok: false, error: "No environment selected"}
         }
@@ -116,36 +116,49 @@ export const deploySubmitAtom = atom(
         const workflowEntity = workflows.find((w) => w.id === workflowId)
         const applicationSlug = workflowEntity?.slug || undefined
 
-        try {
-            console.debug("[DeployModal] submit:publish", {
-                revisionId,
-                env,
-                workflowData: workflowData
-                    ? {
-                          workflow_id: workflowData.workflow_id,
-                          workflow_variant_id: workflowData.workflow_variant_id,
-                          slug: workflowData.slug,
-                          resolvedVariantSlug,
-                          applicationSlug,
-                      }
-                    : null,
-            })
-            await publish({
-                revisionId,
-                environmentSlug: env,
-                applicationId: workflowId || appId || "",
-                workflowVariantId: workflowData?.workflow_variant_id ?? undefined,
-                variantSlug: resolvedVariantSlug ?? undefined,
-                applicationSlug,
-                revisionVersion: workflowData?.version ?? undefined,
-                note,
-            })
-            console.debug("[DeployModal] submit:success", {env})
-            return {ok: true, env}
-        } catch (e: unknown) {
-            const errorMessage = e instanceof Error ? e.message : "Failed to deploy"
-            console.debug("[DeployModal] submit:error", {error: e})
-            return {ok: false, error: errorMessage}
+        const succeeded: string[] = []
+        const errors: string[] = []
+
+        for (const env of selectedEnvNames) {
+            try {
+                console.debug("[DeployModal] submit:publish", {
+                    revisionId,
+                    env,
+                    workflowData: workflowData
+                        ? {
+                              workflow_id: workflowData.workflow_id,
+                              workflow_variant_id: workflowData.workflow_variant_id,
+                              slug: workflowData.slug,
+                              resolvedVariantSlug,
+                              applicationSlug,
+                          }
+                        : null,
+                })
+                await publish({
+                    revisionId,
+                    environmentSlug: env,
+                    applicationId: workflowId || appId || "",
+                    workflowVariantId: workflowData?.workflow_variant_id ?? undefined,
+                    variantSlug: resolvedVariantSlug ?? undefined,
+                    applicationSlug,
+                    revisionVersion: workflowData?.version ?? undefined,
+                    note,
+                })
+                console.debug("[DeployModal] submit:success", {env})
+                succeeded.push(env)
+            } catch (e: unknown) {
+                const errorMessage = e instanceof Error ? e.message : "Failed to deploy"
+                console.debug("[DeployModal] submit:error", {env, error: e})
+                errors.push(`${env}: ${errorMessage}`)
+            }
+        }
+
+        if (succeeded.length && !errors.length) {
+            return {ok: true, envs: succeeded}
+        } else if (succeeded.length && errors.length) {
+            return {ok: true, envs: succeeded, error: `Failed for: ${errors.join("; ")}`}
+        } else {
+            return {ok: false, error: errors.join("; ")}
         }
     },
 )
