@@ -78,6 +78,7 @@ async def test_simple_queue_create_dispatches_each_query_source_with_step_key():
     evaluations_service = SimpleNamespace(
         create_run=AsyncMock(return_value=run),
         create_queue=AsyncMock(return_value=queue),
+        fetch_default_queue=AsyncMock(return_value=queue),
         delete_run=AsyncMock(),
     )
     simple_evaluations_service = SimpleNamespace(

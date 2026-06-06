@@ -454,6 +454,8 @@ class EvaluationsService:
                     user_id=user_id,
                     queue=EvaluationQueueCreate(
                         run_id=run.id,
+                        name=run.name,
+                        description=run.description,
                         status=EvaluationStatus.RUNNING,
                         flags=EvaluationQueueFlags(is_default=True),
                         data=EvaluationQueueData(),
@@ -1782,13 +1784,12 @@ class EvaluationsService:
     # - EVALUATION QUEUE -------------------------------------------------------
 
     @staticmethod
-    def _validate_default_queue_data(
-        *, flags: Optional[EvaluationQueueFlags], data: Optional[EvaluationQueueData]
-    ) -> None:
-        if not flags or not flags.is_default or not data:
-            return
-        if any(
-            value is not None
+    def _is_default_queue_data(*, data: Optional[EvaluationQueueData]) -> bool:
+        """A queue is default-shaped when it carries no scoping config."""
+        if not data:
+            return True
+        return all(
+            value is None
             for value in (
                 data.user_ids,
                 data.scenario_ids,
@@ -1796,7 +1797,15 @@ class EvaluationsService:
                 data.batch_size,
                 data.batch_offset,
             )
-        ):
+        )
+
+    @staticmethod
+    def _validate_default_queue_data(
+        *, flags: Optional[EvaluationQueueFlags], data: Optional[EvaluationQueueData]
+    ) -> None:
+        if not flags or not flags.is_default or not data:
+            return
+        if not EvaluationsService._is_default_queue_data(data=data):
             raise DefaultQueueDataInvalid()
 
     async def create_queue(
@@ -4169,7 +4178,7 @@ class SimpleQueuesService:
             if not run_data_and_keys:
                 return None
 
-            run_data, annotation_step_keys = run_data_and_keys
+            run_data, _ = run_data_and_keys
         else:
             run_data = await self.simple_evaluations_service._make_evaluation_run_data(
                 project_id=project_id,
@@ -4183,12 +4192,6 @@ class SimpleQueuesService:
             )
             if not run_data or not run_data.steps:
                 return None
-
-            annotation_step_keys = [
-                step.key
-                for step in run_data.steps
-                if step.type == "annotation" and step.key
-            ]
 
         run = await self.evaluations_service.create_run(
             project_id=project_id,
@@ -4224,32 +4227,48 @@ class SimpleQueuesService:
             and (settings.batch_size is not None or settings.batch_offset is not None)
         )
 
-        created_queue = await self.evaluations_service.create_queue(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            queue=EvaluationQueueCreate(
-                name=queue.name,
-                description=queue.description,
-                #
-                flags=EvaluationQueueFlags(
-                    is_sequential=is_sequential,
-                ),
-                tags=queue.tags,
-                meta=queue.meta,
-                #
-                status=queue.status or EvaluationStatus.RUNNING,
-                #
-                data=EvaluationQueueData(
-                    user_ids=queue_user_ids,
-                    step_keys=annotation_step_keys,
-                    batch_size=settings.batch_size if settings else None,
-                    batch_offset=settings.batch_offset if settings else None,
-                ),
-                # is_queue
-                run_id=run.id,
-            ),
+        queue_data = EvaluationQueueData(
+            user_ids=queue_user_ids,
+            step_keys=queue.data.step_keys,
+            batch_size=settings.batch_size if settings else None,
+            batch_offset=settings.batch_offset if settings else None,
         )
+        # A queue with no scoping config is the run's default queue, which
+        # create_run already reconciled into existence (named after the run).
+        # Adopt it instead of creating a non-default twin that the queue list
+        # (default-only) would hide. _parse_queue still recovers any source/kind
+        # from the run's steps, and batch dispatch below operates on the run.
+        created_queue: Optional[EvaluationQueue] = None
+        if not is_sequential and EvaluationsService._is_default_queue_data(
+            data=queue_data
+        ):
+            created_queue = await self.evaluations_service.fetch_default_queue(
+                project_id=project_id,
+                run_id=run.id,
+            )
+
+        if created_queue is None:
+            created_queue = await self.evaluations_service.create_queue(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                queue=EvaluationQueueCreate(
+                    name=queue.name,
+                    description=queue.description,
+                    #
+                    flags=EvaluationQueueFlags(
+                        is_sequential=is_sequential,
+                    ),
+                    tags=queue.tags,
+                    meta=queue.meta,
+                    #
+                    status=queue.status or EvaluationStatus.RUNNING,
+                    #
+                    data=queue_data,
+                    # is_queue
+                    run_id=run.id,
+                ),
+            )
 
         if not created_queue:
             await self.evaluations_service.delete_run(
@@ -4307,6 +4326,52 @@ class SimpleQueuesService:
             queue=queue,
             run=run,
         )
+
+    async def delete(
+        self,
+        *,
+        project_id: UUID,
+        queue_id: UUID,
+    ) -> Optional[UUID]:
+        """Delete a simple queue.
+
+        A simple queue is an overlay over an evaluation queue. Deleting a
+        default queue is forbidden at the queue layer, so when the target is the
+        run's default queue we delete the underlying run instead (which cascades
+        the default queue away). This keeps delete symmetric with create: the
+        frontend always goes through /simple/queues and never special-cases the
+        default queue itself.
+        """
+        queue = await self.evaluations_service.fetch_queue(
+            project_id=project_id,
+            queue_id=queue_id,
+        )
+        if not queue:
+            return None
+
+        if queue.flags and queue.flags.is_default:
+            await self.evaluations_service.delete_run(
+                project_id=project_id,
+                run_id=queue.run_id,
+            )
+            return queue_id
+
+        return await self.evaluations_service.delete_queue(
+            project_id=project_id,
+            queue_id=queue_id,
+        )
+
+    async def delete_many(
+        self,
+        *,
+        project_id: UUID,
+        queue_ids: List[UUID],
+    ) -> List[UUID]:
+        deleted: List[UUID] = []
+        for queue_id in queue_ids:
+            if await self.delete(project_id=project_id, queue_id=queue_id) is not None:
+                deleted.append(queue_id)
+        return deleted
 
     async def query(
         self,

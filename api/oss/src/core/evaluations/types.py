@@ -768,6 +768,13 @@ class SimpleQueueData(BaseModel):
     Example: [[user_a, user_b], [user_c]] means repeat 0 → user_a & user_b, repeat 1 → user_c.
     """
 
+    step_keys: Optional[List[str]] = None
+    """
+    Optional subset of annotation step keys the queue covers. Omitted means the
+    queue covers every annotation step (a default-shaped queue); set it only to
+    scope the queue to specific steps.
+    """
+
     settings: Optional[SimpleQueueSettings] = None
     """
     Optional distribution settings. Setting batch_size and/or batch_offset implies sequential

@@ -16,10 +16,10 @@ import {timestampFieldsSchema, auditFieldsSchema} from "../../shared"
 // ============================================================================
 
 /**
- * SimpleQueue kind — "traces" or "testcases".
- * Maps to backend `SimpleQueueKind` enum.
+ * SimpleQueue kind. Maps to backend `SimpleQueueKind`: source-backed queues
+ * ("queries", "testsets") and direct queues ("traces", "testcases").
  */
-export const simpleQueueKindSchema = z.enum(["traces", "testcases"])
+export const simpleQueueKindSchema = z.enum(["queries", "testsets", "traces", "testcases"])
 export type SimpleQueueKind = z.infer<typeof simpleQueueKindSchema>
 
 /**

@@ -100,6 +100,8 @@ from oss.src.apis.fastapi.evaluations.models import (
     SimpleQueueResponse,
     SimpleQueuesResponse,
     SimpleQueueIdResponse,
+    SimpleQueueIdsRequest,
+    SimpleQueueIdsResponse,
     SimpleQueueScenariosResponse,
 )
 from oss.src.apis.fastapi.evaluations.utils import (
@@ -2753,11 +2755,29 @@ class SimpleQueuesRouter:
         )
 
         self.router.add_api_route(
+            "/",
+            self.delete_simple_queues,
+            methods=["DELETE"],
+            operation_id="delete_simple_queues",
+            response_model=SimpleQueueIdsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
             "/{queue_id}",
             self.fetch_simple_queue,
             methods=["GET"],
             operation_id="fetch_simple_queue",
             response_model=SimpleQueueResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{queue_id}",
+            self.delete_simple_queue,
+            methods=["DELETE"],
+            operation_id="delete_simple_queue",
+            response_model=SimpleQueueIdResponse,
             response_model_exclude_none=True,
         )
 
@@ -2905,6 +2925,58 @@ class SimpleQueuesRouter:
         return SimpleQueueResponse(
             count=1 if queue else 0,
             queue=queue,
+        )
+
+    @intercept_exceptions()
+    async def delete_simple_queue(
+        self,
+        request: Request,
+        *,
+        queue_id: UUID,
+    ) -> SimpleQueueIdResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        deleted_id = await self.simple_queues_service.delete(
+            project_id=UUID(request.state.project_id),
+            #
+            queue_id=queue_id,
+        )
+
+        return SimpleQueueIdResponse(
+            count=1 if deleted_id else 0,
+            queue_id=deleted_id,
+        )
+
+    @intercept_exceptions()
+    async def delete_simple_queues(
+        self,
+        request: Request,
+        *,
+        queue_ids_request: SimpleQueueIdsRequest,
+    ) -> SimpleQueueIdsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        deleted_ids = await self.simple_queues_service.delete_many(
+            project_id=UUID(request.state.project_id),
+            #
+            queue_ids=queue_ids_request.queue_ids,
+        )
+
+        return SimpleQueueIdsResponse(
+            count=len(deleted_ids),
+            queue_ids=deleted_ids,
         )
 
     @intercept_exceptions()

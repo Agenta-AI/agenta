@@ -524,6 +524,15 @@ class SimpleQueueIdResponse(BaseModel):
     queue_id: Optional[UUID] = None
 
 
+class SimpleQueueIdsRequest(BaseModel):
+    queue_ids: List[UUID]
+
+
+class SimpleQueueIdsResponse(BaseModel):
+    count: int = 0
+    queue_ids: List[UUID] = []
+
+
 class SimpleQueueScenariosResponse(BaseModel):
     count: int = 0
     scenarios: List[EvaluationScenario] = []
