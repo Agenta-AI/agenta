@@ -13,6 +13,7 @@ import {activePreviewProjectIdAtom} from "@/oss/components/EvalRunDetails/atoms/
 import {clearAllMetricStatsCaches} from "@/oss/components/EvalRunDetails/atoms/runMetrics"
 import {
     InfiniteVirtualTableFeatureShell,
+    shouldIgnoreRowClick,
     type TableFeaturePagination,
     type TableScopeConfig,
 } from "@/oss/components/InfiniteVirtualTable"
@@ -34,7 +35,6 @@ import {
 } from "@/oss/lib/onboarding"
 import {useQueryParamState} from "@/oss/state/appState"
 
-import {shouldIgnoreRowClick} from "../../actions/navigationActions"
 import {
     evaluationRunsDeleteContextAtom,
     evaluationRunsTableFetchEnabledAtom,

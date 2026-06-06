@@ -38,6 +38,7 @@ import {
     EXPORT_RESOLVE_SKIP,
     InfiniteVirtualTableFeatureShell,
     createActionsColumn,
+    shouldIgnoreRowClick,
     type InfiniteVirtualTableRowSelection,
     type TableScopeConfig,
     type TableExportColumnContext,
@@ -1674,8 +1675,7 @@ const ScenarioListView = memo(function ScenarioListView({
 
     // Row click opens annotation drawer
     const handleRowClick = useCallback((_event: React.MouseEvent, record: ScenarioTableRow) => {
-        const target = _event.target as HTMLElement
-        if (target?.closest("[data-ivt-stop-row-click]")) return
+        if (shouldIgnoreRowClick(_event)) return
         setDrawerScenarioId(record.scenarioId)
     }, [])
 

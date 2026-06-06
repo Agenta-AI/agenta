@@ -1,10 +1,11 @@
-import {useCallback, useMemo, useState} from "react"
+import React, {useCallback, useMemo, useState} from "react"
 
 import {
     ColumnVisibilityMenuTrigger,
     defaultHeaderVariant,
     detectColumnTypes,
     InfiniteVirtualTableFeatureShell,
+    shouldIgnoreRowClick,
     type TableScopeConfig,
     type TypeChipConfig,
     useTypeChipFeature,
@@ -758,7 +759,10 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             size: "small" as const,
             bordered: true,
             onRow: (record: TestcaseTableRow) => ({
-                onClick: () => onRowClick(record),
+                onClick: (event: React.MouseEvent) => {
+                    if (shouldIgnoreRowClick(event)) return
+                    onRowClick(record)
+                },
                 className: "cursor-pointer hover:bg-gray-50",
             }),
         }),

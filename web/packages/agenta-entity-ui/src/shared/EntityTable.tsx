@@ -52,6 +52,7 @@ import {bgColors, cn} from "@agenta/ui/styles"
 import {
     buildEntityColumns,
     InfiniteVirtualTableFeatureShell,
+    shouldIgnoreRowClick,
     type BuildEntityColumnsOptions,
     type RowHeightFeatureConfig,
     type TableScopeConfig,
@@ -546,8 +547,10 @@ export function EntityTable<
                     bordered: true,
                     onRow: selectable
                         ? (record) => ({
-                              onClick: () =>
-                                  handleRowSelect(record.id, !selectedIdsSet.has(record.id)),
+                              onClick: (event) => {
+                                  if (shouldIgnoreRowClick(event)) return
+                                  handleRowSelect(record.id, !selectedIdsSet.has(record.id))
+                              },
                               className: cn(
                                   "cursor-pointer",
                                   selectedIdsSet.has(record.id) && bgColors.subtle,

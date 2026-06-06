@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
+import {InfiniteVirtualTableFeatureShell, shouldIgnoreRowClick} from "@agenta/ui/table"
 import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -141,7 +141,10 @@ const SessionsTable: React.FC = () => {
                         bordered: true,
                         loading: isLoading && sessionIds.length === 0,
                         onRow: (record) => ({
-                            onClick: () => openDrawer({sessionId: record.session_id}),
+                            onClick: (event) => {
+                                if (shouldIgnoreRowClick(event)) return
+                                openDrawer({sessionId: record.session_id})
+                            },
                             style: {cursor: "pointer"},
                         }),
                     }}

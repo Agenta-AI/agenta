@@ -12,6 +12,7 @@ import type {
     TableFeaturePagination,
     TableScopeConfig,
 } from "@agenta/ui/table"
+import {shouldIgnoreRowClick} from "@agenta/ui/table"
 import {message} from "antd"
 import type {TableProps} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -686,7 +687,10 @@ const PromptsPage = () => {
             scroll: {x: "max-content" as const},
             expandable: tableExpandableConfig,
             onRow: (record: PromptsTableRow) => ({
-                onClick: () => handleRowClick(record),
+                onClick: (event: React.MouseEvent) => {
+                    if (shouldIgnoreRowClick(event)) return
+                    handleRowClick(record)
+                },
                 className: "cursor-pointer",
                 draggable: true,
                 onDragStart: (event: any) => {

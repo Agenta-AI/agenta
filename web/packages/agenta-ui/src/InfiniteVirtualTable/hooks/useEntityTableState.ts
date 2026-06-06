@@ -72,6 +72,8 @@ import type {
 } from "../paginated/createPaginatedEntityStore"
 import type {InfiniteTableRowBase} from "../types"
 
+import {INTERACTIVE_ROW_SELECTORS} from "./useTableManager"
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -182,19 +184,10 @@ export interface UseEntityTableStateResult<TRow extends InfiniteTableRowBase> {
 // ============================================================================
 
 /**
- * Default selectors for interactive elements that should not trigger row click
+ * Default selectors for interactive elements that should not trigger row click.
+ * Uses the consolidated selector string from useTableManager for consistency.
  */
-const DEFAULT_INTERACTIVE_SELECTORS = [
-    "button",
-    "a",
-    ".ant-dropdown-trigger",
-    ".ant-checkbox-wrapper",
-    ".ant-select",
-    "input",
-    "textarea",
-    "[role='button']",
-    "[data-interactive]",
-]
+const DEFAULT_INTERACTIVE_SELECTORS = INTERACTIVE_ROW_SELECTORS.split(", ")
 
 // ============================================================================
 // HOOK

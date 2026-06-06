@@ -1,6 +1,6 @@
 import {type Key, type ReactNode, useCallback, useEffect, useMemo, useState} from "react"
 
-import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
+import {InfiniteVirtualTableFeatureShell, shouldIgnoreRowClick} from "@agenta/ui/table"
 import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
@@ -307,7 +307,10 @@ const ObservabilityTable = () => {
                         sticky: true,
                         style: {cursor: "pointer"},
                         onRow: (record, index) => ({
-                            onClick: () => handleTraceRowClick(record),
+                            onClick: (event) => {
+                                if (shouldIgnoreRowClick(event)) return
+                                handleTraceRowClick(record)
+                            },
                             "data-tour": index === 0 ? "trace-row" : undefined,
                         }),
                     }}
