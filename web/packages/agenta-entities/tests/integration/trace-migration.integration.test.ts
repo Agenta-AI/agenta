@@ -34,11 +34,23 @@ import {beforeAll, describe, expect, it} from "vitest"
 import {
     fetchAllPreviewTraces,
     fetchAllPreviewTracesWithMeta,
+    fetchSpansAnalytics,
     isTracesResponse,
 } from "../../src/trace"
-import type {TracesResponse} from "../../src/trace/core"
+import type {AnalyticsResponse, TracesResponse} from "../../src/trace/core"
 
 import {TEST_CONFIG, hasBackend} from "./helpers/env"
+
+// Optional live-data override: point the analytics test at an EXISTING project
+// that already has traces (the ephemeral account from global setup is empty, so
+// it can only assert response shape, not real aggregates). Credentials come from
+// env — never hardcode them. Run with:
+//   AGENTA_API_URL=... AGENTA_LIVE_PROJECT_ID=... AGENTA_LIVE_API_KEY=... \
+//     pnpm run test:integration
+const LIVE_PROJECT_ID = process.env.AGENTA_LIVE_PROJECT_ID || ""
+const LIVE_API_KEY = process.env.AGENTA_LIVE_API_KEY || ""
+const LIVE_API_URL = process.env.AGENTA_API_URL || ""
+const hasLiveAnalytics = Boolean(LIVE_PROJECT_ID && LIVE_API_KEY && LIVE_API_URL)
 
 const TEST_TRACE_ID = process.env.AGENTA_TEST_TRACE_ID || ""
 // Explicit truthy parse: a bare Boolean(...) treats "false"/"0" as true, which
@@ -157,3 +169,99 @@ describe.skipIf(!hasBackend)("AGE-3788 smoke — Fern client reaches the backend
         expect(res === null || "spans" in res).toBe(true)
     })
 })
+
+// --- Phase 6: /spans/analytics/query end-to-end (the generation dashboard) ---
+// This is the function the observability dashboard atom chain ultimately calls:
+//   useObservabilityDashboard → observabilityDashboardQueryAtom
+//     → fetchGenerationsDashboardData → fetchSpansAnalytics (this) → analyticsToGeneration
+// Asserting it here proves the migrated Fern wiring + the metric-path contract
+// the OSS transform reads (buckets[].metrics keyed by dotted MetricSpec path).
+
+const DURATION_PATH = "attributes.ag.metrics.duration.cumulative"
+const COST_PATH = "attributes.ag.metrics.costs.cumulative.total"
+const TOKENS_PATH = "attributes.ag.metrics.tokens.cumulative.total"
+const ERRORS_PATH = "attributes.ag.metrics.errors.cumulative"
+const TRACE_TYPE_PATH = "attributes.ag.type.trace"
+
+type Buckets = NonNullable<AnalyticsResponse["buckets"]>
+const sumField = (buckets: Buckets, path: string, field: string): number =>
+    buckets.reduce((acc, b) => {
+        const v = (
+            b.metrics as Record<string, Record<string, unknown> | null> | null | undefined
+        )?.[path]?.[field]
+        return acc + (typeof v === "number" ? v : 0)
+    }, 0)
+
+// Shape-only smoke against whatever project the harness provisioned (empty
+// ephemeral project is fine — proves the Fern call + envelope parse work).
+describe.skipIf(!hasBackend)("AGE-3788 Phase 6 — querySpansAnalytics shape", () => {
+    it("omits specs, returns an AnalyticsResponse with a buckets array (or null)", async () => {
+        const oldest = new Date(Date.now() - 24 * 3600 * 1000).toISOString().split(".")[0]
+        const res = await fetchSpansAnalytics({
+            projectId: TEST_CONFIG.projectId,
+            focus: "trace",
+            interval: 720,
+            oldest,
+        })
+        // null on a validation miss is tolerated; otherwise buckets must be an array.
+        expect(res === null || Array.isArray(res.buckets)).toBe(true)
+    })
+})
+
+// Real-data assertions against a project that already has traces.
+describe.skipIf(!hasLiveAnalytics)(
+    "AGE-3788 Phase 6 — querySpansAnalytics against a project with real data",
+    () => {
+        beforeAll(() => {
+            process.env.AGENTA_HOST = LIVE_API_URL
+            process.env.AGENTA_API_KEY = LIVE_API_KEY
+            getAgentaSdkClient({host: LIVE_API_URL, apiKey: LIVE_API_KEY})
+        })
+
+        it("returns default-spec metric buckets keyed by the dotted paths the transform reads", async () => {
+            const oldest = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().split(".")[0]
+            const res = await fetchSpansAnalytics({
+                projectId: LIVE_PROJECT_ID,
+                focus: "trace",
+                interval: 720,
+                oldest,
+            })
+
+            expect(res).not.toBeNull()
+            const buckets = (res?.buckets ?? []) as Buckets
+            expect(Array.isArray(buckets)).toBe(true)
+
+            const durationSum = sumField(buckets, DURATION_PATH, "sum")
+            const durationCount = sumField(buckets, DURATION_PATH, "count")
+            const costSum = sumField(buckets, COST_PATH, "sum")
+            const tokensSum = sumField(buckets, TOKENS_PATH, "sum")
+            const errorsSum = sumField(buckets, ERRORS_PATH, "sum")
+            const traceCount = sumField(buckets, TRACE_TYPE_PATH, "count")
+
+            // The duration metric is the SAME ag.metrics.duration.cumulative the
+            // legacy /tracing/spans/analytics summed — this logs its real unit so
+            // the dashboard's /1000 normalization can be confirmed against actuals.
+            console.info("[AGE-3788 analytics LIVE]", {
+                bucketCount: buckets.length,
+                durationSum,
+                durationCount,
+                avgDurationRaw: durationCount ? durationSum / durationCount : 0,
+                avgDuration_div1000: durationCount ? durationSum / durationCount / 1000 : 0,
+                costSum,
+                tokensSum,
+                errorsSum,
+                traceCount,
+                sampleBucketMetricKeys: Object.keys(buckets[0]?.metrics ?? {}),
+            })
+
+            // The contract analyticsToGeneration depends on: the default-spec
+            // dotted paths are present with numeric aggregates.
+            expect(buckets.length).toBeGreaterThan(0)
+            expect(traceCount).toBeGreaterThan(0)
+            expect(durationCount).toBeGreaterThan(0)
+            expect(Number.isFinite(durationSum)).toBe(true)
+            expect(Number.isFinite(costSum)).toBe(true)
+            expect(Number.isFinite(tokensSum)).toBe(true)
+        })
+    },
+)

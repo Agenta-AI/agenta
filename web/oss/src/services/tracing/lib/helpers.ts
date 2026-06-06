@@ -113,7 +113,7 @@ export function analyticsToGeneration(
     let errorCount = 0
     let totalCost = 0
     let totalTokens = 0
-    let totalDurationS = 0
+    let totalDurationMs = 0
     let totalDurationCount = 0
 
     const data = buckets.map((b) => {
@@ -129,13 +129,17 @@ export function analyticsToGeneration(
         const total = metricField(m, TRACE_TYPE_PATH, "count") || durationCount
         const success = Math.max(0, total - failure)
 
-        const durationS = normalizeDurationSeconds(metricField(m, DURATION_PATH, "sum"))
+        // `ag.metrics.duration.cumulative` is stored in MILLISECONDS, and the
+        // dashboard renders latency with an "ms" suffix — so keep it in ms. (The
+        // legacy transform divided by 1000 here, which made the dashboard show
+        // latencies 1000× too small; verified against live data — AGE-3788.)
+        const durationMs = metricField(m, DURATION_PATH, "sum")
 
         successCount += success
         errorCount += failure
         totalCost += cost
         totalTokens += tokens
-        totalDurationS += durationS
+        totalDurationMs += durationMs
         totalDurationCount += durationCount
 
         return {
@@ -143,7 +147,7 @@ export function analyticsToGeneration(
             success_count: success,
             failure_count: failure,
             cost,
-            latency: durationCount ? durationS / durationCount : 0, // avg latency in the bucket
+            latency: durationCount ? durationMs / durationCount : 0, // avg latency (ms) in the bucket
             total_tokens: tokens,
         }
     })
@@ -156,7 +160,7 @@ export function analyticsToGeneration(
         failure_rate: totalCount ? errorCount / totalCount : 0,
         total_cost: totalCost,
         avg_cost: totalCount ? totalCost / totalCount : 0,
-        avg_latency: totalDurationCount ? totalDurationS / totalDurationCount : 0,
+        avg_latency: totalDurationCount ? totalDurationMs / totalDurationCount : 0, // ms
         total_tokens: totalTokens,
         avg_tokens: totalCount ? totalTokens / totalCount : 0,
     }
