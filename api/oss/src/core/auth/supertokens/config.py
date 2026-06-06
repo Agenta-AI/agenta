@@ -1,32 +1,34 @@
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 from urllib.parse import urlparse
 
-from supertokens_python import init, InputAppInfo, SupertokensConfig
+from supertokens_python import InputAppInfo, SupertokensConfig, init
+from supertokens_python.ingredients.emaildelivery.types import EmailDeliveryConfig
 from supertokens_python.recipe import (
     emailpassword,
     passwordless,
     session,
     thirdparty,
 )
+from supertokens_python.recipe.emailpassword.types import InputFormField
 from supertokens_python.recipe.emailpassword.utils import (
-    InputSignUpFeature,
     InputOverrideConfig as EmailPasswordInputOverrideConfig,
-)
-from supertokens_python.recipe.emailpassword.types import (
-    InputFormField,
+    InputSignUpFeature,
 )
 from supertokens_python.recipe.passwordless import (
     ContactEmailOnlyConfig,
     InputOverrideConfig as PasswordlessInputOverrideConfig,
 )
-from supertokens_python.recipe.thirdparty import (
-    ProviderInput,
-    ProviderConfig,
-    ProviderClientConfig,
-    InputOverrideConfig as ThirdPartyInputOverrideConfig,
+from supertokens_python.recipe.passwordless.types import (
+    PasswordlessLoginEmailTemplateVars,
 )
 from supertokens_python.recipe.session import (
     InputOverrideConfig as SessionInputOverrideConfig,
+)
+from supertokens_python.recipe.thirdparty import (
+    InputOverrideConfig as ThirdPartyInputOverrideConfig,
+    ProviderClientConfig,
+    ProviderConfig,
+    ProviderInput,
 )
 
 from oss.src.utils.env import env
@@ -48,6 +50,96 @@ from oss.src.core.auth.supertokens.overrides import (
 )
 
 log = get_module_logger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Passwordless OTP email delivery — delegates to the shared email service so
+# that SMTP_USE_TLS / SendGrid behaviour is identical for OTP and app emails.
+# ---------------------------------------------------------------------------
+
+
+class PasswordlessEmailService:
+    """Custom SuperTokens email delivery for passwordless OTP emails.
+
+    Implements ``EmailDeliveryInterface[PasswordlessLoginEmailTemplateVars]``
+    by delegating to the shared ``email_service`` so TLS/SSL settings are
+    honoured consistently.
+    """
+
+    async def send_email(
+        self,
+        template_vars: PasswordlessLoginEmailTemplateVars,
+        user_context: Dict[str, Any],
+    ) -> None:
+        from oss.src.services import email_service
+
+        otp = template_vars.user_input_code or ""
+        code_lifetime = template_vars.code_life_time
+        minutes = max(1, code_lifetime // 60)
+
+        html_content = (
+            f"<p>Hello,</p>"
+            f"<p>Your one-time login code is:</p>"
+            f"<h2 style=\"font-family:monospace;letter-spacing:0.15em\">{otp}</h2>"
+            f"<p>This code expires in {minutes} minute(s).</p>"
+            f"<p>If you did not request this code, you can safely ignore this email.</p>"
+            f"<p>Thank you for using Agenta!</p>"
+        )
+
+        from_address = env.smtp.from_address or env.sendgrid.from_address
+        if not from_address:
+            log.warning(
+                "Passwordless OTP email skipped — no sender address configured "
+                "(set SMTP_FROM_ADDRESS or SENDGRID_FROM_ADDRESS)"
+            )
+            return
+
+        if not email_service._USE_SMTP and not email_service._USE_SENDGRID:
+            log.info(
+                "Passwordless OTP email delivery disabled — no email provider configured"
+            )
+            return
+
+        try:
+            if email_service._USE_SMTP:
+                email_service._send_via_smtp(
+                    to_email=template_vars.email,
+                    subject="Your Agenta login code",
+                    html_content=html_content,
+                    from_email=from_address,
+                )
+            else:
+                email_service._send_via_sendgrid(
+                    to_email=template_vars.email,
+                    subject="Your Agenta login code",
+                    html_content=html_content,
+                    from_email=from_address,
+                )
+            log.info("Passwordless OTP email sent to %s", template_vars.email)
+        except Exception:
+            log.error(
+                "Failed to send passwordless OTP email to %s",
+                template_vars.email,
+                exc_info=True,
+            )
+
+
+def get_passwordless_email_delivery() -> EmailDeliveryConfig | None:
+    """Return email delivery config for the passwordless recipe.
+
+    Routes OTP emails through the shared ``email_service`` so that
+    ``SMTP_USE_TLS`` and the SendGrid fallback behave identically to
+    application emails (invitations, password resets, etc.).
+
+    Returns ``None`` when no email provider is configured — SuperTokens
+    will fall back to its default behaviour.
+    """
+    from oss.src.services import email_service
+
+    if not email_service._USE_SMTP and not email_service._USE_SENDGRID:
+        return None
+
+    return EmailDeliveryConfig(service=PasswordlessEmailService())
 
 
 def get_supertokens_config() -> Dict[str, Any]:
@@ -398,6 +490,7 @@ def init_supertokens():
             passwordless.init(
                 flow_type="USER_INPUT_CODE",
                 contact_config=ContactEmailOnlyConfig(),
+                email_delivery=get_passwordless_email_delivery(),
                 override=PasswordlessInputOverrideConfig(
                     apis=override_passwordless_apis,
                     functions=override_passwordless_functions,
