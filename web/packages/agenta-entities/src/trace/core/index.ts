@@ -37,6 +37,12 @@ export {
     type TracesResponse,
     spansResponseSchema,
     type SpansResponse,
+    traceResponseSchema,
+    type TraceResponse,
+    traceIdResponseSchema,
+    type TraceIdResponse,
+    sessionIdsResponseSchema,
+    type SessionIdsResponse,
     type TraceListResponse,
     // Parsing utilities
     parseTraceSpan,

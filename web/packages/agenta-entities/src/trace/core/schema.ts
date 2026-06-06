@@ -233,6 +233,52 @@ export const spansResponseSchema = z.object({
 })
 export type SpansResponse = z.infer<typeof spansResponseSchema>
 
+/**
+ * Response schema for `GET /traces/{id}`.
+ *
+ * The new endpoint returns a single `trace` object (not a `traces` record).
+ * `spans` inside the trace is a flat record keyed by span_id.
+ */
+export const traceResponseSchema = z.object({
+    count: z.number().optional().default(0),
+    trace: z
+        .object({
+            trace_id: z.string().optional().nullable(),
+            spans: z.record(z.string(), traceSpanSchema).optional().nullable(),
+        })
+        .optional()
+        .nullable(),
+})
+export type TraceResponse = z.infer<typeof traceResponseSchema>
+
+/**
+ * Response schema for `DELETE /traces/{id}`.
+ */
+export const traceIdResponseSchema = z.object({
+    count: z.number(),
+    trace_id: z.string().optional().nullable(),
+})
+export type TraceIdResponse = z.infer<typeof traceIdResponseSchema>
+
+/**
+ * Response schema for `POST /spans/sessions/query`.
+ */
+export const sessionIdsResponseSchema = z.object({
+    count: z.number(),
+    session_ids: z.array(z.string()),
+    windowing: z
+        .object({
+            next: z.string().optional().nullable(),
+            oldest: z.string().optional().nullable(),
+            newest: z.string().optional().nullable(),
+            limit: z.number().optional().nullable(),
+            order: z.enum(["ascending", "descending"]).optional().nullable(),
+        })
+        .optional()
+        .nullable(),
+})
+export type SessionIdsResponse = z.infer<typeof sessionIdsResponseSchema>
+
 // Combined response type for list queries
 export interface TraceListResponse {
     traces: TraceSpanNode[]
