@@ -3,7 +3,7 @@ import {useState} from "react"
 import type {User} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
 import {EditOutlined, MoreOutlined, SyncOutlined} from "@ant-design/icons"
-import {ArrowClockwise, Trash} from "@phosphor-icons/react"
+import {ArrowClockwise, Key, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Input, Modal, Space, Tag, Tooltip, Typography} from "antd"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
@@ -12,7 +12,7 @@ import {isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
 import {WorkspaceMember} from "@/oss/lib/Types"
-import {updateUsername} from "@/oss/services/profile"
+import {resetPassword, updateUsername} from "@/oss/services/profile"
 import {
     assignWorkspaceRole,
     removeFromWorkspace,
@@ -22,6 +22,9 @@ import {
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {useWorkspaceRoles} from "@/oss/state/workspace"
+
+import GenerateResetLinkModal from "./Modals/GenerateResetLinkModal"
+import PasswordResetLinkModal from "./Modals/PasswordResetLinkModal"
 
 export const Actions: React.FC<{
     member: WorkspaceMember
@@ -39,6 +42,10 @@ export const Actions: React.FC<{
     const {refetch: refetchProfile} = useProfileData()
     const [renameOpen, setRenameOpen] = useState(false)
     const [renameValue, setRenameValue] = useState(user.username || "")
+    const [generateResetLinkOpen, setGenerateResetLinkOpen] = useState(false)
+    const [resetLinkOpen, setResetLinkOpen] = useState(false)
+    const [resetLink, setResetLink] = useState("")
+    const [resetLoading, setResetLoading] = useState(false)
 
     if (hidden && !selfMenu) return null
 
@@ -90,6 +97,24 @@ export const Actions: React.FC<{
         }
     }
 
+    const handleResetPassword = async () => {
+        setResetLoading(true)
+        try {
+            const link = await resetPassword(user.id)
+            setGenerateResetLinkOpen(false)
+            setResetLink(link)
+            setResetLinkOpen(true)
+        } catch (error: any) {
+            const detail =
+                error?.response?.data?.detail ||
+                error?.message ||
+                "Unable to generate reset password link"
+            message.error(detail)
+        } finally {
+            setResetLoading(false)
+        }
+    }
+
     return (
         <>
             <Dropdown
@@ -123,6 +148,19 @@ export const Actions: React.FC<{
                                             onClick: (e: any) => {
                                                 e.domEvent.stopPropagation()
                                                 handleResendInvite()
+                                            },
+                                        },
+                                    ]
+                                  : []),
+                              ...(isMember
+                                  ? [
+                                        {
+                                            key: "reset_password",
+                                            label: "Reset password",
+                                            icon: <Key size={16} />,
+                                            onClick: (e: any) => {
+                                                e.domEvent.stopPropagation()
+                                                setGenerateResetLinkOpen(true)
                                             },
                                         },
                                     ]
@@ -165,6 +203,21 @@ export const Actions: React.FC<{
                     placeholder="New username"
                 />
             </Modal>
+
+            <GenerateResetLinkModal
+                open={generateResetLinkOpen}
+                username={user.username}
+                onCancel={() => setGenerateResetLinkOpen(false)}
+                onOk={handleResetPassword}
+                confirmLoading={resetLoading}
+            />
+
+            <PasswordResetLinkModal
+                open={resetLinkOpen}
+                username={user.username}
+                generatedLink={resetLink}
+                onCancel={() => setResetLinkOpen(false)}
+            />
         </>
     )
 }

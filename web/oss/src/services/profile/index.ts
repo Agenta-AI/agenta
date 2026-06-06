@@ -56,3 +56,17 @@ export const changePassword = async (payload: {
         body: JSON.stringify(payload),
     })
 }
+
+/**
+ * Generate a password reset link for a user (admin action).
+ * Returns the reset password link string.
+ */
+export const resetPassword = async (userId: string): Promise<string> => {
+    const base = getBaseUrl()
+    const url = new URL("api/profile/reset-password", base)
+    url.searchParams.set("user_id", userId)
+    const data = await fetchJson<string>(url, {
+        method: "POST",
+    })
+    return data
+}
