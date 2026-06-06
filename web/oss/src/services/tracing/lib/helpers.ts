@@ -8,6 +8,8 @@ import {
 } from "@agenta/entities/trace"
 import dayjs from "dayjs"
 
+import type {GenerationDashboardData} from "../types"
+
 // Re-export entity functions for backward compatibility
 export {
     isSpansResponse,
@@ -101,7 +103,10 @@ const metricField = (metrics: BucketMetrics, path: string, field: string): numbe
  *   - cost / tokens = `costs|tokens.cumulative.total` sum (over all spans)
  *   - latency       = `duration.cumulative` sum / count (avg over all spans)
  */
-export function analyticsToGeneration(analytics: AnalyticsResponse, range: string) {
+export function analyticsToGeneration(
+    analytics: AnalyticsResponse,
+    range: string,
+): GenerationDashboardData {
     const buckets = analytics.buckets ?? []
 
     let successCount = 0

@@ -39,6 +39,7 @@ import {
     transformTracesResponseToTree,
     transformTracingResponse,
 } from "../../src/trace/api"
+import type {TracesResponse} from "../../src/trace/core"
 
 beforeEach(() => {
     querySpansSessions.mockReset()
@@ -144,8 +145,11 @@ describe("fetchPreviewTrace (Phase 3 — GET /traces/{id})", () => {
         const oldEquivalent = {count: 1, traces: {[DASHED]: {spans: spansMap}}}
 
         const newTree = transformTracingResponse(transformTracesResponseToTree(newResult!))
+        // The literal `spansMap` omits some optional span fields, so a direct
+        // cast won't structurally match; `as unknown as TracesResponse` is
+        // honest about the shim while still typing the value (vs `as never`).
         const oldTree = transformTracingResponse(
-            transformTracesResponseToTree(oldEquivalent as never),
+            transformTracesResponseToTree(oldEquivalent as unknown as TracesResponse),
         )
 
         expect(newTree).toEqual(oldTree)
@@ -218,10 +222,11 @@ describe("fetchAllPreviewTraces (Phase 5 — trace-tree via POST /traces/query)"
             traces: [{trace_id: DASHED, spans: {root: {trace_id: DASHED, span_id: "s"}}}],
         })
 
-        const res = (await fetchAllPreviewTraces({focus: "trace", filter}, "", "proj-9")) as {
-            count: number
-            traces: Record<string, unknown>
-        }
+        const res = (await fetchAllPreviewTraces(
+            {focus: "trace", filter},
+            "",
+            "proj-9",
+        )) as TracesResponse
 
         expect(queryTraces).toHaveBeenCalledTimes(1)
         const [request, opts] = queryTraces.mock.calls[0]

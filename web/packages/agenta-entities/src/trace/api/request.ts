@@ -53,7 +53,9 @@ export function toFilteringInput(
             return undefined
         }
     }
-    if (typeof parsed !== "object" || parsed === null) return undefined
+    // Arrays satisfy `typeof === "object"`; reject them so malformed JSON like
+    // `[]` is dropped instead of being cast to a (non-array) FilteringInput.
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return undefined
     // Already FilteringInput-shaped ({operator?, conditions[]}).
     return parsed as AgentaApi.FilteringInput
 }

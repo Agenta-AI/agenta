@@ -134,10 +134,14 @@ export interface GenerationDashboardData {
         cost: number
         latency: number
         total_tokens: number
-        prompt_tokens: number
-        completion_tokens: number
-        enviornment: string
-        variant: string
+        // The new `/spans/analytics/query` metrics do not split tokens by
+        // prompt/completion and carry no environment/variant per bucket. These
+        // were never populated by the legacy transform either and are unread by
+        // the observability dashboard, so they are optional.
+        prompt_tokens?: number
+        completion_tokens?: number
+        enviornment?: string
+        variant?: string
     }[]
     total_count: number
     failure_rate: number

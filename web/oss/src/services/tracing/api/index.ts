@@ -110,5 +110,5 @@ export const fetchGenerationsDashboardData = async (
 
     // `fetchSpansAnalytics` returns null on non-2xx / shape-mismatch; the
     // dashboard treats that as "no data" rather than throwing.
-    return analyticsToGeneration(analytics ?? {buckets: []}, rangeString) as GenerationDashboardData
+    return analyticsToGeneration(analytics ?? {buckets: []}, rangeString)
 }

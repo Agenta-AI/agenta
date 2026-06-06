@@ -124,7 +124,8 @@ describe("fernTracesToLegacyTraceMap", () => {
 
     it("skips entries without a trace_id and handles empty input", () => {
         expect(fernTracesToLegacyTraceMap(null)).toEqual({count: 0, traces: {}})
-        const out = fernTracesToLegacyTraceMap([{spans: {}} as TraceOutput])
+        // Explicitly exercise the missing-trace_id skip path.
+        const out = fernTracesToLegacyTraceMap([{trace_id: undefined, spans: {}} as TraceOutput])
         expect(out.count).toBe(0)
     })
 })

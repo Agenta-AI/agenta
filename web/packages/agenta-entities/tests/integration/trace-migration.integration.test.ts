@@ -41,7 +41,9 @@ import type {TracesResponse} from "../../src/trace/core"
 import {TEST_CONFIG, hasBackend} from "./helpers/env"
 
 const TEST_TRACE_ID = process.env.AGENTA_TEST_TRACE_ID || ""
-const EXPECT_RATELIMIT = Boolean(process.env.AGENTA_TEST_EXPECT_RATELIMIT)
+// Explicit truthy parse: a bare Boolean(...) treats "false"/"0" as true, which
+// would wrongly enable the EE-only rate-limit assertion path.
+const EXPECT_RATELIMIT = /^(1|true|yes)$/i.test(process.env.AGENTA_TEST_EXPECT_RATELIMIT ?? "")
 
 // Seed the lazy Fern SDK singleton with the test backend + key BEFORE any api
 // function runs. getTracesClient() calls getAgentaSdkClient() argless, so the
