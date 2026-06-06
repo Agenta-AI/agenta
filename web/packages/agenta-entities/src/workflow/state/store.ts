@@ -1623,7 +1623,9 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
         const serverData = get(workflowServerDataSelectorFamily(workflowId))
 
         if (!serverData) {
-            return !!entityData
+            // No server baseline (ephemeral / newly created entity) —
+            // treat as clean until the user makes actual edits.
+            return false
         }
         if (!entityData) return false
 
