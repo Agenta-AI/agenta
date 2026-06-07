@@ -1,13 +1,14 @@
 /**
  * EvaluationQueue API Functions
  *
- * HTTP API functions for EvaluationQueue entities.
- * These are pure functions with no Jotai dependencies.
+ * HTTP API functions for EvaluationQueue entities, backed by the Fern-generated
+ * `@agentaai/api-client` via `@agenta/sdk`. Pure functions, no Jotai dependencies.
  *
- * Base endpoint: `/evaluations/queues/`
+ * Base endpoint: `/evaluations/queues/`.
+ *
+ * Zod validation stays at the boundary: Fern's generated types are all-optional /
+ * nullable, so the local schemas narrow them and act as an independent drift check.
  */
-
-import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 
 import {safeParseWithLogging} from "../../shared"
 import {
@@ -28,6 +29,8 @@ import type {
     EvaluationQueueScenariosParams,
 } from "../core"
 
+import {getEvaluationsClient, projectScopedRequest} from "./client"
+
 // ============================================================================
 // QUERY / LIST
 // ============================================================================
@@ -46,21 +49,19 @@ export async function queryEvaluationQueues({
         return {count: 0, queues: []}
     }
 
-    const queueFilter: Record<string, unknown> = {}
+    const queueFilter: {run_id?: string; user_id?: string} = {}
     if (runId) queueFilter.run_id = runId
     if (userId) queueFilter.user_id = userId
 
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/evaluations/queues/query`,
-        {
-            queue: Object.keys(queueFilter).length > 0 ? queueFilter : undefined,
-        },
-        {params: {project_id: projectId}},
+    const client = await getEvaluationsClient()
+    const data = await client.queryQueues(
+        Object.keys(queueFilter).length > 0 ? {queue: queueFilter} : {},
+        projectScopedRequest(projectId),
     )
 
     const validated = safeParseWithLogging(
         evaluationQueuesResponseSchema,
-        response.data,
+        data,
         "[queryEvaluationQueues]",
     )
     if (!validated) {
@@ -84,13 +85,12 @@ export async function fetchEvaluationQueue({
 }: EvaluationQueueDetailParams): Promise<EvaluationQueue | null> {
     if (!projectId || !id) return null
 
-    const response = await axios.get(`${getAgentaApiUrl()}/evaluations/queues/${id}`, {
-        params: {project_id: projectId},
-    })
+    const client = await getEvaluationsClient()
+    const data = await client.fetchQueue({queue_id: id}, projectScopedRequest(projectId))
 
     const validated = safeParseWithLogging(
         evaluationQueueResponseSchema,
-        response.data,
+        data,
         "[fetchEvaluationQueue]",
     )
     return validated?.queue ?? null
@@ -113,13 +113,12 @@ export async function deleteEvaluationQueue({
         return {count: 0, queue_id: null}
     }
 
-    const response = await axios.delete(`${getAgentaApiUrl()}/evaluations/queues/${id}`, {
-        params: {project_id: projectId},
-    })
+    const client = await getEvaluationsClient()
+    const data = await client.deleteQueue({queue_id: id}, projectScopedRequest(projectId))
 
     const validated = safeParseWithLogging(
         evaluationQueueIdResponseSchema,
-        response.data,
+        data,
         "[deleteEvaluationQueue]",
     )
     return validated ?? {count: 0, queue_id: null}
@@ -139,14 +138,15 @@ export async function deleteEvaluationQueues(
         return {count: 0, queue_ids: []}
     }
 
-    const response = await axios.delete(`${getAgentaApiUrl()}/evaluations/queues/`, {
-        params: {project_id: projectId},
-        data: {queue_ids: normalizedQueueIds},
-    })
+    const client = await getEvaluationsClient()
+    const data = await client.deleteQueues(
+        {queue_ids: normalizedQueueIds},
+        projectScopedRequest(projectId),
+    )
 
     const validated = safeParseWithLogging(
         evaluationQueueIdsResponseSchema,
-        response.data,
+        data,
         "[deleteEvaluationQueues]",
     )
     return validated ?? {count: 0, queue_ids: []}
@@ -171,20 +171,18 @@ export async function queryEvaluationQueueScenarios({
         return {count: 0, scenario_ids: []}
     }
 
-    const body: Record<string, unknown> = {}
-    if (userId) {
-        body.queue = {user_id: userId}
-    }
-
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/evaluations/queues/${queueId}/scenarios/query`,
-        body,
-        {params: {project_id: projectId}},
+    const client = await getEvaluationsClient()
+    const data = await client.queryEvaluationQueueScenarios(
+        {
+            queue_id: queueId,
+            ...(userId ? {queue: {user_id: userId}} : {}),
+        },
+        projectScopedRequest(projectId),
     )
 
     const validated = safeParseWithLogging(
         evaluationQueueScenarioIdsResponseSchema,
-        response.data,
+        data,
         "[queryEvaluationQueueScenarios]",
     )
     if (!validated) {

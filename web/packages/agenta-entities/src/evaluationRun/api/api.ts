@@ -1,13 +1,15 @@
 /**
  * EvaluationRun API Functions
  *
- * HTTP API functions for EvaluationRun entities.
- * These are pure functions with no Jotai dependencies.
+ * HTTP API functions for EvaluationRun entities, backed by the Fern-generated
+ * `@agentaai/api-client` via `@agenta/sdk`. Pure functions, no Jotai dependencies.
  *
- * Base endpoint: `/evaluations/runs/`
+ * Base endpoint: `/evaluations/runs/` (+ `/results/`, `/metrics/`).
+ *
+ * Zod validation stays at the boundary: Fern's generated types are all-optional /
+ * nullable, so the local schemas narrow them into the strict shape the molecules and
+ * ETL depend on, and act as an independent drift check against the backend.
  */
-
-import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 
 // See testcase/api/api.ts for rationale — the shared barrel pulls in CSS deps.
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
@@ -28,6 +30,8 @@ import type {
     EvaluationMetricsQueryParams,
 } from "../core"
 
+import {getEvaluationsClient, projectScopedRequest} from "./client"
+
 // ============================================================================
 // FETCH (Single)
 // ============================================================================
@@ -43,13 +47,12 @@ export async function fetchEvaluationRun({
 }: EvaluationRunDetailParams): Promise<EvaluationRun | null> {
     if (!projectId || !id) return null
 
-    const response = await axios.get(`${getAgentaApiUrl()}/evaluations/runs/${id}`, {
-        params: {project_id: projectId},
-    })
+    const client = await getEvaluationsClient()
+    const data = await client.fetchRun({run_id: id}, projectScopedRequest(projectId))
 
     const validated = safeParseWithLogging(
         evaluationRunResponseSchema,
-        response.data,
+        data,
         "[fetchEvaluationRun]",
     )
     return validated?.run ?? null
@@ -71,18 +74,15 @@ export async function queryEvaluationRuns({
     if (!projectId) return {count: 0, runs: []}
     if (ids && ids.length === 0) return {count: 0, runs: []}
 
-    const body: Record<string, unknown> = {}
-    if (ids && ids.length > 0) {
-        body.run = {ids}
-    }
-
-    const response = await axios.post(`${getAgentaApiUrl()}/evaluations/runs/query`, body, {
-        params: {project_id: projectId},
-    })
+    const client = await getEvaluationsClient()
+    const data = await client.queryRuns(
+        ids && ids.length > 0 ? {run: {ids}} : {},
+        projectScopedRequest(projectId),
+    )
 
     const validated = safeParseWithLogging(
         evaluationRunsResponseSchema,
-        response.data,
+        data,
         "[queryEvaluationRuns]",
     )
     return validated ?? {count: 0, runs: []}
@@ -109,23 +109,23 @@ export async function queryEvaluationResults({
     if (!projectId || !runId) return []
     if (scenarioIds && scenarioIds.length === 0) return []
 
-    const body: Record<string, unknown> = {
-        result: {
-            run_id: runId,
-            run_ids: [runId],
-            ...(scenarioIds?.length ? {scenario_ids: scenarioIds} : {}),
-            ...(stepKeys?.length ? {step_keys: stepKeys} : {}),
+    const client = await getEvaluationsClient()
+    const data = await client.queryResults(
+        {
+            result: {
+                run_id: runId,
+                run_ids: [runId],
+                ...(scenarioIds?.length ? {scenario_ids: scenarioIds} : {}),
+                ...(stepKeys?.length ? {step_keys: stepKeys} : {}),
+            },
+            windowing: {},
         },
-        windowing: {},
-    }
-
-    const response = await axios.post(`${getAgentaApiUrl()}/evaluations/results/query`, body, {
-        params: {project_id: projectId},
-    })
+        projectScopedRequest(projectId),
+    )
 
     const validated = safeParseWithLogging(
         evaluationResultsResponseSchema,
-        response.data,
+        data,
         "[queryEvaluationResults]",
     )
     return validated?.results ?? []
@@ -151,20 +151,20 @@ export async function queryEvaluationMetrics({
     if (!projectId || !runId) return []
     if (scenarioIds && scenarioIds.length === 0) return []
 
-    const body: Record<string, unknown> = {
-        metrics: {
-            run_id: runId,
-            ...(scenarioIds?.length ? {scenario_ids: scenarioIds} : {}),
+    const client = await getEvaluationsClient()
+    const data = await client.queryMetrics(
+        {
+            metrics: {
+                run_id: runId,
+                ...(scenarioIds?.length ? {scenario_ids: scenarioIds} : {}),
+            },
         },
-    }
-
-    const response = await axios.post(`${getAgentaApiUrl()}/evaluations/metrics/query`, body, {
-        params: {project_id: projectId},
-    })
+        projectScopedRequest(projectId),
+    )
 
     const validated = safeParseWithLogging(
         evaluationMetricsResponseSchema,
-        response.data,
+        data,
         "[queryEvaluationMetrics]",
     )
     return validated?.metrics ?? []
