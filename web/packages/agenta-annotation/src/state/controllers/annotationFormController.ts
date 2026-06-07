@@ -1336,7 +1336,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
 
         const activeRunId = get(annotationSessionController.selectors.activeRunId())
         const annotationSteps = activeRunId
-            ? get(evaluationRunMolecule.selectors.annotationSteps(activeRunId))
+            ? get(evaluationRunMolecule.selectors.annotationSteps({projectId, runId: activeRunId}))
             : []
         const stepRefsByEvalId = buildStepReferences(annotationSteps)
 
@@ -1354,7 +1354,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
         let invocationStepKey: string | null = null
         if (runId) {
             const stepsQuery = get(
-                evaluationRunMolecule.selectors.scenarioSteps({runId, scenarioId}),
+                evaluationRunMolecule.selectors.scenarioSteps({projectId, runId, scenarioId}),
             )
             invocationStepKey = await resolveInvocationStepKey({
                 cachedSteps: stepsQuery.data ?? [],
@@ -1567,7 +1567,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
             })
 
             const currentAnnotationSteps = get(
-                evaluationRunMolecule.selectors.annotationSteps(runId),
+                evaluationRunMolecule.selectors.annotationSteps({projectId, runId}),
             )
 
             await awaitStepResultUpserts({

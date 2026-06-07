@@ -494,8 +494,9 @@ const queueDescriptionAtom = atom<string | null>((get) => {
  */
 const evaluatorIdsAtom = atom<string[]>((get) => {
     const runId = get(activeRunIdAtom)
-    if (!runId) return []
-    return get(evaluationRunMolecule.selectors.evaluatorIds(runId))
+    const projectId = get(projectIdAtom)
+    if (!runId || !projectId) return []
+    return get(evaluationRunMolecule.selectors.evaluatorIds({projectId, runId}))
 })
 
 /**
@@ -505,8 +506,9 @@ const evaluatorIdsAtom = atom<string[]>((get) => {
  */
 const evaluatorRevisionIdsAtom = atom<string[]>((get) => {
     const runId = get(activeRunIdAtom)
-    if (!runId) return []
-    return get(evaluationRunMolecule.selectors.evaluatorRevisionIds(runId))
+    const projectId = get(projectIdAtom)
+    if (!runId || !projectId) return []
+    return get(evaluationRunMolecule.selectors.evaluatorRevisionIds({projectId, runId}))
 })
 
 function deriveEvaluatorSlugFromStepKey(stepKey: string | null | undefined): string | null {
@@ -522,9 +524,10 @@ function deriveEvaluatorSlugFromStepKey(stepKey: string | null | undefined): str
  */
 const evaluatorStepRefsAtom = atom<EvaluatorStepRef[]>((get) => {
     const runId = get(activeRunIdAtom)
-    if (!runId) return []
+    const projectId = get(projectIdAtom)
+    if (!runId || !projectId) return []
 
-    const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps(runId))
+    const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps({projectId, runId}))
 
     return annotationSteps
         .map((step) => ({
@@ -545,10 +548,11 @@ const evaluatorStepRefsAtom = atom<EvaluatorStepRef[]>((get) => {
 /** Evaluator metadata for queue-scoped testcase sync. */
 const testsetSyncEvaluatorsAtom = atom<TestsetSyncEvaluator[]>((get) => {
     const runId = get(activeRunIdAtom)
-    if (!runId) return []
+    const projectId = get(projectIdAtom)
+    if (!runId || !projectId) return []
 
     const byKey = new Map<string, TestsetSyncEvaluator>()
-    const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps(runId))
+    const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps({projectId, runId}))
 
     for (const step of annotationSteps) {
         const workflowId = step.references?.evaluator?.id ?? null
@@ -581,8 +585,11 @@ const testsetSyncEvaluatorsAtom = atom<TestsetSyncEvaluator[]>((get) => {
  */
 const annotationColumnDefsAtom = atom<AnnotationColumnDef[]>((get) => {
     const runId = get(activeRunIdAtom)
-    if (!runId) return []
-    return get(evaluationRunMolecule.selectors.annotationColumnDefs(runId)) as AnnotationColumnDef[]
+    const projectId = get(projectIdAtom)
+    if (!runId || !projectId) return []
+    return get(
+        evaluationRunMolecule.selectors.annotationColumnDefs({projectId, runId}),
+    ) as AnnotationColumnDef[]
 })
 
 /**
@@ -601,10 +608,15 @@ const traceInputKeysAtom = atom<string[]>((get) => {
     // Resolve the first scenario's trace ID
     const firstScenarioId = ids[0]
     const runId = get(activeRunIdAtom)
-    if (!runId || !firstScenarioId) return []
+    const projectId = get(projectIdAtom)
+    if (!runId || !firstScenarioId || !projectId) return []
 
     const traceRef = get(
-        evaluationRunMolecule.selectors.scenarioTraceRef({runId, scenarioId: firstScenarioId}),
+        evaluationRunMolecule.selectors.scenarioTraceRef({
+            projectId,
+            runId,
+            scenarioId: firstScenarioId,
+        }),
     )
     const traceId = traceRef?.traceId
     if (!traceId) return []
@@ -1080,8 +1092,9 @@ const listColumnDefsAtom = atom<ScenarioListColumnDef[]>((get) => {
 const scenarioStepsQueryStateAtomFamily = atomFamily((scenarioId: string) =>
     atom((get) => {
         const runId = get(activeRunIdAtom)
-        if (!runId || !scenarioId) return null
-        return get(evaluationRunMolecule.selectors.scenarioSteps({runId, scenarioId}))
+        const projectId = get(projectIdAtom)
+        if (!runId || !scenarioId || !projectId) return null
+        return get(evaluationRunMolecule.selectors.scenarioSteps({projectId, runId, scenarioId}))
     }),
 )
 
@@ -1095,9 +1108,12 @@ const scenarioTraceRefAtomFamily = atomFamily((scenarioId: string) =>
         const directRef = extractScenarioTraceRef(findScenarioRecordById(records, scenarioId))
 
         const runId = get(activeRunIdAtom)
-        if (!runId || !scenarioId) return directRef
+        const projectId = get(projectIdAtom)
+        if (!runId || !scenarioId || !projectId) return directRef
 
-        const stepRef = get(evaluationRunMolecule.selectors.scenarioTraceRef({runId, scenarioId}))
+        const stepRef = get(
+            evaluationRunMolecule.selectors.scenarioTraceRef({projectId, runId, scenarioId}),
+        )
         if (stepRef.traceId) return stepRef
 
         return directRef
@@ -1114,10 +1130,11 @@ const scenarioTestcaseRefAtomFamily = atomFamily((scenarioId: string) =>
         const directRef = extractScenarioTestcaseRef(findScenarioRecordById(records, scenarioId))
 
         const runId = get(activeRunIdAtom)
-        if (!runId || !scenarioId) return directRef
+        const projectId = get(projectIdAtom)
+        if (!runId || !scenarioId || !projectId) return directRef
 
         const stepRef = get(
-            evaluationRunMolecule.selectors.scenarioTestcaseRef({runId, scenarioId}),
+            evaluationRunMolecule.selectors.scenarioTestcaseRef({projectId, runId, scenarioId}),
         )
         if (stepRef.testcaseId) return stepRef
 
@@ -1161,14 +1178,19 @@ const scenarioRootSpanAtomFamily = atomFamily((scenarioId: string) =>
 const scenarioAnnotationTraceIdsAtomFamily = atomFamily((scenarioId: string) =>
     atom<string[]>((get) => {
         const runId = get(activeRunIdAtom)
-        if (!runId || !scenarioId) return []
+        const projectId = get(projectIdAtom)
+        if (!runId || !scenarioId || !projectId) return []
 
         // Get annotation step info from the run definition
-        const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps(runId))
+        const annotationSteps = get(
+            evaluationRunMolecule.selectors.annotationSteps({projectId, runId}),
+        )
         if (annotationSteps.length === 0) return []
 
         // Get scenario step results (evaluation results)
-        const stepsQuery = get(evaluationRunMolecule.selectors.scenarioSteps({runId, scenarioId}))
+        const stepsQuery = get(
+            evaluationRunMolecule.selectors.scenarioSteps({projectId, runId, scenarioId}),
+        )
         const steps = stepsQuery.data ?? []
 
         return extractAnnotationTraceIdsFromSteps({annotationSteps, steps})
@@ -1937,15 +1959,15 @@ async function invalidateScenarioAnnotations(
                 runId,
                 scenarioIds: [scenarioId],
             })
-            queryClient.setQueryData(["scenarioSteps", runId, scenarioId], freshSteps)
+            queryClient.setQueryData(["scenarioSteps", projectId, runId, scenarioId], freshSteps)
         } catch {
             freshSteps = null
         }
     }
 
-    if (runId && !freshSteps) {
+    if (projectId && runId && !freshSteps) {
         const stepsQuery = store.get(
-            evaluationRunMolecule.selectors.scenarioSteps({runId, scenarioId}),
+            evaluationRunMolecule.selectors.scenarioSteps({projectId, runId, scenarioId}),
         )
         if (stepsQuery?.refetch) {
             try {
@@ -1959,9 +1981,10 @@ async function invalidateScenarioAnnotations(
 
     // Step 2: Refetch annotation queries (awaited).
     // Now that steps are updated, scenarioAnnotationTraceIdsAtomFamily has fresh data.
-    const annotationSteps = runId
-        ? store.get(evaluationRunMolecule.selectors.annotationSteps(runId))
-        : []
+    const annotationSteps =
+        runId && projectId
+            ? store.get(evaluationRunMolecule.selectors.annotationSteps({projectId, runId}))
+            : []
     const traceIds =
         freshSteps && annotationSteps.length > 0
             ? extractAnnotationTraceIdsFromSteps({annotationSteps, steps: freshSteps})
@@ -2767,7 +2790,9 @@ async function fetchTraceAnnotationOutputsForExport(params: {
     const runId = store.get(activeRunIdAtom)
 
     if (runId) {
-        const annotationSteps = store.get(evaluationRunMolecule.selectors.annotationSteps(runId))
+        const annotationSteps = store.get(
+            evaluationRunMolecule.selectors.annotationSteps({projectId: params.projectId, runId}),
+        )
         if (annotationSteps.length > 0) {
             const steps = await queryEvaluationResults({
                 projectId: params.projectId,

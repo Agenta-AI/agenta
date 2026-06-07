@@ -2,6 +2,7 @@ import {memo} from "react"
 
 import {evaluationRunMolecule} from "@agenta/entities/evaluationRun"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {projectIdAtom} from "@agenta/shared/state"
 import {Skeleton, Tag, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -35,8 +36,11 @@ const EvaluatorNamesCell = memo(function EvaluatorNamesCell({runId}: EvaluatorNa
 
 /** Reads evaluation run → extracts evaluator IDs + slugs → delegates to name resolution */
 const EvaluatorIdsBridge = memo(function EvaluatorIdsBridge({runId}: {runId: string}) {
-    const rawQuery = useAtomValue(evaluationRunMolecule.atoms.query(runId))
-    const columnDefs = useAtomValue(evaluationRunMolecule.selectors.annotationColumnDefs(runId))
+    const projectId = useAtomValue(projectIdAtom) ?? ""
+    const rawQuery = useAtomValue(evaluationRunMolecule.atoms.query({projectId, runId}))
+    const columnDefs = useAtomValue(
+        evaluationRunMolecule.selectors.annotationColumnDefs({projectId, runId}),
+    )
 
     // Deduplicate by revision first, preserving order
     const evaluatorEntries: EvaluatorEntry[] = []
