@@ -1,20 +1,24 @@
 /* eslint-disable import/order */
 import {useCallback, useMemo} from "react"
 
-import {useAtomValue} from "jotai"
+import {buildRunConfig, createEvaluationRun, type RevisionSchemaContext} from "@agenta/evaluations"
+import type {OpenAPISpec} from "@agenta/entities/shared/openapi"
+import {
+    appOpenApiSchemaAtomFamily,
+    appRoutePathAtomFamily,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
+import {getDefaultStore, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
-import {useSWRConfig} from "swr"
-import {v4 as uuidv4} from "uuid"
 
 import {useAppId} from "@/oss/hooks/useAppId"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {EvaluationType} from "@/oss/lib/enums"
 import {buildRunIndex} from "@/oss/lib/evaluations/buildRunIndex"
 import {EvaluationStatus, SnakeToCamelCaseKeys, Testset} from "@/oss/lib/Types"
-import {slugify} from "@/oss/lib/utils/slugify"
-import {createEvaluationRunConfig} from "@/oss/services/evaluationRuns/api"
 import {CreateEvaluationRunInput} from "@/oss/services/evaluationRuns/api/types"
+import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {getProjectValues} from "@/oss/state/project"
 import {fetchRevision} from "@/oss/state/entities/testset"
 import {
@@ -129,7 +133,18 @@ interface PreviewEvaluationsQueryState {
 import {searchQueryAtom} from "./states/queryFilterAtoms"
 import {EnrichedEvaluationRun, EvaluationRun} from "./types"
 
-const SCENARIOS_ENDPOINT = "/evaluations/scenarios/"
+/**
+ * Testset enriched with the testcase ids/rows the creation flow hydrates onto it.
+ * `Testset` (from lib/Types) doesn't model `data`, so we widen it locally.
+ */
+type TestsetWithData = Testset & {
+    slug?: string | null
+    data?: {
+        testcaseIds?: string[]
+        testcases?: {id: string; data?: Record<string, unknown>}[]
+        [key: string]: unknown
+    }
+}
 
 /**
  * Custom hook to manage and enrich preview evaluation runs.
@@ -177,7 +192,6 @@ const usePreviewEvaluations = ({
         })
     }, [propsTypes])
 
-    const {mutate: globalMutate} = useSWRConfig()
     const routeAppId = useAppId()
     const appId = (appIdOverride ?? routeAppId) || undefined
 
@@ -264,44 +278,6 @@ const usePreviewEvaluations = ({
     }, [evaluationRunsQuery, queryEnabled, isEnrichmentPending])
 
     /**
-     * Helper to create scenarios for a given run and testset.
-     * Each CSV row becomes its own scenario.
-     */
-    const createScenarios = useCallback(
-        async (
-            runId: string,
-            testset: Testset & {data: {testcaseIds?: string[]; testcases?: {id: string}[]}},
-        ): Promise<string[]> => {
-            if (!testset?.id) {
-                throw new Error(`Testset with id ${testset.id} not found.`)
-            }
-
-            // 1. Build payload: each row becomes a scenario
-            const payload = {
-                scenarios: (
-                    testset.data.testcaseIds ??
-                    testset.data.testcases?.map((tc) => tc.id) ??
-                    []
-                ).map((_id, index) => ({
-                    run_id: runId,
-                    // meta: {index},
-                })),
-            }
-
-            // 2. Invoke the scenario endpoint
-            const currentProjectId = getProjectValues().projectId
-            const response = await axios.post(
-                `${SCENARIOS_ENDPOINT}?project_id=${currentProjectId}`,
-                payload,
-            )
-
-            // Extract and return new scenario IDs
-            return response.data.scenarios.map((s: any) => s.id)
-        },
-        [],
-    )
-
-    /**
      * Helper to compute enriched and sorted runs (lazy) when accessed.
      */
     const computeRuns = useCallback((): EnrichedEvaluationRun[] => {
@@ -376,8 +352,8 @@ const usePreviewEvaluations = ({
                     data: tc.data ?? {},
                 }))
 
-                const hydratedTestset: Testset = {
-                    ...(rawTestset as Testset),
+                const hydratedTestset: TestsetWithData = {
+                    ...(rawTestset as TestsetWithData),
                     id: revision.testset_id,
                     // Prefer explicit name from caller, then revision name, then fallback
                     name: (rawTestset.name as string) ?? (revision.name as string) ?? "Test set",
@@ -386,127 +362,72 @@ const usePreviewEvaluations = ({
                         ...(rawTestset.data ?? {}),
                         testcaseIds,
                         testcases: testcaseRows,
-                    } as any,
+                    },
                 }
 
                 paramInputs.testset = hydratedTestset
             }
 
-            // 2. Create payload: invocation origin=auto, annotation origin=human (handled by helper)
-            const params = createEvaluationRunConfig({
+            if (!projectId) {
+                throw new Error("Project id is required to create an evaluation run.")
+            }
+            if (!paramInputs.testset) {
+                throw new Error("Testset is required to create an evaluation run.")
+            }
+
+            // Resolve the per-revision schema context from the live playground/workflow
+            // atoms here (the app supplies inputs), then hand plain data to the headless
+            // @agenta/evaluations package — it owns config construction + creation.
+            const store = getDefaultStore()
+            const isCustom =
+                (store.get(currentAppContextAtom) as {appType?: unknown} | undefined)?.appType ===
+                "custom"
+            const schemaContextByRevisionId: Record<string, RevisionSchemaContext> = {}
+            for (const rev of paramInputs.revisions ?? []) {
+                const spec = (store.get(appOpenApiSchemaAtomFamily(rev.id)) ??
+                    null) as OpenAPISpec | null
+                const routePath = store.get(appRoutePathAtomFamily(rev.id)) || ""
+                const inputSchema = store.get(workflowMolecule.selectors.inputSchema(rev.id)) as
+                    | {properties?: Record<string, unknown>}
+                    | undefined
+                schemaContextByRevisionId[rev.id] = {
+                    isCustom,
+                    spec,
+                    routePath,
+                    inputSchemaProperties: inputSchema?.properties ?? null,
+                }
+            }
+
+            const {runs} = buildRunConfig({
                 ...(paramInputs as any),
                 meta: {
                     ...((paramInputs as any)?.meta || {}),
                     evaluation_kind: "human",
                 },
+                schemaContextByRevisionId,
             })
 
-            // 3. Invoke preview run endpoint (include project for backend routing)
-            const response = await axios.post(`/evaluations/runs/?project_id=${projectId}`, params)
+            const hydratedTs = paramInputs.testset as TestsetWithData
+            const testcaseIds = (
+                hydratedTs.data?.testcaseIds ??
+                hydratedTs.data?.testcases?.map((tc) => tc.id) ??
+                []
+            ).filter(Boolean)
 
-            // 4. Refresh preview runs list and return created run
+            // Orchestrates createRuns -> createScenarios -> setResults with rollback on
+            // partial failure. Throws EvaluationRunCreationError if creation fails.
+            const result = await createEvaluationRun({projectId, runs, testcaseIds})
+
+            // Refresh the preview runs list.
             await evaluationRunsState.mutate()
 
-            // Extract the newly created runId
-            const runId = response.data.runs?.[0]?.id
-            if (!runId) {
-                throw new Error("createNewRun: runId not returned in response.")
-            }
-            // Now create scenarios for each row in the specified testset
-            if (!paramInputs.testset) {
-                throw new Error("Testset is required to create scenarios")
-            }
-            // 4. Creates the scenarios
-            const scenarioIds = await createScenarios(runId, paramInputs.testset)
-
-            // Fire off input, invocation, and annotation steps together in one request (non-blocking)
-            try {
-                // const repeatId = uuidv4()
-                // const retryId = uuidv4()
-                // 5. First generate step keys & IDs per scenario
-                const revision = paramInputs.revisions?.[0]
-                const evaluators = paramInputs.evaluators || []
-                const inputKey = slugify(
-                    paramInputs.testset.name ?? paramInputs.testset.slug ?? "testset",
-                    paramInputs.testset.id,
-                )
-                const invocationKey = revision
-                    ? slugify(
-                          (revision as any).name ??
-                              (revision as any).variantName ??
-                              (revision as any)._parentVariant?.variantName ??
-                              "invocation",
-                          revision.id,
-                      )
-                    : "invocation"
-
-                const scenarioStepsData = scenarioIds.map((scenarioId, index) => {
-                    const hashId = uuidv4()
-                    return {
-                        testcaseId:
-                            paramInputs.testset?.data?.testcaseIds?.[index] ??
-                            paramInputs.testset?.data?.testcases?.[index]?.id,
-                        scenarioId,
-                        hashId,
-                    }
-                })
-
-                // 6. Build a single steps array combining input, invocation, and evaluator steps
-                const allSteps = scenarioStepsData.flatMap(
-                    ({scenarioId, testcaseId, repeatId, retryIdInput, hashId}) => {
-                        const base = {
-                            testcase_id: testcaseId,
-                            scenario_id: scenarioId,
-                            run_id: runId,
-                        }
-                        const stepsArray: any[] = [
-                            {
-                                ...base,
-                                status: EvaluationStatus.SUCCESS,
-                                step_key: inputKey,
-                            },
-                            {
-                                ...base,
-                                step_key: invocationKey,
-                            },
-                        ]
-
-                        evaluators.forEach((ev) => {
-                            stepsArray.push({
-                                ...base,
-                                step_key: `${invocationKey}.${ev.slug}`,
-                            })
-                        })
-                        return stepsArray
-                    },
-                )
-                // 7. Invoke the /results endpoint
-                await axios
-                    .post(`/evaluations/results/?project_id=${projectId}`, {
-                        results: allSteps,
-                    })
-                    // .then((res) => {
-                    //     // Revalidate scenarios data
-                    //     globalMutate(getEvaluationRunScenariosKey(runId))
-                    // })
-                    .catch((err) => {
-                        console.error(
-                            "[usePreviewEvaluations] createNewRun: failed to create steps",
-                            err,
-                        )
-                    })
-            } catch (err) {
-                console.error("[usePreviewEvaluations] createNewRun: error scheduling steps", err)
-            }
-            // 8. Refresh SWR data for runs
-            await evaluationRunsState.mutate()
-            // Return both run response and scenario IDs
             return {
-                run: response.data,
-                scenarios: scenarioIds,
+                runId: result.runId,
+                runIds: result.runIds,
+                scenarios: result.scenarioIds,
             }
         },
-        [debug, globalMutate, evaluationRunsState, projectId, appId],
+        [evaluationRunsState, projectId],
     )
 
     return {

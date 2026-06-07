@@ -565,7 +565,7 @@ const NewEvaluationModalInner = ({
 
                 const data = await createPreviewEvaluationRun(structuredClone(selectionData) as any)
 
-                const runId = data.run.runs[0].id
+                const runId = data.runId
                 const scope = isAppScoped ? "app" : "project"
                 const targetPath = buildEvaluationNavigationUrl({
                     scope,
