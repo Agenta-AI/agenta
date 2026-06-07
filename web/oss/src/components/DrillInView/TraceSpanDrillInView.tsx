@@ -466,7 +466,7 @@ export const TraceSpanDrillInView = memo(
         if (rootScope === "span") {
             const showTitle = Boolean(title)
             return (
-                <div className="rounded-md overflow-hidden bg-[var(--ag-c-FFFFFF)]">
+                <div className="rounded-md bg-[var(--ag-c-FFFFFF)]">
                     <div
                         className={`drill-in-field-header rounded-md flex items-center justify-between py-2 px-3 bg-[var(--ag-c-FFFFFF)] border border-solid border-[var(--ag-rgba-051729-06)] ${allowSpanCollapse ? "cursor-pointer" : ""}`}
                         onClick={allowSpanCollapse ? toggleCollapsed : undefined}
@@ -509,7 +509,7 @@ export const TraceSpanDrillInView = memo(
                         </div>
                     </div>
                     {(!allowSpanCollapse || !isCollapsed) && (
-                        <div className="relative overflow-hidden">
+                        <div className="relative">
                             {isSearchOpen && isCodeMode && (
                                 <div className="absolute right-4 top-3 z-20 flex items-center gap-2 rounded-xl border border-[var(--ag-rgba-051729-14)] bg-[var(--ag-c-FFFFFF)] px-2 py-2 shadow-[0_8px_24px_rgba(5,23,41,0.12)] max-w-[calc(100%-2rem)]">
                                     <Input
@@ -576,12 +576,10 @@ export const TraceSpanDrillInView = memo(
                                     </EditorProvider>
                                 </DrillInProvider>
                             ) : isPrettyJson ? (
-                                <div className="overflow-y-auto">
-                                    <PrettyJsonView
-                                        data={prettyJsonSource}
-                                        keyPrefix={`trace-span-${textViewerId}`}
-                                    />
-                                </div>
+                                <PrettyJsonView
+                                    data={prettyJsonSource}
+                                    keyPrefix={`trace-span-${textViewerId}`}
+                                />
                             ) : (
                                 <div className="mx-1 my-2 rounded-md bg-[var(--ag-c-FFFFFF)]">
                                     <TextModeViewer
