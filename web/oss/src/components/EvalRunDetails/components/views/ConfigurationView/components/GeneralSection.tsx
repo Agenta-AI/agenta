@@ -1,17 +1,14 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useMemo, useState} from "react"
 
-import {message} from "@agenta/ui/app-message"
 import {DownOutlined} from "@ant-design/icons"
-import {Button, Form, Input, Tag, Typography} from "antd"
+import {PencilSimple} from "@phosphor-icons/react"
+import {Button, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import ReadOnlyBox from "@/oss/components/pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
-import axios from "@/oss/lib/api/assets/axiosConfig"
-import {invalidatePreviewRunCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 
-import {effectiveProjectIdAtom} from "../../../../atoms/run"
 import {evaluationRunQueryAtomFamily} from "../../../../atoms/table/run"
+import {editEvaluationDrawerRunIdAtom} from "../../../../state/editDrawer"
 import {deriveRunTags} from "../utils"
 
 import {SectionHeaderRow, SectionSkeleton} from "./SectionPrimitives"
@@ -20,28 +17,47 @@ const {Text} = Typography
 
 interface GeneralSectionProps {
     runId: string
+    /** When true, show the "Edit" trigger that opens the run-edit drawer. */
     showActions?: boolean
     showHeader?: boolean
 }
 
-const GeneralSectionHeader = ({runId, index}: {runId: string; index: number}) => {
-    return (
-        <div className="flex flex-col gap-1">
-            <Text className="text-sm font-semibold text-[var(--ag-c-344054)]">General</Text>
-        </div>
-    )
-}
+const GeneralSectionHeader = () => (
+    <div className="flex flex-col gap-1">
+        <Text className="text-sm font-semibold text-[var(--ag-c-344054)]">General</Text>
+    </div>
+)
 
+const Field = ({
+    label,
+    children,
+    className,
+}: {
+    label: string
+    children: React.ReactNode
+    className?: string
+}) => (
+    <div className={`flex flex-col gap-1 ${className ?? ""}`}>
+        <Text className="text-xs font-medium text-[var(--ag-c-475467)]">{label}</Text>
+        {children}
+    </div>
+)
+
+/**
+ * Read-only view of the run's metadata. Editing is no longer inline — it goes through the
+ * shared "Edit evaluation" drawer (consistent with the header actions dropdown and the
+ * Add-evaluator button), opened via the Edit trigger here.
+ */
 const GeneralSection = ({runId, showActions = true, showHeader = true}: GeneralSectionProps) => {
     const [collapsed, setCollapsed] = useState(false)
-    const projectId = useAtomValue(effectiveProjectIdAtom)
-    const invalidateRunsTable = useSetAtom(invalidateEvaluationRunsTableAtom)
+    const openEditDrawer = useSetAtom(editEvaluationDrawerRunIdAtom)
     const runQueryAtom = useMemo(() => evaluationRunQueryAtomFamily(runId), [runId])
     const runQuery = useAtomValue(runQueryAtom)
     const isLoading = runQuery.isPending && !runQuery.data
 
     const runData = runQuery.data?.camelRun ?? runQuery.data?.rawRun ?? null
     const runMeta = (runData?.meta ?? {}) as Record<string, unknown>
+    const runName = typeof runData?.name === "string" ? runData.name : ""
     const runSlug =
         typeof runData?.slug === "string"
             ? runData.slug
@@ -59,67 +75,17 @@ const GeneralSection = ({runId, showActions = true, showHeader = true}: GeneralS
         [runData?.tags, runMeta?.tags],
     )
 
-    const [editName, setEditName] = useState<string>(runData?.name ?? "")
-    const [editDescription, setEditDescription] = useState<string>(runDescription ?? "")
-    const [saving, setSaving] = useState(false)
-
-    // Sync local state when query data changes
-    useEffect(() => {
-        setEditName(runData?.name ?? "")
-        setEditDescription(runDescription ?? "")
-    }, [runData?.name, runDescription])
-
-    const isSaveDisabled = useMemo(() => {
-        const trimmedName = (editName || "").trim()
-        const sameName = trimmedName === (runData?.name || "").trim()
-        const sameDesc = (editDescription || "").trim() === (runDescription || "").trim()
-        return saving || !trimmedName || (sameName && sameDesc)
-    }, [editName, editDescription, runData?.name, runDescription, saving])
-
-    const handleSave = useCallback(async () => {
-        try {
-            setSaving(true)
-            const base = (runQuery.data?.rawRun ?? runQuery.data?.camelRun ?? {}) as Record<
-                string,
-                any
-            >
-            await axios.patch(`/evaluations/runs/${runId}`, {
-                run: {
-                    ...base,
-                    id: runId,
-                    name: editName,
-                    description: editDescription,
-                },
-            })
-            // Invalidate the cache before refetching to ensure fresh data
-            if (projectId) {
-                invalidatePreviewRunCache(projectId, runId)
-            }
-            await runQuery.refetch?.()
-            // Also invalidate the runs table so it shows updated data when user navigates back
-            invalidateRunsTable()
-            message.success("Evaluation run updated")
-        } catch (err: any) {
-            message.error(err?.message || "Failed to update evaluation run")
-        } finally {
-            setSaving(false)
-        }
-    }, [editName, editDescription, runId, runQuery, projectId, invalidateRunsTable])
-
-    const handleReset = useCallback(() => {
-        setEditName(runData?.name ?? "")
-        setEditDescription(runDescription ?? "")
-    }, [runData?.name, runDescription])
-
     if (isLoading) {
         return <SectionSkeleton lines={4} />
     }
 
+    const showBody = !collapsed || !showHeader
+
     return (
-        <Form layout="vertical" requiredMark={false}>
+        <div className="flex flex-col">
             {showHeader ? (
                 <SectionHeaderRow
-                    left={<GeneralSectionHeader runId={runId} />}
+                    left={<GeneralSectionHeader />}
                     right={
                         <Button
                             type="text"
@@ -132,29 +98,36 @@ const GeneralSection = ({runId, showActions = true, showHeader = true}: GeneralS
                     }
                 />
             ) : null}
-            {!collapsed || !showHeader ? (
-                <div className="flex flex-col mt-1 gap-1">
-                    <Form.Item label="Name" style={{marginBottom: 12}}>
-                        <Input
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            maxLength={100}
-                            placeholder="Run name"
-                            disabled={isLoading || saving}
-                        />
-                        {runSlug ? <Text type="secondary">Slug: {runSlug}</Text> : null}
-                    </Form.Item>
-                    <Form.Item label="Description" style={{marginBottom: 12}}>
-                        <Input.TextArea
-                            value={editDescription}
-                            onChange={(e) => setEditDescription(e.target.value)}
-                            rows={3}
-                            maxLength={500}
-                            placeholder="Description (optional)"
-                            disabled={isLoading || saving}
-                        />
-                    </Form.Item>
-                    <Form.Item label="Tags" style={{marginBottom: 0}}>
+            {showBody ? (
+                <div className="relative mt-1 flex flex-col gap-3">
+                    {showActions ? (
+                        // Float in the section's top-right so it doesn't push the fields down.
+                        <Button
+                            size="small"
+                            icon={<PencilSimple size={14} />}
+                            onClick={() => openEditDrawer(runId)}
+                            className="absolute right-0 top-0 z-10"
+                        >
+                            Edit
+                        </Button>
+                    ) : null}
+                    {/* pr keeps a long name from sliding under the floating Edit button */}
+                    <Field label="Name" className={showActions ? "pr-20" : undefined}>
+                        <Text>{runName || "—"}</Text>
+                        {runSlug ? (
+                            <Text type="secondary" className="text-xs">
+                                Slug: {runSlug}
+                            </Text>
+                        ) : null}
+                    </Field>
+                    <Field label="Description">
+                        {runDescription ? (
+                            <Text className="whitespace-pre-wrap">{runDescription}</Text>
+                        ) : (
+                            <Text type="secondary">No description</Text>
+                        )}
+                    </Field>
+                    <Field label="Tags">
                         {runTags.length ? (
                             <ReadOnlyBox>
                                 <div className="flex flex-wrap gap-1">
@@ -168,25 +141,10 @@ const GeneralSection = ({runId, showActions = true, showHeader = true}: GeneralS
                         ) : (
                             <Text type="secondary">No tags</Text>
                         )}
-                    </Form.Item>
-                    {showActions ? (
-                        <div className="flex justify-end gap-2 pt-2">
-                            <Button onClick={handleReset} disabled={saving || isSaveDisabled}>
-                                Reset
-                            </Button>
-                            <Button
-                                type="primary"
-                                onClick={handleSave}
-                                loading={saving}
-                                disabled={isSaveDisabled}
-                            >
-                                Save
-                            </Button>
-                        </div>
-                    ) : null}
+                    </Field>
                 </div>
             ) : null}
-        </Form>
+        </div>
     )
 }
 

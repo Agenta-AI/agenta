@@ -3,6 +3,7 @@ import {useEffect, useMemo, useRef, useState} from "react"
 import {PageLayout} from "@agenta/ui"
 import {Tabs} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 import Router from "next/router"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
@@ -11,15 +12,22 @@ import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 
 import {activePreviewProjectIdAtom, activePreviewRunIdAtom} from "../atoms/run"
 import {runDisplayNameAtomFamily, runStatusAtomFamily} from "../atoms/runDerived"
+import {editEvaluationDrawerRunIdAtom} from "../state/editDrawer"
 import {previewEvalTypeAtom} from "../state/evalType"
 import {syncCompareStateFromUrl} from "../state/urlCompare"
 import {syncFocusDrawerStateFromUrl} from "../state/urlFocusDrawer"
 import EvalRunDetailsTable from "../Table"
 
 import PreviewEvalRunTabs, {PreviewEvalRunMeta} from "./PreviewEvalRunHeader"
+import RunActionsDropdown from "./RunActionsDropdown"
 import ConfigurationView from "./views/ConfigurationView"
 import FocusView from "./views/FocusView"
 import OverviewView from "./views/OverviewView"
+
+// Heavy (pulls the EntityPicker); only needed once a trigger opens it.
+const EditEvaluationDrawer = dynamic(() => import("@/oss/components/EditEvaluationDrawer"), {
+    ssr: false,
+})
 
 type ViewKey = "overview" | "focus" | "scenarios" | "configuration"
 
@@ -42,6 +50,11 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     // Get the run status to determine default view for human evaluations
     const runStatusAtom = useMemo(() => runStatusAtomFamily(runId), [runId])
     const runStatus = useAtomValue(runStatusAtom)
+
+    // Shared "Edit evaluation" drawer — opened by the header dropdown (all tabs), the
+    // config General Edit button, and the Add-evaluator button.
+    const editDrawerRunId = useAtomValue(editEvaluationDrawerRunIdAtom)
+    const setEditDrawerRunId = useSetAtom(editEvaluationDrawerRunIdAtom)
 
     // Map evaluation type to display label and URL kind parameter
     // Labels match EvaluationsView.tsx tab labels
@@ -165,7 +178,12 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     return (
         <PageLayout
             className="!p-0 h-full min-h-0"
-            title={runDisplayName}
+            title={
+                <span className="inline-flex items-center gap-1">
+                    {runDisplayName}
+                    <RunActionsDropdown runId={runId} />
+                </span>
+            }
             headerTabs={
                 <PreviewEvalRunTabs
                     activeView={activeView}
@@ -230,6 +248,9 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
                     ]}
                 />
             </div>
+            {editDrawerRunId === runId ? (
+                <EditEvaluationDrawer runId={runId} open onClose={() => setEditDrawerRunId(null)} />
+            ) : null}
         </PageLayout>
     )
 }

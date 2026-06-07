@@ -1,9 +1,9 @@
 import {useMemo, useState} from "react"
 
 import type {EvaluatorDefinition} from "@agenta/entities/workflow"
-import {DownOutlined} from "@ant-design/icons"
+import {DownOutlined, PlusOutlined} from "@ant-design/icons"
 import {Alert, Button, Form, Segmented, Skeleton, Tag, Typography} from "antd"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import EvaluatorDetailsPreview from "@/oss/components/pages/evaluations/onlineEvaluation/components/EvaluatorDetailsPreview"
@@ -13,9 +13,12 @@ import {useEvaluatorTypeFromConfigs} from "@/oss/components/pages/evaluations/on
 import {useEvaluatorTypeMeta} from "@/oss/components/pages/evaluations/onlineEvaluation/hooks/useEvaluatorTypeMeta"
 import {EvaluatorReferenceLabel} from "@/oss/components/References/ReferenceLabels"
 
+import {isTerminalStatus} from "../../../../atoms/compare"
 import {effectiveProjectIdAtom} from "../../../../atoms/run"
+import {runFlagsAtomFamily, runStatusAtomFamily} from "../../../../atoms/runDerived"
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../../../atoms/table/evaluators"
 import useRunScopedUrls from "../../../../hooks/useRunScopedUrls"
+import {editEvaluationDrawerRunIdAtom} from "../../../../state/editDrawer"
 import {stringifyError} from "../utils"
 
 import {SectionCard, SectionLabel} from "./SectionPrimitives"
@@ -40,6 +43,13 @@ const EvaluatorSection = ({runId}: EvaluatorSectionProps) => {
         const entries = Object.entries(EVALUATOR_CATEGORY_LABEL_MAP || {})
         return new Map(entries.map(([slug, label]) => [slug, {slug, label: label as string}]))
     }, [])
+
+    const openEditDrawer = useSetAtom(editEvaluationDrawerRunIdAtom)
+    const runStatus = useAtomValue(runStatusAtomFamily(runId))
+    const runFlags = useAtomValue(runFlagsAtomFamily(runId))
+    // v1: add only to a finished (terminal) run that isn't closed. Adding to a
+    // still-running run is phase 2. (Edit permission is enforced server-side.)
+    const canAddEvaluator = isTerminalStatus(runStatus) && !runFlags?.isClosed
 
     if (isLoading) {
         return <Skeleton active paragraph={{rows: 3}} />
@@ -72,6 +82,17 @@ const EvaluatorSection = ({runId}: EvaluatorSectionProps) => {
                     index={index}
                 />
             ))}
+            {canAddEvaluator ? (
+                <div className="mt-2">
+                    <Button
+                        type="dashed"
+                        icon={<PlusOutlined />}
+                        onClick={() => openEditDrawer(runId)}
+                    >
+                        Add evaluator
+                    </Button>
+                </div>
+            ) : null}
         </div>
     )
 }
