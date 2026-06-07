@@ -355,17 +355,14 @@ export function safeParseWithLogging<T>(
     const prefix = context ? `${context} ` : ""
 
     if (result.success) {
-        // Log success in development
-        if (process.env.NODE_ENV !== "production") {
-            // console.log(`${prefix}Schema validation passed`)
-        }
         return result.data
     }
 
-    // Log validation errors in development
-    if (process.env.NODE_ENV !== "production") {
-        console.error(`${prefix}Validation failed:`, result.error.flatten())
-    }
+    // A Zod validation failure is always real signal — backend drift or a bug, never
+    // normal control flow — so log it in production too (not just dev). Returning null
+    // is preserved so callers' control flow is unchanged; the failure is now visible in
+    // production logs/monitoring instead of silently swallowed.
+    console.error(`${prefix}Validation failed:`, result.error.flatten())
 
     return null
 }
