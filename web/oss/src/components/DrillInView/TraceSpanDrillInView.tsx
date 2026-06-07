@@ -653,8 +653,8 @@ export const TraceSpanDrillInView = memo(
 
         // Type assertion needed because traceSpanMolecule.drillIn is optional in the general type
         // but we know it's configured for the trace entity
-        const entityWithDrillIn = traceSpan as typeof traceSpanMolecule & {
-            drillIn: NonNullable<typeof traceSpanMoleculeMolecule.drillIn>
+        const entityWithDrillIn = traceSpanMolecule as typeof traceSpanMolecule & {
+            drillIn: NonNullable<typeof traceSpanMolecule.drillIn>
         }
 
         return (

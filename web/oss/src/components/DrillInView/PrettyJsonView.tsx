@@ -558,6 +558,9 @@ const CopyButton = ({value}: {value: unknown}) => {
 // so keys align in a single column at every depth. Containers get an
 // interactive chevron; leaves get an invisible 14px spacer.
 
+const ROW_HEIGHT_PX = 28
+const ROW_HEIGHT_CLASS = "min-h-[28px] h-[28px]"
+
 const NodeRow = memo(function NodeRow({
     keyLabel,
     meta,
@@ -594,8 +597,8 @@ const NodeRow = memo(function NodeRow({
     return (
         <div className={isSection ? "pt-1 first:pt-0" : ""}>
             <div
-                className={`group/row flex items-baseline gap-2 py-0.5 px-1 rounded-sm min-h-[28px] h-[28px] select-none ${collapsible ? "cursor-pointer sticky z-[1] bg-[var(--ant-color-bg-container)]" : ""} hover:bg-[var(--ant-color-fill-quaternary)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none`}
-                style={collapsible ? {top: `${depth * 28}px`} : undefined}
+                className={`group/row flex items-baseline gap-2 py-0.5 px-1 rounded-sm ${ROW_HEIGHT_CLASS} select-none ${collapsible ? "cursor-pointer sticky z-[1] bg-[var(--ant-color-bg-container)]" : ""} hover:bg-[var(--ant-color-fill-quaternary)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none`}
+                style={collapsible ? {top: `${depth * ROW_HEIGHT_PX}px`} : undefined}
                 onClick={collapsible ? toggle : undefined}
                 role={collapsible ? "button" : undefined}
                 tabIndex={collapsible ? 0 : undefined}
