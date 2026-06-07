@@ -1,0 +1,42 @@
+{
+    "name": "@agenta/evaluations",
+    "version": "0.75.0",
+    "private": true,
+    "sideEffects": false,
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "scripts": {
+        "build": "tsc --noEmit",
+        "types:check": "tsc --noEmit",
+        "lint": "eslint --config ../eslint.config.mjs src/",
+        "test": "pnpm run test:unit",
+        "test:unit": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "test:all": "pnpm run test:unit && pnpm run test:integration",
+        "check": "pnpm run types:check && pnpm run lint"
+    },
+    "exports": {
+        ".": "./src/index.ts",
+        "./core": "./src/core/index.ts",
+        "./controllers": "./src/controllers/index.ts"
+    },
+    "dependencies": {
+        "@agenta/entities": "workspace:../agenta-entities",
+        "@agenta/sdk": "workspace:../agenta-sdk",
+        "@agenta/shared": "workspace:../agenta-shared",
+        "@agentaai/api-client": "workspace:../agenta-api-client"
+    },
+    "peerDependencies": {
+        "jotai": ">=2.0.0",
+        "jotai-family": ">=0.1.0",
+        "jotai-tanstack-query": ">=0.9.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.8.10",
+        "@vitest/coverage-v8": "^4.1.4",
+        "typescript": "5.8.3",
+        "vitest": "^4.1.4"
+    }
+}

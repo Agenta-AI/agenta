@@ -23,6 +23,7 @@
         "@agenta/annotation-ui": "workspace:../packages/agenta-annotation-ui",
         "@agenta/entities": "workspace:../packages/agenta-entities",
         "@agenta/entity-ui": "workspace:../packages/agenta-entity-ui",
+        "@agenta/evaluations": "workspace:../packages/agenta-evaluations",
         "@agenta/playground": "workspace:../packages/agenta-playground",
         "@agenta/playground-ui": "workspace:../packages/agenta-playground-ui",
         "@agenta/sdk": "workspace:../packages/agenta-sdk",
