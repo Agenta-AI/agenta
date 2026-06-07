@@ -538,7 +538,7 @@ const CopyButton = ({value}: {value: unknown}) => {
         <button
             type="button"
             aria-label={copied ? "Copied" : "Copy to clipboard"}
-            className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 transition-opacity inline-flex items-center justify-center h-[22px] min-w-[22px] px-1.5 ml-auto border border-transparent rounded-sm text-[var(--ant-color-text-quaternary)] cursor-pointer shrink-0 hover:text-[var(--ant-color-text)] hover:bg-[var(--ant-color-bg-container)] hover:border-[var(--ant-color-border)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none"
+            className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 transition-opacity inline-flex items-center justify-center h-[22px] min-w-[22px] px-1.5 ml-auto self-center border border-transparent rounded-sm text-[var(--ant-color-text-quaternary)] cursor-pointer shrink-0 hover:text-[var(--ant-color-text)] hover:bg-[var(--ant-color-bg-container)] hover:border-[var(--ant-color-border)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none"
             onClick={handleCopy}
             onKeyDown={handleKeyDown}
         >
@@ -568,6 +568,7 @@ const NodeRow = memo(function NodeRow({
     value,
     isSection,
     isMessage,
+    depth = 0,
 }: {
     keyLabel: React.ReactNode
     meta?: string
@@ -578,6 +579,7 @@ const NodeRow = memo(function NodeRow({
     value?: unknown
     isSection?: boolean
     isMessage?: boolean
+    depth?: number
 }) {
     const [open, setOpen] = useState(defaultOpen)
     const toggle = useCallback(() => setOpen((o) => !o), [])
@@ -592,7 +594,8 @@ const NodeRow = memo(function NodeRow({
     return (
         <div className={isSection ? "pt-1 first:pt-0" : ""}>
             <div
-                className={`group/row flex items-baseline gap-2 py-1 px-1 rounded-sm min-h-[24px] select-none ${collapsible ? "cursor-pointer sticky top-0 z-[1] bg-[var(--ant-color-bg-container)]" : ""} hover:bg-[var(--ant-color-fill-quaternary)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none`}
+                className={`group/row flex items-baseline gap-2 py-0.5 px-1 rounded-sm min-h-[28px] h-[28px] select-none ${collapsible ? "cursor-pointer sticky z-[1] bg-[var(--ant-color-bg-container)]" : ""} hover:bg-[var(--ant-color-fill-quaternary)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none`}
+                style={collapsible ? {top: `${depth * 28}px`} : undefined}
                 onClick={collapsible ? toggle : undefined}
                 role={collapsible ? "button" : undefined}
                 tabIndex={collapsible ? 0 : undefined}
@@ -791,10 +794,12 @@ const MessageNodeRow = memo(function MessageNodeRow({
     msg,
     index,
     keyPrefix,
+    depth = 0,
 }: {
     msg: {role: string; content: unknown; tool_calls?: unknown[]}
     index: number
     keyPrefix: string
+    depth?: number
 }) {
     const role = (msg.role || "").toLowerCase()
     const roleColor = ROLE_COLOR_CLASSES[role] ?? DEFAULT_ROLE_COLOR_CLASS
@@ -831,7 +836,7 @@ const MessageNodeRow = memo(function MessageNodeRow({
                         name="result"
                         value={parsedContent}
                         keyPrefix={`${editorId}-result`}
-                        depth={1}
+                        depth={depth + 1}
                         expandDepth={2}
                     />
                 </div>
@@ -850,7 +855,7 @@ const MessageNodeRow = memo(function MessageNodeRow({
                         name={part.name}
                         value={part.value}
                         keyPrefix={`${editorId}-part-${i}`}
-                        depth={1}
+                        depth={depth + 1}
                         expandDepth={2}
                     />
                 ))}
@@ -861,13 +866,13 @@ const MessageNodeRow = memo(function MessageNodeRow({
                             name={getToolCallName(tc)}
                             value={getToolCallArgs(tc)}
                             keyPrefix={`${editorId}-tc-${i}`}
-                            depth={1}
+                            depth={depth + 1}
                             expandDepth={2}
                         />
                     ))}
             </div>
         )
-    }, [text, toolCalls, editorId, parsedContent, structuredParts])
+    }, [text, toolCalls, editorId, parsedContent, structuredParts, depth])
 
     return (
         <NodeRow
@@ -878,6 +883,7 @@ const MessageNodeRow = memo(function MessageNodeRow({
             defaultOpen
             value={msg.content ?? (toolCalls ? JSON.stringify(toolCalls) : "")}
             body={body}
+            depth={depth}
         />
     )
 })
@@ -929,10 +935,17 @@ const RecursiveNode = memo(function RecursiveNode({
                 defaultOpen={depth < expandDepth}
                 value={value}
                 isSection={isSection}
+                depth={depth}
                 body={
                     <div className="flex flex-col gap-0.5 py-0.5">
                         {normalized.map((msg, i) => (
-                            <MessageNodeRow key={i} msg={msg} index={i} keyPrefix={nodePrefix} />
+                            <MessageNodeRow
+                                key={i}
+                                msg={msg}
+                                index={i}
+                                keyPrefix={nodePrefix}
+                                depth={depth + 1}
+                            />
                         ))}
                     </div>
                 }
@@ -956,6 +969,7 @@ const RecursiveNode = memo(function RecursiveNode({
                 defaultOpen={depth < expandDepth}
                 value={value}
                 isSection={isSection}
+                depth={depth}
                 body={
                     <>
                         <NodeRow
@@ -964,6 +978,7 @@ const RecursiveNode = memo(function RecursiveNode({
                             collapsible
                             defaultOpen={depth + 1 < expandDepth}
                             value={chatResult.messages}
+                            depth={depth + 1}
                             body={
                                 <div className="flex flex-col gap-0.5 py-0.5">
                                     {normalized.map((msg, i) => (
@@ -972,6 +987,7 @@ const RecursiveNode = memo(function RecursiveNode({
                                             msg={msg}
                                             index={i}
                                             keyPrefix={`${nodePrefix}-${chatKey}`}
+                                            depth={depth + 2}
                                         />
                                     ))}
                                 </div>
@@ -1002,6 +1018,7 @@ const RecursiveNode = memo(function RecursiveNode({
                 collapsible={false}
                 value={value}
                 isSection={isSection}
+                depth={depth}
             />
         )
     }
@@ -1015,6 +1032,7 @@ const RecursiveNode = memo(function RecursiveNode({
                 defaultOpen={depth < expandDepth}
                 value={value}
                 isSection={isSection}
+                depth={depth}
                 body={
                     <EditorProvider
                         id={nodePrefix}
@@ -1057,6 +1075,7 @@ const RecursiveNode = memo(function RecursiveNode({
                     collapsible={false}
                     value={value}
                     isSection={isSection}
+                    depth={depth}
                 />
             )
         }
@@ -1069,6 +1088,7 @@ const RecursiveNode = memo(function RecursiveNode({
                 defaultOpen={depth < expandDepth}
                 value={value}
                 isSection={isSection}
+                depth={depth}
                 body={
                     count > 0
                         ? entries.map(([k, v]) => (
@@ -1100,6 +1120,7 @@ const RecursiveNode = memo(function RecursiveNode({
             collapsible={false}
             value={value}
             isSection={isSection}
+            depth={depth}
         />
     )
 })
@@ -1177,6 +1198,7 @@ export const PrettyJsonView = memo(function PrettyJsonView({
                     defaultOpen
                     value={topChatResult.messages}
                     isSection
+                    depth={0}
                     body={
                         <div className="flex flex-col gap-0.5 py-0.5">
                             {normalized.map((msg, i) => (
@@ -1185,6 +1207,7 @@ export const PrettyJsonView = memo(function PrettyJsonView({
                                     msg={msg}
                                     index={i}
                                     keyPrefix={`${keyPrefix}-${chatKey}`}
+                                    depth={1}
                                 />
                             ))}
                         </div>
