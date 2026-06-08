@@ -10,6 +10,7 @@ import {
     type ReferenceTone,
 } from "@/oss/components/References/referenceColors"
 import {testsetsListQueryAtomFamily} from "@/oss/state/entities/testset"
+import {currentWorkflowAtom} from "@/oss/state/workflow"
 
 import {
     evaluationRunsFilterOptionsAtom,
@@ -137,10 +138,19 @@ const FiltersSummary = () => {
         () => optionMap(filterOptions.evaluatorOptions ?? []),
         [filterOptions.evaluatorOptions],
     )
-    const appLabels = useMemo(
-        () => optionMap(filterOptions.appOptions ?? []),
-        [filterOptions.appOptions],
-    )
+    const currentWorkflow = useAtomValue(currentWorkflowAtom)
+    const appLabels = useMemo(() => {
+        const map = optionMap(filterOptions.appOptions ?? [])
+        // The locked "Apps" chip is preset to the route workflow. Evaluator
+        // workflows aren't in the apps list (`appOptions`), so their id won't
+        // resolve to a name and the chip would show a raw id. Seed the map from
+        // the current workflow so the chip renders its name instead.
+        const workflowName = currentWorkflow?.name ?? currentWorkflow?.slug
+        if (currentWorkflow?.id && workflowName && !map.has(currentWorkflow.id)) {
+            map.set(currentWorkflow.id, workflowName)
+        }
+        return map
+    }, [filterOptions.appOptions, currentWorkflow])
     const variantLabels = useMemo(
         () =>
             optionMap(
