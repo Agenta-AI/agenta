@@ -59,6 +59,8 @@ export interface SharedGenerationResultUtilsProps {
     traceId?: string | null
     showStatus?: boolean
     className?: string
+    /** Render only the trace action (compact "open trace" icon, no metrics/status). */
+    actionsOnly?: boolean
 }
 
 /**
