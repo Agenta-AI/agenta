@@ -95,6 +95,11 @@ export {
     isOnlineCapableEvaluator,
     hasFullPagePlaygroundUX,
     collectEvaluatorCandidates,
+    // Observability defaults
+    defaultTraceTypeForWorkflow,
+    type TraceTypeDefault,
+    type ObservabilityTab,
+    type WorkflowKindForTraceDefault,
     // Output schema utilities
     resolveInputSchema,
     resolveOutputSchema,

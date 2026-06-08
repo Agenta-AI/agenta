@@ -293,6 +293,12 @@ export const workflowSchema = z
         // Parent slugs (from revision responses; backend returns artifact_slug
         // and variant_slug alongside the IDs so callers can verify which
         // workflow/variant the revision belongs to without a second lookup).
+        //
+        // workflow_slug / workflow_variant_slug are also required for emitting
+        // evaluator references on playground chain runs — the trace storage
+        // layer identifies evaluator runs by slug (via
+        // `references.evaluator.slug`), and we want to write the parent
+        // workflow's slug, not the revision's.
         workflow_slug: z.string().nullable().optional(),
         workflow_variant_slug: z.string().nullable().optional(),
         artifact_slug: z.string().nullable().optional(),

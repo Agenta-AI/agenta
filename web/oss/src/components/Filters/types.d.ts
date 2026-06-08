@@ -8,6 +8,20 @@ export interface Props {
     onApplyFilter: (filters: Filter[]) => void
     onClearFilter: (filters: Filter[]) => void
     buttonProps?: ButtonProps
+    /**
+     * Optional callback to derive a *display-only* view of the local filter
+     * state. Called whenever the user changes a row in the dialog. The dialog
+     * renders from the returned array, but mutations still target the
+     * underlying `filter` state by index, so the reconciler MUST preserve
+     * array length and per-index order.
+     *
+     * Used by observability to keep the permanent references row's label
+     * ("Application ID" vs "Evaluator ID") in sync with the dialog's local
+     * `trace_type` selection *before* the user clicks Apply — without the
+     * reconciler, the label only refreshes after Apply when the atom
+     * re-derives the permanent row.
+     */
+    reconcileFilterRows?: (rows: FilterItem[]) => FilterItem[]
 }
 
 export type CustomValueType = "string" | "number" | "boolean"

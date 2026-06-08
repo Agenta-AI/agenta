@@ -116,25 +116,27 @@ const SWITCHER_MENU_CLASS = clsx(
 const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     const ctx = useAtomValue(currentWorkflowContextAtom)
     const apps = useAtomValue(nonArchivedAppWorkflowsAtom) as readonly Workflow[]
-    // Full set of evaluators — used for resolving the *active* workflow (the
-    // user may be inside a drawer-only evaluator currently). The switcher
-    // dropdown below uses `fullPagePlaygroundEvaluators` instead so it only
-    // lists evaluators whose destination is /apps/[id]/playground — clicking
-    // a declarative classifier or human evaluator from the sidebar would
-    // route through the route guard and bounce back to /evaluators, which is
-    // confusing.
     const evaluators = useAtomValue(nonArchivedEvaluatorsAtom) as readonly Workflow[]
-    // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the flag is off, the
-    // switcher dropdown hides the "Evaluators" group entirely. Clicking an
-    // entry would route to `/apps/<evaluatorId>/playground`, which the
-    // (also-gated) `PlaygroundRouter` guard would immediately bounce back to
-    // `/evaluators` — exposing the entry would just produce a flicker.
-    const fullPagePlaygroundEvaluatorsRaw = useAtomValue(
+    // Only evaluators with a real full-page playground belong in the switcher.
+    // `fullPagePlaygroundEvaluatorsAtom` resolves the type flags from each
+    // evaluator's LATEST REVISION — the workflow LIST records this card reads
+    // from `nonArchivedEvaluatorsAtom` carry NO `data.uri` and NO
+    // `is_feedback`/`is_llm`/`is_code` flags (those live on the revision, not
+    // the parent artifact). That's why the old `!w.flags?.is_feedback` filter
+    // never excluded anything and human/feedback evaluators leaked into the
+    // switcher (QA 2026-06-05). The atom drops human (`is_feedback`) AND
+    // declarative classifier evaluators (match/exact_match/json_*/etc.) — all
+    // of which route to an `/apps/<id>/*` destination the guard redirects back
+    // to /evaluators, so clicking them would be a dead end.
+    const fullPagePlaygroundEvaluators = useAtomValue(
         fullPagePlaygroundEvaluatorsAtom,
     ) as readonly Workflow[]
-    const fullPagePlaygroundEvaluators: readonly Workflow[] = EVALUATOR_FULL_PAGE_NAV_ENABLED
-        ? fullPagePlaygroundEvaluatorsRaw
-        : EMPTY_WORKFLOWS
+    // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the flag is off, the
+    // switcher dropdown hides the "Evaluators" group entirely.
+    const switcherEvaluators: readonly Workflow[] = useMemo(() => {
+        if (!EVALUATOR_FULL_PAGE_NAV_ENABLED) return EMPTY_WORKFLOWS
+        return fullPagePlaygroundEvaluators
+    }, [fullPagePlaygroundEvaluators])
     const recentAppId = useAtomValue(recentAppIdAtom)
     const recentEvaluatorId = useAtomValue(recentEvaluatorIdAtom)
     const navigateToWorkflow = useSetAtom(routerAppNavigationAtom)
@@ -192,16 +194,16 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
                 children: apps.map((w) => toMenuItem(w, false)),
             })
         }
-        if (fullPagePlaygroundEvaluators.length) {
+        if (switcherEvaluators.length) {
             items.push({
                 key: "evaluators-header",
                 type: "group",
                 label: "Evaluators",
-                children: fullPagePlaygroundEvaluators.map((w) => toMenuItem(w, true)),
+                children: switcherEvaluators.map((w) => toMenuItem(w, true)),
             })
         }
         return items
-    }, [apps, fullPagePlaygroundEvaluators])
+    }, [apps, switcherEvaluators])
 
     const handleSwitcherClick = useCallback<NonNullable<MenuProps["onClick"]>>(
         ({key}) => {
