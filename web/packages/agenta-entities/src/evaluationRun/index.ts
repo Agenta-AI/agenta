@@ -101,6 +101,8 @@ export {
     queryEvaluationRunsList,
     queryEvaluationResults,
     setEvaluationResults,
+    queryEvaluationScenarios,
+    setEvaluationScenarioStatuses,
 } from "./api"
 export type {
     EvaluationResultSetInput,

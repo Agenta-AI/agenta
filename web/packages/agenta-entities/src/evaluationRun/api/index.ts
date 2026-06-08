@@ -5,6 +5,8 @@ export {
     queryEvaluationRunsList,
     queryEvaluationResults,
     setEvaluationResults,
+    queryEvaluationScenarios,
+    setEvaluationScenarioStatuses,
     queryEvaluationMetrics,
 } from "./api"
 export type {

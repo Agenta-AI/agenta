@@ -23,6 +23,11 @@ export {
     type EvaluationRunResponse,
     evaluationRunsResponseSchema,
     type EvaluationRunsResponse,
+    // Evaluation Scenarios
+    evaluationScenarioSchema,
+    type EvaluationScenario,
+    evaluationScenariosResponseSchema,
+    type EvaluationScenariosResponse,
     // Evaluation Results (Scenario Steps)
     evaluationResultSchema,
     type EvaluationResult,

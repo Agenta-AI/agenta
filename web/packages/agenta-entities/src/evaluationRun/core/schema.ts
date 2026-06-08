@@ -174,6 +174,37 @@ export const evaluationRunsResponseSchema = z.object({
 export type EvaluationRunsResponse = z.infer<typeof evaluationRunsResponseSchema>
 
 // ============================================================================
+// EVALUATION SCENARIO SCHEMAS
+// ============================================================================
+
+/**
+ * An evaluation scenario (one row of a run). Only the fields the FE relies on are
+ * declared (id, run_id, status); everything else passes through.
+ */
+export const evaluationScenarioSchema = z
+    .object({
+        id: z.string(),
+        run_id: z.string().nullable().optional(),
+        status: z.string().nullable().optional(),
+        interval: z.number().nullable().optional(),
+        timestamp: z.string().nullable().optional(),
+    })
+    .merge(timestampFieldsSchema)
+    .merge(auditFieldsSchema)
+    .passthrough()
+export type EvaluationScenario = z.infer<typeof evaluationScenarioSchema>
+
+/**
+ * Multi-scenario query response envelope.
+ * `POST /evaluations/scenarios/query` and `PATCH /evaluations/scenarios/`.
+ */
+export const evaluationScenariosResponseSchema = z.object({
+    count: z.number(),
+    scenarios: z.array(evaluationScenarioSchema),
+})
+export type EvaluationScenariosResponse = z.infer<typeof evaluationScenariosResponseSchema>
+
+// ============================================================================
 // EVALUATION RESULT (SCENARIO STEP) SCHEMAS
 // ============================================================================
 

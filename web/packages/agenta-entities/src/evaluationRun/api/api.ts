@@ -16,10 +16,12 @@ import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
     evaluationRunResponseSchema,
     evaluationRunsResponseSchema,
+    evaluationScenariosResponseSchema,
     evaluationResultsResponseSchema,
     evaluationMetricsResponseSchema,
     type EvaluationRun,
     type EvaluationRunsResponse,
+    type EvaluationScenario,
     type EvaluationResult,
     type EvaluationMetric,
 } from "../core"
@@ -285,6 +287,67 @@ export async function setEvaluationResults({
         "[setEvaluationResults]",
     )
     return validated?.results ?? []
+}
+
+// ============================================================================
+// SCENARIOS (query + status edit)
+// ============================================================================
+
+/**
+ * Query a run's scenarios. Endpoint: `POST /evaluations/scenarios/query`.
+ */
+export async function queryEvaluationScenarios({
+    projectId,
+    runId,
+    limit = 1000,
+}: {
+    projectId: string
+    runId: string
+    limit?: number
+}): Promise<EvaluationScenario[]> {
+    if (!projectId || !runId) return []
+
+    const client = await getEvaluationsClient()
+    const data = await client.queryScenarios(
+        {scenario: {run_ids: [runId]}, windowing: {limit}},
+        projectScopedRequest(projectId),
+    )
+
+    const validated = safeParseWithLogging(
+        evaluationScenariosResponseSchema,
+        data,
+        "[queryEvaluationScenarios]",
+    )
+    return validated?.scenarios ?? []
+}
+
+/**
+ * Upsert scenario statuses. Endpoint: `PATCH /evaluations/scenarios/`.
+ *
+ * `EvaluationScenarioEdit` only carries id + status (+ flags/tags/meta), so this cannot
+ * clobber scenario data.
+ */
+export async function setEvaluationScenarioStatuses({
+    projectId,
+    scenarios,
+}: {
+    projectId: string
+    scenarios: {id: string; status: string}[]
+}): Promise<EvaluationScenario[]> {
+    if (!projectId || !scenarios.length) return []
+
+    const client = await getEvaluationsClient()
+    const data = await client.editScenarios(
+        {scenarios: scenarios as never},
+        projectScopedRequest(projectId),
+    )
+
+    const validated = safeParseWithLogging(
+        evaluationScenariosResponseSchema,
+        data,
+        "[setEvaluationScenarioStatuses]",
+    )
+    return validated?.scenarios ?? []
 }
 
 // ============================================================================
