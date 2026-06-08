@@ -10,88 +10,26 @@ Sources:
 
 ## Summary
 
-- Status: 11 findings (UEL-034..044). 9 from PR #4341 review threads (UEL-034..042) plus 2 topology gaps surfaced during the slice-test root-cause (UEL-043, UEL-044). Resolved: UEL-034 (full-PUT finalize), UEL-035 (keyset), UEL-036 (connection-per-item), UEL-037 (dead handlers), UEL-038 (decorator), UEL-039 (slice failure-record + test), UEL-040 (batched orphan check), UEL-042 (async client). Open pending disposition: UEL-041 (N+1 rerun), UEL-043 + UEL-044 (topology policy, need product decision).
-- Severity spread: 1 P1 (data loss on finalize), 1 P2 silent failure-drop in SDK, plus exception-mapping gap, connection-pool churn, three N+1 query paths, two deferred-topology asymmetries. One reviewer-flagged out-of-scope (UEL-042, async-engine serialization).
-- Slice-endpoint acceptance failures (8× 409 "Cannot modify a closed evaluation" in `test_run_slice_endpoints.py`) root-caused 2026-06-09: NOT a regression from this turn's fixes. The test helper built a `testset → evaluator` (no app) topology, which `start` auto-fails-and-closes (`service.py:2706`). Fixed test-side by making the helper build the supported `testset → application → evaluator` shape (mock app, no LLM). The underlying classifier asymmetry is tracked as UEL-043.
-- All 5 remaining open findings were independently re-investigated against current code on 2026-06-08 — all CONFIRMED. Two had their suggested fix corrected: UEL-039 (the failed `scenario` is local to `_process_one`, so the original "edit the outer except handler" fix can't reach it — needs restructuring), and UEL-041 (the batched input fetch must omit `step_keys`, unlike the step-scoped bulk fetch — a deliberate semantic difference). UEL-034 confirmed P1 with a permanent + silent delete; the `set_run_status` path (not the minimal patch) is the recommended fix.
-- GitHub threads: all 9 remain `unresolved` / not `outdated` and none replied to — code fixes applied locally are not yet pushed, so threads stay open until the branch is updated.
-- Note: UEL-035 lives in the same migration file as the in-progress "default queue name backfill" fix, but is a distinct concern and untouched by that fix.
+- Status: 12 findings total (UEL-034..045). 9 synced from PR #4341 review threads (UEL-034..042), 1 from a full-suite test run (UEL-045), 2 topology gaps surfaced during the UEL-045 root-cause (UEL-043, UEL-044).
+- **Closed (9): UEL-034, UEL-035, UEL-036, UEL-037, UEL-038, UEL-039, UEL-040, UEL-042, UEL-045** — all `fixed`, applied locally (UEL-034/039/040/042 in `03ad0da4c`; UEL-035/037/038 in `571c73ada`; UEL-036 in `41741004d`; UEL-045 test-only, local). UEL-035's single-transaction half is wontfix-by-design; UEL-042's lib-wide migration is deferred to its own PR (eval-side swap done here).
+- **Open (3): UEL-041** (P3 perf, batched rerun-recovery — scope decision), **UEL-043 + UEL-044** (P3 topology policy — product decision). All three are blocked on a user/product call, not on engineering; see Open Questions.
+- Severity spread of closed work: 1 P1 (data loss on finalize), 4 P2 (SDK failure-drop, exception-mapping, connection-pool churn, async serialization, plus the test topology bug), 4 P3.
+- GitHub threads: the 9 PR-comment findings (UEL-034..042) map to review threads still `unresolved` until the branch is pushed; the local fixes are committed but thread resolution waits on the push.
+- Note: UEL-035 shares a migration file with the "default queue name backfill" fix but is a distinct concern, untouched by it.
 
 ## Notes
 
-- This sync is comment-driven: every finding traces to one PR review thread (provenance recorded in each `Sources` line via the comment id). No independent scan was run beyond re-verifying each cited location.
+- Provenance is mixed: UEL-034..042 are comment-driven (each traces to one PR review thread, recorded in its `Sources` line); UEL-045 came from a full-suite test run; UEL-043/044 surfaced from design analysis during the UEL-045 root-cause. Each `Sources` line records the actual origin.
 - Reviewer marked UEL-036 ("minor") and UEL-038 ("out of scope for this PR") with explicit scope hints; preserved in their severity/notes.
-- The three N+1 query findings (UEL-040, UEL-041, UEL-042) and the connection-pool finding (UEL-036) are all performance/scaling issues, not correctness bugs — they bite only at scale (many scenarios, concurrent high-volume writes).
+- The N+1 query findings (UEL-040 closed, UEL-041 open) and the connection-pool finding (UEL-036 closed) are performance/scaling issues, not correctness bugs — they bite only at scale (many scenarios, concurrent high-volume writes). UEL-042 (async serialization) is the same class.
 
 ## Open Questions
 
-- UEL-034: prefer the small fix (`data=current_run.data`) or the cleaner `set_run_status` path that never routes a status-only update through `edit_run`? The reviewer offered both; the second avoids the graph-mutation-as-side-effect class entirely.
-- UEL-038: confirm this is deferred to its own PR (reviewer says "not asking for a change in this PR"). If deferred, should it be tracked as a separate issue rather than carried in this PR's findings?
-- UEL-037: register the `/{id}/archive` + `/{id}/unarchive` routes now (lifecycle endpoints intended), or remove both handlers until needed? Depends on whether the queue archive/unarchive lifecycle is in scope for this release.
+- UEL-043 (product decision): should `testset → evaluator` (no app) dispatch? The worker already runs it once dispatched, and `testcases → evaluator` is supported, so the gate is classifier policy. Resolve the asymmetry or document why the testset case needs an evaluator contract the raw-testcase case does not.
+- UEL-044 (product decision): should `query → application` dispatch, mirroring the supported `testset → application`? This one carries a real blocker (source-trace links would misclassify as annotations), so it is harder than UEL-043.
+- UEL-041 (scope): take the batched rerun-recovery fix in this PR, or defer? P3 perf, no correctness impact; the batched fetch must omit `step_keys` (deliberate semantic, unlike the step-scoped bulk fetch).
 
 ## Open Findings
-
-### [OPEN] UEL-034: Stale graph snapshot on per-slice finalize can permanently delete a newly-added step's data
-
-- Origin: sync
-- Lens: verification
-- Severity: P1
-- Confidence: high
-- Status: needs-user-decision
-- Category: Correctness
-- Files: `api/oss/src/core/evaluations/tasks/processor.py:357` (finalize write; `data=run.data` at the `edit_run` call ~line 357)
-- Summary: The post-slice finalize re-reads `current_run` for the status floor and `is_active` flag, but still passes `run.data` (the caller's pre-slice graph snapshot) to `edit_run`. `edit_run` → `_reconcile_run` → `_prune_removed_steps` reads `prior_step_keys` from a fresh fetch and deletes results/scenarios/metrics for any step present in the saved graph but missing from the passed graph. If the run's graph changes between the slice snapshot and finalize (e.g. a user adds an evaluator step mid-run), this write carries the stale graph and the reconcile permanently and silently prunes the new step's data.
-- Evidence (verified 2026-06-08): `processor.py:295` fetches `current_run` and uses it for the status floor + `is_active` flag (`:323`, `:332-338`), but the finalize `edit_run` call at `:357` passes `data=run.data` (the stale caller snapshot). In `service.py` `edit_run` (`:742-770`): `:754` `prior_run = await self.fetch_run(...)` reads the CURRENT saved graph, `:755` `prior_step_keys = self._step_keys(prior_run)`, `:757` the DAO writes the passed (stale) `run.data`, then `_reconcile_run` (`:764`) computes `removed_step_keys = prior_step_keys - self._step_keys(run)` (`:582`) and `_prune_removed_steps` (`:591-643`) HARD-deletes the dropped step's results (`delete_results`, `:621-623`), orphan scenarios (`delete_scenarios`, `:641`), and flushes metrics. No soft-delete, no error surfaced (the processor's outer handler only logs). So a step added between the slice snapshot and finalize is overwritten out of the graph AND its data is permanently pruned.
-- Cause: a status-only finalize routes through the full `edit_run` graph-reconcile path while carrying a stale graph snapshot.
-- Suggested Fix: The finalize block's intent is purely status + `is_active` (confirmed by the surrounding comments and the fields it computes) — it never legitimately needs to write graph changes. So the **dedicated `set_run_status` path is the correct fix**: write only status + flags, skip graph reconcile + queue reconcile entirely. It must keep the concurrency-safe floor (read `current_run`, floor terminal-bad statuses) and use `current_run.flags` for `is_active` (mirroring `:332`). The minimal `data=current_run.data if current_run else run.data` patch *also* stops the prune, but is strictly weaker: it leaves every slice rewriting the full graph + re-running queue reconciliation, and re-opens the same data-loss class if the snapshot is ever reintroduced. Recommend `set_run_status`.
-- Sources: PR #4341 thread, comment 3375193915 (@mmabrouk). Investigation 2026-06-08: CONFIRMED P1, permanent + silent.
-
-### [OPEN] UEL-035: Text-cast keyset (`id::text`) defeats the PK index on the backfill pagination
-
-- Origin: sync
-- Lens: verification
-- Severity: P2
-- Confidence: high
-- Status: in-progress (keyset fixed locally; single-transaction half resolved as wontfix-by-design — see below)
-- Category: Migration / Performance
-- Files: `api/oss/databases/postgres/migrations/core/versions/a2b3c4d5e6f8_backfill_default_evaluation_queues.py:41` (`_NEXT_RUN_IDS`). EE copy mirrors this.
-- Summary: The original keyset query cast `id::text` and ordered by text. `evaluation_runs.id` is a native `uuid` column (`IdentifierDBA`, `default=uuid.uuid7`). The text cast makes the predicate non-sargable against the uuid PK btree, so each page does a full scan + sort of the table — turning keyset pagination's intended O(page) per step into O(n), i.e. O(n²) over the whole backfill. Separately, text ordering of UUIDs only coincidentally agrees with native uuid byte-ordering when every id is in identical canonical lowercase hex form (which `uuid7` guarantees), so it was not actively skipping rows — but it relied on that representational coincidence rather than the column's real type.
-- Evidence: was `WHERE id::text > :cursor ORDER BY id::text`; `id` is `Column(UUID(as_uuid=True), default=uuid.uuid7)` in `IdentifierDBA`.
-- Cause: text-cast comparison is not index-sargable on a `uuid` column.
-- Resolution (applied locally, both OSS + EE, ruff clean): switched to native-uuid keyset — `WHERE id > CAST(:cursor AS uuid) ORDER BY id`, cursor seeded with the zero UUID `00000000-0000-0000-0000-000000000000`. `SELECT id::text` is retained so the Python cursor stays a plain string that casts cleanly back. The PK index now drives each page.
-- Nuance — the PK index helps the *cursor*, not the *workload*: the index fix only speeds up the page-advance step (`WHERE id > cursor ORDER BY id LIMIT n` finding where the next page starts). It does **not** remove a full table scan from the migration. The heavy per-chunk work is `_COMPUTE_CHUNK` — the `jsonb_array_elements` step scan over each run's graph plus the LEFT JOIN to `evaluation_queues` — and a backfill has to visit every run exactly once regardless, so a full pass over `evaluation_runs` is inherent and unavoidable. What the old `id::text` keyset added on top of that was an O(n) full scan + sort *per page* just to locate the cursor (→ O(n²) total pagination overhead); the fix collapses that overhead to O(log n) per page. So the value of the PK keyset here is bounded: it removes the quadratic re-scan caused by the text cast, but the migration is still O(n) total because it deliberately touches every row once. The index does not turn this into a cheap partial-table operation, and was never going to.
-- On the reviewer's single-transaction half (wontfix — expected): the migration intentionally runs in one transaction (Alembic `transaction_per_migration=True`) so the whole backfill is all-or-nothing. Chunking is only there to bound per-statement size, per-statement lock scope, and to give progress logging — not to bound the transaction. Per-batch `connection.commit()` is deliberately not added; the all-or-nothing guarantee is the desired behavior. (Header comment's "chunked / safe to re-run" framing is about idempotent re-runs of the whole migration, which still holds.)
-- Sources: PR #4341 thread, comment 3375211093 (@mmabrouk). User disposition 2026-06-08: single-transaction is expected; investigate + fix the `id::text` keyset.
-
-### [OPEN] UEL-039: SDK slice processor swallows a failed scenario — drops it from the run rollup with no errored status
-
-- Origin: sync
-- Lens: verification
-- Severity: P2
-- Confidence: high
-- Status: needs-user-decision
-- Category: Correctness
-- Files: `sdks/python/agenta/sdk/evaluations/runtime/processor.py:459-466` (`_guarded_process_one` except handler); scenario minted at `:143` inside `_process_one`; rollup at `:470` and `status.py:36-53` (`run_status`).
-- Summary: Isolation is correct (one scenario's failure should not abort the slice), but the `except` only logs. It does not append to `processed` nor write an errored status via `edit_scenario`, so the failed scenario drops out of the run rollup (`has_errors = any(item.has_errors for item in processed)` at `:470`, and `run_status` in `status.py` only sees the appended items). Any single scenario that errors during an SDK evaluation (one bad input, one failed invocation) silently shrinks the result set with no signal and no error recorded against it.
-- Evidence (verified 2026-06-08): handler at `:461-466` only calls `logger.error("[SLICE] scenario processing failed", ...)`; no `processed.append`, no `edit_scenario(status=ERRORS)`. `ProcessedScenario` (`status.py:8-16`) needs only `scenario` + `has_errors=True` (rest default). `EvaluationStatus.ERRORS` exists (`models/evaluations.py:37`). `edit_scenario` is an injected callable in scope at the processor top-level (`:106`, used at `:439-440`). The backend processor uses this same shared SDK handler, so it has the same gap — its in-loop `edit_scenario` at `:439-440` does fire on success/normal paths but NOT on the swallowed-exception path.
-- Cause: failure path logs but neither records an errored scenario nor surfaces it to the rollup.
-- Suggested Fix (REVISED — original fix has a scope blocker): the `scenario` is a **local inside `_process_one` (`:143`)**, so the `except` in the OUTER `_guarded_process_one` cannot reach it — you cannot naïvely call `edit_scenario(scenario=...)` from there. Restructure so the failure is handled where the scenario is in scope: catch inside `_process_one` (after `:143` mints the scenario), mark it errored via `edit_scenario(scenario=scenario, status=EvaluationStatus.ERRORS)`, and append an errored `ProcessedScenario(scenario=scenario, has_errors=True)` under `processed_lock`. Keep `_guarded_process_one` as a coarse last-resort shield for failures BEFORE the scenario is minted (e.g. `create_scenario` itself throwing) — those have no scenario to record, so logging is the only option, but they should still be counted (consider a sentinel errored entry or a slice-level error counter so the rollup is not silently short).
-- Sources: PR #4341 thread, comment 3375239778 (@mmabrouk). Investigation 2026-06-08: CONFIRMED; fix needs restructuring (scope blocker), not a one-line handler edit.
-
-### [OPEN] UEL-040: Step-removal orphan check runs one `query_results` per affected scenario
-
-- Origin: sync
-- Lens: verification
-- Severity: P3
-- Confidence: high
-- Status: needs-user-decision
-- Category: Performance
-- Files: `api/oss/src/core/evaluations/service.py:628-637` (loop over `affected_scenario_ids`)
-- Summary: After a step is removed, the orphan check loops over every affected scenario and runs `query_results` once each to see whether any cells remain. On a run with many scenarios this is one round trip per scenario where a single query for the whole set would answer the same question. Not a correctness problem — step removal on a large run pays an avoidable cost.
-- Evidence (verified 2026-06-08): `:628-635` — `for scenario_id in affected_scenario_ids: remaining = await self.query_results(result=EvaluationResultQuery(run_id=run.id, scenario_ids=[scenario_id]))`, a single-element list per iteration. `EvaluationResultQuery.scenario_ids` is `Optional[List[UUID]]` (`types.py:456`) and the DAO applies it via `.in_(...)` (`dao.py:1756-1759`), so the batched form is supported. The per-scenario query uses ONLY `run_id` + `scenario_id` (no extra per-scenario filter), so batching is clean.
-- Cause: per-scenario query instead of a single batched fetch.
-- Suggested Fix: Fetch remaining results for all `affected_scenario_ids` in one `query_results` call (pass the full list as `scenario_ids`), group by `scenario_id` in memory, treat a scenario with no remaining cells as an orphan. N queries → 1. No correctness caveat.
-- Sources: PR #4341 thread, comment 3375254354 (@mmabrouk). Investigation 2026-06-08: CONFIRMED, batched API exists, no caveat.
 
 ### [OPEN] UEL-041: Rerun recovery path runs one `query_results` per non-seeded scenario
 
@@ -107,21 +45,6 @@ Sources:
 - Cause: per-scenario input-cell fetch instead of a single batched fetch.
 - Suggested Fix (with caveat the original missed): batch the input-cell fetch for all non-seeded scenarios into one `query_results` call keyed by `scenario_ids=[all non-seeded ids]`, group by `scenario_id` in memory, hand each scenario its slice. **Caveat:** unlike the earlier bulk fetch, the per-scenario input query deliberately OMITS the `step_keys` filter — a comment at `:725-726` explains inputs must be recovered regardless of the slice's step scope. So the batched input fetch must also omit `step_keys` (fetch all input cells for the non-seeded set), not reuse the step-scoped bulk query. Two distinct batched fetches, by design.
 - Sources: PR #4341 thread, comment 3375254454 (@mmabrouk). Investigation 2026-06-08: CONFIRMED; batched fix must preserve the deliberate no-`step_keys` semantics.
-
-### [OPEN] UEL-042: SDK async engine mostly serializes — blocking HTTP client under `asyncio.gather` (out of scope for this PR)
-
-- Origin: sync
-- Lens: verification
-- Severity: P2
-- Confidence: high
-- Status: needs-user-decision
-- Category: Performance
-- Files: `sdks/python/agenta/sdk/evaluations/preview/utils.py:693` (`afetch_trace`); blocking calls in adapters `scenarios.py:30` (`aadd`) / `:132` (`aedit_scenario`), `results.py:33` (`apopulate`), `metrics.py:93` (`arefresh`); fan-out at `runtime/processor.py:468`.
-- Summary: The SDK fans out scenarios with `asyncio.gather` (`processor.py:468`), but the calls that save results, refresh metrics, edit scenarios, and fetch traces all go through the blocking HTTP client (`authed_api()`), each holding the event loop until it returns — so the fanned-out work runs one call at a time and the concurrency mostly serializes. `afetch_trace` is the worst case: a retry loop of `max_retries=30` with `delay=1.0` means one slow/missing trace can block the whole loop ~30s while nothing else progresses.
-- Evidence (verified 2026-06-08): `afetch_trace` (`utils.py:693`) is `async` but calls `authed_api()(...)` (`:709`) synchronously inside the loop — not awaited, not `to_thread`'d. Five adapter helpers (`aadd`, `aedit_scenario`, `apopulate`, `arefresh`, `afetch_trace`) all call the blocking `authed_api()`. `authed_async_api()` is defined (`sdk/utils/client.py:41`) with an identical `(method, endpoint, **kwargs)` signature and is **unused anywhere under `sdk/evaluations/`** (only referenced in `managers/apps.py`, `managers/shared.py`).
-- Cause: blocking client under an async fan-out; predates this PR.
-- Suggested Fix: Switch these adapters/helpers to `authed_async_api()` — lower-risk than `asyncio.to_thread`: signature-compatible, the helpers are already `async`, so the change is `response = await authed_async_api()(method=..., endpoint=...)`. `to_thread` is the fallback (doesn't address root cause, adds thread overhead). For the trace path, also revisit the 30s-per-cell retry budget. **Out-of-scope confirmed:** `authed_api`/`authed_async_api` are shared client utilities used well beyond evals (managers, eval reads), so this is a library-wide change that belongs in its own PR, as the reviewer noted.
-- Sources: PR #4341 thread, comment 3375244177 (@mmabrouk, flagged out-of-scope). Investigation 2026-06-08: CONFIRMED; `authed_async_api()` exists + unused in evals; async-client swap is the lower-risk fix.
 
 ### [OPEN] UEL-043: `testset → evaluator` (no app) is deferred while `testcases → evaluator` is supported — inconsistent
 
@@ -154,6 +77,88 @@ Sources:
 - Sources: @jp, 2026-06-09 ("also maybe query(ies) > application").
 
 ## Closed Findings
+
+### [CLOSED] UEL-034: Stale graph snapshot on per-slice finalize can permanently delete a newly-added step's data
+
+- Origin: sync
+- Lens: verification
+- Severity: P1
+- Confidence: high
+- Status: fixed
+- Category: Correctness
+- Files: `api/oss/src/core/evaluations/tasks/processor.py` (`_finalize_run_after_slice`, the `edit_run` call ~`:343-360`)
+- Summary: The post-slice finalize re-read `current_run` for the status floor and `is_active` flag but passed `run.data` (the caller's pre-slice graph snapshot) to `edit_run`. `edit_run` → `_reconcile_run` → `_prune_removed_steps` deletes results/scenarios/metrics for any step present in the saved graph but missing from the passed graph. A step added between the slice snapshot and finalize would be overwritten out of the graph AND its data permanently, silently pruned.
+- Resolution (applied locally, committed `03ad0da4c`, ruff clean): per user disposition — fix the edit, do NOT add a `set_run_status` helper (edits are full PUT, not partial patch; a status-only helper buys nothing for a non-git-backed entity). The finalize now sources the full PUT from the freshly-fetched `current_run` (`_run = current_run or run`), overriding only the fields finalize owns: `status=run_status` and `is_active` (flipped False on terminal status). `name/description/tags/meta/data` all come from `current_run`, so a concurrent graph change is preserved, not pruned. `final_flags` logic unchanged; `is_closed` never touched here. `EvaluationClosedConflict` is caught and treated as a benign lock, not a failure.
+- Sources: PR #4341 thread, comment 3375193915 (@mmabrouk). User disposition 2026-06-08: full-PUT edit from current_run, not a `set_run_status` path. Fixed 2026-06-08.
+
+### [CLOSED] UEL-035: Text-cast keyset (`id::text`) defeats the PK index on the backfill pagination
+
+- Origin: sync
+- Lens: verification
+- Severity: P2
+- Confidence: high
+- Status: fixed
+- Category: Migration / Performance
+- Files: `api/oss/databases/postgres/migrations/core/versions/a2b3c4d5e6f8_backfill_default_evaluation_queues.py` (`_NEXT_RUN_IDS`). EE copy mirrors this (kept byte-identical).
+- Summary: The original keyset cast `id::text` and ordered by text. `evaluation_runs.id` is a native `uuid` column (`IdentifierDBA`, `default=uuid.uuid7`); the text cast makes the predicate non-sargable against the uuid PK btree, so each page did a full scan + sort to locate the cursor — O(n) per page → O(n²) pagination overhead over the backfill.
+- Resolution (applied locally, both OSS + EE, committed `571c73ada`, ruff clean): switched to native-uuid keyset — `WHERE id > CAST(:cursor AS uuid) ORDER BY id`, cursor seeded with the zero UUID. `SELECT id::text` retained so the Python cursor stays a plain string. The PK index now drives each page; pagination overhead collapses to O(log n) per page.
+- Nuance — the PK index helps the *cursor*, not the *workload*: the backfill still touches every run once (the `jsonb_array_elements` step scan + LEFT JOIN in `_COMPUTE_CHUNK` is inherent O(n)), so the migration remains O(n) total. The fix only removes the quadratic re-scan the text cast added on top of that. The PK keyset's value here is bounded by design.
+- Single-transaction half (wontfix — expected, by design): the migration intentionally runs in one transaction (Alembic `transaction_per_migration=True`) so the backfill is all-or-nothing. Chunking bounds per-statement size/lock scope and gives progress logging — not transaction scope. Per-batch `commit()` is deliberately not added. Both halves of the reviewer comment are therefore disposed: keyset fixed, single-transaction wontfix.
+- Sources: PR #4341 thread, comment 3375211093 (@mmabrouk). User disposition 2026-06-08: single-transaction is expected; fix the `id::text` keyset. Fixed 2026-06-08.
+
+### [CLOSED] UEL-039: SDK slice processor swallowed a failed scenario — dropped it from the run rollup with no errored status
+
+- Origin: sync
+- Lens: verification
+- Severity: P2
+- Confidence: high
+- Status: fixed
+- Category: Correctness
+- Files: `sdks/python/agenta/sdk/evaluations/runtime/processor.py` (`process_sources` / `_guarded_process_one`); test `sdks/python/oss/tests/pytest/unit/test_evaluations_runtime.py`.
+- Summary: Scenario isolation was correct, but the `except` only logged — it neither appended to `processed` nor wrote an errored status, so a failed scenario dropped out of the run rollup (`has_errors` / `run_status` only saw appended items). Any single scenario error silently shrank the result set with no signal.
+- Resolution (applied locally, committed, ruff clean): restructured per the revised fix (the original "edit the outer except" can't reach the scenario — it was local to `_process_one`). `_guarded_process_one` now mints the scenario itself; a `create_scenario` failure is logged and dropped (no scenario to record); a *processing* failure marks the scenario errored via `edit_scenario(scenario=scenario, status=EvaluationStatus.ERRORS)` and appends `ProcessedScenario(scenario=scenario, has_errors=True)` under `processed_lock`, so it surfaces in the rollup. Added `test_sdk_source_slice_records_process_failure_as_error` asserting both scenarios appear in the rollup, the bad one is `has_errors=True`, and `edit_scenario` is called with ERRORS for it. The existing `create_scenario`-failure isolation test still passes (that path is still log-and-drop).
+- Sources: PR #4341 thread, comment 3375239778 (@mmabrouk). Investigation 2026-06-08: fix needed restructuring (scope blocker). Fixed 2026-06-08.
+
+### [CLOSED] UEL-040: Step-removal orphan check ran one `query_results` per affected scenario
+
+- Origin: sync
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed
+- Category: Performance
+- Files: `api/oss/src/core/evaluations/service.py` (step-removal orphan check, ~`:626-638`)
+- Summary: After a step was removed, the orphan check looped over every affected scenario and ran `query_results` once each — one round trip per scenario where a single batched query answers the same question.
+- Resolution (applied locally, committed `03ad0da4c`, ruff clean): one batched `query_results` over the full `affected_scenario_ids` list, building `scenarios_with_cells = {r.scenario_id for r in remaining if r.scenario_id}`, then `orphan_scenario_ids = [id for id in affected_scenario_ids if id not in scenarios_with_cells]`. N queries → 1. The per-scenario query used only `run_id` + `scenario_id`, so batching is clean (no per-scenario filter lost).
+- Sources: PR #4341 thread, comment 3375254354 (@mmabrouk). User disposition 2026-06-08: fix it. Fixed 2026-06-08.
+
+### [CLOSED] UEL-042: SDK async engine mostly serializes — blocking HTTP client under `asyncio.gather`
+
+- Origin: sync
+- Lens: verification
+- Severity: P2
+- Confidence: high
+- Status: fixed
+- Category: Performance
+- Files: `sdks/python/agenta/sdk/evaluations/` — `metrics.py`, `results.py`, `runs.py`, `scenarios.py`, `preview/utils.py` (`afetch_trace`).
+- Summary: The SDK fanned out scenarios with `asyncio.gather`, but the save/refresh/edit/fetch calls went through the blocking `authed_api()`, each holding the event loop until it returned — so the concurrency mostly serialized. `afetch_trace` was the worst case (a `max_retries=30` × `delay=1.0` loop could block ~30s).
+- Resolution (applied locally, committed `03ad0da4c`, ruff clean): swapped the eval-side adapters/helpers from the blocking `authed_api()` to the signature-compatible async `authed_async_api()` (all 13 call sites across the 5 files → `await authed_async_api()(...)`; imports updated). `.raise_for_status()` / `.json()` / `.text` / `.status_code` confirmed sync-safe on the httpx async Response. Lower-risk than `asyncio.to_thread`.
+- Scope note: the broader concern that `authed_api`/`authed_async_api` are shared client utilities used beyond evals (managers, eval reads) is real, but the **eval-side swap** is self-contained and was applied here. Any library-wide migration of the remaining `authed_api` consumers (managers, etc.) is a separate PR, as the reviewer noted — not tracked under this finding.
+- Sources: PR #4341 thread, comment 3375244177 (@mmabrouk, flagged out-of-scope). Eval-side swap applied + committed 2026-06-08; lib-wide migration deferred to its own PR.
+
+### [CLOSED] UEL-045: Slice-endpoint acceptance tests built an undispatchable topology and 409'd on a closed run
+
+- Origin: test
+- Lens: validation
+- Severity: P2
+- Confidence: high
+- Status: fixed
+- Category: Testing
+- Files: `api/oss/tests/pytest/acceptance/evaluations/test_run_slice_endpoints.py` (`_create_testset_evaluator_evaluation`, new `_create_mock_application`).
+- Summary: 8 tests failed with HTTP 409 "Cannot modify a closed evaluation" on a freshly-created run's `/scenarios/add` / `/populate` / `/repeats/set`. Root cause (traced via container logs + git history, NOT a regression from this PR's fixes): the helper built a `testset → evaluator` (no application) topology, which `classify_steps_topology` defers as `potential`. At creation, `start` → `_fail_evaluation_run` (`service.py:2706`) sets `is_closed=True` + FAILURE synchronously, so every subsequent mutation correctly 409'd. The probe (read-only) tests passed; `TestClosedRunReturns409` passed only by accident (its explicit close was a no-op on an already-closed run). The fail-and-close chain (`_fail_evaluation_run`, the unsupported-topology branch) predates this PR — introduced in `dce50ec0b`.
+- Resolution (applied locally, ruff clean, 17/17 pass serially): added `_create_mock_application` (mock URI `agenta:custom:mock:v0`, no LLM) and an `application_steps` entry to the helper, making it the supported `testset → application → evaluator` shape (`{testset, batch}`). The run now stays open → all mutating ops succeed, and `TestClosedRunReturns409` now exercises a real open→close→409 transition. Test-only change; no product code touched. No EE mirror of this test file.
+- Follow-up: the underlying classifier asymmetry (why `testset → evaluator` is deferred while `testcases → evaluator` is supported) is tracked as the still-open [UEL-043].
+- Sources: User full-suite run 2026-06-08 (8 failures); root-caused + fixed 2026-06-09.
 
 ### [CLOSED] UEL-037: `archive_queue` / `unarchive_queue` router handlers removed (dead code)
 
