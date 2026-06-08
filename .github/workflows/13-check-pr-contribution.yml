@@ -1,0 +1,224 @@
+name: "13 - check PR contribution"
+
+# Enforces the contribution requirements on pull requests opened by external
+# contributors: the PR template must be filled in, and any PR that changes
+# functional code (SDK, API, or frontend) must include a demo recording or
+# screenshot. PRs that do not comply are commented on, labelled, and closed.
+#
+# Uses pull_request_target so the workflow has a write token even for fork PRs.
+# It only reads PR metadata (body and changed-file list) and posts a comment.
+# It never checks out or runs the PR's code, so this is safe.
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to evaluate"
+        required: true
+        type: string
+      dry_run:
+        description: "Only log the decision; do not comment, label, close, or reopen"
+        required: false
+        default: true
+        type: boolean
+      force_external:
+        description: "Ignore the org-membership exemption (treat the author as external)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pr-contribution-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check contribution requirements
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const MARKER = '<!-- agenta-pr-contribution-check -->';
+            const LABEL = 'incomplete-pr';
+            const INTERNAL = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+
+            // author_association reports MEMBER only for *public* org members. Private
+            // members fall back to CONTRIBUTOR because this workflow's GITHUB_TOKEN
+            // cannot see private membership, so list internal handles explicitly here.
+            // Add a handle whenever a teammate with private org membership joins.
+            const ALLOWLIST = [
+              'mmabrouk',
+              'jp-agenta',
+              'ardaerzin',
+              'ashrafchowdury',
+              'bekossy',
+              'junaway',
+            ].map((h) => h.toLowerCase());
+
+            // Files that are non-functional. A PR touching only these may skip the demo.
+            const EXEMPT = [
+              /(^|\/)tests?\//i,
+              /(^|\/)__tests__\//i,
+              /(^|\/)test_[^/]*\.py$/i,
+              /_test\.py$/i,
+              /\.(test|spec)\.[jt]sx?$/i,
+              /^docs\//i,
+              /\.mdx?$/i,
+              /^\.github\//i,
+              /(^|\/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|poetry\.lock|uv\.lock|Cargo\.lock)$/i,
+              /\.(png|jpe?g|gif|svg|webp|ico)$/i,
+            ];
+
+            // What counts as a demo in the Demo section.
+            const MEDIA = [
+              /!\[[^\]]*\]\([^)]+\)/,                                  // markdown image
+              /<img\s/i,
+              /<video\s/i,
+              /https?:\/\/[^\s)]+\.(mp4|mov|webm|gif)/i,               // direct video/gif
+              /https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//i,
+              /https?:\/\/(www\.)?loom\.com\//i,
+              /https?:\/\/[^\s)]*\/user-attachments\//i,               // GitHub uploads
+              /https?:\/\/[^\s)]*githubusercontent\.com\//i,
+            ];
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const dispatch = context.eventName === 'workflow_dispatch';
+            const inputs = context.payload.inputs || {};
+            const dryRun = dispatch && String(inputs.dry_run) === 'true';
+            const forceExternal = dispatch && String(inputs.force_external) === 'true';
+
+            // Resolve the PR from the event payload, or fetch it for manual dispatch.
+            let pr;
+            if (dispatch) {
+              const num = Number(inputs.pr_number);
+              pr = (await github.rest.pulls.get({ owner, repo, pull_number: num })).data;
+            } else {
+              pr = context.payload.pull_request;
+            }
+            const number = pr.number;
+
+            // Drafts are work in progress; only enforce on ready PRs (or manual runs).
+            if (!dispatch && pr.draft) {
+              core.info(`PR #${number} is a draft, skipping.`);
+              return;
+            }
+
+            // Exempt internal contributors and bots. Check both the GitHub-reported
+            // association (covers public org members) and the explicit allowlist
+            // (covers private org members the token cannot see as MEMBER).
+            const isInternal =
+              INTERNAL.includes(pr.author_association) ||
+              ALLOWLIST.includes(pr.user.login.toLowerCase());
+            if (!forceExternal && (pr.user.type === 'Bot' || isInternal)) {
+              core.info(`PR #${number} by ${pr.user.login} (${pr.author_association}) is internal, skipping.`);
+              return;
+            }
+
+            const body = pr.body || '';
+
+            function section(name) {
+              const re = new RegExp('##\\s*' + name + '\\b([\\s\\S]*?)(?=\\n##\\s|$)', 'i');
+              const m = body.match(re);
+              return m ? m[1].replace(/<!--[\s\S]*?-->/g, '').trim() : null;
+            }
+
+            const reasons = [];
+
+            // 1) Template is present and filled.
+            const headers = ['Summary', 'Testing', 'Demo', 'Checklist'];
+            const lower = body.toLowerCase();
+            const missing = headers.filter((h) => !lower.includes('## ' + h.toLowerCase()));
+            if (!body.trim()) {
+              reasons.push('The pull request description is empty. Please fill in the PR template.');
+            } else if (missing.length) {
+              reasons.push('The description is missing required sections (' + missing.join(', ') + '). Please use the PR template without removing its sections.');
+            } else if (!section('Summary')) {
+              reasons.push('The **Summary** section is empty. Describe what changed and why.');
+            }
+
+            // 2) Demo is present for functional changes.
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner, repo, pull_number: number, per_page: 100,
+            });
+            const functional = files.some((f) => !EXEMPT.some((r) => r.test(f.filename)));
+            const demo = section('Demo') || '';
+            const hasMedia = MEDIA.some((r) => r.test(demo));
+            if (functional && !hasMedia) {
+              reasons.push('This PR changes functional code (SDK, API, or frontend) but the **Demo** section has no screenshot or video. A short demo recording is required. Only test-only, docs-only, or chore changes may mark Demo as N/A.');
+            }
+
+            async function upsertComment(text) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number: number, per_page: 100,
+              });
+              const existing = comments.find((c) => c.body && c.body.includes(MARKER));
+              if (existing) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body: text });
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number: number, body: text });
+              }
+            }
+
+            if (reasons.length) {
+              const list = reasons.map((r) => '- ' + r).join('\n');
+              const text = [
+                MARKER,
+                `Hi @${pr.user.login}, thanks for opening a pull request. 🙏`,
+                '',
+                'This PR was **automatically closed** because it does not yet meet our contribution requirements:',
+                '',
+                list,
+                '',
+                'We ask for this so every change is documented and demonstrably tested before review.',
+                '',
+                '**How to get it reopened**',
+                'Update the PR description (and add a demo recording if your change touches functional code). The bot reopens the PR automatically once the requirements are met. No need to open a new one.',
+                '',
+                'See the [Contributing guide](https://agenta.ai/docs/contributing/overview) and [Creating your first PR](https://agenta.ai/docs/contributing/first-pr). If you think this was closed in error, leave a comment and a maintainer will take a look.',
+              ].join('\n');
+
+              if (dryRun) {
+                core.notice(`[dry-run] Would close PR #${number}:\n${list}`);
+                return;
+              }
+
+              await upsertComment(text);
+              try {
+                await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: [LABEL] });
+              } catch (e) {
+                core.warning(`Could not add label ${LABEL}: ${e.message}`);
+              }
+              if (pr.state === 'open') {
+                await github.rest.pulls.update({ owner, repo, pull_number: number, state: 'closed' });
+              }
+              core.notice(`Closed PR #${number}:\n${list}`);
+            } else {
+              if (dryRun) {
+                core.info(`[dry-run] PR #${number} meets contribution requirements.`);
+                return;
+              }
+              // Compliant. If the bot had previously closed it, reopen and clear the flag.
+              const labels = (pr.labels || []).map((l) => l.name);
+              if (labels.includes(LABEL)) {
+                try {
+                  await github.rest.issues.removeLabel({ owner, repo, issue_number: number, name: LABEL });
+                } catch (e) {
+                  core.warning(`Could not remove label ${LABEL}: ${e.message}`);
+                }
+                if (pr.state === 'closed') {
+                  await github.rest.pulls.update({ owner, repo, pull_number: number, state: 'open' });
+                }
+                await upsertComment(`${MARKER}\n✅ Thanks @${pr.user.login}! This PR now meets the contribution requirements and has been reopened. A maintainer will review it soon.`);
+              }
+              core.info(`PR #${number} meets contribution requirements.`);
+            }
