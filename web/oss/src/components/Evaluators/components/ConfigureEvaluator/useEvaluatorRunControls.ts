@@ -2,12 +2,12 @@
  * useEvaluatorRunControls
  *
  * Single source of truth for the evaluator playground's run controls, shared by
- * the full-page playground and the evaluator-creation drawer. Before this hook,
- * the app adapter, app-select handler, evaluator-node lookup, and run-on
- * wiring were copy-pasted across the page header, page body, drawer header, and
- * drawer body — which is exactly how the drawer drifted out of sync with the
- * page (it kept forcing an app even in test-case mode). Centralizing it here
- * means both surfaces behave identically by construction.
+ * the full-page playground, the evaluator-creation drawer, and the workflow
+ * revision drawer. Before this hook, the app adapter, app-select handler,
+ * evaluator-node lookup, and run-on wiring were copy-pasted across every
+ * surface — which is exactly how the drawers drifted out of sync with the page
+ * (they kept forcing an app even in test-case mode). Centralizing it here means
+ * every surface behaves identically by construction.
  */
 
 import {useCallback, useMemo} from "react"
@@ -17,7 +17,7 @@ import {
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
-import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {
     connectAppToEvaluatorAtom,
@@ -30,23 +30,9 @@ import {
 } from "./atoms"
 
 export function useEvaluatorRunControls() {
-    // Bind to the default store explicitly. The playground state runs on the
-    // default store (the playground package uses `getDefaultStore()` throughout),
-    // but the evaluator-creation drawer renders inside a scoped Jotai store
-    // (`EvaluationRunsTableStoreProvider`) that doesn't mirror the playground or
-    // run-on atoms. Without this, the drawer would read/write run-on mode in the
-    // scoped store while the playground lives in the default store — the two
-    // split, so switching to test-case mode never reaches the run panel and it
-    // stays stuck on "select an app". On the full page (no scoped store) this is
-    // a no-op. Same pattern as `usePreviewVariantConfig` / `TestsetCells`.
-    const store = getDefaultStore()
-
     // Evaluator node — phase 1: evaluator at depth 0 (primary); phase 2:
     // evaluator at depth 1 (downstream of a connected app).
-    const nodes = useAtomValue(
-        useMemo(() => playgroundController.selectors.nodes(), []),
-        {store},
-    )
+    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
     const evaluatorNode = useMemo(() => {
         const downstream = nodes.find((n) => n.depth > 0)
         if (downstream) return downstream
@@ -67,8 +53,8 @@ export function useEvaluatorRunControls() {
         [],
     )
 
-    const connectApp = useSetAtom(connectAppToEvaluatorAtom, {store})
-    const disconnectApp = useSetAtom(disconnectAppFromEvaluatorAtom, {store})
+    const connectApp = useSetAtom(connectAppToEvaluatorAtom)
+    const disconnectApp = useSetAtom(disconnectAppFromEvaluatorAtom)
 
     const handleAppSelect = useCallback(
         (selection: WorkflowRevisionSelectionResult) => {
@@ -86,8 +72,8 @@ export function useEvaluatorRunControls() {
     // Run-on mode. A connected app forces effective "app" mode (the node graph
     // is the source of truth); the stored preference only applies when nothing
     // is connected.
-    const runOnMode = useAtomValue(effectiveRunOnModeAtom, {store})
-    const setRunOnMode = useSetAtom(runOnModeAtom, {store})
+    const runOnMode = useAtomValue(effectiveRunOnModeAtom)
+    const setRunOnMode = useSetAtom(runOnModeAtom)
     const handlePickRunOn = useCallback(
         (next: RunOnMode) => {
             if (next === "trace") return // disabled, not selectable
@@ -99,14 +85,13 @@ export function useEvaluatorRunControls() {
         [disconnectApp, setRunOnMode],
     )
 
-    const hasAppConnected = useAtomValue(hasAppConnectedAtom, {store})
-    const selectedAppLabel = useAtomValue(selectedAppLabelAtom, {store})
+    const hasAppConnected = useAtomValue(hasAppConnectedAtom)
+    const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
 
     // In "app" mode with no app connected yet, the evaluator can't run — the run
     // panel surfaces the app selector instead of the testcase rows. In test-case
-    // mode the evaluator runs standalone, so it's never blocked on an app.
-    // Only takes effect where the run panel renders (the page and the expanded
-    // drawer); the collapsed drawer is config-only and ignores `runDisabled`.
+    // mode the evaluator runs standalone, so it's never blocked on an app. Only
+    // takes effect where the run panel renders (the page and expanded drawers).
     const runDisabled = runOnMode === "app" && !hasAppConnected
 
     return {
