@@ -121,6 +121,81 @@ export async function queryEvaluationRuns({
 }
 
 // ============================================================================
+// QUERY (List with filters + windowing)
+// ============================================================================
+
+export interface EvaluationRunsListParams {
+    projectId: string
+    appId?: string | null
+    /** Reference filters (JSONB containment on the backend). */
+    references?: Record<string, unknown>[] | null
+    /** Flag filters (JSONB containment). Evaluation "kind" lives here, not as a field. */
+    flags?: Record<string, unknown> | null
+    /** Status filters. */
+    statuses?: string[] | null
+    /** Windowing/pagination passthrough (limit/order/next/...). */
+    windowing?: Record<string, unknown> | null
+}
+
+export interface EvaluationRunsListResult {
+    runs: EvaluationRun[]
+    count: number
+    windowing: Record<string, unknown> | null
+}
+
+/**
+ * List evaluation runs with the filters the backend `query_runs` ACTUALLY supports:
+ * references, flags (kind is encoded here), statuses, plus windowing. Endpoint:
+ * `POST /evaluations/runs/query`.
+ *
+ * Note: `search` and `evaluation_kinds` are intentionally NOT sent — the backend query
+ * has no such filters (they were silently dropped). Free-text/kind filtering is done
+ * client-side (per the eval-filtering RFC).
+ */
+export async function queryEvaluationRunsList({
+    projectId,
+    appId,
+    references,
+    flags,
+    statuses,
+    windowing,
+}: EvaluationRunsListParams): Promise<EvaluationRunsListResult> {
+    if (!projectId) return {runs: [], count: 0, windowing: null}
+
+    const runPayload: Record<string, unknown> = {}
+    const refs = Array.isArray(references)
+        ? references.filter((r) => r && Object.keys(r).length > 0)
+        : []
+    if (refs.length) runPayload.references = refs
+    if (flags && Object.keys(flags).length > 0) runPayload.flags = flags
+    if (statuses?.length) runPayload.statuses = statuses
+
+    const body: Record<string, unknown> = {}
+    if (Object.keys(runPayload).length > 0) body.run = runPayload
+    if (windowing) body.windowing = windowing
+
+    const queryParams: Record<string, string> = {project_id: projectId}
+    if (appId) queryParams.app_id = appId
+
+    const client = await getEvaluationsClient()
+    const data = (await client.queryRuns(body as never, {queryParams})) as {
+        windowing?: Record<string, unknown> | null
+    }
+
+    const validated = safeParseWithLogging(
+        evaluationRunsResponseSchema,
+        data,
+        "[queryEvaluationRunsList]",
+    )
+    return {
+        runs: validated?.runs ?? [],
+        count: validated?.count ?? 0,
+        // windowing is read off the raw response — the envelope schema doesn't model it.
+        windowing: data?.windowing ?? null,
+    }
+}
+
+// ============================================================================
 // QUERY EVALUATION RESULTS (Scenario Steps)
 // ============================================================================
 

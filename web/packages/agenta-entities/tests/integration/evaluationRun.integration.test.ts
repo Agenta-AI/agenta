@@ -32,6 +32,7 @@ import {
     queryEvaluationMetrics,
     queryEvaluationResults,
     queryEvaluationRuns,
+    queryEvaluationRunsList,
     setEvaluationResults,
 } from "../../src/evaluationRun/api"
 
@@ -384,6 +385,55 @@ describe.skipIf(!hasBackend)("evaluationRun data layer integration", () => {
             const step = results.find((r) => r.step_key === EVALUATOR_STEP_KEY)
             expect(step, "the upserted result must be queryable").toBeTruthy()
             expect(step?.trace_id).toBe(traceId)
+        })
+    })
+
+    // queryEvaluationRunsList — the Fern list query (POST /runs/query with filters +
+    // windowing) that replaced the axios fetchPreviewRunsShared. Verify it returns created
+    // runs through the envelope parse and surfaces the windowing cursor.
+    describe("queryEvaluationRunsList (Fern list query)", () => {
+        const createdIds: string[] = []
+
+        beforeAll(async () => {
+            const client = getAgentaSdkClient()
+            const res = (await client.evaluations.createRuns(
+                {runs: [makeRunCreatePayload() as never, makeRunCreatePayload() as never]},
+                {queryParams: {project_id: projectId}},
+            )) as {runs?: {id?: string}[]}
+            for (const r of res?.runs ?? []) if (r.id) createdIds.push(r.id)
+            expect(createdIds.length).toBeGreaterThanOrEqual(2)
+        })
+
+        afterAll(async () => {
+            if (createdIds.length) {
+                await getAgentaSdkClient()
+                    .evaluations.deleteRuns(
+                        {run_ids: createdIds},
+                        {queryParams: {project_id: projectId}},
+                    )
+                    .catch(() => undefined)
+            }
+        })
+
+        it("lists runs (parsed) and returns a windowing cursor", async () => {
+            const res = await queryEvaluationRunsList({
+                projectId,
+                windowing: {limit: 100, order: "descending"},
+            })
+            expect(Array.isArray(res.runs)).toBe(true)
+            expect(res.count).toBeGreaterThanOrEqual(2)
+            const ids = new Set(res.runs.map((r) => r.id))
+            for (const id of createdIds) expect(ids.has(id)).toBe(true)
+            // windowing is read off the raw envelope (schema doesn't model it).
+            expect(res).toHaveProperty("windowing")
+        })
+
+        it("respects the windowing limit", async () => {
+            const res = await queryEvaluationRunsList({
+                projectId,
+                windowing: {limit: 1, order: "descending"},
+            })
+            expect(res.runs.length).toBeLessThanOrEqual(1)
         })
     })
 })

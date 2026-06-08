@@ -1,4 +1,5 @@
-import axios from "@/oss/lib/api/assets/axiosConfig"
+import {queryEvaluationRunsList} from "@agenta/entities/evaluationRun"
+
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 
 import type {QueryWindowingPayload} from "../../../../services/onlineEvaluations/api"
@@ -89,54 +90,36 @@ const normalizeEvaluationTypes = (types: string[] | null | undefined) => {
     return unique.length ? unique : null
 }
 
-const buildPayload = ({
-    searchQuery,
-    references,
-    flags,
-    statuses,
-    evaluationTypes,
-    windowing,
-}: PreviewRunsRequestParams) => {
-    const payload: Record<string, any> = {}
-    const runPayload: Record<string, any> = {}
-    const normalizedReferences = Array.isArray(references)
-        ? references.filter(
+/**
+ * Map the request params to the filters the backend `query_runs` actually supports.
+ * `searchQuery` and `evaluationTypes` are deliberately omitted — the backend has no such
+ * filters (they were silently dropped); free-text/kind filtering is done client-side.
+ */
+const buildListArgs = (params: PreviewRunsRequestParams) => {
+    const refs = Array.isArray(params.references)
+        ? params.references.filter(
               (entry): entry is Record<string, any> => !!entry && Object.keys(entry).length > 0,
           )
         : []
-    if (normalizedReferences.length) {
-        runPayload.references = normalizedReferences
+    const windowing = params.windowing
+        ? {
+              next: params.windowing.next ?? undefined,
+              limit: params.windowing.limit ?? undefined,
+              order: params.windowing.order ?? undefined,
+              newest: params.windowing.newest ?? undefined,
+              oldest: params.windowing.oldest ?? undefined,
+              interval: params.windowing.interval ?? undefined,
+              rate: params.windowing.rate ?? undefined,
+          }
+        : null
+    return {
+        projectId: params.projectId,
+        appId: params.appId ?? null,
+        references: refs.length ? refs : null,
+        flags: normalizeFlags(params.flags),
+        statuses: normalizeStatuses(params.statuses),
+        windowing,
     }
-    if (searchQuery) {
-        runPayload.search = searchQuery
-    }
-    const normalizedFlags = normalizeFlags(flags)
-    if (normalizedFlags) {
-        runPayload.flags = normalizedFlags
-    }
-    const normalizedStatuses = normalizeStatuses(statuses)
-    if (normalizedStatuses) {
-        runPayload.statuses = normalizedStatuses
-    }
-    const normalizedTypes = normalizeEvaluationTypes(evaluationTypes)
-    if (normalizedTypes) {
-        runPayload.evaluation_kinds = normalizedTypes
-    }
-    if (Object.keys(runPayload).length > 0) {
-        payload.run = runPayload
-    }
-    if (windowing) {
-        payload.windowing = {
-            next: windowing.next ?? undefined,
-            limit: windowing.limit ?? undefined,
-            order: windowing.order ?? undefined,
-            newest: windowing.newest ?? undefined,
-            oldest: windowing.oldest ?? undefined,
-            interval: windowing.interval ?? undefined,
-            rate: windowing.rate ?? undefined,
-        }
-    }
-    return payload
 }
 
 export const fetchPreviewRunsShared = async (
@@ -155,25 +138,18 @@ export const fetchPreviewRunsShared = async (
         return inflight
     }
 
-    const payload = buildPayload(params)
-    const queryParams: Record<string, string> = {project_id: params.projectId}
-    if (params.appId) {
-        queryParams.app_id = params.appId
-    }
-
-    const request = axios
-        .post(`/evaluations/runs/query`, payload, {
-            params: queryParams,
-        })
-        .then((response) => {
-            const runs = Array.isArray(response.data?.runs)
-                ? response.data.runs.map((run: any) => snakeToCamelCaseKeys(run))
+    // Fern-backed list query (POST /evaluations/runs/query) — same endpoint the package
+    // by-ids query uses, with the supported filter set.
+    const request = queryEvaluationRunsList(buildListArgs(params))
+        .then((res) => {
+            const runs = Array.isArray(res.runs)
+                ? res.runs.map((run: any) => snakeToCamelCaseKeys(run))
                 : []
 
             const result: PreviewRunsResponse = {
                 runs,
-                count: response.data?.count ?? runs.length,
-                windowing: response.data?.windowing ?? null,
+                count: res.count ?? runs.length,
+                windowing: (res.windowing as QueryWindowingPayload | null) ?? null,
             }
 
             resolvedCache.set(cacheKey, {timestamp: Date.now(), data: result})
