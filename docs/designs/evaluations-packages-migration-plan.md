@@ -97,10 +97,10 @@ Dependency rule: arrows only point left/down. `annotations` MAY depend on `evalu
 
 | Package | Owns | Status |
 |---|---|---|
-| `@agenta/entities` | Each entity: `evaluationRun`, **`evaluationScenario`** (promote — today a half-schema under `evaluationRun`), `evaluationResult`, `evaluationMetric`, `evaluationQueue`/`simpleQueue`, `annotation`, `workflow` (evaluators), `testcase`/`testset`/`trace`. Plus `evaluationRun/etl` (hydration, mapping/column resolution, filtering) — **stays here** (decision locked). | Mostly exists |
-| `@agenta/evaluations` | Generic *wiring*: run creation (exists), the **run list store**, the **scenario session engine**, **metrics processing**, kind derivation, status rollup. Kind-agnostic. | Has run-creation only; rest extracted here |
-| `@agenta/annotations` (rename/refocus current `@agenta/annotation`) | The queue delta only: annotation submit form, queue assignment, focus-mode, testset write-back. Depends on `evaluations`. | Exists but "upside-down" — see §3 |
-| `@agenta/evaluations-ui` (NEW) | Run list table (ONE generic configurable table, moved from `AnnotationQueuesView`), run detail view, scenario table, metric cells, `CreatedByCell`, etc. | New; populated by moving existing UI |
+| `@agenta/entities` | Each entity: `evaluationRun`, **`evaluationScenario`** (done), `evaluationResult`, `evaluationMetric`, `evaluationQueue`/`simpleQueue`, `annotation`, `workflow` (evaluators), `testcase`/`testset`/`trace`. **Entity definitions only** — the `evaluationRun/etl` (hydration/mapping/filtering) MOVES to `evaluations` (see WP-3.5; decision reversed 2026-06-09). | Mostly exists |
+| `@agenta/evaluations` | Generic *wiring*: run creation (exists), the **run list store**, the **scenario session engine**, **metrics processing**, the **eval-run ETL** (scenario hydration, mapping/column resolution, **client-side filtering** — moved from `entities/evaluationRun/etl` + OSS `EvalRunDetails/etl`, the ahead impl), kind derivation, status rollup. Kind-agnostic. | Has run-creation only; rest extracted here |
+| `@agenta/annotations` (rename/refocus current `@agenta/annotation`) | The queue delta only: annotation submit form, queue assignment, focus-mode, testset write-back. Depends on `evaluations` (and thereby GAINS the ETL filtering it lacks today). | Exists but "upside-down" — see §3 |
+| `@agenta/evaluations-ui` (NEW) | Run list table (ONE generic configurable table, moved from `AnnotationQueuesView`), run detail view, scenario table, metric cells, `CreatedByCell`, **the ETL filter bar / column headers / resolved cells** (moved from OSS `EvalRunDetails/etl`). | New; populated by moving existing UI |
 | `@agenta/annotations-ui` (current `@agenta/annotation-ui`) | Queue-specific UI: submit form/session, `CreateQueueDrawer`, `AddToQueuePopover`, the run table configured with a "queue" preset. Depends on `evaluations-ui`. | Exists; sheds generic parts |
 
 ---
@@ -165,7 +165,13 @@ duplicates** — proving parity against OSS first.
 
 ## 4. Source-of-truth & regression baselines
 
-- **Extract FROM (source of truth):** `@agenta/annotation` + `@agenta/annotation-ui`.
+- **Extract FROM (source of truth):** `@agenta/annotation` + `@agenta/annotation-ui` — for the
+  session/scenario/metrics engine.
+- **EXCEPTION — the ETL filtering feature:** here OSS `EvalRunDetails/etl` is the source of
+  truth; **annotation has no filtering at all** (verified — it imports none of the etl
+  filtering). So the ETL (scenario hydration + mapping/column resolution + client-side
+  filtering) is extracted from OSS, not annotation, in WP-3.5, and moved into `evaluations` /
+  `evaluations-ui`. Annotation queues GAIN filtering by depending on `evaluations`.
 - **Keep GREEN throughout (live annotation consumers):**
   `web/oss/src/pages/.../annotations/index.tsx`, `.../annotations/[queue_id].tsx`,
   `web/oss/src/components/Annotations/AnnotationTraceContent.tsx`,
@@ -255,6 +261,31 @@ the previous one's DoD + tests + gate pass.
 - **Regression gate:** annotation queue list QA'd (list, filter, search, pagination,
   created-by, progress).
 
+### WP-3.5 — Move the eval-run ETL (hydration / columns / filtering) → `evaluations` + `evaluations-ui`
+This is the one capability where **OSS is ahead of annotation** (annotation has no filtering),
+so the source of truth is OSS `EvalRunDetails/etl`, not annotation (see §4 exception).
+- **Move:**
+  - **Headless primitives** `entities/evaluationRun/etl` (`hydrateScenariosTransform`,
+    `resolveMappings`/`groupRunColumns`, `rowPredicateFilter`/`filterSchema`/
+    `predicateToEntitySlices`, `realScenarioSource`, cache fetchers) → `@agenta/evaluations`.
+    First verify nothing in `entities/*` source (only a test) imports it, so there's no
+    `entities → evaluations` cycle. Update the `@agenta/entities/evaluationRun/etl` subpath
+    consumers to the new `evaluations` path.
+  - **Filtering state/hooks** from OSS `EvalRunDetails/etl/` (`scenarioFilterState`,
+    `useScenarioFilter`, `useHydrateScenarios`, `useEtlColumns`, `useCellMaterialization`,
+    `useScopeChangeEviction`, `columnValueTypes`) → `@agenta/evaluations`.
+  - **Filtering UI** from OSS `EvalRunDetails/etl/` (`ScenarioFilterBar`, `EtlColumnHeader`,
+    `cells/EtlResolvedCell`) → `@agenta/evaluations-ui`.
+- **DoD:** the eval-run ETL (incl. filtering) lives in `evaluations`/`evaluations-ui`; the
+  OSS `EvalRunDetails` view re-points its ETL imports to the package and OSS
+  `EvalRunDetails/etl/` is deleted (the rest of the view — atoms/store — re-points in WP-4);
+  no `entities → evaluations` cycle.
+- **Integration test (real API, real atoms):** drive the **shipped `evaluations` ETL** —
+  hydrate a real run's scenarios and apply a real `rowPredicateFilter`/`filterSchema` over the
+  hydrated rows; assert the filtered set. Use real run data; do NOT hand-roll the filter.
+- **Regression gate:** scenario filtering QA'd on the eval run detail (apply/clear filters,
+  column resolution) against the OSS baseline (§4) — this is parity for an OSS-sourced feature.
+
 ### WP-4 — Point OSS eval views at the packages; prove parity; DELETE OSS dups
 - **Move:** re-point `EvaluationRunsTablePOC` (run list) and `EvalRunDetails` (run detail +
   scenario table + metrics) to consume the `evaluations`/`evaluations-ui` engine + table.
@@ -280,13 +311,16 @@ the previous one's DoD + tests + gate pass.
 Quantify during WP-1/WP-4; if a capability exists in neither annotation nor a clean OSS form,
 it's a gap. Known candidates (verify, don't assume):
 
+- **ETL filtering is NOT a gap — it's an OSS-ahead feature to MOVE** (WP-3.5), not rebuild.
+  OSS `EvalRunDetails/etl` (filter bar, scenario filter state, column resolution) is the
+  source; annotation has none. Move it into `evaluations`/`evaluations-ui`.
 - **Auto/invocation specifics** the annotation engine never needed: the auto-eval run loop,
   invocation-step columns, run-level metric *aggregates* (annotation is human/per-scenario).
   `runMetrics.ts` (13 atoms, temporal + run-level) is the prime suspect for eval-only logic.
 - **`buildRunIndex`** (OSS `lib/evaluations`) vs `etl/resolveMappings`/`groupRunColumns`:
   overlapping column resolution. Determine if `buildRunIndex` is a true gap or a thin
-  pre-grouping layer collapsible into `etl`. (Earlier investigation said "no equiv"; the
-  `etl` evidence suggests otherwise — re-verify.)
+  pre-grouping layer collapsible into the `evaluations` ETL. (Earlier investigation said "no
+  equiv"; the `etl` evidence suggests otherwise — re-verify during WP-3.5.)
 
 Anything found here gets a one-line gap entry + a focused, tested addition in `evaluations` —
 NOT a reimplementation of something that already exists.
@@ -313,10 +347,15 @@ capability. This ledger is the checklist; do not mark the migration done until e
 - [ ] `onlineEvaluations/` → **terminal WP**, gated on online-eval engine adoption; tracked, NOT silently left
 
 **Utils / libs / hooks — `web/oss/src/lib/`**
-- [ ] `evaluations/` (`buildRunIndex`, `legacy`, `metricUtils` callers) + `evaluations/utils/` (`metrics`, `evaluationKind`) → `@agenta/evaluations` / `entities/etl` → **delete** (WP-1/WP-4; resolve `buildRunIndex` vs `etl` per §6)
+- [ ] `evaluations/` (`buildRunIndex`, `legacy`, `metricUtils` callers) + `evaluations/utils/` (`metrics`, `evaluationKind`) → `@agenta/evaluations` (incl. the ETL home) → **delete** (WP-1/WP-3.5/WP-4; resolve `buildRunIndex` vs ETL per §6)
 - [ ] `hooks/usePreviewEvaluations/` (+ `assets/`, `states/`) → `@agenta/evaluations` run hub → **delete** (WP-3/WP-4)
 - [ ] `hooks/useEvaluationRunMetrics/` → `@agenta/evaluations` metrics → **delete** (WP-1/WP-4)
 - [ ] `evalRunner/`, `evaluators/` → audit; eval-data parts → packages, evaluator defs already in `entities/workflow` → **delete data-layer parts** (WP-4)
+
+**ETL feature (OSS-ahead; source of truth for filtering) — `web/oss/src/components/EvalRunDetails/etl/`**
+- [ ] `EvalRunDetails/etl/` state+hooks (`scenarioFilterState`, `useScenarioFilter`, `useHydrateScenarios`, `useEtlColumns`, `useCellMaterialization`, `useScopeChangeEviction`, `columnValueTypes`) → `@agenta/evaluations` → **delete** (WP-3.5)
+- [ ] `EvalRunDetails/etl/` UI (`ScenarioFilterBar`, `EtlColumnHeader`, `cells/EtlResolvedCell`) → `@agenta/evaluations-ui` → **delete** (WP-3.5)
+- [ ] `@agenta/entities/evaluationRun/etl` headless primitives → **moved to `@agenta/evaluations`**; remove the `./evaluationRun/etl` subpath export from `entities` once consumers re-point (WP-3.5)
 
 **Data-layer atoms / state — `web/oss/src/components/` & `state/`**
 - [ ] `EvalRunDetails/atoms/` (incl. `mutations/`, `runMetrics/`, `table/`) — the ~38-atom engine → `@agenta/evaluations` → **delete** (WP-4)
@@ -348,7 +387,10 @@ find oss/src/components -type d | grep -iE "EvalRunDetails/atoms|EvaluationRunsT
 # 4. No eval data hooks/utils left
 find oss/src/lib -type d | grep -iE "usePreviewEvaluations|useEvaluationRunMetrics|lib/evaluations"
 
-# 5. No jotai atoms defined in remaining OSS eval code (should be 0)
+# 5. No OSS-side eval ETL left (moved to @agenta/evaluations + evaluations-ui)
+find oss/src/components -type d | grep -iE "EvalRunDetails/etl"
+
+# 6. No jotai atoms defined in remaining OSS eval code (should be 0)
 grep -rlE "atom\(|atomFamily\(|atomWithQuery\(|atomWithMutation\(" oss/src/components/EvalRunDetails oss/src/components/EvaluationRunsTablePOC 2>/dev/null | grep -v node_modules
 ```
 
@@ -384,6 +426,7 @@ shipped builder/selector — it passes against broken code and proves nothing.
 | WP-1 | `evaluations` session controller (scenario nav/status/metrics/`evaluatorColumnDefs`) + annotation wrapper | populated run | real-project smoke |
 | WP-2 | `evaluations` metric/schema fns (`getMetricFieldsFromEvaluator`, `getOutputsSchema`, …) | run with evaluator steps | real-project smoke |
 | WP-3 | `evaluations` run-list store (list query, filters, search, windowing) | runs/queues | — |
+| WP-3.5 | `evaluations` ETL — hydrate real scenarios + apply a real `rowPredicateFilter`/`filterSchema` | populated run | real-project smoke |
 | WP-4 | parity: package-driven derived data == OSS baseline, for the same run id | real runs | real-project smoke |
 
 - **Parity tests (WP-4):** assert the package-driven view produces the same rows/columns/
@@ -414,9 +457,14 @@ shipped builder/selector — it passes against broken code and proves nothing.
 
 ## 10. Decisions locked (from review) vs open
 
-**Locked:** extract from annotation (source of truth) with OSS-parity gating before deletion;
-`entities` stays as entity-definitions home; ONE generic configurable table moved (not
-rewritten) from `AnnotationQueuesView`; `etl` stays in `entities`.
+**Locked:** extract from annotation (source of truth for the session/scenario/metrics engine)
+with OSS-parity gating before deletion; `entities` is the entity-definitions home; ONE generic
+configurable table moved (not rewritten) from `AnnotationQueuesView`.
+
+**Reversed 2026-06-09:** the eval-run **ETL moves to `evaluations`** (was "stays in
+entities"). The ETL filtering is a feature where **OSS is ahead of annotation** (annotation
+has none), so it's extracted from OSS `EvalRunDetails/etl` into `evaluations`/`evaluations-ui`
+(WP-3.5), and `entities` keeps only entity definitions.
 
 **Open (decide in-flight, narrowly):** exact home of `markCompleted`/completion + queue
 metadata (§3.1 judgment calls); whether `annotation`→`annotations` rename happens now or later
