@@ -259,6 +259,7 @@ export interface EvaluationResultSetInput {
     testcase_id?: string | null
     hash_id?: string | null
     repeat_idx?: number | null
+    error?: Record<string, unknown> | null
 }
 
 /**
