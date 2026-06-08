@@ -20,12 +20,7 @@ import {
     workflowMolecule,
     discardLocalServerDataAtom,
 } from "@agenta/entities/workflow"
-import {EntityPicker} from "@agenta/entity-ui"
 import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
-import {
-    createWorkflowRevisionAdapter,
-    type WorkflowRevisionSelectionResult,
-} from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus, VariantNameCell} from "@agenta/entity-ui/variant"
 import {playgroundController} from "@agenta/playground"
 import {
@@ -52,7 +47,7 @@ import {
 } from "@agenta/playground-ui/workflow-revision-drawer"
 import {EnvironmentTag} from "@agenta/ui"
 import {Rocket} from "@phosphor-icons/react"
-import {Button, Typography, message} from "antd"
+import {Button, message} from "antd"
 import {getDefaultStore, useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -63,9 +58,10 @@ import {
     connectAppToEvaluatorAtom,
     persistedAppSelectionAtom,
     persistedTestsetSelectionAtom,
-    selectedAppLabelAtom,
 } from "@/oss/components/Evaluators/components/ConfigureEvaluator/atoms"
 import EvaluatorPlaygroundHeader from "@/oss/components/Evaluators/components/ConfigureEvaluator/EvaluatorPlaygroundHeader"
+import SelectAppEmptyState from "@/oss/components/Evaluators/components/ConfigureEvaluator/SelectAppEmptyState"
+import {useEvaluatorRunControls} from "@/oss/components/Evaluators/components/ConfigureEvaluator/useEvaluatorRunControls"
 import {clearEvaluatorWorkflowCache} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
 import {invalidateAppManagementWorkflowQueries} from "@/oss/components/pages/app-management/store"
 import {invalidatePromptsWorkflowQueries} from "@/oss/components/pages/prompts/store"
@@ -311,64 +307,28 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
         })
     }, [connectedTestset, setPersistedTestset])
 
-    const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
+    // Shared run controls — the same hook the full page and the creation drawer
+    // use, so every evaluator surface gates runs identically (run-on aware) and
+    // can't drift apart again. (This drawer previously hardcoded
+    // `runDisabled={!hasAppConnected}`, which ignored the run-on mode and forced
+    // an app even in test-case mode.)
+    const {appWorkflowAdapter, handleAppSelect, selectedAppLabel, runDisabled} =
+        useEvaluatorRunControls()
 
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
-    const evaluatorNode = useMemo(() => {
-        const downstream = nodes.find((n) => n.depth > 0)
-        if (downstream) return downstream
-        return nodes[0] ?? null
-    }, [nodes])
-
-    // Derive from nodes directly (single source of truth, no atom indirection)
-    const hasAppConnected = useMemo(() => nodes.some((n) => n.depth > 0), [nodes])
     const configEntityIds = useMemo(() => {
         const downstream = nodes.filter((n) => n.depth > 0)
         if (downstream.length > 0) return downstream.map((n) => n.entityId)
         return nodes.map((n) => n.entityId)
     }, [nodes])
 
-    const appWorkflowAdapter = useMemo(
-        () =>
-            createWorkflowRevisionAdapter({
-                skipVariantLevel: true,
-                excludeRevisionZero: true,
-                flags: {is_evaluator: false, is_feedback: false},
-                // Picking an *app* to connect upstream of the evaluator — the
-                // adapter's default "Evaluator" label would make the search
-                // bar say "Search evaluator…" which is wrong here.
-                parentLabel: "Application",
-            }),
-        [],
-    )
-
-    const handleAppSelect = useCallback(
-        (selection: WorkflowRevisionSelectionResult) => {
-            if (!evaluatorNode) return
-            connectApp({
-                appRevisionId: selection.id,
-                appLabel: selection.label,
-                evaluatorRevisionId: evaluatorNode.entityId,
-                evaluatorLabel: evaluatorNode.label ?? "Evaluator",
-            })
-        },
-        [connectApp, evaluatorNode],
-    )
-
     const runDisabledContent = useMemo(
         () => (
-            <>
-                <Typography.Text type="secondary" className="text-sm">
-                    Select an app to run the evaluator chain
-                </Typography.Text>
-                <EntityPicker<WorkflowRevisionSelectionResult>
-                    variant="popover-cascader"
-                    adapter={appWorkflowAdapter}
-                    onSelect={handleAppSelect}
-                    size="middle"
-                    placeholder={selectedAppLabel ?? "Select app"}
-                />
-            </>
+            <SelectAppEmptyState
+                adapter={appWorkflowAdapter}
+                onSelect={handleAppSelect}
+                selectedAppLabel={selectedAppLabel}
+            />
         ),
         [appWorkflowAdapter, handleAppSelect, selectedAppLabel],
     )
@@ -386,12 +346,7 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
     return (
         <OSSPlaygroundShell providers={providers}>
             <div className="flex flex-col w-full h-full overflow-hidden">
-                {isExpanded && (
-                    <EvaluatorPlaygroundHeader
-                        appWorkflowAdapter={appWorkflowAdapter}
-                        onAppSelect={handleAppSelect}
-                    />
-                )}
+                {isExpanded && <EvaluatorPlaygroundHeader />}
                 <PlaygroundMainView
                     mode="evaluator"
                     viewMode={isExpanded ? "full" : "configOnly"}
@@ -399,7 +354,7 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
                     configViewMode={configViewMode}
                     onConfigViewModeChange={setConfigViewMode}
                     configEntityIdsOverride={configEntityIds}
-                    runDisabled={!hasAppConnected}
+                    runDisabled={runDisabled}
                     runDisabledContent={runDisabledContent}
                 />
             </div>

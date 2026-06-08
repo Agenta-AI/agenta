@@ -1,48 +1,22 @@
 /**
  * EvaluatorPlaygroundHeader
  *
- * Simplified playground header for the evaluator configuration page.
- * Shows evaluator name, app workflow selector, and testset dropdown.
- * Reads evaluator info from playground nodes (URL-driven, no props needed).
+ * Header for the evaluator configuration page: the evaluator name plus the
+ * shared run controls. The controls (run-on selector, app picker, testset)
+ * live in `EvaluatorRunControls` so the page and the creation drawer share one
+ * implementation. Reads evaluator info from playground nodes (URL-driven).
  */
 
-import {useCallback, useMemo} from "react"
+import {useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {EntityPicker} from "@agenta/entity-ui"
-import type {
-    EntitySelectionAdapter,
-    WorkflowRevisionSelectionResult,
-} from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
-import {X} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
+import {Typography} from "antd"
+import {useAtomValue} from "jotai"
 
-import {
-    disconnectAppFromEvaluatorAtom,
-    effectiveRunOnModeAtom,
-    runOnModeAtom,
-    selectedAppLabelAtom,
-    type RunOnMode,
-} from "./atoms"
-import RunOnSelector from "./RunOnSelector"
+import EvaluatorRunControls from "./EvaluatorRunControls"
 
-const TestsetDropdown = dynamic(
-    () => import("@/oss/components/Playground/Components/TestsetDropdown"),
-    {ssr: false},
-)
-
-interface EvaluatorPlaygroundHeaderProps {
-    appWorkflowAdapter: EntitySelectionAdapter<WorkflowRevisionSelectionResult>
-    onAppSelect: (selection: WorkflowRevisionSelectionResult) => void
-}
-
-const EvaluatorPlaygroundHeader: React.FC<EvaluatorPlaygroundHeaderProps> = ({
-    appWorkflowAdapter,
-    onAppSelect,
-}) => {
+const EvaluatorPlaygroundHeader: React.FC = () => {
     // Read evaluator node from playground nodes
     // Phase 1: evaluator is at depth 0 (primary)
     // Phase 2: evaluator is at depth 1 (downstream)
@@ -77,44 +51,6 @@ const EvaluatorPlaygroundHeader: React.FC<EvaluatorPlaygroundHeaderProps> = ({
         evaluatorData?.slug?.trim() ||
         "Evaluator"
 
-    // Selected app label for display in the picker trigger
-    const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
-    const disconnectApp = useSetAtom(disconnectAppFromEvaluatorAtom)
-    const handleDisconnect = useCallback(() => {
-        disconnectApp()
-    }, [disconnectApp])
-
-    // Run-on mode — drives which loaders are surfaced. A connected app forces
-    // "app" mode (see effectiveRunOnModeAtom); the stored mode only matters when
-    // nothing is connected.
-    const runOnMode = useAtomValue(effectiveRunOnModeAtom)
-    const setRunOnMode = useSetAtom(runOnModeAtom)
-    const handlePickRunOn = useCallback(
-        (next: RunOnMode) => {
-            if (next === "trace") return // disabled, not selectable
-            // Leaving "app" mode means dropping the connected app so the graph
-            // returns to standalone-evaluator shape.
-            if (next === "data") disconnectApp()
-            setRunOnMode(next)
-        },
-        [disconnectApp, setRunOnMode],
-    )
-    const isAppMode = runOnMode === "app"
-
-    // Check if we have an app node (depth-0 with a different entity than evaluator)
-    const hasAppSelected = nodes.some((n) => n.depth === 0 && n.entityId !== evaluatorEntityId)
-
-    // Footer inside the picker popover — only when an app is currently connected.
-    // Mirrors the "Disconnect all" pattern used by the evaluator picker in
-    // `Playground/Components/PlaygroundHeader/index.tsx`.
-    const popupFooter = hasAppSelected ? (
-        <div className="border-0 border-t border-solid border-[rgba(5,23,41,0.06)] p-2">
-            <Button size="small" danger className="w-full" onClick={handleDisconnect}>
-                Disconnect app
-            </Button>
-        </div>
-    ) : undefined
-
     return (
         <div className="flex items-center justify-between gap-4 px-2.5 py-2 bg-[var(--ag-rgba-000-02)] border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
             <div className="flex shrink-0 items-center gap-2 pl-2">
@@ -123,37 +59,7 @@ const EvaluatorPlaygroundHeader: React.FC<EvaluatorPlaygroundHeaderProps> = ({
                 </Typography>
             </div>
 
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
-                <RunOnSelector mode={runOnMode} onPick={handlePickRunOn} />
-                {isAppMode && (
-                    <EntityPicker<WorkflowRevisionSelectionResult>
-                        variant="popover-cascader"
-                        adapter={appWorkflowAdapter}
-                        onSelect={onAppSelect}
-                        size="small"
-                        placeholder={selectedAppLabel ?? "Select app"}
-                        popupFooter={popupFooter}
-                    />
-                )}
-                {isAppMode && hasAppSelected && (
-                    <Tooltip title="Disconnect app">
-                        <Button
-                            type="text"
-                            size="small"
-                            icon={<X size={12} />}
-                            onClick={handleDisconnect}
-                            aria-label="Disconnect app"
-                        />
-                    </Tooltip>
-                )}
-                {/* Testset is always connectable, with or without an upstream
-                 * app. The earlier `hasAppSelected` gate matched the
-                 * runDisabled gate we removed in T7 — same regression, same
-                 * fix: standalone evaluator runs need a testset just as much
-                 * as chained ones (the evaluator's prompt template variables
-                 * still come from testcase row fields). */}
-                <TestsetDropdown />
-            </div>
+            <EvaluatorRunControls />
         </div>
     )
 }
