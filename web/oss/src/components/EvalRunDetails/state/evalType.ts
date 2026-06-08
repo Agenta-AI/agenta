@@ -8,7 +8,7 @@ import {
 
 import {evaluationRunQueryAtomFamily} from "../atoms/table/run"
 
-export type PreviewEvaluationType = "auto" | "human" | "online" | null
+export type PreviewEvaluationType = EvaluationRunKind | null
 
 /**
  * Base atom for storing the evaluation type.

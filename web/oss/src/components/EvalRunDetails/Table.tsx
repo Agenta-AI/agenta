@@ -16,6 +16,7 @@ import {
     EXPORT_RESOLVE_SKIP,
     type TableExportColumnContext,
 } from "@/oss/components/InfiniteVirtualTable/hooks/useTableExport"
+import type {EvaluationRunKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 
 import useComparisonPaginations from "../EvalRunDetails2/hooks/useComparisonPaginations"
 import useComparisonSchemas from "../EvalRunDetails2/hooks/useComparisonSchemas"
@@ -53,7 +54,7 @@ type TableRowData = PreviewTableRow
 
 interface EvalRunDetailsTableProps {
     runId: string
-    evaluationType: "auto" | "human" | "online"
+    evaluationType: EvaluationRunKind
     skeletonRowCount?: number
     projectId?: string | null
 }
@@ -500,9 +501,9 @@ const EvalRunDetailsTable = ({
         // Add static metric columns (they have composite keys like "groupId::metricPath")
         if (columnResult?.groups && columnResult?.staticMetricColumns) {
             const metricsForType =
-                evaluationType === "auto"
-                    ? columnResult.staticMetricColumns.auto
-                    : columnResult.staticMetricColumns.human
+                evaluationType === "human"
+                    ? columnResult.staticMetricColumns.human
+                    : columnResult.staticMetricColumns.auto
 
             columnResult.groups
                 .filter((group) => group.kind === "metric")

@@ -1,3 +1,5 @@
+import type {EvaluationRunKind} from "@/oss/lib/evaluations/utils/evaluationKind"
+
 import type {
     EvaluationColumnKind,
     EvaluationTableColumn,
@@ -91,7 +93,7 @@ const createSkeletonGroupColumns = (
 }
 
 export const buildSkeletonColumnResult = (
-    evaluationType: "auto" | "human" | "online",
+    evaluationType: EvaluationRunKind,
 ): EvaluationTableColumnsResult => {
     const metaColumns = createMetaSkeletonColumns({
         includeTimestamp: evaluationType === "online",

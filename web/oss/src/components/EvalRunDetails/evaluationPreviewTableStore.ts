@@ -13,11 +13,11 @@ import {effectiveProjectIdAtom} from "./atoms/run"
 import type {WindowingState, EvaluationScenarioRow} from "./atoms/table"
 import {fetchEvaluationScenarioWindow} from "./atoms/table/scenarios"
 import type {PreviewTableRow} from "./atoms/tableRows"
-import {previewEvalTypeAtom} from "./state/evalType"
+import {previewEvalTypeAtom, type PreviewEvaluationType} from "./state/evalType"
 
 interface EvaluationPreviewMeta {
     projectId: string | null
-    evaluationType: "auto" | "human" | "online" | null
+    evaluationType: PreviewEvaluationType
 }
 
 const createSkeletonRow = ({

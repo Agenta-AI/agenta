@@ -7,6 +7,7 @@ import type {ColumnTreeNode} from "@/oss/components/InfiniteVirtualTable"
 import ColumnVisibilityMenuTrigger, {
     type ColumnVisibilityNodeMeta,
 } from "@/oss/components/InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityMenuTrigger"
+import type {EvaluationRunKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import {
@@ -26,7 +27,7 @@ type TableRowData = PreviewTableRow
 
 export interface PreviewColumnsArgs {
     columnResult: EvaluationTableColumnsResult | undefined
-    evaluationType: "auto" | "human" | "online"
+    evaluationType: EvaluationRunKind
 }
 
 export interface PreviewColumnsResult {
@@ -42,7 +43,7 @@ export interface PreviewColumnsResult {
 
 const selectColumnsForType = (
     result: EvaluationTableColumnsResult | undefined,
-    evaluationType: "auto" | "human" | "online",
+    evaluationType: EvaluationRunKind,
 ) => {
     if (
         !result ||
@@ -53,7 +54,7 @@ const selectColumnsForType = (
     }
 
     // Online evaluations use auto metrics, human evaluations use human metrics
-    const useAutoMetrics = evaluationType === "auto" || evaluationType === "online"
+    const useAutoMetrics = evaluationType !== "human"
 
     const relevantGroups = result.groups.filter((group) => {
         if (group.kind !== "metric") return true
@@ -86,9 +87,9 @@ const usePreviewColumns = ({
 
     const metricsForType = useMemo(
         () =>
-            evaluationType === "auto" || evaluationType === "online"
-                ? columnData.staticMetricColumns.auto
-                : columnData.staticMetricColumns.human,
+            evaluationType === "human"
+                ? columnData.staticMetricColumns.human
+                : columnData.staticMetricColumns.auto,
         [columnData.staticMetricColumns, evaluationType],
     )
 

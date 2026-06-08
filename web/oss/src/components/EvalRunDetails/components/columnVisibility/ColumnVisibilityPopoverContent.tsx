@@ -6,6 +6,7 @@ import type {ColumnTreeNode, ColumnVisibilityState} from "@/oss/components/Infin
 import ColumnVisibilityPopoverContentBase, {
     type ColumnVisibilityNodeMeta,
 } from "@/oss/components/InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent"
+import type {EvaluationRunKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import {
@@ -19,7 +20,7 @@ import {buildSkeletonColumnResult} from "../../utils/buildSkeletonColumns"
 import {resolveGroupLabel, humanizeStepKey, titleize} from "../../utils/labelHelpers"
 import StepGroupHeader from "../TableHeaders/StepGroupHeader"
 
-type EvaluationType = "auto" | "human"
+type EvaluationType = EvaluationRunKind
 
 interface ScenarioColumnVisibilityPopoverContentProps {
     runId: string
@@ -45,15 +46,15 @@ const selectColumnsForType = (
 
     const relevantGroups = result.groups.filter((group) => {
         if (group.kind !== "metric") return true
-        return evaluationType === "auto"
-            ? group.id.includes("metrics:auto")
-            : group.id.includes("metrics:human")
+        return evaluationType === "human"
+            ? group.id.includes("metrics:human")
+            : group.id.includes("metrics:auto")
     })
 
     const staticMetrics =
-        evaluationType === "auto"
-            ? {auto: result.staticMetricColumns.auto, human: [] as MetricColumnDefinition[]}
-            : {auto: [] as MetricColumnDefinition[], human: result.staticMetricColumns.human}
+        evaluationType === "human"
+            ? {auto: [] as MetricColumnDefinition[], human: result.staticMetricColumns.human}
+            : {auto: result.staticMetricColumns.auto, human: [] as MetricColumnDefinition[]}
 
     return {
         columns: result.columns,
@@ -158,9 +159,9 @@ const ScenarioColumnVisibilityPopoverContent = ({
             {metric: MetricColumnDefinition; group?: EvaluationTableColumnGroup}
         >()
         const metricsForType =
-            evaluationType === "auto"
-                ? columnData.staticMetricColumns.auto
-                : columnData.staticMetricColumns.human
+            evaluationType === "human"
+                ? columnData.staticMetricColumns.human
+                : columnData.staticMetricColumns.auto
 
         if (!metricsForType.length) return map
 
