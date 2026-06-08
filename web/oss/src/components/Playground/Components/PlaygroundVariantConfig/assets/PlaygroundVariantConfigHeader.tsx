@@ -72,6 +72,10 @@ const PlaygroundVariantConfigHeader = ({
                 skipVariantLevel: true,
                 excludeRevisionZero: true,
                 flags: {is_evaluator: false, is_feedback: false},
+                // App browse picker — without this the search bar would say
+                // "Search evaluator…" (the adapter's default in skip-variant
+                // mode) while the user is browsing apps.
+                parentLabel: "Application",
             }),
         [],
     )
