@@ -2910,6 +2910,36 @@ class SimpleEvaluationsService:
             ),
         )
 
+        # Mirror the re-activation at the scenario level so per-scenario status indicators
+        # also reflect the reprocess. edit_scenarios is a full PUT, so every persisted field
+        # is carried over and only status/is_active flip; the engine writes each scenario's
+        # terminal status back as it finishes.
+        scenarios = await self.evaluations_service.query_scenarios(
+            project_id=project_id,
+            scenario=EvaluationScenarioQuery(run_id=run_id, ids=scenario_ids),
+            windowing=Windowing(limit=10_000),
+        )
+        if scenarios:
+            await self.evaluations_service.edit_scenarios(
+                project_id=project_id,
+                user_id=user_id,
+                scenarios=[
+                    EvaluationScenarioEdit(
+                        id=scenario.id,
+                        flags=(
+                            scenario.flags.model_copy(update={"is_active": True})
+                            if scenario.flags
+                            else EvaluationRunFlags(is_active=True)
+                        ),
+                        status=EvaluationStatus.RUNNING,
+                        interval=scenario.interval,
+                        timestamp=scenario.timestamp,
+                        meta=scenario.meta,
+                    )
+                    for scenario in scenarios
+                ],
+            )
+
         await self.evaluations_task_runner.process_rerun(
             project_id=project_id,
             user_id=user_id,
