@@ -182,9 +182,18 @@ duplicates** — proving parity against OSS first.
 
 ## 5. Work Packages (sequenced; each keeps annotation green)
 
-Each WP lists: **Move** (what/from→to), **DoD** (definition of done), **Regression gate**.
-Do them in order. Do not start a WP until the previous one's DoD + gate pass.
+Each WP lists: **Move** (what/from→to), **DoD** (definition of done), **Integration test**
+(real API, real atoms), and **Regression gate**. Do them in order. Do not start a WP until
+the previous one's DoD + tests + gate pass.
 
+> **Testing is part of every WP's DoD — non-negotiable (see §8).** Every WP that moves
+> state/logic ships a **real-API integration test that drives the SHIPPED atoms/molecules/
+> controllers** — never a test-local replica of the logic. Setup may seed data via the raw
+> Fern client, but assertions go through the real package surface. A WP without its
+> integration test is NOT done. (Why: this migration's own mapping-kind bug shipped because a
+> test hand-built `mappings:[]` instead of calling the real `buildRunConfig` — it passed
+> against broken code. Never again.)
+>
 > Pre-flight (every WP touching package manifests): keep all `package.json` + lock changes in
 > ONE commit (prettier hook rewrites the lock otherwise). Respect import hierarchy. `no any`.
 > Run `pnpm --filter <pkg> build` + `lint` before committing.
@@ -195,8 +204,10 @@ Do them in order. Do not start a WP until the previous one's DoD + gate pass.
   `@agenta/evaluations` registration done this session). Promote `evaluationScenario` to a
   first-class `entities` module (molecule/api/core) from the half-schema currently under
   `evaluationRun`.
-- **DoD:** packages build; `evaluationScenario` molecule has unit + integration tests
-  (populated scenario round-trip, like the existing eval-run integration suite).
+- **DoD:** packages build; `evaluationScenario` is a first-class molecule.
+- **Integration test (real API, real atoms):** drive the **shipped `evaluationScenario`
+  molecule** (its api + atom selectors) against a real run's scenarios — create → query →
+  read selectors → assert; like the existing eval-run integration suite. Not a replica schema.
 - **Regression gate:** full entities unit (591+) green; eval integration green; OSS/EE build.
 
 ### WP-1 — Extract the scenario **session engine** → `@agenta/evaluations`
@@ -207,9 +218,13 @@ Do them in order. Do not start a WP until the previous one's DoD + gate pass.
   `annotationColumnDefs`→`evaluatorColumnDefs`, etc.) with re-exports kept in `annotation`
   temporarily to avoid churn.
 - **DoD:** `@agenta/annotation` controller is now a thin wrapper over `evaluations`; no logic
-  duplicated. New `evaluations` session controller has headless integration tests
-  (scenario nav, statuses, metrics, column defs against a real populated run — extend the
-  existing harness; reuse the real-project read-only smoke for worker-computed metrics).
+  duplicated.
+- **Integration test (real API, real atoms):** drive the **shipped `evaluations` session
+  controller** (its real atoms/selectors — `scenarioIds`, `currentScenarioId`, navigate
+  actions, `scenarioStatuses`, `scenarioMetrics`, `evaluatorColumnDefs`) against a real
+  populated run; extend the existing harness. Assert through the controller surface, not a
+  copy. Worker-computed metrics via the real-project read-only smoke. Because the annotation
+  controller is now a wrapper, the existing annotation tests also exercise the moved engine.
 - **Regression gate:** annotation routes manually QA'd green (open queue, navigate scenarios,
   metrics render); annotation package tests green.
 
@@ -217,7 +232,12 @@ Do them in order. Do not start a WP until the previous one's DoD + gate pass.
 - **Move:** `getOutputsSchema`, `getMetricFieldsFromEvaluator`, `getMetricsFromAnnotation`,
   `evaluators`, `evaluatorResolution` into `evaluations`. The annotation submit form stays in
   `annotation`, importing these.
-- **DoD:** no metric/schema extraction logic left duplicated; unit tests moved/added.
+- **DoD:** no metric/schema extraction logic left duplicated.
+- **Integration test (real API, real atoms):** seed a real run with evaluator (annotation)
+  steps, then drive the **shipped `evaluations` metric/schema functions** (`getMetricFieldsFromEvaluator`,
+  `getOutputsSchema`, `getMetricsFromAnnotation`, `evaluatorResolution`) against the real
+  evaluator workflow — assert the metric fields/schema resolve. Do NOT re-derive the schema in
+  the test. Worker-computed metric values verified via the real-project read-only smoke.
 - **Regression gate:** annotation submit flow QA'd (fill metric → submit → persists).
 
 ### WP-3 — Move the run **list store + table** → `evaluations` / `evaluations-ui`
@@ -228,6 +248,10 @@ Do them in order. Do not start a WP until the previous one's DoD + gate pass.
   renders the table with a "queue" preset.
 - **DoD:** one table component; annotation queue list renders via the generic table + preset;
   no second table authored.
+- **Integration test (real API, real atoms):** drive the **shipped `evaluations` run-list
+  store** (its real atoms — list query, kind/status filters, search term, pagination/windowing
+  cursor) against real runs/queues; assert the returned, parsed rows. Reuse the populated-run
+  seeding + the real-project read-only smoke. Do NOT reimplement the list query in the test.
 - **Regression gate:** annotation queue list QA'd (list, filter, search, pagination,
   created-by, progress).
 
@@ -330,21 +354,45 @@ grep -rlE "atom\(|atomFamily\(|atomWithQuery\(|atomWithMutation\(" oss/src/compo
 
 A non-empty result that is NOT on the tracked-terminal list = the migration is **not done**.
 The terminal list (legacy bridge, onlineEvaluations) must have its own filed deletion WPs so
-it is never "forgotten" — track them in §9 Open until closed.
+it is never "forgotten" — track them in §10 Open until closed.
 
 ## 8. Testing & regression methodology
 
-- **Headless integration** (gated on `AGENTA_API_URL`+`AGENTA_AUTH_KEY`, ephemeral account):
-  every moved controller/store gets tests that create a real run/scenario and exercise the
-  selectors/actions — the pattern established this session
-  (`evaluationRun.integration.test.ts`, 18 tests). Worker-computed data (metrics) verified via
-  the **read-only real-project smoke** (`parseExistingRuns.integration.test.ts`).
+**Hard rule — test the SHIPPED atoms, against the REAL API, never a replica.** Every WP that
+moves state/logic ships a headless integration test that:
+1. **Imports and exercises the exact shipped surface** being moved — the real molecule
+   selectors, the real controller atoms/actions, the real store atoms, the real api functions.
+   The test must NOT re-derive, re-implement, or hand-roll the logic it's verifying. If you
+   delete the package code, the test must fail to compile — that's the proof it's testing the
+   real thing.
+2. **Runs against the real backend** (gated on `AGENTA_API_URL`+`AGENTA_AUTH_KEY`, ephemeral
+   account; pattern: `evaluationRun.integration.test.ts`). Setup MAY seed data via the raw Fern
+   client (entities can't depend on `evaluations`), but **all assertions go through the shipped
+   package surface**, not the raw client.
+3. **Covers worker-computed data** (metrics) via the read-only real-project smoke
+   (`parseExistingRuns.integration.test.ts`) — it can't be produced in the ephemeral harness.
+
+Anti-pattern that is explicitly banned (it caused this migration's mapping-kind bug): a test
+that constructs its own payload/logic (e.g. hand-built `mappings:[]`) instead of calling the
+shipped builder/selector — it passes against broken code and proves nothing.
+
+**Per-WP integration coverage (the shipped surface each WP's test must drive):**
+
+| WP | Shipped surface under test (real atoms) | Seed | Worker-data |
+|---|---|---|---|
+| WP-0 | `evaluationScenario` molecule (api + selectors) | create run+scenario via Fern | — |
+| WP-1 | `evaluations` session controller (scenario nav/status/metrics/`evaluatorColumnDefs`) + annotation wrapper | populated run | real-project smoke |
+| WP-2 | `evaluations` metric/schema fns (`getMetricFieldsFromEvaluator`, `getOutputsSchema`, …) | run with evaluator steps | real-project smoke |
+| WP-3 | `evaluations` run-list store (list query, filters, search, windowing) | runs/queues | — |
+| WP-4 | parity: package-driven derived data == OSS baseline, for the same run id | real runs | real-project smoke |
+
 - **Parity tests (WP-4):** assert the package-driven view produces the same rows/columns/
   metric values as the OSS baseline for the same run id (snapshot the derived data, not pixels).
 - **Manual UI matrix:** the §4 routes, for both annotation (keep-green) and eval (parity)
   flows. Required before any OSS deletion.
 - **Gating reminder:** integration tests SKIP (read green) without env — never treat a skipped
-  run as a pass. Run with the backend explicitly.
+  run as a pass. Run with the backend explicitly. A WP's "tests green" gate means *ran with a
+  backend and passed*, not *skipped*.
 
 ---
 
