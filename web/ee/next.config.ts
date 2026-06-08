@@ -31,6 +31,7 @@ const config = {
             "@agenta/annotation",
             "@agenta/annotation-ui",
             "@agenta/evaluations",
+            "@agenta/evaluations-ui",
         ],
     },
     typescript: {
