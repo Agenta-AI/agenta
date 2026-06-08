@@ -3,6 +3,8 @@
  * These functions use axios with automatic project ID injection.
  */
 
+import {queryEvaluationResults} from "@agenta/entities/evaluationRun"
+
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getProjectValues} from "@/oss/state/project"
 
@@ -65,19 +67,26 @@ export const queryStepResults = async ({
     stepKeys,
 }: QueryResultsParams): Promise<StepResult[]> => {
     const {projectId} = getProjectValues()
+    if (!projectId) return []
 
-    const response = await axios.post(`${RESULTS_ENDPOINT}query?project_id=${projectId}`, {
-        result: {
-            run_ids: [runId],
-            scenario_ids: [scenarioId],
-            ...(stepKeys?.length ? {step_keys: stepKeys} : {}),
-        },
-        windowing: {},
+    // Reuse the shared Fern-backed package query (same POST /evaluations/results/query)
+    // instead of a duplicate axios call. Returns the same snake_case rows (schemas
+    // passthrough), structurally compatible with StepResult.
+    const results = await queryEvaluationResults({
+        projectId,
+        runId,
+        scenarioIds: [scenarioId],
+        stepKeys,
     })
-
-    const data = response.data
-    return Array.isArray(data.results) ? data.results : Array.isArray(data.steps) ? data.steps : []
+    return results as unknown as StepResult[]
 }
+
+// NOTE: the result MUTATIONS below stay on raw axios for now. They cannot move to the
+// Fern client yet because Fern's generated `EvaluationResultCreate` under-declares fields
+// the backend accepts (no `span_id`, `references`, or `data`) — routing through Fern would
+// silently drop `span_id` and break annotation trace/span linking. Unblock by extending the
+// backend OpenAPI spec + regenerating the client, then swap these to a package
+// `setEvaluationResults` (Fern `setResults`).
 
 /**
  * Update step results (PATCH).
