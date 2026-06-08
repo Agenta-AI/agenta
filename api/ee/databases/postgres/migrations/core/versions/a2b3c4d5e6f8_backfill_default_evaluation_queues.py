@@ -35,14 +35,15 @@ depends_on: Union[str, Sequence[str], None] = None
 BATCH_SIZE = 100
 
 
-# Keyset pagination over run ids. id > cursor with ORDER BY id is index-friendly
-# (id is part of the PK) and stable; LIMIT bounds each chunk. Compared as text so
-# the cursor is a plain string seeded as "" below every UUID.
+# Keyset pagination over run ids. Compared on the native `uuid` column so the
+# primary-key btree index drives each page (a text cast would make the predicate
+# non-sargable and force a full scan + sort per page). Ordering is by uuid byte
+# value, seeded with the zero UUID so the first page starts below every id.
 _NEXT_RUN_IDS = sa.text("""
     SELECT id::text
     FROM evaluation_runs
-    WHERE id::text > :cursor
-    ORDER BY id::text
+    WHERE id > CAST(:cursor AS uuid)
+    ORDER BY id
     LIMIT :batch
 """)
 
@@ -203,7 +204,7 @@ def _flags_patch(row) -> str:
 def upgrade() -> None:
     connection = op.get_bind()
 
-    cursor = ""
+    cursor = "00000000-0000-0000-0000-000000000000"
     processed = 0
     created = 0
     archived = 0

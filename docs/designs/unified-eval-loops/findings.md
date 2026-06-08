@@ -10,10 +10,10 @@ Sources:
 
 ## Summary
 
-- Status: 9 open findings synced from PR #4341 review threads (UEL-034..042). All re-verified as present in current code.
-- Severity spread: 1 P1 (data loss on finalize), 2 P2 (silent failure-drop in SDK; migration single-transaction/lock footprint), 6 P2/P3 (dead code, exception-mapping gap, connection-pool churn, three N+1 query paths). One is flagged by the reviewer as out-of-scope for this PR (UEL-038, async-engine serialization).
-- All 9 GitHub threads are `unresolved` / not `outdated`; none have been replied to. Left open pending user disposition — no threads resolved in this sync.
-- Note: UEL-035 (migration single-transaction + `id::text` keyset) lives in the same migration file as the in-progress "default queue name backfill" fix, but is a distinct concern (transaction/lock footprint, not the `name` column) and is untouched by that fix.
+- Status: 9 findings synced from PR #4341 review threads (UEL-034..042). 3 resolved this turn (UEL-035 keyset fix, UEL-037 dead-handler removal, UEL-038 decorator), 6 open pending disposition.
+- Severity spread: 1 P1 (data loss on finalize), 1 P2 silent failure-drop in SDK, plus exception-mapping gap, connection-pool churn, three N+1 query paths. One reviewer-flagged out-of-scope (UEL-042, async-engine serialization).
+- GitHub threads: all 9 remain `unresolved` / not `outdated` and none replied to — code fixes applied locally are not yet pushed, so threads stay open until the branch is updated.
+- Note: UEL-035 lives in the same migration file as the in-progress "default queue name backfill" fix, but is a distinct concern and untouched by that fix.
 
 ## Notes
 
@@ -44,21 +44,22 @@ Sources:
 - Suggested Fix: Minimal — `data=current_run.data if current_run else run.data`, keeping `prior_step_keys` and the written graph in sync so the prune is a no-op unless the graph really changed. Cleaner — add a dedicated `set_run_status` path that writes status + flags only and never touches the graph or queue reconciliation, so a status-only finalize cannot mutate the graph as a side effect. Also removes the per-slice cost of rewriting the full graph + re-running queue reconciliation when nothing changed.
 - Sources: PR #4341 thread, comment 3375193915 (@mmabrouk).
 
-### [OPEN] UEL-035: Backfill migration runs as one long transaction; text-cast keyset defeats the PK index
+### [OPEN] UEL-035: Text-cast keyset (`id::text`) defeats the PK index on the backfill pagination
 
 - Origin: sync
 - Lens: verification
 - Severity: P2
 - Confidence: high
-- Status: needs-user-decision
-- Category: Migration
-- Files: `api/oss/databases/postgres/migrations/core/versions/a2b3c4d5e6f8_backfill_default_evaluation_queues.py:282` (batch loop), `:44` (keyset query). EE copy mirrors this.
-- Summary: The loop chunks work by `BATCH_SIZE` but never commits. Alembic runs with `transaction_per_migration=True` (see `migrations/core/env.py`), so nothing commits until `upgrade()` returns — every flag update, created queue, and archived queue stays inside a single open transaction for the full run. On a large `evaluation_runs` table this holds locks the whole time, grows the WAL, and risks a statement/lock timeout that rolls back everything. The header comment calling this "chunked and safe to re-run" is misleading for the lock/transaction footprint. Separately, the keyset query casts `id::text` and orders by text, which prevents the `uuid` PK index from being used, so each page scans + sorts the whole table.
-- Evidence: No `connection.commit()` in the loop body; `cursor = ids[-1]` then loops. `_NEXT_RUN_IDS` uses `WHERE id::text > :cursor ORDER BY id::text`.
-- Cause: per-statement chunking does not bound the transaction; text-cast comparison is not index-sargable on a `uuid` column.
-- Suggested Fix: Add `connection.commit()` after each batch (each step is idempotent — create uses an existence check, archive is a conditional update, flag write is a deterministic merge — so per-batch commits are safe and a mid-run failure resumes cleanly). Page on native `id` (`WHERE id > :cursor ORDER BY id`, seeded with the zero UUID) so the PK index is used.
-- Alternatives: Keep single-transaction if the target installs are known-small, but then drop the "safe to re-run / chunked" framing from the header comment.
-- Sources: PR #4341 thread, comment 3375211093 (@mmabrouk). Note: distinct from the in-progress `name` backfill fix on this same file.
+- Status: in-progress (keyset fixed locally; single-transaction half resolved as wontfix-by-design — see below)
+- Category: Migration / Performance
+- Files: `api/oss/databases/postgres/migrations/core/versions/a2b3c4d5e6f8_backfill_default_evaluation_queues.py:41` (`_NEXT_RUN_IDS`). EE copy mirrors this.
+- Summary: The original keyset query cast `id::text` and ordered by text. `evaluation_runs.id` is a native `uuid` column (`IdentifierDBA`, `default=uuid.uuid7`). The text cast makes the predicate non-sargable against the uuid PK btree, so each page does a full scan + sort of the table — turning keyset pagination's intended O(page) per step into O(n), i.e. O(n²) over the whole backfill. Separately, text ordering of UUIDs only coincidentally agrees with native uuid byte-ordering when every id is in identical canonical lowercase hex form (which `uuid7` guarantees), so it was not actively skipping rows — but it relied on that representational coincidence rather than the column's real type.
+- Evidence: was `WHERE id::text > :cursor ORDER BY id::text`; `id` is `Column(UUID(as_uuid=True), default=uuid.uuid7)` in `IdentifierDBA`.
+- Cause: text-cast comparison is not index-sargable on a `uuid` column.
+- Resolution (applied locally, both OSS + EE, ruff clean): switched to native-uuid keyset — `WHERE id > CAST(:cursor AS uuid) ORDER BY id`, cursor seeded with the zero UUID `00000000-0000-0000-0000-000000000000`. `SELECT id::text` is retained so the Python cursor stays a plain string that casts cleanly back. The PK index now drives each page.
+- Nuance — the PK index helps the *cursor*, not the *workload*: the index fix only speeds up the page-advance step (`WHERE id > cursor ORDER BY id LIMIT n` finding where the next page starts). It does **not** remove a full table scan from the migration. The heavy per-chunk work is `_COMPUTE_CHUNK` — the `jsonb_array_elements` step scan over each run's graph plus the LEFT JOIN to `evaluation_queues` — and a backfill has to visit every run exactly once regardless, so a full pass over `evaluation_runs` is inherent and unavoidable. What the old `id::text` keyset added on top of that was an O(n) full scan + sort *per page* just to locate the cursor (→ O(n²) total pagination overhead); the fix collapses that overhead to O(log n) per page. So the value of the PK keyset here is bounded: it removes the quadratic re-scan caused by the text cast, but the migration is still O(n) total because it deliberately touches every row once. The index does not turn this into a cheap partial-table operation, and was never going to.
+- On the reviewer's single-transaction half (wontfix — expected): the migration intentionally runs in one transaction (Alembic `transaction_per_migration=True`) so the whole backfill is all-or-nothing. Chunking is only there to bound per-statement size, per-statement lock scope, and to give progress logging — not to bound the transaction. Per-batch `connection.commit()` is deliberately not added; the all-or-nothing guarantee is the desired behavior. (Header comment's "chunked / safe to re-run" framing is about idempotent re-runs of the whole migration, which still holds.)
+- Sources: PR #4341 thread, comment 3375211093 (@mmabrouk). User disposition 2026-06-08: single-transaction is expected; investigate + fix the `id::text` keyset.
 
 ### [OPEN] UEL-036: `set_metrics` closed-run check opens one DB connection per metric
 
@@ -74,36 +75,6 @@ Sources:
 - Cause: closed-run check not hoisted/deduped into a single shared session.
 - Suggested Fix: Mirror `set_results` — open one `async with self.engine.session()`, dedupe `{m.run_id for m in metrics}`, pass `session=session` to `_get_run_flags`, raise `EvaluationClosedConflict` per closed run.
 - Sources: PR #4341 thread, comment 3375235286 (@mmabrouk, marked "minor"). Matches prior note `dao_one_connection_per_call`.
-
-### [OPEN] UEL-037: `archive_queue` / `unarchive_queue` handlers are defined but never registered (dead code)
-
-- Origin: sync
-- Lens: verification
-- Severity: P3
-- Confidence: high
-- Status: needs-user-decision
-- Category: Completeness
-- Files: `api/oss/src/apis/fastapi/evaluations/router.py:1736` (`archive_queue`), `:1760` (`unarchive_queue`)
-- Summary: Both handlers are complete with permission checks, but nothing registers them — no `add_api_route` and no `/archive` or `/unarchive` path anywhere in the router, so neither endpoint is reachable. Not a runtime bug, but misleading: handlers that look live but are wired to nothing cost the next reader time, and the permission checks imply an intended lifecycle endpoint that someone may assume works.
-- Evidence: `grep` for `/archive` / `/unarchive` route strings returns nothing; the only hits are the handler defs and the service calls inside them.
-- Cause: routes never added (or removed) after the handlers were written.
-- Suggested Fix: Either register `/{id}/archive` and `/{id}/unarchive` via `add_api_route` (per the AGENTS.md lifecycle convention), or remove both handlers until the routes are needed.
-- Sources: PR #4341 thread, comment 3375254138 (@mmabrouk).
-
-### [OPEN] UEL-038: Deleting a default queue returns 500 instead of 409 (missing exception-mapping decorator)
-
-- Origin: sync
-- Lens: verification
-- Severity: P2
-- Confidence: high
-- Status: needs-user-decision
-- Category: Correctness
-- Files: `api/oss/src/apis/fastapi/evaluations/router.py:2931` (`delete_simple_queue`), `:2957` (`delete_simple_queues`)
-- Summary: Both delete handlers carry only `@intercept_exceptions()` and are missing `@handle_evaluation_closed_exception()`, the decorator that translates evaluation domain exceptions into proper HTTP responses. The delete path can raise `DefaultQueueDeletionForbidden`; without the translating decorator that surfaces as a generic 500 instead of the intended 409, reading to the user as a crash rather than a clear "cannot delete the default queue" message. The run/result delete handlers above stack both decorators.
-- Evidence: line 2930 `@intercept_exceptions()` directly above `async def delete_simple_queue` (2931); no `@handle_evaluation_closed_exception()` present. Same for `delete_simple_queues` (2956/2957).
-- Cause: missing decorator on these two handlers.
-- Suggested Fix: Add `@handle_evaluation_closed_exception()` beneath `@intercept_exceptions()` on both handlers.
-- Sources: PR #4341 thread, comment 3375254252 (@mmabrouk).
 
 ### [OPEN] UEL-039: SDK slice processor swallows a failed scenario — drops it from the run rollup with no errored status
 
@@ -167,4 +138,31 @@ Sources:
 
 ## Closed Findings
 
-None in this sync. Historical closed findings (UEL-001..033) are retained in `findings.old.md`.
+### [CLOSED] UEL-037: `archive_queue` / `unarchive_queue` router handlers removed (dead code)
+
+- Origin: sync
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed
+- Category: Completeness
+- Files: `api/oss/src/apis/fastapi/evaluations/router.py` (removed handlers formerly at `:1736` / `:1760`)
+- Summary: Both handlers were complete with permission checks but had no `add_api_route` / route path registering them — the user-facing archive/unarchive endpoints were intentionally removed, but the route handlers were left behind. Archive/unarchive is reserved for reconciliation, which goes through the **service** layer, not the router.
+- Resolution (applied locally): removed the two dead router handlers. The service methods `EvaluationsService.archive_queue` / `unarchive_queue` are kept — they are live, called by `_reconcile_default_queue` (`service.py:465`, `:471`). Confirmed the handlers were referenced nowhere (no `add_api_route`, no `self.archive_queue`/`self.unarchive_queue`); OSS-only (no EE evaluations router). ruff clean.
+- Sources: PR #4341 thread, comment 3375254138 (@mmabrouk). User disposition 2026-06-08: endpoint deliberately removed, handler is leftover dead code → remove the handler, keep the service.
+
+### [CLOSED] UEL-038: `delete_simple_queue(s)` missing the domain-exception decorator (500 instead of 409)
+
+- Origin: sync
+- Lens: verification
+- Severity: P2
+- Confidence: high
+- Status: fixed
+- Category: Correctness
+- Files: `api/oss/src/apis/fastapi/evaluations/router.py` (`delete_simple_queue`, `delete_simple_queues`)
+- Summary: Both handlers carried only `@intercept_exceptions()` and lacked `@handle_evaluation_closed_exception()`, the decorator that maps evaluation domain exceptions to their HTTP responses (`DefaultQueueDeletionForbidden` → `DefaultQueueEditingForbiddenException` → 409). Every sibling mutation handler (`delete_queue`, run/result deletes) stacks both; these two were inconsistent, so a domain forbidden-delete would surface as a generic 500.
+- Resolution (applied locally, ruff clean): added `@handle_evaluation_closed_exception()` beneath `@intercept_exceptions()` on both handlers, matching the established pattern.
+- Note on reachability: through the `SimpleQueuesService.delete` path (`service.py:4394`), a default-queue delete is deliberately rerouted to `delete_run` (cascading the default queue away) rather than raising `DefaultQueueDeletionForbidden`, so the 500 was latent rather than currently hit via this exact endpoint. The decorator is still the correct fix — it restores parity with the other mutation handlers and maps the exception to 409 if the simple-delete logic ever surfaces the forbidden case. `delete_queue` itself does raise it (`service.py:2063`).
+- Sources: PR #4341 thread, comment 3375254252 (@mmabrouk). User disposition 2026-06-08: fix it.
+
+Historical closed findings (UEL-001..033) are retained in `findings.old.md`.
