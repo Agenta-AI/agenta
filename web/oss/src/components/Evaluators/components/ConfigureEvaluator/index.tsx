@@ -14,15 +14,8 @@ import {useCallback, useEffect, useMemo} from "react"
 
 import {loadableController} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
-import {EntityPicker} from "@agenta/entity-ui"
-import {
-    createWorkflowRevisionAdapter,
-    type WorkflowRevisionSelectionResult,
-} from "@agenta/entity-ui/selection"
-import {playgroundController} from "@agenta/playground"
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
-import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -32,13 +25,10 @@ import {OSSPlaygroundShell} from "@/oss/components/Playground/OSSPlaygroundShell
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 import {playgroundSyncAtom} from "@/oss/state/url/playground"
 
-import {
-    connectAppToEvaluatorAtom,
-    evaluatorConfigEntityIdsAtom,
-    hasAppConnectedAtom,
-    selectedAppLabelAtom,
-} from "./atoms"
+import {evaluatorConfigEntityIdsAtom} from "./atoms"
 import EvaluatorPlaygroundHeader from "./EvaluatorPlaygroundHeader"
+import SelectAppEmptyState from "./SelectAppEmptyState"
+import {useEvaluatorRunControls} from "./useEvaluatorRunControls"
 
 const PlaygroundMainView = dynamic(
     () => import("@/oss/components/Playground/Components/MainLayout"),
@@ -77,63 +67,24 @@ const ConfigureEvaluatorPageInner = () => {
     useAtomValue(playgroundSyncAtom)
 
     const configEntityIds = useAtomValue(evaluatorConfigEntityIdsAtom)
-    const hasAppConnected = useAtomValue(hasAppConnectedAtom)
-    const connectApp = useSetAtom(connectAppToEvaluatorAtom)
-    const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
 
-    // Read the current evaluator entity from playground nodes
-    // Phase 1: evaluator is at depth 0 (primary)
-    // Phase 2: evaluator is at depth 1 (downstream)
-    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
-    const evaluatorNode = useMemo(() => {
-        const downstream = nodes.find((n) => n.depth > 0)
-        if (downstream) return downstream
-        return nodes[0] ?? null
-    }, [nodes])
+    // Shared run controls (app adapter, app-select, run-on mode, run gate) — the
+    // same hook the header and the creation drawer use, so all surfaces agree.
+    const {appWorkflowAdapter, handleAppSelect, selectedAppLabel, runDisabled} =
+        useEvaluatorRunControls()
 
     // Preload editor plugins
     useEffect(() => {
         void preloadEditorPlugins()
     }, [])
 
-    // App workflow picker (shared between header and empty state)
-    const appWorkflowAdapter = useMemo(
-        () =>
-            createWorkflowRevisionAdapter({
-                skipVariantLevel: true,
-                excludeRevisionZero: true,
-                flags: {is_evaluator: false, is_feedback: false},
-            }),
-        [],
-    )
-
-    const handleAppSelect = useCallback(
-        (selection: WorkflowRevisionSelectionResult) => {
-            if (!evaluatorNode) return
-            connectApp({
-                appRevisionId: selection.id,
-                appLabel: selection.label,
-                evaluatorRevisionId: evaluatorNode.entityId,
-                evaluatorLabel: evaluatorNode.label ?? "Evaluator",
-            })
-        },
-        [connectApp, evaluatorNode],
-    )
-
     const runDisabledContent = useMemo(
         () => (
-            <>
-                <Typography.Text type="secondary" className="text-sm">
-                    Select an app to run the evaluator chain
-                </Typography.Text>
-                <EntityPicker<WorkflowRevisionSelectionResult>
-                    variant="popover-cascader"
-                    adapter={appWorkflowAdapter}
-                    onSelect={handleAppSelect}
-                    size="middle"
-                    placeholder={selectedAppLabel ?? "Select app"}
-                />
-            </>
+            <SelectAppEmptyState
+                adapter={appWorkflowAdapter}
+                onSelect={handleAppSelect}
+                selectedAppLabel={selectedAppLabel}
+            />
         ),
         [appWorkflowAdapter, handleAppSelect, selectedAppLabel],
     )
@@ -151,15 +102,16 @@ const ConfigureEvaluatorPageInner = () => {
 
     return (
         <OSSPlaygroundShell providers={providers}>
-            <div className="flex flex-col w-full h-full overflow-hidden">
-                <EvaluatorPlaygroundHeader
-                    appWorkflowAdapter={appWorkflowAdapter}
-                    onAppSelect={handleAppSelect}
-                />
+            {/* Definite height (viewport minus the app topbar) so the run panel's
+             * `h-full` centering resolves — same pattern as the app playground
+             * (`Playground.tsx`). With a plain `h-full` here the chain collapses
+             * to content height and the empty state sticks to the top. */}
+            <div className="flex flex-col w-full h-[calc(100dvh-75px)] overflow-hidden">
+                <EvaluatorPlaygroundHeader />
                 <PlaygroundMainView
                     mode="evaluator"
                     configEntityIdsOverride={configEntityIds}
-                    runDisabled={!hasAppConnected}
+                    runDisabled={runDisabled}
                     runDisabledContent={runDisabledContent}
                 />
             </div>
