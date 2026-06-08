@@ -29,6 +29,9 @@ const DeployVariantButton = ({
 
     const runnableData = useAtomValue(workflowMolecule.selectors.data(revisionId || ""))
     const workflowId = runnableData?.workflow_id || ""
+    // Workflow-level evaluator flag — canonical, unlike the revision-level
+    // `flags.is_evaluator` which is `false` on v0 revisions of evaluators.
+    const isEvaluator = useAtomValue(workflowMolecule.selectors.isEvaluator(workflowId))
     const variants = useAtomValue(workflowVariantsListDataAtomFamily(workflowId))
 
     const {environments, variantName, revision} = useMemo(() => {
@@ -45,6 +48,12 @@ const DeployVariantButton = ({
     }, [mutateEnv])
 
     const handleCloseDeployModal = useCallback(() => setIsDeployModalOpen(false), [])
+
+    // Evaluator workflows aren't deployed to environments — never render a
+    // deploy trigger for them. Central guard so every surface that reuses this
+    // button (registry/overview menus, variant headers, the revision drawer) is
+    // covered without each call site repeating the check.
+    if (isEvaluator) return null
 
     return (
         <>

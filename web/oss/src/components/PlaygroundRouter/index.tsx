@@ -1,24 +1,13 @@
-import {memo, useEffect, useMemo, useRef} from "react"
+import {memo} from "react"
 
-import {
-    hasFullPagePlaygroundUX,
-    workflowLatestRevisionIdAtomFamily,
-    workflowMolecule,
-} from "@agenta/entities/workflow"
 import {bgColors} from "@agenta/ui"
 import {DownOutlined} from "@ant-design/icons"
 import {Flask, Plus} from "@phosphor-icons/react"
 import {Button, Space, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
-import {useRouter} from "next/router"
 
-import {appIdentifiersAtom} from "@/oss/state/appState"
-import {
-    currentWorkflowAtom,
-    currentWorkflowContextAtom,
-    EVALUATOR_FULL_PAGE_NAV_ENABLED,
-} from "@/oss/state/workflow"
+import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
 const PlaygroundLoadingShell = () => {
     return (
@@ -60,92 +49,40 @@ const Playground = dynamic(() => import("../Playground/Playground"), {
     loading: PlaygroundLoadingShell,
 })
 
-/**
- * Stale-URL guard for evaluator playgrounds. Most evaluators (classifiers,
- * matchers, JSON validators, …) have no meaningful full-page playground UX —
- * just a handful of form fields the drawer already renders. When the
- * resolved workflow is one of those evaluators, redirect to the evaluators
- * registry with the revision pre-selected so the drawer opens automatically.
- * Prompt/code-authored evaluators (auto_ai_critique, llm, code) are kept on
- * the playground page.
- *
- * Classification source: the workflow LIST entry has no `data.uri` (data is
- * only populated on revision-detail responses), so we resolve the latest
- * revision via `workflowLatestRevisionIdAtomFamily` and read its seeded
- * entity from the molecule to get the URI. Without this, every evaluator
- * playground briefly looks "unknown" and the guard would mis-redirect
- * prompt-based evaluators like LLM-as-a-judge.
- */
-const useEvaluatorPlaygroundGuard = () => {
-    const ctx = useAtomValue(currentWorkflowContextAtom)
-    const workflow = useAtomValue(currentWorkflowAtom)
-    const {workspaceId, projectId} = useAtomValue(appIdentifiersAtom)
-    const router = useRouter()
-    const redirectedFor = useRef<string | null>(null)
-
-    const workflowId = ctx.workflowId ?? ""
-    const latestRevisionId = useAtomValue(
-        useMemo(() => workflowLatestRevisionIdAtomFamily(workflowId), [workflowId]),
-    )
-
-    useEffect(() => {
-        if (ctx.isResolving || ctx.isError || ctx.isNotFound) return
-        if (ctx.workflowKind !== "evaluator") return
-        if (!workflow || !ctx.workflowId) return
-        if (!workspaceId || !projectId) return
-        if (redirectedFor.current === ctx.workflowId) return
-
-        // Resolve the latest revision data — it carries `data.uri` and the
-        // URI-derived flags (`is_llm`, `is_code`) that classifier vs prompt
-        // evaluators differ on. The workflow list entry has neither.
-        const latestRevision = latestRevisionId
-            ? (workflowMolecule.get.data(latestRevisionId) as
-                  | Parameters<typeof hasFullPagePlaygroundUX>[0]
-                  | null)
-            : null
-
-        // Bail until we have a classifiable record. Redirecting on a half-
-        // loaded workflow would bounce prompt-based evaluators (whose URI
-        // hasn't been seeded yet) into the drawer mid-load.
-        const hasUri = Boolean(latestRevision?.data?.uri)
-        const hasTypeFlag = Boolean(
-            latestRevision?.flags?.is_llm ||
-            latestRevision?.flags?.is_code ||
-            workflow.flags?.is_llm ||
-            workflow.flags?.is_code,
-        )
-        if (!hasUri && !hasTypeFlag) return
-
-        // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the flag is off,
-        // skip the "stay on /playground" early return so every evaluator URL
-        // (including direct visits / bookmarks) bounces back to /evaluators
-        // and opens the drawer.
-        const classifyTarget = latestRevision ?? workflow
-        if (EVALUATOR_FULL_PAGE_NAV_ENABLED && hasFullPagePlaygroundUX(classifyTarget)) return
-
-        const base = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}`
-        const target = latestRevisionId
-            ? `${base}/evaluators?revisionId=${encodeURIComponent(latestRevisionId)}`
-            : `${base}/evaluators`
-
-        redirectedFor.current = ctx.workflowId
-        router.replace(target)
-    }, [
-        ctx.isResolving,
-        ctx.isError,
-        ctx.isNotFound,
-        ctx.workflowKind,
-        ctx.workflowId,
-        workflow,
-        latestRevisionId,
-        workspaceId,
-        projectId,
-        router,
-    ])
-}
+// When the current workflow is an evaluator we render the evaluator-flavored
+// page (with `EvaluatorPlaygroundHeader` + `connectAppToEvaluatorAtom`) instead
+// of the generic app `<Playground />`. Same code path that powers
+// `/evaluators/playground` today — `playgroundSyncAtom` matches `/playground`
+// anywhere in the pathname so hydration works at both URLs unchanged.
+const ConfigureEvaluatorPage = dynamic(
+    () => import("@/oss/components/Evaluators/components/ConfigureEvaluator"),
+    {ssr: false, loading: PlaygroundLoadingShell},
+)
 
 const PlaygroundRouter = () => {
-    useEvaluatorPlaygroundGuard()
+    const ctx = useAtomValue(currentWorkflowContextAtom)
+
+    // Evaluators get the evaluator-flavored page so the upstream-app picker
+    // is visible (the generic header only exposes the reverse direction —
+    // app-needs-evaluator — not evaluator-needs-app). All evaluator kinds
+    // (LLM/code, declarative classifiers, custom hooks, …) land here on
+    // direct URL visits + sidebar switcher clicks; for simple classifiers
+    // ConfigureEvaluatorPage renders the same few form fields the drawer
+    // would, with the bonus of the evaluator-as-app surface (variants,
+    // traces, sidebar context).
+    //
+    // Exception: `is_feedback` evaluators (human-annotation workflows) are
+    // intentionally drawer-only in /evaluators — they don't run, they capture
+    // human input. Routing them to `ConfigureEvaluatorPage` would render a
+    // page with no testset/run controls that make sense for them. Direct
+    // URL visits to `/apps/<human-id>/playground` fall through to the
+    // generic `<Playground />`, which will (correctly) treat them as an
+    // unsupported playground target and let the upstream route guard /
+    // landing logic redirect them back to /evaluators.
+    const isFeedbackEvaluator = ctx.workflow?.flags?.is_feedback === true
+    if (ctx.workflowKind === "evaluator" && !isFeedbackEvaluator) {
+        return <ConfigureEvaluatorPage />
+    }
     return <Playground />
 }
 

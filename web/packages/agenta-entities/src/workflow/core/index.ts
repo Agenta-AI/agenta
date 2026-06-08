@@ -86,3 +86,11 @@ export {
     type EvaluatorDefinition,
     type MetricColumnDefinition,
 } from "./evaluatorResolution"
+
+// Observability defaults (kept pure for unit-testability)
+export {
+    defaultTraceTypeForWorkflow,
+    type TraceTypeDefault,
+    type ObservabilityTab,
+    type WorkflowKindForTraceDefault,
+} from "./traceTypeDefault"
