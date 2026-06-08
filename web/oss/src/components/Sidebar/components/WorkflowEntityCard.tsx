@@ -1,7 +1,7 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {
-    fullPagePlaygroundEvaluatorsAtom,
+    nonHumanEvaluatorsAtom,
     nonArchivedAppWorkflowsAtom,
     nonArchivedEvaluatorsAtom,
     parseWorkflowKeyFromUri,
@@ -117,26 +117,24 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     const ctx = useAtomValue(currentWorkflowContextAtom)
     const apps = useAtomValue(nonArchivedAppWorkflowsAtom) as readonly Workflow[]
     const evaluators = useAtomValue(nonArchivedEvaluatorsAtom) as readonly Workflow[]
-    // Only evaluators with a real full-page playground belong in the switcher.
-    // `fullPagePlaygroundEvaluatorsAtom` resolves the type flags from each
-    // evaluator's LATEST REVISION — the workflow LIST records this card reads
-    // from `nonArchivedEvaluatorsAtom` carry NO `data.uri` and NO
-    // `is_feedback`/`is_llm`/`is_code` flags (those live on the revision, not
-    // the parent artifact). That's why the old `!w.flags?.is_feedback` filter
-    // never excluded anything and human/feedback evaluators leaked into the
-    // switcher (QA 2026-06-05). The atom drops human (`is_feedback`) AND
-    // declarative classifier evaluators (match/exact_match/json_*/etc.) — all
-    // of which route to an `/apps/<id>/*` destination the guard redirects back
-    // to /evaluators, so clicking them would be a dead end.
-    const fullPagePlaygroundEvaluators = useAtomValue(
-        fullPagePlaygroundEvaluatorsAtom,
-    ) as readonly Workflow[]
+    // The switcher lists every AUTOMATIC evaluator — LLM, code, AND the
+    // declarative classifiers (exact match, regex, similarity / semantic
+    // similarity, json diff, contains json, …). `nonHumanEvaluatorsAtom`
+    // resolves `is_feedback` from each evaluator's LATEST REVISION — the
+    // workflow LIST records this card reads from `nonArchivedEvaluatorsAtom`
+    // carry NO `is_feedback`/`is_llm`/`is_code` flags (those live on the
+    // revision, not the parent artifact), which is why the old
+    // `!w.flags?.is_feedback` filter never excluded anything and human
+    // evaluators leaked in (QA 2026-06-05). It drops ONLY human (`is_feedback`)
+    // evaluators; navigation lands on the workflow's current sub-page (Overview/
+    // Evaluations are valid for every evaluator), so matchers no longer dead-end.
+    const automaticEvaluators = useAtomValue(nonHumanEvaluatorsAtom) as readonly Workflow[]
     // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the flag is off, the
     // switcher dropdown hides the "Evaluators" group entirely.
     const switcherEvaluators: readonly Workflow[] = useMemo(() => {
         if (!EVALUATOR_FULL_PAGE_NAV_ENABLED) return EMPTY_WORKFLOWS
-        return fullPagePlaygroundEvaluators
-    }, [fullPagePlaygroundEvaluators])
+        return automaticEvaluators
+    }, [automaticEvaluators])
     const recentAppId = useAtomValue(recentAppIdAtom)
     const recentEvaluatorId = useAtomValue(recentEvaluatorIdAtom)
     const navigateToWorkflow = useSetAtom(routerAppNavigationAtom)

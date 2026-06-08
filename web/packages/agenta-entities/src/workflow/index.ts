@@ -289,6 +289,7 @@ export {
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
     fullPagePlaygroundEvaluatorsAtom,
+    nonHumanEvaluatorsAtom,
     // Templates
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,
