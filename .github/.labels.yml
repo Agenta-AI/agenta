@@ -109,6 +109,9 @@
 - name: invalid
   description: This doesn't seem right
   color: e4e669
+- name: incomplete-pr
+  description: PR is missing required template sections or a demo recording
+  color: e11d21
 - name: performance
   description: A code change that improves performance
   color: f3ffb2

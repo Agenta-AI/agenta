@@ -1,3 +1,5 @@
+import {hasResolvableSubject, isSubjectRun} from "@agenta/entities/evaluationRun/etl"
+
 import type {WindowingState} from "@/oss/components/InfiniteVirtualTable/types"
 import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 
@@ -45,7 +47,20 @@ interface FetchEvaluationRunsWindowParams {
     statusFilters?: string[] | null
     evaluationTypeFilters?: ConcreteEvaluationRunKind[] | null
     dateRange?: {from?: string | null; to?: string | null} | null
+    /**
+     * Over-fetch successive server pages until `limit` *subject* runs are
+     * collected (or the stream is exhausted / a safety cap is hit). For the
+     * fixed-size Overview summary (no infinite scroll): a single server page can
+     * filter down to few/zero subject runs even when more exist deeper, which
+     * would falsely read as "this workflow has never been evaluated". The full
+     * page leaves this off — infinite scroll fills lazily on scroll.
+     */
+    fillToLimit?: boolean
 }
+
+// Over-fetch tuning (only used when `fillToLimit` + a subject filter are active).
+const FILL_MAX_SERVER_PAGES = 8
+const FILL_MIN_SERVER_PAGE = 25
 
 const fetchPreviewRuns = async ({
     projectId,
@@ -238,6 +253,7 @@ export const fetchEvaluationRunsWindow = async ({
     cursor = null,
     evaluationTypeFilters,
     dateRange,
+    fillToLimit = false,
 }: FetchEvaluationRunsWindowParams): Promise<EvaluationRunsWindowResult> => {
     if (!projectId) {
         return {
@@ -259,31 +275,6 @@ export const fetchEvaluationRunsWindow = async ({
         evaluationKind === "all" && allowedKinds && allowedKinds.size
             ? Array.from(allowedKinds)
             : null
-    const windowingPayload: QueryWindowingPayload = {
-        limit,
-        order: "descending" as const,
-        next: cursor ?? undefined,
-    }
-    if (dateRange?.to) {
-        windowingPayload.newest = dateRange.to
-    }
-    if (dateRange?.from) {
-        windowingPayload.oldest = dateRange.from
-    }
-
-    const previewResult = includePreview
-        ? await fetchPreviewRuns({
-              projectId,
-              appId: previewAppId,
-              searchQuery: previewSearchQuery,
-              references: previewReferences,
-              flags: previewFlags,
-              statuses: statusFilters && statusFilters.length ? statusFilters : undefined,
-              evaluationTypes: evaluationTypesPayload,
-              windowing: windowingPayload,
-          })
-        : {runs: [], count: 0, windowing: null}
-
     const rows: EvaluationRunApiRow[] = []
 
     const normalizedSearch = previewSearchQuery?.trim().toLowerCase() ?? null
@@ -305,11 +296,31 @@ export const fetchEvaluationRunsWindow = async ({
         return normalizedStatusSet.has(statusValue.toLowerCase())
     }
 
-    const allowedAppIds = appIds.filter((id) => typeof id === "string" && id.trim().length > 0)
-    const allowedAppSet =
-        allowedAppIds.length > 0 ? new Set(allowedAppIds.map((id) => id.trim())) : null
+    const allowedAppIds = appIds
+        .filter((id) => typeof id === "string" && id.trim().length > 0)
+        .map((id) => id.trim())
+    const allowedAppSet = allowedAppIds.length > 0 ? new Set(allowedAppIds) : null
 
-    previewResult.runs.forEach((run) => {
+    // Run-list SUBJECT predicate (feature F): when scoped to a workflow, keep
+    // runs that *evaluated this workflow* — runs where the scoped id is the
+    // run's `application`/invocation reference (the evaluated subject) — and
+    // drop runs where it merely appears as a grader (`evaluator` reference).
+    //
+    // This replaces the prior `meta.application.id` heuristic, which is
+    // unreliable: a null `meta.application` silently bypassed the guard, which
+    // is how grader runs leaked onto an evaluator's Evaluations tab. The run's
+    // `data.steps` are the structural source of truth. We fall back to the
+    // `meta` heuristic only when a run carries no resolvable subject reference.
+    //
+    // `subjectScanned`/`subjectMatched` feed the hit-ratio meter: a low rolling
+    // pass-ratio means the scoped workflow is graded far more than it's
+    // evaluated — the signal that the backend role-aware reference filter (v2)
+    // is warranted. (The FE already sends the role via the payload's dict key;
+    // v2 is the backend honoring it. See evaluations/utils.py query_run_references.)
+    let subjectScanned = 0
+    let subjectMatched = 0
+
+    const processRun = (run: PreviewEvaluationRun) => {
         // Derive kind from run.data.steps - this is the reliable source of truth
         // Do NOT rely on meta.evaluation_kind as it's flaky and unreliable
         const derivedKind = derivePreviewRunKind(run)
@@ -331,8 +342,22 @@ export const fetchEvaluationRunsWindow = async ({
         const runId = run.id ?? null
         const metaApplication = (run as any)?.meta?.application ?? {}
         const runAppId = metaApplication?.id ?? (run as any)?.meta?.appId ?? null
-        if (allowedAppSet && runAppId && !allowedAppSet.has(runAppId)) {
-            return
+        const previewMeta = extractPreviewRunMeta(run)
+
+        if (allowedAppSet) {
+            subjectScanned += 1
+            const steps = previewMeta.steps
+            const passesSubject = hasResolvableSubject(steps)
+                ? // Structural: the scoped workflow is the run's evaluated subject.
+                  allowedAppIds.some((id) => isSubjectRun(steps, id))
+                : // Fallback for runs with no resolvable subject reference:
+                  // keep the prior `meta.application.id` behaviour rather than
+                  // dropping a run we can't classify structurally.
+                  !runAppId || allowedAppSet.has(runAppId)
+            if (!passesSubject) {
+                return
+            }
+            subjectMatched += 1
         }
         const previewName = typeof (run as any)?.name === "string" ? (run as any).name : null
         if (!matchesSearch([runId, previewName, metaApplication?.id, metaApplication?.name])) {
@@ -354,10 +379,66 @@ export const fetchEvaluationRunsWindow = async ({
                     : (run as any)?.status?.value) ?? null,
             appId: runAppId ?? null,
             preview: runId ? {id: runId} : undefined,
-            previewMeta: extractPreviewRunMeta(run),
+            previewMeta,
             evaluationKind: derivedKind,
         })
-    })
+    }
+
+    // Over-fetch loop. The fixed-size summary (`fillToLimit`) can filter a single
+    // server page down to few/zero subject runs even when more exist deeper —
+    // which would falsely read as "this workflow has never been evaluated". When
+    // filling, pull successive server pages (advancing the cursor) until we have
+    // `limit` subject runs, the stream is exhausted, or the safety cap is hit.
+    // The full page leaves this off (single page) — its infinite scroll fills
+    // lazily on scroll, so changing its pagination here isn't needed.
+    const wantFill = Boolean(fillToLimit) && Boolean(allowedAppSet)
+    const serverPageLimit = wantFill ? Math.max(limit, FILL_MIN_SERVER_PAGE) : limit
+    const maxPages = wantFill ? FILL_MAX_SERVER_PAGES : 1
+
+    let currentCursor: string | undefined = cursor ?? undefined
+    let firstPageCount: number | null = null
+    let lastWindowing: QueryWindowingPayload | null = null
+    let pagesFetched = 0
+
+    while (pagesFetched < maxPages) {
+        pagesFetched += 1
+
+        const windowingPayload: QueryWindowingPayload = {
+            limit: serverPageLimit,
+            order: "descending" as const,
+            next: currentCursor,
+        }
+        if (dateRange?.to) {
+            windowingPayload.newest = dateRange.to
+        }
+        if (dateRange?.from) {
+            windowingPayload.oldest = dateRange.from
+        }
+
+        const previewResult = includePreview
+            ? await fetchPreviewRuns({
+                  projectId,
+                  appId: previewAppId,
+                  searchQuery: previewSearchQuery,
+                  references: previewReferences,
+                  flags: previewFlags,
+                  statuses: statusFilters && statusFilters.length ? statusFilters : undefined,
+                  evaluationTypes: evaluationTypesPayload,
+                  windowing: windowingPayload,
+              })
+            : {runs: [], count: 0, windowing: null}
+
+        if (firstPageCount === null) {
+            firstPageCount = previewResult.count ?? null
+        }
+        lastWindowing = previewResult.windowing
+        previewResult.runs.forEach(processRun)
+
+        currentCursor = previewResult.windowing?.next ?? undefined
+        if (!wantFill || rows.length >= limit || !currentCursor) {
+            break
+        }
+    }
 
     rows.sort((a, b) => {
         const tsA = a.createdAt ? new Date(a.createdAt).getTime() : 0
@@ -365,14 +446,16 @@ export const fetchEvaluationRunsWindow = async ({
         return tsB - tsA
     })
 
+    // The fixed-size summary shows at most `limit` (latest N subject runs); the
+    // last over-fetched server page may carry a few extra past the limit.
+    const pageRows = wantFill ? rows.slice(0, limit) : rows
     const totalCount =
-        evaluationKind === "all" && allowedKinds
-            ? rows.length
-            : (previewResult.count ?? rows.length)
-    const pageRows = rows
+        evaluationKind === "all" && allowedKinds ? pageRows.length : (firstPageCount ?? rows.length)
     const nextOffset = offset + pageRows.length
-    const previewNextCursor = previewResult.windowing?.next ?? null
-    const hasMore = Boolean(previewNextCursor)
+    // The summary doesn't paginate (infinite scroll off), so it never advertises
+    // "more"; the full page advertises the page's server cursor as before.
+    const previewNextCursor = lastWindowing?.next ?? null
+    const hasMore = wantFill ? false : Boolean(previewNextCursor)
 
     return {
         rows: pageRows,
@@ -380,6 +463,9 @@ export const fetchEvaluationRunsWindow = async ({
         hasMore,
         nextOffset: hasMore ? nextOffset : null,
         nextCursor: previewNextCursor,
-        nextWindowing: normalizeWindowing(previewResult.windowing),
+        nextWindowing: normalizeWindowing(lastWindowing),
+        subjectFilterStats: allowedAppSet
+            ? {scanned: subjectScanned, matched: subjectMatched}
+            : undefined,
     }
 }
