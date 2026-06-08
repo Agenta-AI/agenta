@@ -103,6 +103,48 @@ def _normalize_pydantic_messages(messages: list) -> list:
     return normalized
 
 
+def _split_agent_messages(
+    normalized: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Split an agent run's conversation into (input prompt, output completion).
+
+    An agent run span carries the *whole* conversation in
+    ``pydantic_ai.all_messages`` — prior turns plus everything this run produced.
+    The split point is the agent's latest ``user`` message: everything up to and
+    including it is the input (prior turns + the question that triggered the run),
+    and the trailing assistant/tool messages are this run's output.
+
+    We deliberately do not split by role. Assistant, user, and tool messages
+    interleave across turns, so a role filter scatters the conversation and loses
+    which turn produced what (it would route every prior assistant reply into the
+    output and every prior user/tool message into the input).
+
+    ``pydantic_ai.new_message_index`` is intentionally not used: it indexes
+    PydanticAI's internal request/response messages, which do not line up with
+    this flattened, per-role message list (a single request bundling the system
+    prompt and the user prompt expands to two entries here, and a request
+    bundling parallel tool results expands to several).
+
+    Tool results normalize to ``role == "tool"``, so they never count as the
+    user boundary.
+    """
+    last_user_idx = next(
+        (
+            i
+            for i in range(len(normalized) - 1, -1, -1)
+            if isinstance(normalized[i], dict) and normalized[i].get("role") == "user"
+        ),
+        None,
+    )
+
+    if last_user_idx is None:
+        # No user turn (e.g. a tool-only or system-only run): treat the whole
+        # conversation as output and let the caller fall back to final_result.
+        return [], normalized
+
+    return normalized[: last_user_idx + 1], normalized[last_user_idx + 1 :]
+
+
 GENAI_SEMCONV_ATTRIBUTES_EXACT: List[Tuple[str, str]] = [
     # Core Data
     ("gen_ai.request.model", "ag.meta.request.model"),
@@ -335,16 +377,7 @@ class LogfireAdapter(BaseAdapter):
             if isinstance(all_messages, list):
                 normalized = _normalize_pydantic_messages(all_messages)
                 if normalized:
-                    input_msgs = [
-                        m
-                        for m in normalized
-                        if isinstance(m, dict) and m.get("role") != "assistant"
-                    ]
-                    output_msgs = [
-                        m
-                        for m in normalized
-                        if isinstance(m, dict) and m.get("role") == "assistant"
-                    ]
+                    input_msgs, output_msgs = _split_agent_messages(normalized)
                     if input_msgs:
                         features.data["inputs"] = {"prompt": input_msgs}
                     if output_msgs:
