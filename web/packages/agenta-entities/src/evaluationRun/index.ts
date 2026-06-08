@@ -94,7 +94,12 @@ export {
 // API
 // ============================================================================
 
-export {fetchEvaluationRun, queryEvaluationRuns, queryEvaluationResults} from "./api"
+export {
+    fetchEvaluationRun,
+    editEvaluationRun,
+    queryEvaluationRuns,
+    queryEvaluationResults,
+} from "./api"
 
 // ============================================================================
 // STATE

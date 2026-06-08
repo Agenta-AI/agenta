@@ -59,6 +59,38 @@ export async function fetchEvaluationRun({
 }
 
 // ============================================================================
+// EDIT (PATCH a single run)
+// ============================================================================
+
+/**
+ * Edit a single evaluation run (PATCH `/evaluations/runs/{run_id}`).
+ *
+ * `run` is the partial run body (snake_case, `extra="allow"` on the backend) — at minimum
+ * an `id` plus the fields to change, e.g. `data.steps` for evaluator-revision write-back.
+ * Returns the updated run, or null if the response fails validation.
+ */
+export async function editEvaluationRun({
+    projectId,
+    runId,
+    run,
+}: {
+    projectId: string
+    runId: string
+    run: Record<string, unknown>
+}): Promise<EvaluationRun | null> {
+    if (!projectId || !runId) return null
+
+    const client = await getEvaluationsClient()
+    const data = await client.editRun(
+        {run_id: runId, run: run as never},
+        projectScopedRequest(projectId),
+    )
+
+    const validated = safeParseWithLogging(evaluationRunResponseSchema, data, "[editEvaluationRun]")
+    return validated?.run ?? null
+}
+
+// ============================================================================
 // QUERY (Batch by IDs)
 // ============================================================================
 

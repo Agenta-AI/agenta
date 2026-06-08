@@ -27,6 +27,7 @@ import {
 import {evaluationQueueMolecule} from "../../src/evaluationQueue"
 import {evaluationRunMolecule} from "../../src/evaluationRun"
 import {
+    editEvaluationRun,
     fetchEvaluationRun,
     queryEvaluationMetrics,
     queryEvaluationResults,
@@ -221,6 +222,42 @@ describe.skipIf(!hasBackend)("evaluationRun data layer integration", () => {
                 evaluationRunMolecule.selectors.evaluatorIds({projectId, runId}),
             )
             expect(evaluatorIds).toContain("00000000-0000-4000-8000-0000000000e1")
+        })
+
+        it("editEvaluationRun persists data.steps changes (evaluator-revision write-back)", async () => {
+            const current = await fetchEvaluationRun({id: runId, projectId})
+            expect(current).not.toBeNull()
+
+            // Mirror ensureEvaluatorRevisions: patch the annotation step's references with a
+            // resolved evaluator_variant id, then PATCH the whole run back. This is the
+            // write-back path that silently never persisted (unimported axios -> threw).
+            const steps = (current?.data?.steps ?? []).map((step) =>
+                step.key === EVALUATOR_STEP_KEY
+                    ? {
+                          ...step,
+                          references: {
+                              ...(step.references ?? {}),
+                              evaluator_variant: {id: "00000000-0000-4000-8000-0000000000e3"},
+                          },
+                      }
+                    : step,
+            )
+
+            const updated = await editEvaluationRun({
+                projectId,
+                runId,
+                run: {...(current as Record<string, unknown>), data: {...current?.data, steps}},
+            })
+            expect(updated?.id).toBe(runId)
+
+            // Re-fetch independently and assert the new reference actually persisted.
+            const refetched = await fetchEvaluationRun({id: runId, projectId})
+            const annotationStep = (refetched?.data?.steps ?? []).find(
+                (s) => s.key === EVALUATOR_STEP_KEY,
+            )
+            expect(annotationStep?.references?.evaluator_variant?.id).toBe(
+                "00000000-0000-4000-8000-0000000000e3",
+            )
         })
     })
 

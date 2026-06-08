@@ -1,4 +1,4 @@
-import {fetchEvaluationRunBatched} from "@agenta/entities/evaluationRun"
+import {editEvaluationRun, fetchEvaluationRunBatched} from "@agenta/entities/evaluationRun"
 import {fetchWorkflowsBatch} from "@agenta/entities/workflow"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -254,10 +254,11 @@ const ensureEvaluatorRevisions = async ({
                 patchedRun,
             })
         }
-        await axios.patch(`/evaluations/runs/${encodeURIComponent(runId)}`, {run: patchedRun}, {
-            params: {project_id: projectId},
-            _ignoreError: true,
-        } as any)
+        await editEvaluationRun({
+            projectId,
+            runId,
+            run: patchedRun as unknown as Record<string, unknown>,
+        })
         if (process.env.NODE_ENV !== "production") {
             console.debug("[EvalRunDetails2] Run patch successful", {
                 runId,
