@@ -150,10 +150,9 @@ const usePostAuthRedirect = () => {
                         const list = Array.isArray(parsed) ? parsed : []
                         if (list.length > 0) {
                             try {
-                                const result = await mergeSessionIdentities(list)
+                                await mergeSessionIdentities(list)
                                 console.debug("[auth-upgrade] session identities merged", {
-                                    list,
-                                    result,
+                                    count: list.length,
                                 })
                                 window.localStorage.removeItem("authUpgradeSessionIdentities")
                             } catch (error) {
