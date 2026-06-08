@@ -19,20 +19,34 @@ import {auditFieldsSchema, timestampFieldsSchema} from "../../shared/utils/zodSc
 // ENUMS
 // ============================================================================
 
-export const evaluationRunStepTypeSchema = z.enum(["input", "invocation", "annotation"])
-export type EvaluationRunStepType = z.infer<typeof evaluationRunStepTypeSchema>
+// These string-union "kinds" are deliberately validated as plain `z.string()`, NOT
+// `z.enum([...])`. The backend mounts run payloads with `extra="allow"` and its taxonomy
+// drifts (e.g. mapping `kind` emits "testset"/"invocation", not the older
+// "input"/"ground_truth"/... set). A `z.enum` here is catastrophic: these fields sit deep
+// inside the optional `data.steps[]` / `data.mappings[]` tree, and a single unrecognized
+// value fails the ENTIRE run parse, which fails the whole `runs: z.array(...)` batch ->
+// `safeParseWithLogging` returns null -> the run table renders blank cells. We keep the
+// known values as documented unions (for autocomplete) but never reject unknown strings.
+export const EVALUATION_RUN_STEP_TYPES = ["input", "invocation", "annotation"] as const
+export const evaluationRunStepTypeSchema = z.string()
+export type EvaluationRunStepType = (typeof EVALUATION_RUN_STEP_TYPES)[number] | (string & {})
 
-export const evaluationRunStepOriginSchema = z.enum(["custom", "human", "auto"])
-export type EvaluationRunStepOrigin = z.infer<typeof evaluationRunStepOriginSchema>
+export const EVALUATION_RUN_STEP_ORIGINS = ["custom", "human", "auto"] as const
+export const evaluationRunStepOriginSchema = z.string()
+export type EvaluationRunStepOrigin = (typeof EVALUATION_RUN_STEP_ORIGINS)[number] | (string & {})
 
-export const evaluationRunMappingKindSchema = z.enum([
+export const EVALUATION_RUN_MAPPING_KINDS = [
+    "testset",
+    "invocation",
+    "annotation",
+    // legacy / alternate taxonomy still accepted defensively
     "input",
     "ground_truth",
     "application",
     "evaluator",
-    "annotation",
-])
-export type EvaluationRunMappingKind = z.infer<typeof evaluationRunMappingKindSchema>
+] as const
+export const evaluationRunMappingKindSchema = z.string()
+export type EvaluationRunMappingKind = (typeof EVALUATION_RUN_MAPPING_KINDS)[number] | (string & {})
 
 // ============================================================================
 // SUB-SCHEMAS

@@ -1,0 +1,189 @@
+{
+  "count": 1,
+  "runs": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "created_at": "2026-06-07T12:17:57.133102+00:00",
+      "created_by_id": "00000000-0000-4000-8000-000000000002",
+      "status": "success",
+      "data": {
+        "steps": [
+          {
+            "key": "testset-01",
+            "type": "input",
+            "origin": "auto",
+            "references": {
+              "testset": {
+                "version": null,
+                "slug": "completion_testset-02",
+                "id": "00000000-0000-4000-8000-000000000003"
+              },
+              "testset_variant": {
+                "version": null,
+                "slug": "663c01d24635",
+                "id": "00000000-0000-4000-8000-000000000004"
+              },
+              "testset_revision": {
+                "version": "6",
+                "slug": "2f7a483e2e44",
+                "id": "00000000-0000-4000-8000-000000000005"
+              }
+            },
+            "inputs": null
+          },
+          {
+            "key": "application-03",
+            "type": "invocation",
+            "origin": "auto",
+            "references": {
+              "application": {
+                "version": null,
+                "slug": "comp-1",
+                "id": "00000000-0000-4000-8000-000000000006"
+              },
+              "application_variant": {
+                "version": null,
+                "slug": "7b1a356030d8",
+                "id": "00000000-0000-4000-8000-000000000007"
+              },
+              "application_revision": {
+                "version": "1",
+                "slug": "1bd2ecc1ba59",
+                "id": "00000000-0000-4000-8000-000000000008"
+              }
+            },
+            "inputs": [
+              {
+                "key": "__all_inputs__"
+              }
+            ]
+          },
+          {
+            "key": "evaluator-04",
+            "type": "annotation",
+            "origin": "auto",
+            "references": {
+              "evaluator": {
+                "version": null,
+                "slug": "exact-match",
+                "id": "00000000-0000-4000-8000-000000000009"
+              },
+              "evaluator_variant": {
+                "version": null,
+                "slug": "47c5742b764d",
+                "id": "00000000-0000-4000-8000-000000000010"
+              },
+              "evaluator_revision": {
+                "version": "1",
+                "slug": "997c89c3e8de",
+                "id": "00000000-0000-4000-8000-000000000011"
+              }
+            },
+            "inputs": [
+              {
+                "key": "__all_invocations__"
+              },
+              {
+                "key": "__all_inputs__"
+              }
+            ]
+          },
+          {
+            "key": "evaluator-05",
+            "type": "annotation",
+            "origin": "auto",
+            "references": {
+              "evaluator": {
+                "version": null,
+                "slug": "eval-add-1-h31n",
+                "id": "00000000-0000-4000-8000-000000000012"
+              },
+              "evaluator_variant": {
+                "version": null,
+                "slug": "eval-add-1-h31n.default",
+                "id": "00000000-0000-4000-8000-000000000013"
+              },
+              "evaluator_revision": {
+                "version": "1",
+                "slug": "615029f11fb1",
+                "id": "00000000-0000-4000-8000-000000000014"
+              }
+            },
+            "inputs": [
+              {
+                "key": "__all_invocations__"
+              },
+              {
+                "key": "__all_inputs__"
+              }
+            ]
+          }
+        ],
+        "repeats": 1,
+        "concurrency": null,
+        "mappings": [
+          {
+            "column": {
+              "kind": "testset",
+              "name": "country"
+            },
+            "step": {
+              "key": "testset-01",
+              "path": "data.country"
+            }
+          },
+          {
+            "column": {
+              "kind": "testset",
+              "name": "correct_answer"
+            },
+            "step": {
+              "key": "testset-01",
+              "path": "data.correct_answer"
+            }
+          },
+          {
+            "column": {
+              "kind": "testset",
+              "name": "quality-rating"
+            },
+            "step": {
+              "key": "testset-01",
+              "path": "data.quality-rating"
+            }
+          },
+          {
+            "column": {
+              "kind": "invocation",
+              "name": "outputs"
+            },
+            "step": {
+              "key": "application-03",
+              "path": "attributes.ag.data.outputs"
+            }
+          },
+          {
+            "column": {
+              "kind": "annotation",
+              "name": "success"
+            },
+            "step": {
+              "key": "evaluator-04",
+              "path": "attributes.ag.data.outputs.success"
+            }
+          },
+          {
+            "column": {
+              "kind": "annotation",
+              "name": "success"
+            },
+            "step": {
+              "key": "evaluator-05",
+              "path": "attributes.ag.data.outputs.success"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
