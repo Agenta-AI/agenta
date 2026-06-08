@@ -1,5 +1,17 @@
 export type ViewMode = "text" | "markdown" | "json" | "yaml" | "form"
 
+/** The view modes a chat / prompt message editor can render ("form" is for objects). */
+export type MessageViewMode = Exclude<ViewMode, "form">
+
+/**
+ * Coerce a (possibly app-wide / persisted) view mode to one a message editor can
+ * render. The shared `messageViewModeAtom` is typed `ViewMode`, so it can hold
+ * "form"; falling back to "text" keeps the dropdown and editor consistent instead
+ * of silently casting and rendering an unsupported mode.
+ */
+export const toMessageViewMode = (mode: ViewMode): MessageViewMode =>
+    mode === "form" ? "text" : mode
+
 export interface ViewOption {
     value: ViewMode
     label: string

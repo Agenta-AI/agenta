@@ -9,6 +9,7 @@ import {
     type StageExecutionResult,
     type EntitySelection,
 } from "@agenta/entities/runnable"
+import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {generateId} from "@agenta/shared/utils"
 import type {Getter, Setter} from "jotai"
@@ -197,10 +198,21 @@ function buildEvaluatorSelfReferences(params: {
     if (!revision) return undefined
     if (!revision.flags?.is_evaluator) return undefined
 
+    // A local-draft evaluator (opened in the drawer playground but not yet
+    // saved) has no committed server identity — its ids are `local-…` strings.
+    // The backend's reference validator rejects those as non-UUIDs (422, QA
+    // 2026-06-05). Drop any id that's a local draft so we never ship one as a
+    // reference; slugs and version are plain strings the backend accepts and
+    // are kept.
+    const realId = (value: unknown): string | undefined => {
+        const s = readString(value)
+        return s && !isLocalDraftId(s) ? s : undefined
+    }
+
     const refs: TraceReferenceMap = {}
 
     // evaluator (parent workflow)
-    const workflowId = readString(revision.workflow_id)
+    const workflowId = realId(revision.workflow_id)
     const workflowSlug = readString(revision.workflow_slug)
     if (workflowId || workflowSlug) {
         refs.evaluator = {
@@ -210,7 +222,7 @@ function buildEvaluatorSelfReferences(params: {
     }
 
     // evaluator_variant (parent variant)
-    const variantId = readString(revision.workflow_variant_id) ?? readString(revision.variant_id)
+    const variantId = realId(revision.workflow_variant_id) ?? realId(revision.variant_id)
     const variantSlug = readString(revision.workflow_variant_slug)
     if (variantId || variantSlug) {
         refs.evaluator_variant = {
@@ -220,7 +232,7 @@ function buildEvaluatorSelfReferences(params: {
     }
 
     // evaluator_revision (this revision)
-    const revisionId = readString(revision.id) ?? params.revisionId
+    const revisionId = realId(revision.id) ?? realId(params.revisionId)
     const revisionSlug = readString(revision.slug)
     const revisionVersion =
         typeof revision.version === "number"

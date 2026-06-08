@@ -3,7 +3,7 @@ import {useCallback, useMemo} from "react"
 import {Rocket} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 import clsx from "clsx"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 
 import {openDeployVariantModalAtom} from "@/oss/components/Playground/Components/Modals/DeployVariantModal/store/deployVariantModalStore"
@@ -13,6 +13,7 @@ import RegistryTable from "@/oss/components/VariantsComponents/Table/RegistryTab
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQuery} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
+import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
 const {Title} = Typography
 
@@ -21,6 +22,9 @@ const VariantsOverview = () => {
     const {appURL} = useURL()
     const {goToPlayground} = usePlaygroundNavigation()
     const openDeployVariantModal = useSetAtom(openDeployVariantModalAtom)
+    // Evaluator workflows aren't deployed — hide the row "Deploy" action.
+    const isCurrentWorkflowEvaluator =
+        useAtomValue(currentWorkflowContextAtom).workflowKind === "evaluator"
 
     const handleRowClick = useCallback(
         (record: RegistryRevisionRow) => {
@@ -83,6 +87,7 @@ const VariantsOverview = () => {
             <RegistryTable
                 onRowClick={handleRowClick}
                 actions={columnActions}
+                hideDeployActions={isCurrentWorkflowEvaluator}
                 scopeId="overview-recent"
                 pageSize={5}
                 columnVisibilityStorageKey="agenta:overview-registry:column-visibility"

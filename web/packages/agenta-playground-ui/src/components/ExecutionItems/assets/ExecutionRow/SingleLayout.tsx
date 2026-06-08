@@ -253,7 +253,24 @@ const DownstreamNodeCard = ({
                 }),
             [rowId, scopedEntityId],
         ),
-    ) as {status?: string; output?: unknown; error?: {message: string} | null} | null
+    ) as {
+        status?: string
+        output?: unknown
+        error?: {message: string} | null
+        traceId?: string | null
+    } | null
+
+    // Trace-link affordance for the downstream (evaluator) result — surfaced in
+    // the card legend so users can open the evaluator's own trace to debug a
+    // grade, the same way the primary app row exposes its trace (QA 2026-06-05:
+    // "show the trace links (icon) for evaluators too").
+    const providers = usePlaygroundUIOptional()
+    const SharedGenerationResultUtils = providers?.SharedGenerationResultUtils
+    const nodeTraceId = fullResult?.traceId ?? null
+    const traceActions =
+        nodeTraceId && SharedGenerationResultUtils ? (
+            <SharedGenerationResultUtils traceId={nodeTraceId} actionsOnly />
+        ) : undefined
 
     // Read output ports from the runnable bridge (includes per-field schema)
     const outputPorts = useAtomValue(
@@ -286,7 +303,7 @@ const DownstreamNodeCard = ({
     // Idle / cancelled / no result — show expected fields with placeholder dashes
     if (!fullResult || rawStatus === "idle" || rawStatus === "cancelled") {
         return (
-            <NodeResultCard name={nodeName} status={rawStatus}>
+            <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
                 <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} idle />
             </NodeResultCard>
         )
@@ -295,7 +312,7 @@ const DownstreamNodeCard = ({
     // Running / pending -> loading skeleton
     if (rawStatus === "running" || rawStatus === "pending") {
         return (
-            <NodeResultCard name={nodeName} status={rawStatus}>
+            <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
                 <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} loading />
             </NodeResultCard>
         )
@@ -308,7 +325,7 @@ const DownstreamNodeCard = ({
                 ? fullResult.error.message
                 : "Error"
         return (
-            <NodeResultCard name={nodeName} status={rawStatus}>
+            <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
                 <span className="text-[var(--ant-color-error)] text-xs leading-5">{errorMsg}</span>
             </NodeResultCard>
         )
@@ -321,7 +338,7 @@ const DownstreamNodeCard = ({
                 ? fullResult.error.message
                 : "Skipped"
         return (
-            <NodeResultCard name={nodeName} status={rawStatus}>
+            <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
                 <span className="text-[var(--ant-color-text-tertiary)] text-xs leading-5 italic">
                     {skipMsg}
                 </span>
@@ -343,14 +360,14 @@ const DownstreamNodeCard = ({
 
     if (!entries || entries.length === 0) {
         return (
-            <NodeResultCard name={nodeName} status={rawStatus}>
+            <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
                 <span className="text-xs leading-5">—</span>
             </NodeResultCard>
         )
     }
 
     return (
-        <NodeResultCard name={nodeName} status={rawStatus}>
+        <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
             <div
                 className="grid items-baseline text-xs leading-5"
                 style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 6}}

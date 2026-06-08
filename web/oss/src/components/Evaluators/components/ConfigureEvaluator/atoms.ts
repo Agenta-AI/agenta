@@ -255,6 +255,19 @@ export const connectAppToEvaluatorAtom = atom(
         // user who connected an app from "data" mode would snap back to the
         // testcase panel on disconnect instead of the "Select an app" state.
         set(runOnModeAtom, "app")
+
+        // Force the node-derived display atoms to re-settle after the two
+        // sequential `playgroundNodesAtom` writes above (changePrimaryNode →
+        // connectDownstreamNode). On a disconnect→reconnect cycle jotai applies
+        // the writes (the value is correct) but does NOT notify the mounted
+        // dependents — `selectedAppLabelAtom` / `hasAppConnectedAtom` and the
+        // package's generation-panel atoms stay stale, so the UI keeps showing
+        // the "Select an app" empty state even though an app is connected
+        // (QA 2026-06-05 — re-selecting the same app after disconnect). Reading
+        // the derived atoms here re-establishes the dependency and flushes the
+        // pending notification to their subscribers.
+        get(selectedAppLabelAtom)
+        get(hasAppConnectedAtom)
     },
 )
 
