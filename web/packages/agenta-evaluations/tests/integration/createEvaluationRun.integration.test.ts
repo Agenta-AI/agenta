@@ -23,7 +23,7 @@
  * required. If the backend starts enforcing evaluator references at create time, enrich the
  * builder below with real evaluator-revision refs (and a beforeAll that seeds them).
  */
-import {fetchEvaluationRun} from "@agenta/entities/evaluationRun"
+import {fetchEvaluationRun, queryEvaluationRuns} from "@agenta/entities/evaluationRun"
 import {getAgentaSdkClient} from "@agenta/sdk"
 import {afterEach, describe, expect, it} from "vitest"
 
@@ -66,11 +66,34 @@ function buildRunConfig({
             inputs: [{key: inputKey}, {key: invocationKey}],
         })
     }
+    // Mappings MUST mirror what the real `buildRunConfig` emits — column.kind values of
+    // "testset" / "invocation" / "evaluator". These are the values that an over-strict
+    // `z.enum` rejected on read-back, blanking the run table. An empty `mappings: []`
+    // (the previous version) never exercises the schema's kind validation, so the
+    // regression was invisible here. Keep these representative.
+    const mappings = [
+        {column: {kind: "testset", name: "country"}, step: {key: inputKey, path: "data.country"}},
+        {
+            column: {kind: "invocation", name: "outputs"},
+            step: {key: invocationKey, path: "attributes.ag.data.outputs"},
+        },
+        ...(annotationOrigin
+            ? [
+                  {
+                      column: {kind: "evaluator", name: "evaluator.success"},
+                      step: {
+                          key: `${invocationKey}.evaluator`,
+                          path: "attributes.ag.data.outputs.success",
+                      },
+                  },
+              ]
+            : []),
+    ]
     return {
         key: `evaluation-${evaluationKind}`,
         name: `integration-${evaluationKind}-${Date.now()}`,
         meta: {source: "integration-test", evaluation_kind: evaluationKind},
-        data: {steps, mappings: []},
+        data: {steps, mappings},
     }
 }
 
@@ -137,6 +160,20 @@ describe.skipIf(!hasBackend)("createEvaluationRun integration", () => {
                 const annotation = steps.find((s) => s.type === "annotation")
                 expect(annotation?.origin).toBe(annotationOrigin)
             }
+
+            // Round-trip through the BATCHED query path the run table actually uses
+            // (queryEvaluationRuns -> evaluationRunsResponseSchema). This is the path that
+            // silently returned zero runs when the mapping-kind enum rejected real values,
+            // blanking "Created by" + metric columns. Assert the run survives and its
+            // mapping kinds are preserved.
+            const queried = await queryEvaluationRuns({projectId, ids: [result.runId]})
+            const queriedRun = queried.runs.find((r) => r.id === result.runId)
+            expect(queriedRun, "run must survive queryEvaluationRuns parse").toBeTruthy()
+            const kinds = (queriedRun?.data?.mappings ?? [])
+                .map((m) => m.column?.kind)
+                .filter(Boolean)
+            expect(kinds).toContain("testset")
+            expect(kinds).toContain("invocation")
         },
     )
 
