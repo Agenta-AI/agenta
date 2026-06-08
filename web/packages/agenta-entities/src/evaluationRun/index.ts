@@ -97,6 +97,7 @@ export {
 export {
     fetchEvaluationRun,
     editEvaluationRun,
+    deleteEvaluationRuns,
     queryEvaluationRuns,
     queryEvaluationRunsList,
     queryEvaluationResults,

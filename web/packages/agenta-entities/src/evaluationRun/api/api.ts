@@ -93,6 +93,32 @@ export async function editEvaluationRun({
 }
 
 // ============================================================================
+// DELETE (runs)
+// ============================================================================
+
+/**
+ * Delete evaluation runs by id. Endpoint: `DELETE /evaluations/runs/`.
+ *
+ * The backend cascade-deletes scenarios/results/metrics (FK ondelete=CASCADE), so this is
+ * sufficient cleanup — no orphans. Returns the deleted ids.
+ */
+export async function deleteEvaluationRuns({
+    projectId,
+    runIds,
+}: {
+    projectId: string
+    runIds: string[]
+}): Promise<string[]> {
+    if (!projectId || runIds.length === 0) return []
+
+    const client = await getEvaluationsClient()
+    const data = (await client.deleteRuns({run_ids: runIds}, projectScopedRequest(projectId))) as {
+        run_ids?: string[]
+    }
+    return data?.run_ids ?? []
+}
+
+// ============================================================================
 // QUERY (Batch by IDs)
 // ============================================================================
 

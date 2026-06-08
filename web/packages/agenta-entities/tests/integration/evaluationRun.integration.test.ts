@@ -27,6 +27,7 @@ import {
 import {evaluationQueueMolecule} from "../../src/evaluationQueue"
 import {evaluationRunMolecule} from "../../src/evaluationRun"
 import {
+    deleteEvaluationRuns,
     editEvaluationRun,
     fetchEvaluationRun,
     queryEvaluationMetrics,
@@ -487,6 +488,25 @@ describe.skipIf(!hasBackend)("evaluationRun data layer integration", () => {
             const after = await queryEvaluationScenarios({projectId, runId: scenarioRunId})
             const scenario = after.find((s) => s.id === scenarioId)
             expect(scenario?.status).toBe("success")
+        })
+    })
+
+    // deleteEvaluationRuns — the Fern delete behind the live table's delete action.
+    describe("deleteEvaluationRuns", () => {
+        it("deletes a run (fetch returns null afterwards)", async () => {
+            const client = getAgentaSdkClient()
+            const res = (await client.evaluations.createRuns(
+                {runs: [makeRunCreatePayload() as never]},
+                {queryParams: {project_id: projectId}},
+            )) as {runs?: {id?: string}[]}
+            const id = res?.runs?.[0]?.id ?? ""
+            expect(id).toBeTruthy()
+
+            const deleted = await deleteEvaluationRuns({projectId, runIds: [id]})
+            expect(deleted).toContain(id)
+
+            const fetched = await fetchEvaluationRun({id, projectId})
+            expect(fetched).toBeNull()
         })
     })
 })
