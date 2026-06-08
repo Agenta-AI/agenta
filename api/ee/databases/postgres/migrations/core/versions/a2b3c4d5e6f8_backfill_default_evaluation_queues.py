@@ -59,6 +59,7 @@ _COMPUTE_CHUNK = sa.text("""
         r.id::text                                              AS run_id,
         r.project_id::text                                      AS project_id,
         r.created_by_id::text                                   AS created_by_id,
+        r.name                                                  AS name,
         COALESCE(r.status, 'running')                           AS status,
         COALESCE((r.flags ->> 'has_human')::boolean, false)     AS has_human,
         EXISTS (
@@ -119,6 +120,7 @@ _CREATE_DEFAULT_QUEUES = sa.text("""
         id,
         created_at,
         created_by_id,
+        name,
         flags,
         data,
         status,
@@ -129,6 +131,7 @@ _CREATE_DEFAULT_QUEUES = sa.text("""
         gen_random_uuid(),
         CURRENT_TIMESTAMP,
         CAST(src.created_by_id AS uuid),
+        src.name,
         jsonb_build_object('is_default', true, 'is_sequential', false),
         '{}'::json,
         src.status,
@@ -137,8 +140,9 @@ _CREATE_DEFAULT_QUEUES = sa.text("""
         CAST(:project_ids AS text[]),
         CAST(:run_ids AS text[]),
         CAST(:created_by_ids AS text[]),
+        CAST(:names AS text[]),
         CAST(:statuses AS text[])
-    ) AS src(project_id, run_id, created_by_id, status)
+    ) AS src(project_id, run_id, created_by_id, name, status)
 """)
 
 # Cheap archive: flip deleted_at on the active default queue of each run id that
@@ -217,6 +221,7 @@ def upgrade() -> None:
         create_projects: List[str] = []
         create_runs: List[str] = []
         create_creators: List[str] = []
+        create_names: List[str] = []
         create_statuses: List[str] = []
 
         archive_projects: List[str] = []
@@ -233,6 +238,7 @@ def upgrade() -> None:
                 create_projects.append(row.project_id)
                 create_runs.append(row.run_id)
                 create_creators.append(row.created_by_id)
+                create_names.append(row.name)
                 create_statuses.append(row.status)
 
             # Non-human runs with a stale active default get it archived.
@@ -250,6 +256,7 @@ def upgrade() -> None:
                     "project_ids": create_projects,
                     "run_ids": create_runs,
                     "created_by_ids": create_creators,
+                    "names": create_names,
                     "statuses": create_statuses,
                 },
             )
