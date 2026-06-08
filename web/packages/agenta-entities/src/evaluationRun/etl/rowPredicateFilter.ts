@@ -80,6 +80,7 @@ export interface RowPredicate {
  * Cases handled:
  *   - `{type: "binary", freq: [{value, density}]}` → value with highest density
  *   - `{type: "numeric/continuous", mean: N}` → mean
+ *   - `{type: "numeric/discrete", mean: N}` → mean
  *   - `{type: "numeric", mean: N}` → mean
  *   - everything else passes through unchanged
  */
@@ -99,7 +100,10 @@ export function unwrapStatsForCompare(v: unknown): unknown {
         }
         return undefined
     }
-    if (t === "numeric/continuous" || t === "numeric") {
+    // Discrete metrics (integer counts like `passed`/`total`) carry the same
+    // aggregate shape as continuous ones. Without this case they fall through
+    // and get rendered/compared as the raw stats object (a JSON blob).
+    if (t === "numeric/continuous" || t === "numeric/discrete" || t === "numeric") {
         const obj = v as {mean?: number; sum?: number; count?: number}
         return obj.mean ?? obj.sum ?? obj.count
     }
