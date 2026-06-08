@@ -30,6 +30,7 @@ const config = {
             "@agenta/playground-ui",
             "@agenta/annotation",
             "@agenta/annotation-ui",
+            "@agenta/evaluations",
         ],
     },
     typescript: {

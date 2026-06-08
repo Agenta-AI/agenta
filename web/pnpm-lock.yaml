@@ -117,6 +117,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../packages/agenta-entity-ui
         version: link:../packages/agenta-entity-ui
+      '@agenta/evaluations':
+        specifier: workspace:../packages/agenta-evaluations
+        version: link:../packages/agenta-evaluations
       '@agenta/oss':
         specifier: workspace:../oss
         version: link:../oss
