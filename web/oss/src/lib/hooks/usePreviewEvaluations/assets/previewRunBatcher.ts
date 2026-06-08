@@ -1,6 +1,5 @@
+import {queryEvaluationRuns} from "@agenta/entities/evaluationRun"
 import {createBatchFetcher} from "@agenta/shared/utils"
-
-import axios from "@/oss/lib/api/assets/axiosConfig"
 
 interface PreviewRunBatchKey {
     projectId: string
@@ -69,17 +68,16 @@ const getPreviewRunBatcherCore = () => {
                     Array.from(runsByProject.entries()).map(async ([projectId, runIds]) => {
                         if (!runIds.size) return
 
-                        const payload = {
-                            run: {
-                                ids: Array.from(runIds),
-                            },
-                        }
-
-                        const response = await axios.post(`/evaluations/runs/query`, payload, {
-                            params: {project_id: projectId},
+                        // Delegate the per-run fetch to the shared Fern-backed package
+                        // query (same POST /evaluations/runs/query {run:{ids}}), instead of
+                        // a duplicate axios call. This batcher keeps its own cache + the
+                        // list→detail priming; only the network/query layer is shared now.
+                        const {runs: fetchedRuns} = await queryEvaluationRuns({
+                            projectId,
+                            ids: Array.from(runIds),
                         })
 
-                        const runs = Array.isArray(response?.data?.runs) ? response.data.runs : []
+                        const runs = Array.isArray(fetchedRuns) ? fetchedRuns : []
 
                         runs.forEach((run: any) => {
                             const runId = resolveRunId(run)
