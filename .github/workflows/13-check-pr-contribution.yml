@@ -10,8 +10,11 @@ name: "13 - check PR contribution"
 # It never checks out or runs the PR's code, so this is safe.
 
 on:
+  # No 'reopened': a maintainer who manually reopens a flagged PR should win,
+  # otherwise the reopen event would immediately re-close it. Auto-reopen on a
+  # fixed description still works through 'edited' and 'synchronize'.
   pull_request_target:
-    types: [opened, edited, synchronize, reopened, ready_for_review]
+    types: [opened, edited, synchronize, ready_for_review]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -116,27 +119,24 @@ jobs:
 
             const reasons = [];
 
-            // 1) Template is present and filled.
-            const headers = ['Summary', 'Testing', 'Demo', 'Checklist'];
-            const lower = body.toLowerCase();
-            const missing = headers.filter((h) => !lower.includes('## ' + h.toLowerCase()));
+            // 1) The PR is described. We only require a non-empty Summary, not the
+            //    full template. Missing Testing/Checklist sections do not close a PR;
+            //    a thorough PR with a demo should never be closed over a checklist.
             if (!body.trim()) {
               reasons.push('The pull request description is empty. Please fill in the PR template.');
-            } else if (missing.length) {
-              reasons.push('The description is missing required sections (' + missing.join(', ') + '). Please use the PR template without removing its sections.');
             } else if (!section('Summary')) {
-              reasons.push('The **Summary** section is empty. Describe what changed and why.');
+              reasons.push('The **Summary** section is missing or empty. Describe what changed and why using the PR template.');
             }
 
-            // 2) Demo is present for functional changes.
+            // 2) Demo is present for functional changes. Scan the whole body, not
+            //    just the Demo section, so a screenshot or video placed anywhere counts.
             const files = await github.paginate(github.rest.pulls.listFiles, {
               owner, repo, pull_number: number, per_page: 100,
             });
             const functional = files.some((f) => !EXEMPT.some((r) => r.test(f.filename)));
-            const demo = section('Demo') || '';
-            const hasMedia = MEDIA.some((r) => r.test(demo));
+            const hasMedia = MEDIA.some((r) => r.test(body));
             if (functional && !hasMedia) {
-              reasons.push('This PR changes functional code (SDK, API, or frontend) but the **Demo** section has no screenshot or video. A short demo recording is required. Only test-only, docs-only, or chore changes may mark Demo as N/A.');
+              reasons.push('This PR changes functional code (SDK, API, or frontend) but includes no demo. Add a screenshot or short video of the change. Only test-only, docs-only, or chore changes may skip it.');
             }
 
             async function upsertComment(text) {
