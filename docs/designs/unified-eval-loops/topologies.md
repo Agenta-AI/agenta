@@ -43,6 +43,12 @@ An open queue: trace batches are pushed in later and each finalizes itself.
 `dispatch = {testcase, queue}`. Testcase input + evaluators, no application.
 Same open-queue shape as traces, seeded by direct testcases instead.
 
+### Testset → evaluator (no application)
+`dispatch = {testset, batch}`. Testset input + evaluators, no application.
+One-shot over the testset's bounded set: score each testcase directly with the
+evaluator, no invocation step in between. The bounded-batch counterpart to the
+open-queue `direct testcases → evaluator` shape.
+
 ### Testset → application → evaluator
 `dispatch = {testset, batch}`. Testset input + one application + evaluators.
 The canonical batch evaluation: run the app over each testcase, then score it.
@@ -55,18 +61,14 @@ Bulk invocation only — produce outputs over a testset, no scoring step.
 
 ## Recognized but not allowed
 
-### Query → application *(potential)*
-`status = potential`. Query input + application. Plausible (query traces could
-seed app calls) but deferred: source trace links must not be attached as
-application links, or the new app traces get misclassified as annotations.
-
-### Testset → evaluator, no application *(potential)*
-`status = potential`. Testset input + evaluators, no application. Deferred:
-non-queue testcase-only evaluator execution needs an explicit evaluator
-contract first.
-
 ### Mixed query + testset sources *(not planned)*
 `status = not_planned`. Two source families in one run — not a planned shape.
+
+### Query → application *(not planned)*
+`status = not_planned`. Query input + application. Re-invoking an application
+over query-sourced traces is not a planned shape: source trace links cannot be
+attached as application links without misclassifying the new application traces
+as annotations.
 
 ### Live testset evaluation *(not planned)*
 `status = not_planned`. `is_live` + testset — not a meaningful product shape.

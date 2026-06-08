@@ -154,7 +154,7 @@ def test_sdk_runtime_topology_classifier_distinguishes_direct_testcases_from_tes
     assert decision.dispatch.mode == "queue"
 
 
-def test_sdk_runtime_topology_classifier_keeps_deferred_query_to_application_shape():
+def test_sdk_runtime_topology_classifier_marks_query_to_application_not_planned():
     decision = classify_steps_topology(
         steps=[
             EvaluationStep(
@@ -172,7 +172,30 @@ def test_sdk_runtime_topology_classifier_keeps_deferred_query_to_application_sha
         ],
     )
 
-    assert decision.status == "potential"
+    assert decision.status == "not_planned"
+
+
+def test_sdk_runtime_topology_classifier_dispatches_testset_to_evaluator():
+    decision = classify_steps_topology(
+        steps=[
+            EvaluationStep(
+                key="testset-main",
+                type="input",
+                origin="custom",
+                references={"testset_revision": {"id": str(uuid4())}},
+            ),
+            EvaluationStep(
+                key="evaluator-auto",
+                type="annotation",
+                origin="auto",
+                references={"evaluator_revision": {"id": str(uuid4())}},
+            ),
+        ],
+    )
+
+    assert decision.status == "supported"
+    assert decision.dispatch.source == "testset"
+    assert decision.dispatch.mode == "batch"
 
 
 @pytest.mark.asyncio
