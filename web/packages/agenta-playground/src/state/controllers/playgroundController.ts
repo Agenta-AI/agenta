@@ -24,7 +24,7 @@
 
 import {loadableStateAtomFamily} from "@agenta/entities/loadable"
 import {loadableController, snapshotAdapterRegistry} from "@agenta/entities/runnable"
-import {fetchTestcasesPage} from "@agenta/entities/testcase"
+import {fetchTestcasesPage, testcaseMolecule} from "@agenta/entities/testcase"
 import type {TraceSpan, TraceSpanNode} from "@agenta/entities/trace"
 import {extractAgData, extractInputs, extractOutputs} from "@agenta/entities/trace"
 import {
@@ -83,6 +83,11 @@ import {
     newTestcaseDataHashAtom,
 } from "../execution/selectors"
 import {pruneDanglingConnections} from "../helpers/connectionGraph"
+import {
+    collectDownstreamReferencedColumns,
+    reconcileRowDataForEntity,
+    resolveEntityInputContract,
+} from "../helpers/entityInputContract"
 import {extractAndLoadChatMessagesAtom} from "../helpers/extractAndLoadChatMessages"
 import {normalizeTestcaseRowsForLoad} from "../helpers/testcaseRowNormalization"
 import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
@@ -1907,6 +1912,13 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
                     oldLoadableId,
                     newLoadableId: newAnchorLoadableId,
                 })
+                // After the loadable re-link, the testcase row store is still
+                // carrying every key the *previous* primary populated (chat
+                // `messages`, old completion variables, etc.). Reconcile each
+                // row against the NEW primary's input schema so the UI shows
+                // only the relevant variables and execution doesn't have to
+                // strip them later (#4525 / AGE-3793).
+                pruneTestcaseRowsForEntity(get, set, anchorSwap.newEntityId)
             }
         }
     }
@@ -2125,6 +2137,113 @@ function relinkLoadableSessions(
     }
 }
 
+type PruneStatus = "acted" | "noop" | "unresolved"
+
+/**
+ * Reconcile every testcase row against the given entity's input contract.
+ *
+ * Why this exists: the testcase row store (`testcaseMolecule`) is shared
+ * across loadables. When the user swaps the primary app in the LLM-as-a-
+ * judge playground, the row data keeps every key the *previous* primary
+ * populated — chat `messages`, completion template variables that the new
+ * app doesn't declare, etc. Without reconciliation, those stale keys leak
+ * into the new app's request body and the downstream evaluator's envelope.
+ *
+ * Allow-list source is `inputPorts` (via `resolveEntityInputContract`), NOT
+ * `inputSchema.properties` — completion apps surface their variables as
+ * prompt template placeholders through `inputPorts` and have an EMPTY static
+ * input schema, so schema-based filtering keeps everything. Policy:
+ *   - App with a resolved contract → strict: keep only declared (or
+ *     downstream-evaluator-protected) keys.
+ *   - Evaluator → chat-transport only: evaluators spread extra testcase
+ *     columns, so we never strict-filter them.
+ *   - Unresolved contract (ports mid-hydration) → no-op; returns
+ *     `"unresolved"` so the caller can retry once the contract resolves. The
+ *     run-time reconciliation in `webWorkerIntegration` is the backstop.
+ *
+ * Columns referenced by downstream evaluator `<input>_key` settings (e.g.
+ * `correct_answer_key → ground_truth`) are protected so a strict clean
+ * against the app contract doesn't drop intentional evaluation inputs.
+ *
+ * Mutations go through `testcaseMolecule.actions.batchUpdate` setting stale
+ * keys to `undefined`, which the store's update reducer interprets as a
+ * delete. Drafts are created as needed (one per affected row).
+ */
+function pruneTestcaseRowsForEntity(get: Getter, set: Setter, entityId: string): PruneStatus {
+    const contract = resolveEntityInputContract(get, entityId)
+
+    // Unresolved, non-evaluator contract → we can't strict-filter safely yet.
+    // The evaluator path is always "resolved enough" (chat-transport strip
+    // works without a variable list), so only bail for non-evaluator apps.
+    if (!contract.isEvaluator && !contract.resolved) {
+        return "unresolved"
+    }
+
+    const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+    if (!Array.isArray(displayRowIds) || displayRowIds.length === 0) return "noop"
+
+    const protectedColumns = collectDownstreamReferencedColumns(get, get(playgroundNodesAtom))
+
+    const updates: {id: string; updates: {data: Record<string, unknown>}}[] = []
+
+    for (const rowId of displayRowIds) {
+        const row = get(testcaseMolecule.data(rowId))
+        const data = (row as {data?: Record<string, unknown>} | null)?.data
+        if (!data || typeof data !== "object") continue
+
+        const {dropped} = reconcileRowDataForEntity(get, entityId, data, {
+            protectedKeys: protectedColumns,
+        })
+        if (dropped.length === 0) continue
+
+        const undefinedData: Record<string, unknown> = {}
+        for (const key of dropped) {
+            undefinedData[key] = undefined
+        }
+        updates.push({id: rowId, updates: {data: undefinedData}})
+    }
+
+    if (updates.length === 0) return "noop"
+
+    set(testcaseMolecule.actions.batchUpdate, updates)
+    return "acted"
+}
+
+/**
+ * Reconcile all testcase rows against the CURRENT primary (depth-0) entity's
+ * input contract, on demand — call this right after a primary swap so the
+ * shared row is cleaned the instant the app changes, without waiting for a
+ * run. The run-time reconciliation in `webWorkerIntegration` is the backstop.
+ *
+ * Hydration handling: the new primary's input ports may not be resolved at
+ * call time (the workflow is still loading). When the prune reports
+ * `"unresolved"` AND the entity isn't loaded yet, we subscribe to its
+ * `inputPorts` and retry once they resolve, then unsubscribe. If the entity
+ * is already loaded but has no resolvable variables, there's nothing to wait
+ * for, so we don't subscribe (avoids a dangling subscription).
+ */
+const reconcileRowsToPrimaryAtom = atom(null, (get, set) => {
+    const nodes = get(playgroundNodesAtom)
+    const primary = nodes.find((node) => node.depth === 0)
+    if (!primary) return
+    const entityId = primary.entityId
+
+    const status = pruneTestcaseRowsForEntity(get, set, entityId)
+    if (status !== "unresolved") return
+
+    // Unresolved: either the workflow is still loading, or it's a genuinely
+    // no-variable app. Only wait if it hasn't loaded yet.
+    const entityLoaded = get(workflowMolecule.selectors.data(entityId)) != null
+    if (entityLoaded) return
+
+    const store = getDefaultStore()
+    const unsub = store.sub(workflowMolecule.selectors.inputPorts(entityId), () => {
+        const retryStatus = pruneTestcaseRowsForEntity(store.get, store.set, entityId)
+        const nowLoaded = store.get(workflowMolecule.selectors.data(entityId)) != null
+        if (retryStatus !== "unresolved" || nowLoaded) unsub()
+    })
+})
+
 /**
  * Switch one entity for another in the displayed selection.
  * Handles both single and comparison mode. The loadable-scoped re-link
@@ -2245,6 +2364,13 @@ export const playgroundController = {
 
         /** Change the primary node */
         changePrimaryNode: changePrimaryNodeAtom,
+
+        /**
+         * Reconcile all testcase rows against the current primary entity's
+         * input contract. Call after a primary swap to clean stale keys from a
+         * previous app off the shared row immediately (#4525 / AGE-3793).
+         */
+        reconcileRowsToPrimary: reconcileRowsToPrimaryAtom,
 
         /** Disconnect from testset and reset to local mode */
         disconnectAndResetToLocal: disconnectAndResetToLocalAtom,

@@ -18,6 +18,7 @@ import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {getOrgValues} from "@/oss/state/org"
 import {projectIdAtom} from "@/oss/state/project"
+import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
 import {sessionExistsAtom} from "../../session"
 
@@ -37,6 +38,15 @@ import {buildTraceQueryParams, executeTraceQuery, mergeConditions} from "./query
 // Traces query ----------------------------------------------------------------
 export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
     const appId = get(selectedAppIdAtom)
+    const workflowCtx = get(currentWorkflowContextAtom)
+    // `fetchAllPreviewTraces` writes the legacy `?application_id=` URL param
+    // off this value. For app workflows that's correct (and redundant with the
+    // body filter that also pins `references.application.id`). For evaluator
+    // workflows it would AND with the body's `references.evaluator.id` filter
+    // and return zero traces — `application.id` is a different reference slot
+    // than `evaluator.id`. Drop the URL param for evaluators; the body filter
+    // (from `filtersAtomFamily`'s appScope branch) already pins the scope.
+    const effectiveAppId = workflowCtx.workflowKind === "evaluator" ? "" : appId
     const sort = get(sortAtomFamily("traces"))
     const filters = get(filtersAtomFamily("traces"))
     const traceTabs = get(traceTabsAtomFamily("traces"))
@@ -48,6 +58,15 @@ export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
 
     const sessionExists = get(sessionExistsAtom)
 
+    // Wait for workflow context to settle before firing the query. While
+    // `workflowCtx.isResolving` is true, `effectiveAppId` falls through to
+    // the app branch with the raw `appId` (which is the evaluator's id when
+    // we're on `/apps/<evalId>/traces`), causing a wrong `application_id`
+    // URL param to be sent. Gating on `!isResolving` skips that wasted
+    // request — once ctx settles, the atom re-evaluates with the correct
+    // `effectiveAppId` and queryFn fires.
+    const enabledFlag = sessionExists && Boolean(appId || projectId) && !workflowCtx.isResolving
+
     return {
         queryKey: ["traces", projectId, appId, params],
         initialPageParam: {
@@ -58,12 +77,12 @@ export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
             executeTraceQuery({
                 params,
                 pageParam: pageParam as {newest?: string} | undefined,
-                appId: appId as string,
+                appId: effectiveAppId as string,
                 isHasAnnotationSelected,
                 hasAnnotationConditions,
                 hasAnnotationOperator,
             }),
-        enabled: sessionExists && Boolean(appId || projectId),
+        enabled: enabledFlag,
 
         getNextPageParam: (lastPage, _pages) => {
             const page = lastPage as any
