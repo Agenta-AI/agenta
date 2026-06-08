@@ -51,6 +51,19 @@ jobs:
             const LABEL = 'incomplete-pr';
             const INTERNAL = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 
+            // author_association reports MEMBER only for *public* org members. Private
+            // members fall back to CONTRIBUTOR because this workflow's GITHUB_TOKEN
+            // cannot see private membership, so list internal handles explicitly here.
+            // Add a handle whenever a teammate with private org membership joins.
+            const ALLOWLIST = [
+              'mmabrouk',
+              'jp-agenta',
+              'ardaerzin',
+              'ashrafchowdury',
+              'bekossy',
+              'junaway',
+            ].map((h) => h.toLowerCase());
+
             // Files that are non-functional. A PR touching only these may skip the demo.
             const EXEMPT = [
               /(^|\/)tests?\//i,
@@ -100,8 +113,13 @@ jobs:
               return;
             }
 
-            // Exempt internal contributors (org members) and bots.
-            if (!forceExternal && (pr.user.type === 'Bot' || INTERNAL.includes(pr.author_association))) {
+            // Exempt internal contributors and bots. Check both the GitHub-reported
+            // association (covers public org members) and the explicit allowlist
+            // (covers private org members the token cannot see as MEMBER).
+            const isInternal =
+              INTERNAL.includes(pr.author_association) ||
+              ALLOWLIST.includes(pr.user.login.toLowerCase());
+            if (!forceExternal && (pr.user.type === 'Bot' || isInternal)) {
               core.info(`PR #${number} by ${pr.user.login} (${pr.author_association}) is internal, skipping.`);
               return;
             }
