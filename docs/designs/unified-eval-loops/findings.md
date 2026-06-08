@@ -10,7 +10,7 @@ Sources:
 
 ## Summary
 
-- Status: 9 findings synced from PR #4341 review threads (UEL-034..042). 3 resolved this turn (UEL-035 keyset fix, UEL-037 dead-handler removal, UEL-038 decorator), 6 open pending disposition.
+- Status: 9 findings synced from PR #4341 review threads (UEL-034..042). 4 resolved this turn (UEL-035 keyset fix, UEL-036 connection-per-item in `set_metrics`+`create_queues`, UEL-037 dead-handler removal, UEL-038 decorator), 5 open pending disposition.
 - Severity spread: 1 P1 (data loss on finalize), 1 P2 silent failure-drop in SDK, plus exception-mapping gap, connection-pool churn, three N+1 query paths. One reviewer-flagged out-of-scope (UEL-042, async-engine serialization).
 - GitHub threads: all 9 remain `unresolved` / not `outdated` and none replied to — code fixes applied locally are not yet pushed, so threads stay open until the branch is updated.
 - Note: UEL-035 lives in the same migration file as the in-progress "default queue name backfill" fix, but is a distinct concern and untouched by that fix.
@@ -60,21 +60,6 @@ Sources:
 - Nuance — the PK index helps the *cursor*, not the *workload*: the index fix only speeds up the page-advance step (`WHERE id > cursor ORDER BY id LIMIT n` finding where the next page starts). It does **not** remove a full table scan from the migration. The heavy per-chunk work is `_COMPUTE_CHUNK` — the `jsonb_array_elements` step scan over each run's graph plus the LEFT JOIN to `evaluation_queues` — and a backfill has to visit every run exactly once regardless, so a full pass over `evaluation_runs` is inherent and unavoidable. What the old `id::text` keyset added on top of that was an O(n) full scan + sort *per page* just to locate the cursor (→ O(n²) total pagination overhead); the fix collapses that overhead to O(log n) per page. So the value of the PK keyset here is bounded: it removes the quadratic re-scan caused by the text cast, but the migration is still O(n) total because it deliberately touches every row once. The index does not turn this into a cheap partial-table operation, and was never going to.
 - On the reviewer's single-transaction half (wontfix — expected): the migration intentionally runs in one transaction (Alembic `transaction_per_migration=True`) so the whole backfill is all-or-nothing. Chunking is only there to bound per-statement size, per-statement lock scope, and to give progress logging — not to bound the transaction. Per-batch `connection.commit()` is deliberately not added; the all-or-nothing guarantee is the desired behavior. (Header comment's "chunked / safe to re-run" framing is about idempotent re-runs of the whole migration, which still holds.)
 - Sources: PR #4341 thread, comment 3375211093 (@mmabrouk). User disposition 2026-06-08: single-transaction is expected; investigate + fix the `id::text` keyset.
-
-### [OPEN] UEL-036: `set_metrics` closed-run check opens one DB connection per metric
-
-- Origin: sync
-- Lens: verification
-- Severity: P2
-- Confidence: high
-- Status: needs-user-decision
-- Category: Performance
-- Files: `api/oss/src/dbs/postgres/evaluations/dao.py:1910` (`set_metrics`; loop at ~1936)
-- Summary: `set_metrics` loops over every metric and calls `_get_run_flags(...)` without passing `session`. `_get_run_flags` opens its own engine session when `session is None`, so a batch of N metrics opens N connections just to read run flags. Under concurrent, high-volume metric writes this can exhaust the connection pool. `set_results` already solved this exact case (dedupe run ids, reuse one session, with a comment that it does so "so a fanned-out slice does not exhaust the connection pool"); `set_metrics` did not get the same treatment.
-- Evidence: lines 1936-1939 — `for metric in metrics: run_flags = await _get_run_flags(project_id=..., run_id=metric.run_id)` with no `session=`.
-- Cause: closed-run check not hoisted/deduped into a single shared session.
-- Suggested Fix: Mirror `set_results` — open one `async with self.engine.session()`, dedupe `{m.run_id for m in metrics}`, pass `session=session` to `_get_run_flags`, raise `EvaluationClosedConflict` per closed run.
-- Sources: PR #4341 thread, comment 3375235286 (@mmabrouk, marked "minor"). Matches prior note `dao_one_connection_per_call`.
 
 ### [OPEN] UEL-039: SDK slice processor swallows a failed scenario — drops it from the run rollup with no errored status
 
@@ -164,5 +149,19 @@ Sources:
 - Resolution (applied locally, ruff clean): added `@handle_evaluation_closed_exception()` beneath `@intercept_exceptions()` on both handlers, matching the established pattern.
 - Note on reachability: through the `SimpleQueuesService.delete` path (`service.py:4394`), a default-queue delete is deliberately rerouted to `delete_run` (cascading the default queue away) rather than raising `DefaultQueueDeletionForbidden`, so the 500 was latent rather than currently hit via this exact endpoint. The decorator is still the correct fix — it restores parity with the other mutation handlers and maps the exception to 409 if the simple-delete logic ever surfaces the forbidden case. `delete_queue` itself does raise it (`service.py:2063`).
 - Sources: PR #4341 thread, comment 3375254252 (@mmabrouk). User disposition 2026-06-08: fix it.
+
+### [CLOSED] UEL-036: Closed-run check opens one DB connection per item in `set_metrics` and `create_queues`
+
+- Origin: sync
+- Lens: verification
+- Severity: P2
+- Confidence: high
+- Status: fixed
+- Category: Performance
+- Files: `api/oss/src/dbs/postgres/evaluations/dao.py` (`set_metrics`, `create_queues`)
+- Summary: The closed-run check loops over each item and calls `_get_run_flags(...)` without `session`. `_get_run_flags` opens its own engine session when `session is None`, so a batch of N items opens N connections just to read run flags — under concurrent, high-volume writes this can exhaust the connection pool. `set_results` had already solved this (dedupe run ids, reuse one session, with the comment "so a fanned-out slice does not exhaust the connection pool"); two siblings were missed.
+- Full-DAO sweep (per user request): audited every `_get_run_flags` call site in the DAO. All loop sites except two already passed a shared `session=` (`create_scenarios:906`, `set_results:1464`, plus the read/query loops at 1087/1195/1699/2167/2581). The single-call create paths (`create_scenario`, `create_result`, `create_queue` — one run per request) open one connection by design and are not the bug. The **two offenders** were `set_metrics` (the comment's original target) and `create_queues` — the latter not flagged in the PR comment but identical in shape.
+- Resolution (applied locally, ruff clean): both now open one `async with self.engine.session()`, dedupe `{x.run_id for x in items}`, pass `session=session` to `_get_run_flags`, and raise `EvaluationClosedConflict` per closed run — mirroring `set_results`. Re-swept: no loop call site in the DAO is left without a shared session. No EE evaluations DAO exists, so the fix is OSS-only.
+- Sources: PR #4341 thread, comment 3375235286 (@mmabrouk, marked "minor"). Matches prior note `dao_one_connection_per_call`. User disposition 2026-06-08: fix it + sweep the whole DAO for the same issue → surfaced `create_queues` as a second instance.
 
 Historical closed findings (UEL-001..033) are retained in `findings.old.md`.

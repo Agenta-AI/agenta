@@ -35,10 +35,8 @@ depends_on: Union[str, Sequence[str], None] = None
 BATCH_SIZE = 100
 
 
-# Keyset pagination over run ids. Compared on the native `uuid` column so the
-# primary-key btree index drives each page (a text cast would make the predicate
-# non-sargable and force a full scan + sort per page). Ordering is by uuid byte
-# value, seeded with the zero UUID so the first page starts below every id.
+# Keyset pagination on the native `uuid` id so the PK index drives each page (a
+# text cast would be non-sargable). Seeded with the zero UUID.
 _NEXT_RUN_IDS = sa.text("""
     SELECT id::text
     FROM evaluation_runs
