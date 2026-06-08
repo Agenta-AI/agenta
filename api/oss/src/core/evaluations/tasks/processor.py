@@ -337,24 +337,26 @@ async def _finalize_run_after_slice(
     ):
         final_flags = final_flags.model_copy(update={"is_active": False})
 
+    # Full-PUT off the current run; only status and is_active are finalize's to set.
+    _run = current_run or run
     try:
         await evaluations_service.edit_run(
             project_id=project_id,
             user_id=user_id,
             #
             run=EvaluationRunEdit(
-                id=run.id,
+                id=_run.id,
                 #
-                name=run.name,
-                description=run.description,
+                name=_run.name,
+                description=_run.description,
                 #
                 flags=final_flags,
-                tags=run.tags,
-                meta=run.meta,
+                tags=_run.tags,
+                meta=_run.meta,
                 #
                 status=run_status,
                 #
-                data=run.data,
+                data=_run.data,
             ),
         )
     except EvaluationClosedConflict:

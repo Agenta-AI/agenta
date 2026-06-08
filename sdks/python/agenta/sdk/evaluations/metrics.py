@@ -1,7 +1,7 @@
 from typing import List, Optional
 from uuid import UUID
 
-from agenta.sdk.utils.client import authed_api
+from agenta.sdk.utils.client import authed_async_api
 from agenta.sdk.models.evaluations import EvaluationMetrics
 
 # TODO: ADD TYPES
@@ -19,7 +19,7 @@ async def aquery_global(
     (not the per-scenario/variational or temporal rows). The SDK calls this
     after executing+refreshing to surface the run's headline metrics.
     """
-    response = authed_api()(
+    response = await authed_async_api()(
         method="POST",
         endpoint="/evaluations/metrics/query",
         json=dict(
@@ -56,7 +56,7 @@ async def aquery_variational(
     with `aquery_global` so the SDK surfaces both the headline and per-scenario
     metrics after executing+refreshing.
     """
-    response = authed_api()(
+    response = await authed_async_api()(
         method="POST",
         endpoint="/evaluations/metrics/query",
         json=dict(
@@ -90,7 +90,7 @@ async def arefresh(
         scenario_id=str(scenario_id) if scenario_id else None,
     )
 
-    response = authed_api()(
+    response = await authed_async_api()(
         method="POST",
         endpoint="/evaluations/metrics/refresh",
         json=dict(metrics=metrics),

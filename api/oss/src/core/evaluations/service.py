@@ -624,17 +624,19 @@ class EvaluationsService:
             )
 
         # Scenarios sourced only from a removed step have no remaining cells.
-        orphan_scenario_ids: List[UUID] = []
-        for scenario_id in affected_scenario_ids:
-            remaining = await self.query_results(
-                project_id=project_id,
-                result=EvaluationResultQuery(
-                    run_id=run.id,
-                    scenario_ids=[scenario_id],
-                ),
-            )
-            if not remaining:
-                orphan_scenario_ids.append(scenario_id)
+        remaining = await self.query_results(
+            project_id=project_id,
+            result=EvaluationResultQuery(
+                run_id=run.id,
+                scenario_ids=list(affected_scenario_ids),
+            ),
+        )
+        scenarios_with_cells = {r.scenario_id for r in remaining if r.scenario_id}
+        orphan_scenario_ids: List[UUID] = [
+            scenario_id
+            for scenario_id in affected_scenario_ids
+            if scenario_id not in scenarios_with_cells
+        ]
 
         if orphan_scenario_ids:
             await self.delete_scenarios(

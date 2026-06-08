@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any
 from pydantic import BaseModel
 from uuid import UUID
 
-from agenta.sdk.utils.client import authed_api
+from agenta.sdk.utils.client import authed_async_api
 from agenta.sdk.models.evaluations import EvaluationRun, Origin, Target
 
 import agenta as ag
@@ -45,7 +45,7 @@ async def afetch(
     *,
     run_id: UUID,
 ) -> Optional[EvaluationRun]:
-    response = authed_api()(
+    response = await authed_async_api()(
         method="GET",
         endpoint=f"/evaluations/runs/{run_id}",
     )
@@ -102,7 +102,7 @@ async def acreate(
         ),
     )
 
-    response = authed_api()(
+    response = await authed_async_api()(
         method="POST",
         endpoint="/simple/evaluations/",
         json=payload,
@@ -130,7 +130,7 @@ async def aclose(
     #
     status: Optional[str] = "success",
 ) -> Optional[EvaluationRun]:
-    response = authed_api()(
+    response = await authed_async_api()(
         method="POST",
         endpoint=f"/evaluations/runs/{run_id}/close",
         params={"status": status} if status else None,
@@ -156,7 +156,7 @@ async def aurl(
     *,
     run_id: UUID,
 ) -> Optional[str]:
-    response = authed_api()(
+    response = await authed_async_api()(
         method="GET",
         endpoint="/projects/current",
     )

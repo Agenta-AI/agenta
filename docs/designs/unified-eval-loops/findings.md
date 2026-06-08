@@ -12,6 +12,7 @@ Sources:
 
 - Status: 9 findings synced from PR #4341 review threads (UEL-034..042). 4 resolved this turn (UEL-035 keyset fix, UEL-036 connection-per-item in `set_metrics`+`create_queues`, UEL-037 dead-handler removal, UEL-038 decorator), 5 open pending disposition.
 - Severity spread: 1 P1 (data loss on finalize), 1 P2 silent failure-drop in SDK, plus exception-mapping gap, connection-pool churn, three N+1 query paths. One reviewer-flagged out-of-scope (UEL-042, async-engine serialization).
+- All 5 remaining open findings were independently re-investigated against current code on 2026-06-08 — all CONFIRMED. Two had their suggested fix corrected: UEL-039 (the failed `scenario` is local to `_process_one`, so the original "edit the outer except handler" fix can't reach it — needs restructuring), and UEL-041 (the batched input fetch must omit `step_keys`, unlike the step-scoped bulk fetch — a deliberate semantic difference). UEL-034 confirmed P1 with a permanent + silent delete; the `set_run_status` path (not the minimal patch) is the recommended fix.
 - GitHub threads: all 9 remain `unresolved` / not `outdated` and none replied to — code fixes applied locally are not yet pushed, so threads stay open until the branch is updated.
 - Note: UEL-035 lives in the same migration file as the in-progress "default queue name backfill" fix, but is a distinct concern and untouched by that fix.
 
@@ -39,10 +40,10 @@ Sources:
 - Category: Correctness
 - Files: `api/oss/src/core/evaluations/tasks/processor.py:357` (finalize write; `data=run.data` at the `edit_run` call ~line 357)
 - Summary: The post-slice finalize re-reads `current_run` for the status floor and `is_active` flag, but still passes `run.data` (the caller's pre-slice graph snapshot) to `edit_run`. `edit_run` → `_reconcile_run` → `_prune_removed_steps` reads `prior_step_keys` from a fresh fetch and deletes results/scenarios/metrics for any step present in the saved graph but missing from the passed graph. If the run's graph changes between the slice snapshot and finalize (e.g. a user adds an evaluator step mid-run), this write carries the stale graph and the reconcile permanently and silently prunes the new step's data.
-- Evidence: `current_run` is fetched (~line 295) and used for status/flags, but the `edit_run` call passes `data=run.data`. Confirmed line ~357/368 still reads `data=run.data`.
-- Cause: status-only finalize routes through the full `edit_run` graph-reconcile path while carrying a stale graph.
-- Suggested Fix: Minimal — `data=current_run.data if current_run else run.data`, keeping `prior_step_keys` and the written graph in sync so the prune is a no-op unless the graph really changed. Cleaner — add a dedicated `set_run_status` path that writes status + flags only and never touches the graph or queue reconciliation, so a status-only finalize cannot mutate the graph as a side effect. Also removes the per-slice cost of rewriting the full graph + re-running queue reconciliation when nothing changed.
-- Sources: PR #4341 thread, comment 3375193915 (@mmabrouk).
+- Evidence (verified 2026-06-08): `processor.py:295` fetches `current_run` and uses it for the status floor + `is_active` flag (`:323`, `:332-338`), but the finalize `edit_run` call at `:357` passes `data=run.data` (the stale caller snapshot). In `service.py` `edit_run` (`:742-770`): `:754` `prior_run = await self.fetch_run(...)` reads the CURRENT saved graph, `:755` `prior_step_keys = self._step_keys(prior_run)`, `:757` the DAO writes the passed (stale) `run.data`, then `_reconcile_run` (`:764`) computes `removed_step_keys = prior_step_keys - self._step_keys(run)` (`:582`) and `_prune_removed_steps` (`:591-643`) HARD-deletes the dropped step's results (`delete_results`, `:621-623`), orphan scenarios (`delete_scenarios`, `:641`), and flushes metrics. No soft-delete, no error surfaced (the processor's outer handler only logs). So a step added between the slice snapshot and finalize is overwritten out of the graph AND its data is permanently pruned.
+- Cause: a status-only finalize routes through the full `edit_run` graph-reconcile path while carrying a stale graph snapshot.
+- Suggested Fix: The finalize block's intent is purely status + `is_active` (confirmed by the surrounding comments and the fields it computes) — it never legitimately needs to write graph changes. So the **dedicated `set_run_status` path is the correct fix**: write only status + flags, skip graph reconcile + queue reconcile entirely. It must keep the concurrency-safe floor (read `current_run`, floor terminal-bad statuses) and use `current_run.flags` for `is_active` (mirroring `:332`). The minimal `data=current_run.data if current_run else run.data` patch *also* stops the prune, but is strictly weaker: it leaves every slice rewriting the full graph + re-running queue reconciliation, and re-opens the same data-loss class if the snapshot is ever reintroduced. Recommend `set_run_status`.
+- Sources: PR #4341 thread, comment 3375193915 (@mmabrouk). Investigation 2026-06-08: CONFIRMED P1, permanent + silent.
 
 ### [OPEN] UEL-035: Text-cast keyset (`id::text`) defeats the PK index on the backfill pagination
 
@@ -69,12 +70,12 @@ Sources:
 - Confidence: high
 - Status: needs-user-decision
 - Category: Correctness
-- Files: `sdks/python/agenta/sdk/evaluations/runtime/processor.py:460` (`_guarded_process_one` except handler, ~lines 459-466)
-- Summary: Isolation is correct (one scenario's failure should not abort the slice), but the `except` only logs. It does not append to `processed` nor write an errored status via `edit_scenario`, so the failed scenario drops out of the run rollup (`has_errors = any(item.has_errors for item in processed)` and the rest of the status computation only see successes). Any single scenario that errors during an SDK evaluation (one bad input, one failed invocation) silently shrinks the result set with no signal that one failed and no error recorded against it.
-- Evidence: the handler logs `[SLICE] scenario processing failed` and returns; no `processed.append(...)`, no `edit_scenario(status=ERRORS)`. `_process_one` mints the scenario before invoking, so a scenario reference is available to mark errored.
-- Cause: failure path logs but does not record the scenario as errored.
-- Suggested Fix: Two parts — (1) capture the minted scenario and, in the handler, call `edit_scenario(scenario=scenario, status=EvaluationStatus.ERRORS)` when one was already created; (2) append an errored `ProcessedScenario` (under `processed_lock`) so the rollup counts it.
-- Sources: PR #4341 thread, comment 3375239778 (@mmabrouk).
+- Files: `sdks/python/agenta/sdk/evaluations/runtime/processor.py:459-466` (`_guarded_process_one` except handler); scenario minted at `:143` inside `_process_one`; rollup at `:470` and `status.py:36-53` (`run_status`).
+- Summary: Isolation is correct (one scenario's failure should not abort the slice), but the `except` only logs. It does not append to `processed` nor write an errored status via `edit_scenario`, so the failed scenario drops out of the run rollup (`has_errors = any(item.has_errors for item in processed)` at `:470`, and `run_status` in `status.py` only sees the appended items). Any single scenario that errors during an SDK evaluation (one bad input, one failed invocation) silently shrinks the result set with no signal and no error recorded against it.
+- Evidence (verified 2026-06-08): handler at `:461-466` only calls `logger.error("[SLICE] scenario processing failed", ...)`; no `processed.append`, no `edit_scenario(status=ERRORS)`. `ProcessedScenario` (`status.py:8-16`) needs only `scenario` + `has_errors=True` (rest default). `EvaluationStatus.ERRORS` exists (`models/evaluations.py:37`). `edit_scenario` is an injected callable in scope at the processor top-level (`:106`, used at `:439-440`). The backend processor uses this same shared SDK handler, so it has the same gap — its in-loop `edit_scenario` at `:439-440` does fire on success/normal paths but NOT on the swallowed-exception path.
+- Cause: failure path logs but neither records an errored scenario nor surfaces it to the rollup.
+- Suggested Fix (REVISED — original fix has a scope blocker): the `scenario` is a **local inside `_process_one` (`:143`)**, so the `except` in the OUTER `_guarded_process_one` cannot reach it — you cannot naïvely call `edit_scenario(scenario=...)` from there. Restructure so the failure is handled where the scenario is in scope: catch inside `_process_one` (after `:143` mints the scenario), mark it errored via `edit_scenario(scenario=scenario, status=EvaluationStatus.ERRORS)`, and append an errored `ProcessedScenario(scenario=scenario, has_errors=True)` under `processed_lock`. Keep `_guarded_process_one` as a coarse last-resort shield for failures BEFORE the scenario is minted (e.g. `create_scenario` itself throwing) — those have no scenario to record, so logging is the only option, but they should still be counted (consider a sentinel errored entry or a slice-level error counter so the rollup is not silently short).
+- Sources: PR #4341 thread, comment 3375239778 (@mmabrouk). Investigation 2026-06-08: CONFIRMED; fix needs restructuring (scope blocker), not a one-line handler edit.
 
 ### [OPEN] UEL-040: Step-removal orphan check runs one `query_results` per affected scenario
 
@@ -84,12 +85,12 @@ Sources:
 - Confidence: high
 - Status: needs-user-decision
 - Category: Performance
-- Files: `api/oss/src/core/evaluations/service.py:629` (loop over `affected_scenario_ids`)
+- Files: `api/oss/src/core/evaluations/service.py:628-637` (loop over `affected_scenario_ids`)
 - Summary: After a step is removed, the orphan check loops over every affected scenario and runs `query_results` once each to see whether any cells remain. On a run with many scenarios this is one round trip per scenario where a single query for the whole set would answer the same question. Not a correctness problem — step removal on a large run pays an avoidable cost.
-- Evidence: `for scenario_id in affected_scenario_ids: remaining = await self.query_results(... scenario_ids=[scenario_id] ...)`.
+- Evidence (verified 2026-06-08): `:628-635` — `for scenario_id in affected_scenario_ids: remaining = await self.query_results(result=EvaluationResultQuery(run_id=run.id, scenario_ids=[scenario_id]))`, a single-element list per iteration. `EvaluationResultQuery.scenario_ids` is `Optional[List[UUID]]` (`types.py:456`) and the DAO applies it via `.in_(...)` (`dao.py:1756-1759`), so the batched form is supported. The per-scenario query uses ONLY `run_id` + `scenario_id` (no extra per-scenario filter), so batching is clean.
 - Cause: per-scenario query instead of a single batched fetch.
-- Suggested Fix: Fetch remaining results for all `affected_scenario_ids` in one `query_results` call (pass the full list), group by `scenario_id` in memory, treat a scenario with no remaining cells as an orphan. N queries → 1.
-- Sources: PR #4341 thread, comment 3375254354 (@mmabrouk).
+- Suggested Fix: Fetch remaining results for all `affected_scenario_ids` in one `query_results` call (pass the full list as `scenario_ids`), group by `scenario_id` in memory, treat a scenario with no remaining cells as an orphan. N queries → 1. No correctness caveat.
+- Sources: PR #4341 thread, comment 3375254354 (@mmabrouk). Investigation 2026-06-08: CONFIRMED, batched API exists, no caveat.
 
 ### [OPEN] UEL-041: Rerun recovery path runs one `query_results` per non-seeded scenario
 
@@ -99,12 +100,12 @@ Sources:
 - Confidence: high
 - Status: needs-user-decision
 - Category: Performance
-- Files: `api/oss/src/core/evaluations/tasks/processor.py:804` (non-seeded branch inside the `for scenario_id in scenario_ids` loop, ~line 802)
-- Summary: In the rerun branch, each non-seeded scenario calls `query_results` on its own to recover its input cells and context. There is already a bulk fetch of existing cells earlier in the function, so this adds one more round trip per scenario on top of it — N sequential queries on a rerun over many scenarios. Not a correctness problem; ingest and seeded paths are unaffected (they do not enter this branch).
-- Evidence: `else: input_cells = await self.evaluations_service.query_results(... scenario_id=scenario_id ...)` inside the per-scenario loop.
+- Files: `api/oss/src/core/evaluations/tasks/processor.py:803-812` (non-seeded `else` branch inside `for scenario_id in scenario_ids` at `:788`); existing bulk fetch at `:714-724`.
+- Summary: In the rerun branch, each non-seeded scenario calls `query_results` on its own to recover its input cells and context. There is already a bulk fetch of existing cells earlier in the function (`:714-724`), so this adds one more round trip per scenario on top of it — N sequential queries on a rerun over many scenarios. Not a correctness problem; ingest and seeded paths are unaffected (they do not enter this branch).
+- Evidence (verified 2026-06-08): `:803-812` — `else: input_cells = await self.evaluations_service.query_results(result=EvaluationResultQuery(run_id=run_id, scenario_id=scenario_id))` inside the per-scenario loop at `:788`. The earlier bulk fetch (`:714-724`) is scoped by `scenario_ids`, `step_keys`, AND `repeat_idxs`.
 - Cause: per-scenario input-cell fetch instead of a single batched fetch.
-- Suggested Fix: Batch the input-cell fetch for all non-seeded scenarios into one `query_results` call, group rows by `scenario_id` in memory, hand each scenario its slice — mirroring the bulk existing-cells fetch the function already does.
-- Sources: PR #4341 thread, comment 3375254454 (@mmabrouk).
+- Suggested Fix (with caveat the original missed): batch the input-cell fetch for all non-seeded scenarios into one `query_results` call keyed by `scenario_ids=[all non-seeded ids]`, group by `scenario_id` in memory, hand each scenario its slice. **Caveat:** unlike the earlier bulk fetch, the per-scenario input query deliberately OMITS the `step_keys` filter — a comment at `:725-726` explains inputs must be recovered regardless of the slice's step scope. So the batched input fetch must also omit `step_keys` (fetch all input cells for the non-seeded set), not reuse the step-scoped bulk query. Two distinct batched fetches, by design.
+- Sources: PR #4341 thread, comment 3375254454 (@mmabrouk). Investigation 2026-06-08: CONFIRMED; batched fix must preserve the deliberate no-`step_keys` semantics.
 
 ### [OPEN] UEL-042: SDK async engine mostly serializes — blocking HTTP client under `asyncio.gather` (out of scope for this PR)
 
@@ -114,12 +115,12 @@ Sources:
 - Confidence: high
 - Status: needs-user-decision
 - Category: Performance
-- Files: `sdks/python/agenta/sdk/evaluations/preview/utils.py:693` (`afetch_trace`, the clearest example); pattern spans the result/metric/scenario/trace adapters.
-- Summary: The SDK fans out scenarios with `asyncio.gather`, but the calls that save results, refresh metrics, edit scenarios, and fetch traces all go through the blocking HTTP client (`authed_api()`), each holding the event loop until it returns — so the fanned-out work runs one call at a time and the concurrency mostly serializes. `afetch_trace` is the worst case: a retry loop of `max_retries=30` with a delay means one slow/missing trace can block the whole loop ~30s while nothing else progresses. SDK evaluations run slower than the design intends; runs with many test cases or slow traces run much slower. Not a crash — lost parallelism.
-- Evidence: adapters call the blocking `authed_api()`; `authed_async_api()` exists in the codebase but is currently unused. `afetch_trace` wraps the blocking call in a `max_retries=30` retry loop.
+- Files: `sdks/python/agenta/sdk/evaluations/preview/utils.py:693` (`afetch_trace`); blocking calls in adapters `scenarios.py:30` (`aadd`) / `:132` (`aedit_scenario`), `results.py:33` (`apopulate`), `metrics.py:93` (`arefresh`); fan-out at `runtime/processor.py:468`.
+- Summary: The SDK fans out scenarios with `asyncio.gather` (`processor.py:468`), but the calls that save results, refresh metrics, edit scenarios, and fetch traces all go through the blocking HTTP client (`authed_api()`), each holding the event loop until it returns — so the fanned-out work runs one call at a time and the concurrency mostly serializes. `afetch_trace` is the worst case: a retry loop of `max_retries=30` with `delay=1.0` means one slow/missing trace can block the whole loop ~30s while nothing else progresses.
+- Evidence (verified 2026-06-08): `afetch_trace` (`utils.py:693`) is `async` but calls `authed_api()(...)` (`:709`) synchronously inside the loop — not awaited, not `to_thread`'d. Five adapter helpers (`aadd`, `aedit_scenario`, `apopulate`, `arefresh`, `afetch_trace`) all call the blocking `authed_api()`. `authed_async_api()` is defined (`sdk/utils/client.py:41`) with an identical `(method, endpoint, **kwargs)` signature and is **unused anywhere under `sdk/evaluations/`** (only referenced in `managers/apps.py`, `managers/shared.py`).
 - Cause: blocking client under an async fan-out; predates this PR.
-- Suggested Fix: Switch these adapters/helpers to `authed_async_api()`, or run the blocking call on a worker thread via `asyncio.to_thread`, to restore engine concurrency. For the trace path, revisit the 30s-per-cell retry budget. Reviewer explicitly defers this to its own change (touches shared client code; predates this PR).
-- Sources: PR #4341 thread, comment 3375244177 (@mmabrouk, flagged out-of-scope).
+- Suggested Fix: Switch these adapters/helpers to `authed_async_api()` — lower-risk than `asyncio.to_thread`: signature-compatible, the helpers are already `async`, so the change is `response = await authed_async_api()(method=..., endpoint=...)`. `to_thread` is the fallback (doesn't address root cause, adds thread overhead). For the trace path, also revisit the 30s-per-cell retry budget. **Out-of-scope confirmed:** `authed_api`/`authed_async_api` are shared client utilities used well beyond evals (managers, eval reads), so this is a library-wide change that belongs in its own PR, as the reviewer noted.
+- Sources: PR #4341 thread, comment 3375244177 (@mmabrouk, flagged out-of-scope). Investigation 2026-06-08: CONFIRMED; `authed_async_api()` exists + unused in evals; async-client swap is the lower-risk fix.
 
 ## Closed Findings
 
