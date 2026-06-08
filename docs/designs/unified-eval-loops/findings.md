@@ -10,8 +10,9 @@ Sources:
 
 ## Summary
 
-- Status: 9 findings synced from PR #4341 review threads (UEL-034..042). 4 resolved this turn (UEL-035 keyset fix, UEL-036 connection-per-item in `set_metrics`+`create_queues`, UEL-037 dead-handler removal, UEL-038 decorator), 5 open pending disposition.
-- Severity spread: 1 P1 (data loss on finalize), 1 P2 silent failure-drop in SDK, plus exception-mapping gap, connection-pool churn, three N+1 query paths. One reviewer-flagged out-of-scope (UEL-042, async-engine serialization).
+- Status: 11 findings (UEL-034..044). 9 from PR #4341 review threads (UEL-034..042) plus 2 topology gaps surfaced during the slice-test root-cause (UEL-043, UEL-044). Resolved: UEL-034 (full-PUT finalize), UEL-035 (keyset), UEL-036 (connection-per-item), UEL-037 (dead handlers), UEL-038 (decorator), UEL-039 (slice failure-record + test), UEL-040 (batched orphan check), UEL-042 (async client). Open pending disposition: UEL-041 (N+1 rerun), UEL-043 + UEL-044 (topology policy, need product decision).
+- Severity spread: 1 P1 (data loss on finalize), 1 P2 silent failure-drop in SDK, plus exception-mapping gap, connection-pool churn, three N+1 query paths, two deferred-topology asymmetries. One reviewer-flagged out-of-scope (UEL-042, async-engine serialization).
+- Slice-endpoint acceptance failures (8× 409 "Cannot modify a closed evaluation" in `test_run_slice_endpoints.py`) root-caused 2026-06-09: NOT a regression from this turn's fixes. The test helper built a `testset → evaluator` (no app) topology, which `start` auto-fails-and-closes (`service.py:2706`). Fixed test-side by making the helper build the supported `testset → application → evaluator` shape (mock app, no LLM). The underlying classifier asymmetry is tracked as UEL-043.
 - All 5 remaining open findings were independently re-investigated against current code on 2026-06-08 — all CONFIRMED. Two had their suggested fix corrected: UEL-039 (the failed `scenario` is local to `_process_one`, so the original "edit the outer except handler" fix can't reach it — needs restructuring), and UEL-041 (the batched input fetch must omit `step_keys`, unlike the step-scoped bulk fetch — a deliberate semantic difference). UEL-034 confirmed P1 with a permanent + silent delete; the `set_run_status` path (not the minimal patch) is the recommended fix.
 - GitHub threads: all 9 remain `unresolved` / not `outdated` and none replied to — code fixes applied locally are not yet pushed, so threads stay open until the branch is updated.
 - Note: UEL-035 lives in the same migration file as the in-progress "default queue name backfill" fix, but is a distinct concern and untouched by that fix.
@@ -121,6 +122,36 @@ Sources:
 - Cause: blocking client under an async fan-out; predates this PR.
 - Suggested Fix: Switch these adapters/helpers to `authed_async_api()` — lower-risk than `asyncio.to_thread`: signature-compatible, the helpers are already `async`, so the change is `response = await authed_async_api()(method=..., endpoint=...)`. `to_thread` is the fallback (doesn't address root cause, adds thread overhead). For the trace path, also revisit the 30s-per-cell retry budget. **Out-of-scope confirmed:** `authed_api`/`authed_async_api` are shared client utilities used well beyond evals (managers, eval reads), so this is a library-wide change that belongs in its own PR, as the reviewer noted.
 - Sources: PR #4341 thread, comment 3375244177 (@mmabrouk, flagged out-of-scope). Investigation 2026-06-08: CONFIRMED; `authed_async_api()` exists + unused in evals; async-client swap is the lower-risk fix.
+
+### [OPEN] UEL-043: `testset → evaluator` (no app) is deferred while `testcases → evaluator` is supported — inconsistent
+
+- Origin: sync
+- Lens: design
+- Severity: P3
+- Confidence: high
+- Status: needs-user-decision
+- Category: Product topology
+- Files: `sdks/python/agenta/sdk/evaluations/runtime/topology.py:87-94` (supported `testcase → evaluator`) vs `:114-119` (deferred `testset → evaluator`); branch ordering at `:87` precedes `:114`. Doc: `docs/designs/unified-eval-loops/topologies.md:42-44` vs `:63-66`.
+- Summary: The classifier dispatches `direct testcases → evaluator` (`{testcase, queue}`) but marks `testset → evaluator` (no app) as `potential`/undispatchable with reason "non-queue testcase-only evaluator execution needs an explicit evaluator contract". A testset is a named, versioned bag of testcases, so scoring testset-sourced testcases directly is the same operation as scoring a raw testcase batch. The worker slice processor already executes the `testset → evaluator` path to SUCCESS once dispatched (observed: run `019ea947-ad12`, 8 scenarios, all SUCCESS), so the gate is purely classifier policy, not an execution limit. Surfaced while root-causing the slice-endpoint test failures: a plain testset+auto-evaluator simple evaluation is auto-failed-and-closed at `start` (`service.py:2706` `_fail_evaluation_run`) because this branch returns no dispatch.
+- Evidence (verified 2026-06-09): `classify_steps_topology` line 88 `if has_testcases: → Dispatch(source="testcase", mode="queue")`; line 114 `if has_testsets and has_evaluators and not has_applications: → status="potential"` (no dispatch). `has_testsets` vs `has_testcases` derive from input shape in `dbs/postgres/evaluations/utils.py:128/135` (`DIRECT_TESTCASE_STEP_KEYS` direct keys vs `TESTSET_REFERENCE_KEY` reference). Container logs confirm `start` → `_fail_evaluation_run` → `is_closed=True` for this topology.
+- Cause: deliberate conservatism in the classifier (`dce50ec0b`); the testset-sourced evaluator path was deferred pending an "evaluator contract" that the testcase path does not require.
+- Suggested Fix: decide whether `testset → evaluator` should dispatch (likely `{testset, batch}`, mirroring `testset → application → evaluator`). If yes, return a `Dispatch` at `:114` and verify against the slice processor (which already runs it). If no, document why the testset case needs a contract the raw-testcase case does not. Either way, resolve the asymmetry rather than leaving it implicit.
+- Sources: @jp, 2026-06-09 ("if we support testcases > evaluator(s), we might as well want to support testset(s) > evaluator(s)").
+
+### [OPEN] UEL-044: `query → application` is deferred while `testset → application` (batch inference) is supported — symmetric gap
+
+- Origin: sync
+- Lens: design
+- Severity: P3
+- Confidence: medium
+- Status: needs-user-decision
+- Category: Product topology
+- Files: `sdks/python/agenta/sdk/evaluations/runtime/topology.py:103-112` (deferred `query → application`) vs `:137-143` (supported `testset → application`). Doc: `topologies.md:58-61` vs `:50-52`.
+- Summary: The classifier supports `testset → application` (batch inference, `{testset, batch}`) but defers `query → application` as `potential`, with a concrete reason: "source trace links must not be attached as application links because that would classify the new application traces as annotations". The two are symmetric — a different input family (query traces vs testcases) seeding the same single-application invocation — so if testset-seeded batch inference is supported, query-seeded batch inference is a natural counterpart. Unlike UEL-043, this one carries a stated technical blocker (trace-link misclassification), so it is genuinely harder, not just policy.
+- Evidence (verified 2026-06-09): line 103 `if has_queries and has_applications: → status="potential"` with the trace-link reason; line 137 `if has_testsets and has_applications and not has_evaluators and not has_queries: → Dispatch(source="testset", mode="batch")`. The deferred reason names a real seam (source-trace links vs application links and annotation classification).
+- Cause: deferred on a real technical blocker (link classification), not just conservatism.
+- Suggested Fix: scope the trace-link/annotation-classification issue named in the branch reason; if resolvable, add a `query → application` dispatch mirroring `testset → application`. Lower priority / more involved than UEL-043 because the blocker is substantive.
+- Sources: @jp, 2026-06-09 ("also maybe query(ies) > application").
 
 ## Closed Findings
 

@@ -377,6 +377,95 @@ async def test_sdk_source_slice_isolates_one_scenario_failure():
 
 
 @pytest.mark.asyncio
+async def test_sdk_source_slice_records_process_failure_as_error():
+    """A scenario that fails AFTER it is minted is recorded, not dropped.
+
+    Regression guard for UEL-039: a failure inside _process_one (here a runner
+    that raises for one scenario) must mark that scenario ERRORS and roll it up
+    with has_errors, while siblings still complete.
+    """
+    run_id = uuid4()
+    bad_scenario_id = uuid4()
+    good_scenario_id = uuid4()
+    minted = iter([bad_scenario_id, good_scenario_id])
+
+    class Runner:
+        async def execute_batch(self, requests, semaphore=None):
+            if any(req.cell.scenario_id == bad_scenario_id for req in requests):
+                raise RuntimeError("boom: runner failed")
+            return [
+                WorkflowExecutionResult(
+                    status=EvaluationStatus.SUCCESS,
+                    trace_id=f"trace-{req.cell.repeat_idx}",
+                )
+                for req in requests
+            ]
+
+    class Logger:
+        async def set(
+            self,
+            *,
+            cell,
+            trace_id=None,
+            hash_id=None,
+            testcase_id=None,
+            error=None,
+        ):
+            return SimpleNamespace(id=uuid4())
+
+    async def create_scenario(run_id):
+        return SimpleNamespace(id=next(minted))
+
+    async def refresh_metrics(run_id, scenario_id):
+        return SimpleNamespace(id=uuid4())
+
+    edit_scenario = AsyncMock()
+
+    source_items = [
+        ResolvedSourceItem(
+            kind="testcase",
+            step_key="testset-main",
+            testcase_id=uuid4(),
+            inputs={"prompt": "a"},
+        ),
+        ResolvedSourceItem(
+            kind="testcase",
+            step_key="testset-main",
+            testcase_id=uuid4(),
+            inputs={"prompt": "b"},
+        ),
+    ]
+
+    processed = await process_sources(
+        run_id=run_id,
+        source_items=source_items,
+        steps=[
+            EvaluationStep(key="testset-main", type="input", origin="custom"),
+            EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
+        ],
+        repeats=1,
+        create_scenario=create_scenario,
+        edit_scenario=edit_scenario,
+        set_results=Logger(),
+        refresh_metrics=refresh_metrics,
+        runners={"evaluator-auto": Runner()},
+        revisions={"evaluator-auto": {"id": "revision"}},
+    )
+
+    by_id = {item.scenario.id: item for item in processed}
+    assert set(by_id) == {bad_scenario_id, good_scenario_id}
+    assert by_id[bad_scenario_id].has_errors is True
+    assert by_id[good_scenario_id].has_errors is False
+
+    errored = [
+        call.kwargs["scenario"].id
+        for call in edit_scenario.await_args_list
+        if call.kwargs.get("status") == EvaluationStatus.ERRORS
+    ]
+    assert bad_scenario_id in errored
+
+
+@pytest.mark.asyncio
 async def test_sdk_source_slice_marks_short_runner_batch_as_error():
     run_id = uuid4()
     scenario_id = uuid4()
