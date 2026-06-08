@@ -38,6 +38,12 @@ duplicates.
    Do not put cross-entity orchestration in `entities`.
 6. **No half-and-half / no bridges.** When a capability moves to a package, the OSS shell is
    deleted in the same Work Package (or explicitly tracked as debt with a deletion WP).
+7. **Clean up after yourself — zero OSS residue (HARD gate).** After this migration, OSS must
+   contain **no eval-related services, utils, or data-layer atoms** — only thin route handlers
+   and `-ui` providers. Every WP that moves a capability **deletes its OSS counterpart in the
+   same WP**; deletion is never deferred to "later." The migration is NOT done until the
+   cleanup ledger in §7 is fully checked off and its verification commands return empty. If
+   you finish a WP and left an OSS service/atom/util behind, the WP is not done.
 
 **Explicit non-goals (do NOT do these as part of this work):**
 
@@ -263,7 +269,70 @@ NOT a reimplementation of something that already exists.
 
 ---
 
-## 7. Testing & regression methodology
+## 7. Zero OSS residue — cleanup ledger & gate
+
+After the migration, the only eval code allowed in `web/oss` / `web/ee` is **route handlers**
+(`pages/...`) and **`-ui` providers** that supply inputs (like `AnnotationUIProvider`).
+Everything below MUST be deleted (moved into packages), each in the WP that owns its
+capability. This ledger is the checklist; do not mark the migration done until every row is
+`DELETED` and §7.2 returns empty.
+
+### 7.1 Cleanup ledger (OSS paths that must be gone)
+
+**Services (data layer) — `web/oss/src/services/`**
+- [ ] `evaluations/results/` → `@agenta/entities/evaluationRun` (done: Fern api) → **delete shell** (WP-4)
+- [ ] `evaluations/scenarios/` → `evaluations`/entities → **delete shell** (WP-4)
+- [ ] `evaluations/invocations/` → `evaluations`/entities → **delete shell** (WP-4)
+- [ ] `evaluations/runShape/` → audit → `evaluations` controller → **delete** (WP-4)
+- [ ] `evaluationRuns/` (run-config builder) → `@agenta/evaluations` (`buildRunConfig`) → **delete** (WP-4)
+- [ ] `evaluations/api/` (legacy bridge: `GET /evaluations`, `POST /simple/evaluations/`, `_Evaluation`) → **terminal WP**, gated on legacy auto-eval UI replacement; tracked, NOT silently left
+- [ ] `onlineEvaluations/` → **terminal WP**, gated on online-eval engine adoption; tracked, NOT silently left
+
+**Utils / libs / hooks — `web/oss/src/lib/`**
+- [ ] `evaluations/` (`buildRunIndex`, `legacy`, `metricUtils` callers) + `evaluations/utils/` (`metrics`, `evaluationKind`) → `@agenta/evaluations` / `entities/etl` → **delete** (WP-1/WP-4; resolve `buildRunIndex` vs `etl` per §6)
+- [ ] `hooks/usePreviewEvaluations/` (+ `assets/`, `states/`) → `@agenta/evaluations` run hub → **delete** (WP-3/WP-4)
+- [ ] `hooks/useEvaluationRunMetrics/` → `@agenta/evaluations` metrics → **delete** (WP-1/WP-4)
+- [ ] `evalRunner/`, `evaluators/` → audit; eval-data parts → packages, evaluator defs already in `entities/workflow` → **delete data-layer parts** (WP-4)
+
+**Data-layer atoms / state — `web/oss/src/components/` & `state/`**
+- [ ] `EvalRunDetails/atoms/` (incl. `mutations/`, `runMetrics/`, `table/`) — the ~38-atom engine → `@agenta/evaluations` → **delete** (WP-4)
+- [ ] `EvalRunDetails/state/`, `EvalRunDetails/hooks/`, `EvalRunDetails2/hooks/` → packages → **delete** (WP-4)
+- [ ] `EvaluationRunsTablePOC/atoms/`, `EvaluationRunsTablePOC/hooks/` → `@agenta/evaluations`(+`-ui`) → **delete** (WP-3/WP-4)
+- [ ] `Evaluations/atoms/` (e.g. `runMetrics` re-export) → packages → **delete** (WP-4)
+- [ ] `pages/evaluations/NewEvaluation/state/` (run-creation state) → `@agenta/evaluations` → **delete** (WP-4)
+- [ ] `state/evaluator/` → confirm superseded by `entities/workflow` → **delete if dup** (WP-4)
+
+> Presentational, app-specific components (e.g. EmptyState\*) may remain in OSS — they are not
+> services/utils/data-layer. Views with embedded data logic (`EvalRunDetails`,
+> `EvaluationRunsTablePOC`) move to `evaluations-ui`; only their route wrappers stay.
+
+### 7.2 Verification gate (must pass at final DoD — run with a backend-less grep)
+
+Run from `web/`. Each must return **no output** (except paths on the explicitly-tracked
+terminal list — legacy bridge + onlineEvaluations — until their terminal WPs land):
+
+```bash
+# 1. No eval HTTP calls left in OSS/EE (axios to eval endpoints)
+grep -rnE "axios\.(get|post|patch|delete)\(.*/(evaluations|simple/evaluations)" oss/src ee/src | grep -v node_modules
+
+# 2. No eval service dirs left
+find oss/src/services -type d | grep -iE "eval"
+
+# 3. No eval data-layer atom dirs left
+find oss/src/components -type d | grep -iE "EvalRunDetails/atoms|EvaluationRunsTablePOC/atoms|Evaluations/atoms"
+
+# 4. No eval data hooks/utils left
+find oss/src/lib -type d | grep -iE "usePreviewEvaluations|useEvaluationRunMetrics|lib/evaluations"
+
+# 5. No jotai atoms defined in remaining OSS eval code (should be 0)
+grep -rlE "atom\(|atomFamily\(|atomWithQuery\(|atomWithMutation\(" oss/src/components/EvalRunDetails oss/src/components/EvaluationRunsTablePOC 2>/dev/null | grep -v node_modules
+```
+
+A non-empty result that is NOT on the tracked-terminal list = the migration is **not done**.
+The terminal list (legacy bridge, onlineEvaluations) must have its own filed deletion WPs so
+it is never "forgotten" — track them in §9 Open until closed.
+
+## 8. Testing & regression methodology
 
 - **Headless integration** (gated on `AGENTA_API_URL`+`AGENTA_AUTH_KEY`, ephemeral account):
   every moved controller/store gets tests that create a real run/scenario and exercise the
@@ -279,20 +348,23 @@ NOT a reimplementation of something that already exists.
 
 ---
 
-## 8. Definition of done (whole migration)
+## 9. Definition of done (whole migration)
 
 - One evaluation engine in `evaluations`/`evaluations-ui`; `annotations`/`annotations-ui` are
   the queue delta on top, depending on it.
 - `@agenta/annotation` no longer contains generic eval logic.
-- OSS owns only route handlers + `-ui` providers for eval; the ~50 OSS eval atom files and the
-  Fern-wrapped OSS service shells are deleted.
+- OSS owns only route handlers + `-ui` providers for eval. **Zero OSS residue:** the §7
+  cleanup ledger is fully checked off and the §7.2 verification commands return empty (no eval
+  services, no eval data-layer atoms, no eval data utils/hooks in `web/oss`/`web/ee`) — save
+  the explicitly-tracked terminal items, which must each have a filed deletion WP, not be left
+  silently.
 - Human-eval and annotation-queue are presets over the same engine (unblocks replacing human
   evals with annotation queues).
 - All regression gates green; annotation never regressed.
 
 ---
 
-## 9. Decisions locked (from review) vs open
+## 10. Decisions locked (from review) vs open
 
 **Locked:** extract from annotation (source of truth) with OSS-parity gating before deletion;
 `entities` stays as entity-definitions home; ONE generic configurable table moved (not
@@ -301,4 +373,3 @@ rewritten) from `AnnotationQueuesView`; `etl` stays in `entities`.
 **Open (decide in-flight, narrowly):** exact home of `markCompleted`/completion + queue
 metadata (§3.1 judgment calls); whether `annotation`→`annotations` rename happens now or later
 (WP-5); the `buildRunIndex` vs `etl` gap resolution (§6).
-</content>
