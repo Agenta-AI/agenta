@@ -143,6 +143,29 @@ export const fullPagePlaygroundEvaluatorsAtom = atom<Workflow[]>((get) => {
 })
 
 /**
+ * Non-archived **automatic** evaluators — i.e. all evaluators except human
+ * (`is_feedback`) ones. Unlike `fullPagePlaygroundEvaluatorsAtom`, this does
+ * NOT narrow to evaluators that have a full-page playground, so it includes the
+ * declarative classifiers too (exact match, regex, similarity / semantic
+ * similarity, json diff, contains json, …). This is the right list for the
+ * sidebar workflow switcher, which should surface every automatic evaluator.
+ *
+ * `is_feedback` lives on the revision (not the parent artifact), so it's
+ * resolved from each evaluator's latest revision (batched + cached). An
+ * evaluator whose latest revision hasn't resolved yet is held back until it
+ * does, so a human evaluator never briefly leaks into the list.
+ */
+export const nonHumanEvaluatorsAtom = atom<Workflow[]>((get) => {
+    const evaluators = get(nonArchivedEvaluatorsAtom)
+    return evaluators.filter((evaluator) => {
+        if (!evaluator.id) return false
+        const revision = get(workflowLatestRevisionQueryAtomFamily(evaluator.id)).data
+        if (!revision) return false
+        return !revision.flags?.is_feedback
+    })
+})
+
+/**
  * Invalidate the evaluators list cache.
  * Call after create/update/archive operations on evaluator workflows.
  */

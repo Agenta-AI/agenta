@@ -14,7 +14,6 @@ import {
     evaluatorsListDataAtom,
     evaluatorsListQueryAtom,
     humanEvaluatorsListDataAtom,
-    humanEvaluatorsListQueryAtom,
     invalidateWorkflowsListCache,
     invalidateEvaluatorsListCache,
 } from "@agenta/entities/workflow"
@@ -128,18 +127,27 @@ const NewEvaluationModalInner = ({
             updatedAt: app.updated_at ?? null,
         }))
         if (selectedAppId && !options.some((opt) => opt.value === selectedAppId)) {
-            // Evaluators (and locally-picked workflows) aren't in useAppsData —
-            // fall back to the captured meta so the tag renders a real name.
+            // Evaluators (and locally-picked workflows) aren't in useAppsData.
+            // When the user picked a row we have `selectedWorkflowMeta`; for an
+            // app-scoped EVALUATOR route there's no meta, so resolve the name
+            // (and kind) from the evaluators list — otherwise the Application
+            // panel renders the raw workflow id instead of its name.
+            const evaluatorWorkflow = evaluatorWorkflows.find((e) => e.id === selectedAppId)
+            const isEvaluator = selectedWorkflowMeta?.isEvaluator ?? Boolean(evaluatorWorkflow)
             options.push({
-                label: selectedWorkflowMeta?.label ?? selectedAppId,
+                label:
+                    selectedWorkflowMeta?.label ??
+                    evaluatorWorkflow?.name ??
+                    evaluatorWorkflow?.slug ??
+                    selectedAppId,
                 value: selectedAppId,
-                type: selectedWorkflowMeta?.isEvaluator ? "evaluator" : null,
+                type: isEvaluator ? "evaluator" : null,
                 createdAt: null,
                 updatedAt: null,
             })
         }
         return options
-    }, [availableApps, selectedAppId, selectedWorkflowMeta])
+    }, [availableApps, selectedAppId, selectedWorkflowMeta, evaluatorWorkflows])
     const router = useRouter()
     const {baseAppURL, projectURL} = useURL()
 
@@ -149,9 +157,11 @@ const NewEvaluationModalInner = ({
     const configsData = useAtomValue(evaluatorConfigsListDataAtom)
     const configsQueryState = useAtomValue(evaluatorConfigsQueryStateAtom)
 
-    // Workflow-based evaluator list atoms (replace legacy useEvaluators hook)
+    // Workflow-based evaluator list atoms (replace legacy useEvaluators hook).
+    // The `humanEvaluatorsListDataAtom` subscription already drives the human
+    // evaluators query; we don't separately read its query-state object (doing
+    // so only churned the derived-evaluators memo above), so it's not read here.
     const humanEvaluatorsList = useAtomValue(humanEvaluatorsListDataAtom)
-    const humanEvaluatorsQuery = useAtomValue(humanEvaluatorsListQueryAtom)
     const evaluatorsList = useAtomValue(evaluatorsListDataAtom)
     const evaluatorsQuery = useAtomValue(evaluatorsListQueryAtom)
 
@@ -174,13 +184,17 @@ const NewEvaluationModalInner = ({
                     loadingEvaluatorConfigs: configsQueryState.isPending ?? false,
                 }
             }
+            // Depend on the *values* the body reads, not the query result
+            // objects — `evaluatorsQuery`/`humanEvaluatorsQuery` change identity
+            // on every query tick (and `humanEvaluatorsQuery` isn't read at all),
+            // which recomputed this memo every render and churned the derived
+            // `evaluators`/`evaluatorConfigs` → `appOptions`/Tabs items downstream.
         }, [
             preview,
             evaluationType,
             humanEvaluatorsList,
-            humanEvaluatorsQuery,
             evaluatorsList,
-            evaluatorsQuery,
+            evaluatorsQuery.isPending,
             templatesData,
             configsData,
             templatesQuery.isPending,
