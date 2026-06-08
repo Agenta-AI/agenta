@@ -1948,7 +1948,13 @@ async def test_backend_slice_processor_reexecutes_existing_scenario(monkeypatch)
     )
 
     async def _query_results(*, project_id, result=None, windowing=None):
-        if result is not None and result.scenario_id == scenario_id:
+        # The recovery input fetch is the unscoped one (no step_keys); the slice
+        # probe carries step_keys. Match the recovery fetch for our scenario set.
+        if (
+            result is not None
+            and not result.step_keys
+            and scenario_id in (result.scenario_ids or [])
+        ):
             return [input_cell, evaluator_cell]
         return [evaluator_cell]
 
@@ -2083,7 +2089,13 @@ async def test_backend_slice_processor_uses_requested_scenarios_for_missing_cell
     )
 
     async def _query_results(*, project_id, result=None, windowing=None):
-        if result is not None and result.scenario_id == scenario_id:
+        # The recovery input fetch is the unscoped one (no step_keys); the slice
+        # probe carries step_keys. Match the recovery fetch for our scenario set.
+        if (
+            result is not None
+            and not result.step_keys
+            and scenario_id in (result.scenario_ids or [])
+        ):
             return [input_cell, invocation_cell]
         return []
 
@@ -2237,7 +2249,13 @@ async def test_backend_slice_processor_distinguishes_fill_missing_and_force(
     )
 
     async def _query_results(*, project_id, result=None, windowing=None):
-        if result is not None and result.scenario_id == scenario_id:
+        # The recovery input fetch is the unscoped one (no step_keys); the slice
+        # probe carries step_keys. Match the recovery fetch for our scenario set.
+        if (
+            result is not None
+            and not result.step_keys
+            and scenario_id in (result.scenario_ids or [])
+        ):
             return [input_cell, evaluator_cell]
         return [evaluator_cell]
 

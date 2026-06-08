@@ -11,9 +11,9 @@ Sources:
 ## Summary
 
 - Status: 12 findings total (UEL-034..045). 9 synced from PR #4341 review threads (UEL-034..042), 1 from a full-suite test run (UEL-045), 2 topology gaps surfaced during the UEL-045 root-cause (UEL-043, UEL-044).
-- **Closed (9): UEL-034, UEL-035, UEL-036, UEL-037, UEL-038, UEL-039, UEL-040, UEL-042, UEL-045** — all `fixed`, applied locally (UEL-034/039/040/042 in `03ad0da4c`; UEL-035/037/038 in `571c73ada`; UEL-036 in `41741004d`; UEL-045 test-only, local). UEL-035's single-transaction half is wontfix-by-design; UEL-042's lib-wide migration is deferred to its own PR (eval-side swap done here).
-- **Open (3): UEL-041** (P3 perf, batched rerun-recovery — scope decision), **UEL-043 + UEL-044** (P3 topology policy — product decision). All three are blocked on a user/product call, not on engineering; see Open Questions.
-- Severity spread of closed work: 1 P1 (data loss on finalize), 4 P2 (SDK failure-drop, exception-mapping, connection-pool churn, async serialization, plus the test topology bug), 4 P3.
+- **Closed (10): UEL-034, UEL-035, UEL-036, UEL-037, UEL-038, UEL-039, UEL-040, UEL-041, UEL-042, UEL-045** — all `fixed`, applied locally (UEL-034/039/040/042 in `03ad0da4c`; UEL-035/037/038 in `571c73ada`; UEL-036 in `41741004d`; UEL-041 + UEL-045 test/perf, local). UEL-035's single-transaction half is wontfix-by-design; UEL-042's lib-wide migration is deferred to its own PR (eval-side swap done here).
+- **Open (2): UEL-043 + UEL-044** (P3 topology policy — product decision). Both are blocked on a product call, not on engineering; see Open Questions.
+- Severity spread of closed work: 1 P1 (data loss on finalize), 4 P2 (SDK failure-drop, exception-mapping, connection-pool churn, async serialization, plus the test topology bug), 5 P3.
 - GitHub threads: the 9 PR-comment findings (UEL-034..042) map to review threads still `unresolved` until the branch is pushed; the local fixes are committed but thread resolution waits on the push.
 - Note: UEL-035 shares a migration file with the "default queue name backfill" fix but is a distinct concern, untouched by it.
 
@@ -21,30 +21,14 @@ Sources:
 
 - Provenance is mixed: UEL-034..042 are comment-driven (each traces to one PR review thread, recorded in its `Sources` line); UEL-045 came from a full-suite test run; UEL-043/044 surfaced from design analysis during the UEL-045 root-cause. Each `Sources` line records the actual origin.
 - Reviewer marked UEL-036 ("minor") and UEL-038 ("out of scope for this PR") with explicit scope hints; preserved in their severity/notes.
-- The N+1 query findings (UEL-040 closed, UEL-041 open) and the connection-pool finding (UEL-036 closed) are performance/scaling issues, not correctness bugs — they bite only at scale (many scenarios, concurrent high-volume writes). UEL-042 (async serialization) is the same class.
+- The N+1 query findings (UEL-040, UEL-041) and the connection-pool finding (UEL-036) are performance/scaling issues, not correctness bugs — they bite only at scale (many scenarios, concurrent high-volume writes). UEL-042 (async serialization) is the same class. All are now closed.
 
 ## Open Questions
 
 - UEL-043 (product decision): should `testset → evaluator` (no app) dispatch? The worker already runs it once dispatched, and `testcases → evaluator` is supported, so the gate is classifier policy. Resolve the asymmetry or document why the testset case needs an evaluator contract the raw-testcase case does not.
 - UEL-044 (product decision): should `query → application` dispatch, mirroring the supported `testset → application`? This one carries a real blocker (source-trace links would misclassify as annotations), so it is harder than UEL-043.
-- UEL-041 (scope): take the batched rerun-recovery fix in this PR, or defer? P3 perf, no correctness impact; the batched fetch must omit `step_keys` (deliberate semantic, unlike the step-scoped bulk fetch).
 
 ## Open Findings
-
-### [OPEN] UEL-041: Rerun recovery path runs one `query_results` per non-seeded scenario
-
-- Origin: sync
-- Lens: verification
-- Severity: P3
-- Confidence: high
-- Status: needs-user-decision
-- Category: Performance
-- Files: `api/oss/src/core/evaluations/tasks/processor.py:803-812` (non-seeded `else` branch inside `for scenario_id in scenario_ids` at `:788`); existing bulk fetch at `:714-724`.
-- Summary: In the rerun branch, each non-seeded scenario calls `query_results` on its own to recover its input cells and context. There is already a bulk fetch of existing cells earlier in the function (`:714-724`), so this adds one more round trip per scenario on top of it — N sequential queries on a rerun over many scenarios. Not a correctness problem; ingest and seeded paths are unaffected (they do not enter this branch).
-- Evidence (verified 2026-06-08): `:803-812` — `else: input_cells = await self.evaluations_service.query_results(result=EvaluationResultQuery(run_id=run_id, scenario_id=scenario_id))` inside the per-scenario loop at `:788`. The earlier bulk fetch (`:714-724`) is scoped by `scenario_ids`, `step_keys`, AND `repeat_idxs`.
-- Cause: per-scenario input-cell fetch instead of a single batched fetch.
-- Suggested Fix (with caveat the original missed): batch the input-cell fetch for all non-seeded scenarios into one `query_results` call keyed by `scenario_ids=[all non-seeded ids]`, group by `scenario_id` in memory, hand each scenario its slice. **Caveat:** unlike the earlier bulk fetch, the per-scenario input query deliberately OMITS the `step_keys` filter — a comment at `:725-726` explains inputs must be recovered regardless of the slice's step scope. So the batched input fetch must also omit `step_keys` (fetch all input cells for the non-seeded set), not reuse the step-scoped bulk query. Two distinct batched fetches, by design.
-- Sources: PR #4341 thread, comment 3375254454 (@mmabrouk). Investigation 2026-06-08: CONFIRMED; batched fix must preserve the deliberate no-`step_keys` semantics.
 
 ### [OPEN] UEL-043: `testset → evaluator` (no app) is deferred while `testcases → evaluator` is supported — inconsistent
 
@@ -131,6 +115,20 @@ Sources:
 - Summary: After a step was removed, the orphan check looped over every affected scenario and ran `query_results` once each — one round trip per scenario where a single batched query answers the same question.
 - Resolution (applied locally, committed `03ad0da4c`, ruff clean): one batched `query_results` over the full `affected_scenario_ids` list, building `scenarios_with_cells = {r.scenario_id for r in remaining if r.scenario_id}`, then `orphan_scenario_ids = [id for id in affected_scenario_ids if id not in scenarios_with_cells]`. N queries → 1. The per-scenario query used only `run_id` + `scenario_id`, so batching is clean (no per-scenario filter lost).
 - Sources: PR #4341 thread, comment 3375254354 (@mmabrouk). User disposition 2026-06-08: fix it. Fixed 2026-06-08.
+
+### [CLOSED] UEL-041: Rerun recovery path ran one `query_results` per non-seeded scenario
+
+- Origin: sync
+- Lens: verification
+- Severity: P3
+- Confidence: high
+- Status: fixed
+- Category: Performance
+- Files: `api/oss/src/core/evaluations/tasks/processor.py` (`process_sources`: batched fetch ~`:746-760`, recovery `else` branch ~`:828`).
+- Summary: In the rerun/recovery branch, each non-seeded scenario called `query_results` on its own to recover its input cells and context — one round trip per scenario on top of the earlier slice-scoped bulk fetch. N+1 sequential queries on a rerun over many scenarios. Not a correctness problem; the seeded/ingest path was unaffected (it skips the read).
+- Resolution (applied locally, ruff clean): hoisted the per-scenario read into one batched `query_results` over the full non-seeded set (`scenario_ids=non_seeded_ids`), grouped into `input_cells_by_scenario` in memory; the loop's `else` branch now reads `input_cells_by_scenario.get(scenario_id, [])`. N+1 → 2 queries. The `.get(..., [])` preserves the empty-cells → `source_item is None` → `summary.skipped += 1` path; loop order and downstream batched execution unchanged.
+- Caveat respected (the original reviewer fix missed it): the new batched fetch **omits `step_keys`**, unlike the slice-scoped `existing` probe — inputs must be recovered regardless of the slice's step scope (else a rerun scoped to non-input steps drops input cells and source reconstruction breaks). It is a distinct second batched fetch, not a merge with the first. Comment at the fetch site documents this.
+- Sources: PR #4341 thread, comment 3375254454 (@mmabrouk). User disposition 2026-06-09: take it in this PR. Fixed 2026-06-09.
 
 ### [CLOSED] UEL-042: SDK async engine mostly serializes — blocking HTTP client under `asyncio.gather`
 
