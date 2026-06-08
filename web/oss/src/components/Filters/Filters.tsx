@@ -283,6 +283,7 @@ const Filters: React.FC<Props> = ({
     onApplyFilter,
     onClearFilter,
     buttonProps,
+    reconcileFilterRows,
 }) => {
     const evaluatorPreviews = useAtomValue(evaluatorsListDataAtom)
 
@@ -358,6 +359,37 @@ const Filters: React.FC<Props> = ({
                             : item.value == null
                               ? []
                               : [item.value]
+
+                        // Prefer a candidate whose `referenceCategory` matches
+                        // the entry's `"attributes.key"`. This disambiguates
+                        // the `references` family — application.id /
+                        // evaluator.id / environment.id all share
+                        // `baseField: "references"` and
+                        // `referenceProperty: "id"`, so without this check the
+                        // first match (application.id) always wins, mislabelling
+                        // an evaluator-scoped filter as "Application ID".
+                        const attributesKey = (() => {
+                            for (const entry of valuesArray) {
+                                if (entry && typeof entry === "object") {
+                                    const ak = (entry as Record<string, unknown>)["attributes.key"]
+                                    if (typeof ak === "string") return ak
+                                }
+                            }
+                            return undefined
+                        })()
+                        if (attributesKey) {
+                            for (const candidate of matches) {
+                                if (candidate.referenceCategory !== attributesKey) continue
+                                if (!candidate.referenceProperty) continue
+                                const refProp = candidate.referenceProperty
+                                const hasMatch = valuesArray.some(
+                                    (entry) =>
+                                        entry && typeof entry === "object" && refProp in entry,
+                                )
+                                if (hasMatch) return candidate
+                            }
+                        }
+
                         for (const candidate of matches) {
                             if (!candidate.referenceProperty) continue
                             const refProp = candidate.referenceProperty
@@ -510,6 +542,22 @@ const Filters: React.FC<Props> = ({
     const [activeFieldDropdown, setActiveFieldDropdown] = useState<number | null>(null)
     const [isFilterOpen, setIsFilterOpen] = useState(false)
     const [keySearchTerms, setKeySearchTerms] = useState<Record<number, string>>({})
+
+    /**
+     * Display-only projection of `filter`. The reconciler is opt-in (passed by
+     * the parent) and may rewrite *cosmetic* row fields like `selectedField` /
+     * `selectedLabel` so the UI reflects an in-flight choice (e.g.,
+     * observability flipping the references row's label between "Application
+     * ID" / "Evaluator ID" as the user picks a trace_type, before Apply).
+     *
+     * Mutations still call `setFilter(filter)` by index, so the reconciler is
+     * required to preserve array length and per-index order — that contract
+     * is documented on the prop.
+     */
+    const displayedFilter = useMemo(
+        () => (reconcileFilterRows ? reconcileFilterRows(filter) : filter),
+        [filter, reconcileFilterRows],
+    )
 
     const sanitizedFilters = useMemo(() => {
         return sanitizeFilterItems(
@@ -816,7 +864,7 @@ const Filters: React.FC<Props> = ({
                     </div>
 
                     <div className={filterContainerClass}>
-                        {filter.map((item, idx) => {
+                        {displayedFilter.map((item, idx) => {
                             const uiKey = item.selectedField || item.field || ""
                             const baseFieldCfg = getField(uiKey)
                             const field = effectiveFieldForRow(baseFieldCfg, item)

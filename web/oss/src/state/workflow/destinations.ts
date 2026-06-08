@@ -20,9 +20,12 @@ export type WorkflowRouteSegment =
     | "traces"
 
 const DISABLED_FOR_EVALUATOR: ReadonlySet<WorkflowRouteSegment> = new Set([
-    "overview",
+    // `overview` and `evaluations` are now allowed for evaluators — Overview
+    // shows the evaluator's details/variants and the evaluation runs that
+    // evaluated it; Evaluations shows those same runs (scoped by the evaluator
+    // id as the `application` reference). `endpoints`/`deployments` stay
+    // disabled (no meaningful evaluator surface yet).
     "endpoints",
-    "evaluations",
     "deployments",
 ])
 
