@@ -415,3 +415,39 @@ export async function queryEvaluationMetrics({
     )
     return validated?.metrics ?? []
 }
+
+/**
+ * Batch metrics query across multiple runs, mirroring the backend's projection flags:
+ * `scenario_ids` (an id list, or `false` for run-level-only) and `timestamps` (temporal
+ * projection). Endpoint: `POST /evaluations/metrics/query`.
+ *
+ * Returns the flat metric list (passthrough schema preserves name/value/data fields the
+ * caller buckets into run-level vs temporal).
+ */
+export async function queryEvaluationMetricsBatch({
+    projectId,
+    runIds,
+    scenarioIds,
+    timestamps,
+}: {
+    projectId: string
+    runIds: string[]
+    scenarioIds?: string[] | false
+    timestamps?: boolean
+}): Promise<EvaluationMetric[]> {
+    if (!projectId || runIds.length === 0) return []
+
+    const metrics: Record<string, unknown> = {run_ids: runIds}
+    if (scenarioIds !== undefined) metrics.scenario_ids = scenarioIds
+    if (timestamps !== undefined) metrics.timestamps = timestamps
+
+    const client = await getEvaluationsClient()
+    const data = await client.queryMetrics({metrics} as never, projectScopedRequest(projectId))
+
+    const validated = safeParseWithLogging(
+        evaluationMetricsResponseSchema,
+        data,
+        "[queryEvaluationMetricsBatch]",
+    )
+    return validated?.metrics ?? []
+}

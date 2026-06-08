@@ -15,7 +15,7 @@
  * When any are unset the suite skips (consistent with the rest of the integration suite).
  */
 import {init} from "@agenta/sdk"
-import {evaluationRunSchema} from "@agenta/entities/evaluationRun"
+import {evaluationMetricSchema, evaluationRunSchema} from "@agenta/entities/evaluationRun"
 import {describe, it, expect} from "vitest"
 
 const apiUrl = process.env.AGENTA_API_URL
@@ -63,5 +63,49 @@ describe.skipIf(!hasRealProject)("existing runs parse against the production sch
             )
         }
         expect(failures, "all existing runs must satisfy evaluationRunSchema").toHaveLength(0)
+    })
+
+    // Metrics can't be created in the ephemeral harness (worker-computed), so verify the
+    // migrated metrics path against real data: send the EXACT payload queryEvaluationMetricsBatch
+    // sends ({metrics:{run_ids, scenario_ids:false}}) and assert every returned metric parses
+    // through evaluationMetricSchema (the schema the Fern path validates with).
+    it("existing run metrics parse through evaluationMetricSchema", async () => {
+        const client = init({apiKey, host: apiUrl})
+
+        const runResp = (await client.evaluations.queryRuns(
+            {windowing: {limit: 50, order: "descending"}},
+            {queryParams: {project_id: projectId!}},
+        )) as {runs?: {id?: string}[]}
+        const runIds = (runResp?.runs ?? []).map((r) => r.id).filter(Boolean) as string[]
+        expect(runIds.length).toBeGreaterThan(0)
+
+        const metricsResp = (await client.evaluations.queryMetrics(
+            {metrics: {run_ids: runIds, scenario_ids: false}} as never,
+            {queryParams: {project_id: projectId!}},
+        )) as {metrics?: unknown[]}
+        const metrics = Array.isArray(metricsResp?.metrics) ? metricsResp.metrics : []
+
+        // The project has computed metrics (the run table shows metric columns).
+        expect(metrics.length, "project should have computed metrics").toBeGreaterThan(0)
+
+        const failures: {id: unknown; issues: string[]}[] = []
+        for (const metric of metrics) {
+            const parsed = evaluationMetricSchema.safeParse(metric)
+            if (!parsed.success) {
+                failures.push({
+                    id: (metric as {id?: unknown})?.id,
+                    issues: parsed.error.issues
+                        .slice(0, 8)
+                        .map((i) => `${i.path.join(".")}: ${i.message}`),
+                })
+            }
+        }
+        if (failures.length > 0) {
+            console.error(
+                `[parseExistingRuns] ${failures.length}/${metrics.length} metrics failed validation:\n` +
+                    JSON.stringify(failures, null, 2),
+            )
+        }
+        expect(failures, "all existing metrics must satisfy evaluationMetricSchema").toHaveLength(0)
     })
 })

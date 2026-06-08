@@ -9,6 +9,7 @@ export {
     queryEvaluationScenarios,
     setEvaluationScenarioStatuses,
     queryEvaluationMetrics,
+    queryEvaluationMetricsBatch,
 } from "./api"
 export type {
     EvaluationResultSetInput,

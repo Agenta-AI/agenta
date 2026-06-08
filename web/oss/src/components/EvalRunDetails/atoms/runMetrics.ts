@@ -1,10 +1,10 @@
+import {queryEvaluationMetricsBatch} from "@agenta/entities/evaluationRun"
 import {createBatchFetcher} from "@agenta/shared/utils"
 import {atom, Atom} from "jotai"
 import {atomFamily, loadable} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {evaluationRunQueryAtomFamily} from "@/oss/components/EvalRunDetails/atoms/table/run"
-import axios from "@/oss/lib/api/assets/axiosConfig"
 import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 import {BasicStats, canonicalizeMetricKey, getMetricValueWithAliases} from "@/oss/lib/metricUtils"
 
@@ -509,16 +509,12 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
 
         for (const [, entry] of groups) {
             // console.log("entry.needsTemporal", entry.needsTemporal)
-            const basePayload = {
-                metrics: {
-                    run_ids: Array.from(entry.runIds),
-                    scenario_ids: false,
-                    // timestamps: entry.needsTemporal,
-                },
-            }
+            const batchRunIds = Array.from(entry.runIds)
 
-            const response = await axios.post(`/evaluations/metrics/query`, basePayload, {
-                params: {project_id: entry.projectId},
+            const runLevelResult = await queryEvaluationMetricsBatch({
+                projectId: entry.projectId,
+                runIds: batchRunIds,
+                scenarioIds: false,
             })
 
             const metricsByRun = new Map<string, {runLevel: any[]; temporal: any[]}>()
@@ -534,29 +530,17 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
                 })
             }
 
-            const runLevelMetrics = Array.isArray(response.data?.metrics)
-                ? (response.data.metrics as {run_id: string; name: string; value: any}[])
-                : []
-
             // addMetrics([runLevelMetrics.pop()], "runLevel")
-            addMetrics(runLevelMetrics, "runLevel")
+            addMetrics(runLevelResult, "runLevel")
 
             if (entry.needsTemporal) {
                 try {
-                    const temporalResponse = await axios.post(
-                        `/evaluations/metrics/query`,
-                        {
-                            ...basePayload,
-                            metrics: {
-                                ...basePayload.metrics,
-                                timestamps: false,
-                            },
-                        },
-                        {params: {project_id: entry.projectId}},
-                    )
-                    const temporalMetrics = Array.isArray(temporalResponse.data?.metrics)
-                        ? temporalResponse.data.metrics
-                        : []
+                    const temporalMetrics = await queryEvaluationMetricsBatch({
+                        projectId: entry.projectId,
+                        runIds: batchRunIds,
+                        scenarioIds: false,
+                        timestamps: false,
+                    })
                     addMetrics(temporalMetrics, "temporal")
                 } catch (error) {
                     console.warn("[EvalRunDetails2] Failed to fetch temporal metrics", {

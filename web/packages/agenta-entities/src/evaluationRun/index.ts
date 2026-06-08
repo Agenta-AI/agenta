@@ -83,7 +83,10 @@ export {
     evaluationResultsResponseSchema,
     type EvaluationResultsResponse,
     // Evaluation Metrics
+    evaluationMetricSchema,
     type EvaluationMetric,
+    evaluationMetricsResponseSchema,
+    type EvaluationMetricsResponse,
     // Param types
     type EvaluationRunDetailParams,
     type EvaluationRunQueryParams,
@@ -104,6 +107,8 @@ export {
     setEvaluationResults,
     queryEvaluationScenarios,
     setEvaluationScenarioStatuses,
+    queryEvaluationMetrics,
+    queryEvaluationMetricsBatch,
 } from "./api"
 export type {
     EvaluationResultSetInput,
