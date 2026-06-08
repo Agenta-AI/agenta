@@ -10,9 +10,9 @@
  *   - Edits flow to `executionItemController.actions.setTestcaseCellValue`,
  *     which writes through `testcaseMolecule.actions.update` so the testcase
  *     entity is the single source of truth.
- *   - Draft variables (referenced by prompt but absent from testcase) write
- *     through the SAME action — `setTestcaseCellValue` is happy to create a
- *     new column on first set, so we don't need a separate `onAddDraftColumn`.
+ *   - Variables referenced by prompt but absent from testcase write through
+ *     the SAME action — `setTestcaseCellValue` creates a new column on first
+ *     set, so we don't need a separate missing-column action.
  *   - Optional `sections` prop partitions visibility.inputs into named groups
  *     (left-border accent), used by the evaluator grouped layout in
  *     SingleLayout.
@@ -21,7 +21,11 @@
 import {useCallback, useMemo} from "react"
 
 import {loadableController} from "@agenta/entities/runnable"
-import {executionItemController, playgroundController} from "@agenta/playground"
+import {
+    executionItemController,
+    filterUnreferencedColumnsForSource,
+    playgroundController,
+} from "@agenta/playground"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {PlaygroundInputsBody} from "./PlaygroundInputsBody"
@@ -80,12 +84,12 @@ export function PlaygroundInputsBodyHost({
     //   - `helpText`       → evaluator envelope variables (`inputs`/`outputs`)
     //                          keep the legacy guidance tooltip.
     //   - `expectedType`   → drives the default view mode + TypeChip for
-    //                          DRAFT variables (no value yet). Without it, a
-    //                          `geo` port referenced via `{{geo.region}}`
-    //                          opens as a text input with a `null` chip
-    //                          instead of Form + `object` chip.
-    //   - `expectedSchema` → seeds Form / JSON / YAML modes on drafts with an
-    //                          empty-value skeleton matching the expected
+    //                          variables with no value yet. Without it, a `geo`
+    //                          port referenced via `{{geo.region}}` opens as a
+    //                          text input with a `null` chip instead of Form +
+    //                          `object` chip.
+    //   - `expectedSchema` → seeds Form / JSON / YAML modes when no value exists
+    //                          with an empty-value skeleton matching the expected
     //                          sub-fields (so `geo` shows `region`, `subregion`,
     //                          `coordinates.lat/lng` before the user types).
     const portSchemaMap = useAtomValue(
@@ -163,6 +167,10 @@ export function PlaygroundInputsBodyHost({
         name: string | null
     } | null
     const connectedSourceName = connectedSource?.id ? (connectedSource.name ?? null) : null
+    const unreferencedColumns = filterUnreferencedColumnsForSource(
+        visibility.unreferencedColumns,
+        connectedSource?.id,
+    )
 
     const handleValueChange = useCallback(
         (name: string, value: unknown) => {
@@ -176,7 +184,7 @@ export function PlaygroundInputsBodyHost({
             rowId={rowId}
             inputs={enrichedInputs}
             sections={bodySections}
-            unreferencedColumns={visibility.unreferencedColumns}
+            unreferencedColumns={unreferencedColumns}
             editable={editable}
             // Unreferenced columns are testcase data the user authored —
             // they should be editable when the footer is expanded, same as
@@ -186,8 +194,9 @@ export function PlaygroundInputsBodyHost({
             // here to match the rest of the inputs body.
             unreferencedEditable={editable}
             onValueChange={handleValueChange}
-            // Draft variables route through the same `setTestcaseCellValue`
-            // reducer — it creates the new column on first set.
+            // Kept for compatibility with any caller-provided draft cards.
+            // Missing prompt variables already route through `onValueChange`,
+            // and `setTestcaseCellValue` creates the new column on first set.
             onAddDraftColumn={handleValueChange}
             connectedSourceName={connectedSourceName}
             templateFormat={templateFormat}

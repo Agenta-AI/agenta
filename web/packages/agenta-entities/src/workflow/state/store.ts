@@ -1623,7 +1623,13 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
         const serverData = get(workflowServerDataSelectorFamily(workflowId))
 
         if (!serverData) {
-            return !!entityData
+            // serverData = null means the server query is still loading for
+            // non-local entities. We can't compute a diff against an unknown
+            // baseline, so default to not-dirty until the query resolves.
+            // For local (ephemeral / local-*) entities null serverData is
+            // expected — they have no server baseline — so preserve the
+            // existing "dirty if entity exists" behaviour for that path.
+            return isLocal ? !!entityData : false
         }
         if (!entityData) return false
 
@@ -1633,7 +1639,7 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
         // are nested (normalized in workflowEntityAtomFamily). Apply the same
         // nesting to server params so comparison is like-for-like.
         const rawServerParams = serverData.data?.parameters as Record<string, unknown> | undefined
-        const serverParams =
+        let serverParams =
             rawServerParams && serverData.flags?.is_evaluator
                 ? nestEvaluatorConfiguration(
                       rawServerParams,
@@ -1641,6 +1647,20 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
                           null,
                   )
                 : rawServerParams
+
+        // Mirror the input_keys sync that updateWorkflowDraftAtom applies at write
+        // time. The write path calls syncPromptInputKeysInParameters on outgoing
+        // params, so server params (without the sync) and entity params (with the
+        // sync) would always differ on `input_keys`, producing a permanent false
+        // dirty state for any app that has template variables.
+        if (
+            serverParams &&
+            !serverData.flags?.is_evaluator &&
+            !serverData.flags?.is_custom &&
+            !serverData.flags?.is_feedback
+        ) {
+            serverParams = syncPromptInputKeysInParameters(serverParams) as typeof serverParams
+        }
 
         // No parameters on entity side — check for other data changes
         if (!entityParams) {
@@ -1747,11 +1767,35 @@ export const updateWorkflowDraftAtom = atom(
                 updateKeys.length === 0 &&
                 (!rawUpdatedData || dataKeys.every((key) => key === "parameters"))
 
-            if (
-                isParametersOnlyUpdate &&
-                isEqual(incomingParameters, serverData?.data?.parameters ?? null)
-            ) {
-                return
+            if (isParametersOnlyUpdate) {
+                // Server data hasn't loaded yet for a real (non-local) revision.
+                // Creating a draft now would produce a false diff — skip and let
+                // the pending-hydrations path (SUB 1) re-apply the patch once
+                // the query resolves and we have an actual baseline to compare.
+                if (!isLocalDraftId(workflowId) && serverData === null) {
+                    return
+                }
+                // Compare synced versions of both params. The write path always
+                // applies syncPromptInputKeysInParameters to outgoing parameters,
+                // so a stale localStorage snapshot that only differs by auto-
+                // computed input_keys would otherwise bypass this guard and
+                // produce a perpetual false draft on every reload.
+                const guardFlags = serverData?.flags ?? current?.flags
+                const shouldSyncForGuard =
+                    !!guardFlags &&
+                    !guardFlags.is_custom &&
+                    !guardFlags.is_evaluator &&
+                    !guardFlags.is_feedback
+                const syncForGuard = (p: Record<string, unknown> | null) =>
+                    p && shouldSyncForGuard ? syncPromptInputKeysInParameters(p) : p
+                if (
+                    isEqual(
+                        syncForGuard(incomingParameters),
+                        syncForGuard(serverData?.data?.parameters ?? null),
+                    )
+                ) {
+                    return
+                }
             }
         }
 

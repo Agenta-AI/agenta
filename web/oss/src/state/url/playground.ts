@@ -1129,7 +1129,10 @@ playgroundSyncAtom.onMount = (set) => {
     // draft state is still persisted to localStorage as a fallback.
     // Uses playgroundSnapshotController.createSnapshot for entity-type-agnostic
     // snapshot building (works for workflow, ephemeral workflow, etc.)
-    const DRAFT_SNAPSHOT_KEY = "agenta:playground-draft-snapshot"
+    // Scope the key to the current app so that draft state from one app never
+    // bleeds into another app's session (cross-app contamination fix).
+    const _draftSnapshotAppId = store.get(routerAppIdAtom) as string | null
+    const DRAFT_SNAPSHOT_KEY = `agenta:playground-draft-snapshot${_draftSnapshotAppId ? `:${_draftSnapshotAppId}` : ""}`
 
     let persistDebounceTimer: ReturnType<typeof setTimeout> | null = null
 

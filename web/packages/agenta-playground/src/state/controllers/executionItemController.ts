@@ -228,8 +228,8 @@ export const executionItemController = {
          *
          * Returns `{inputs, unreferencedColumns}`:
          *   - `inputs`              : referenced variables, each with its
-         *                             testcase value (or `isDraft: true`
-         *                             when referenced but absent).
+         *                             testcase value, or `undefined` when
+         *                             referenced but absent.
          *   - `unreferencedColumns` : testcase columns the prompt does NOT
          *                             reference (collapsed under footer).
          *
