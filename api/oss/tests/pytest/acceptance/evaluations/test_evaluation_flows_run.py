@@ -10,6 +10,8 @@ Coverage spans the worker dispatch topologies (see
 `api/oss/src/core/evaluations/runtime/topology.py`):
   - batch_testset    (testset -> mock app -> mock auto-evaluator)  -> success
   - batch_invocation (testset -> mock app)                         -> success
+  - testset_eval     (testset -> mock auto-evaluator, no app)      -> success
+  - testcase_queue   (direct testcases -> mock auto-evaluator)     -> success
   - live_query       (live + query -> evaluator)                   -> stays running
   - batch_query      (query -> evaluator)                          -> xfail
 """
@@ -22,6 +24,9 @@ from ._flow_helpers import (
     create_query,
     create_testset,
     create_simple_evaluation,
+    create_testcases_queue,
+    add_testcases_to_queue,
+    query_testcase_ids,
     wait_for_run_terminal,
     fetch_run,
     query_scenarios,
@@ -85,6 +90,63 @@ class TestEvaluationRunFlows:
         run = final.json()["run"]
         assert run["status"] == "success", run
         assert (run.get("flags") or {}).get("is_active") is False, run
+        # ----------------------------------------------------------------------
+
+    def test_testset_to_mock_evaluator_runs_to_success(self, authed_api):
+        # batch_testset with NO application: testset -> auto-evaluator. Scores
+        # each testcase directly (UEL-043 — supported {testset, batch} shape).
+        # ARRANGE --------------------------------------------------------------
+        testset = create_testset(authed_api)
+        evaluator = create_mock_evaluator(authed_api, key="pass")
+        # ----------------------------------------------------------------------
+
+        # ACT ------------------------------------------------------------------
+        evaluation = create_simple_evaluation(
+            authed_api,
+            name="flow-testset-evaluator-no-app",
+            data={
+                "testset_steps": [testset["revision_id"]],
+                "evaluator_steps": {evaluator["revision_id"]: "auto"},
+            },
+        )
+        run_id = evaluation["id"]
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        final = wait_for_run_terminal(authed_api, run_id)
+        run = final.json()["run"]
+        assert run["status"] == "success", run
+        assert (run.get("flags") or {}).get("is_active") is False, run
+
+        scenarios = query_scenarios(authed_api, run_id)
+        # the default testset has 2 testcases -> 2 scenarios
+        assert len(scenarios) == 2, scenarios
+        # ----------------------------------------------------------------------
+
+    def test_direct_testcases_queue_runs_to_success(self, authed_api):
+        # {testcase, queue}: a direct-testcases queue, fed real testcase ids,
+        # scores each with the auto-evaluator via run_from_batch (no app).
+        # ARRANGE --------------------------------------------------------------
+        testset = create_testset(authed_api)
+        evaluator = create_mock_evaluator(authed_api, key="pass")
+        testcase_ids = query_testcase_ids(authed_api, testset)
+        assert len(testcase_ids) == 2, testcase_ids
+        # ----------------------------------------------------------------------
+
+        # ACT ------------------------------------------------------------------
+        queue = create_testcases_queue(authed_api, evaluator=evaluator)
+        run_id = queue["run_id"]
+        add_testcases_to_queue(authed_api, queue["id"], testcase_ids)
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        final = wait_for_run_terminal(authed_api, run_id)
+        run = final.json()["run"]
+        assert run["status"] == "success", run
+
+        scenarios = query_scenarios(authed_api, run_id)
+        # one scenario per pushed testcase
+        assert len(scenarios) == 2, scenarios
         # ----------------------------------------------------------------------
 
     def test_live_query_evaluation_stays_running_and_active(self, authed_api):

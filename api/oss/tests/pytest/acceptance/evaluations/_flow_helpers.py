@@ -116,6 +116,46 @@ def create_testset(authed_api, *, testcases=None) -> dict:
     return response.json()["testset"]
 
 
+def query_testcase_ids(authed_api, testset) -> list:
+    """Return the testcase ids backing a testset (for direct-testcase queues)."""
+    response = authed_api(
+        "POST",
+        "/testcases/query",
+        json={"testset_id": testset["id"]},
+    )
+    assert response.status_code == 200, response.text
+    return [tc["id"] for tc in response.json().get("testcases", [])]
+
+
+def create_testcases_queue(authed_api, *, evaluator) -> dict:
+    """Create a direct-testcases evaluation queue. Returns the queue dict (with run_id)."""
+    response = authed_api(
+        "POST",
+        "/simple/queues/",
+        json={
+            "queue": {
+                "name": f"testcases-queue-{uuid4().hex[:8]}",
+                "data": {
+                    "kind": "testcases",
+                    "evaluators": [evaluator["revision_id"]],
+                },
+            }
+        },
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["queue"]
+
+
+def add_testcases_to_queue(authed_api, queue_id, testcase_ids) -> None:
+    """Push a batch of testcases into a direct-testcases queue (dispatches the run)."""
+    response = authed_api(
+        "POST",
+        f"/simple/queues/{queue_id}/testcases/",
+        json={"testcase_ids": [str(tid) for tid in testcase_ids]},
+    )
+    assert response.status_code == 200, response.text
+
+
 # - triggering and waiting -----------------------------------------------------
 
 # Terminal statuses for an evaluation run.

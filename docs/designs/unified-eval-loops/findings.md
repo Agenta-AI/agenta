@@ -10,9 +10,9 @@ Sources:
 
 ## Summary
 
-- Status: 12 findings total (UEL-034..045). 9 synced from PR #4341 review threads (UEL-034..042), 1 from a full-suite test run (UEL-045), 2 topology gaps surfaced during the UEL-045 root-cause (UEL-043, UEL-044).
-- **Closed (10): UEL-034, UEL-035, UEL-036, UEL-037, UEL-038, UEL-039, UEL-040, UEL-041, UEL-042, UEL-045** — all `fixed`, applied locally (UEL-034/039/040/042 in `03ad0da4c`; UEL-035/037/038 in `571c73ada`; UEL-036 in `41741004d`; UEL-041 + UEL-045 test/perf, local). UEL-035's single-transaction half is wontfix-by-design; UEL-042's lib-wide migration is deferred to its own PR (eval-side swap done here).
-- **Open (2): UEL-043 + UEL-044** (P3 topology policy — product decision). Both are blocked on a product call, not on engineering; see Open Questions.
+- Status: 13 findings total (UEL-034..046). 9 synced from PR #4341 review threads (UEL-034..042), 2 from test runs/audits (UEL-045 slice-topology, UEL-046 e2e coverage), 2 topology decisions surfaced during the UEL-045 root-cause and dispositioned by @jp (UEL-043 supported, UEL-044 not_planned).
+- _Closed (12): UEL-034 through UEL-046_ — all dispositioned (`fixed` / `wontfix`), applied locally. Commit refs: UEL-034/039/040/042 in `03ad0da4c`; UEL-035/037/038 in `571c73ada`; UEL-036 in `41741004d`; UEL-041 + UEL-043 + UEL-044 + UEL-045 + UEL-046 test/topology/perf, local. UEL-035's single-transaction half is wontfix-by-design; UEL-044 is wontfix (`query → application` not planned); UEL-042's lib-wide migration is deferred to its own PR (eval-side swap done here).
+- _Open: none._ All synced and surfaced findings are resolved or dispositioned.
 - Severity spread of closed work: 1 P1 (data loss on finalize), 4 P2 (SDK failure-drop, exception-mapping, connection-pool churn, async serialization, plus the test topology bug), 5 P3.
 - GitHub threads: the 9 PR-comment findings (UEL-034..042) map to review threads still `unresolved` until the branch is pushed; the local fixes are committed but thread resolution waits on the push.
 - Note: UEL-035 shares a migration file with the "default queue name backfill" fix but is a distinct concern, untouched by it.
@@ -25,42 +25,53 @@ Sources:
 
 ## Open Questions
 
-- UEL-043 (product decision): should `testset → evaluator` (no app) dispatch? The worker already runs it once dispatched, and `testcases → evaluator` is supported, so the gate is classifier policy. Resolve the asymmetry or document why the testset case needs an evaluator contract the raw-testcase case does not.
-- UEL-044 (product decision): should `query → application` dispatch, mirroring the supported `testset → application`? This one carries a real blocker (source-trace links would misclassify as annotations), so it is harder than UEL-043.
+_None outstanding. The two topology product decisions are resolved: `testset → evaluator` is now supported (UEL-043), `query → application` is not_planned (UEL-044)._
 
 ## Open Findings
 
-### [OPEN] UEL-043: `testset → evaluator` (no app) is deferred while `testcases → evaluator` is supported — inconsistent
+_None. All synced/surfaced findings are resolved or dispositioned; see Closed Findings._
+
+## Closed Findings
+
+### [CLOSED] UEL-043: `testset → evaluator` (no app) — now a supported dispatchable topology
 
 - Origin: sync
 - Lens: design
 - Severity: P3
 - Confidence: high
-- Status: needs-user-decision
+- Status: fixed
 - Category: Product topology
-- Files: `sdks/python/agenta/sdk/evaluations/runtime/topology.py:87-94` (supported `testcase → evaluator`) vs `:114-119` (deferred `testset → evaluator`); branch ordering at `:87` precedes `:114`. Doc: `docs/designs/unified-eval-loops/topologies.md:42-44` vs `:63-66`.
-- Summary: The classifier dispatches `direct testcases → evaluator` (`{testcase, queue}`) but marks `testset → evaluator` (no app) as `potential`/undispatchable with reason "non-queue testcase-only evaluator execution needs an explicit evaluator contract". A testset is a named, versioned bag of testcases, so scoring testset-sourced testcases directly is the same operation as scoring a raw testcase batch. The worker slice processor already executes the `testset → evaluator` path to SUCCESS once dispatched (observed: run `019ea947-ad12`, 8 scenarios, all SUCCESS), so the gate is purely classifier policy, not an execution limit. Surfaced while root-causing the slice-endpoint test failures: a plain testset+auto-evaluator simple evaluation is auto-failed-and-closed at `start` (`service.py:2706` `_fail_evaluation_run`) because this branch returns no dispatch.
-- Evidence (verified 2026-06-09): `classify_steps_topology` line 88 `if has_testcases: → Dispatch(source="testcase", mode="queue")`; line 114 `if has_testsets and has_evaluators and not has_applications: → status="potential"` (no dispatch). `has_testsets` vs `has_testcases` derive from input shape in `dbs/postgres/evaluations/utils.py:128/135` (`DIRECT_TESTCASE_STEP_KEYS` direct keys vs `TESTSET_REFERENCE_KEY` reference). Container logs confirm `start` → `_fail_evaluation_run` → `is_closed=True` for this topology.
-- Cause: deliberate conservatism in the classifier (`dce50ec0b`); the testset-sourced evaluator path was deferred pending an "evaluator contract" that the testcase path does not require.
-- Suggested Fix: decide whether `testset → evaluator` should dispatch (likely `{testset, batch}`, mirroring `testset → application → evaluator`). If yes, return a `Dispatch` at `:114` and verify against the slice processor (which already runs it). If no, document why the testset case needs a contract the raw-testcase case does not. Either way, resolve the asymmetry rather than leaving it implicit.
-- Sources: @jp, 2026-06-09 ("if we support testcases > evaluator(s), we might as well want to support testset(s) > evaluator(s)").
+- Files: `sdks/python/agenta/sdk/evaluations/runtime/topology.py` (`classify_steps_topology`, the `testset -> evaluator` branch); doc `docs/designs/unified-eval-loops/topologies.md`; tests `api/oss/tests/pytest/unit/evaluations/test_runtime_topology_planner.py`, `sdks/python/oss/tests/pytest/unit/test_evaluations_runtime.py`, `api/oss/tests/pytest/acceptance/evaluations/test_evaluation_flows_run.py`.
+- Summary: The classifier dispatched `direct testcases → evaluator` (`{testcase, queue}`) but marked `testset → evaluator` (no app) as `potential`/undispatchable. A testset is a named, versioned bag of testcases, so scoring testset-sourced testcases directly is the same operation; the worker already ran the path to SUCCESS once dispatched. The deferral auto-failed-and-closed plain testset+auto-evaluator runs at `start` (`service.py:2706`).
+- Resolution (applied locally, ruff clean): per @jp decision, `testset → evaluator` is now `status="supported"` with `dispatch=Dispatch(source="testset", mode="batch")` — the bounded-batch counterpart to the open-queue `direct testcases → evaluator` shape. `start`'s generic dispatch path (`service.py:2689`, any `topology.dispatch`) routes it through `process_run_from_source`, the same path as `testset → application → evaluator`. Doc moved it to the Supported section. Unit tests updated (SDK + API classifier assertions; added a `start`-dispatches-testset→evaluator test). _End-to-end test added_: `test_testset_to_mock_evaluator_runs_to_success` (mock evaluator, no app) — runs through the worker to SUCCESS with one scenario per testcase.
+- Sources: @jp, 2026-06-09 ("if we support testcases > evaluator(s), we might as well want to support testset(s) > evaluator(s)"). Implemented + e2e-tested 2026-06-09.
 
-### [OPEN] UEL-044: `query → application` is deferred while `testset → application` (batch inference) is supported — symmetric gap
+### [CLOSED] UEL-044: `query → application` — marked not_planned (was deferred/potential)
 
 - Origin: sync
 - Lens: design
 - Severity: P3
-- Confidence: medium
-- Status: needs-user-decision
+- Confidence: high
+- Status: wontfix
 - Category: Product topology
-- Files: `sdks/python/agenta/sdk/evaluations/runtime/topology.py:103-112` (deferred `query → application`) vs `:137-143` (supported `testset → application`). Doc: `topologies.md:58-61` vs `:50-52`.
-- Summary: The classifier supports `testset → application` (batch inference, `{testset, batch}`) but defers `query → application` as `potential`, with a concrete reason: "source trace links must not be attached as application links because that would classify the new application traces as annotations". The two are symmetric — a different input family (query traces vs testcases) seeding the same single-application invocation — so if testset-seeded batch inference is supported, query-seeded batch inference is a natural counterpart. Unlike UEL-043, this one carries a stated technical blocker (trace-link misclassification), so it is genuinely harder, not just policy.
-- Evidence (verified 2026-06-09): line 103 `if has_queries and has_applications: → status="potential"` with the trace-link reason; line 137 `if has_testsets and has_applications and not has_evaluators and not has_queries: → Dispatch(source="testset", mode="batch")`. The deferred reason names a real seam (source-trace links vs application links and annotation classification).
-- Cause: deferred on a real technical blocker (link classification), not just conservatism.
-- Suggested Fix: scope the trace-link/annotation-classification issue named in the branch reason; if resolvable, add a `query → application` dispatch mirroring `testset → application`. Lower priority / more involved than UEL-043 because the blocker is substantive.
-- Sources: @jp, 2026-06-09 ("also maybe query(ies) > application").
+- Files: `sdks/python/agenta/sdk/evaluations/runtime/topology.py` (`query -> application` branch); doc `docs/designs/unified-eval-loops/topologies.md`; tests `api/oss/tests/pytest/unit/evaluations/test_runtime_topology_planner.py`, `sdks/python/oss/tests/pytest/unit/test_evaluations_runtime.py`.
+- Summary: The classifier supports `testset → application` (batch inference) but marked `query → application` as `potential`, with a real blocker: re-invoking an application over query-sourced traces would attach source trace links as application links, misclassifying the new application traces as annotations.
+- Resolution (applied locally, ruff clean): per @jp decision, this is _not a planned shape_ — changed `status` from `potential` to `not_planned` with a reason naming the link-misclassification blocker. Dispatch behavior is unchanged (it never dispatched); only the status label moves from "deferred/future-interest" to "not planned". Doc moved it into the not_planned group. Unit assertions updated (`potential` → `not_planned`); the existing "does not dispatch" start test still holds (renamed to `..._not_planned_topology`).
+- Sources: @jp, 2026-06-09 ("move topology in finding 44 to not_planned"). Done 2026-06-09.
 
-## Closed Findings
+### [CLOSED] UEL-046: No end-to-end coverage for queue-based and no-app evaluator topologies
+
+- Origin: test
+- Lens: validation
+- Severity: P3
+- Confidence: high
+- Status: fixed
+- Category: Testing
+- Files: `api/oss/tests/pytest/acceptance/evaluations/test_evaluation_flows_run.py`, `_flow_helpers.py`.
+- Summary: An e2e topology-coverage audit (2026-06-09) found the 7 supported dispatch topologies were unevenly covered: `testset → app → evaluator`, `testset → app`, `live query → evaluator`, `batch query → evaluator` had flow tests, but `testset → evaluator` (no app, newly supported via UEL-043) and the queue-mode `direct testcases → evaluator` / `direct traces → evaluator` had only create-shape or mocked-dispatch tests — no true worker-run e2e.
+- Resolution (applied locally, ruff clean): added two e2e flow tests in `test_evaluation_flows_run.py` — `test_testset_to_mock_evaluator_runs_to_success` (topology `{testset, batch}`, no app) and `test_direct_testcases_queue_runs_to_success` (topology `{testcase, queue}` via `POST /simple/queues/` kind=testcases + `/testcases/` batch push → `run_from_batch` → terminal). Added `_flow_helpers` helpers: `query_testcase_ids`, `create_testcases_queue`, `add_testcases_to_queue`. Both poll to terminal SUCCESS and assert one scenario per item.
+- Deliberate gap (not closed): `direct traces → evaluator` (`{trace, queue}`) has no e2e here. A real test needs OTLP-ingested `trace_id`s and the trace-fetch worker, which is timing-sensitive/flaky (see the `tracing_worker_reload_loop_flake` note and the trace-ingestion-timing caveat in `test_evaluation_metrics_flow.py`). Constructing it would couple this eval suite to the tracing subsystem and import known flakiness; left for a tracing-scoped e2e instead. The shape is unit-covered (dispatch routing + mint/bind) in `test_runtime_topology_planner.py`.
+- Sources: e2e coverage audit, @jp 2026-06-09 ("make sure there are end to end tests"). Done 2026-06-09.
 
 ### [CLOSED] UEL-034: Stale graph snapshot on per-slice finalize can permanently delete a newly-added step's data
 
@@ -86,7 +97,7 @@ Sources:
 - Files: `api/oss/databases/postgres/migrations/core/versions/a2b3c4d5e6f8_backfill_default_evaluation_queues.py` (`_NEXT_RUN_IDS`). EE copy mirrors this (kept byte-identical).
 - Summary: The original keyset cast `id::text` and ordered by text. `evaluation_runs.id` is a native `uuid` column (`IdentifierDBA`, `default=uuid.uuid7`); the text cast makes the predicate non-sargable against the uuid PK btree, so each page did a full scan + sort to locate the cursor — O(n) per page → O(n²) pagination overhead over the backfill.
 - Resolution (applied locally, both OSS + EE, committed `571c73ada`, ruff clean): switched to native-uuid keyset — `WHERE id > CAST(:cursor AS uuid) ORDER BY id`, cursor seeded with the zero UUID. `SELECT id::text` retained so the Python cursor stays a plain string. The PK index now drives each page; pagination overhead collapses to O(log n) per page.
-- Nuance — the PK index helps the *cursor*, not the *workload*: the backfill still touches every run once (the `jsonb_array_elements` step scan + LEFT JOIN in `_COMPUTE_CHUNK` is inherent O(n)), so the migration remains O(n) total. The fix only removes the quadratic re-scan the text cast added on top of that. The PK keyset's value here is bounded by design.
+- Nuance — the PK index helps the _cursor_, not the _workload_: the backfill still touches every run once (the `jsonb_array_elements` step scan + LEFT JOIN in `_COMPUTE_CHUNK` is inherent O(n)), so the migration remains O(n) total. The fix only removes the quadratic re-scan the text cast added on top of that. The PK keyset's value here is bounded by design.
 - Single-transaction half (wontfix — expected, by design): the migration intentionally runs in one transaction (Alembic `transaction_per_migration=True`) so the backfill is all-or-nothing. Chunking bounds per-statement size/lock scope and gives progress logging — not transaction scope. Per-batch `commit()` is deliberately not added. Both halves of the reviewer comment are therefore disposed: keyset fixed, single-transaction wontfix.
 - Sources: PR #4341 thread, comment 3375211093 (@mmabrouk). User disposition 2026-06-08: single-transaction is expected; fix the `id::text` keyset. Fixed 2026-06-08.
 
@@ -100,7 +111,7 @@ Sources:
 - Category: Correctness
 - Files: `sdks/python/agenta/sdk/evaluations/runtime/processor.py` (`process_sources` / `_guarded_process_one`); test `sdks/python/oss/tests/pytest/unit/test_evaluations_runtime.py`.
 - Summary: Scenario isolation was correct, but the `except` only logged — it neither appended to `processed` nor wrote an errored status, so a failed scenario dropped out of the run rollup (`has_errors` / `run_status` only saw appended items). Any single scenario error silently shrank the result set with no signal.
-- Resolution (applied locally, committed, ruff clean): restructured per the revised fix (the original "edit the outer except" can't reach the scenario — it was local to `_process_one`). `_guarded_process_one` now mints the scenario itself; a `create_scenario` failure is logged and dropped (no scenario to record); a *processing* failure marks the scenario errored via `edit_scenario(scenario=scenario, status=EvaluationStatus.ERRORS)` and appends `ProcessedScenario(scenario=scenario, has_errors=True)` under `processed_lock`, so it surfaces in the rollup. Added `test_sdk_source_slice_records_process_failure_as_error` asserting both scenarios appear in the rollup, the bad one is `has_errors=True`, and `edit_scenario` is called with ERRORS for it. The existing `create_scenario`-failure isolation test still passes (that path is still log-and-drop).
+- Resolution (applied locally, committed, ruff clean): restructured per the revised fix (the original "edit the outer except" can't reach the scenario — it was local to `_process_one`). `_guarded_process_one` now mints the scenario itself; a `create_scenario` failure is logged and dropped (no scenario to record); a _processing_ failure marks the scenario errored via `edit_scenario(scenario=scenario, status=EvaluationStatus.ERRORS)` and appends `ProcessedScenario(scenario=scenario, has_errors=True)` under `processed_lock`, so it surfaces in the rollup. Added `test_sdk_source_slice_records_process_failure_as_error` asserting both scenarios appear in the rollup, the bad one is `has_errors=True`, and `edit_scenario` is called with ERRORS for it. The existing `create_scenario`-failure isolation test still passes (that path is still log-and-drop).
 - Sources: PR #4341 thread, comment 3375239778 (@mmabrouk). Investigation 2026-06-08: fix needed restructuring (scope blocker). Fixed 2026-06-08.
 
 ### [CLOSED] UEL-040: Step-removal orphan check ran one `query_results` per affected scenario
@@ -127,7 +138,7 @@ Sources:
 - Files: `api/oss/src/core/evaluations/tasks/processor.py` (`process_sources`: batched fetch ~`:746-760`, recovery `else` branch ~`:828`).
 - Summary: In the rerun/recovery branch, each non-seeded scenario called `query_results` on its own to recover its input cells and context — one round trip per scenario on top of the earlier slice-scoped bulk fetch. N+1 sequential queries on a rerun over many scenarios. Not a correctness problem; the seeded/ingest path was unaffected (it skips the read).
 - Resolution (applied locally, ruff clean): hoisted the per-scenario read into one batched `query_results` over the full non-seeded set (`scenario_ids=non_seeded_ids`), grouped into `input_cells_by_scenario` in memory; the loop's `else` branch now reads `input_cells_by_scenario.get(scenario_id, [])`. N+1 → 2 queries. The `.get(..., [])` preserves the empty-cells → `source_item is None` → `summary.skipped += 1` path; loop order and downstream batched execution unchanged.
-- Caveat respected (the original reviewer fix missed it): the new batched fetch **omits `step_keys`**, unlike the slice-scoped `existing` probe — inputs must be recovered regardless of the slice's step scope (else a rerun scoped to non-input steps drops input cells and source reconstruction breaks). It is a distinct second batched fetch, not a merge with the first. Comment at the fetch site documents this.
+- Caveat respected (the original reviewer fix missed it): the new batched fetch _omits `step_keys`_, unlike the slice-scoped `existing` probe — inputs must be recovered regardless of the slice's step scope (else a rerun scoped to non-input steps drops input cells and source reconstruction breaks). It is a distinct second batched fetch, not a merge with the first. Comment at the fetch site documents this.
 - Sources: PR #4341 thread, comment 3375254454 (@mmabrouk). User disposition 2026-06-09: take it in this PR. Fixed 2026-06-09.
 
 ### [CLOSED] UEL-042: SDK async engine mostly serializes — blocking HTTP client under `asyncio.gather`
@@ -141,7 +152,7 @@ Sources:
 - Files: `sdks/python/agenta/sdk/evaluations/` — `metrics.py`, `results.py`, `runs.py`, `scenarios.py`, `preview/utils.py` (`afetch_trace`).
 - Summary: The SDK fanned out scenarios with `asyncio.gather`, but the save/refresh/edit/fetch calls went through the blocking `authed_api()`, each holding the event loop until it returned — so the concurrency mostly serialized. `afetch_trace` was the worst case (a `max_retries=30` × `delay=1.0` loop could block ~30s).
 - Resolution (applied locally, committed `03ad0da4c`, ruff clean): swapped the eval-side adapters/helpers from the blocking `authed_api()` to the signature-compatible async `authed_async_api()` (all 13 call sites across the 5 files → `await authed_async_api()(...)`; imports updated). `.raise_for_status()` / `.json()` / `.text` / `.status_code` confirmed sync-safe on the httpx async Response. Lower-risk than `asyncio.to_thread`.
-- Scope note: the broader concern that `authed_api`/`authed_async_api` are shared client utilities used beyond evals (managers, eval reads) is real, but the **eval-side swap** is self-contained and was applied here. Any library-wide migration of the remaining `authed_api` consumers (managers, etc.) is a separate PR, as the reviewer noted — not tracked under this finding.
+- Scope note: the broader concern that `authed_api`/`authed_async_api` are shared client utilities used beyond evals (managers, eval reads) is real, but the _eval-side swap_ is self-contained and was applied here. Any library-wide migration of the remaining `authed_api` consumers (managers, etc.) is a separate PR, as the reviewer noted — not tracked under this finding.
 - Sources: PR #4341 thread, comment 3375244177 (@mmabrouk, flagged out-of-scope). Eval-side swap applied + committed 2026-06-08; lib-wide migration deferred to its own PR.
 
 ### [CLOSED] UEL-045: Slice-endpoint acceptance tests built an undispatchable topology and 409'd on a closed run
@@ -167,7 +178,7 @@ Sources:
 - Status: fixed
 - Category: Completeness
 - Files: `api/oss/src/apis/fastapi/evaluations/router.py` (removed handlers formerly at `:1736` / `:1760`)
-- Summary: Both handlers were complete with permission checks but had no `add_api_route` / route path registering them — the user-facing archive/unarchive endpoints were intentionally removed, but the route handlers were left behind. Archive/unarchive is reserved for reconciliation, which goes through the **service** layer, not the router.
+- Summary: Both handlers were complete with permission checks but had no `add_api_route` / route path registering them — the user-facing archive/unarchive endpoints were intentionally removed, but the route handlers were left behind. Archive/unarchive is reserved for reconciliation, which goes through the _service_ layer, not the router.
 - Resolution (applied locally): removed the two dead router handlers. The service methods `EvaluationsService.archive_queue` / `unarchive_queue` are kept — they are live, called by `_reconcile_default_queue` (`service.py:465`, `:471`). Confirmed the handlers were referenced nowhere (no `add_api_route`, no `self.archive_queue`/`self.unarchive_queue`); OSS-only (no EE evaluations router). ruff clean.
 - Sources: PR #4341 thread, comment 3375254138 (@mmabrouk). User disposition 2026-06-08: endpoint deliberately removed, handler is leftover dead code → remove the handler, keep the service.
 
@@ -195,7 +206,7 @@ Sources:
 - Category: Performance
 - Files: `api/oss/src/dbs/postgres/evaluations/dao.py` (`set_metrics`, `create_queues`)
 - Summary: The closed-run check loops over each item and calls `_get_run_flags(...)` without `session`. `_get_run_flags` opens its own engine session when `session is None`, so a batch of N items opens N connections just to read run flags — under concurrent, high-volume writes this can exhaust the connection pool. `set_results` had already solved this (dedupe run ids, reuse one session, with the comment "so a fanned-out slice does not exhaust the connection pool"); two siblings were missed.
-- Full-DAO sweep (per user request): audited every `_get_run_flags` call site in the DAO. All loop sites except two already passed a shared `session=` (`create_scenarios:906`, `set_results:1464`, plus the read/query loops at 1087/1195/1699/2167/2581). The single-call create paths (`create_scenario`, `create_result`, `create_queue` — one run per request) open one connection by design and are not the bug. The **two offenders** were `set_metrics` (the comment's original target) and `create_queues` — the latter not flagged in the PR comment but identical in shape.
+- Full-DAO sweep (per user request): audited every `_get_run_flags` call site in the DAO. All loop sites except two already passed a shared `session=` (`create_scenarios:906`, `set_results:1464`, plus the read/query loops at 1087/1195/1699/2167/2581). The single-call create paths (`create_scenario`, `create_result`, `create_queue` — one run per request) open one connection by design and are not the bug. The _two offenders_ were `set_metrics` (the comment's original target) and `create_queues` — the latter not flagged in the PR comment but identical in shape.
 - Resolution (applied locally, ruff clean): both now open one `async with self.engine.session()`, dedupe `{x.run_id for x in items}`, pass `session=session` to `_get_run_flags`, and raise `EvaluationClosedConflict` per closed run — mirroring `set_results`. Re-swept: no loop call site in the DAO is left without a shared session. No EE evaluations DAO exists, so the fix is OSS-only.
 - Sources: PR #4341 thread, comment 3375235286 (@mmabrouk, marked "minor"). Matches prior note `dao_one_connection_per_call`. User disposition 2026-06-08: fix it + sweep the whole DAO for the same issue → surfaced `create_queues` as a second instance.
 
