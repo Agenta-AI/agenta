@@ -1,13 +1,10 @@
+import {fetchEvaluationRunBatched} from "@agenta/entities/evaluationRun"
 import {fetchWorkflowsBatch} from "@agenta/entities/workflow"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {buildRunIndex} from "@/oss/lib/evaluations/buildRunIndex"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
-import {
-    getPreviewRunBatcher,
-    invalidatePreviewRunCache,
-} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 
 import {TERMINAL_STATUSES} from "../compare"
 import {effectiveProjectIdAtom} from "../run"
@@ -315,9 +312,10 @@ export const evaluationRunQueryAtomFamily = atomFamily((runId: string | null) =>
                     throw new Error("evaluationRunQueryAtomFamily requires a project id")
                 }
 
-                invalidatePreviewRunCache(projectId, runId)
-                const batcher = getPreviewRunBatcher()
-                const rawRun = await batcher({projectId, runId})
+                const rawRun = (await fetchEvaluationRunBatched({
+                    projectId,
+                    runId,
+                })) as unknown as EvaluationRun | null
                 if (!rawRun) {
                     throw new Error(
                         `Preview evaluation run payload missing for run ${runId} (project ${projectId})`,
@@ -362,8 +360,10 @@ export const evaluationRunWithProjectQueryAtomFamily = atomFamily(
                         )
                     }
 
-                    const batcher = getPreviewRunBatcher()
-                    const rawRun = await batcher({projectId, runId})
+                    const rawRun = (await fetchEvaluationRunBatched({
+                        projectId,
+                        runId,
+                    })) as unknown as EvaluationRun | null
                     if (!rawRun) {
                         throw new Error(
                             `Preview evaluation run payload missing for run ${runId} (project ${projectId})`,

@@ -1,9 +1,8 @@
+import {fetchEvaluationRunBatched} from "@agenta/entities/evaluationRun"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
-
-import {getPreviewRunBatcher} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 
 export interface PreviewRunSummary {
     id: string
@@ -103,8 +102,7 @@ export const previewRunSummaryAtomFamily = atomFamily(
                         return null
                     }
 
-                    const batcher = getPreviewRunBatcher()
-                    const rawRun = await batcher({projectId, runId})
+                    const rawRun = await fetchEvaluationRunBatched({projectId, runId})
                     if (!rawRun) {
                         return null
                     }

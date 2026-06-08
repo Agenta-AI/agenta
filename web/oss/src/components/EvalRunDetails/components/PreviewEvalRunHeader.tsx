@@ -7,7 +7,6 @@ import {Button, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
-import {invalidatePreviewRunCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 import {startSimpleEvaluation, stopSimpleEvaluation} from "@/oss/services/onlineEvaluations/api"
 
 import {compareRunIdsAtom, compareRunIdsWriteAtom, getComparisonSolidColor} from "../atoms/compare"
@@ -64,9 +63,6 @@ const useOnlineEvaluationActions = (runId: string, projectId?: string | null) =>
                 message.success("Evaluation resumed")
             }
 
-            if (projectId) {
-                invalidatePreviewRunCache(projectId, runId)
-            }
             await refetchRunQueries()
         } catch (error) {
             console.error("[PreviewEvalRunHeader] Failed to toggle online evaluation", error)

@@ -28,6 +28,7 @@
 
 export {
     evaluationRunMolecule,
+    fetchEvaluationRunBatched,
     type EvaluationRunMolecule,
     type AnnotationColumnDef as EvaluationRunAnnotationColumnDef,
 } from "./state/molecule"

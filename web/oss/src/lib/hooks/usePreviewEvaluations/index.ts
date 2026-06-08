@@ -26,7 +26,6 @@ import {
     type Testcase as PreviewTestcase,
 } from "@/oss/state/entities/testcase/schema"
 
-import {primePreviewRunCache} from "./assets/previewRunBatcher"
 import {fetchPreviewRunsShared} from "./assets/previewRunsRequest"
 
 const EMPTY_RUNS: any[] = []
@@ -107,8 +106,6 @@ const previewEvaluationRunsQueryAtomFamily = atomFamily((serializedParams: strin
                     evaluationTypes,
                     statuses,
                 })
-
-                primePreviewRunCache(projectId, response.runs)
 
                 return {
                     runs: response.runs as SnakeToCamelCaseKeys<EvaluationRun>[],

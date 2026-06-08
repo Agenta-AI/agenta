@@ -18,7 +18,6 @@ import {atom} from "jotai"
 import {atomWithMutation, queryClientAtom} from "jotai-tanstack-query"
 
 import {clearMetricSelectionCache} from "@/oss/components/EvaluationRunsTablePOC/hooks/useRunMetricSelection"
-import {invalidatePreviewRunCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 import {
     editEvaluationRunShape,
@@ -100,8 +99,7 @@ const isRunSurfaceKey = (key: unknown, projectId: string, runId: string): boolea
     return false
 }
 
-const clearRunSideCaches = (projectId: string, runId: string) => {
-    invalidatePreviewRunCache(projectId, runId)
+const clearRunSideCaches = () => {
     clearPreviewRunsCache()
     // The list metric cells read an in-memory selection cache layered over the
     // run-metric-stats query; clear it so refreshed stats aren't masked by a stale entry.
@@ -113,7 +111,7 @@ const clearRunSideCaches = (projectId: string, runId: string) => {
 
 /** Refetch ACTIVE run surfaces (mounted rows) — cheap, used during the reprocess poll. */
 const refetchRunSurfaces = async (queryClient: any, projectId: string, runId: string) => {
-    clearRunSideCaches(projectId, runId)
+    clearRunSideCaches()
     await queryClient.refetchQueries({
         predicate: (query: {queryKey: unknown}) =>
             isRunSurfaceKey(query.queryKey, projectId, runId),
@@ -126,7 +124,7 @@ const refetchRunSurfaces = async (queryClient: any, projectId: string, runId: st
  * refetches the active ones. Used for the final pass once the reprocess is done.
  */
 const invalidateRunSurfaces = async (queryClient: any, projectId: string, runId: string) => {
-    clearRunSideCaches(projectId, runId)
+    clearRunSideCaches()
     await queryClient.invalidateQueries({
         predicate: (query: {queryKey: unknown}) =>
             isRunSurfaceKey(query.queryKey, projectId, runId),
@@ -252,10 +250,6 @@ export const saveEvaluationEditAtom = atom(
                 })
             }
         }
-
-        // Clear the shared batcher cache first, else the refetched run summary serves the
-        // stale pre-edit run and the evaluations list never shows the change.
-        invalidatePreviewRunCache(projectId, runId)
 
         const queryClient = get(queryClientAtom)
         await Promise.all([

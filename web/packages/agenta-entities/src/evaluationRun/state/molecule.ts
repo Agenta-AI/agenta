@@ -144,6 +144,16 @@ export const evaluationRunQueryAtomFamily = atomFamily(
 // ============================================================================
 
 /**
+ * Imperative, batched per-run fetch. Concurrent calls within a tick collapse into a
+ * single `POST /evaluations/runs/query` via the shared batch fetcher. Use this from
+ * non-jotai async contexts (e.g. another atomWithQuery's queryFn) that need the raw run
+ * without subscribing to the molecule's reactive atom.
+ */
+export function fetchEvaluationRunBatched(key: RunKey): Promise<EvaluationRun | null> {
+    return runBatchFetcher(key)
+}
+
+/**
  * Run data selector.
  */
 const dataAtomFamily = atomFamily(

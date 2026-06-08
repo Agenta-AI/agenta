@@ -3,7 +3,6 @@
  */
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {invalidatePreviewRunCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 import {getProjectValues} from "@/oss/state/project"
 
 /**
@@ -96,11 +95,6 @@ export const checkAndUpdateRunStatus = async (runId: string): Promise<void> => {
         await axios.patch(`/evaluations/runs/${runId}`, {
             run: {...existingRun, id: runId, status: newRunStatus},
         })
-
-        // Invalidate the preview run cache so the header refetches fresh data
-        if (projectId) {
-            invalidatePreviewRunCache(projectId, runId)
-        }
     } catch (error) {
         console.error("[checkAndUpdateRunStatus] Failed:", error)
     }

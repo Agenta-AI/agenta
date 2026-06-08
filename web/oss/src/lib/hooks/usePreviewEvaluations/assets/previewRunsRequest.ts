@@ -3,8 +3,6 @@ import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 
 import type {QueryWindowingPayload} from "../../../../services/onlineEvaluations/api"
 
-import {primePreviewRunCache} from "./previewRunBatcher"
-
 export interface PreviewRunsRequestParams {
     projectId: string
     appId?: string | null
@@ -168,8 +166,6 @@ export const fetchPreviewRunsShared = async (
             params: queryParams,
         })
         .then((response) => {
-            primePreviewRunCache(params.projectId, response?.data?.runs)
-
             const runs = Array.isArray(response.data?.runs)
                 ? response.data.runs.map((run: any) => snakeToCamelCaseKeys(run))
                 : []
