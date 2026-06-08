@@ -32,6 +32,7 @@ import {
     queryEvaluationMetrics,
     queryEvaluationResults,
     queryEvaluationRuns,
+    setEvaluationResults,
 } from "../../src/evaluationRun/api"
 
 import {TEST_CONFIG, hasBackend} from "./helpers/env"
@@ -320,6 +321,69 @@ describe.skipIf(!hasBackend)("evaluationRun data layer integration", () => {
 
             expect(store.get(evaluationQueueMolecule.selectors.runId(queueId))).toBe(queueRunId)
             expect(store.get(evaluationQueueMolecule.selectors.data(queueId))?.id).toBe(queueId)
+        })
+    })
+
+    // setEvaluationResults — the Fern upsert that replaced the (dead/blocked) axios result
+    // mutations. The annotation write-back links a scenario step to a trace via trace_id
+    // (span_id is intentionally NOT sent — no such column). Create run + scenario, upsert a
+    // result, then read it back and assert trace_id round-trips.
+    describe("setEvaluationResults (Fern result upsert)", () => {
+        let resultRunId = ""
+        let scenarioId = ""
+
+        beforeAll(async () => {
+            const client = getAgentaSdkClient()
+            const runRes = (await client.evaluations.createRuns(
+                {runs: [makeRunCreatePayload() as never]},
+                {queryParams: {project_id: projectId}},
+            )) as {runs?: {id?: string}[]}
+            resultRunId = runRes?.runs?.[0]?.id ?? ""
+            expect(resultRunId).toBeTruthy()
+
+            const scenarioRes = (await client.evaluations.createScenarios(
+                {scenarios: [{run_id: resultRunId} as never]},
+                {queryParams: {project_id: projectId}},
+            )) as {scenarios?: {id?: string}[]}
+            scenarioId = scenarioRes?.scenarios?.[0]?.id ?? ""
+            expect(scenarioId, "scenario creation must return an id").toBeTruthy()
+        })
+
+        afterAll(async () => {
+            if (resultRunId) {
+                await getAgentaSdkClient()
+                    .evaluations.deleteRuns(
+                        {run_ids: [resultRunId]},
+                        {queryParams: {project_id: projectId}},
+                    )
+                    .catch(() => undefined)
+            }
+        })
+
+        it("upserts a result and persists trace_id (read back via queryEvaluationResults)", async () => {
+            const traceId = "00000000-0000-4000-8000-0000000000a1"
+            const written = await setEvaluationResults({
+                projectId,
+                results: [
+                    {
+                        run_id: resultRunId,
+                        scenario_id: scenarioId,
+                        step_key: EVALUATOR_STEP_KEY,
+                        status: "success",
+                        trace_id: traceId,
+                    },
+                ],
+            })
+            expect(Array.isArray(written)).toBe(true)
+
+            const results = await queryEvaluationResults({
+                projectId,
+                runId: resultRunId,
+                scenarioIds: [scenarioId],
+            })
+            const step = results.find((r) => r.step_key === EVALUATOR_STEP_KEY)
+            expect(step, "the upserted result must be queryable").toBeTruthy()
+            expect(step?.trace_id).toBe(traceId)
         })
     })
 })

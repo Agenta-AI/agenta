@@ -1,17 +1,17 @@
 /**
  * API functions for evaluation results (steps).
- * These functions use axios with automatic project ID injection.
+ *
+ * Fully Fern-backed (via @agenta/entities/evaluationRun). The result endpoints carry only
+ * the columns the backend actually persists — notably NOT `span_id`/`references`/`data`
+ * (`evaluation_results` has no such columns); the result↔trace link is `trace_id`.
  */
 
-import {queryEvaluationResults} from "@agenta/entities/evaluationRun"
+import {queryEvaluationResults, setEvaluationResults} from "@agenta/entities/evaluationRun"
 
-import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getProjectValues} from "@/oss/state/project"
 
-const RESULTS_ENDPOINT = "/evaluations/results/"
-
 /**
- * Convert a hex string (32 chars) to UUID format (with dashes)
+ * Convert a hex string (32 chars) to UUID format (with dashes).
  */
 const hexToUuid = (hex: string): string => {
     // If already in UUID format (contains dashes), return as-is
@@ -22,24 +22,6 @@ const hexToUuid = (hex: string): string => {
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
-/**
- * Convert a hex span ID (16 chars) to UUID format by doubling it
- */
-const spanHexToUuid = (hex: string): string => {
-    // If already in UUID format (contains dashes), return as-is
-    if (hex.includes("-")) return hex
-    // If 16 chars (span hex), double it to make 32 chars
-    if (hex.length === 16) {
-        const doubled = hex + hex
-        return `${doubled.slice(0, 8)}-${doubled.slice(8, 12)}-${doubled.slice(12, 16)}-${doubled.slice(16, 20)}-${doubled.slice(20)}`
-    }
-    // If 32 chars, convert to UUID
-    if (hex.length === 32) {
-        return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
-    }
-    return hex
-}
-
 export interface StepResult {
     id?: string
     run_id: string
@@ -47,7 +29,6 @@ export interface StepResult {
     step_key: string
     status: string
     trace_id?: string
-    span_id?: string
     references?: Record<string, any>
     data?: Record<string, any>
 }
@@ -69,9 +50,6 @@ export const queryStepResults = async ({
     const {projectId} = getProjectValues()
     if (!projectId) return []
 
-    // Reuse the shared Fern-backed package query (same POST /evaluations/results/query)
-    // instead of a duplicate axios call. Returns the same snake_case rows (schemas
-    // passthrough), structurally compatible with StepResult.
     const results = await queryEvaluationResults({
         projectId,
         runId,
@@ -81,44 +59,21 @@ export const queryStepResults = async ({
     return results as unknown as StepResult[]
 }
 
-// NOTE: the result MUTATIONS below stay on raw axios for now. They cannot move to the
-// Fern client yet because Fern's generated `EvaluationResultCreate` under-declares fields
-// the backend accepts (no `span_id`, `references`, or `data`) — routing through Fern would
-// silently drop `span_id` and break annotation trace/span linking. Unblock by extending the
-// backend OpenAPI spec + regenerating the client, then swap these to a package
-// `setEvaluationResults` (Fern `setResults`).
-
 /**
- * Update step results (PATCH).
- */
-export const updateStepResults = async (results: Partial<StepResult>[]): Promise<any> => {
-    const {projectId} = getProjectValues()
-
-    return axios.patch(`${RESULTS_ENDPOINT}?project_id=${projectId}`, {
-        results,
-    })
-}
-
-/**
- * Create step results (POST).
- */
-export const createStepResults = async (results: StepResult[]): Promise<any> => {
-    const {projectId} = getProjectValues()
-
-    return axios.post(`${RESULTS_ENDPOINT}?project_id=${projectId}`, {
-        results,
-    })
-}
-
-/**
- * Upsert a step result with annotation reference.
- * This function queries for an existing step result and either updates it or creates a new one.
+ * Upsert a step result that links a scenario step to an annotation's trace.
+ *
+ * The backend setter upserts on the natural key (run_id, scenario_id, step_key,
+ * repeat_idx), so a single call handles both create and edit — no `id` needed.
+ *
+ * `annotationSpanId` is accepted for caller compatibility but intentionally NOT sent:
+ * `evaluation_results` has no `span_id` column, so the backend drops it. The persisted
+ * link is `trace_id`.
  *
  * @param runId - The evaluation run ID
  * @param scenarioId - The scenario ID
  * @param stepKey - The step key (e.g., "default-xxx.evaluator-slug")
- * @param annotationTraceId - The trace ID of the annotation
- * @param annotationSpanId - The span ID of the annotation
+ * @param annotationTraceId - The trace ID of the annotation (hex or UUID)
+ * @param annotationSpanId - The span ID of the annotation (unused; see above)
  * @param status - The step status (default: "success")
  */
 export const upsertStepResultWithAnnotation = async ({
@@ -126,7 +81,6 @@ export const upsertStepResultWithAnnotation = async ({
     scenarioId,
     stepKey,
     annotationTraceId,
-    annotationSpanId,
     status = "success",
 }: {
     runId: string
@@ -137,23 +91,21 @@ export const upsertStepResultWithAnnotation = async ({
     status?: string
 }): Promise<void> => {
     const {projectId} = getProjectValues()
+    if (!projectId) return
 
-    // Convert hex IDs to UUID format (the API expects UUIDs with dashes)
-    // Annotation API returns hex format: "<annotation_trace_id_hex>"
-    // Step result API expects UUID format: "<annotation_trace_id_uuid>"
+    // The API expects UUID format (with dashes); the annotation API returns hex.
     const traceIdUuid = hexToUuid(annotationTraceId)
-    const spanIdUuid = spanHexToUuid(annotationSpanId)
 
-    // The setter upserts on the natural key (run_id, scenario_id, step_key,
-    // repeat_idx), so a single POST handles both create and edit — no `id` needed.
-    const result = {
-        run_id: runId,
-        scenario_id: scenarioId,
-        step_key: stepKey,
-        status,
-        trace_id: traceIdUuid,
-        span_id: spanIdUuid,
-    }
-
-    await axios.post(`${RESULTS_ENDPOINT}?project_id=${projectId}`, {results: [result]})
+    await setEvaluationResults({
+        projectId,
+        results: [
+            {
+                run_id: runId,
+                scenario_id: scenarioId,
+                step_key: stepKey,
+                status,
+                trace_id: traceIdUuid,
+            },
+        ],
+    })
 }

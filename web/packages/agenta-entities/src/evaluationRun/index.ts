@@ -99,7 +99,9 @@ export {
     editEvaluationRun,
     queryEvaluationRuns,
     queryEvaluationResults,
+    setEvaluationResults,
 } from "./api"
+export type {EvaluationResultSetInput} from "./api"
 
 // ============================================================================
 // STATE

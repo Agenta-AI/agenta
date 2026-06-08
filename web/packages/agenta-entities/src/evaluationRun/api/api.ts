@@ -164,6 +164,55 @@ export async function queryEvaluationResults({
 }
 
 // ============================================================================
+// SET EVALUATION RESULTS (upsert scenario steps)
+// ============================================================================
+
+/**
+ * Fields the backend's `POST /evaluations/results/` (create_results, upsert on the natural
+ * key run_id+scenario_id+step_key+repeat_idx) actually persists. Deliberately excludes
+ * `span_id`/`references`/`data` — `evaluation_results` has no such columns; the result↔trace
+ * link is carried by `trace_id`.
+ */
+export interface EvaluationResultSetInput {
+    run_id: string
+    scenario_id: string
+    step_key: string
+    status?: string
+    trace_id?: string | null
+    testcase_id?: string | null
+    hash_id?: string | null
+    repeat_idx?: number | null
+}
+
+/**
+ * Upsert evaluation results (scenario steps). Endpoint: `POST /evaluations/results/`.
+ *
+ * The backend setter upserts on the natural key, so a single call covers create + edit.
+ */
+export async function setEvaluationResults({
+    projectId,
+    results,
+}: {
+    projectId: string
+    results: EvaluationResultSetInput[]
+}): Promise<EvaluationResult[]> {
+    if (!projectId || !results.length) return []
+
+    const client = await getEvaluationsClient()
+    const data = await client.setResults(
+        {results: results as never},
+        projectScopedRequest(projectId),
+    )
+
+    const validated = safeParseWithLogging(
+        evaluationResultsResponseSchema,
+        data,
+        "[setEvaluationResults]",
+    )
+    return validated?.results ?? []
+}
+
+// ============================================================================
 // QUERY EVALUATION METRICS
 // ============================================================================
 
