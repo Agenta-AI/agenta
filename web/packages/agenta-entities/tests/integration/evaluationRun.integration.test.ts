@@ -34,9 +34,7 @@ import {
     queryEvaluationResults,
     queryEvaluationRuns,
     queryEvaluationRunsList,
-    queryEvaluationScenarios,
     setEvaluationResults,
-    setEvaluationScenarioStatuses,
 } from "../../src/evaluationRun/api"
 
 import {TEST_CONFIG, hasBackend} from "./helpers/env"
@@ -440,56 +438,8 @@ describe.skipIf(!hasBackend)("evaluationRun data layer integration", () => {
         })
     })
 
-    // Scenario query + status edit — the Fern functions that replaced the axios
-    // services/evaluations/scenarios run-status path.
-    describe("evaluation scenarios (query + status edit)", () => {
-        let scenarioRunId = ""
-        let scenarioId = ""
-
-        beforeAll(async () => {
-            const client = getAgentaSdkClient()
-            const runRes = (await client.evaluations.createRuns(
-                {runs: [makeRunCreatePayload() as never]},
-                {queryParams: {project_id: projectId}},
-            )) as {runs?: {id?: string}[]}
-            scenarioRunId = runRes?.runs?.[0]?.id ?? ""
-            expect(scenarioRunId).toBeTruthy()
-
-            const scenarioRes = (await client.evaluations.createScenarios(
-                {scenarios: [{run_id: scenarioRunId} as never]},
-                {queryParams: {project_id: projectId}},
-            )) as {scenarios?: {id?: string}[]}
-            scenarioId = scenarioRes?.scenarios?.[0]?.id ?? ""
-            expect(scenarioId).toBeTruthy()
-        })
-
-        afterAll(async () => {
-            if (scenarioRunId) {
-                await getAgentaSdkClient()
-                    .evaluations.deleteRuns(
-                        {run_ids: [scenarioRunId]},
-                        {queryParams: {project_id: projectId}},
-                    )
-                    .catch(() => undefined)
-            }
-        })
-
-        it("queryEvaluationScenarios returns the run's scenarios (parsed)", async () => {
-            const scenarios = await queryEvaluationScenarios({projectId, runId: scenarioRunId})
-            expect(scenarios.some((s) => s.id === scenarioId)).toBe(true)
-        })
-
-        it("setEvaluationScenarioStatuses persists a status change", async () => {
-            await setEvaluationScenarioStatuses({
-                projectId,
-                scenarios: [{id: scenarioId, status: "success"}],
-            })
-
-            const after = await queryEvaluationScenarios({projectId, runId: scenarioRunId})
-            const scenario = after.find((s) => s.id === scenarioId)
-            expect(scenario?.status).toBe("success")
-        })
-    })
+    // NOTE: scenario query/edit moved to @agenta/entities/evaluationScenario —
+    // see evaluationScenario.integration.test.ts (drives the scenario molecule).
 
     // deleteEvaluationRuns — the Fern delete behind the live table's delete action.
     describe("deleteEvaluationRuns", () => {

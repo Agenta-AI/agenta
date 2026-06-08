@@ -58,6 +58,7 @@
         "./annotation": "./src/annotation/index.ts",
         "./evaluationRun": "./src/evaluationRun/index.ts",
         "./evaluationRun/etl": "./src/evaluationRun/etl/index.ts",
+        "./evaluationScenario": "./src/evaluationScenario/index.ts",
         "./etl": "./src/etl/index.ts",
         "./shared/openapi": "./src/shared/openapi/index.ts",
         "./shared/execution": "./src/shared/execution/index.ts",

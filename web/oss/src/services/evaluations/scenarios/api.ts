@@ -1,15 +1,14 @@
 /**
  * API functions for managing evaluation scenario and run status.
  *
- * Fully Fern-backed via @agenta/entities/evaluationRun.
+ * Fully Fern-backed via @agenta/entities (evaluationRun + evaluationScenario).
  */
 
+import {editEvaluationRun, queryEvaluationRuns} from "@agenta/entities/evaluationRun"
 import {
-    editEvaluationRun,
-    queryEvaluationRuns,
     queryEvaluationScenarios,
     setEvaluationScenarioStatuses,
-} from "@agenta/entities/evaluationRun"
+} from "@agenta/entities/evaluationScenario"
 
 import {getProjectValues} from "@/oss/state/project"
 

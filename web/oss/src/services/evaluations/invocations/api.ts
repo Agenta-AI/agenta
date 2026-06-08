@@ -9,7 +9,8 @@
  * status updates back to the evaluation API (Fern-backed via @agenta/entities).
  */
 
-import {setEvaluationResults, setEvaluationScenarioStatuses} from "@agenta/entities/evaluationRun"
+import {setEvaluationResults} from "@agenta/entities/evaluationRun"
+import {setEvaluationScenarioStatuses} from "@agenta/entities/evaluationScenario"
 
 import {EvaluationStatus} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"

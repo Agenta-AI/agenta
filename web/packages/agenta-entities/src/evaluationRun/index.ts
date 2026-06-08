@@ -105,8 +105,6 @@ export {
     queryEvaluationRunsList,
     queryEvaluationResults,
     setEvaluationResults,
-    queryEvaluationScenarios,
-    setEvaluationScenarioStatuses,
     queryEvaluationMetrics,
     queryEvaluationMetricsBatch,
 } from "./api"
