@@ -18,7 +18,10 @@ import {atom} from "jotai"
 import {atomWithMutation, queryClientAtom} from "jotai-tanstack-query"
 
 import {clearMetricSelectionCache} from "@/oss/components/EvaluationRunsTablePOC/hooks/useRunMetricSelection"
-import {invalidatePreviewRunCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
+import {
+    getPreviewRunBatcher,
+    invalidatePreviewRunCache,
+} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 import {
     editEvaluationRunShape,
@@ -77,27 +80,17 @@ export const processRunSliceMutationAtom = atomWithMutation(() => ({
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
- * Matches every react-query root that drives a surface affected by an edit/reprocess:
- * the run shape (columns), the per-scenario steps (scenario-table cells + status), the
- * metric/stats roots (cell values), the run summary, and the evaluations list.
+ * Matches every react-query key that drives a surface affected by an edit/reprocess. Rather
+ * than enumerate roots (which silently misses some — e.g. the `["eval-table","scenarios",…]`
+ * rows+status query, or annotation/testcase roots), match ANY key scoped to this run id.
+ * That makes the post-edit refresh reload-equivalent: run shape (columns), scenario rows +
+ * status, per-scenario steps (cells), metric/stats, summary. The evaluations LIST root is
+ * keyed by project (not run), so include it explicitly.
  */
-const isRunSurfaceKey = (key: unknown, projectId: string, runId: string): boolean => {
+const isRunSurfaceKey = (key: unknown, runId: string): boolean => {
     if (!Array.isArray(key)) return false
     if (key[0] === "evaluation-runs-table") return true
-    if (key[0] === "preview-evaluation-run-summary" && key[1] === projectId && key[2] === runId)
-        return true
-    if (key[0] === "preview" && key[1] === "evaluation-run" && key[2] === runId) return true
-    if (key[0] === "preview" && key[1] === "scenario-steps" && key[2] === runId) return true
-    if (key[0] === "preview" && key[1] === "evaluation-metric" && key[2] === runId) return true
-    // Per-run stats map that backs the list's evaluator-score cells.
-    if (
-        key[0] === "preview" &&
-        key[1] === "run-metric-stats" &&
-        key[2] === projectId &&
-        key[3] === runId
-    )
-        return true
-    return false
+    return key.includes(runId)
 }
 
 const clearRunSideCaches = (projectId: string, runId: string) => {
@@ -115,8 +108,7 @@ const clearRunSideCaches = (projectId: string, runId: string) => {
 const refetchRunSurfaces = async (queryClient: any, projectId: string, runId: string) => {
     clearRunSideCaches(projectId, runId)
     await queryClient.refetchQueries({
-        predicate: (query: {queryKey: unknown}) =>
-            isRunSurfaceKey(query.queryKey, projectId, runId),
+        predicate: (query: {queryKey: unknown}) => isRunSurfaceKey(query.queryKey, runId),
     })
 }
 
@@ -128,24 +120,31 @@ const refetchRunSurfaces = async (queryClient: any, projectId: string, runId: st
 const invalidateRunSurfaces = async (queryClient: any, projectId: string, runId: string) => {
     clearRunSideCaches(projectId, runId)
     await queryClient.invalidateQueries({
-        predicate: (query: {queryKey: unknown}) =>
-            isRunSurfaceKey(query.queryKey, projectId, runId),
+        predicate: (query: {queryKey: unknown}) => isRunSurfaceKey(query.queryKey, runId),
     })
 }
 
-/** Read the run's current status from whichever run query is mounted. */
-const readRunStatus = (queryClient: any, projectId: string, runId: string): string | null => {
-    const runData = queryClient.getQueryData(["preview", "evaluation-run", runId, projectId]) as
-        | {rawRun?: {status?: unknown}; camelRun?: {status?: unknown}}
-        | undefined
-    const raw = runData?.rawRun?.status ?? runData?.camelRun?.status
-    if (raw) return typeof raw === "string" ? raw : ((raw as {value?: string})?.value ?? null)
-    const summary = queryClient.getQueryData([
-        "preview-evaluation-run-summary",
-        projectId,
-        runId,
-    ]) as {status?: string | null} | undefined
-    return summary?.status ?? null
+/**
+ * Authoritative run status, read straight from the run batcher (bypasses react-query
+ * active-state / refetch timing). Used to detect when the worker has finished so the final
+ * invalidation lands reliably.
+ */
+const readRunStatusAuthoritative = async (
+    projectId: string,
+    runId: string,
+): Promise<string | null> => {
+    invalidatePreviewRunCache(projectId, runId)
+    try {
+        const raw = (await getPreviewRunBatcher()({projectId, runId})) as
+            | {status?: unknown}
+            | null
+            | undefined
+        const status = raw?.status
+        if (!status) return null
+        return typeof status === "string" ? status : ((status as {value?: string}).value ?? null)
+    } catch {
+        return null
+    }
 }
 
 const BRIDGE_ATTEMPTS = 15
@@ -167,18 +166,25 @@ const BRIDGE_INTERVAL_MS = 2000
  * the run is terminal converges every mounted row and marks off-screen/virtualized rows
  * stale for their next mount. Fire-and-forget: the drawer closes immediately.
  */
+const SETTLE_MS = 1500
+
 const bridgeRunReprocessing = async (queryClient: any, projectId: string, runId: string) => {
     for (let attempt = 0; attempt < BRIDGE_ATTEMPTS; attempt++) {
         await delay(BRIDGE_INTERVAL_MS)
-        // Refetch active surfaces each tick: streams cells in + flips the status indicator.
-        await refetchRunSurfaces(queryClient, projectId, runId)
-        const status = readRunStatus(queryClient, projectId, runId)
+        const status = await readRunStatusAuthoritative(projectId, runId)
         if (status && isTerminalStatus(status)) {
-            // Worker finished + cells persisted → final invalidation captures the finalized
-            // scores across all surfaces (incl. off-screen rows on next mount), then stop.
+            // Worker finished. Cell results can persist a beat after the run status flips
+            // terminal, so invalidate now AND once more after a short settle. Each call
+            // refetches active scenario rows/steps/metrics and marks off-screen ones stale —
+            // reload-equivalent, so nothing is left frozen by the per-scenario poller that
+            // stops the instant the run goes terminal.
+            await invalidateRunSurfaces(queryClient, projectId, runId)
+            await delay(SETTLE_MS)
             await invalidateRunSurfaces(queryClient, projectId, runId)
             return
         }
+        // Still running — refresh active surfaces so progress (RUNNING status, cells) streams in.
+        await refetchRunSurfaces(queryClient, projectId, runId)
     }
     // Budget exhausted (very long reprocess, or status unreadable). Final invalidation so
     // nothing is left half-updated.
