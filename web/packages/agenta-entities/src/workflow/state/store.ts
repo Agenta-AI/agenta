@@ -1780,7 +1780,7 @@ export const updateWorkflowDraftAtom = atom(
                 // so a stale localStorage snapshot that only differs by auto-
                 // computed input_keys would otherwise bypass this guard and
                 // produce a perpetual false draft on every reload.
-                const guardFlags = serverData?.flags ?? current?.flags
+                const guardFlags = serverData?.flags
                 const shouldSyncForGuard =
                     !!guardFlags &&
                     !guardFlags.is_custom &&
