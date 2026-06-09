@@ -683,6 +683,9 @@ importers:
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
+      '@agenta/evaluations':
+        specifier: workspace:../agenta-evaluations
+        version: link:../agenta-evaluations
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared

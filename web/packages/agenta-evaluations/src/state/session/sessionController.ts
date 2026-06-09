@@ -560,6 +560,8 @@ export const evaluationSessionController = {
         progress: () => progressAtom,
         isCurrentCompleted: () => isCurrentCompletedAtom,
         scenarioStatuses: () => scenarioStatusesAtom,
+        /** Locally-completed scenario IDs (optimistic overlay). */
+        completedScenarioIds: () => completedScenarioIdsAtom,
         activeView: () => activeSessionViewAtom,
         hideCompletedInFocus: () => hideCompletedInFocusAtom,
         focusAutoNext: () => focusAutoNextAtom,
