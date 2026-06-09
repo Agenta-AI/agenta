@@ -1,0 +1,62 @@
+---
+title: "Evaluate While You Iterate in the Playground"
+slug: playground-evaluation-workbench
+date: 2026-06-09
+tags: [v0.103.0]
+description: "Attach evaluators to Playground sessions, see scores inline, and use connected test sets to keep prompt iteration and data curation in one loop."
+---
+
+<div style={{display: "flex", justifyContent: "center", marginTop: "20px", marginBottom: "20px", flexDirection: "column", alignItems: "center"}}>
+  <iframe
+    width="100%"
+    height="500"
+    src="https://www.youtube.com/embed/VGYOH1k15rE"
+    title="Evaluate While You Iterate in the Playground"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+## The workflow this is for
+
+Improving an LLM app is an evaluation loop. You run the prompt, see where it fails, adjust the prompt or evaluator, and run it again against the examples that matter.
+
+That loop used to be split across surfaces. The Playground is where you iterated on prompts, while evaluations and test set curation happened elsewhere.
+
+The Playground is now an evaluation workbench. You can attach evaluators to a Playground session, see evaluator results next to each output, and keep test data connected while you debug.
+
+## What changed
+
+### Inline evaluators
+
+You can now attach evaluators directly in the Playground. When you run a prompt, evaluator results appear inline next to the generated output, so you can see whether a change improved the answer while the prompt is still in front of you.
+
+This is different from starting a full evaluation run. The evaluation button creates a persisted evaluation run over a test set. Inline evaluators are playground-scoped. They are for fast feedback while you are editing.
+
+### Connected test sets
+
+You can load a test set into the Playground in connected mode. Rows stay tied to the source test set, so edits you make while debugging can be synced back instead of copied by hand.
+
+Local mode is still available when you want scratch examples. Connected mode is for the cases where your iteration should improve the dataset you already use for evaluation.
+
+## The loop
+
+1. Open a prompt in the Playground.
+2. Load a connected test set or add local examples.
+3. Attach one or more evaluators.
+4. Run the prompt and inspect the inline scores.
+5. Edit the prompt, evaluator, or examples.
+6. Run again until the output and the score line up.
+
+This keeps prompt changes, evaluator feedback, and test data curation in one place.
+
+## Why it matters
+
+Teams usually lose time moving between prompt editing, evaluation setup, and data cleanup. That makes it harder to understand whether a failure came from the prompt, the evaluator, or the examples.
+
+Inline evaluators and connected test sets make that feedback loop shorter. Subject matter experts can stay in the Playground, inspect failures, adjust the data, and rerun the same cases without switching context.
+
+## Getting started
+
+Open the Playground, load a test set, and attach an evaluator from the evaluator control. Run the prompt to see evaluator results next to each output.

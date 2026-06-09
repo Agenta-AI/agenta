@@ -281,7 +281,7 @@ export {executeStepForSessionWithExecutionItems} from "./executionRunner"
 // VISIBILITY (pure split helper for playground inputs body)
 // ============================================================================
 
-export {splitInputsVisibility} from "./visibility"
+export {filterUnreferencedColumnsForSource, splitInputsVisibility} from "./visibility"
 export type {InputsVisibility, SplitInputsVisibilityArgs, VariableEntry} from "./visibility"
 
 // ============================================================================
