@@ -8,6 +8,7 @@
     "scripts": {
         "build": "tsc --noEmit",
         "types:check": "tsc --noEmit",
+        "types:check:integration": "tsc --noEmit --project tsconfig.integration.json",
         "lint": "eslint --config ../eslint.config.mjs src/",
         "test": "pnpm run test:unit",
         "test:unit": "vitest run",
