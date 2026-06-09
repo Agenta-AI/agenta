@@ -1,6 +1,7 @@
 # Agenta SDK + LLM client
 agenta
 openai
+python-dotenv
 
 # Test set preparation (prepare_testset.py)
 pandas

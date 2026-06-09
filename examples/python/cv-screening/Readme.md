@@ -126,6 +126,24 @@ Upload one of the PDFs from `data/sample_cvs/` (or any CV). The app:
 The `classify_cv` call is instrumented with `@ag.instrument()`, so every
 screening shows up as a trace in Agenta's observability view.
 
+### 5. Collect user feedback on screenings
+
+After each screening the app shows a feedback form: 👍/👎 plus an optional
+comment. Submitting it attaches the feedback to that screening's trace as an
+[annotation](https://docs.agenta.ai/observability/trace-with-python-sdk/annotate-traces)
+under the `user-feedback` evaluator slug:
+
+1. `classify_cv` captures the trace and span IDs while its span is open
+   (`ag.tracing.build_invocation_link()`),
+2. on submit, the app POSTs an annotation to `/api/simple/traces/` with
+   `{"score": 1 | 0, "comment": ...}` linked to that invocation.
+
+The feedback appears on the trace in Agenta's observability view, so you
+can filter for badly rated screenings, inspect the CVs that caused them,
+and turn them into new test cases. To see aggregated stats for the
+`user-feedback` evaluator in the UI, create a matching human evaluator
+(Evaluators → Human evaluators) with the same slug.
+
 ## Adapting it to your role
 
 Everything role-specific lives in the prompt: edit the job spec directly in

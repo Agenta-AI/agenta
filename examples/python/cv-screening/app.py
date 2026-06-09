@@ -10,6 +10,9 @@ The flow mirrors a production setup:
    schema response format.
 4. The structured result (per-area scores and final classification) is
    rendered as a small dashboard.
+5. The user can rate the screening (thumbs up/down plus an optional
+   comment); the feedback is attached to the trace in Agenta as an
+   annotation.
 
 Run with:
     streamlit run app.py
@@ -17,14 +20,21 @@ Run with:
 
 import io
 import json
+import os
 
 import agenta as ag
+import requests
 import streamlit as st
 from agenta.sdk.types import PromptTemplate
+from dotenv import load_dotenv
 from markitdown import MarkItDown
 from openai import OpenAI
 
 from config import APP_SLUG, PROMPT_CONFIG
+
+load_dotenv()
+
+FEEDBACK_EVALUATOR_SLUG = "user-feedback"
 
 CLASSIFICATION_STYLES = {
     "strong_match": ("Strong match", st.success),
@@ -65,7 +75,38 @@ def pdf_to_markdown(file_bytes: bytes) -> str:
 def classify_cv(cv_markdown: str, config: dict) -> dict:
     prompt = PromptTemplate(**config["prompt"]).format(cv=cv_markdown)
     response = OpenAI().chat.completions.create(**prompt.to_openai_kwargs())
-    return json.loads(response.choices[0].message.content)
+    result = json.loads(response.choices[0].message.content)
+    # Capture the trace/span ids while the span is still open, so user
+    # feedback can be linked back to this invocation as an annotation.
+    link = ag.tracing.build_invocation_link()
+    if link is not None:
+        result["_invocation"] = {"trace_id": link.trace_id, "span_id": link.span_id}
+    return result
+
+
+def send_feedback(invocation: dict, thumbs_up: bool, comment: str) -> bool:
+    """Attach user feedback to the screening trace as an Agenta annotation."""
+    outputs: dict = {"score": 1 if thumbs_up else 0}
+    if comment.strip():
+        outputs["comment"] = comment.strip()
+
+    host = os.environ.get("AGENTA_HOST", "https://cloud.agenta.ai").rstrip("/")
+    response = requests.post(
+        f"{host}/api/simple/traces/",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"ApiKey {os.environ['AGENTA_API_KEY']}",
+        },
+        json={
+            "trace": {
+                "data": {"outputs": outputs},
+                "references": {"evaluator": {"slug": FEEDBACK_EVALUATOR_SLUG}},
+                "links": {"invocation": invocation},
+            }
+        },
+        timeout=30,
+    )
+    return response.status_code in (200, 202)
 
 
 def render_result(result: dict) -> None:
@@ -93,6 +134,36 @@ def render_result(result: dict) -> None:
             st.markdown(f"- ⭐ {item}")
 
 
+def render_feedback(result: dict) -> None:
+    invocation = result.get("_invocation")
+    if invocation is None or not os.environ.get("AGENTA_API_KEY"):
+        st.caption(
+            "Feedback is disabled: set AGENTA_API_KEY so screenings are "
+            "traced and can be annotated."
+        )
+        return
+
+    st.divider()
+    if st.session_state.get("feedback_sent") == invocation:
+        st.success("Thanks! Your feedback was attached to the trace in Agenta.")
+        return
+
+    with st.form("feedback"):
+        st.markdown("**Was this screening accurate?**")
+        rating = st.feedback("thumbs")
+        comment = st.text_input("Comment (optional)")
+        submitted = st.form_submit_button("Send feedback")
+
+    if submitted:
+        if rating is None:
+            st.warning("Pick 👍 or 👎 first.")
+        elif send_feedback(invocation, thumbs_up=rating == 1, comment=comment):
+            st.session_state["feedback_sent"] = invocation
+            st.rerun()
+        else:
+            st.error("Could not send feedback to Agenta. Check the logs.")
+
+
 def main() -> None:
     st.set_page_config(page_title="CV Screening", page_icon="📄", layout="wide")
     st.title("📄 CV Screening")
@@ -118,7 +189,14 @@ def main() -> None:
     if st.button("Screen candidate", type="primary"):
         with st.spinner("Evaluating CV against the job spec ..."):
             result = classify_cv(cv_markdown, config)
-        render_result(result)
+        st.session_state["screening"] = {"cv": cv_markdown, "result": result}
+
+    # Render from session state so the result (and its feedback form)
+    # survives the reruns Streamlit triggers on every interaction.
+    screening = st.session_state.get("screening")
+    if screening and screening["cv"] == cv_markdown:
+        render_result(screening["result"])
+        render_feedback(screening["result"])
 
 
 if __name__ == "__main__":

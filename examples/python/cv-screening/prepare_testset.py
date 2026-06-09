@@ -159,7 +159,9 @@ def write_csv(rows: list[dict]) -> None:
 async def upload_testset(rows: list[dict]) -> None:
     import agenta as ag
     from agenta.sdk.managers import testsets
+    from dotenv import load_dotenv
 
+    load_dotenv()
     ag.init()
     testset = await testsets.aupsert(name=TESTSET_NAME, data=rows)
     if testset is None:

@@ -12,8 +12,11 @@ Usage:
 """
 
 import agenta as ag
+from dotenv import load_dotenv
 
 from config import APP_SLUG, PROMPT_CONFIG, VARIANT_SLUG
+
+load_dotenv()
 
 
 def main() -> None:
