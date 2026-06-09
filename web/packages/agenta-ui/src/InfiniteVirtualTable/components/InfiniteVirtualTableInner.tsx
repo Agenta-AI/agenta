@@ -1,6 +1,7 @@
 import {
     type Key,
     memo,
+    type MouseEvent,
     type Ref,
     useCallback,
     useEffect,
