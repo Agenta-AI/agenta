@@ -1,0 +1,17 @@
+# Agenta SDK + LLM client
+agenta
+openai
+
+# Test set preparation (prepare_testset.py)
+pandas
+pyarrow
+requests
+beautifulsoup4
+markdownify
+
+# Demo UI (app.py)
+streamlit
+markitdown[pdf]
+
+# Sample PDF generation (make_sample_pdfs.py)
+fpdf2
