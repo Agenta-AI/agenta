@@ -109,7 +109,6 @@ async def local_call(
 
     response = WorkflowServiceResponse(
         id=uuid4(),
-        version="2025.07.14",
         status=Status(
             code=200,
             message="Success",
@@ -286,7 +285,6 @@ def workflow_decorator(
 
         response = WorkflowServiceResponse(
             id=uuid4(),
-            version="2025.07.14",
             status=Status(
                 code=200,
                 message="Success",

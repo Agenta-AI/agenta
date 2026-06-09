@@ -43,7 +43,6 @@ axios.interceptors.request.use(async (config) => {
             baseURL: config.baseURL,
             fullUri,
             agentaApiUrl,
-            headers: config.headers,
         })
     }
 
@@ -77,11 +76,11 @@ axios.interceptors.request.use(async (config) => {
         const controller = new AbortController()
         const configuredUri = axios.getUri(config)
         if (!ENDPOINTS_PROJECT_ID_WHITELIST.some((endpoint) => configuredUri.includes(endpoint))) {
-            console.log("ABORTING REQUEST", {
+            console.warn("Aborting request: missing auth context", {
                 configuredUri,
-                projectId,
-                jwt,
-                user,
+                hasProjectId: Boolean(projectId),
+                hasJwt: Boolean(jwt),
+                hasUser: Boolean(user),
             })
             controller.abort()
         }
@@ -95,10 +94,6 @@ axios.interceptors.request.use(async (config) => {
     // Add JWT Authorization header (before any early returns)
     if (jwt) {
         config.headers.set("Authorization", `Bearer ${jwt}`)
-
-        if (process.env.NEXT_PUBLIC_LOG_APP_ATOMS === "true") {
-            console.log("🔐 Added JWT Authorization header:", `Bearer ${jwt.substring(0, 30)}...`)
-        }
     }
 
     if (

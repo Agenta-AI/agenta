@@ -343,7 +343,15 @@ class TestAgentSpanData:
         assert features.data["outputs"]["completion"] == "Some response"
         assert "inputs" not in features.data
 
-    def test_agent_extracts_last_assistant_as_output(self, adapter):
+    def test_agent_splits_at_latest_user_turn(self, adapter):
+        """A multi-turn conversation splits at the *latest* user message.
+
+        Everything up to and including the last user turn is the input (prior
+        turns + the question that triggered this run); the trailing assistant
+        message is the output. The split must preserve conversation order — it
+        must NOT scatter every assistant reply into the output and every user
+        message into the input.
+        """
         all_messages = [
             {"role": "user", "parts": [{"type": "text", "content": "hello"}]},
             {"role": "assistant", "parts": [{"type": "text", "content": "first"}]},
@@ -362,12 +370,97 @@ class TestAgentSpanData:
 
         assert features.data["inputs"]["prompt"] == [
             {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "first"},
             {"role": "user", "content": "again"},
         ]
         assert features.data["outputs"]["completion"] == [
-            {"role": "assistant", "content": "first"},
             {"role": "assistant", "content": "second"},
         ]
+
+    def test_agent_run_with_tool_calls_keeps_full_turn_as_output(self, adapter):
+        """The output of a run is its whole trailing turn: tool calls + answer.
+
+        Mirrors a real PydanticAI ``agent run`` span where the latest user
+        message kicks off a tool-calling loop. Everything after that user
+        message (assistant tool calls, tool results, and the final answer) is
+        the output; everything up to and including it is the input.
+        """
+        all_messages = [
+            {"role": "system", "parts": [{"type": "text", "content": "You help."}]},
+            {"role": "user", "parts": [{"type": "text", "content": "hi"}]},
+            {"role": "assistant", "parts": [{"type": "text", "content": "Hello!"}]},
+            {"role": "user", "parts": [{"type": "text", "content": "find me a room"}]},
+            {
+                "role": "assistant",
+                "parts": [
+                    {
+                        "type": "tool_call",
+                        "id": "call_1",
+                        "name": "search",
+                        "arguments": {"q": "room"},
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "type": "tool_call_response",
+                        "id": "call_1",
+                        "name": "search",
+                        "result": [{"room": "STD"}],
+                    }
+                ],
+            },
+            {
+                "role": "assistant",
+                "parts": [{"type": "text", "content": "Found a Standard room."}],
+                "finish_reason": "stop",
+            },
+        ]
+        bag = _make_bag(
+            {
+                "gen_ai.operation.name": "invoke_agent",
+                "pydantic_ai.all_messages": dumps(all_messages),
+                "final_result": "Found a Standard room.",
+                "agent_name": "agent",
+            }
+        )
+        features = SpanFeatures()
+        adapter.process(bag, features)
+
+        prompt = features.data["inputs"]["prompt"]
+        assert [m["role"] for m in prompt] == ["system", "user", "assistant", "user"]
+        assert prompt[-1]["content"] == "find me a room"
+
+        completion = features.data["outputs"]["completion"]
+        # tool-call assistant message, the normalized tool result, final answer
+        assert [m["role"] for m in completion] == ["assistant", "tool", "assistant"]
+        assert completion[0]["tool_calls"][0]["function"]["name"] == "search"
+        assert completion[-1]["content"] == "Found a Standard room."
+
+    def test_agent_run_ending_on_user_falls_back_to_final_result(self, adapter):
+        """If nothing trails the last user turn, output falls back to final_result."""
+        all_messages = [
+            {"role": "system", "parts": [{"type": "text", "content": "You help."}]},
+            {"role": "user", "parts": [{"type": "text", "content": "anything there?"}]},
+        ]
+        bag = _make_bag(
+            {
+                "gen_ai.operation.name": "invoke_agent",
+                "pydantic_ai.all_messages": dumps(all_messages),
+                "final_result": "Yes.",
+                "agent_name": "agent",
+            }
+        )
+        features = SpanFeatures()
+        adapter.process(bag, features)
+
+        assert [m["role"] for m in features.data["inputs"]["prompt"]] == [
+            "system",
+            "user",
+        ]
+        assert features.data["outputs"]["completion"] == "Yes."
 
     def test_agent_with_unknown_message_format_falls_back(self, adapter):
         """Messages that don't match {role, parts} format are stored raw."""
@@ -808,17 +901,20 @@ class TestRealisticSpans:
         features = SpanFeatures()
         adapter.process(bag, features)
 
+        # The run was triggered by "I wanted to know your name"; the input is the
+        # conversation up to and including it (prior turn intact), and the output
+        # is only the answer to it — not every assistant message in the history.
         assert features.data["inputs"]["prompt"] == [
             {"role": "system", "content": "You are the concierge agent..."},
             {"role": "user", "content": "hi"},
-            {"role": "user", "content": "I wanted to know your name"},
-        ]
-        assert features.data["outputs"]["completion"] == [
             {
                 "role": "assistant",
                 "content": "Hello, Sarah! How can I assist you today?",
                 "finish_reason": "stop",
             },
+            {"role": "user", "content": "I wanted to know your name"},
+        ]
+        assert features.data["outputs"]["completion"] == [
             {
                 "role": "assistant",
                 "content": "I'm your concierge agent here at The Agenta Grand Hotel.",

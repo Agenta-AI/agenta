@@ -209,7 +209,7 @@ async function getCustomProviderRow(page: Page, providerName: string): Promise<L
 
 async function fetchVaultSecrets(page: Page): Promise<VaultSecretRecord[]> {
     const projectId = getProjectId(page)
-    const secretsUrl = new URL(`${getApiURL(page)}/vault/v1/secrets/`)
+    const secretsUrl = new URL(`${getApiURL(page)}/secrets/`)
 
     if (projectId) {
         secretsUrl.searchParams.set("project_id", projectId)

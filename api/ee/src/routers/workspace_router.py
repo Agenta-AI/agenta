@@ -5,14 +5,14 @@ from fastapi.responses import JSONResponse
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import APIRouter
-from ee.src.utils.permissions import check_action_access
+from ee.src.core.access.permissions.service import check_action_access
 from ee.src.services import workspace_manager, db_manager_ee
 
 from ee.src.models.api.workspace_models import (
     UserRole,
 )
-from ee.src.models.shared_models import Permission
-from ee.src.core.entitlements.controls import get_role
+from ee.src.core.access.permissions.types import Permission
+from ee.src.core.access.controls import get_role
 
 router = APIRouter()
 

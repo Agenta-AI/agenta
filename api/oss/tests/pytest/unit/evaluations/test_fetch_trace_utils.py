@@ -43,8 +43,9 @@ async def test_fetch_trace_retries_until_trace_has_usable_root_span(monkeypatch)
 
     monkeypatch.setattr(evaluation_utils, "sleep", fake_sleep)
 
-    fetched = await evaluation_utils.fetch_trace(
+    fetched = await evaluation_utils.TraceFetcher(
         tracing_service=tracing_service,
+    ).fetch_trace(
         project_id=project_id,
         trace_id=trace_id,
         max_retries=5,
@@ -79,8 +80,9 @@ async def test_fetch_trace_returns_none_when_trace_never_has_root_span(monkeypat
 
     monkeypatch.setattr(evaluation_utils, "sleep", fake_sleep)
 
-    fetched = await evaluation_utils.fetch_trace(
+    fetched = await evaluation_utils.TraceFetcher(
         tracing_service=tracing_service,
+    ).fetch_trace(
         project_id=project_id,
         trace_id=trace_id,
         max_retries=3,
