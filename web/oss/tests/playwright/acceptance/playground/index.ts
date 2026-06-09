@@ -1,10 +1,3 @@
-import {expect} from "@agenta/web-tests/utils"
-import {COMPLETION_MESSAGES, NEW_VARIABLES, PROMPT_MESSAGES} from "./assets/constants"
-import {test as basePlaygroundTest} from "./tests"
-import {expectAuthenticatedSession} from "../utils/auth"
-import {createScenarios} from "../utils/scenarios"
-import {buildAcceptanceTags} from "../utils/tags"
-
 import {
     TestCoverage,
     TestcaseType,
@@ -16,6 +9,15 @@ import {
     TestRoleType,
     TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
+import {expect} from "@agenta/web-tests/utils"
+
+import {expectAuthenticatedSession} from "../utils/auth"
+import {createScenarios} from "../utils/scenarios"
+import {buildAcceptanceTags} from "../utils/tags"
+
+import {COMPLETION_MESSAGES, NEW_VARIABLES, PROMPT_MESSAGES} from "./assets/constants"
+import {Role} from "./assets/types"
+import {test as basePlaygroundTest} from "./tests"
 
 const scenarios = createScenarios(basePlaygroundTest)
 
@@ -81,6 +83,13 @@ const manageTestcasesTags = buildAcceptanceTags({
     scope: [TestScope.PLAYGROUND, TestScope.DATASETS],
     coverage: [TestCoverage.LIGHT, TestCoverage.FULL],
     speed: TestSpeedType.FAST,
+    ...sharedTags,
+})
+
+const connectedTestsetCommitTags = buildAcceptanceTags({
+    scope: [TestScope.PLAYGROUND, TestScope.DATASETS],
+    coverage: [TestCoverage.LIGHT, TestCoverage.FULL],
+    speed: TestSpeedType.SLOW,
     ...sharedTags,
 })
 
@@ -451,6 +460,107 @@ const playgroundTests = () => {
                     expect(
                         pageErrors.some((error) => error.message.includes("Rendered more hooks")),
                     ).toBe(false)
+                },
+            )
+        },
+    )
+
+    basePlaygroundTest(
+        "should preserve the connected testset when committing a prompt revision",
+        {tag: connectedTestsetCommitTags},
+        async ({page, apiHelpers, navigateToPlayground, addNewPrompt, saveVariant}) => {
+            basePlaygroundTest.setTimeout(120000)
+
+            const timestamp = Date.now()
+            const rows = [
+                {country: "Germany", capital: "Berlin"},
+                {country: "France", capital: "Paris"},
+            ]
+
+            await scenarios.given("the user is authenticated", async () => {
+                await expectAuthenticatedSession(page)
+            })
+
+            let connectedTestset: Awaited<ReturnType<typeof apiHelpers.createTestset>>
+
+            await scenarios.and("a testset is available to connect", async () => {
+                connectedTestset = await apiHelpers.createTestset({
+                    name: `e2e-commit-connected-${timestamp}`,
+                    rows,
+                })
+                expect(connectedTestset.revisionId).toBeTruthy()
+            })
+
+            await scenarios.and("the user is on the playground for a completion app", async () => {
+                const app = await apiHelpers.getApp("completion")
+                await navigateToPlayground(app.id)
+            })
+
+            await scenarios.and("the user connects every testcase from the testset", async () => {
+                await page.getByRole("button", {name: "Test set", exact: true}).click()
+                await page.getByText("Connect test set", {exact: true}).click()
+
+                const loadDialog = page.getByRole("dialog", {name: "Load Testset"})
+                await expect(loadDialog).toBeVisible()
+                await loadDialog
+                    .getByRole("option", {
+                        name: connectedTestset.name,
+                        exact: true,
+                    })
+                    .click()
+                await expect(loadDialog.getByText("Germany", {exact: true})).toBeVisible()
+                await loadDialog.locator(".ant-table-thead").getByRole("checkbox").check()
+                await loadDialog.getByRole("button", {name: "Load Selected", exact: true}).click()
+                await expect(loadDialog).toBeHidden()
+                await expect(
+                    page.getByRole("button", {
+                        name: connectedTestset.name,
+                        exact: false,
+                    }),
+                ).toBeVisible()
+            })
+
+            await scenarios.when(
+                "the user changes the prompt and commits it as a new version",
+                async () => {
+                    await addNewPrompt([
+                        {
+                            prompt: `Keep the connected testset after commit ${timestamp}.`,
+                            role: Role.USER,
+                        },
+                    ])
+                    await expect(page.getByRole("button", {name: "Commit"})).toBeEnabled()
+                    await saveVariant("version")
+                },
+            )
+
+            await scenarios.then(
+                "the same testset revision and testcase selection remain connected",
+                async () => {
+                    const testsetButton = page.getByRole("button", {
+                        name: connectedTestset.name,
+                        exact: false,
+                    })
+                    await expect(testsetButton).toBeVisible()
+                    await testsetButton.click()
+                    await page.getByText("Manage testcases", {exact: true}).click()
+
+                    const editDialog = page.getByRole("dialog", {
+                        name: "Edit Testcase Selection",
+                    })
+                    await expect(editDialog).toBeVisible()
+                    await expect(
+                        editDialog.getByRole("option", {
+                            name: connectedTestset.name,
+                            exact: true,
+                        }),
+                    ).toHaveAttribute("aria-selected", "true")
+                    await expect(
+                        editDialog.getByText(
+                            `${rows.length} of ${rows.length} testcases selected`,
+                            {exact: true},
+                        ),
+                    ).toBeVisible()
                 },
             )
         },
