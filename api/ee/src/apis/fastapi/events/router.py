@@ -13,14 +13,17 @@ from fastapi.responses import JSONResponse
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
-from oss.src.utils.caching import acquire_lock, release_lock
+from oss.src.utils.locking import acquire_lock, release_lock
 from oss.src.core.events.service import EventsService
 
 from ee.src.apis.fastapi.events.models import EventQueryRequest, EventsQueryResponse
 from ee.src.core.events.service import EventsRetentionService
-from ee.src.models.shared_models import Permission
-from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
-from ee.src.utils.entitlements import (
+from ee.src.core.access.permissions.types import Permission
+from ee.src.core.access.permissions.service import (
+    check_action_access,
+    FORBIDDEN_EXCEPTION,
+)
+from ee.src.core.access.entitlements.service import (
     check_entitlements,
     NOT_ENTITLED_RESPONSE,
     Flag,

@@ -562,7 +562,7 @@ async def display_evaluation_results(
 
                 # Fetch and process trace data using services module
                 try:
-                    trace_data = await fetch_trace_data(result.trace_id)
+                    trace_data = await afetch_trace(result.trace_id)
                     if trace_data and "spans" in trace_data:
                         for span_key in trace_data["spans"].keys():
                             step_data = extract_trace_step_data(trace_data, span_key)
@@ -686,12 +686,12 @@ async def display_evaluation_results(
 
 from typing import Dict, Optional, Any  # noqa: E402
 
-from agenta.sdk.utils.client import authed_api  # noqa: E402
+from agenta.sdk.utils.client import authed_async_api  # noqa: E402
 from typing import Dict, Any, Optional  # noqa: E402
 
 
-async def fetch_trace_data(
-    trace_id: str, max_retries: int = 3, delay: float = 1.0
+async def afetch_trace(
+    trace_id: str, max_retries: int = 30, delay: float = 1.0
 ) -> Optional[Dict[str, Any]]:
     """
     Fetch trace data from the API with retry logic.
@@ -706,7 +706,7 @@ async def fetch_trace_data(
     """
     for attempt in range(max_retries):
         try:
-            response = authed_api()(
+            response = await authed_async_api()(
                 method="GET", endpoint=f"/tracing/traces/{trace_id}"
             )
             response.raise_for_status()
@@ -735,10 +735,10 @@ async def fetch_trace_data(
                 await asyncio.sleep(delay)
                 continue
             else:
-                print(f"Error fetching trace data: {e}")
+                print(f"Error fetching trace: {e}")
                 return None
 
-    print("Failed to fetch trace data after retries")
+    print("Failed to fetch trace after retries")
     return None
 
 

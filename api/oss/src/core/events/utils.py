@@ -273,11 +273,11 @@ async def _check_l1_events_quota(
 
     try:
         # Deferred import: EE-only symbols stay out of the OSS import graph.
-        from ee.src.utils.entitlements import (  # noqa: PLC0415
+        from ee.src.core.access.entitlements.service import (  # noqa: PLC0415
             check_entitlements,
             scope_from,
         )
-        from ee.src.core.entitlements.types import Counter  # noqa: PLC0415
+        from ee.src.core.access.entitlements.types import Counter  # noqa: PLC0415
 
         allowed, _, _ = await check_entitlements(
             key=Counter.EVENTS_INGESTED,

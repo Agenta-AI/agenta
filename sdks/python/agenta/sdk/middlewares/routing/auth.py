@@ -142,7 +142,7 @@ async def get_credentials(
             async with httpx.AsyncClient() as client:
                 try:
                     response = await client.get(
-                        f"{host}/api/permissions/verify",
+                        f"{host}/api/access/permissions/check",
                         headers=headers,
                         cookies=cookies,
                         params=params,

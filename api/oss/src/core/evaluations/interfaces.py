@@ -15,11 +15,9 @@ from oss.src.core.evaluations.types import (
     EvaluationScenarioQuery,
     EvaluationResult,
     EvaluationResultCreate,
-    EvaluationResultEdit,
     EvaluationResultQuery,
     EvaluationMetrics,
     EvaluationMetricsCreate,
-    EvaluationMetricsEdit,
     EvaluationMetricsQuery,
     EvaluationQueue,
     EvaluationQueueCreate,
@@ -308,7 +306,7 @@ class EvaluationsDAOInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def create_results(
+    async def set_results(
         self,
         *,
         project_id: UUID,
@@ -335,28 +333,6 @@ class EvaluationsDAOInterface(ABC):
         project_id: UUID,
         #
         result_ids: List[UUID],
-    ) -> List[EvaluationResult]:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def edit_result(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        result: EvaluationResultEdit,
-    ) -> Optional[EvaluationResult]:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def edit_results(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        results: List[EvaluationResultEdit],
     ) -> List[EvaluationResult]:
         raise NotImplementedError
 
@@ -392,10 +368,20 @@ class EvaluationsDAOInterface(ABC):
     ) -> List[EvaluationResult]:
         raise NotImplementedError
 
+    @abstractmethod
+    async def query_result_ids(
+        self,
+        *,
+        project_id: UUID,
+        #
+        result: Optional[EvaluationResultQuery] = None,
+    ) -> List[UUID]:
+        raise NotImplementedError
+
     # - EVALUATION METRICS -----------------------------------------------------
 
     @abstractmethod
-    async def create_metrics(
+    async def set_metrics(
         self,
         *,
         project_id: UUID,
@@ -412,17 +398,6 @@ class EvaluationsDAOInterface(ABC):
         project_id: UUID,
         #
         metrics_ids: List[UUID],
-    ) -> List[EvaluationMetrics]:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def edit_metrics(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        metrics: List[EvaluationMetricsEdit],
     ) -> List[EvaluationMetrics]:
         raise NotImplementedError
 
@@ -512,6 +487,26 @@ class EvaluationsDAOInterface(ABC):
         #
         queues: List[EvaluationQueueEdit],
     ) -> List[EvaluationQueue]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def archive_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        queue_id: UUID,
+    ) -> Optional[EvaluationQueue]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def unarchive_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        queue_id: UUID,
+    ) -> Optional[EvaluationQueue]:
         raise NotImplementedError
 
     @abstractmethod

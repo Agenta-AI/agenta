@@ -790,9 +790,10 @@ export async function createWorkflow(
     // Step 3: Commit seed revision (v0) — tables dismiss v0, so the
     // user-visible first version must be v1.
     //
-    // Use the workflow name for both revisions. The default variant remains
-    // named "default", but the persisted revision name should reflect the
-    // user-entered workflow/evaluator name.
+    // Name the revisions after the variant ("default"), not the workflow name.
+    // Evaluation tables label the application by its variant, so a revision
+    // named after the app made the default variant render as the app name
+    // instead of "default".
     if (payload.data) {
         await axios.post(
             `${getAgentaApiUrl()}/workflows/revisions/commit`,
@@ -801,7 +802,7 @@ export async function createWorkflow(
                     workflow_id: workflowId,
                     workflow_variant_id: variantId,
                     slug: generateId().replace(/-/g, "").slice(0, 12),
-                    name: payload.name,
+                    name: DEFAULT_VARIANT_NAME,
                     message: "Initial commit",
                 },
             },
@@ -817,7 +818,7 @@ export async function createWorkflow(
                     workflow_id: workflowId,
                     workflow_variant_id: variantId,
                     slug: generateId().replace(/-/g, "").slice(0, 12),
-                    name: payload.name,
+                    name: DEFAULT_VARIANT_NAME,
                     data: payload.data,
                     flags: revisionFlags,
                     message: payload.message ?? undefined,

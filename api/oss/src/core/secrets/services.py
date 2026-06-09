@@ -64,6 +64,7 @@ class VaultService:
         update_secret_dto: UpdateSecretDTO,
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
+        user_id: UUID | None = None,
     ):
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
@@ -73,6 +74,7 @@ class VaultService:
                 update_secret_dto=update_secret_dto,
                 project_id=project_id,
                 organization_id=organization_id,
+                user_id=user_id,
             )
             return secret_dto
 

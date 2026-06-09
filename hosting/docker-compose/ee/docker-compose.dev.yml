@@ -143,7 +143,7 @@ services:
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --ignore-patterns=*/tests/* --
             python -m entrypoints.worker_evaluations
         # === STORAGE ============================================== #
         volumes:
@@ -180,7 +180,7 @@ services:
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --ignore-patterns=*/tests/* --
             python -m entrypoints.worker_tracing
         # === STORAGE ============================================== #
         volumes:
@@ -217,7 +217,7 @@ services:
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --ignore-patterns=*/tests/* --
             python -m entrypoints.worker_webhooks
         # === STORAGE ============================================== #
         volumes:
@@ -260,7 +260,7 @@ services:
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --ignore-patterns=*/tests/* --
             python -m entrypoints.worker_events
         # === STORAGE ============================================== #
         volumes:

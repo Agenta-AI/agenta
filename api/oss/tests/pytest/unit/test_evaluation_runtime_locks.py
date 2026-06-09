@@ -6,11 +6,11 @@ external Redis process. Install `fakeredis` in the test environment to enable
 them.
 
 Tests cover:
-    - acquire_job_lock / acquire_mutation_lock
+    - acquire_job_lock / acquire_run_lock
     - renew with correct and wrong token
     - release with correct and wrong token
     - list_active_job_locks / is_run_executing
-    - get_mutation_lock / has_mutation_lock
+    - get_run_lock / has_run_lock
     - heartbeat expiration (TTL=1 s test)
     - task wrapper releases lock on exception
 """
@@ -37,6 +37,7 @@ async def fake_redis():
     fakeredis = pytest.importorskip("fakeredis")
     aioredis = pytest.importorskip("fakeredis.aioredis")
     from oss.src.utils import caching
+    from oss.src.utils import locking
 
     server = fakeredis.FakeServer()
     client = aioredis.FakeRedis(server=server, decode_responses=False)
@@ -47,7 +48,7 @@ async def fake_redis():
         key=None,
         project_id=None,
         user_id=None,
-        ttl: int = caching.AGENTA_LOCK_TTL,
+        ttl: int = locking.AGENTA_LOCK_TTL,
         owner=None,
     ) -> bool:
         lock_key = caching.pack(
@@ -85,14 +86,19 @@ async def fake_redis():
             return False
         return bool(await client.delete(lock_key))
 
+    engine = pytest.importorskip("oss.src.dbs.redis.shared.engine")
+    lock_engine = engine.get_lock_engine()
+
     with (
-        patch("oss.src.utils.caching.r_lock", client),
+        # The lock engine delegates redis ops to `_client()`; point it at the
+        # fakeredis instance so locking goes through the in-memory server.
+        patch.object(lock_engine, "_client", return_value=client),
         patch(
-            "oss.src.utils.caching.renew_lock",
+            "oss.src.utils.locking.renew_lock",
             _renew_lock_for_tests,
         ),
         patch(
-            "oss.src.utils.caching.release_lock",
+            "oss.src.utils.locking.release_lock",
             _release_lock_for_tests,
         ),
     ):
@@ -116,22 +122,16 @@ def _job_id() -> str:
 
 def _genson_patch():
     module = types.ModuleType("genson")
-    live_module = types.ModuleType("oss.src.core.evaluations.tasks.live")
 
     class SchemaBuilder: ...
 
-    async def evaluate_live_query(*args, **kwargs):
-        return None
-
     module.SchemaBuilder = SchemaBuilder
-    live_module.evaluate_live_query = evaluate_live_query
     stack = ExitStack()
     stack.enter_context(
         patch.dict(
             sys.modules,
             {
                 "genson": module,
-                "oss.src.core.evaluations.tasks.live": live_module,
             },
         )
     )
@@ -219,18 +219,18 @@ async def test_acquire_job_lock_returns_none_when_singleton_slot_is_held(fake_re
 
 
 # ---------------------------------------------------------------------------
-# acquire_mutation_lock
+# acquire_run_lock
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_acquire_mutation_lock_succeeds(fake_redis):
-    from oss.src.core.evaluations.runtime.locks import acquire_mutation_lock
+    from oss.src.core.evaluations.runtime.locks import acquire_run_lock
 
     run_id = _run_id()
     job_id = _job_id()
 
-    payload = await acquire_mutation_lock(run_id=run_id, job_id=job_id, job_type="web")
+    payload = await acquire_run_lock(run_id=run_id, job_id=job_id, job_type="web")
 
     assert payload is not None
     assert payload.job_type == "web"
@@ -238,14 +238,14 @@ async def test_acquire_mutation_lock_succeeds(fake_redis):
 
 @pytest.mark.asyncio
 async def test_acquire_mutation_lock_returns_none_when_held(fake_redis):
-    from oss.src.core.evaluations.runtime.locks import acquire_mutation_lock
+    from oss.src.core.evaluations.runtime.locks import acquire_run_lock
 
     run_id = _run_id()
 
-    first = await acquire_mutation_lock(run_id=run_id, job_id=_job_id())
+    first = await acquire_run_lock(run_id=run_id, job_id=_job_id())
     assert first is not None
 
-    second = await acquire_mutation_lock(run_id=run_id, job_id=_job_id())
+    second = await acquire_run_lock(run_id=run_id, job_id=_job_id())
     assert second is None
 
 
@@ -379,34 +379,34 @@ async def test_list_active_job_locks_returns_all_jobs(fake_redis):
 
 
 # ---------------------------------------------------------------------------
-# has_mutation_lock / get_mutation_lock
+# has_run_lock / get_run_lock
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_has_mutation_lock_false_when_not_acquired(fake_redis):
-    from oss.src.core.evaluations.runtime.locks import has_mutation_lock
+    from oss.src.core.evaluations.runtime.locks import has_run_lock
 
     run_id = _run_id()
-    assert await has_mutation_lock(run_id=run_id) is False
+    assert await has_run_lock(run_id=run_id) is False
 
 
 @pytest.mark.asyncio
 async def test_has_mutation_lock_true_after_acquire(fake_redis):
     from oss.src.core.evaluations.runtime.locks import (
-        acquire_mutation_lock,
-        has_mutation_lock,
-        get_mutation_lock,
+        acquire_run_lock,
+        has_run_lock,
+        get_run_lock,
     )
 
     run_id = _run_id()
     job_id = _job_id()
 
-    payload = await acquire_mutation_lock(run_id=run_id, job_id=job_id, job_type="sdk")
+    payload = await acquire_run_lock(run_id=run_id, job_id=job_id, job_type="sdk")
     assert payload is not None
-    assert await has_mutation_lock(run_id=run_id) is True
+    assert await has_run_lock(run_id=run_id) is True
 
-    stored = await get_mutation_lock(run_id=run_id)
+    stored = await get_run_lock(run_id=run_id)
     assert stored is not None
     assert stored.job_id == job_id
     assert stored.job_type == "sdk"
@@ -473,7 +473,7 @@ async def test_with_job_lock_releases_on_exception(fake_redis):
 
 @pytest.mark.asyncio
 async def test_refresh_worker_heartbeat_preserves_created_at_without_fakeredis():
-    from oss.src.core.evaluations.runtime import locks
+    import oss.src.core.evaluations.runtime.locks as locks
 
     class DummyRedis:
         def __init__(self):
@@ -487,9 +487,11 @@ async def test_refresh_worker_heartbeat_preserves_created_at_without_fakeredis()
             return True
 
     dummy = DummyRedis()
+    engine = pytest.importorskip("oss.src.dbs.redis.shared.engine")
+    lock_engine = engine.get_lock_engine()
 
     with (
-        patch("oss.src.utils.caching.r_lock", dummy),
+        patch.object(lock_engine, "_client", return_value=dummy),
         patch(
             "oss.src.core.evaluations.runtime.locks._now_iso",
             side_effect=["2026-03-25T10:00:00Z", "2026-03-25T10:01:00Z"],
@@ -506,7 +508,7 @@ async def test_refresh_worker_heartbeat_preserves_created_at_without_fakeredis()
 
 @pytest.mark.asyncio
 async def test_run_job_heartbeat_fails_after_missing_renew_deadline():
-    from oss.src.core.evaluations.runtime import locks
+    import oss.src.core.evaluations.runtime.locks as locks
 
     clock = {"now": 0.0}
 
@@ -576,7 +578,7 @@ async def test_with_job_lock_cancels_runner_when_heartbeat_fails():
     with (
         patch.object(
             worker_module,
-            "has_mutation_lock",
+            "has_run_lock",
             AsyncMock(return_value=False),
         ),
         patch.object(
@@ -621,7 +623,7 @@ async def test_with_job_lock_raises_specific_skip_error_when_lock_not_acquired()
     with (
         patch.object(
             worker_module,
-            "has_mutation_lock",
+            "has_run_lock",
             AsyncMock(return_value=False),
         ),
         patch.object(

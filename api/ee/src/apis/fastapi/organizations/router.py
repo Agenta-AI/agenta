@@ -4,8 +4,8 @@ from uuid import UUID
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse, Response
 
-from ee.src.utils.permissions import check_user_org_access
-from ee.src.utils.entitlements import (
+from ee.src.core.access.permissions.service import check_user_org_access
+from ee.src.core.access.entitlements.service import (
     check_entitlements,
     NOT_ENTITLED_RESPONSE,
     Tracker,
@@ -13,7 +13,7 @@ from ee.src.utils.entitlements import (
 )
 
 from ee.src.services import db_manager_ee
-from ee.src.services.selectors import get_user_org_and_workspace_id
+from ee.src.services.db_manager_ee import get_user_org_and_workspace_id
 from ee.src.services.organization_service import (
     OrganizationDomainsService,
     OrganizationProvidersService,

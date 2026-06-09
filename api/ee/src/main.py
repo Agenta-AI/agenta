@@ -3,6 +3,11 @@ from fastapi.openapi.utils import get_openapi
 
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
+
+from oss.src.dbs.postgres.shared.engine import (
+    get_transactions_engine,
+    get_analytics_engine,
+)
 from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.core.events.service import EventsService
 
@@ -14,6 +19,7 @@ from ee.src.routers import (
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.dbs.postgres.tracing.dao import TracingRetentionDAO
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
+from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
 from ee.src.dbs.postgres.events.dao import EventsRetentionDAO
 
 from ee.src.core.meters.service import MetersService
@@ -28,18 +34,30 @@ from ee.src.apis.fastapi.events.router import EventsRouter, EventsRetentionRoute
 from ee.src.apis.fastapi.organizations.router import (
     router as organization_router,
 )
-from ee.src.utils.entitlements import bootstrap_entitlements_services
+from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
 
 # DBS --------------------------------------------------------------------------
 
-meters_dao = MetersDAO()
+# Get engines from shared initialization (instantiated in routers.py)
+_transactions_engine = get_transactions_engine()
+_analytics_engine = get_analytics_engine()
 
-tracing_retention_dao = TracingRetentionDAO()
+meters_dao = MetersDAO(engine=_transactions_engine)
 
-subscriptions_dao = SubscriptionsDAO()
+tracing_retention_dao = TracingRetentionDAO(
+    transactions_engine=_transactions_engine,
+    analytics_engine=_analytics_engine,
+)
 
-events_retention_dao = EventsRetentionDAO()
-query_events_dao = EventsDAO()
+subscriptions_dao = SubscriptionsDAO(engine=_transactions_engine)
+
+organization_domains_dao = OrganizationDomainsDAO(engine=_transactions_engine)
+
+events_dao = EventsDAO(engine=_analytics_engine)
+events_retention_dao = EventsRetentionDAO(
+    transactions_engine=_transactions_engine,
+    analytics_engine=_analytics_engine,
+)
 
 # CORE -------------------------------------------------------------------------
 
@@ -51,16 +69,16 @@ tracing_retention_service = TracingRetentionService(
     tracing_retention_dao=tracing_retention_dao,
 )
 
+events_service = EventsService(
+    events_dao=events_dao,
+)
+
 events_retention_service = EventsRetentionService(
     events_retention_dao=events_retention_dao,
-)
-query_events_service = EventsService(
-    events_dao=query_events_dao,
 )
 
 subscription_service = SubscriptionsService(
     subscriptions_dao=subscriptions_dao,
-    meters_service=meters_service,
 )
 
 # Wire entitlements module against the freshly-built services so the
@@ -84,7 +102,7 @@ spans_retention_router = SpansRetentionRouter(
 )
 
 events_router = EventsRouter(
-    events_service=query_events_service,
+    events_service=events_service,
 )
 
 events_retention_router = EventsRetentionRouter(
