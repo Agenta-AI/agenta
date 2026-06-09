@@ -176,19 +176,20 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 await expect(typeof message).toBe("string")
 
                 // 2. Find the empty chat message textbox.
-                // Old path (VariableControlAdapter / TurnMessageAdapter): "Type your message\u2026"
-                // New path (VariableCard / ChatMessageList): "Enter message..."
-                // Combined selector handles whichever placeholder the current UI renders.
-                let targetTextbox = page
-                    .locator(
-                        '.agenta-shared-editor:has(div:text-is("Type your message\u2026")) [role="textbox"], ' +
-                            '.agenta-shared-editor:has(div:text-is("Enter message...")) [role="textbox"]',
-                    )
-                    .first()
+                // Placeholder-based selectors ("Type your message\u2026" / "Enter message...") only
+                // work when the editor is empty AND in rich-text mode. When the persisted
+                // messageViewModeAtom is "text" (the default), Lexical switches to code/
+                // markdown-source mode \u2014 the editor is no longer empty from Lexical's
+                // perspective (it contains a CodeNode), so the placeholder div is not
+                // rendered. Use the last .editor-input[role="textbox"] instead: in the
+                // chat playground the user-message input is always the last editable editor.
+                const getChatEditorLocator = () =>
+                    page.locator('.agenta-shared-editor .editor-input[role="textbox"]').last()
 
-                // If neither placeholder is visible the variable card may have rendered in
-                // "json" mode (empty messages array). Click "Message" / "Add message" to
-                // create an initial user turn, then re-query.
+                let targetTextbox = getChatEditorLocator()
+
+                // If no editor is visible (empty messages array / json mode), click
+                // "Message" / "Add message" to create an initial user turn, then re-query.
                 const editorVisible = await targetTextbox
                     .isVisible({timeout: 5000})
                     .catch(() => false)
@@ -198,13 +199,9 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                         .first()
                     if (await addMsgButton.isVisible({timeout: 5000}).catch(() => false)) {
                         await addMsgButton.click()
+                        await expect(getChatEditorLocator()).toBeVisible({timeout: 10000})
                     }
-                    targetTextbox = page
-                        .locator(
-                            '.agenta-shared-editor:has(div:text-is("Type your message\u2026")) [role="textbox"], ' +
-                                '.agenta-shared-editor:has(div:text-is("Enter message...")) [role="textbox"]',
-                        )
-                        .first()
+                    targetTextbox = getChatEditorLocator()
                 }
 
                 await targetTextbox.scrollIntoViewIfNeeded()
@@ -245,22 +242,24 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 expect(typeof role).toBe("string")
 
                 // 2. Click on the message button to create a new prompt slot.
-                // Record the current editor count so we can wait for a NEW one to appear
-                // rather than racing against DOM state immediately after the click.
-                const editorSelector =
-                    `.agenta-shared-editor .editor-input[role="textbox"]:has(p:empty), ` +
-                    `.agenta-shared-editor .editor-input[role="textbox"]:has(p:has(br:only-child))`
+                // Count ALL shared editors rather than only empty rich-text ones. The
+                // old selector matched `.editor-input[role="textbox"]:has(p:has(br:only-child))`
+                // which only works in rich-text mode. When messageViewModeAtom is "text"
+                // (the default), Lexical switches to code/markdown-source mode where the
+                // empty state is represented by a CodeNode with no <p> elements, so the
+                // old empty-paragraph selector never matched the newly added editor.
+                const editorSelector = `.agenta-shared-editor .editor-input[role="textbox"]`
                 const countBefore = await page.locator(editorSelector).count()
 
                 await page.getByRole("button", {name: "Message"}).first().click()
 
-                // 3. Find the empty editor input — wait for the newly added slot to appear
-                // (count must exceed what existed before the click).
+                // 3. Wait for the newly added slot to appear (total count must increase).
                 await expect
                     .poll(async () => page.locator(editorSelector).count(), {timeout: 15000})
                     .toBeGreaterThan(countBefore)
 
-                const emptyEditorLocator = page.locator(editorSelector).first()
+                // The new editor is always appended last (messages array is append-only here).
+                const emptyEditorLocator = page.locator(editorSelector).nth(countBefore)
 
                 await expect(emptyEditorLocator).toBeVisible({timeout: 10000})
 
