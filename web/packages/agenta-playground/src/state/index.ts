@@ -352,6 +352,7 @@ export {
 
 export type {
     BuildEncodedSnapshotResult,
+    ConnectToTestsetPayload,
     CreateSnapshotResult,
     HydrateFromUrlResult,
     HydrateSnapshotResult,

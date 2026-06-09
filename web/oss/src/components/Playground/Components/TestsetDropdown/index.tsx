@@ -48,6 +48,8 @@ import {toTestsetTraceReference, type TestsetTraceReference} from "@/oss/lib/tra
 import {saveNewTestsetAtom} from "@/oss/state/entities/testset/mutations"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
+import KeepDraftRowsModal from "../Modals/KeepDraftRowsModal"
+import {keepDraftRowsModalAtom} from "../Modals/KeepDraftRowsModal/store/state"
 import TestsetDisconnectConfirmModal from "../Modals/TestsetDisconnectConfirmModal"
 import {testsetDisconnectConfirmModalAtom} from "../Modals/TestsetDisconnectConfirmModal/store/state"
 
@@ -125,6 +127,9 @@ export function TestsetDropdown() {
 
     // ── Actions ────────────────────────────────────────────────────────────
     const connectToTestset = useSetAtom(playgroundController.actions.connectToTestset)
+    const connectKeepingDrafts = useSetAtom(
+        playgroundController.actions.connectToTestsetKeepingLocalRows,
+    )
     const importTestcases = useSetAtom(playgroundController.actions.importTestcases)
     const disconnectAndReset = useSetAtom(playgroundController.actions.disconnectAndResetToLocal)
     const updateTestcaseSelection = useSetAtom(loadableController.actions.updateTestcaseSelection)
@@ -134,6 +139,7 @@ export function TestsetDropdown() {
     const initSelectionDraft = useSetAtom(testcaseMolecule.actions.initSelectionDraft)
     const saveNewTestset = useSetAtom(saveNewTestsetAtom)
     const setDisconnectConfirmModalState = useSetAtom(testsetDisconnectConfirmModalAtom)
+    const setKeepDraftRowsModalState = useSetAtom(keepDraftRowsModalAtom)
     const store = useStore()
     const {canExportData} = useProjectPermissions()
 
@@ -261,19 +267,46 @@ export function TestsetDropdown() {
                     const data = testcaseMolecule.get.data(id)
                     return data ? {...(data as Record<string, unknown>)} : {id}
                 })
-                connectToTestset({
+                const connectPayload = {
                     loadableId,
                     revisionId: payload.revisionId,
                     testcases,
                     testsetName: payload.testsetName ?? "",
                     testsetId: payload.testsetId ?? null,
                     revisionVersion: payload.revisionVersion ?? null,
-                })
+                }
+
+                // Connecting clears local rows. If the playground holds draft
+                // test cases (typed manually or opened from a trace), ask the
+                // user first instead of silently discarding them.
+                const draftRows = store.get(
+                    loadableController.selectors.meaningfulLocalRows(loadableId),
+                )
+                if (draftRows.length > 0) {
+                    setKeepDraftRowsModalState({
+                        open: true,
+                        variant: isChatPlayground ? "chat-replace" : "keep",
+                        draftCount: draftRows.length,
+                        targetTestsetName: payload.testsetName ?? null,
+                        pendingPayload: connectPayload,
+                    })
+                    setSelectionModalMode(null)
+                    return
+                }
+
+                connectToTestset(connectPayload)
             }
 
             setSelectionModalMode(null)
         },
-        [loadableId, connectToTestset, importTestcases],
+        [
+            loadableId,
+            connectToTestset,
+            importTestcases,
+            store,
+            isChatPlayground,
+            setKeepDraftRowsModalState,
+        ],
     )
 
     // ── Edit mode: update visible rows without changing connection ─────────
@@ -323,9 +356,11 @@ export function TestsetDropdown() {
             })
 
             if (result.success && result.revisionId && result.testsetId) {
-                // Connect the newly created testset
+                // Connect the newly created testset. The new test set is empty,
+                // so keep any draft rows instead of wiping them: they become
+                // unsaved additions the user can sync as the first commit.
                 const testcases = result.testcases ?? []
-                connectToTestset({
+                connectKeepingDrafts({
                     loadableId,
                     revisionId: result.revisionId,
                     testcases,
@@ -344,7 +379,7 @@ export function TestsetDropdown() {
             message.error(result.error?.message ?? "Failed to create test set")
             return {success: false as const}
         },
-        [loadableId, store, saveNewTestset, connectToTestset],
+        [loadableId, store, saveNewTestset, connectKeepingDrafts],
     )
 
     // ── Disconnect ─────────────────────────────────────────────────────────
@@ -595,6 +630,9 @@ export function TestsetDropdown() {
 
             {/* Disconnect with unsaved changes modal */}
             <TestsetDisconnectConfirmModal />
+
+            {/* Keep or discard local draft rows when connecting a test set */}
+            <KeepDraftRowsModal />
 
             {/* Add to testset drawer — mounted only when open to avoid isDrawerOpenAtom conflicts */}
             {addToTestsetOpen && (
