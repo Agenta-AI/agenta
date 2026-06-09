@@ -39,13 +39,13 @@ export class AgentaApiClient {
     protected readonly _options: NormalizedClientOptionsWithAuth<AgentaApiClient.Options>;
     protected _access: AccessClient | undefined;
     protected _billing: BillingClient | undefined;
+    protected _events: EventsClient | undefined;
     protected _organizations: OrganizationsClient | undefined;
     protected _workspaces: WorkspacesClient | undefined;
     protected _secrets: SecretsClient | undefined;
     protected _webhooks: WebhooksClient | undefined;
     protected _legacy: LegacyClient | undefined;
     protected _traces: TracesClient | undefined;
-    protected _events: EventsClient | undefined;
     protected _invocations: InvocationsClient | undefined;
     protected _annotations: AnnotationsClient | undefined;
     protected _testcases: TestcasesClient | undefined;
@@ -75,6 +75,10 @@ export class AgentaApiClient {
         return (this._billing ??= new BillingClient(this._options));
     }
 
+    public get events(): EventsClient {
+        return (this._events ??= new EventsClient(this._options));
+    }
+
     public get organizations(): OrganizationsClient {
         return (this._organizations ??= new OrganizationsClient(this._options));
     }
@@ -97,10 +101,6 @@ export class AgentaApiClient {
 
     public get traces(): TracesClient {
         return (this._traces ??= new TracesClient(this._options));
-    }
-
-    public get events(): EventsClient {
-        return (this._events ??= new EventsClient(this._options));
     }
 
     public get invocations(): InvocationsClient {

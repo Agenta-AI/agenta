@@ -99,7 +99,9 @@ export function unwrapStatsForCompare(v: unknown): unknown {
         }
         return undefined
     }
-    if (t === "numeric/continuous" || t === "numeric") {
+    // Any numeric aggregate (numeric, numeric/continuous, numeric/discrete) —
+    // else an integer-score blob falls through and renders as raw JSON.
+    if (typeof t === "string" && t.startsWith("numeric")) {
         const obj = v as {mean?: number; sum?: number; count?: number}
         return obj.mean ?? obj.sum ?? obj.count
     }

@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
-from oss.src.utils.caching import acquire_lock, release_lock
+from oss.src.utils.locking import acquire_lock, release_lock
 
 from ee.src.core.tracing.service import TracingRetentionService
 
@@ -23,7 +23,7 @@ class SpansRetentionRouter:
         self,
         tracing_retention_service: TracingRetentionService,
     ):
-        self.tracing_retention_service = tracing_retention_service
+        self.tracing_service = tracing_retention_service
 
         self.admin_router = APIRouter()
 
@@ -60,7 +60,7 @@ class SpansRetentionRouter:
 
             try:
                 log.info("[flush-spans] [endpoint] Retention started")
-                await self.tracing_retention_service.flush_spans()
+                await self.tracing_service.flush_spans()
                 log.info("[flush-spans] [endpoint] Retention completed")
 
                 return JSONResponse(
