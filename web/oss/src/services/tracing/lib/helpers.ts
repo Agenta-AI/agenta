@@ -4,10 +4,11 @@ import {
     sortSpansByStartTime,
     transformTracesResponseToTree,
     transformTracingResponse,
+    type AnalyticsResponse,
 } from "@agenta/entities/trace"
 import dayjs from "dayjs"
 
-import {TracingDashboardData} from "../types"
+import type {GenerationDashboardData} from "../types"
 
 // Re-export entity functions for backward compatibility
 export {
@@ -67,40 +68,87 @@ export const normalizeDurationSeconds = (d = 0) => d / 1_000
 export const formatTick = (ts: number | string, range: string) =>
     dayjs(ts).format(range === "24_hours" ? "h:mm a" : range === "7_days" ? "ddd" : "D MMM")
 
-export function tracingToGeneration(tracing: TracingDashboardData, range: string) {
-    const buckets = tracing.buckets ?? []
+// Dotted `MetricSpec.path` keys for the buckets returned by the new
+// `/spans/analytics/query` endpoint. These match the backend's
+// DEFAULT_ANALYTICS_SPECS (api/oss/src/core/tracing/service.py), which is what
+// the endpoint applies when the request omits `specs`.
+const COST_PATH = "attributes.ag.metrics.costs.cumulative.total"
+const TOKENS_PATH = "attributes.ag.metrics.tokens.cumulative.total"
+const DURATION_PATH = "attributes.ag.metrics.duration.cumulative"
+const ERRORS_PATH = "attributes.ag.metrics.errors.cumulative"
+const TRACE_TYPE_PATH = "attributes.ag.type.trace"
+
+type BucketMetrics = AnalyticsResponse["buckets"] extends (infer B)[] | null | undefined
+    ? B extends {metrics?: infer M}
+        ? M
+        : never
+    : never
+
+/** Read a numeric field (e.g. `sum`, `count`, `mean`) from one metric blob. */
+const metricField = (metrics: BucketMetrics, path: string, field: string): number => {
+    const blob = metrics?.[path]
+    const value = blob?.[field]
+    return typeof value === "number" && Number.isFinite(value) ? value : 0
+}
+
+/**
+ * Map the new spec-based analytics response onto the generation dashboard
+ * shape (AGE-3788). The old `/tracing/spans/analytics` endpoint returned a
+ * success/error split per bucket (`total` vs `errors`); the new endpoint
+ * returns per-metric aggregates keyed by dotted spec path, so we reconstruct
+ * the dashboard figures:
+ *   - total count   = `type.trace` count (root-span count per bucket)
+ *   - failure count = `errors.cumulative` sum
+ *   - success count = total − failures
+ *   - cost / tokens = `costs|tokens.cumulative.total` sum (over all spans)
+ *   - latency       = `duration.cumulative` sum / count (avg over all spans)
+ */
+export function analyticsToGeneration(
+    analytics: AnalyticsResponse,
+    range: string,
+): GenerationDashboardData {
+    const buckets = analytics.buckets ?? []
 
     let successCount = 0
     let errorCount = 0
     let totalCost = 0
     let totalTokens = 0
-    let totalSuccessDuration = 0
+    let totalDurationMs = 0
+    let totalDurationCount = 0
 
     const data = buckets.map((b) => {
-        const succC = b.total?.count ?? 0
-        const errC = b.errors?.count ?? 0
+        const m = b.metrics as BucketMetrics
 
-        const succCost = b.total?.costs ?? 0
-        const errCost = b.errors?.costs ?? 0
+        const cost = metricField(m, COST_PATH, "sum")
+        const tokens = metricField(m, TOKENS_PATH, "sum")
+        const failure = metricField(m, ERRORS_PATH, "sum")
 
-        const succTok = b.total?.tokens ?? 0
-        const errTok = b.errors?.tokens ?? 0
+        const durationCount = metricField(m, DURATION_PATH, "count")
+        // Prefer the trace-type root count; fall back to the duration sample
+        // count when the categorical metric is absent (e.g. span focus).
+        const total = metricField(m, TRACE_TYPE_PATH, "count") || durationCount
+        const success = Math.max(0, total - failure)
 
-        const succDurS = normalizeDurationSeconds(b.total?.duration ?? 0)
+        // `ag.metrics.duration.cumulative` is stored in MILLISECONDS, and the
+        // dashboard renders latency with an "ms" suffix — so keep it in ms. (The
+        // legacy transform divided by 1000 here, which made the dashboard show
+        // latencies 1000× too small; verified against live data — AGE-3788.)
+        const durationMs = metricField(m, DURATION_PATH, "sum")
 
-        successCount += succC
-        errorCount += errC
-        totalCost += succCost + errCost
-        totalTokens += succTok + errTok
-        totalSuccessDuration += succDurS
+        successCount += success
+        errorCount += failure
+        totalCost += cost
+        totalTokens += tokens
+        totalDurationMs += durationMs
+        totalDurationCount += durationCount
 
         return {
             timestamp: formatTick(b.timestamp, range),
-            success_count: succC,
-            failure_count: errC,
-            cost: succCost + errCost,
-            latency: succC ? succDurS / Math.max(succC, 1) : 0, // avg latency per success in the bucket
-            total_tokens: succTok + errTok,
+            success_count: success,
+            failure_count: failure,
+            cost,
+            latency: durationCount ? durationMs / durationCount : 0, // avg latency (ms) in the bucket
+            total_tokens: tokens,
         }
     })
 
@@ -112,7 +160,7 @@ export function tracingToGeneration(tracing: TracingDashboardData, range: string
         failure_rate: totalCount ? errorCount / totalCount : 0,
         total_cost: totalCost,
         avg_cost: totalCount ? totalCost / totalCount : 0,
-        avg_latency: successCount ? totalSuccessDuration / successCount : 0,
+        avg_latency: totalDurationCount ? totalDurationMs / totalDurationCount : 0, // ms
         total_tokens: totalTokens,
         avg_tokens: totalCount ? totalTokens / totalCount : 0,
     }
