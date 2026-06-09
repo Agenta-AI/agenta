@@ -17,19 +17,19 @@ export class Vault {
     /**
      * List all secrets for the current project.
      *
-     * GET /vault/v1/secrets/
+     * GET /secrets/
      */
     async list(): Promise<SecretResponse[]> {
-        return this.client.request<SecretResponse[]>("GET", "/vault/v1/secrets/", {legacy: true})
+        return this.client.request<SecretResponse[]>("GET", "/secrets/", {legacy: true})
     }
 
     /**
      * Get a single secret by ID.
      *
-     * GET /vault/v1/secrets/{secretId}
+     * GET /secrets/{secretId}
      */
     async get(secretId: string): Promise<SecretResponse> {
-        return this.client.request<SecretResponse>("GET", `/vault/v1/secrets/${secretId}`, {
+        return this.client.request<SecretResponse>("GET", `/secrets/${secretId}`, {
             legacy: true,
         })
     }
@@ -37,10 +37,10 @@ export class Vault {
     /**
      * Create a new secret.
      *
-     * POST /vault/v1/secrets/
+     * POST /secrets/
      */
     async create(request: CreateSecretRequest): Promise<SecretResponse> {
-        return this.client.request<SecretResponse>("POST", "/vault/v1/secrets/", {
+        return this.client.request<SecretResponse>("POST", "/secrets/", {
             body: request,
             legacy: true,
         })
@@ -49,10 +49,10 @@ export class Vault {
     /**
      * Update an existing secret.
      *
-     * PUT /vault/v1/secrets/{secretId}
+     * PUT /secrets/{secretId}
      */
     async update(secretId: string, request: UpdateSecretRequest): Promise<SecretResponse> {
-        return this.client.request<SecretResponse>("PUT", `/vault/v1/secrets/${secretId}`, {
+        return this.client.request<SecretResponse>("PUT", `/secrets/${secretId}`, {
             body: request,
             legacy: true,
         })
@@ -61,11 +61,11 @@ export class Vault {
     /**
      * Delete a secret.
      *
-     * DELETE /vault/v1/secrets/{secretId}
+     * DELETE /secrets/{secretId}
      *
      * Returns void (204 No Content).
      */
     async delete(secretId: string): Promise<void> {
-        await this.client.requestRaw("DELETE", `/vault/v1/secrets/${secretId}`, {legacy: true})
+        await this.client.requestRaw("DELETE", `/secrets/${secretId}`, {legacy: true})
     }
 }

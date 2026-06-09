@@ -355,7 +355,7 @@ export const createEvaluationRunConfig = ({
         return {
             key: `evaluation-${revision.workflow_variant_id ?? revision.id}`,
             name: `${name}`,
-            description: "auto-generated evaluation run",
+            // description: "auto-generated evaluation run",
             meta, // Include the passed-in meta object
             data: {steps, mappings},
         }

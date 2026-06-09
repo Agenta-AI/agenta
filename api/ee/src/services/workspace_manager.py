@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import invalidate_cache
 from oss.src.services import db_manager
-from ee.src.services import db_manager_ee, converters
+from ee.src.services import db_manager_ee
 from oss.src.models.db_models import (
     OrganizationDB,
     WorkspaceDB,
@@ -20,8 +20,8 @@ from ee.src.core.workspaces.types import (
     CreateWorkspace,
     UpdateWorkspace,
 )
-from ee.src.core.entitlements.controls import get_role
-from ee.src.models.shared_models import Permission, WorkspaceRole
+from ee.src.core.access.controls import get_role
+from ee.src.core.access.permissions.types import Permission, RequiredRole
 from oss.src.services.organization_service import (
     create_invitation,
     check_existing_invitation,
@@ -111,11 +111,10 @@ async def get_all_workspace_permissions() -> List[Permission]:
     Retrieve all workspace permissions.
 
     Returns:
-        List[Permission]: A list of all workspace permissions in the DB.
+        List[Permission]: A list of all workspace permissions.
     """
 
-    workspace_permissions_from_db = await converters.get_all_workspace_permissions()
-    return workspace_permissions_from_db
+    return list(Permission)
 
 
 async def invite_user_to_workspace(
@@ -214,7 +213,7 @@ async def invite_user_to_workspace(
                     else (
                         str(payload_invite.roles[0])
                         if payload_invite.roles
-                        else WorkspaceRole.VIEWER.value
+                        else RequiredRole.VIEWER.value
                     )
                 )
                 # Validate against the effective workspace catalog

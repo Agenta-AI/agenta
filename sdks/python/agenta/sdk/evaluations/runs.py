@@ -1,10 +1,42 @@
 from typing import Optional, Dict, Any
+
+from pydantic import BaseModel
 from uuid import UUID
 
-from agenta.sdk.utils.client import authed_api
-from agenta.sdk.models.evaluations import EvaluationRun, Target
+from agenta.sdk.utils.client import authed_async_api
+from agenta.sdk.models.evaluations import EvaluationRun, Origin, Target
 
 import agenta as ag
+
+
+class RunData(BaseModel):
+    """Typed input contract for `acreate` — the RESOLVED run-creation payload.
+
+    Callers assemble a `RunData` and pass its fields to `acreate` explicitly
+    (`acreate(name=run_data.name, ...)`), keeping the create call's surface
+    visible at the call site while resolving the data in one place.
+
+    `*_steps` are typed `Dict[str, Origin]` (revision-id-keyed), NOT the loose
+    `Target` `acreate` accepts: by the time a `RunData` exists, every step is
+    resolved to a `{revision_id: origin}` map. Using `Target` here would let
+    pydantic coerce the string keys back to UUID (the `Dict[UUID, Origin]` union
+    member), which then fails to JSON-serialize.
+    """
+
+    name: Optional[str] = None
+    description: Optional[str] = None
+    #
+    flags: Optional[Dict[str, Any]] = None
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
+    #
+    query_steps: Optional[Dict[str, Origin]] = None
+    testset_steps: Optional[Dict[str, Origin]] = None
+    application_steps: Optional[Dict[str, Origin]] = None
+    evaluator_steps: Optional[Dict[str, Origin]] = None
+    #
+    repeats: Optional[int] = None
+
 
 # TODO: ADD TYPES
 
@@ -13,7 +45,7 @@ async def afetch(
     *,
     run_id: UUID,
 ) -> Optional[EvaluationRun]:
-    response = authed_api()(
+    response = await authed_async_api()(
         method="GET",
         endpoint=f"/evaluations/runs/{run_id}",
     )
@@ -70,7 +102,7 @@ async def acreate(
         ),
     )
 
-    response = authed_api()(
+    response = await authed_async_api()(
         method="POST",
         endpoint="/simple/evaluations/",
         json=payload,
@@ -98,9 +130,10 @@ async def aclose(
     #
     status: Optional[str] = "success",
 ) -> Optional[EvaluationRun]:
-    response = authed_api()(
+    response = await authed_async_api()(
         method="POST",
-        endpoint=f"/evaluations/runs/{run_id}/close/{status}",
+        endpoint=f"/evaluations/runs/{run_id}/close",
+        params={"status": status} if status else None,
     )
 
     try:
@@ -123,7 +156,7 @@ async def aurl(
     *,
     run_id: UUID,
 ) -> Optional[str]:
-    response = authed_api()(
+    response = await authed_async_api()(
         method="GET",
         endpoint="/projects/current",
     )

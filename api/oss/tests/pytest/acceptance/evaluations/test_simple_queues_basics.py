@@ -169,7 +169,7 @@ class TestSimpleQueuesBasics:
         data = response.json()
         assert data["count"] == 1
         queue = data["queue"]
-        assert queue["data"]["kind"] == "traces"
+        assert queue["data"]["kind"] == "queries"
         assert queue["data"]["queries"] == [query_revision_id]
 
     def test_create_simple_queue_from_testsets(self, authed_api):
@@ -194,8 +194,161 @@ class TestSimpleQueuesBasics:
         data = response.json()
         assert data["count"] == 1
         queue = data["queue"]
-        assert queue["data"]["kind"] == "testcases"
+        assert queue["data"]["kind"] == "testsets"
         assert queue["data"]["testsets"] == [testset_revision_id]
+
+    def test_create_source_backed_queue_preserves_repeats_and_assignments(
+        self, authed_api
+    ):
+        evaluator_revision_id = _create_evaluator(authed_api)
+        testset_revision_id = _create_testset(authed_api)
+        user_id_1 = str(uuid4())
+        user_id_2 = str(uuid4())
+
+        response = authed_api(
+            "POST",
+            "/simple/queues/",
+            json={
+                "queue": {
+                    "name": "testset-backed-queue-with-repeats",
+                    "data": {
+                        "testsets": [testset_revision_id],
+                        "evaluators": {evaluator_revision_id: "human"},
+                        "repeats": 2,
+                        "assignments": [[user_id_1], [user_id_2]],
+                    },
+                }
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        queue = data["queue"]
+        assert queue["data"]["kind"] == "testsets"
+        assert queue["data"]["testsets"] == [testset_revision_id]
+        assert queue["data"]["repeats"] == 2
+        assert queue["data"]["assignments"] == [[user_id_1], [user_id_2]]
+
+    def test_source_backed_queue_with_bare_evaluator_list_is_human_queue(
+        self, authed_api
+    ):
+        # a source-backed queue created with a bare evaluator list (no
+        # explicit origin) must default the evaluator to origin="human", so the
+        # backing run becomes a real queue (has_human -> is_queue). Before the
+        # fix the source builder defaulted to "custom", leaving is_queue=False
+        # and the queue unparseable (empty response).
+        evaluator_revision_id = _create_evaluator(authed_api)
+        query_revision_id = _create_query(authed_api)
+
+        response = authed_api(
+            "POST",
+            "/simple/queues/",
+            json={
+                "queue": {
+                    "name": "query-backed-human-queue",
+                    "data": {
+                        "queries": [query_revision_id],
+                        "evaluators": [evaluator_revision_id],
+                    },
+                }
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        queue = data["queue"]
+        assert queue["data"]["kind"] == "queries"
+        run_id = queue["run_id"]
+
+        # The backing run must be a real human queue.
+        run_response = authed_api("GET", f"/evaluations/runs/{run_id}")
+        assert run_response.status_code == 200
+        run = run_response.json()["run"]
+        assert run["flags"]["has_human"] is True
+        assert run["flags"]["is_queue"] is True
+
+    def test_simple_queue_rejects_evaluator_dicts_with_no_human(self, authed_api):
+        # Simple-queue constraint: a queue CAN contain non-human evaluators but
+        # CANNOT resolve to ZERO human evaluators. A human evaluator is one that
+        # is origin-less (defaults to human) or explicitly "human". So an
+        # explicit dict whose values are all non-human is rejected, regardless
+        # of whether they are auto, custom, or a mix of the two. The underlying
+        # evaluation run has no such restriction.
+        eval_a = _create_evaluator(authed_api)
+        eval_b = _create_evaluator(authed_api)
+
+        non_human_evaluator_specs = [
+            {eval_a: "auto"},  # all auto
+            {eval_a: "custom"},  # all custom
+            {eval_a: "auto", eval_b: "custom"},  # mix of non-human origins
+        ]
+
+        for evaluators in non_human_evaluator_specs:
+            testset_revision_id = _create_testset(authed_api)
+            response = authed_api(
+                "POST",
+                "/simple/queues/",
+                json={
+                    "queue": {
+                        "name": "testset-backed-no-human",
+                        "data": {
+                            "testsets": [testset_revision_id],
+                            "evaluators": evaluators,
+                        },
+                    }
+                },
+            )
+
+            assert response.status_code == 422, (
+                f"expected reject for evaluators={evaluators}, got {response.status_code}"
+            )
+            assert "at least one human evaluator" in response.text
+
+    def test_simple_queue_allows_human_mixed_with_non_human_evaluators(
+        self, authed_api
+    ):
+        # The "at least one human" rule allows a mix: a human alongside any
+        # non-human origin (auto or custom) is a valid human queue. The explicit
+        # non-human origin is honored on the underlying run.
+        for non_human_origin, expected_flag in (
+            ("auto", "has_auto"),
+            ("custom", "has_custom"),
+        ):
+            human_evaluator_id = _create_evaluator(authed_api)
+            other_evaluator_id = _create_evaluator(authed_api)
+            testset_revision_id = _create_testset(authed_api)
+
+            response = authed_api(
+                "POST",
+                "/simple/queues/",
+                json={
+                    "queue": {
+                        "name": f"testset-backed-human-plus-{non_human_origin}",
+                        "data": {
+                            "testsets": [testset_revision_id],
+                            "evaluators": {
+                                human_evaluator_id: "human",
+                                other_evaluator_id: non_human_origin,
+                            },
+                        },
+                    }
+                },
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["count"] == 1
+            run_id = data["queue"]["run_id"]
+
+            run_response = authed_api("GET", f"/evaluations/runs/{run_id}")
+            assert run_response.status_code == 200
+            run = run_response.json()["run"]
+            # Both origins honored; the human presence makes it a real queue.
+            assert run["flags"]["has_human"] is True
+            assert run["flags"][expected_flag] is True
+            assert run["flags"]["is_queue"] is True
 
     def test_create_simple_queue_without_evaluators_returns_empty(self, authed_api):
         # ACT ------------------------------------------------------------------
@@ -283,7 +436,7 @@ class TestSimpleQueuesBasics:
             == "Cannot add testcases directly to a source-backed queue. Create a direct testcases queue instead."
         )
 
-    def test_create_simple_queue_rejects_kind_with_queries(self, authed_api):
+    def test_create_simple_queue_rejects_resolved_kind_with_queries(self, authed_api):
         evaluator_revision_id = _create_evaluator(authed_api)
         query_revision_id = _create_query(authed_api)
 
@@ -302,10 +455,31 @@ class TestSimpleQueuesBasics:
         )
 
         assert response.status_code == 422
-        assert (
-            "simple queue source must not include kind alongside queries or testsets"
-            in response.text
+        assert "query-backed queues must use kind='queries'" in response.text
+
+    def test_create_simple_queue_rejects_mixed_query_and_testset_sources(
+        self, authed_api
+    ):
+        evaluator_revision_id = _create_evaluator(authed_api)
+        query_revision_id = _create_query(authed_api)
+        testset_revision_id = _create_testset(authed_api)
+
+        response = authed_api(
+            "POST",
+            "/simple/queues/",
+            json={
+                "queue": {
+                    "data": {
+                        "queries": [query_revision_id],
+                        "testsets": [testset_revision_id],
+                        "evaluators": [evaluator_revision_id],
+                    },
+                }
+            },
         )
+
+        assert response.status_code == 422
+        assert "simple queue source must be either queries or testsets" in response.text
 
     def test_create_simple_queue_with_assignments(self, authed_api):
         # ARRANGE --------------------------------------------------------------

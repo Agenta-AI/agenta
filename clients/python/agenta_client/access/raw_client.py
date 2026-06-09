@@ -64,7 +64,7 @@ class RawAccessClient:
         verbatim from access-controls, including the `"*"` wildcard for
         `owner` — callers that need to render the full permission list
         should expand the wildcard themselves (see
-        `ee.src.services.converters._expand_permissions`).
+        `ee.src.services.db_manager_ee._expand_permissions`).
         
         Parameters
         ----------
@@ -305,7 +305,7 @@ class RawAccessClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def verify_permissions(self, *, action: typing.Optional[str] = None, scope_type: typing.Optional[str] = None, scope_id: typing.Optional[str] = None, resource_type: typing.Optional[str] = None, resource_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
+    def check_permissions(self, *, action: typing.Optional[str] = None, scope_type: typing.Optional[str] = None, scope_id: typing.Optional[str] = None, resource_type: typing.Optional[str] = None, resource_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -328,7 +328,7 @@ class RawAccessClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "permissions/verify",method="GET",
+            "access/permissions/check",method="GET",
             params={"action": action, "scope_type": scope_type, "scope_id": scope_id, "resource_type": resource_type, "resource_id": resource_id, }
             ,
             request_options=request_options,)
@@ -405,7 +405,7 @@ class AsyncRawAccessClient:
         verbatim from access-controls, including the `"*"` wildcard for
         `owner` — callers that need to render the full permission list
         should expand the wildcard themselves (see
-        `ee.src.services.converters._expand_permissions`).
+        `ee.src.services.db_manager_ee._expand_permissions`).
         
         Parameters
         ----------
@@ -646,7 +646,7 @@ class AsyncRawAccessClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def verify_permissions(self, *, action: typing.Optional[str] = None, scope_type: typing.Optional[str] = None, scope_id: typing.Optional[str] = None, resource_type: typing.Optional[str] = None, resource_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
+    async def check_permissions(self, *, action: typing.Optional[str] = None, scope_type: typing.Optional[str] = None, scope_id: typing.Optional[str] = None, resource_type: typing.Optional[str] = None, resource_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -669,7 +669,7 @@ class AsyncRawAccessClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "permissions/verify",method="GET",
+            "access/permissions/check",method="GET",
             params={"action": action, "scope_type": scope_type, "scope_id": scope_id, "resource_type": resource_type, "resource_id": resource_id, }
             ,
             request_options=request_options,)

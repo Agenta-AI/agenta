@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.exc import NoResultFound
 
-from ee.src.models.shared_models import WorkspaceRole
+from ee.src.core.access.permissions.types import DefaultRole
 from ee.src.services import db_manager_ee
 
 
@@ -45,10 +45,14 @@ class _SessionContext:
 
 
 def _patch_core_session(monkeypatch, memberships):
+    # db_manager_ee calls get_transactions_engine() — patch where it's called
+    mock_engine = type(
+        "MockEngine", (), {"session": lambda self: _SessionContext(memberships)}
+    )()
     monkeypatch.setattr(
-        db_manager_ee.engine,
-        "core_session",
-        lambda: _SessionContext(memberships),
+        db_manager_ee,
+        "get_transactions_engine",
+        lambda: mock_engine,
     )
 
 
@@ -89,12 +93,12 @@ async def test_get_default_workspace_id_prefers_owner_membership(monkeypatch):
         [
             SimpleNamespace(
                 workspace_id=editor_workspace_id,
-                role=WorkspaceRole.EDITOR,
+                role=DefaultRole.EDITOR,
                 created_at=datetime(2026, 4, 9, tzinfo=timezone.utc),
             ),
             SimpleNamespace(
                 workspace_id=owner_workspace_id,
-                role=WorkspaceRole.OWNER,
+                role=DefaultRole.OWNER,
                 created_at=datetime(2026, 4, 10, tzinfo=timezone.utc),
             ),
         ],
@@ -115,12 +119,12 @@ async def test_get_default_workspace_id_falls_back_to_oldest_membership(monkeypa
         [
             SimpleNamespace(
                 workspace_id=newer_workspace_id,
-                role=WorkspaceRole.EDITOR,
+                role=DefaultRole.EDITOR,
                 created_at=datetime(2026, 4, 10, tzinfo=timezone.utc),
             ),
             SimpleNamespace(
                 workspace_id=oldest_workspace_id,
-                role=WorkspaceRole.VIEWER,
+                role=DefaultRole.VIEWER,
                 created_at=datetime(2026, 4, 9, tzinfo=timezone.utc),
             ),
         ],
@@ -180,10 +184,15 @@ async def test_remove_user_from_workspace_deletes_pending_invitation_without_use
         "delete_invitation",
         fail_if_nested_invitation_delete_is_used,
     )
+    mock_engine = type(
+        "MockEngine",
+        (),
+        {"session": lambda self: _PendingInviteSessionContext(session)},
+    )()
     monkeypatch.setattr(
-        db_manager_ee.engine,
-        "core_session",
-        lambda: _PendingInviteSessionContext(session),
+        db_manager_ee,
+        "get_transactions_engine",
+        lambda: mock_engine,
     )
 
     result = await db_manager_ee.remove_user_from_workspace(

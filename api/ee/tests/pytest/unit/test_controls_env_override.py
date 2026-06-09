@@ -56,12 +56,12 @@ class TestNoOverride:
         # Plans count should equal DefaultPlan enum size; catalog count
         # should match (one entry per plan in DEFAULT_CATALOG plus the
         # Enterprise contact-sales tier which has no `plan` field).
-        from ee.src.core.entitlements.types import DEFAULT_CATALOG, DefaultPlan
+        from ee.src.core.access.entitlements.types import DEFAULT_CATALOG, DefaultPlan
 
         expected_plans = len(list(DefaultPlan))
         expected_catalog = len(DEFAULT_CATALOG)
         out = _ok(
-            "from ee.src.core.entitlements.controls import get_plans; "
+            "from ee.src.core.access.controls import get_plans; "
             "from ee.src.core.subscriptions.settings import get_catalog; "
             "print(len(get_plans())); print(len(get_catalog()))"
         )
@@ -155,7 +155,7 @@ class TestPlansOverride:
 
     def test_consistent_override_works_end_to_end(self):
         out = _ok(
-            "from ee.src.core.entitlements.controls import get_plans, get_plan_description; "
+            "from ee.src.core.access.controls import get_plans, get_plan_description; "
             "from ee.src.core.subscriptions.settings import get_catalog, get_free_plan; "
             "print(','.join(sorted(get_plans()))); "
             "print(get_plan_description('only_plan')); "
@@ -171,21 +171,21 @@ class TestPlansOverride:
 
     def test_invalid_json_fails_startup(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_plans",
+            "from ee.src.core.access.controls import get_plans",
             {"AGENTA_ACCESS_PLANS": "{not json"},
             "AGENTA_ACCESS_PLANS is not valid JSON",
         )
 
     def test_wrong_top_level_type_fails_startup(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_plans",
+            "from ee.src.core.access.controls import get_plans",
             {"AGENTA_ACCESS_PLANS": "[1,2,3]"},
             "must be a JSON object",
         )
 
     def test_empty_object_fails_startup(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_plans",
+            "from ee.src.core.access.controls import get_plans",
             {"AGENTA_ACCESS_PLANS": "{}"},
             "non-empty",
         )
@@ -194,7 +194,7 @@ class TestPlansOverride:
         # Display-only plans (no enforced trackers) are accepted. They show
         # up in the effective plan map with an empty entitlements dict.
         out = _ok(
-            "from ee.src.core.entitlements.controls import get_plans, get_plan_entitlements; "
+            "from ee.src.core.access.controls import get_plans, get_plan_entitlements; "
             "print(sorted(get_plans())); print(get_plan_entitlements('x'))",
             env_extra={"AGENTA_ACCESS_PLANS": '{"x":{"description":"y"}}'},
         )
@@ -517,7 +517,7 @@ class TestRolesOverride:
 
     def test_custom_role_with_known_permission_appended_to_minima(self):
         out = _ok(
-            "from ee.src.core.entitlements.controls import get_roles, get_role_permissions; "
+            "from ee.src.core.access.controls import get_roles, get_role_permissions; "
             "print(','.join(r['role'] for r in get_roles('project'))); "
             "print(','.join(get_role_permissions('project','reviewer')))",
             env_extra={
@@ -528,7 +528,7 @@ class TestRolesOverride:
         )
         lines = out.splitlines()
         # owner + viewer minima first, custom role last.
-        assert lines[0] == "owner,viewer,reviewer"
+        assert lines[0] == "owner,admin,viewer,reviewer"
         assert lines[1] == "read_system"
 
     def test_project_override_is_mirrored_to_workspace_today(self):
@@ -537,7 +537,7 @@ class TestRolesOverride:
         # membership. A project-only override therefore intentionally replaces
         # workspace extras too, instead of leaving workspace defaults intact.
         out = _ok(
-            "from ee.src.core.entitlements.controls import get_roles; "
+            "from ee.src.core.access.controls import get_roles; "
             "print(','.join(r['role'] for r in get_roles('workspace')))",
             env_extra={
                 "AGENTA_ACCESS_ROLES": json.dumps(
@@ -545,11 +545,11 @@ class TestRolesOverride:
                 )
             },
         )
-        assert out.strip() == "owner,viewer,reviewer"
+        assert out.strip() == "owner,admin,viewer,reviewer"
 
     def test_unknown_permission_fails_startup(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_roles",
+            "from ee.src.core.access.controls import get_roles",
             {
                 "AGENTA_ACCESS_ROLES": json.dumps(
                     {"project": [{"role": "x", "permissions": ["bogus_perm_id"]}]}
@@ -560,7 +560,7 @@ class TestRolesOverride:
 
     def test_redefining_owner_fails_startup(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_roles",
+            "from ee.src.core.access.controls import get_roles",
             {
                 "AGENTA_ACCESS_ROLES": json.dumps(
                     {"project": [{"role": "owner", "permissions": ["*"]}]}
@@ -571,7 +571,7 @@ class TestRolesOverride:
 
     def test_redefining_viewer_fails_startup(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_roles",
+            "from ee.src.core.access.controls import get_roles",
             {
                 "AGENTA_ACCESS_ROLES": json.dumps(
                     {"project": [{"role": "viewer", "permissions": ["read_system"]}]}
@@ -582,7 +582,7 @@ class TestRolesOverride:
 
     def test_duplicate_custom_role_fails_startup(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_roles",
+            "from ee.src.core.access.controls import get_roles",
             {
                 "AGENTA_ACCESS_ROLES": json.dumps(
                     {
@@ -598,14 +598,14 @@ class TestRolesOverride:
 
     def test_empty_roles_fails_startup(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_roles",
+            "from ee.src.core.access.controls import get_roles",
             {"AGENTA_ACCESS_ROLES": "{}"},
             "non-empty",
         )
 
     def test_empty_scope_list_fails_startup(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_roles",
+            "from ee.src.core.access.controls import get_roles",
             {"AGENTA_ACCESS_ROLES": json.dumps({"project": []})},
             "non-empty list of roles",
         )
@@ -649,8 +649,8 @@ class TestDefaultPlanOverlay:
         # Retention enum values, so we use one of those rather than an
         # arbitrary minute count.
         out = _ok(
-            "from ee.src.core.entitlements.controls import get_plan_entitlements; "
-            "from ee.src.core.entitlements.types import Tracker, Counter; "
+            "from ee.src.core.access.controls import get_plan_entitlements; "
+            "from ee.src.core.access.entitlements.types import Tracker, Counter; "
             "ent = get_plan_entitlements('cloud_v0_hobby'); "
             "print(ent[Tracker.COUNTERS][Counter.TRACES_INGESTED].retention.value)",
             env_extra={
@@ -667,8 +667,8 @@ class TestDefaultPlanOverlay:
         # retention=Retention.MONTHLY. Overlay sets only retention → free
         # and period stay.
         out = _ok(
-            "from ee.src.core.entitlements.controls import get_plan_entitlements; "
-            "from ee.src.core.entitlements.types import Tracker, Counter; "
+            "from ee.src.core.access.controls import get_plan_entitlements; "
+            "from ee.src.core.access.entitlements.types import Tracker, Counter; "
             "q = get_plan_entitlements('cloud_v0_hobby')"
             "[Tracker.COUNTERS][Counter.TRACES_INGESTED]; "
             "print(q.retention.value, q.free, q.period.value)",
@@ -683,8 +683,8 @@ class TestDefaultPlanOverlay:
 
     def test_overlay_patches_throttle_rate_only(self):
         out = _ok(
-            "from ee.src.core.entitlements.controls import get_plan_entitlements; "
-            "from ee.src.core.entitlements.types import Tracker, Category; "
+            "from ee.src.core.access.controls import get_plan_entitlements; "
+            "from ee.src.core.access.entitlements.types import Tracker, Category; "
             "ent = get_plan_entitlements('cloud_v0_hobby'); "
             "t = next(t for t in ent[Tracker.THROTTLES] "
             "         if t.categories == [Category.STANDARD]); "
@@ -701,7 +701,7 @@ class TestDefaultPlanOverlay:
 
     def test_overlay_invalid_field_fails_startup(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_plans",
+            "from ee.src.core.access.controls import get_plans",
             {
                 "AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY": json.dumps(
                     {"flags": {"bogus_flag": True}}
@@ -712,7 +712,7 @@ class TestDefaultPlanOverlay:
 
     def test_overlay_targeting_unknown_plan_fails(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_plans",
+            "from ee.src.core.access.controls import get_plans",
             {
                 "AGENTA_ACCESS_DEFAULT_PLAN": "ghost_plan",
                 "AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY": json.dumps(
@@ -724,7 +724,7 @@ class TestDefaultPlanOverlay:
 
     def test_overlay_empty_object_fails_startup(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_plans",
+            "from ee.src.core.access.controls import get_plans",
             {"AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY": "{}"},
             "non-empty",
         )
@@ -794,7 +794,7 @@ class TestRolesOverlay:
 
     def test_overlay_patches_editor_permissions_in_both_scopes(self):
         out = _ok(
-            "from ee.src.core.entitlements.controls import get_role_permissions; "
+            "from ee.src.core.access.controls import get_role_permissions; "
             "print(get_role_permissions('workspace', 'editor')); "
             "print(get_role_permissions('project', 'editor'))",
             env_extra={
@@ -809,7 +809,7 @@ class TestRolesOverlay:
 
     def test_overlay_adds_new_role_to_both_scopes(self):
         out = _ok(
-            "from ee.src.core.entitlements.controls import get_roles; "
+            "from ee.src.core.access.controls import get_roles; "
             "print('auditor' in [r['role'] for r in get_roles('workspace')]); "
             "print('auditor' in [r['role'] for r in get_roles('project')])",
             env_extra={
@@ -831,7 +831,7 @@ class TestRolesOverlay:
         # Organization scope only has the minima (owner + viewer) by default.
         # The overlay must not change that — it targets workspace + project.
         out = _ok(
-            "from ee.src.core.entitlements.controls import get_roles; "
+            "from ee.src.core.access.controls import get_roles; "
             "print(','.join(r['role'] for r in get_roles('organization')))",
             env_extra={
                 "AGENTA_ACCESS_ROLES_OVERLAY": json.dumps(
@@ -846,11 +846,11 @@ class TestRolesOverlay:
                 )
             },
         )
-        assert out.strip() == "owner,viewer"
+        assert out.strip() == "owner,admin,viewer"
 
     def test_overlay_non_project_scope_fails_startup(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_roles",
+            "from ee.src.core.access.controls import get_roles",
             {
                 "AGENTA_ACCESS_ROLES_OVERLAY": json.dumps(
                     {"workspace": {"editor": {"permissions": ["read_system"]}}}
@@ -861,7 +861,7 @@ class TestRolesOverlay:
 
     def test_overlay_reserved_role_fails_startup(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_roles",
+            "from ee.src.core.access.controls import get_roles",
             {
                 "AGENTA_ACCESS_ROLES_OVERLAY": json.dumps(
                     {"project": {"owner": {"permissions": ["*"]}}}
@@ -872,7 +872,7 @@ class TestRolesOverlay:
 
     def test_overlay_unknown_permission_fails_startup(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_roles",
+            "from ee.src.core.access.controls import get_roles",
             {
                 "AGENTA_ACCESS_ROLES_OVERLAY": json.dumps(
                     {"project": {"editor": {"permissions": ["bogus_perm"]}}}
@@ -883,14 +883,14 @@ class TestRolesOverlay:
 
     def test_overlay_empty_object_fails_startup(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_roles",
+            "from ee.src.core.access.controls import get_roles",
             {"AGENTA_ACCESS_ROLES_OVERLAY": "{}"},
             "non-empty",
         )
 
     def test_overlay_new_role_without_permissions_fails_startup(self):
         _fails(
-            "from ee.src.core.entitlements.controls import get_roles",
+            "from ee.src.core.access.controls import get_roles",
             {
                 "AGENTA_ACCESS_ROLES_OVERLAY": json.dumps(
                     {"project": {"auditor": {"description": "x"}}}

@@ -13,8 +13,6 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {EvaluationStatus} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
-import {queryStepResults} from "../results/api"
-
 const RESULTS_ENDPOINT = "/evaluations/results/"
 
 export interface InvocationReferences {
@@ -77,16 +75,6 @@ export const upsertStepResultWithInvocation = async ({
     const traceIdUuid = traceId ? hexToUuid(traceId) : undefined
     const spanIdUuid = spanId ? spanHexToUuid(spanId) : undefined
 
-    // Query for existing step result
-    let existingResult: any = null
-    try {
-        const results = await queryStepResults({runId, scenarioId, stepKeys: [stepKey]})
-        existingResult =
-            results.find((r) => r.step_key === stepKey || (r as any).stepKey === stepKey) || null
-    } catch {
-        // Ignore query errors, will create new result
-    }
-
     const resultPayload: Record<string, any> = {status}
 
     if (traceIdUuid) {
@@ -105,22 +93,16 @@ export const upsertStepResultWithInvocation = async ({
         resultPayload.error = error
     }
 
-    if (existingResult?.id) {
-        await axios.patch(`${RESULTS_ENDPOINT}?project_id=${projectId}`, {
-            results: [{id: existingResult.id, ...resultPayload}],
-        })
-    } else {
-        await axios.post(`${RESULTS_ENDPOINT}?project_id=${projectId}`, {
-            results: [
-                {
-                    run_id: runId,
-                    scenario_id: scenarioId,
-                    step_key: stepKey,
-                    ...resultPayload,
-                },
-            ],
-        })
+    // The setter upserts on the natural key (run_id, scenario_id, step_key,
+    // repeat_idx), so a single POST handles both create and edit — no `id` needed.
+    const result = {
+        run_id: runId,
+        scenario_id: scenarioId,
+        step_key: stepKey,
+        ...resultPayload,
     }
+
+    await axios.post(`${RESULTS_ENDPOINT}?project_id=${projectId}`, {results: [result]})
 }
 
 /**
