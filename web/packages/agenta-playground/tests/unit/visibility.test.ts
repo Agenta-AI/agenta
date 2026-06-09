@@ -1,23 +1,26 @@
 /**
  * Unit tests for the pure inputs-visibility split rule.
  *
- * Covers the draft-annotation behaviour: any referenced key whose value
- * is unauthored — missing OR empty — surfaces with `isDraft: true`.
+ * Covers the referenced/unreferenced split. Draft badges are applied later
+ * by callers for states unrelated to missing prompt-variable testcase data.
  */
 import {describe, expect, it} from "vitest"
 
-import {splitInputsVisibility} from "../../src/state/execution/visibility"
+import {
+    filterUnreferencedColumnsForSource,
+    splitInputsVisibility,
+} from "../../src/state/execution/visibility"
 
 describe("splitInputsVisibility", () => {
     describe("missing keys", () => {
-        it("marks referenced keys absent from testcase as draft", () => {
+        it("keeps referenced keys absent from testcase as inputs without draft state", () => {
             const {inputs} = splitInputsVisibility({
                 referencedKeys: ["name", "geo"],
                 testcaseData: {},
             })
             expect(inputs).toEqual([
-                {name: "name", value: undefined, isDraft: true},
-                {name: "geo", value: undefined, isDraft: true},
+                {name: "name", value: undefined},
+                {name: "geo", value: undefined},
             ])
         })
 
@@ -27,6 +30,38 @@ describe("splitInputsVisibility", () => {
                 testcaseData: {a: "x"},
             })
             expect(inputs.map((i) => i.name)).toEqual(["c", "a", "b"])
+        })
+
+        it("marks only newly added uncommitted prompt variables as draft", () => {
+            const {inputs} = splitInputsVisibility({
+                referencedKeys: ["committed", "newVariable"],
+                draftKeys: ["newVariable"],
+                testcaseData: {},
+            })
+
+            expect(inputs).toEqual([
+                {name: "committed", value: undefined},
+                {name: "newVariable", value: undefined, isDraft: true},
+            ])
+        })
+
+        it("keeps a new uncommitted variable draft after testcase data is entered", () => {
+            const {inputs} = splitInputsVisibility({
+                referencedKeys: ["newVariable"],
+                draftKeys: ["newVariable"],
+                testcaseData: {newVariable: "authored value"},
+            })
+
+            expect(inputs).toEqual([{name: "newVariable", value: "authored value", isDraft: true}])
+        })
+
+        it("does not infer draft state when no committed baseline is available", () => {
+            const {inputs} = splitInputsVisibility({
+                referencedKeys: ["newWorkflowVariable"],
+                testcaseData: {},
+            })
+
+            expect(inputs).toEqual([{name: "newWorkflowVariable", value: undefined}])
         })
     })
 
@@ -79,13 +114,8 @@ describe("splitInputsVisibility", () => {
     })
 
     describe("primitives stay authored (existing contract)", () => {
-        // The pre-existing `playground-inputs-visibility.test.ts` contract:
-        // primitives — `null`, `undefined`, `""`, `0`, `false` — are
-        // treated as authored when the key is present. Only EMPTY
-        // CONTAINERS (the auto-seed case for object / array ports) are
-        // re-classified as draft in this rule. Keeping the primitives
-        // strict avoids a regression in the "user has explicitly cleared
-        // a string field" UX.
+        // If the key is present in the testcase data, the value is authored.
+        // Empty/cleared values should not carry the draft badge.
         it("treats null as authored", () => {
             const {inputs} = splitInputsVisibility({
                 referencedKeys: ["a"],
@@ -111,29 +141,24 @@ describe("splitInputsVisibility", () => {
         })
     })
 
-    describe("empty containers (draft) — Arda QA 2026-06-02", () => {
-        it("treats empty object {} as draft (the geo/repos auto-seed case)", () => {
-            // Object-typed ports get auto-seeded with `{}` when the
-            // testcase column is created. Previously the `in` check
-            // marked these as authored — inconsistent with string ports
-            // that stay missing. Now both render with the draft badge
-            // until the user actually fills a sub-field.
+    describe("empty containers stay authored", () => {
+        it("treats empty object {} as authored when the key exists", () => {
             const {inputs} = splitInputsVisibility({
                 referencedKeys: ["geo", "repos"],
                 testcaseData: {geo: {}, repos: {}},
             })
             expect(inputs).toEqual([
-                {name: "geo", value: {}, isDraft: true},
-                {name: "repos", value: {}, isDraft: true},
+                {name: "geo", value: {}},
+                {name: "repos", value: {}},
             ])
         })
 
-        it("treats empty array [] as draft", () => {
+        it("treats empty array [] as authored when the key exists", () => {
             const {inputs} = splitInputsVisibility({
                 referencedKeys: ["items"],
                 testcaseData: {items: []},
             })
-            expect(inputs).toEqual([{name: "items", value: [], isDraft: true}])
+            expect(inputs).toEqual([{name: "items", value: []}])
         })
 
         it("does not propagate isDraft beyond top level (deep emptiness ignored)", () => {
@@ -177,6 +202,26 @@ describe("splitInputsVisibility", () => {
                 {name: "old", value: ""},
                 {name: "deprecated", value: {}},
             ])
+        })
+
+        it("hides unreferenced columns for local unsynced playground rows", () => {
+            const {unreferencedColumns} = splitInputsVisibility({
+                referencedKeys: [],
+                testcaseData: {removedPromptVariable: "draft text"},
+            })
+
+            expect(filterUnreferencedColumnsForSource(unreferencedColumns, null)).toEqual([])
+        })
+
+        it("keeps unreferenced columns visible for connected testset rows", () => {
+            const {unreferencedColumns} = splitInputsVisibility({
+                referencedKeys: ["prompt"],
+                testcaseData: {prompt: "hello", expected: "world"},
+            })
+
+            expect(
+                filterUnreferencedColumnsForSource(unreferencedColumns, "testset-rev-1"),
+            ).toEqual([{name: "expected", value: "world"}])
         })
     })
 })
