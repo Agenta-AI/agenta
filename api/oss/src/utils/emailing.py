@@ -134,3 +134,48 @@ def add_contact(email: str, max_retries: int = 5, initial_delay: int = 1):
             return response
 
     raise ConnectionError("Max retries reached. Unable to connect to Loops API.")
+
+
+def delete_contact(email: str, max_retries: int = 5, initial_delay: int = 1):
+    """
+    Remove a contact from the Loops audience, with retry and exponential backoff.
+
+    No-op (returns None) when Loops is disabled (no API key configured). A 404 from
+    Loops (contact already gone) is treated as success.
+
+    Args:
+        email (str): Email address of the contact to be removed.
+        max_retries (int): Maximum number of retries in case of rate limiting.
+        initial_delay (int): Initial delay in seconds before retrying.
+
+    Raises:
+        ConnectionError: If max retries reached and unable to connect to Loops API.
+
+    Returns:
+        Optional[httpx.Response]: The Loops API response, or None when disabled.
+    """
+
+    if not env.loops.enabled:
+        log.info(f"[LOOPS] Disabled - would delete contact {email}")
+        return None
+
+    url = "https://app.loops.so/api/v1/contacts/delete"
+    headers = {"Authorization": f"Bearer {env.loops.api_key}"}
+    data = {"email": email}
+
+    retries = 0
+    delay = initial_delay
+
+    while retries < max_retries:
+        response = httpx.post(url, json=data, headers=headers, timeout=20)
+
+        # 429 indicates rate limiting; back off and retry.
+        if response.status_code == 429:
+            log.warning(f"[LOOPS] Rate limit hit. Retrying in {delay} seconds...")
+            time.sleep(delay)
+            retries += 1
+            delay *= 2
+        else:
+            return response
+
+    raise ConnectionError("Max retries reached. Unable to connect to Loops API.")

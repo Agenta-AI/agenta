@@ -1,6 +1,8 @@
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 
+from supertokens_python.recipe.session.asyncio import get_session
+
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.utils.common import is_ee
@@ -8,6 +10,13 @@ from oss.src.utils.common import APIRouter
 from oss.src.models.api.user_models import User
 from oss.src.models.api.user_models import UserUpdate
 from oss.src.services import db_manager, user_service
+from oss.src.core.accounts.service import PlatformAdminAccountsService
+from oss.src.core.accounts.errors import (
+    AdminError,
+    AccountAuthDeletionError,
+    AccountHasMembersError,
+    AdminUserNotFoundError,
+)
 
 
 if is_ee():
@@ -16,6 +25,8 @@ if is_ee():
 
 
 router = APIRouter()
+
+_accounts_service = PlatformAdminAccountsService()
 
 
 @router.get("/", operation_id="fetch_user_profile")
@@ -90,6 +101,51 @@ async def update_user_username(request: Request, payload: UserUpdate):
         created_at=str(user.created_at) if user.created_at else None,
         updated_at=str(updated_at) if updated_at else None,
     )
+
+
+@router.delete("/", operation_id="delete_user_account")
+async def delete_user_account(request: Request):
+    """Self-serve deletion of the caller's own account (EE only).
+
+    Requires an interactive SuperTokens session. API keys and service tokens are
+    rejected: this is an irreversible destructive action, so a leaked or embedded
+    integration key must not be enough to delete the owning account.
+    """
+    if not is_ee():
+        raise HTTPException(
+            status_code=404,
+            detail="Self-serve account deletion is not available on this deployment.",
+        )
+
+    # `request.state.user_id` can be populated by an API key. Require a real
+    # interactive session, and reject when the request authenticated via an API
+    # key (so the resolved user_id is the session user, not the key owner).
+    credentials = getattr(request.state, "credentials", "") or ""
+    session = await get_session(request, session_required=False)
+    if session is None or credentials.startswith("ApiKey "):
+        raise HTTPException(
+            status_code=403,
+            detail="Account deletion requires an interactive login session.",
+        )
+
+    try:
+        await _accounts_service.delete_own_account(user_id=request.state.user_id)
+    except AccountHasMembersError as exc:
+        raise HTTPException(status_code=409, detail=exc.message)
+    except AdminUserNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=exc.message)
+    except AccountAuthDeletionError as exc:
+        raise HTTPException(status_code=502, detail=exc.message)
+    except AdminError as exc:
+        raise HTTPException(status_code=400, detail=exc.message)
+
+    await invalidate_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+        namespace="user_profile",
+    )
+
+    return JSONResponse({"detail": "Account deleted"}, status_code=200)
 
 
 @router.post("/reset-password", operation_id="reset_user_password")

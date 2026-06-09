@@ -65,6 +65,7 @@ try:
         admin_delete_project_membership as _ee_delete_project_membership,
         admin_delete_user_memberships as _ee_delete_user_memberships,
         admin_get_member_org_ids as _ee_get_member_org_ids,
+        count_organization_members as _ee_count_organization_members,
         admin_swap_org_memberships as _ee_swap_org_memberships,
         admin_swap_workspace_memberships as _ee_swap_workspace_memberships,
         admin_swap_project_memberships as _ee_swap_project_memberships,
@@ -116,6 +117,7 @@ from supertokens_python.recipe.passwordless.asyncio import (
 )
 
 from oss.src.utils.env import env
+from oss.src.utils.emailing import delete_contact as _delete_loops_contact
 
 from oss.src.core.accounts.dtos import (
     AdminAccountCreateOptions,
@@ -165,6 +167,8 @@ from oss.src.core.accounts.dtos import (
     EntityRef,
 )
 from oss.src.core.accounts.errors import (
+    AccountAuthDeletionError,
+    AccountHasMembersError,
     AdminApiKeyNotFoundError,
     AdminInvalidReferenceError,
     AdminMembershipNotFoundError,
@@ -1662,6 +1666,90 @@ class PlatformAdminAccountsService:
             users=[AdminDeletedEntity(id=user_id)],
         )
         return AdminDeleteResponse(dry_run=False, deleted=deleted)
+
+    async def delete_own_account(
+        self,
+        *,
+        user_id: str,
+    ) -> AdminDeleteResponse:
+        """Self-serve account deletion.
+
+        Removes the user from Stripe, the auth provider, the database (together
+        with every organization they own), and the marketing email list. This
+        is gated to EE at the route; OSS keeps its shared singleton org.
+        """
+        uid = _parse_uuid(user_id, "user_id")
+        user = await _db_get_user_by_id(uid)
+        if not user:
+            raise AdminUserNotFoundError(user_id)
+
+        email = str(user.email)
+        owned_orgs = await _db_get_orgs_owned_by_user(uid)
+
+        # Refuse to delete a shared organization out from under its members.
+        if is_ee():
+            shared = [
+                org.name
+                for org in owned_orgs
+                if await _ee_count_organization_members(str(org.id)) > 1
+            ]
+            if shared:
+                raise AccountHasMembersError(shared)
+
+        # Stop billing before the org rows disappear. Best effort.
+        if is_ee():
+            for org in owned_orgs:
+                try:
+                    await _ee_subscription_service.cancel_stripe_subscription(
+                        organization_id=str(org.id),
+                    )
+                except Exception:  # noqa: BLE001 - never block deletion on billing
+                    log.error(
+                        "[accounts] stripe cancel failed during account deletion",
+                        organization_id=str(org.id),
+                        exc_info=True,
+                    )
+
+        # Remove the auth login first: the signup override is idempotent and
+        # would otherwise recreate the account on the next sign-in.
+        await self._delete_supertokens_user(email)
+
+        # Reuse the cascade delete (memberships + user + owned orgs).
+        result = await self.delete_user(user_id=user_id)
+
+        # Drop them from the marketing email list. Best effort.
+        if is_ee():
+            try:
+                _delete_loops_contact(email)
+            except Exception:  # noqa: BLE001 - best effort
+                log.error(
+                    "[accounts] loops contact removal failed during account deletion",
+                    exc_info=True,
+                )
+
+        return result
+
+    async def _delete_supertokens_user(self, email: str) -> None:
+        """Delete every SuperTokens login for an email, linked accounts included.
+
+        Raises AccountAuthDeletionError on failure so the DB user is left intact
+        and the caller can retry, rather than ending up with a database row whose
+        login still works.
+        """
+        from supertokens_python.asyncio import delete_user as _st_delete_user
+
+        try:
+            st_users = await _st_list_users_by_account_info(
+                tenant_id="public",
+                account_info=_StAccountInfoInput(email=email),
+            )
+            for st_user in st_users:
+                await _st_delete_user(
+                    user_id=st_user.id,
+                    remove_all_linked_accounts=True,
+                )
+        except Exception as exc:  # noqa: BLE001
+            raise AccountAuthDeletionError() from exc
 
     async def delete_user_identity(
         self,
