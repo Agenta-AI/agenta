@@ -1,5 +1,10 @@
 import type {Annotation} from "@agenta/entities/annotation"
 import type {QueueType} from "@agenta/entities/queue"
+import type {
+    MetricField,
+    MetricsByEvaluator,
+    EvaluatorResolutionState as MetricEvaluatorResolutionState,
+} from "@agenta/evaluations/state"
 
 /**
  * The active view in the annotation session.
@@ -161,24 +166,19 @@ export interface ActionsColumnDef extends BaseColumnDef {
 
 /**
  * A single annotation metric field with value and schema metadata.
+ *
+ * Alias of the generic `MetricField` from `@agenta/evaluations/state` — the
+ * structures are identical. Kept under the annotation name for existing
+ * importers across `@agenta/annotation*`.
  */
-export interface AnnotationMetricField {
-    value: unknown
-    type?: string | string[]
-    minimum?: number
-    maximum?: number
-    enum?: unknown[]
-    items?: {
-        type?: string
-        enum?: string[]
-    }
-    [key: string]: unknown
-}
+export type AnnotationMetricField = MetricField
 
 /**
  * Annotation metrics grouped by evaluator slug, then by field key.
+ *
+ * Alias of the generic `MetricsByEvaluator` from `@agenta/evaluations/state`.
  */
-export type AnnotationMetrics = Record<string, Record<string, AnnotationMetricField>>
+export type AnnotationMetrics = MetricsByEvaluator
 
 /**
  * Context for a scenario: its annotations and trace/span references.
@@ -225,11 +225,10 @@ export interface EvaluatorStepRef {
 
 /**
  * Evaluator resolution status for the annotation form.
+ *
+ * Alias of the generic `EvaluatorResolutionState` from `@agenta/evaluations/state`.
  */
-export interface EvaluatorResolutionState {
-    isPending: boolean
-    hasError: boolean
-}
+export type EvaluatorResolutionState = MetricEvaluatorResolutionState
 
 // ============================================================================
 // COMPOUND SELECTOR TYPES

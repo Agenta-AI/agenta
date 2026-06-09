@@ -20,3 +20,11 @@ export * from "./scenarioData"
  * scenario-list columns. Zero-arg atom getters (like the engine selectors).
  */
 export * from "./listColumns"
+
+/**
+ * Generic metric/schema-extraction tier. Pure functions relocated from the
+ * annotation form controller: schema → metric-field extraction and evaluator
+ * resolution + baseline computation. Entities-only, no atoms; reactive helpers
+ * take a jotai `Getter` from the consumer's store.
+ */
+export * from "./metricSchema"
