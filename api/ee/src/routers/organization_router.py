@@ -8,11 +8,11 @@ from oss.src.utils.logging import get_module_logger
 
 from oss.src.services import db_manager
 
-from ee.src.utils.permissions import (
+from ee.src.core.access.permissions.service import (
     check_user_org_access,
     check_rbac_permission,
 )
-from ee.src.utils.entitlements import (
+from ee.src.core.access.entitlements.service import (
     check_entitlements,
     scope_from,
     Tracker,
@@ -24,8 +24,8 @@ from ee.src.services import (
     db_manager_ee,
     workspace_manager,
 )
-from ee.src.services.selectors import get_user_org_and_workspace_id
-from ee.src.models.shared_models import Permission
+from ee.src.services.db_manager_ee import get_user_org_and_workspace_id
+from ee.src.core.access.permissions.types import Permission
 
 from ee.src.models.api.workspace_models import (
     CreateWorkspace,

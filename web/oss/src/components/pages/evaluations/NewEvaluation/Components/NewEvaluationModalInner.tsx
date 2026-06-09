@@ -48,7 +48,7 @@ import {
     selectedTestsetRevisionIdAtom,
     selectedTestsetVersionAtom,
 } from "../state/selection"
-import type {LLMRunRateLimitWithCorrectAnswer, NewEvaluationModalInnerProps} from "../types"
+import type {EvaluationConcurrencySettings, NewEvaluationModalInnerProps} from "../types"
 
 const NewEvaluationModalContent = dynamic(() => import("./NewEvaluationModalContent"), {
     ssr: false,
@@ -257,7 +257,7 @@ const NewEvaluationModalInner = ({
     const [evaluationName, setEvaluationName] = useState("")
     const [nameFocused, setNameFocused] = useState(false)
     const [advanceSettings, setAdvanceSettings] =
-        useState<LLMRunRateLimitWithCorrectAnswer>(DEFAULT_ADVANCE_SETTINGS)
+        useState<EvaluationConcurrencySettings>(DEFAULT_ADVANCE_SETTINGS)
 
     const allowTestsetAutoAdvance = !(
         activeTourId === FIRST_EVALUATION_TOUR_ID &&
@@ -513,7 +513,6 @@ const NewEvaluationModalInner = ({
             }
 
             const revisions = filteredVariants
-            const {correct_answer_column, ...rateLimitValues} = advanceSettings
 
             if (preview) {
                 const selectedRevisions = revisions
@@ -552,8 +551,7 @@ const NewEvaluationModalInner = ({
                     evaluators: selectedEvalConfigs
                         .map((id) => evaluatorRowsByRevisionId.get(id))
                         .filter(Boolean),
-                    rate_limit: rateLimitValues,
-                    correctAnswerColumn: correct_answer_column,
+                    concurrency: advanceSettings,
                 }
 
                 if (
@@ -604,12 +602,12 @@ const NewEvaluationModalInner = ({
                         testset_revision_id: selectedTestsetRevisionId,
                         revisions_ids: selectedVariantRevisionIds,
                         evaluator_revision_ids: selectedEvalConfigs,
-                        rate_limit: rateLimitValues,
-                        correct_answer_column: correct_answer_column,
+                        concurrency: advanceSettings,
                         name: evaluationName,
                     })
 
-                    // Extract run ID from response and build link to results
+                    // One run is created per selected variant; link to the first.
+                    const runCount = response.runs?.length ?? 1
                     const runId = response.data?.evaluation?.id
                     if (runId) {
                         const scope = isAppScoped ? "app" : "project"
@@ -623,7 +621,9 @@ const NewEvaluationModalInner = ({
 
                         message.success(
                             <span>
-                                Evaluation started.{" "}
+                                {runCount > 1
+                                    ? `${runCount} evaluations started.`
+                                    : "Evaluation started."}{" "}
                                 <a
                                     href={resultsUrl}
                                     onClick={(e) => {
@@ -637,7 +637,9 @@ const NewEvaluationModalInner = ({
                             </span>,
                         )
                     } else {
-                        message.success("Evaluation started")
+                        message.success(
+                            runCount > 1 ? `${runCount} evaluations started` : "Evaluation started",
+                        )
                     }
 
                     // Trigger revalidation and close modal after successful creation

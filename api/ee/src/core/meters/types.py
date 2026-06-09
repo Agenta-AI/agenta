@@ -8,7 +8,7 @@ from pydantic import BaseModel, model_validator
 
 from oss.src.utils.logging import get_module_logger
 
-from ee.src.core.entitlements.types import Counter, Gauge
+from ee.src.core.access.entitlements.types import Counter, Gauge
 from ee.src.core.subscriptions.types import SubscriptionDTO
 
 

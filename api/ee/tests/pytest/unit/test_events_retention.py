@@ -13,7 +13,7 @@ from uuid import uuid4
 
 import pytest
 
-from ee.src.core.entitlements.types import (
+from ee.src.core.access.entitlements.types import (
     Counter,
     Period,
     Quota,

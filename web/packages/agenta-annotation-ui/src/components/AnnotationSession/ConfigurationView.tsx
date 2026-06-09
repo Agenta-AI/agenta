@@ -524,6 +524,8 @@ interface ConfigurationViewProps {
 const kindLabels: Record<string, string> = {
     traces: "Traces",
     testcases: "Test cases",
+    testsets: "Test set",
+    queries: "Queries",
 }
 
 const COMPACT_FORM_ITEM_CLASS = "!mb-0"

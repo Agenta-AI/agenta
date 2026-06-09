@@ -86,7 +86,7 @@ class AccessConfig(BaseModel):
     """Access controls (allow/block lists, plans + roles, default plan).
 
     JSON env vars are parsed here at startup. Schema validation happens in
-    ``ee.src.core.entitlements.controls``.
+    ``ee.src.core.access.controls``.
 
     `default_plan` lives here (not under `agenta`) because it's part of the
     access-controls surface: it selects which entry of the effective plan

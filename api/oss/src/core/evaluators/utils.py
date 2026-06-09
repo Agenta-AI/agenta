@@ -17,8 +17,6 @@ _SCORE_AND_SUCCESS_EVALUATORS = (
     "auto_ai_critique",
 )
 
-_DATA_VERSION = "2025.07.14"
-
 
 def build_evaluator_data(
     *,

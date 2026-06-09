@@ -91,8 +91,11 @@ from oss.src.apis.fastapi.testsets.utils import (
 )
 
 if is_ee():
-    from ee.src.models.shared_models import Permission
-    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
+    from ee.src.core.access.permissions.types import Permission
+    from ee.src.core.access.permissions.service import (
+        check_action_access,
+        FORBIDDEN_EXCEPTION,
+    )
 
 
 log = get_module_logger(__name__)
@@ -266,7 +269,11 @@ class TestsetsRouter:
         has_traces=False,
     )
 
-    def __init__(self, *, testsets_service: TestsetsService):
+    def __init__(
+        self,
+        *,
+        testsets_service: TestsetsService,
+    ):
         self.testsets_service = testsets_service
 
         self.router = APIRouter()

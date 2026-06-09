@@ -38,6 +38,8 @@ export interface RunFlagsFilter {
     is_queue?: boolean
     has_queries?: boolean
     has_testsets?: boolean
+    has_testcases?: boolean
+    has_traces?: boolean
     has_evaluators?: boolean
     has_custom?: boolean
     has_human?: boolean

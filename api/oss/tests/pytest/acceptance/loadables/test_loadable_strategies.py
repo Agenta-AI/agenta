@@ -127,8 +127,20 @@ def mock_data(authed_api):
     # Ingestion is asynchronous; 202 Accepted
     assert response.status_code == 202, response.text
 
-    # Allow a moment for async ingestion to settle
-    time.sleep(1)
+    # Ingestion is asynchronous and its latency varies (especially under the
+    # parallel test run). Poll the trace store until all three ingested traces
+    # are queryable instead of relying on a fixed sleep, which is racy under
+    # load. Fast on the happy path; tolerant when ingestion is slow.
+    ids_param = ",".join(trace_ids)
+    deadline = time.time() + 15
+    while True:
+        poll = authed_api("GET", f"/traces/?trace_ids={ids_param}")
+        visible = poll.json().get("traces") or poll.json().get("spans") or []
+        if poll.status_code == 200 and len(visible) >= 3:
+            break
+        if time.time() >= deadline:
+            break
+        time.sleep(0.25)
 
     # -- Query revision (stores filtering + windowing) ----------------------
 

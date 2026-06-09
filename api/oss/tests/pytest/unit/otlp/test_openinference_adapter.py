@@ -9,6 +9,11 @@ string holding the full OpenAI tool object. The adapter parses it into a
 structured object at `ag.data.inputs.tools.{i}` so consumers receive
 `{type, function}` rather than a `{tool: {json_schema: "..."}}` wrapper.
 
+It also normalizes tool calls on completion messages: OpenInference nests each
+call under an extra `tool_call` segment, which the adapter strips so the stored
+shape is the canonical `tool_calls.{j}.function.{name,arguments}` (see
+`TestToolCallsInMessages`).
+
 All tests are self-contained: they construct a ``CanonicalAttributes`` bag,
 run the adapter, and assert the resulting ``SpanFeatures``.
 """
@@ -168,6 +173,72 @@ class TestToolParsing:
         # The legacy `{tool: {json_schema}}` wrapper must not appear.
         assert "tool" not in tools[0]
         assert "tool" not in tools[1]
+
+
+# ── Tool Calls in Completion Messages ────────────────────────────────
+
+
+class TestToolCallsInMessages:
+    """Tool calls on an assistant completion must land in the canonical shape.
+
+    OpenInference emits each tool call under an extra ``tool_call`` segment:
+    ``llm.output_messages.{i}.message.tool_calls.{j}.tool_call.function.arguments``.
+    The adapter must strip that segment so the stored shape matches the OpenAI
+    convention (``tool_calls.{j}.function.{name,arguments}``) — the same shape
+    the Logfire/PydanticAI adapter and the frontend Pretty JSON view read. The
+    leaked ``tool_call`` wrapper rendered an empty tool call in the drawer.
+    """
+
+    def _completion_bag(self) -> CanonicalAttributes:
+        return _make_bag(
+            {
+                "openinference.span.kind": "LLM",
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_abc",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "quote_stay",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": '{"room_type": "Deluxe", "guests": 2}',
+            }
+        )
+
+    def test_tool_call_wrapper_segment_is_stripped(self, adapter):
+        features = SpanFeatures()
+        adapter.process(self._completion_bag(), features)
+
+        # No flat key retains OpenInference's `.tool_call.` wrapper segment.
+        assert not any(".tool_call." in k for k in features.data), list(features.data)
+        # Fields land directly under the tool call, OpenAI-style.
+        assert features.data["outputs.completion.0.tool_calls.0.id"] == "call_abc"
+        assert (
+            features.data["outputs.completion.0.tool_calls.0.function.name"]
+            == "quote_stay"
+        )
+        assert (
+            features.data["outputs.completion.0.tool_calls.0.function.arguments"]
+            == '{"room_type": "Deluxe", "guests": 2}'
+        )
+
+    def test_round_trip_produces_canonical_tool_call(self, adapter):
+        """Unmarshalled completion matches what the Pretty JSON view consumes.
+
+        The frontend reads ``tool_call.function.arguments``; with the wrapper it
+        read ``tool_call.tool_call`` and rendered nothing.
+        """
+        features = SpanFeatures()
+        adapter.process(self._completion_bag(), features)
+
+        flat_attributes = {f"ag.data.{k}": v for k, v in features.data.items()}
+        nested = unmarshall_attributes(flat_attributes)
+
+        completion = nested["ag"]["data"]["outputs"]["completion"]
+        tool_call = completion[0]["tool_calls"][0]
+        # The leaked `{tool_call: {...}}` wrapper must not appear.
+        assert "tool_call" not in tool_call
+        assert tool_call["id"] == "call_abc"
+        assert tool_call["function"]["name"] == "quote_stay"
+        # `arguments` stays a JSON string, per the OpenAI tool-call convention.
+        assert (
+            tool_call["function"]["arguments"] == '{"room_type": "Deluxe", "guests": 2}'
+        )
 
 
 # ── Tool Spans (singular tool.* attributes) ──────────────────────────
