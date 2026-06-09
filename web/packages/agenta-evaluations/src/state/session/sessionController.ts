@@ -14,7 +14,7 @@
  * Scenario-DATA selectors (steps/trace/metrics keyed by {projectId, runId, scenarioId}) are a
  * separate concern (thin wrappers over evaluationRun molecule) added alongside this engine.
  */
-import {atom, type Getter, type Setter} from "jotai"
+import {atom, type Atom, type Getter, type Setter} from "jotai"
 
 import type {
     ApplyRouteStatePayload,
@@ -51,14 +51,32 @@ export function registerSessionCallbacks(callbacks: SessionCallbacks): void {
 /** Run/project the session is bound to (set on openSession). */
 const sessionContextAtom = atom<SessionContext | null>(null)
 
-/** Injected scenario source — the consumer keeps this in sync with its molecule. */
-const sessionScenariosAtom = atom<SessionScenario[]>([])
-
-/** Injected scenario source query state. */
-const sessionScenariosQueryAtom = atom<SessionScenariosQueryState>({
+// --- Scenario source injection (two ways) ---
+// 1. Reactive: the consumer hands a *reference* to its own scenarios atom (e.g.
+//    `simpleQueueMolecule.selectors.scenarios(queueId)` or `evaluationScenarioMolecule
+//    .selectors.list({projectId,runId})`) via `actions.setScenarioSource`. The engine reads
+//    through it, so molecule updates/refetches flow in automatically — no effects.
+// 2. Imperative: `actions.setScenarios({scenarios})` writes a static list (tests / non-atom
+//    sources). The reactive source wins when set.
+const scenariosSourceAtom = atom<Atom<SessionScenario[]> | null>(null)
+const scenariosQuerySourceAtom = atom<Atom<SessionScenariosQueryState> | null>(null)
+const imperativeScenariosAtom = atom<SessionScenario[]>([])
+const imperativeScenariosQueryAtom = atom<SessionScenariosQueryState>({
     isPending: false,
     isError: false,
     data: null,
+})
+
+/** Effective scenario list — reactive source if injected, else the imperative value. */
+const sessionScenariosAtom = atom<SessionScenario[]>((get) => {
+    const src = get(scenariosSourceAtom)
+    return src ? get(src) : get(imperativeScenariosAtom)
+})
+
+/** Effective scenario source query state. */
+const sessionScenariosQueryAtom = atom<SessionScenariosQueryState>((get) => {
+    const src = get(scenariosQuerySourceAtom)
+    return src ? get(src) : get(imperativeScenariosQueryAtom)
 })
 
 /** Requested/focused scenario ID from route or navigation state */
@@ -322,12 +340,32 @@ const scenarioStatusesAtom = atom<Record<string, string | null>>((get) => {
 // ACTIONS
 // ============================================================================
 
-/** Inject/refresh the scenario source. Consumer calls this from its molecule subscription. */
+/**
+ * Inject a REACTIVE scenario source — a reference to the consumer's own scenarios atom (and
+ * optional query-state atom). The engine reads through it, so molecule updates flow in with no
+ * effects. Pass `null` to clear. This is the path real consumers use.
+ */
+const setScenarioSourceAtom = atom(
+    null,
+    (
+        _get,
+        set,
+        payload: {
+            scenarios: Atom<SessionScenario[]> | null
+            query?: Atom<SessionScenariosQueryState> | null
+        },
+    ) => {
+        set(scenariosSourceAtom, payload.scenarios)
+        set(scenariosQuerySourceAtom, payload.query ?? null)
+    },
+)
+
+/** Inject a STATIC scenario list (tests / non-atom sources). Reactive source wins if set. */
 const setScenariosAtom = atom(
     null,
     (_get, set, payload: {scenarios: SessionScenario[]; query?: SessionScenariosQueryState}) => {
-        set(sessionScenariosAtom, payload.scenarios)
-        if (payload.query) set(sessionScenariosQueryAtom, payload.query)
+        set(imperativeScenariosAtom, payload.scenarios)
+        if (payload.query) set(imperativeScenariosQueryAtom, payload.query)
     },
 )
 
@@ -488,8 +526,10 @@ const applyRouteStateAtom = atom(null, (get, set, payload: ApplyRouteStatePayloa
 
 const closeSessionAtom = atom(null, (_get, set) => {
     set(sessionContextAtom, null)
-    set(sessionScenariosAtom, [])
-    set(sessionScenariosQueryAtom, {isPending: false, isError: false, data: null})
+    set(scenariosSourceAtom, null)
+    set(scenariosQuerySourceAtom, null)
+    set(imperativeScenariosAtom, [])
+    set(imperativeScenariosQueryAtom, {isPending: false, isError: false, data: null})
     set(focusedScenarioIdAtom, null)
     set(completedScenarioIdsAtom, new Set())
     set(scenarioOrderAtom, [])
@@ -525,7 +565,9 @@ export const evaluationSessionController = {
         focusAutoNext: () => focusAutoNextAtom,
     },
     actions: {
-        /** Inject/refresh the scenario source (consumer drives this from its molecule). */
+        /** Inject a reactive scenario source (atom ref) — the path real consumers use. */
+        setScenarioSource: setScenarioSourceAtom,
+        /** Inject a static scenario list (tests / non-atom sources). */
         setScenarios: setScenariosAtom,
         openSession: openSessionAtom,
         navigateNext: navigateNextAtom,
