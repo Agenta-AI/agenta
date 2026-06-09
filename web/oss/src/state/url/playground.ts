@@ -1131,8 +1131,10 @@ playgroundSyncAtom.onMount = (set) => {
     // snapshot building (works for workflow, ephemeral workflow, etc.)
     // Scope the key to the current app so that draft state from one app never
     // bleeds into another app's session (cross-app contamination fix).
-    const _draftSnapshotAppId = store.get(routerAppIdAtom) as string | null
-    const DRAFT_SNAPSHOT_KEY = `agenta:playground-draft-snapshot${_draftSnapshotAppId ? `:${_draftSnapshotAppId}` : ""}`
+    const getDraftSnapshotKey = () => {
+        const appId = store.get(routerAppIdAtom) as string | null
+        return `agenta:playground-draft-snapshot${appId ? `:${appId}` : ""}`
+    }
 
     let persistDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -1140,7 +1142,7 @@ playgroundSyncAtom.onMount = (set) => {
         try {
             const entityIds = store.get(playgroundController.selectors.entityIds())
             if (entityIds.length === 0) {
-                localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
+                localStorage.removeItem(getDraftSnapshotKey())
                 return
             }
 
@@ -1159,14 +1161,14 @@ playgroundSyncAtom.onMount = (set) => {
 
                 if (hasDraftChanges) {
                     localStorage.setItem(
-                        DRAFT_SNAPSHOT_KEY,
+                        getDraftSnapshotKey(),
                         JSON.stringify({
                             snapshot: result.snapshot,
                             timestamp: Date.now(),
                         }),
                     )
                 } else {
-                    localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
+                    localStorage.removeItem(getDraftSnapshotKey())
                 }
             }
         } catch (err) {
@@ -1229,12 +1231,12 @@ playgroundSyncAtom.onMount = (set) => {
         // Read the persisted full snapshot from localStorage
         let persistedSnapshot: PlaygroundSnapshot | null = null
         try {
-            const raw = localStorage.getItem(DRAFT_SNAPSHOT_KEY)
+            const raw = localStorage.getItem(getDraftSnapshotKey())
             if (raw) {
                 const parsed = JSON.parse(raw)
                 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
                 if (parsed?.timestamp && Date.now() - parsed.timestamp > SEVEN_DAYS_MS) {
-                    localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
+                    localStorage.removeItem(getDraftSnapshotKey())
                 } else if (parsed?.snapshot) {
                     persistedSnapshot = parsed.snapshot as PlaygroundSnapshot
                 }

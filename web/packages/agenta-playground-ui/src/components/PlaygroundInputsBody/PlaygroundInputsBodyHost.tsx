@@ -21,11 +21,8 @@
 import {useCallback, useMemo} from "react"
 
 import {loadableController} from "@agenta/entities/runnable"
-import {
-    executionItemController,
-    filterUnreferencedColumnsForSource,
-    playgroundController,
-} from "@agenta/playground"
+import {executionItemController, playgroundController} from "@agenta/playground"
+import {filterUnreferencedColumnsForSource} from "@agenta/playground/state"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {PlaygroundInputsBody} from "./PlaygroundInputsBody"

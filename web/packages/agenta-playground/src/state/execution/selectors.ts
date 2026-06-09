@@ -68,8 +68,10 @@ function collectCommittedInputKeys(serverData: WorkflowDataForInputKeys | null):
     }
 
     const parameters = serverData.data?.parameters
-    if (parameters) {
-        const synced = syncPromptInputKeysInParameters(parameters) as Record<string, unknown>
+    if (parameters && typeof parameters === "object" && !Array.isArray(parameters)) {
+        const synced = syncPromptInputKeysInParameters(parameters)
+        if (!synced || typeof synced !== "object" || Array.isArray(synced)) return keys
+
         const stack: unknown[] = [synced]
         while (stack.length > 0) {
             const current = stack.pop()
