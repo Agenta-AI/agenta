@@ -8,6 +8,8 @@ user can be deleted without destroying the target user's organization.
 """
 
 from uuid import uuid4
+import os
+import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -58,6 +60,10 @@ def _delete_account_by_email(admin_api, *, email):
 
 
 class TestResetPassword:
+    @pytest.mark.skipif(
+        not os.getenv("POSTHOG_API_KEY"),
+        reason="PostHog API key not configured",
+    )
     def test_reset_password_for_existing_identity(self, admin_api):
         uid = uuid4().hex[:12]
         email = f"reset-{uid}@test.agenta.ai"

@@ -87,15 +87,12 @@ try:
     from ee.src.core.subscriptions.types import (  # type: ignore[import]
         get_default_plan as _ee_get_default_plan,
     )
-    from ee.src.core.entitlements.controls import (  # type: ignore[import]
+    from ee.src.core.access.controls import (  # type: ignore[import]
         get_plans as _ee_get_plans,
     )
-    from ee.src.core.meters.service import MetersService as _EeMetersService  # type: ignore[import]
-    from ee.src.dbs.postgres.meters.dao import MetersDAO as _EeMetersDAO  # type: ignore[import]
 
     _ee_subscription_service = _EeSubscriptionsService(
         subscriptions_dao=_EeSubscriptionsDAO(),
-        meters_service=_EeMetersService(meters_dao=_EeMetersDAO()),
     )
 except ImportError:
     pass

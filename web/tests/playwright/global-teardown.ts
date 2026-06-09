@@ -163,7 +163,7 @@ async function cleanupModelHubSecrets(apiURL: string): Promise<void> {
             `[teardown] Extracted session token from storage state: ${sessionToken ? "present" : "absent"}`,
         )
 
-        const secretsResp = await fetch(`${apiURL}/vault/v1/secrets/`, {
+        const secretsResp = await fetch(`${apiURL}/secrets/`, {
             headers: {Authorization: `Bearer ${sessionToken}`},
         })
 
@@ -180,7 +180,7 @@ async function cleanupModelHubSecrets(apiURL: string): Promise<void> {
 
         for (const secret of openaiSecrets) {
             try {
-                await fetch(`${apiURL}/vault/v1/secrets/${secret.id}`, {
+                await fetch(`${apiURL}/secrets/${secret.id}`, {
                     method: "DELETE",
                     headers: {Authorization: `Bearer ${sessionToken}`},
                 })

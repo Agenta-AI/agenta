@@ -1,12 +1,13 @@
 import {useState} from "react"
 
+import {deletePreviewTrace} from "@agenta/entities/trace"
 import {DeleteOutlined} from "@ant-design/icons"
 import {Modal} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import Router from "next/router"
 
-import {deletePreviewTrace} from "@/oss/services/tracing/api"
 import {useObservability} from "@/oss/state/newObservability"
+import {getProjectValues} from "@/oss/state/project"
 import {traceIdAtom} from "@/oss/state/url/trace"
 
 import {closeTraceDrawerAtom} from "../../store/traceDrawerStore"
@@ -27,7 +28,8 @@ const DeleteTraceModal = () => {
     const handleDelete = async () => {
         try {
             setIsLoading(true)
-            await Promise.all(traceIds.map((id) => deletePreviewTrace(id)))
+            const {projectId} = getProjectValues()
+            await Promise.all(traceIds.map((id) => deletePreviewTrace(id, projectId ?? "")))
             await fetchTraces()
 
             const isCurrentTraceDeleted = traceIds.includes(currentTraceId || "")

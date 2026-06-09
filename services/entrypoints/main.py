@@ -38,6 +38,7 @@ from oss.src.managed import (
     builtin_match_app,
     custom_code_app,
     custom_hook_app,
+    custom_mock_app,
     custom_config_app,
 )
 from oss.src.chat import chat_v0_app
@@ -144,6 +145,7 @@ register_legacy_routes(
 app.mount("/config/v0", custom_config_app)
 app.mount("/code/v0", custom_code_app)
 app.mount("/hook/v0", custom_hook_app)
+app.mount("/mock/v0", custom_mock_app)
 app.mount("/match/v0", builtin_match_app)
 app.mount("/llm/v0", builtin_llm_app)
 app.mount("/auto_exact_match/v0", builtin_auto_exact_match_app)
@@ -177,4 +179,5 @@ if __name__ == "__main__":
         port=8080,
         reload=True,
         reload_dirs=[".", "/sdk"],
+        reload_excludes=["**/tests/**", "/sdk/tests"],
     )

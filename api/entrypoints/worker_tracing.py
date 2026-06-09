@@ -44,7 +44,7 @@ from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 # the `ee.*` package to be importable. The matching `is_ee()` branch in
 # `main_async` calls `bootstrap_entitlements_services()`.
 if is_ee():
-    from ee.src.utils.entitlements import bootstrap_entitlements_services
+    from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
 
 log = get_module_logger(__name__)
 

@@ -401,53 +401,24 @@ async function upsertStepResultWithAnnotation({
     const traceIdUuid = hexToUuid(annotationTraceId)
     const spanIdUuid = spanHexToUuid(annotationSpanId)
 
-    // Query for existing step result
-    let existingResult: EvaluationResult | null = null
-    try {
-        const results = await queryEvaluationResults({
-            projectId,
-            runId,
-            scenarioIds: [scenarioId],
-            stepKeys: [stepKey],
-        })
-        existingResult = results.find((r) => r.step_key === stepKey) ?? null
-    } catch {
-        // Ignore query errors
-    }
-
-    if (existingResult?.id) {
-        await axios.patch(
-            `${apiUrl}/evaluations/results/`,
-            {
-                results: [
-                    {
-                        id: existingResult.id,
-                        status: "success",
-                        trace_id: traceIdUuid,
-                        span_id: spanIdUuid,
-                    },
-                ],
-            },
-            {params: {project_id: projectId}},
-        )
-    } else {
-        await axios.post(
-            `${apiUrl}/evaluations/results/`,
-            {
-                results: [
-                    {
-                        run_id: runId,
-                        scenario_id: scenarioId,
-                        step_key: stepKey,
-                        status: "success",
-                        trace_id: traceIdUuid,
-                        span_id: spanIdUuid,
-                    },
-                ],
-            },
-            {params: {project_id: projectId}},
-        )
-    }
+    // The setter upserts on the natural key (run_id, scenario_id, step_key,
+    // repeat_idx), so a single POST handles both create and edit — no `id` needed.
+    await axios.post(
+        `${apiUrl}/evaluations/results/`,
+        {
+            results: [
+                {
+                    run_id: runId,
+                    scenario_id: scenarioId,
+                    step_key: stepKey,
+                    status: "success",
+                    trace_id: traceIdUuid,
+                    span_id: spanIdUuid,
+                },
+            ],
+        },
+        {params: {project_id: projectId}},
+    )
 }
 
 /**
@@ -548,36 +519,23 @@ async function upsertAnnotationMetrics({
     // Merge with existing data
     const mergedData = {...(existingMetric?.data || {}), ...data}
 
-    if (existingMetric?.id) {
-        await axios.patch(
-            `${apiUrl}/evaluations/metrics/`,
-            {
-                metrics: [
-                    {
-                        id: existingMetric.id,
-                        data: mergedData,
-                        status: existingMetric.status || "success",
-                    },
-                ],
-            },
-            {params: {project_id: projectId}},
-        )
-    } else {
-        await axios.post(
-            `${apiUrl}/evaluations/metrics/`,
-            {
-                metrics: [
-                    {
-                        run_id: runId,
-                        scenario_id: scenarioId,
-                        data: mergedData,
-                        status: "success",
-                    },
-                ],
-            },
-            {params: {project_id: projectId}},
-        )
-    }
+    // The setter upserts on the natural key (run_id, scenario_id), so a single
+    // POST handles both create and edit — no `id` needed. The existence query
+    // above is still required: it supplies the data to merge into.
+    await axios.post(
+        `${apiUrl}/evaluations/metrics/`,
+        {
+            metrics: [
+                {
+                    run_id: runId,
+                    scenario_id: scenarioId,
+                    data: mergedData,
+                    status: existingMetric?.status || "success",
+                },
+            ],
+        },
+        {params: {project_id: projectId}},
+    )
 }
 
 /**

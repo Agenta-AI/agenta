@@ -82,22 +82,27 @@ export const evaluationRunsTableContextAtom = atom<EvaluationRunsTableContext>((
     const scopedAppId = scope === "app" ? explicitAppId : null
     const effectiveAppIds = deriveAppIds(explicitAppId, scopedAppId, availableAppIds)
 
+    // Runs sourced from traces or testcases belong to Annotation Queues, not the
+    // evaluation tabs. Live evals are always query-sourced, so this exclusion is a
+    // no-op for them; for the rest it filters out queue-only runs.
+    const notDirectQueue = {has_testcases: false, has_traces: false}
+
     let derivedPreviewFlags: RunFlagsFilter | undefined
     switch (evaluationKind) {
         case "online":
             derivedPreviewFlags = {is_live: true}
             break
         case "auto":
-            derivedPreviewFlags = {has_auto: true}
+            derivedPreviewFlags = {has_auto: true, ...notDirectQueue}
             break
         case "human":
-            derivedPreviewFlags = {has_human: true, is_queue: false}
+            derivedPreviewFlags = {has_human: true, ...notDirectQueue}
             break
         case "custom":
-            derivedPreviewFlags = {has_custom: true}
+            derivedPreviewFlags = {has_custom: true, ...notDirectQueue}
             break
         default:
-            derivedPreviewFlags = {is_queue: false}
+            derivedPreviewFlags = {...notDirectQueue}
     }
 
     const isAutoOrHuman = evaluationKind === "auto" || evaluationKind === "human"

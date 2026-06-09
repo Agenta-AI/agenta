@@ -108,7 +108,6 @@ def _transform_config_parameters(
     """Transform config_parameters to ApplicationRevisionData format (SDK format).
 
     SDK format fields:
-        - version: str (default "2025.07.14")
         - uri: Optional[str] (builtin:<type> or custom)
         - url: Optional[str] (deployment URL / webhook URL for CUSTOM apps)
         - headers: Optional[Dict]
@@ -127,7 +126,6 @@ def _transform_config_parameters(
     else:
         # Plain config_parameters - wrap in new SDK format
         data: Dict[str, Any] = {
-            "version": "2025.07.14",
             "parameters": config_parameters,
         }
         if workflow_uri:

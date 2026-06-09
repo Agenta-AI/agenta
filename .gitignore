@@ -11,12 +11,14 @@
 **/*.pem
 **/*dont_commit_me*
 web/packages/agenta-api-client/dist/
+web/tsconfig.tsbuildinfo
 
 __pycache__/
 **/__pycache__/
 
 **/error-*.log
 **/*.logs
+**/*.log
 
 /.nox/
 /docs/_build/
