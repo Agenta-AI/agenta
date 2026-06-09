@@ -30,12 +30,12 @@
  * @packageDocumentation
  */
 
-import type {Transform, Chunk} from "../../etl/core/types"
-import {fetchTestcasesBatch} from "../../testcase/api"
-import type {Testcase} from "../../testcase/core"
-import {fetchAllPreviewTraces} from "../../trace/api"
-import {queryEvaluationResults, queryEvaluationMetrics} from "../api"
-import type {EvaluationResult, EvaluationMetric} from "../core"
+import type {Transform, Chunk} from "@agenta/entities/etl"
+import {queryEvaluationResults, queryEvaluationMetrics} from "@agenta/entities/evaluationRun"
+import type {EvaluationResult, EvaluationMetric} from "@agenta/entities/evaluationRun"
+import {fetchTestcasesBatch} from "@agenta/entities/testcase"
+import type {Testcase} from "@agenta/entities/testcase"
+import {fetchAllPreviewTraces} from "@agenta/entities/trace"
 
 /**
  * Minimal scenario shape this transform consumes. The full schema lives in

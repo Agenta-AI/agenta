@@ -505,11 +505,11 @@ metadata (§3.1 judgment calls); whether `annotation`→`annotations` rename hap
 
 ---
 
-## 11. Known bugs to fix before DoD
+## 11. Known bugs / coverage gaps to fix before DoD
 
-Bugs discovered during the migration that must be resolved before §9 DoD. Each is a real,
-user-facing defect (not necessarily a migration regression — note the origin). Do NOT close
-the migration with an open entry here.
+Bugs and migration-introduced test-coverage gaps that must be resolved before §9 DoD. Each is
+either a real user-facing defect (note the origin) or a test dropped/disabled by a move. Do NOT
+close the migration with an open entry here.
 
 ### 11.1 Batch "add all matching to queue" ignores the observability time window (pre-existing)
 
@@ -538,3 +538,19 @@ the migration with an open entry here.
   `windowing` shape so both paths bound identically. Fix on its **own branch**, not mixed into a
   migration WP.
 - **Status:** OPEN — filed by Arda. Fix before §9 DoD.
+
+### 11.2 Combined paginatedStore+molecule leak test dropped in WP-3.5a (coverage gap)
+
+- **Discovered/introduced:** WP-3.5a (moving `evaluationRun/etl` → `@agenta/evaluations`).
+- **What:** the entities longrun leak test `runLoop.combinedLeak.test.ts` had a "Combined leak:
+  paginatedStore + molecule layer" block that depended on `evaluationRun/etl/cacheDiagnostics`.
+  Keeping it in entities after the ETL moved would force an `entities → evaluations` import cycle
+  (forbidden). It was **removed from entities and NOT relocated** to evaluations — relocating it
+  faithfully needs a raw `node --import tsx` leak harness that crashes on the entities barrels'
+  transitive `@agenta/ui` CSS imports, which would require 3+ new UI-free entities subpaths +
+  a react-query dep + a CSS-stub loader — beyond the WP-3.5a "≤2 API gaps" guard. The generic
+  `instrumentedAtomFamily` leak block stays in entities and still runs.
+- **Net:** lost leak-regression coverage for the paginatedStore + molecule combination.
+- **Fix direction:** add a UI-free `@agenta/evaluations`-side leak harness (or narrow UI-free
+  entities subpaths) that exercises the combined paginatedStore + molecule path. Its own task.
+- **Status:** OPEN — restore before §9 DoD.

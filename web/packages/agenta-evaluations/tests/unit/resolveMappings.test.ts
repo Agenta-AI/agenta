@@ -8,9 +8,9 @@
  */
 
 import assert from "node:assert/strict"
-import {describe, it} from "node:test"
+import {describe, it} from "vitest"
 
-import type {HydratedScenarioRow, HydratableScenario} from "../hydrateScenariosTransform"
+import type {HydratedScenarioRow, HydratableScenario} from "../../src/etl/hydrateScenariosTransform"
 import {
     DEFAULT_STEP_RESOLVERS,
     composeResolvers,
@@ -21,7 +21,7 @@ import {
     resolveMappings,
     type RunSchema,
     type StepResolver,
-} from "../resolveMappings"
+} from "../../src/etl/resolveMappings"
 
 interface TestScenario extends HydratableScenario {
     id: string

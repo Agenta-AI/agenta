@@ -20,7 +20,7 @@
 import {useEffect, useRef} from "react"
 
 import {evaluationResultMolecule, evaluationMetricMolecule} from "@agenta/entities/evaluationRun"
-import {clearCacheByPrefix} from "@agenta/entities/evaluationRun/etl"
+import {clearCacheByPrefix} from "@agenta/evaluations/etl"
 
 export interface UseScopeChangeEvictionArgs {
     projectId: string | null

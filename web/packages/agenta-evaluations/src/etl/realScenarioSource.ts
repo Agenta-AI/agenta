@@ -17,7 +17,7 @@
  * Use in headless scripts:
  *
  * ```ts
- * import {makeRealScenarioSource} from "@agenta/entities/evaluationRun/etl"
+ * import {makeRealScenarioSource} from "@agenta/evaluations/etl"
  *
  * const source = makeRealScenarioSource({
  *   baseUrl: process.env.AGENTA_API_URL!,
@@ -35,7 +35,7 @@
  * @packageDocumentation
  */
 
-import type {Source} from "../../etl/core/types"
+import type {Source} from "@agenta/entities/etl"
 
 /**
  * Minimal EvaluationScenario shape — what the API actually returns.

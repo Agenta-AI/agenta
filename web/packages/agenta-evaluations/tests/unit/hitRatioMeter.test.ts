@@ -7,9 +7,9 @@
  */
 
 import assert from "node:assert/strict"
-import {describe, it} from "node:test"
+import {describe, it} from "vitest"
 
-import {createHitRatioMeter} from "../hitRatioMeter"
+import {createHitRatioMeter} from "../../src/etl/hitRatioMeter"
 
 // =============================================================================
 // State machine — warming → client → escalate

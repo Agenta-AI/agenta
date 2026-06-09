@@ -11,9 +11,9 @@
  */
 
 import assert from "node:assert/strict"
-import {describe, it} from "node:test"
+import {describe, it} from "vitest"
 
-import {groupRunColumns, type RunMapping, type RunStep} from "../resolveMappings"
+import {groupRunColumns, type RunMapping, type RunStep} from "../../src/etl/resolveMappings"
 
 // A representative testset+app+evaluator run schema. auto / human / online
 // runs all share this shape — the eval type only changes which metrics

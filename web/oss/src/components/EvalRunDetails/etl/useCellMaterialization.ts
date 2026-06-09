@@ -24,9 +24,9 @@
 import {useEffect, useRef} from "react"
 
 import {evaluationResultMolecule, evaluationMetricMolecule} from "@agenta/entities/evaluationRun"
-import type {EntitySlice} from "@agenta/entities/evaluationRun/etl"
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {traceSpanMolecule} from "@agenta/entities/trace"
+import type {EntitySlice} from "@agenta/evaluations/etl"
 import {getDefaultStore, useSetAtom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 

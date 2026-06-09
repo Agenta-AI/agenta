@@ -22,7 +22,8 @@
         ".": "./src/index.ts",
         "./core": "./src/core/index.ts",
         "./controllers": "./src/controllers/index.ts",
-        "./state": "./src/state/index.ts"
+        "./state": "./src/state/index.ts",
+        "./etl": "./src/etl/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",

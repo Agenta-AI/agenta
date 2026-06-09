@@ -24,10 +24,10 @@
  * @packageDocumentation
  */
 
-import {prefetchTestcasesByIds} from "../../testcase/state/prefetch"
-import {prefetchTracesByIds} from "../../trace/state/prefetch"
-import {evaluationMetricMolecule} from "../state/metricMolecule"
-import {evaluationResultMolecule} from "../state/resultMolecule"
+import {evaluationMetricMolecule} from "@agenta/entities/evaluationRun"
+import {evaluationResultMolecule} from "@agenta/entities/evaluationRun"
+import {prefetchTestcasesByIds} from "@agenta/entities/testcase"
+import {prefetchTracesByIds} from "@agenta/entities/trace"
 
 import type {HydrateFetchers} from "./hydrateScenariosTransform"
 

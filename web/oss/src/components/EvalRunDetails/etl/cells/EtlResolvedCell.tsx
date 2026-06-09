@@ -34,7 +34,7 @@ import {
     type ColumnGroup,
     type HydratedScenarioRow,
     type HydratableScenario,
-} from "@agenta/entities/evaluationRun/etl"
+} from "@agenta/evaluations/etl"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {Tag} from "antd"
 import clsx from "clsx"

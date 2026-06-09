@@ -39,7 +39,7 @@
  * @packageDocumentation
  */
 
-import type {Chunk, Transform} from "../../etl/core/types"
+import type {Chunk, Transform} from "@agenta/entities/etl"
 
 import type {HydratedScenarioRow, HydratableScenario} from "./hydrateScenariosTransform"
 import {

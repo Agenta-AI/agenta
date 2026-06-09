@@ -1,5 +1,5 @@
 /**
- * @agenta/entities/evaluationRun/etl
+ * @agenta/evaluations/etl
  *
  * Eval-specific ETL adapters. See docs/designs/eval-etl-engine.md for
  * the design.
@@ -88,7 +88,7 @@ export {
     type AtomFamilyStats,
     type InstrumentedAtomFamily,
     type InstrumentedAtomFamilyOptions,
-} from "../../shared/molecule/instrumentedAtomFamily"
+} from "@agenta/entities/shared"
 
 // Post-hydrate predicate filter — value-equality against resolved UI columns.
 // Per eval-filtering.md §D2: this is the v1 frontend transform over already-

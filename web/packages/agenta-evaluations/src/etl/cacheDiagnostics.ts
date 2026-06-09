@@ -16,13 +16,9 @@
  * @packageDocumentation
  */
 
+import {inspectAtomFamilies, type AtomFamilyStats} from "@agenta/entities/shared"
 import {getDefaultStore} from "jotai/vanilla"
 import {queryClientAtom} from "jotai-tanstack-query"
-
-import {
-    inspectAtomFamilies,
-    type AtomFamilyStats,
-} from "../../shared/molecule/instrumentedAtomFamily"
 
 export interface CacheSliceStats {
     /** First component of the cache key — e.g. "evaluation-results", "trace-entity", "testcase". */

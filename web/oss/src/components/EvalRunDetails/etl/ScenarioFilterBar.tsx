@@ -21,7 +21,7 @@ import {
     type PredicateGroup,
     type RowPredicate,
     type RunSchema,
-} from "@agenta/entities/evaluationRun/etl"
+} from "@agenta/evaluations/etl"
 import {Button, Divider, Input, InputNumber, Popover, Select, Tooltip} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 import {Filter as FilterIcon, Loader2, Plus, X} from "lucide-react"

@@ -8,12 +8,12 @@
  */
 
 import assert from "node:assert/strict"
-import {describe, it} from "node:test"
+import {describe, it} from "vitest"
 
-import type {Chunk} from "../../../etl/core/types"
-import type {HydratedScenarioRow} from "../hydrateScenariosTransform"
-import {predicateToEntitySlices} from "../predicateToEntitySlices"
-import type {ColumnGroup, ResolvedColumn, RunSchema} from "../resolveMappings"
+import type {Chunk} from "@agenta/entities/etl"
+import type {HydratedScenarioRow} from "../../src/etl/hydrateScenariosTransform"
+import {predicateToEntitySlices} from "../../src/etl/predicateToEntitySlices"
+import type {ColumnGroup, ResolvedColumn, RunSchema} from "../../src/etl/resolveMappings"
 import {
     evaluatePredicateGroup,
     evaluateRowFilter,
@@ -23,7 +23,7 @@ import {
     matchesRowFilter,
     type PredicateGroup,
     type RowPredicate,
-} from "../rowPredicateFilter"
+} from "../../src/etl/rowPredicateFilter"
 
 // A resolved column fixture — the shape `resolveMappings` emits.
 function col(opts: {

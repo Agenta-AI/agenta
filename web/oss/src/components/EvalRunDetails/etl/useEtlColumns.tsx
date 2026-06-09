@@ -18,7 +18,7 @@
 
 import {useMemo} from "react"
 
-import {groupRunColumns, type ColumnGroup, type RunSchema} from "@agenta/entities/evaluationRun/etl"
+import {groupRunColumns, type ColumnGroup, type RunSchema} from "@agenta/evaluations/etl"
 import {Tooltip} from "antd"
 import type {ColumnsType} from "antd/es/table"
 

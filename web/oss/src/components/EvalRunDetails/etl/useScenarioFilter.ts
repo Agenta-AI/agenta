@@ -25,7 +25,7 @@ import {
     type PredicateGroup,
     type ResolvedColumn,
     type RunSchema,
-} from "@agenta/entities/evaluationRun/etl"
+} from "@agenta/evaluations/etl"
 import {useQueryClient, type QueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 

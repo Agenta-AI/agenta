@@ -27,15 +27,15 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import {evaluationResultMolecule, evaluationMetricMolecule} from "@agenta/entities/evaluationRun"
+import {prefetchTestcasesByIds} from "@agenta/entities/testcase"
+import {prefetchTracesByIds} from "@agenta/entities/trace"
 import {
     predicateToEntitySlices,
     type EntitySlice,
     type PredicateGroup,
     type RowPredicate,
     type RunSchema,
-} from "@agenta/entities/evaluationRun/etl"
-import {prefetchTestcasesByIds} from "@agenta/entities/testcase"
-import {prefetchTracesByIds} from "@agenta/entities/trace"
+} from "@agenta/evaluations/etl"
 import {atom, useSetAtom} from "jotai"
 
 const ALL_SLICES: EntitySlice[] = ["results", "metrics", "testcases", "traces"]

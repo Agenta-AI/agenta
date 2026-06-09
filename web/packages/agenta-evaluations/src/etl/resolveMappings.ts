@@ -38,7 +38,7 @@
  * @packageDocumentation
  */
 
-import type {EvaluationResult} from "../core"
+import type {EvaluationResult} from "@agenta/entities/evaluationRun"
 
 import type {HydratedScenarioRow, HydratableScenario} from "./hydrateScenariosTransform"
 

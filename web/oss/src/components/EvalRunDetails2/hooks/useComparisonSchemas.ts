@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import type {RunSchema} from "@agenta/entities/evaluationRun/etl"
+import type {RunSchema} from "@agenta/evaluations/etl"
 import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 

@@ -15,7 +15,7 @@
  * input — never the numeric comparators.
  */
 
-import type {FilterValueType} from "@agenta/entities/evaluationRun/etl"
+import type {FilterValueType} from "@agenta/evaluations/etl"
 
 import type {EvaluationTableColumnsResult} from "../atoms/table"
 

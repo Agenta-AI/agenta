@@ -8,7 +8,7 @@
  * partially-typed condition never filters every row out.
  */
 
-import type {PredicateGroup, RowPredicate} from "@agenta/entities/evaluationRun/etl"
+import type {PredicateGroup, RowPredicate} from "@agenta/evaluations/etl"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 

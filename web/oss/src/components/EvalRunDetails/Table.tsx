@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
-import type {RunSchema} from "@agenta/entities/evaluationRun/etl"
+import type {RunSchema} from "@agenta/evaluations/etl"
 import {message} from "@agenta/ui/app-message"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom, useStore} from "jotai"

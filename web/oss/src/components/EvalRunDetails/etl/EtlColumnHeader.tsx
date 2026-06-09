@@ -17,7 +17,7 @@
 
 import {useMemo} from "react"
 
-import type {ColumnGroup} from "@agenta/entities/evaluationRun/etl"
+import type {ColumnGroup} from "@agenta/evaluations/etl"
 import {Tooltip} from "antd"
 import {atom, useAtomValue} from "jotai"
 
