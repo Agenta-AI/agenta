@@ -127,30 +127,54 @@ So this migration = **extract the generic engine out of `@agenta/annotation` dow
 then **re-point the OSS eval views at `evaluations`/`evaluations-ui` and delete the OSS
 duplicates** — proving parity against OSS first.
 
-### 3.1 Controller decomposition (the extraction map)
+### 3.1 Controller decomposition (the extraction map) — RE-SCOPED 2026-06-09 (verified from code)
+
+**Verified before any cut (no assumptions):**
+- The session engine is founded on `simpleQueueMolecule`: `activeRunId ← simpleQueueMolecule.runId(queueId)`,
+  `rawScenarioRecords ← simpleQueueMolecule.scenarios(queueId)`,
+  `scenariosQuery ← simpleQueueMolecule.scenariosQuery(queueId)`.
+- The two consumers source the scenario LIST from **different endpoints**:
+  annotation → `POST /simple/queues/{id}/scenarios/query` (queue-scoped, optional `user_id`
+  annotator filter → may be a **subset** of run scenarios); EvalRunDetails → `POST
+  /evaluations/scenarios/query` by `run_id` (run-scoped, windowed). Both return
+  `EvaluationScenario`-shaped rows.
+- Scenario *data* (steps/results/metrics) is derived by `{projectId, runId, scenarioId}` from
+  the evaluationRun/result/metric molecules in BOTH; trace/testcase refs are read off the
+  scenario row itself (source-agnostic).
+
+**Consequence — the engine is parameterized by an injected SCENARIO SOURCE, not a molecule.**
+The `evaluations` session engine MUST NOT hardcode `simpleQueueMolecule` or
+`evaluationScenarioMolecule`. It takes `{projectId, runId, scenarios[], scenariosQuery}` (the
+source) and owns the rest. Annotation injects the queue source (user-scoped); the eval-run
+view injects the run source (`evaluationScenarioMolecule`/`/evaluations/scenarios/query`).
 
 `annotationSessionController` →
 
-- **Generic → `evaluations` sessionController:** `activeRunId`, `currentScenarioId`,
-  `currentScenarioIndex`, `focusedScenarioId`, `scenarioIds`, `navigableScenarioIds`,
-  `progress`, `hasNext`, `hasPrev`, `isCurrentCompleted`, `scenarioStatuses`,
-  `scenarioRecords`, `scenariosQuery`, `activeView`, `scenarioTraceRef`, `scenarioStepsQuery`,
-  `scenarioTestcaseRef`, `scenarioTraceQuery`, `scenarioRootSpan`, `scenarioMetrics`,
-  `scenarioMetricsQuery`, `scenarioMetricForEvaluator`, `evaluatorIds`,
-  `evaluatorRevisionIds`, `evaluatorStepRefs`, `annotationColumnDefs` (rename →
-  `evaluatorColumnDefs`), `listColumnDefs`, `traceInputKeys`, `testcaseInputKeys`,
-  `testcaseData`; actions `openSession`(`openQueue`), `navigateNext/Prev/ToIndex`,
-  `syncScenarioOrder`, `markCompleted`, `completeAndAdvance`, `closeSession`, `setActiveView`,
-  `applyRouteState`.
-- **Annotation-specific → stays in `annotations`:** `activeQueueId`, `activeQueueType`,
-  `queueName`/`queueKind`/`queueDescription` (queue metadata), `hideCompletedInFocus`,
+- **Generic → `evaluations` (the TRULY-shared core, both consumers derive this):**
+  scenario-DATA selectors keyed by `{projectId, runId, scenarioId}` — `scenarioStepsQuery`,
+  `scenarioTraceRef`, `scenarioTestcaseRef`, `scenarioTraceQuery`, `scenarioRootSpan`,
+  `scenarioMetrics`, `scenarioMetricsQuery`, `scenarioMetricForEvaluator`; column/evaluator
+  derivations — `evaluatorIds`, `evaluatorRevisionIds`, `evaluatorStepRefs`,
+  `annotationColumnDefs` (rename → `evaluatorColumnDefs`), `listColumnDefs`, `traceInputKeys`,
+  `testcaseInputKeys`, `testcaseData`. These delegate to the entities molecules.
+- **Generic-but-source-PARAMETERIZED → `evaluations` session engine:** `activeProjectId`,
+  `activeRunId`, `currentScenarioId`, `currentScenarioIndex`, `focusedScenarioId`,
+  `scenarioIds`, `navigableScenarioIds`, `progress`, `hasNext`, `hasPrev`,
+  `isCurrentCompleted`, `scenarioStatuses`, `activeView`, `completedScenarioIds`,
+  `scenarioOrder`; actions `openSession`, `navigateNext/Prev/ToIndex`, `syncScenarioOrder`,
+  `markCompleted`, `completeAndAdvance`, `closeSession`, `setActiveView`, `applyRouteState`.
+  The scenario LIST + its query state are INJECTED (annotation: queue source; eval view: run
+  source) — `scenarioRecords`/`scenariosQuery` are NOT owned by the engine.
+- **Annotation-specific → stays in `annotations` (injects the queue source + owns the delta):**
+  `activeQueueId`, `activeQueueType`, the queue→engine wiring (feeds queue scenarios + runId
+  into the engine), `queueName`/`queueKind`/`queueDescription`, `hideCompletedInFocus`,
   `focusAutoNext` (focus-mode UX), `scenarioAnnotations*`, `scenarioAnnotationByEvaluator`
   (annotation entity reads), all add-to-testset (`defaultTargetTestsetName`,
   `pendingTestsetSelection*`, `addToTestset*`, `selectedScenarioIds`, `canSyncToTestset`,
   `syncToTestsets`, `addScenariosToTestset`).
-- **Judgment calls (decide at extraction, don't pre-bake):** `markCompleted`/
-  `completeAndAdvance` (generic completion vs human workflow), queue metadata (run metadata
-  under unification). Default: put in `evaluations` if the eval-run view also needs it.
+- **Regression risk to watch:** the queue source applies user-scoping; do NOT swap annotation
+  to a run-scoped source. Annotation keeps feeding the QUEUE scenarios into the engine; only
+  the engine code is shared, not the source.
 
 `annotationFormController` →
 
@@ -216,13 +240,20 @@ the previous one's DoD + tests + gate pass.
   read selectors → assert; like the existing eval-run integration suite. Not a replica schema.
 - **Regression gate:** full entities unit (591+) green; eval integration green; OSS/EE build.
 
-### WP-1 — Extract the scenario **session engine** → `@agenta/evaluations`
-- **Move:** the generic selectors/actions from `annotationSessionController` (§3.1) into a new
-  `evaluations` session controller. `@agenta/annotation` keeps the annotation-specific shell
-  and now *imports the generic engine from `evaluations`* (add the dependency). Rename
+### WP-1 — Extract the scenario **session engine** → `@agenta/evaluations` (injected source)
+- **Move (per the re-scoped §3.1):** extract the generic engine from `annotationSessionController`
+  into `evaluations`, in two parts:
+  1. **Scenario-data selectors** keyed by `{projectId, runId, scenarioId}` (steps/results/
+     metrics/trace/testcase/columns/evaluator refs) — pure delegations to the entities
+     molecules. These are the truly-shared core.
+  2. **Session engine** that takes an **injected scenario source** — `{projectId, runId,
+     scenarios[], scenariosQuery}` — and owns navigation/progress/current/focus/view/completion.
+     It MUST NOT import `simpleQueueMolecule` or `evaluationScenarioMolecule` (source-agnostic).
+- `@agenta/annotation` keeps the annotation shell, **feeds the QUEUE scenario source**
+  (`simpleQueueMolecule`, user-scoped — do NOT swap to a run-scoped source) + runId into the
+  engine, and imports the generic engine from `evaluations` (add the dependency). Rename
   annotation-flavored names to kind-agnostic (`openQueue`→`openSession`,
-  `annotationColumnDefs`→`evaluatorColumnDefs`, etc.) with re-exports kept in `annotation`
-  temporarily to avoid churn.
+  `annotationColumnDefs`→`evaluatorColumnDefs`) with temporary re-exports in `annotation`.
 - **DoD:** `@agenta/annotation` controller is now a thin wrapper over `evaluations`; no logic
   duplicated.
 - **Integration test (real API, real atoms):** drive the **shipped `evaluations` session
