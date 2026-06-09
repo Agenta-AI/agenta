@@ -31,10 +31,18 @@ dotenv.config({path: resolve(__dirname, ".env")})
 const require = createRequire(import.meta.url)
 export default defineConfig({
     testDir: getTestDir(),
-    fullyParallel: false, // Temporarily disabled parallel worker
+    // Tests within each spec file run serially (they share browser state and often
+    // depend on earlier steps). Across files, multiple workers run in parallel.
+    // workers=1 in CI can be overridden by PLAYWRIGHT_WORKERS env var; locally
+    // Playwright defaults to half the available CPUs when workers is undefined.
+    fullyParallel: false,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : process.env.RETRIES ? parseInt(process.env.RETRIES) : 0,
-    workers: 1, // Temporarily disabled parallel worker
+    workers: process.env.PLAYWRIGHT_WORKERS
+        ? parseInt(process.env.PLAYWRIGHT_WORKERS)
+        : process.env.CI
+          ? 2
+          : undefined,
     reporter: [
         ["html", {outputFolder: getReportDir()}],
         ["junit", {outputFile: getJunitPath()}],
