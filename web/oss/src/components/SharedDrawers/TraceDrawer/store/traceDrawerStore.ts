@@ -1,4 +1,8 @@
-import {transformTracesResponseToTree, transformTracingResponse} from "@agenta/entities/trace"
+import {
+    fetchPreviewTrace,
+    transformTracesResponseToTree,
+    transformTracingResponse,
+} from "@agenta/entities/trace"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithImmer} from "jotai-immer"
@@ -10,9 +14,9 @@ import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {getNodeById, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {queryAllAnnotations} from "@/oss/services/annotations/api"
 import {AgentaTreeDTO, TracesWithAnnotations} from "@/oss/services/observability/types"
-import {fetchPreviewTrace} from "@/oss/services/tracing/api"
 import {SpanLink, TracesResponse} from "@/oss/services/tracing/types"
 import {getOrgValues} from "@/oss/state/org"
+import {projectIdAtom} from "@/oss/state/project"
 
 export type TraceDrawerSpanLink = SpanLink & {key?: string}
 interface AnnotationLinkTarget {
@@ -130,14 +134,15 @@ export const setTraceDrawerTraceAtom = atom(
 // Fetches the currently selected trace.
 export const traceDrawerQueryAtom = atomWithQuery((get) => {
     const traceId = get(traceDrawerTraceIdAtom)
+    const projectId = get(projectIdAtom)
 
     return {
-        queryKey: ["trace-drawer", traceId ?? "none"],
+        queryKey: ["trace-drawer", traceId ?? "none", projectId ?? "none"],
         enabled: Boolean(traceId),
         refetchOnWindowFocus: false,
         queryFn: async () => {
             if (!traceId) return null
-            return fetchPreviewTrace(traceId)
+            return fetchPreviewTrace(traceId, projectId ?? "")
         },
     }
 })
@@ -171,7 +176,11 @@ const flattenTraces = (nodes: TracesWithAnnotations[]): TracesWithAnnotations[] 
 }
 
 export const traceDrawerBaseTracesAtom = atom<TracesWithAnnotations[]>((get) => {
-    const {data: traceResponse} = get(traceDrawerQueryAtom)
+    // `any` on purpose: these stores accept multiple response shapes (legacy map,
+    // agenta `.response.tree`, new typed TracesResponse) and branch at runtime via
+    // normalizeTracesResponse. AGE-3788 Phase 7 unifies the FE trace types; until
+    // then the loose local mirrors the pre-migration (untyped) handling.
+    const traceResponse: any = get(traceDrawerQueryAtom).data
     const tree = traceResponse?.response?.tree as AgentaTreeDTO | undefined
 
     if (tree) {
@@ -182,7 +191,7 @@ export const traceDrawerBaseTracesAtom = atom<TracesWithAnnotations[]>((get) => 
     if (!fallback) return []
 
     return transformTracingResponse(
-        transformTracesResponseToTree(fallback),
+        transformTracesResponseToTree(fallback as never),
     ) as unknown as TracesWithAnnotations[]
 })
 
@@ -287,9 +296,10 @@ export const annotationLinkTargetsAtom = atom<AnnotationLinkTarget[]>((get) => {
 export const annotationLinkTracesQueryAtom = atomWithQuery<Record<string, TracesWithAnnotations[]>>(
     (get) => {
         const targets = get(annotationLinkTargetsAtom)
+        const projectId = get(projectIdAtom)
 
         return {
-            queryKey: ["trace-drawer-annotation-links", targets],
+            queryKey: ["trace-drawer-annotation-links", targets, projectId ?? "none"],
             enabled: Array.isArray(targets) && targets.length > 0,
             refetchOnWindowFocus: false,
             queryFn: async () => {
@@ -298,7 +308,7 @@ export const annotationLinkTracesQueryAtom = atomWithQuery<Record<string, Traces
 
                 const traceResponses = await Promise.all(
                     uniqueTraceIds.map(async (traceId) => {
-                        const response = await fetchPreviewTrace(traceId)
+                        const response: any = await fetchPreviewTrace(traceId, projectId ?? "")
                         const tree = response?.response?.tree as AgentaTreeDTO | undefined
 
                         if (tree) {
@@ -314,7 +324,7 @@ export const annotationLinkTracesQueryAtom = atomWithQuery<Record<string, Traces
                         return {
                             traceId,
                             nodes: transformTracingResponse(
-                                transformTracesResponseToTree(fallback),
+                                transformTracesResponseToTree(fallback as never),
                             ) as unknown as TracesWithAnnotations[],
                         }
                     }),
@@ -377,9 +387,10 @@ export const linkedSpanTargetsAtom = atom<AnnotationLinkTarget[]>((get) => {
 export const linkedSpanTracesQueryAtom = atomWithQuery<Record<string, TracesWithAnnotations[]>>(
     (get) => {
         const targets = get(linkedSpanTargetsAtom)
+        const projectId = get(projectIdAtom)
 
         return {
-            queryKey: ["trace-drawer-linked-spans", targets],
+            queryKey: ["trace-drawer-linked-spans", targets, projectId ?? "none"],
             enabled: Array.isArray(targets) && targets.length > 0,
             refetchOnWindowFocus: false,
             queryFn: async () => {
@@ -396,7 +407,7 @@ export const linkedSpanTracesQueryAtom = atomWithQuery<Record<string, TracesWith
 
                 const traceResponses = await Promise.all(
                     missingTraceIds.map(async (traceId) => {
-                        const response = await fetchPreviewTrace(traceId)
+                        const response: any = await fetchPreviewTrace(traceId, projectId ?? "")
                         const tree = response?.response?.tree as AgentaTreeDTO | undefined
 
                         if (tree) {
@@ -412,7 +423,7 @@ export const linkedSpanTracesQueryAtom = atomWithQuery<Record<string, TracesWith
                         return {
                             traceId,
                             nodes: transformTracingResponse(
-                                transformTracesResponseToTree(fallback),
+                                transformTracesResponseToTree(fallback as never),
                             ) as unknown as TracesWithAnnotations[],
                         }
                     }),
