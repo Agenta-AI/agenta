@@ -174,7 +174,7 @@ const humanAnnotationTests = () => {
 
             const testset = await apiHelpers.createTestset({
                 name: `e2e human eval completion ${Date.now()}`,
-                rows: [{input: "Say hello"}, {input: "Say goodbye"}],
+                rows: [{country: "Say hello"}, {country: "Say goodbye"}],
             })
 
             await createHumanEvaluationRun({
@@ -239,7 +239,11 @@ const humanAnnotationTests = () => {
 
             const testset = await apiHelpers.createTestset({
                 name: `e2e human annotation inline eval ${Date.now()}`,
-                rows: [{input: "Say hello"}, {input: "Say goodbye"}, {input: "Tell me a joke"}],
+                rows: [
+                    {country: "Say hello"},
+                    {country: "Say goodbye"},
+                    {country: "Tell me a joke"},
+                ],
             })
 
             await createHumanEvaluationRun({
@@ -299,9 +303,9 @@ const humanAnnotationTests = () => {
             const testset = await apiHelpers.createTestset({
                 name: `e2e-human-multi-${Date.now()}`,
                 rows: [
-                    {input: firstScenarioInput},
-                    {input: secondScenarioInput},
-                    {input: "Tell me a joke"},
+                    {country: firstScenarioInput},
+                    {country: secondScenarioInput},
+                    {country: "Tell me a joke"},
                 ],
             })
 
