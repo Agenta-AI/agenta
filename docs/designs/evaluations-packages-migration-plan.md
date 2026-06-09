@@ -483,6 +483,8 @@ shipped builder/selector — it passes against broken code and proves nothing.
 - Human-eval and annotation-queue are presets over the same engine (unblocks replacing human
   evals with annotation queues).
 - All regression gates green; annotation never regressed.
+- **The §11 known-bugs ledger is fully resolved** — every entry fixed (or explicitly waived
+  with the owner's sign-off). The migration is NOT done with an open §11 bug.
 
 ---
 
@@ -500,3 +502,39 @@ has none), so it's extracted from OSS `EvalRunDetails/etl` into `evaluations`/`e
 **Open (decide in-flight, narrowly):** exact home of `markCompleted`/completion + queue
 metadata (§3.1 judgment calls); whether `annotation`→`annotations` rename happens now or later
 (WP-5); the `buildRunIndex` vs `etl` gap resolution (§6).
+
+---
+
+## 11. Known bugs to fix before DoD
+
+Bugs discovered during the migration that must be resolved before §9 DoD. Each is a real,
+user-facing defect (not necessarily a migration regression — note the origin). Do NOT close
+the migration with an open entry here.
+
+### 11.1 Batch "add all matching to queue" ignores the observability time window (pre-existing)
+
+- **Discovered:** 2026-06-09, during WP-1 manual QA. **Origin:** pre-existing OSS observability
+  code — **NOT** a WP-1/migration regression (the batch-add scan path is untouched by the
+  migration commits; confirmed via `git diff`).
+- **Symptom:** with an observability filter + "Last 7 days" range active, "add all matching to
+  queue" adds up to the cap (1000 / `DEFAULT_MAX_ITEMS`, hobby tier) including traces far older
+  than the window ("some look invalid"), even when the project has far fewer than 1000 traces
+  in the last 7 days.
+- **Root cause (traced):** the two trace-query paths shape the time window differently. The main
+  table builds an explicit `windowing: {oldest, newest}` object and the cursor loop is bounded by
+  it. The batch-add **scan** path passes `oldest`/`newest` as **flat top-level params**
+  (`buildTraceQueryParams` → `params.oldest` from `sort`) and pages **backward via the `newest`
+  cursor** through `createAdaptiveTracePageFetcher` → `executeTraceQuery`. The lower-bound
+  termination (`nextCursor <= params.oldest` → stop) is wired **only in the `has_annotation`
+  branch** of `executeTraceQuery` (`oss/src/state/newObservability/atoms/queryHelpers.ts` ~L304–308);
+  on the **plain-filter path** nothing stops backward paging at `params.oldest`, so it walks all
+  history to the cap.
+- **Files:** `oss/src/components/pages/observability/components/ObservabilityHeader/useBatchAddTracesToQueue.tsx`,
+  `oss/src/state/newObservability/etl/adaptiveTracePageFetcher.ts`,
+  `oss/src/state/newObservability/atoms/queryHelpers.ts` (`executeTraceQuery`), and
+  `fetchAllPreviewTracesWithMeta` (confirm it forwards `oldest` to the backend — last piece to verify).
+- **Fix direction:** apply the `params.oldest` lower-bound termination on the plain-filter scan
+  branch too (mirror the has-annotation branch), or have the scan reuse the main table's
+  `windowing` shape so both paths bound identically. Fix on its **own branch**, not mixed into a
+  migration WP.
+- **Status:** OPEN — filed by Arda. Fix before §9 DoD.
