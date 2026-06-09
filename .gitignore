@@ -11,6 +11,10 @@
 **/*.pem
 **/*dont_commit_me*
 web/packages/agenta-api-client/dist/
+web/packages/agenta-sdk/dist/
+
+# Lockfiles for example apps (each example installs independently; no shared lock)
+examples/**/package-lock.json
 
 __pycache__/
 **/__pycache__/
@@ -72,6 +76,17 @@ services/ee/tests/results/
 !services/.dockerignore
 !.env.example
 !web/.prettierignore
+# `web/examples/.shared/` is a pnpm workspace root (see web/pnpm-workspace.yaml).
+# The dot-prefix is intentional (carves it out of the default `examples/*` glob),
+# but the `.*` rule above would otherwise silently ignore it — and historically did,
+# costing the ts-sdk-tracing spike its verification harness on a fresh checkout.
+# We un-ignore the directory but re-ignore the usual build/install artifacts.
+!web/examples/.shared/
+!web/examples/.shared/**
+web/examples/.shared/**/node_modules/
+web/examples/.shared/**/.turbo/
+web/examples/.shared/**/dist/
+web/examples/.shared/**/.vite/
 
 # Temporary SDK copies created by run.sh --local
 api/sdks

@@ -1,0 +1,41 @@
+{
+    "name": "@agenta-spike/nuxt-raw",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "description": "Spike app: Nuxt 4 + AI SDK v6 + raw OpenTelemetry. Phase 5 app for ts-sdk-tracing design. See docs/design/ts-sdk-tracing/.",
+    "scripts": {
+        "dev": "nuxt dev --port 3106",
+        "build": "nuxt build",
+        "start": "node .output/server/index.mjs",
+        "prepare": "nuxt prepare",
+        "test:assertion-1": "tsx test/test-assertion-1.ts",
+        "test:assertion-2": "tsx test/test-assertion-2.ts",
+        "test:assertion-3": "tsx test/test-assertion-3.ts",
+        "test:assertion-4": "tsx test/test-assertion-4.ts",
+        "test": "pnpm run test:assertion-1 && pnpm run test:assertion-2 && pnpm run test:assertion-3 && pnpm run test:assertion-4",
+        "lint": "eslint --config ../../eslint.config.mjs server/ test/ --max-warnings 0",
+        "lint:fix": "eslint --config ../../eslint.config.mjs server/ test/ --max-warnings 0 --fix"
+    },
+    "dependencies": {
+        "@agenta/spike-verify": "workspace:*",
+        "@ai-sdk/openai": "^3.0.63",
+        "@ai-sdk/vue": "^3.0.177",
+        "@opentelemetry/api": "^1.9.0",
+        "@opentelemetry/exporter-trace-otlp-proto": "^0.217.0",
+        "@opentelemetry/resources": "^2.7.0",
+        "@opentelemetry/sdk-trace-base": "^2.7.0",
+        "@opentelemetry/sdk-trace-node": "^2.7.0",
+        "@opentelemetry/semantic-conventions": "^1.40.0",
+        "ai": "^6.0.177",
+        "dotenv": "^16.4.7",
+        "nuxt": "^4.4.5",
+        "vue": "^3.5.0",
+        "zod": "^3.25.76"
+    },
+    "devDependencies": {
+        "@types/node": "^20.8.10",
+        "tsx": "^4.21.0",
+        "typescript": "5.8.3"
+    }
+}

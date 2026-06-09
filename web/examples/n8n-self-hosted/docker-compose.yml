@@ -1,0 +1,61 @@
+# n8n self-hosted spike — verifies how n8n's native OpenTelemetry export
+# behaves when an AI/LLM node runs inside a workflow.
+#
+# n8n added first-party OTel support via the N8N_OTEL_* env vars; this
+# composes the smallest setup that exports to Agenta and includes an
+# OpenAI Chat Model node.
+#
+# Important n8n quirks (found by reading /usr/lib/node_modules/n8n/dist/
+# modules/otel/ in the running container):
+#   - n8n reads ITS OWN env vars (N8N_OTEL_*), not the standard OTEL_*
+#     env vars. Setting OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is ignored.
+#   - The final OTLP URL is built as `endpoint + path` (simple
+#     concatenation, no smart URL parsing). To get Agenta's project_id
+#     query param through, stuff it into N8N_OTEL_EXPORTER_OTLP_TRACING_PATH.
+#   - The OTLP exporter is @opentelemetry/exporter-trace-otlp-proto v0.213.
+#     Auth is via N8N_OTEL_EXPORTER_OTLP_HEADERS (comma-separated k=v pairs).
+#
+# Usage:
+#   1. Copy .env.example → .env and fill in AGENTA_* + OPENAI_API_KEY.
+#   2. `docker compose up`
+#   3. Open http://localhost:5678, log in, import workflow.json,
+#      paste an OpenAI key into the credential, execute the workflow.
+#   4. Observe spans in Agenta — see EMPIRICAL_FINDINGS.md for what
+#      n8n actually emits.
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: agenta-spike-n8n
+    ports:
+      - "5678:5678"
+    environment:
+      # n8n-specific OTel env vars (N8N_ prefix matters — standard OTEL_*
+      # vars are ignored by n8n's OtelService).
+      N8N_OTEL_ENABLED: "true"
+      N8N_OTEL_EXPORTER_OTLP_ENDPOINT: "${AGENTA_HOST}"
+      # buildOtlpTracesUrl just concatenates — so we cram project_id into the path.
+      N8N_OTEL_EXPORTER_OTLP_TRACING_PATH: "/api/otlp/v1/traces?project_id=${AGENTA_PROJECT_ID}"
+      N8N_OTEL_EXPORTER_OTLP_HEADERS: "Authorization=ApiKey ${AGENTA_API_KEY}"
+      N8N_OTEL_EXPORTER_SERVICE_NAME: "vercel-ai-spike-n8n"
+      N8N_OTEL_TRACES_SAMPLE_RATE: "1.0"
+      N8N_OTEL_TRACES_INCLUDE_NODE_SPANS: "true"
+      N8N_OTEL_TRACES_INJECT_OUTBOUND: "true"
+
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+
+      N8N_HOST: "0.0.0.0"
+      N8N_PORT: "5678"
+      WEBHOOK_URL: "http://localhost:5678/"
+
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_USER_MANAGEMENT_DISABLED: "true"
+
+      # Surface OTel diagnostic logs so we can verify the exporter is
+      # actually firing.
+      OTEL_LOG_LEVEL: "info"
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+volumes:
+  n8n_data:

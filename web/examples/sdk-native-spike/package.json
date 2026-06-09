@@ -1,0 +1,33 @@
+{
+  "name": "@agenta-spike/sdk-native",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Verifies row-by-row what langfuse-node and braintrust SDKs actually do (vs raw OTLP). Companion to docs/design/ts-sdk-tracing/sdk-comparison.md § 'Ergonomic-by-ergonomic'.",
+  "type": "module",
+  "scripts": {
+    "run:langfuse": "tsx scripts/langfuse-sdk.ts",
+    "run:braintrust": "tsx scripts/braintrust-sdk.ts",
+    "run:agenta-raw": "tsx scripts/agenta-raw-otel.ts",
+    "run:all": "tsx scripts/agenta-raw-otel.ts && tsx scripts/langfuse-sdk.ts && tsx scripts/braintrust-sdk.ts",
+    "verify": "tsx scripts/verify.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^3.0.63",
+    "ai": "^6.0.177",
+    "dotenv": "^16.4.7",
+    "langfuse": "^3.38.20",
+    "braintrust": "^3.10.0",
+    "openai": "^4.104.0",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.217.0",
+    "@opentelemetry/resources": "^2.7.0",
+    "@opentelemetry/sdk-trace-base": "^2.7.0",
+    "@opentelemetry/sdk-trace-node": "^2.7.0",
+    "@opentelemetry/semantic-conventions": "^1.40.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.0",
+    "typescript": "^5.6.3",
+    "@types/node": "^24.0.0"
+  }
+}

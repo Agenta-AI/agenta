@@ -1,0 +1,46 @@
+{
+    "name": "@agenta-spike/react-tanstack-start",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "description": "Spike app: React TanStack Start + AI SDK v6 + raw OpenTelemetry. Phase 4 app for ts-sdk-tracing design. See docs/design/ts-sdk-tracing/.",
+    "scripts": {
+        "dev": "vite dev --port 3105",
+        "build": "vite build",
+        "start": "node .output/server/index.mjs",
+        "test:assertion-1": "tsx test/test-assertion-1.ts",
+        "test:assertion-2": "tsx test/test-assertion-2.ts",
+        "test:assertion-3": "tsx test/test-assertion-3.ts",
+        "test:assertion-4": "tsx test/test-assertion-4.ts",
+        "test": "pnpm run test:assertion-1 && pnpm run test:assertion-2 && pnpm run test:assertion-3 && pnpm run test:assertion-4",
+        "lint": "eslint --config ../../eslint.config.mjs src/ test/ --max-warnings 0",
+        "lint:fix": "eslint --config ../../eslint.config.mjs src/ test/ --max-warnings 0 --fix"
+    },
+    "dependencies": {
+        "@agenta/spike-verify": "workspace:*",
+        "@ai-sdk/openai": "^3.0.63",
+        "@ai-sdk/react": "^3.0.0",
+        "@opentelemetry/api": "^1.9.0",
+        "@opentelemetry/exporter-trace-otlp-proto": "^0.217.0",
+        "@opentelemetry/resources": "^2.7.0",
+        "@opentelemetry/sdk-trace-base": "^2.7.0",
+        "@opentelemetry/sdk-trace-node": "^2.7.0",
+        "@opentelemetry/semantic-conventions": "^1.40.0",
+        "@tanstack/react-router": "^1.169.2",
+        "@tanstack/react-start": "^1.167.65",
+        "ai": "^6.0.177",
+        "dotenv": "^16.4.7",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+        "vite": "^8.0.12",
+        "zod": "^3.25.76"
+    },
+    "devDependencies": {
+        "@types/node": "^20.8.10",
+        "@types/react": "^19.0.10",
+        "@types/react-dom": "^19.0.10",
+        "@vitejs/plugin-react": "^6.0.1",
+        "tsx": "^4.21.0",
+        "typescript": "5.8.3"
+    }
+}

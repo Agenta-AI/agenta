@@ -3,7 +3,14 @@ packages:
   - 'ee'
   - 'tests'
   - 'packages/*'
+  # Spike apps for ts-sdk-tracing design (see web/examples/README.md).
+  # `examples/*` matches each spike app directory once it has a package.json.
+  # `examples/.shared/*` matches the verification harness package; the dot-prefix
+  # keeps it out of `examples/*` (default glob doesn't match dot-prefixed dirs).
+  - 'examples/*'
+  - 'examples/.shared/*'
 allowBuilds:
+  '@parcel/watcher': true
   '@swc/core': true
   browser-tabs-lock: false
   core-js: true
