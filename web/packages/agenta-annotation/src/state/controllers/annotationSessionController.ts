@@ -66,6 +66,8 @@ import {
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {
     evaluationSessionController as sessionEngine,
+    listColumnSelectors as evaluationsListColumns,
+    OUTPUT_KEYS,
     registerSessionCallbacks as registerEngineCallbacks,
     scenarioDataSelectors,
     resolveMetricValue,
@@ -94,10 +96,8 @@ import {
     type CompletedScenarioRef,
     type TestsetSyncEvaluator,
 } from "../testsetSync"
-import {getTraceInputDisplayKeys} from "../traceInputDisplay"
 import type {
     AnnotationColumnDef,
-    ScenarioListColumnDef,
     OpenQueuePayload,
     ApplyRouteStatePayload,
     AnnotationSessionCallbacks,
@@ -409,39 +409,13 @@ const annotationColumnDefsAtom = atom<AnnotationColumnDef[]>((get) => {
 
 /**
  * Trace input keys — discovered from the first scenario's trace inputs.
- * Used by the list view to build per-key input columns for trace-based queues.
  *
- * Reactively resolves: scenarioIds[0] → traceRef → traceInputs → Object.keys()
+ * Delegates to the generic evaluations list-column tier
+ * (`evaluationsListColumns.traceInputKeys`), which reads the session engine's
+ * injected `kind` + `{projectId, runId}` context. Annotation injects its queue
+ * `kind` via `setScenarioSource` in `openQueue`.
  */
-const traceInputKeysAtom = atom<string[]>((get) => {
-    const kind = get(queueKindAtom)
-    if (kind !== "traces") return []
-
-    const ids = get(scenarioIdsAtom)
-    if (ids.length === 0) return []
-
-    // Resolve the first scenario's trace ID
-    const firstScenarioId = ids[0]
-    const runId = get(activeRunIdAtom)
-    const projectId = get(projectIdAtom)
-    if (!runId || !firstScenarioId || !projectId) return []
-
-    const traceRef = get(
-        evaluationRunMolecule.selectors.scenarioTraceRef({
-            projectId,
-            runId,
-            scenarioId: firstScenarioId,
-        }),
-    )
-    const traceId = traceRef?.traceId
-    if (!traceId) return []
-
-    // Read the trace inputs and extract keys
-    const inputs = get(traceInputsAtomFamily(traceId))
-    if (!inputs) return []
-
-    return getTraceInputDisplayKeys(inputs)
-})
+const traceInputKeysAtom = evaluationsListColumns.traceInputKeys()
 
 /**
  * Testcase data — fetched by testcaseId via atomWithQuery.
@@ -455,221 +429,18 @@ const testcaseDataAtomFamily = atomFamily((testcaseId: string) =>
 )
 
 /**
- * All testcase IDs referenced by the current queue scenarios.
- * Used for batch testcase fetch + unioned column discovery.
- */
-const scenarioTestcaseIdsAtom = atom<string[]>((get) => {
-    const kind = get(queueKindAtom)
-    if (kind !== "testcases") return []
-
-    const scenarioIds = get(scenarioIdsAtom)
-    const seen = new Set<string>()
-
-    for (const scenarioId of scenarioIds) {
-        const testcaseId = get(scenarioTestcaseRefAtomFamily(scenarioId)).testcaseId
-        if (testcaseId) {
-            seen.add(testcaseId)
-        }
-    }
-
-    return Array.from(seen)
-})
-
-/**
- * Batch testcase data for all testcase scenarios in the current queue.
- * Used for unioned testcase column discovery across the whole queue.
- */
-const scenarioTestcasesQueryAtom = atomWithQuery<Testcase[]>((get) => {
-    const queueId = get(activeQueueIdAtom)
-    const testcaseIds = get(scenarioTestcaseIdsAtom)
-
-    return {
-        queryKey: ["annotation-testcases-batch", queueId ?? "none", testcaseIds],
-        queryFn: async () => {
-            const projectId = getDefaultStore().get(projectIdAtom)
-            if (testcaseIds.length === 0) return []
-            if (!projectId) {
-                throw new Error("projectId not yet available")
-            }
-
-            const testcaseMap = await fetchTestcasesBatch({projectId, testcaseIds})
-            return testcaseIds
-                .map((testcaseId) => testcaseMap.get(testcaseId) ?? null)
-                .filter((testcase): testcase is Testcase => testcase !== null)
-        },
-        enabled: testcaseIds.length > 0,
-        retry: (failureCount: number, error: Error) => {
-            if (error?.message === "projectId not yet available" && failureCount < 5) {
-                return true
-            }
-            return false
-        },
-        retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
-        staleTime: 5 * 60_000,
-        refetchOnWindowFocus: false,
-    }
-})
-
-/**
  * Testcase input keys — discovered from all testcase data in the queue.
- * Used by the list view to build per-key columns for testcase-based queues.
- *
- * Reactively resolves: scenarioIds[] → testcaseIds[] → batched testcase fetch → union(Object.keys(data))
+ * Delegates to the generic evaluations list-column tier (which internally
+ * resolves the queue's testcase IDs + batch testcase data).
  */
-const testcaseInputKeysAtom = atom<string[]>((get) => {
-    const kind = get(queueKindAtom)
-    if (kind !== "testcases") return []
-
-    const query = get(scenarioTestcasesQueryAtom)
-    const testcases = query.data ?? []
-    if (testcases.length === 0) return []
-
-    const keys = new Set<string>()
-    for (const testcase of testcases) {
-        for (const key of Object.keys(testcase.data ?? {})) {
-            if (!TESTCASE_SYSTEM_KEYS.has(key)) {
-                keys.add(key)
-            }
-        }
-    }
-
-    return Array.from(keys)
-})
-
-// ============================================================================
-// COLUMN DISCOVERY HELPERS (for testcase-based queues)
-// ============================================================================
-
-/** System keys to exclude from testcase data columns (internal fields not for display) */
-const TESTCASE_SYSTEM_KEYS = new Set(["testcase_dedup_id", "__dedup_id__"])
-
-/** Keys to exclude from display in testcase columns */
-const EXCLUDE_KEYS = new Set([
-    "id",
-    "created_at",
-    "updated_at",
-    "created_by_id",
-    "updated_by_id",
-    "run_id",
-    "version",
-    "__isSkeleton",
-    "key",
-    "trace_id",
-    "span_id",
-    "status",
-    "interval",
-    "timestamp",
-])
-
-/** Keys that represent outputs */
-export const OUTPUT_KEYS = new Set(["output", "outputs", "result", "response", "completion"])
-
-/** Keys that represent expected/reference outputs */
-const EXPECTED_OUTPUT_KEYS = new Set([
-    "expected_output",
-    "expected",
-    "reference",
-    "reference_output",
-    "ground_truth",
-    "golden",
-    "target",
-    "correct_answer",
-])
-
-/** Keys that represent metadata (tags/meta) */
-const META_KEYS = new Set(["tags", "meta"])
-
-type TestcaseColumnGroup = "input" | "output" | "expected"
-
-function getAnnotationDisplayTitle(get: Getter, def: AnnotationColumnDef): string {
-    const evaluatorLookupId = def.evaluatorRevisionId ?? def.evaluatorId
-    const evaluator = evaluatorLookupId
-        ? get(workflowMolecule.selectors.data(evaluatorLookupId))
-        : null
-    return (
-        evaluator?.name?.trim() ||
-        def.evaluatorSlug?.trim() ||
-        evaluator?.slug?.trim() ||
-        def.columnName?.trim() ||
-        def.stepKey?.trim() ||
-        ""
-    )
-}
-
-function getAnnotationGroupKey(get: Getter, def: AnnotationColumnDef): string {
-    return (
-        def.evaluatorId?.trim() ||
-        def.evaluatorSlug?.trim() ||
-        getAnnotationDisplayTitle(get, def).trim().toLowerCase() ||
-        def.stepKey
-    )
-}
-
-function stripOutputPathPrefix(path: string): string {
-    for (const prefix of ["attributes.ag.data.outputs.", "data.outputs.", "outputs."]) {
-        if (path.startsWith(prefix)) {
-            return path.slice(prefix.length)
-        }
-    }
-    return path
-}
-
-function getAnnotationChildTitle(def: AnnotationColumnDef): string {
-    const path = def.path?.trim()
-    if (path) {
-        const stripped = stripOutputPathPrefix(path)
-        if (stripped && stripped !== path) return stripped
-
-        const leaf = stripped.split(".").filter(Boolean).at(-1)
-        if (leaf && leaf !== "outputs") return leaf
-    }
-
-    return def.columnName?.trim() || def.stepKey
-}
+const testcaseInputKeysAtom = evaluationsListColumns.testcaseInputKeys()
 
 /**
- * Analyze scenario records to discover dynamic testcase columns.
- * Returns column definitions grouped by input/output/expected.
+ * Output-key category set — re-exported from the generic evaluations list-column
+ * tier (canonical copy now lives there). Kept exported here so existing
+ * consumers (`@agenta/annotation`'s `OUTPUT_KEYS`) keep resolving.
  */
-function discoverTestcaseColumns(
-    scenarios: ScenarioRecord[],
-): {key: string; title: string; group: TestcaseColumnGroup}[] {
-    const seen = new Map<string, TestcaseColumnGroup>()
-
-    for (const scenario of scenarios) {
-        for (const key of Object.keys(scenario)) {
-            if (EXCLUDE_KEYS.has(key) || META_KEYS.has(key) || seen.has(key)) continue
-
-            let group: TestcaseColumnGroup = "input"
-            if (OUTPUT_KEYS.has(key)) group = "output"
-            else if (EXPECTED_OUTPUT_KEYS.has(key)) group = "expected"
-
-            seen.set(key, group)
-        }
-
-        // Also inspect `meta` for nested data fields
-        const meta = scenario.meta
-        if (meta && typeof meta === "object") {
-            for (const key of Object.keys(meta as Record<string, unknown>)) {
-                const prefixed = `meta.${key}`
-                if (seen.has(prefixed)) continue
-                if (["trace_id", "span_id"].includes(key)) continue
-
-                let group: TestcaseColumnGroup = "input"
-                if (OUTPUT_KEYS.has(key)) group = "output"
-                else if (EXPECTED_OUTPUT_KEYS.has(key)) group = "expected"
-
-                seen.set(prefixed, group)
-            }
-        }
-    }
-
-    return Array.from(seen.entries()).map(([key, group]) => ({
-        key,
-        title: key.startsWith("meta.") ? key.slice(5) : key,
-        group,
-    }))
-}
+export {OUTPUT_KEYS}
 
 // ============================================================================
 // DERIVED ATOM — Full list column definitions
@@ -677,214 +448,11 @@ function discoverTestcaseColumns(
 
 /**
  * Complete ordered list of column definitions for the scenario list table.
- * Combines: index + data columns (trace or testcase) + annotation columns + status + actions.
- *
- * The presentation layer maps each def to a renderer based on `columnType`.
+ * Delegates to the generic evaluations list-column tier, which reads the
+ * session engine's injected `kind` + context and the generic scenario-data
+ * selectors.
  */
-const listColumnDefsAtom = atom<ScenarioListColumnDef[]>((get) => {
-    const kind = get(queueKindAtom)
-    const inputKeys = get(traceInputKeysAtom)
-    const annotationDefs = get(annotationColumnDefsAtom)
-    const records = get(scenarioRecordsAtom)
-    // Note: if two annotation defs resolve to the same lowercase title, the later one wins.
-    // This is acceptable since duplicate evaluator names within a single run are uncommon.
-    const annotationColumnsByTitle = new Map(
-        annotationDefs
-            .map((def) => {
-                const title = getAnnotationDisplayTitle(get, def)
-                return title ? ([title.trim().toLowerCase(), def] as const) : null
-            })
-            .filter((entry): entry is readonly [string, AnnotationColumnDef] => entry !== null),
-    )
-    const mergedFallbackKeys = new Map<string, string>()
-
-    // Leading: index column
-    const leading: ScenarioListColumnDef[] = [
-        {columnType: "index", key: "__index", title: "#", width: 64, fixed: "left"},
-    ]
-
-    // Data columns depend on queue kind
-    let dataColumns: ScenarioListColumnDef[] = []
-
-    if (kind === "traces") {
-        // Trace-based: name + per-key inputs (or fallback) + outputs
-        const traceName: ScenarioListColumnDef = {
-            columnType: "trace-name",
-            key: "__trace_name",
-            title: "Trace",
-            width: 180,
-        }
-
-        const traceInputGroup: ScenarioListColumnDef = {
-            columnType: "trace-input-group",
-            key: "__trace_inputs",
-            title: "Inputs",
-            width: inputKeys.length > 1 ? 250 * inputKeys.length : 300,
-            inputKeys,
-        }
-
-        const traceOutput: ScenarioListColumnDef = {
-            columnType: "trace-output",
-            key: "__trace_outputs",
-            title: "Outputs",
-            width: 300,
-        }
-
-        dataColumns = [traceName, traceInputGroup, traceOutput]
-    } else {
-        // Testcase-based: discover columns from fetched testcase data keys
-        const testcaseKeys = get(testcaseInputKeysAtom)
-
-        if (testcaseKeys.length > 0) {
-            // Categorize keys using the same sets used for scenario records
-            const inputCols: string[] = []
-            const outputCols: string[] = []
-            const expectedCols: string[] = []
-
-            for (const key of testcaseKeys) {
-                const normalizedKey = key.trim().toLowerCase()
-                if (annotationColumnsByTitle.has(normalizedKey)) {
-                    mergedFallbackKeys.set(normalizedKey, key)
-                    continue
-                }
-                if (OUTPUT_KEYS.has(key)) outputCols.push(key)
-                else if (EXPECTED_OUTPUT_KEYS.has(key)) expectedCols.push(key)
-                else inputCols.push(key)
-            }
-
-            dataColumns = [
-                ...inputCols.map(
-                    (key): ScenarioListColumnDef => ({
-                        columnType: "testcase-input",
-                        key,
-                        title: key,
-                        width: 200,
-                        dataKey: key,
-                    }),
-                ),
-                ...outputCols.map(
-                    (key): ScenarioListColumnDef => ({
-                        columnType: "testcase-output",
-                        key,
-                        title: key,
-                        width: 200,
-                        dataKey: key,
-                    }),
-                ),
-                ...expectedCols.map(
-                    (key): ScenarioListColumnDef => ({
-                        columnType: "testcase-expected",
-                        key,
-                        title: key,
-                        width: 200,
-                        dataKey: key,
-                    }),
-                ),
-            ]
-        } else {
-            // Fallback: discover from scenario records (works if data is inline)
-            const discovered = discoverTestcaseColumns(records).filter((col) => {
-                const normalizedTitle = col.title.trim().toLowerCase()
-                if (annotationColumnsByTitle.has(normalizedTitle)) {
-                    mergedFallbackKeys.set(normalizedTitle, col.key)
-                    return false
-                }
-                return true
-            })
-            const inputColsF = discovered.filter((c) => c.group === "input")
-            const outputColsF = discovered.filter((c) => c.group === "output")
-            const expectedColsF = discovered.filter((c) => c.group === "expected")
-
-            dataColumns = [
-                ...inputColsF.map(
-                    (col): ScenarioListColumnDef => ({
-                        columnType: "testcase-input",
-                        key: col.key,
-                        title: col.title,
-                        width: 200,
-                        dataKey: col.key,
-                    }),
-                ),
-                ...outputColsF.map(
-                    (col): ScenarioListColumnDef => ({
-                        columnType: "testcase-output",
-                        key: col.key,
-                        title: col.title,
-                        width: 200,
-                        dataKey: col.key,
-                    }),
-                ),
-                ...expectedColsF.map(
-                    (col): ScenarioListColumnDef => ({
-                        columnType: "testcase-expected",
-                        key: col.key,
-                        title: col.title,
-                        width: 200,
-                        dataKey: col.key,
-                    }),
-                ),
-            ]
-        }
-    }
-
-    // Annotation columns — group mapping columns under their evaluator parent.
-    const annotationGroups = new Map<
-        string,
-        {title: string; defs: AnnotationColumnDef[]; fallbackDataKey: string | null}
-    >()
-    for (const def of annotationDefs) {
-        const displayTitle = getAnnotationDisplayTitle(get, def)
-        const groupKey = getAnnotationGroupKey(get, def)
-        const existing = annotationGroups.get(groupKey)
-
-        if (existing) {
-            existing.defs.push(def)
-            continue
-        }
-
-        annotationGroups.set(groupKey, {
-            title: displayTitle || def.columnName || def.evaluatorSlug || def.stepKey,
-            defs: [def],
-            fallbackDataKey: mergedFallbackKeys.get(displayTitle.trim().toLowerCase()) ?? null,
-        })
-    }
-
-    const annotationColumns: ScenarioListColumnDef[] = Array.from(annotationGroups.entries()).map(
-        ([groupKey, group]) => {
-            const childTitleCounts = new Map<string, number>()
-            const outputColumns = group.defs.map((def) => {
-                const title = getAnnotationChildTitle(def)
-                const count = childTitleCounts.get(title) ?? 0
-                childTitleCounts.set(title, count + 1)
-
-                return {
-                    key: `__annot_${groupKey}_${title}_${count}`,
-                    title,
-                    annotationDef: def,
-                }
-            })
-
-            return {
-                columnType: "annotation" as const,
-                key: `__annot_${groupKey}`,
-                title: group.title,
-                width: 150 * Math.max(outputColumns.length, 1),
-                annotationDef: group.defs[0],
-                outputKeys: outputColumns.map((column) => column.title),
-                outputColumns,
-                fallbackDataKey: group.fallbackDataKey,
-            }
-        },
-    )
-
-    // Trailing: review status + actions
-    const trailing: ScenarioListColumnDef[] = [
-        {columnType: "status", key: "__status", title: "Review Status", width: 120},
-        {columnType: "actions", key: "__actions", title: "", width: 48},
-    ]
-
-    return [...leading, ...dataColumns, ...annotationColumns, ...trailing]
-})
+const listColumnDefsAtom = evaluationsListColumns.listColumnDefs()
 
 // ============================================================================
 // DERIVED ATOMS — Per-task (keyed by scenarioId)
@@ -1592,6 +1160,10 @@ const openQueueAtom = atom(null, (get, set, payload: OpenQueuePayload) => {
     set(sessionEngine.actions.setScenarioSource, {
         scenarios: simpleQueueMolecule.selectors.scenarios(queueId),
         query: simpleQueueMolecule.selectors.scenariosQuery(queueId) as never,
+        // Inject the queue kind ("traces" | "testcases") reactively so the engine's
+        // list-column tier shapes trace- vs testcase-based columns. The engine reads
+        // through this atom ref, so kind changes flow in with no effects.
+        kind: queueKindAtom,
     })
 
     // Notify callback

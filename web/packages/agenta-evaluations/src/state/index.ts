@@ -13,3 +13,10 @@ export * from "./session"
  * session reads, no `@agenta/annotation` dependency.
  */
 export * from "./scenarioData"
+
+/**
+ * Session-scoped list-column tier. Reads the session engine's injected scenario
+ * `kind` + `{projectId, runId}` context to build trace- vs testcase-shaped
+ * scenario-list columns. Zero-arg atom getters (like the engine selectors).
+ */
+export * from "./listColumns"
