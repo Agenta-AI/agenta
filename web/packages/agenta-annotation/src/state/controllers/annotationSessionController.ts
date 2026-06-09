@@ -46,7 +46,7 @@ import {
 import type {QueueType} from "@agenta/entities/queue"
 import {registerQueueTypeHint, clearQueueTypeHint} from "@agenta/entities/queue"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
-import {fetchTestcase, fetchTestcasesBatch, SYSTEM_FIELDS} from "@agenta/entities/testcase"
+import {fetchTestcasesBatch, SYSTEM_FIELDS} from "@agenta/entities/testcase"
 import type {Testcase} from "@agenta/entities/testcase"
 import {
     createTestset,
@@ -67,6 +67,10 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {
     evaluationSessionController as sessionEngine,
     registerSessionCallbacks as registerEngineCallbacks,
+    scenarioDataSelectors,
+    resolveMetricValue,
+    resolveMetricStats,
+    type ScenarioMetricData,
 } from "@agenta/evaluations/state"
 import {axios, getAgentaApiUrl, queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -323,7 +327,7 @@ const evaluatorIdsAtom = atom<string[]>((get) => {
     const runId = get(activeRunIdAtom)
     const projectId = get(projectIdAtom)
     if (!runId || !projectId) return []
-    return get(evaluationRunMolecule.selectors.evaluatorIds({projectId, runId}))
+    return get(scenarioDataSelectors.evaluatorIds({projectId, runId}))
 })
 
 /**
@@ -335,7 +339,7 @@ const evaluatorRevisionIdsAtom = atom<string[]>((get) => {
     const runId = get(activeRunIdAtom)
     const projectId = get(projectIdAtom)
     if (!runId || !projectId) return []
-    return get(evaluationRunMolecule.selectors.evaluatorRevisionIds({projectId, runId}))
+    return get(scenarioDataSelectors.evaluatorRevisionIds({projectId, runId}))
 })
 
 function deriveEvaluatorSlugFromStepKey(stepKey: string | null | undefined): string | null {
@@ -353,23 +357,7 @@ const evaluatorStepRefsAtom = atom<EvaluatorStepRef[]>((get) => {
     const runId = get(activeRunIdAtom)
     const projectId = get(projectIdAtom)
     if (!runId || !projectId) return []
-
-    const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps({projectId, runId}))
-
-    return annotationSteps
-        .map((step) => ({
-            workflowId: step.references?.evaluator?.id ?? null,
-            variantId: step.references?.evaluator_variant?.id ?? null,
-            revisionId: step.references?.evaluator_revision?.id ?? null,
-            slug:
-                step.references?.evaluator?.slug ??
-                step.references?.evaluator_variant?.slug ??
-                deriveEvaluatorSlugFromStepKey(step.key) ??
-                step.references?.evaluator_revision?.slug ??
-                null,
-            stepKey: step.key ?? null,
-        }))
-        .filter((ref) => Boolean(ref.workflowId || ref.revisionId || ref.slug))
+    return get(scenarioDataSelectors.evaluatorStepRefs({projectId, runId}))
 })
 
 /** Evaluator metadata for queue-scoped testcase sync. */
@@ -415,7 +403,7 @@ const annotationColumnDefsAtom = atom<AnnotationColumnDef[]>((get) => {
     const projectId = get(projectIdAtom)
     if (!runId || !projectId) return []
     return get(
-        evaluationRunMolecule.selectors.annotationColumnDefs({projectId, runId}),
+        scenarioDataSelectors.evaluatorColumnDefs({projectId, runId}),
     ) as AnnotationColumnDef[]
 })
 
@@ -460,19 +448,9 @@ const traceInputKeysAtom = atom<string[]>((get) => {
  * Used by list view cell renderers and testcase key discovery.
  */
 const testcaseDataAtomFamily = atomFamily((testcaseId: string) =>
-    atomWithQuery<Testcase | null>((get) => {
+    atom((get) => {
         const projectId = get(projectIdAtom)
-
-        return {
-            queryKey: ["annotation-testcase", projectId, testcaseId],
-            queryFn: async () => {
-                if (!projectId || !testcaseId) return null
-                return fetchTestcase({projectId, testcaseId})
-            },
-            enabled: !!projectId && !!testcaseId,
-            staleTime: 5 * 60_000,
-            refetchOnWindowFocus: false,
-        }
+        return get(scenarioDataSelectors.testcaseData({projectId: projectId ?? "", testcaseId}))
     }),
 )
 
@@ -921,7 +899,7 @@ const scenarioStepsQueryStateAtomFamily = atomFamily((scenarioId: string) =>
         const runId = get(activeRunIdAtom)
         const projectId = get(projectIdAtom)
         if (!runId || !scenarioId || !projectId) return null
-        return get(evaluationRunMolecule.selectors.scenarioSteps({projectId, runId, scenarioId}))
+        return get(scenarioDataSelectors.scenarioSteps({projectId, runId, scenarioId}))
     }),
 )
 
@@ -938,9 +916,7 @@ const scenarioTraceRefAtomFamily = atomFamily((scenarioId: string) =>
         const projectId = get(projectIdAtom)
         if (!runId || !scenarioId || !projectId) return directRef
 
-        const stepRef = get(
-            evaluationRunMolecule.selectors.scenarioTraceRef({projectId, runId, scenarioId}),
-        )
+        const stepRef = get(scenarioDataSelectors.scenarioTraceRef({projectId, runId, scenarioId}))
         if (stepRef.traceId) return stepRef
 
         return directRef
@@ -961,7 +937,7 @@ const scenarioTestcaseRefAtomFamily = atomFamily((scenarioId: string) =>
         if (!runId || !scenarioId || !projectId) return directRef
 
         const stepRef = get(
-            evaluationRunMolecule.selectors.scenarioTestcaseRef({projectId, runId, scenarioId}),
+            scenarioDataSelectors.scenarioTestcaseRef({projectId, runId, scenarioId}),
         )
         if (stepRef.testcaseId) return stepRef
 
@@ -1250,238 +1226,21 @@ const scenarioAnnotationsQueryStateAtomFamily = atomFamily((scenarioId: string) 
 // ============================================================================
 
 /**
- * Metrics data for a single scenario, fetched from
- * `POST /evaluations/metrics/query`.
- *
- * `raw`  — nested metric data as returned by the API (merged across entries).
- * `flat` — flattened key→value map for easy column lookup.
- */
-export interface ScenarioMetricData {
-    raw: Record<string, unknown>
-    flat: Record<string, unknown>
-    /** Full metric stats objects keyed the same as `flat`, for distribution rendering */
-    stats: Record<string, Record<string, unknown>>
-}
-
-/** Deep-merge two plain objects (arrays and primitives are overwritten). */
-function mergeDeep(
-    target: Record<string, unknown>,
-    source: Record<string, unknown>,
-): Record<string, unknown> {
-    const output: Record<string, unknown> = {...target}
-    for (const [key, value] of Object.entries(source ?? {})) {
-        if (
-            value &&
-            typeof value === "object" &&
-            !Array.isArray(value) &&
-            typeof output[key] === "object" &&
-            output[key] !== null &&
-            !Array.isArray(output[key])
-        ) {
-            output[key] = mergeDeep(
-                output[key] as Record<string, unknown>,
-                value as Record<string, unknown>,
-            )
-        } else {
-            output[key] = value
-        }
-    }
-    return output
-}
-
-/**
- * Check if an object is a metric data shape (has a `type` field like "binary",
- * "categorical/multiple", "string", "continuous").
- * These are leaf metric objects that should be resolved to a display value.
- */
-function isMetricDataObject(v: Record<string, unknown>): boolean {
-    return (
-        typeof v.type === "string" &&
-        ["binary", "categorical/multiple", "categorical/single", "string", "continuous"].includes(
-            v.type as string,
-        )
-    )
-}
-
-/**
- * Extract a display value from a metric data object.
- * - binary: returns the boolean value of the dominant frequency entry
- * - categorical: returns the array of unique values
- * - continuous: returns the mean or first freq value
- * - string: returns the count or freq values
- */
-function extractMetricDisplayValue(v: Record<string, unknown>): unknown {
-    const type = v.type as string
-    const freq = Array.isArray(v.freq) ? v.freq : []
-
-    if (type === "binary") {
-        // Find the freq entry with count > 0
-        const active = freq.find(
-            (f: Record<string, unknown>) => typeof f.count === "number" && f.count > 0,
-        )
-        return active?.value ?? null
-    }
-    if (type === "categorical/multiple" || type === "categorical/single") {
-        // Return array of values with count > 0
-        const activeValues = freq
-            .filter((f: Record<string, unknown>) => typeof f.count === "number" && f.count > 0)
-            .map((f: Record<string, unknown>) => f.value)
-        return activeValues.length > 0 ? activeValues : (v.uniq ?? null)
-    }
-    if (type === "continuous") {
-        if (typeof v.mean === "number") return v.mean
-        const active = freq.find(
-            (f: Record<string, unknown>) => typeof f.count === "number" && f.count > 0,
-        )
-        return active?.value ?? null
-    }
-    if (type === "string") {
-        if (freq.length > 0) {
-            const active = freq.find(
-                (f: Record<string, unknown>) => typeof f.count === "number" && f.count > 0,
-            )
-            return active?.value ?? null
-        }
-        return v.count ?? null
-    }
-    return null
-}
-
-/** Flatten nested metric data to dot-notation keys for easy lookup. */
-function flattenMetrics(raw: Record<string, unknown>): {
-    flat: Record<string, unknown>
-    stats: Record<string, Record<string, unknown>>
-} {
-    const flat: Record<string, unknown> = {}
-    const stats: Record<string, Record<string, unknown>> = {}
-
-    const storeKeys = (
-        fullKey: string,
-        prefix: string,
-        key: string,
-        displayValue: unknown,
-        statsObj: Record<string, unknown> | null,
-    ) => {
-        flat[fullKey] = displayValue
-        if (statsObj) stats[fullKey] = statsObj
-
-        // Stripped prefix: "query-direct.slug.attributes.ag.data.outputs.isAwesome" → "isAwesome"
-        const outputMatch = fullKey.match(
-            /(?:attributes\.ag\.data\.outputs\.|data\.outputs\.|outputs\.)(.+)$/,
-        )
-        if (outputMatch) {
-            const outputKey = outputMatch[1]
-            if (flat[outputKey] === undefined) {
-                flat[outputKey] = displayValue
-                if (statsObj) stats[outputKey] = statsObj
-            }
-        }
-        if (prefix && flat[key] === undefined) {
-            flat[key] = displayValue
-            if (statsObj) stats[key] = statsObj
-        }
-    }
-
-    const walk = (obj: Record<string, unknown>, prefix: string) => {
-        for (const [key, value] of Object.entries(obj)) {
-            const fullKey = prefix ? `${prefix}.${key}` : key
-
-            if (value && typeof value === "object" && !Array.isArray(value)) {
-                const v = value as Record<string, unknown>
-
-                // Check if it's a metric data shape — extract display value + keep stats
-                if (isMetricDataObject(v)) {
-                    const displayValue = extractMetricDisplayValue(v)
-                    storeKeys(fullKey, prefix, key, displayValue, v)
-                    continue
-                }
-
-                // Check if it's a stats object with a scalar value
-                if (typeof v.mean === "number") {
-                    flat[fullKey] = v.mean
-                    stats[fullKey] = v
-                } else if (typeof v.sum === "number") {
-                    flat[fullKey] = v.sum
-                    stats[fullKey] = v
-                }
-                // Recurse into nested objects
-                walk(v, fullKey)
-            } else {
-                flat[fullKey] = value
-            }
-
-            // Also store unprefixed key for easier lookup
-            if (prefix && flat[key] === undefined) {
-                if (value && typeof value === "object" && !Array.isArray(value)) {
-                    const v = value as Record<string, unknown>
-                    if (typeof v.mean === "number") {
-                        flat[key] = v.mean
-                        stats[key] = v
-                    } else if (typeof v.sum === "number") {
-                        flat[key] = v.sum
-                        stats[key] = v
-                    }
-                } else {
-                    flat[key] = value
-                }
-            }
-        }
-    }
-
-    walk(raw, "")
-    return {flat, stats}
-}
-
-/**
- * Per-scenario metrics query — fetches from `POST /evaluations/metrics/query`.
- *
- * Annotation queues ARE evaluation runs, so each scenario has metrics
- * produced by evaluator steps. This is the same endpoint used by
- * EvalRunDetails but scoped to the annotation session's run + scenario.
+ * Per-scenario metrics query — delegates to the evaluations engine's generic
+ * metrics query family. Yields the same TanStack query object so existing
+ * consumers (which read `.data`/`.refetch`) keep working.
  */
 const scenarioMetricsQueryAtomFamily = atomFamily((scenarioId: string) =>
-    atomWithQuery<ScenarioMetricData | null>((get) => {
+    atom((get) => {
         const runId = get(activeRunIdAtom)
         const projectId = get(projectIdAtom)
-
-        return {
-            queryKey: ["annotation-session", "scenario-metrics", projectId, runId, scenarioId],
-            queryFn: async (): Promise<ScenarioMetricData | null> => {
-                if (!projectId || !runId || !scenarioId) return null
-
-                const response = await axios.post(
-                    `/evaluations/metrics/query`,
-                    {
-                        metrics: {
-                            scenario_ids: [scenarioId],
-                        },
-                    },
-                    {params: {project_id: projectId}},
-                )
-
-                const rawMetrics = Array.isArray(response.data?.metrics)
-                    ? response.data.metrics
-                    : []
-
-                if (rawMetrics.length === 0) return null
-
-                // Merge all metric entries for this scenario
-                let merged: Record<string, unknown> = {}
-                for (const entry of rawMetrics) {
-                    const data = entry.data ?? entry
-                    if (data && typeof data === "object") {
-                        merged = mergeDeep(merged, data as Record<string, unknown>)
-                    }
-                }
-
-                const {flat, stats} = flattenMetrics(merged)
-                return {raw: merged, flat, stats}
-            },
-            enabled: Boolean(projectId && runId && scenarioId),
-            staleTime: 30_000,
-            gcTime: 5 * 60_000,
-            refetchOnWindowFocus: false,
-        }
+        return get(
+            scenarioDataSelectors.scenarioMetricsQuery({
+                projectId: projectId ?? "",
+                runId: runId ?? "",
+                scenarioId,
+            }),
+        )
     }),
 )
 
@@ -1491,125 +1250,12 @@ const scenarioMetricsQueryAtomFamily = atomFamily((scenarioId: string) =>
  */
 const scenarioMetricsAtomFamily = atomFamily((scenarioId: string) =>
     atom<ScenarioMetricData | null>((get) => {
-        if (!scenarioId) return null
-        const query = get(scenarioMetricsQueryAtomFamily(scenarioId))
-        return query.data ?? null
+        const runId = get(activeRunIdAtom)
+        const projectId = get(projectIdAtom)
+        if (!runId || !projectId || !scenarioId) return null
+        return get(scenarioDataSelectors.scenarioMetrics({projectId, runId, scenarioId}))
     }),
 )
-
-/**
- * Resolve a metric value for a specific scenario + evaluator step.
- *
- * Looks up the value from the flattened metrics map using multiple
- * candidate keys (stepKey-prefixed, evaluatorSlug-prefixed, and plain path).
- */
-function resolveMetricValue(
-    metrics: ScenarioMetricData | null,
-    path: string | null | undefined,
-    stepKey: string | null | undefined,
-    evaluatorSlug: string | null | undefined,
-): unknown {
-    if (!metrics || !path) return undefined
-
-    const flat = metrics.flat
-    if (!flat || Object.keys(flat).length === 0) return undefined
-
-    // Strip common prefixes from path
-    let cleanPath = path
-    for (const prefix of ["attributes.ag.data.outputs.", "data.outputs.", "outputs."]) {
-        if (cleanPath.startsWith(prefix)) {
-            cleanPath = cleanPath.slice(prefix.length)
-            break
-        }
-    }
-
-    // Build candidate keys in priority order
-    const candidates: string[] = []
-
-    // Step-prefixed candidates (most specific)
-    if (stepKey) {
-        candidates.push(`${stepKey}.${cleanPath}`)
-        candidates.push(`${stepKey}.${path}`)
-    }
-
-    // Evaluator-slug-prefixed candidates
-    if (evaluatorSlug) {
-        candidates.push(`${evaluatorSlug}.${cleanPath}`)
-        candidates.push(`${evaluatorSlug}.${path}`)
-    }
-
-    // Plain path candidates
-    candidates.push(cleanPath)
-    candidates.push(path)
-
-    // Direct lookup
-    for (const key of candidates) {
-        if (Object.prototype.hasOwnProperty.call(flat, key)) {
-            return flat[key]
-        }
-    }
-
-    // Suffix match — find any key ending with the path
-    for (const suffix of [`.${cleanPath}`, `.${path}`]) {
-        const matchKey = Object.keys(flat).find((k) => k.endsWith(suffix))
-        if (matchKey !== undefined) {
-            return flat[matchKey]
-        }
-    }
-
-    return undefined
-}
-
-/**
- * Resolve the full stats object for a metric (for distribution bar rendering).
- * Uses the same candidate-key logic as resolveMetricValue but reads from `stats` map.
- */
-function resolveMetricStats(
-    metrics: ScenarioMetricData | null,
-    path: string | null | undefined,
-    stepKey: string | null | undefined,
-    evaluatorSlug: string | null | undefined,
-): Record<string, unknown> | undefined {
-    if (!metrics || !path) return undefined
-
-    const statsMap = metrics.stats
-    if (!statsMap || Object.keys(statsMap).length === 0) return undefined
-
-    let cleanPath = path
-    for (const prefix of ["attributes.ag.data.outputs.", "data.outputs.", "outputs."]) {
-        if (cleanPath.startsWith(prefix)) {
-            cleanPath = cleanPath.slice(prefix.length)
-            break
-        }
-    }
-
-    const candidates: string[] = []
-    if (stepKey) {
-        candidates.push(`${stepKey}.${cleanPath}`)
-        candidates.push(`${stepKey}.${path}`)
-    }
-    if (evaluatorSlug) {
-        candidates.push(`${evaluatorSlug}.${cleanPath}`)
-        candidates.push(`${evaluatorSlug}.${path}`)
-    }
-    candidates.push(cleanPath)
-    candidates.push(path)
-
-    for (const key of candidates) {
-        if (Object.prototype.hasOwnProperty.call(statsMap, key)) {
-            return statsMap[key]
-        }
-    }
-
-    for (const suffix of [`.${cleanPath}`, `.${path}`]) {
-        const matchKey = Object.keys(statsMap).find((k) => k.endsWith(suffix))
-        if (matchKey !== undefined) {
-            return statsMap[matchKey]
-        }
-    }
-
-    return undefined
-}
 
 // ============================================================================
 // COMPOUND SELECTORS (convenience accessors for common composite patterns)

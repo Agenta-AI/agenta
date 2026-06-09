@@ -67,6 +67,13 @@ const imperativeScenariosQueryAtom = atom<SessionScenariosQueryState>({
     data: null,
 })
 
+// Scenario-source KIND injection — the consumer's notion of what its scenarios are backed by
+// ("traces" | "testcases" for annotation queues; the eval-run view injects its own). The engine
+// stays source-agnostic: it never reads `simpleQueueMolecule`/`queueKind`. List-column
+// derivations read this injected value to decide trace- vs testcase-shaped columns.
+const scenarioKindSourceAtom = atom<Atom<string | null> | null>(null)
+const imperativeScenarioKindAtom = atom<string | null>(null)
+
 /** Effective scenario list — reactive source if injected, else the imperative value. */
 const sessionScenariosAtom = atom<SessionScenario[]>((get) => {
     const src = get(scenariosSourceAtom)
@@ -77,6 +84,12 @@ const sessionScenariosAtom = atom<SessionScenario[]>((get) => {
 const sessionScenariosQueryAtom = atom<SessionScenariosQueryState>((get) => {
     const src = get(scenariosQuerySourceAtom)
     return src ? get(src) : get(imperativeScenariosQueryAtom)
+})
+
+/** Effective injected scenario-source kind — reactive source if injected, else imperative. */
+const sessionScenarioKindAtom = atom<string | null>((get) => {
+    const src = get(scenarioKindSourceAtom)
+    return src ? get(src) : get(imperativeScenarioKindAtom)
 })
 
 /** Requested/focused scenario ID from route or navigation state */
@@ -353,19 +366,30 @@ const setScenarioSourceAtom = atom(
         payload: {
             scenarios: Atom<SessionScenario[]> | null
             query?: Atom<SessionScenariosQueryState> | null
+            kind?: Atom<string | null> | null
         },
     ) => {
         set(scenariosSourceAtom, payload.scenarios)
         set(scenariosQuerySourceAtom, payload.query ?? null)
+        if (payload.kind !== undefined) set(scenarioKindSourceAtom, payload.kind)
     },
 )
 
 /** Inject a STATIC scenario list (tests / non-atom sources). Reactive source wins if set. */
 const setScenariosAtom = atom(
     null,
-    (_get, set, payload: {scenarios: SessionScenario[]; query?: SessionScenariosQueryState}) => {
+    (
+        _get,
+        set,
+        payload: {
+            scenarios: SessionScenario[]
+            query?: SessionScenariosQueryState
+            kind?: string | null
+        },
+    ) => {
         set(imperativeScenariosAtom, payload.scenarios)
         if (payload.query) set(imperativeScenariosQueryAtom, payload.query)
+        if (payload.kind !== undefined) set(imperativeScenarioKindAtom, payload.kind)
     },
 )
 
@@ -528,8 +552,10 @@ const closeSessionAtom = atom(null, (_get, set) => {
     set(sessionContextAtom, null)
     set(scenariosSourceAtom, null)
     set(scenariosQuerySourceAtom, null)
+    set(scenarioKindSourceAtom, null)
     set(imperativeScenariosAtom, [])
     set(imperativeScenariosQueryAtom, {isPending: false, isError: false, data: null})
+    set(imperativeScenarioKindAtom, null)
     set(focusedScenarioIdAtom, null)
     set(completedScenarioIdsAtom, new Set())
     set(scenarioOrderAtom, [])
@@ -551,6 +577,8 @@ export const evaluationSessionController = {
         scenarioRecords: () => scenarioRecordsAtom,
         scenarioIds: () => scenarioIdsAtom,
         scenariosQuery: () => scenariosQueryAtom,
+        /** Injected scenario-source kind ("traces" | "testcases" | null) — list-column shaping. */
+        scenarioKind: () => sessionScenarioKindAtom,
         navigableScenarioIds: () => navigableScenarioIdsAtom,
         currentScenarioId: () => currentScenarioIdAtom,
         currentScenarioIndex: () => currentScenarioIndexAtom,
