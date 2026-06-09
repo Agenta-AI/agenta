@@ -47,6 +47,16 @@ function isQueueVisible(queue: SimpleQueue): boolean {
     return true
 }
 
+/**
+ * Sort newest-first by `created_at`. The backend pages by UUID7 `id` (insert
+ * order), which normally tracks `created_at` — but they diverge when rows carry
+ * an explicit `created_at` (seeded/imported data), so we sort on the timestamp
+ * the table actually displays. ISO-8601 strings sort lexically = chronologically.
+ */
+function byCreatedAtDesc(a: SimpleQueue, b: SimpleQueue): number {
+    return (b.created_at ?? "").localeCompare(a.created_at ?? "")
+}
+
 // ============================================================================
 // TABLE ROW TYPE
 // ============================================================================
@@ -143,7 +153,7 @@ export const simpleQueuePaginatedStore = createPaginatedEntityStore<
         })
 
         return {
-            rows: response.queues.filter(isQueueVisible),
+            rows: response.queues.filter(isQueueVisible).sort(byCreatedAtDesc),
             totalCount: null,
             hasMore: !!response.windowing?.next,
             nextCursor: response.windowing?.next ?? null,
