@@ -20,7 +20,8 @@
     "exports": {
         ".": "./src/index.ts",
         "./core": "./src/core/index.ts",
-        "./controllers": "./src/controllers/index.ts"
+        "./controllers": "./src/controllers/index.ts",
+        "./state": "./src/state/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
