@@ -726,6 +726,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../agenta-entity-ui
         version: link:../agenta-entity-ui
+      '@agenta/evaluations-ui':
+        specifier: workspace:../agenta-evaluations-ui
+        version: link:../agenta-evaluations-ui
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared

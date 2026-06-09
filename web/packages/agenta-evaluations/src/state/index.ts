@@ -28,3 +28,10 @@ export * from "./listColumns"
  * take a jotai `Getter` from the consumer's store.
  */
 export * from "./metricSchema"
+
+/**
+ * Generic paginated run-list store for evaluation runs. Source-agnostic, keyed
+ * by `{projectId}` + filter atoms (status / kind / search). Renders every
+ * matching run — no queue-specific display filter.
+ */
+export * from "./runList"
