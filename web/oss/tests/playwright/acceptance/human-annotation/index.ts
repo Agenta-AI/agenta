@@ -16,6 +16,7 @@ import {
     test as baseHumanTest,
     goToHumanEvaluations,
     navigateToHumanRunResults,
+    seedHumanInvocationResult,
 } from "./tests"
 
 const INLINE_EVALUATOR_METRIC_NAME = "isTestWorking"
@@ -350,6 +351,21 @@ const humanAnnotationTests = () => {
             const secondScenarioRowKey = await secondScenarioRow.getAttribute("data-row-key")
             const secondScenarioId = getScenarioIdFromRowKey(secondScenarioRowKey)
             expect(secondScenarioId).toBeTruthy()
+
+            // Pre-seed the invocation result for scenario2 before navigating.
+            // The component auto-runs the LLM for any scenario without output, so without
+            // pre-seeding, waitForHumanAnnotationForm waits for the LLM to respond (up to 90s).
+            // Seeding here ensures hasInvocationTrace=true when the component mounts, which
+            // skips auto-run entirely and lets the annotation form appear immediately.
+            const currentRunId = new URL(page.url()).pathname.match(
+                /\/evaluations\/results\/([^/]+)/,
+            )?.[1]
+            if (currentRunId && secondScenarioId) {
+                await seedHumanInvocationResult(page, {
+                    runId: currentRunId,
+                    scenarioId: secondScenarioId as string,
+                })
+            }
 
             const scenario2Url = new URL(page.url())
             scenario2Url.searchParams.set("scenarioId", secondScenarioId as string)

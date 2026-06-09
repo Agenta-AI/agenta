@@ -268,8 +268,11 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                     'xpath=ancestor::div[contains(@class, "agenta-shared-editor")]',
                 )
 
-                // Click the role button and select the new role
+                // Click the role button and select the new role.
+                // The role button may be transiently disabled while isChatModeAtom resolves
+                // from undefined (loading) to false (completion mode). Wait for it to enable.
                 const roleButton = editorContainer.getByRole("button").first()
+                await expect(roleButton).toBeEnabled({timeout: 20000})
                 await roleButton.click()
 
                 // Wait for the dropdown to render and become stable, then click the menu item

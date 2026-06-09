@@ -281,10 +281,37 @@ async function openMockProviderDrawer(page: Page): Promise<Locator> {
 async function chooseCustomProvider(drawer: Locator, page: Page): Promise<void> {
     const providerSelect = drawer.locator(".ant-select").first()
     await expect(providerSelect).toBeVisible({timeout: 15000})
-    await providerSelect.click()
+    await providerSelect.scrollIntoViewIfNeeded()
 
     const options = page.locator(".ant-select-item-option")
-    await expect(options.first()).toBeVisible({timeout: 15000})
+
+    // Retry opening the dropdown — the select can transiently detach during the drawer's
+    // initial render cycle (Ant Design re-mounts form controls after the slide animation).
+    await expect
+        .poll(
+            async () => {
+                if (
+                    await options
+                        .first()
+                        .isVisible()
+                        .catch(() => false)
+                ) {
+                    return true
+                }
+                if (!(await providerSelect.isVisible().catch(() => false))) return false
+                try {
+                    await providerSelect.click()
+                } catch {
+                    return false
+                }
+                return await options
+                    .first()
+                    .isVisible({timeout: 3000})
+                    .catch(() => false)
+            },
+            {timeout: 30000},
+        )
+        .toBe(true)
 
     const optionTexts = (await options.allTextContents()).map((value) => value.trim())
     const customProviderIndex = optionTexts.findIndex((value) => value === "Custom Provider")
