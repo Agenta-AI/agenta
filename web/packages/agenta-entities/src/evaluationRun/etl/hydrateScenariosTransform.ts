@@ -10,7 +10,7 @@
  *   - results   (one per `step_key`):   POST /evaluations/results/query
  *   - metrics   (per-scenario scores):  POST /evaluations/metrics/query
  *   - testcases (input data):           POST /testcases/query
- *   - traces    (app outputs/spans):    POST /tracing/spans/query
+ *   - traces    (app outputs/spans):    POST /traces/query (Fern queryTraces)
  *                                       (filter: trace_id IN [...])
  *
  * This factory returns a `Transform<EvaluationScenario, HydratedScenarioRow>`

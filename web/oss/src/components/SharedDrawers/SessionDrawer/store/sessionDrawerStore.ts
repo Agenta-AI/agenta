@@ -1,4 +1,6 @@
 import {
+    fetchAllPreviewTraces,
+    fetchPreviewTrace,
     isSpansResponse,
     isTracesResponse,
     transformTracesResponseToTree,
@@ -16,7 +18,6 @@ import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {getNodeById, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {queryAllAnnotations} from "@/oss/services/annotations/api"
 import {AgentaTreeDTO, TracesWithAnnotations} from "@/oss/services/observability/types"
-import {fetchAllPreviewTraces, fetchPreviewTrace} from "@/oss/services/tracing/api"
 import {SpanLink, TraceSpanNode, TracesResponse} from "@/oss/services/tracing/types"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {getOrgValues} from "@/oss/state/org"
@@ -122,7 +123,7 @@ export const sessionTracesQueryAtom = atomWithQuery((get) => {
         queryKey: ["session-traces", projectId, appId, sessionId],
         queryFn: async () => {
             if (!sessionId) return {traces: [], count: 0}
-            return fetchAllPreviewTraces(params, appId as string)
+            return fetchAllPreviewTraces(params, appId as string, projectId ?? "")
         },
         enabled: sessionExists && Boolean(appId || projectId) && Boolean(sessionId),
         refetchOnWindowFocus: false,
@@ -391,9 +392,10 @@ export const sessionDrawerAnnotationLinkTracesQueryAtom = atomWithQuery<
     Record<string, TracesWithAnnotations[]>
 >((get) => {
     const targets = get(sessionDrawerAnnotationLinkTargetsAtom)
+    const projectId = get(projectIdAtom)
 
     return {
-        queryKey: ["session-drawer-annotation-links", targets],
+        queryKey: ["session-drawer-annotation-links", targets, projectId ?? "none"],
         enabled: Array.isArray(targets) && targets.length > 0,
         refetchOnWindowFocus: false,
         queryFn: async () => {
@@ -402,7 +404,9 @@ export const sessionDrawerAnnotationLinkTracesQueryAtom = atomWithQuery<
 
             const traceResponses = await Promise.all(
                 uniqueTraceIds.map(async (traceId) => {
-                    const response = await fetchPreviewTrace(traceId)
+                    // `any`: see traceDrawerStore — loose to match the runtime
+                    // multi-shape handling until AGE-3788 Phase 7 unifies FE types.
+                    const response: any = await fetchPreviewTrace(traceId, projectId ?? "")
                     const tree = response?.response?.tree as AgentaTreeDTO | undefined
 
                     if (tree) {
@@ -418,7 +422,7 @@ export const sessionDrawerAnnotationLinkTracesQueryAtom = atomWithQuery<
                     return {
                         traceId,
                         nodes: transformTracingResponse(
-                            transformTracesResponseToTree(fallback),
+                            transformTracesResponseToTree(fallback as never),
                         ) as unknown as TracesWithAnnotations[],
                     }
                 }),
