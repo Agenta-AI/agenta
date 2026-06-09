@@ -25,6 +25,7 @@ import {TestsetSelectionSidebar} from "./TestsetSelectionSidebar"
 
 export interface LoadModeContentProps {
     loadableId: string
+    connectedTestsetId?: string
     connectedRevisionId?: string
     onConfirm: (payload: TestsetSelectionPayload) => void
     onCancel: () => void
@@ -60,6 +61,7 @@ export interface LoadModeContentProps {
 
 export function LoadModeContent({
     loadableId: _loadableId,
+    connectedTestsetId,
     connectedRevisionId,
     onConfirm,
     onCancel,
@@ -85,7 +87,7 @@ export function LoadModeContent({
     // Testset/revision selection (edit mode starts with connectedRevisionId)
     const {selectedRevisionId, selectedTestsetId, setSelection, revisionInfo} = useTestsetSelection(
         isEditMode ? connectedRevisionId : undefined,
-        undefined,
+        isEditMode ? connectedTestsetId : undefined,
         isEditMode ? preselectedIds : [],
     )
 
