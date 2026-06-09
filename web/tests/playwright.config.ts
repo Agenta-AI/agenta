@@ -31,18 +31,17 @@ dotenv.config({path: resolve(__dirname, ".env")})
 const require = createRequire(import.meta.url)
 export default defineConfig({
     testDir: getTestDir(),
-    // Tests within each spec file run serially (they share browser state and often
-    // depend on earlier steps). Across files, multiple workers run in parallel.
-    // workers=1 in CI can be overridden by PLAYWRIGHT_WORKERS env var; locally
-    // Playwright defaults to half the available CPUs when workers is undefined.
+    // Tests within each spec file run serially — they share browser state and often
+    // depend on earlier steps. Across files, tests could run in parallel, but the
+    // test suite shares project-scoped store singletons (registryPaginatedStore,
+    // evaluatorsPaginatedStore) that get invalidated when any worker writes data.
+    // Until tests are isolated per-worker (each with its own ephemeral project),
+    // CI must stay at workers:1 to keep those polls stable. PLAYWRIGHT_WORKERS
+    // overrides this for targeted local runs where the developer controls scope.
     fullyParallel: false,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : process.env.RETRIES ? parseInt(process.env.RETRIES) : 0,
-    workers: process.env.PLAYWRIGHT_WORKERS
-        ? parseInt(process.env.PLAYWRIGHT_WORKERS)
-        : process.env.CI
-          ? 2
-          : undefined,
+    workers: process.env.PLAYWRIGHT_WORKERS ? parseInt(process.env.PLAYWRIGHT_WORKERS) : 1,
     reporter: [
         ["html", {outputFolder: getReportDir()}],
         ["junit", {outputFile: getJunitPath()}],
