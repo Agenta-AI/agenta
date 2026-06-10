@@ -242,25 +242,28 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 expect(typeof role).toBe("string")
 
                 // 2. Click on the message button to create a new prompt slot.
-                // Track the count of role-selector buttons (.message-user-select) rather
-                // than all shared editors. The execution-section variable cards also render
-                // agenta-shared-editor elements, and they appear in the DOM interleaved with
-                // template editors; using the raw editor count causes the index to point at an
-                // execution-section editor instead of the newly added template message editor.
-                // Only template message editors carry a .message-user-select role button, so
-                // counting those gives a stable, isolated index.
+                // Scope role-selector lookup to the prompt editor that owns the clicked
+                // Message button. The chat-turn controls also have a Message button and
+                // .message-user-select controls, and some are intentionally disabled; a global
+                // nth() can land on those instead of the newly-added prompt-template message.
                 const roleButtonSelector = ".message-user-select"
-                const msgCountBefore = await page.locator(roleButtonSelector).count()
+                const messageButton = page.getByRole("button", {name: "Message"}).first()
+                const promptToolbar = messageButton.locator(
+                    'xpath=ancestor::*[.//*[contains(normalize-space(.), "Prompt Syntax")]][1]',
+                )
+                const promptEditor = promptToolbar.locator("xpath=..")
+                const roleButtons = promptEditor.locator(roleButtonSelector)
+                const msgCountBefore = await roleButtons.count()
 
-                await page.getByRole("button", {name: "Message"}).first().click()
+                await messageButton.click()
 
                 // 3. Wait for the newly added role selector to appear.
                 await expect
-                    .poll(async () => page.locator(roleButtonSelector).count(), {timeout: 15000})
+                    .poll(async () => roleButtons.count(), {timeout: 15000})
                     .toBeGreaterThan(msgCountBefore)
 
                 // The new role button is always appended last in the template section.
-                const roleButton = page.locator(roleButtonSelector).nth(msgCountBefore)
+                const roleButton = roleButtons.nth(msgCountBefore)
 
                 // Wait for the role button to be enabled (may be briefly disabled while the
                 // ChatMessageList state settles after inserting the new message).
