@@ -549,7 +549,14 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                     handleChange={handleChange}
                     initialValue={effectiveValue}
                     value={effectiveValue}
-                    editorClassName={className}
+                    // NOTE: the parent's `className` is a container/cell-strip style
+                    // (e.g. `*:!border-none px-3`) and is applied to the container
+                    // below. It must NOT be forwarded to the editor body, where it
+                    // would strip the editor's own border and gutter (see the
+                    // matching note on the code-editor branch above). It was
+                    // previously passed as `editorClassName` but silently dropped by
+                    // the `noProvider` className bug; now that the bug is fixed, the
+                    // forward is removed so it stays a container-only style.
                     placeholder={effectivePlaceholder}
                     disabled={isEffectivelyDisabled}
                     className={clsx(

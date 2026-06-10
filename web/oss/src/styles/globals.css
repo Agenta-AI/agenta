@@ -206,28 +206,14 @@ body {
     }
 }
 
-/* Align the message text with the first character of the role label above it,
-   with the same symmetric horizontal inset on the role, the text, and the
-   placeholder. The single inset value lives in --ag-message-inline-pad.
-
-   Notes:
-   - The role label is an antd Button whose default padding is wider than the
-     inset (Tailwind's px-2 on it loses to antd), so it is pinned with !important.
-   - The text is padded here in CSS rather than via an editor prop because
-     ChatMessageEditor renders the Editor with `noProvider`, a mode where
-     `className`/`editorClassName` is currently dropped (known bug, tracked
-     separately). JSON/code editors are excluded; they have a line-number gutter. */
-.agenta-chat-message-editor {
-    --ag-message-inline-pad: 8px;
-}
+/* Align the role label's first character with the message text below it.
+   The message text and placeholder are inset 8px via ChatMessageEditor's
+   editorClassName prop; this rule pins the role label to the same 8px. The role
+   label is an antd Button whose default padding is wider than 8px and ignores
+   Tailwind's px-2, so the override needs !important. Scoped to the message
+   editor via the .agenta-chat-message-editor marker class. */
 .agenta-chat-message-editor .message-user-select {
-    padding-inline: var(--ag-message-inline-pad) !important;
-}
-.agenta-chat-message-editor .editor-input:not(.code-only) {
-    padding-inline: var(--ag-message-inline-pad);
-}
-.agenta-chat-message-editor .editor-placeholder {
-    left: var(--ag-message-inline-pad);
+    padding-inline: 8px !important;
 }
 
 /** Align the input search with the search box **/

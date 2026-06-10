@@ -150,8 +150,11 @@ const GenerationComparisonChatOutputCell = ({
                                     allowFileUpload: true,
                                 }}
                                 messageProps={{
-                                    className:
-                                        "!p-0 [&_.agenta-editor-wrapper]:!p-3 !mt-0 [&:nth-child(1)]:!mt-0 mt-2",
+                                    className: "!p-0 !mt-0 [&:nth-child(1)]:!mt-0 mt-2",
+                                    // Editor body padding now goes through the
+                                    // editorClassName prop (works after the noProvider
+                                    // className fix), replacing the previous
+                                    // `[&_.agenta-editor-wrapper]:!p-3` container hack.
                                     editorClassName: "!p-3",
                                     headerClassName:
                                         "min-h-[48px] px-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]",

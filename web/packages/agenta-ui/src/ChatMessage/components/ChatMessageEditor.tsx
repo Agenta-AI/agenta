@@ -210,14 +210,21 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
             //
             // Kaosiso QA 2026-06-02 (also reproduces in production).
             disableDebounce
-            editorClassName={editorClassName}
+            // Inset the message text and its placeholder by 8px so they line up
+            // with the role label above. Goes through editorClassName (the proper
+            // prop) now that the noProvider className bug is fixed. Code editors
+            // (JSON/tool) keep their own gutter, so they are excluded via
+            // `:not(.code-only)`. The role label is an antd button outside the
+            // editor and is aligned via the scoped rule in globals.css.
+            editorClassName={cn(
+                "[&_.editor-input:not(.code-only)]:px-2 [&_.editor-placeholder]:left-2",
+                editorClassName,
+            )}
             placeholder={placeholder}
             disabled={disabled}
             state={disabled ? "readOnly" : state}
-            // `agenta-chat-message-editor` is the styling hook used in globals.css
-            // to align the message text with the role label (see that file). The
-            // padding can't go through `editorClassName` because ChatMessageEditor
-            // renders the Editor with `noProvider`, where `className` is dropped.
+            // `agenta-chat-message-editor` scopes the role-label alignment rule in
+            // globals.css (the role is an antd button, not part of the editor).
             className={cn(
                 "agenta-chat-message-editor relative",
                 flexLayouts.column,

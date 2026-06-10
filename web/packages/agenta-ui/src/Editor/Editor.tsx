@@ -173,6 +173,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             disableIndentationPlugin = false,
             useNativeCodeNodes = false,
             diffExtensionConfig,
+            className,
             ...rest
         }: EditorProps,
         ref,
@@ -755,7 +756,17 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
         }, [codeOnly, editor, effectiveValue, hydrateRichTextFromControlledValue])
 
         return (
-            <div className="editor-container w-full overflow-hidden relative min-h-[inherit]">
+            <div
+                className={clsx(
+                    "editor-container w-full overflow-hidden relative min-h-[inherit]",
+                    // In `noProvider` mode there is no EditorProvider to carry the
+                    // consumer's `className` (it normally lands on
+                    // `.agenta-rich-text-editor`), so apply it to the container here.
+                    // In provider mode EditorInner receives no `className`, so this is
+                    // a no-op and the class still lands on `.agenta-rich-text-editor`.
+                    className,
+                )}
+            >
                 <div
                     ref={ref}
                     className={clsx("editor-inner border rounded-lg min-h-[inherit]", {
@@ -1119,6 +1130,7 @@ const Editor = ({
                 <EditorInner
                     dimensions={dimension}
                     id={id}
+                    className={className}
                     customRender={customRender}
                     initialValue={initialValue}
                     value={value}
