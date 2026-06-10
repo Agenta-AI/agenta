@@ -1,8 +1,7 @@
-import {compareRunIdsAtom} from "@agenta/evaluations/state/evalRun"
+import {compareRunIdsAtom, type PreviewTableRow} from "@agenta/evaluations/state/evalRun"
 import {atom} from "jotai"
 import {atomWithImmer} from "jotai-immer"
 
-import type {PreviewTableRow} from "../atoms/tableRows"
 import {evaluationPreviewTableStore} from "../evaluationPreviewTableStore"
 
 export interface FocusTarget {

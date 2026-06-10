@@ -10,6 +10,7 @@ import {
     type RunSchema,
 } from "@agenta/evaluations/etl"
 import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
+import type {PreviewTableRow} from "@agenta/evaluations/state/evalRun"
 import {
     MAX_COMPARISON_RUNS,
     compareRunIdsAtom,
@@ -21,6 +22,8 @@ import {
     DEFAULT_SCENARIO_PAGE_SIZE,
     evaluationRunQueryAtomFamily,
 } from "@agenta/evaluations/state/evalRun"
+import {scenarioRowHeightAtom} from "@agenta/evaluations/state/evalRun"
+import {useEtlColumns} from "@agenta/evaluations-ui"
 import {message} from "@agenta/ui/app-message"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
@@ -40,9 +43,7 @@ import {
 import useComparisonPaginations from "../EvalRunDetails2/hooks/useComparisonPaginations"
 import useComparisonSchemas from "../EvalRunDetails2/hooks/useComparisonSchemas"
 
-import type {PreviewTableRow} from "./atoms/tableRows"
 import ScenarioColumnVisibilityPopoverContent from "./components/columnVisibility/ColumnVisibilityPopoverContent"
-import {useEtlColumns} from "./etl/useEtlColumns"
 import {useScenarioLiveUpdates} from "./etl/useScenarioLiveUpdates"
 import {
     evaluationPreviewDatasetStore,
@@ -55,7 +56,6 @@ import {buildExportMetadata} from "./export/types"
 import usePreviewColumns from "./hooks/usePreviewColumns"
 import usePreviewTableData from "./hooks/usePreviewTableData"
 import useRowHeightMenuItems from "./hooks/useRowHeightMenuItems"
-import {scenarioRowHeightAtom} from "./state/rowHeight"
 import {patchFocusDrawerQueryParams} from "./state/urlFocusDrawer"
 
 type TableRowData = PreviewTableRow

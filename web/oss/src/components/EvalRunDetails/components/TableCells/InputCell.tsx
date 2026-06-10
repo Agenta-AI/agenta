@@ -1,6 +1,7 @@
 import {memo, useMemo} from "react"
 
 import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
+import {scenarioRowHeightAtom, type ScenarioRowHeight} from "@agenta/evaluations/state/evalRun"
 import {
     CellContentPopover,
     ChatMessagesCellContent,
@@ -14,7 +15,6 @@ import {
 import {useAtomValue} from "jotai"
 
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
-import {scenarioRowHeightAtom, type ScenarioRowHeight} from "../../state/rowHeight"
 
 // Max lines for JSON/text content (fills most of the cell)
 // Small (80px - 16px padding) / ~14px line height ≈ 4 lines

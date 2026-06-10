@@ -7,12 +7,11 @@ import {
     scenarioColumnValueSelectionAtomFamily,
 } from "@agenta/evaluations/state/evalRun"
 import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
+import type {PreviewTableRow} from "@agenta/evaluations/state/evalRun"
 import {formatMetricDisplay} from "@agenta/ui/cell-renderers"
 import {useStore} from "jotai"
 
 import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
-
-import type {PreviewTableRow} from "../atoms/tableRows"
 
 import {formatExportValue, logExportAction} from "./helpers"
 import type {ScenarioColumnExportMetadata} from "./types"

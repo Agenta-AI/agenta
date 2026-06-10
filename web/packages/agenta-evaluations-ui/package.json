@@ -21,10 +21,13 @@
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10",
-        "dayjs": "^1.11.20"
+        "clsx": "^2.1.1",
+        "dayjs": "^1.11.20",
+        "lucide-react": "^0.479.0"
     },
     "peerDependencies": {
         "@phosphor-icons/react": ">=2.0.0",
+        "@tanstack/react-query": ">=5.0.0",
         "antd": ">=5.0.0",
         "jotai": ">=2.0.0",
         "react": ">=18.0.0",

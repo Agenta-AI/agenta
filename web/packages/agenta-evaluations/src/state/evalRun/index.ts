@@ -55,6 +55,11 @@ export * from "./atoms/mutations/editEvaluation"
 // ── table tier ───────────────────────────────────────────────────────────────
 export * from "./atoms/table"
 
+// ── table rows / row-height / column value types ─────────────────────────────
+export type {PreviewTableRow} from "./atoms/tableRows"
+export * from "./rowHeight"
+export * from "./etl/columnValueTypes"
+
 // ── siblings ─────────────────────────────────────────────────────────────────
 export * from "./state/evalType"
 export * from "./utils/valueAccess"

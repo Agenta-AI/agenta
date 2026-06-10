@@ -19,10 +19,9 @@
 import {useMemo} from "react"
 
 import {groupRunColumns, type ColumnGroup, type RunSchema} from "@agenta/evaluations/etl"
+import {type PreviewTableRow} from "@agenta/evaluations/state/evalRun"
 import {Tooltip} from "antd"
 import type {ColumnsType} from "antd/es/table"
-
-import type {PreviewTableRow} from "../atoms/tableRows"
 
 import EtlResolvedCell, {EtlSkeletonCell} from "./cells/EtlResolvedCell"
 import EtlColumnHeader from "./EtlColumnHeader"

@@ -655,5 +655,15 @@ the migration; triage/fix separately (likely with the EvalRunDetails parity QA).
   EvalRunDetails parity QA confirms behavior.
 - **Status:** OPEN — debt, not a blocker; incremental cleanup.
 
+### 11.5 `useScenarioLiveUpdates` + `evaluationPreviewTableStore` not yet moved (WP-4g deferral)
+
+- **Discovered:** WP-4g. `EvalRunDetails/etl/useScenarioLiveUpdates.ts` (eval data logic) is still in
+  OSS because it imports `EvalRunDetails/evaluationPreviewTableStore.ts`, which is `@/oss`-coupled via
+  `@/oss/components/InfiniteVirtualTable`.
+- **Fix direction:** migrate `evaluationPreviewTableStore` onto `@agenta/ui/table`'s
+  `createInfiniteTableStore`/`useInfiniteTablePagination` (the package equivalents `EvaluationListView`
+  already uses) → `@agenta/evaluations`, then `useScenarioLiveUpdates` moves cleanly. Its own small WP.
+- **Status:** OPEN — finish to fully clear eval data logic from OSS.
+
 > **Note:** the OSS tsc baseline dropped from **588 → 522** at WP-4e-2a (the ~45 eval-atom errors +
 > ~21 root-caused side effects fixed). **All subsequent "oss tsc steady" gates use 522, not 588.**

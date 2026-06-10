@@ -26,14 +26,13 @@ import {
     type RunSchema,
 } from "@agenta/evaluations/etl"
 import {
+    buildColumnValueTypeResolver,
     evaluationRunQueryAtomFamily,
     tableColumnsAtomFamily,
 } from "@agenta/evaluations/state/evalRun"
 import {Button, Divider, Input, InputNumber, Popover, Select, Tooltip} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 import {Filter as FilterIcon, Loader2, Plus, X} from "lucide-react"
-
-import {buildColumnValueTypeResolver} from "./columnValueTypes"
 
 const OP_LABELS: Record<FilterOperator, string> = {
     eq: "equals",

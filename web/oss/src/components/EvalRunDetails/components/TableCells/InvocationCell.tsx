@@ -1,6 +1,7 @@
 import {memo, useMemo} from "react"
 
 import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
+import {scenarioRowHeightAtom, type ScenarioRowHeight} from "@agenta/evaluations/state/evalRun"
 import {
     CellContentPopover,
     ChatMessagesCellContent,
@@ -15,7 +16,6 @@ import {useAtomValue} from "jotai"
 import {AlertCircle} from "lucide-react"
 
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
-import {scenarioRowHeightAtom, type ScenarioRowHeight} from "../../state/rowHeight"
 
 import InvocationTraceSummary from "./InvocationTraceSummary"
 

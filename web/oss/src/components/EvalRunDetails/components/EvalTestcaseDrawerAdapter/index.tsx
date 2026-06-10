@@ -13,6 +13,7 @@ import {
     scenarioTestcaseMetaAtomFamily,
 } from "@agenta/evaluations/state/evalRun"
 import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
+import type {PreviewTableRow} from "@agenta/evaluations/state/evalRun"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -20,7 +21,6 @@ import {
     type InfiniteTableStore,
 } from "@/oss/components/InfiniteVirtualTable"
 
-import type {PreviewTableRow} from "../../atoms/tableRows"
 import {evaluationPreviewTableStore} from "../../evaluationPreviewTableStore"
 import usePreviewTableData from "../../hooks/usePreviewTableData"
 import {

@@ -1,10 +1,13 @@
 import {useMemo} from "react"
 
+import {
+    ROW_HEIGHT_CONFIG,
+    scenarioRowHeightAtom,
+    type ScenarioRowHeight,
+} from "@agenta/evaluations/state/evalRun"
 import {Rows} from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
 import {useAtom} from "jotai"
-
-import {ROW_HEIGHT_CONFIG, scenarioRowHeightAtom, type ScenarioRowHeight} from "../state/rowHeight"
 
 const ROW_HEIGHT_OPTIONS: ScenarioRowHeight[] = ["small", "medium", "large"]
 

@@ -12,6 +12,7 @@ import {
     runFlagsAtomFamily,
 } from "@agenta/evaluations/state/evalRun"
 import {previewEvalTypeAtom} from "@agenta/evaluations/state/evalRun"
+import {ScenarioFilterBar} from "@agenta/evaluations-ui"
 import {message} from "@agenta/ui/app-message"
 import {PauseIcon, PlayIcon, XCircleIcon} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
@@ -20,8 +21,6 @@ import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {startSimpleEvaluation, stopSimpleEvaluation} from "@/oss/services/onlineEvaluations/api"
-
-import ScenarioFilterBar from "../etl/ScenarioFilterBar"
 
 import CompareRunsMenu from "./CompareRunsMenu"
 import EvaluationRunTag from "./EvaluationRunTag"

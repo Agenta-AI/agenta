@@ -15,8 +15,8 @@
  * input — never the numeric comparators.
  */
 
-import type {FilterValueType} from "@agenta/evaluations/etl"
-import type {EvaluationTableColumnsResult} from "@agenta/evaluations/state/evalRun"
+import type {FilterValueType} from "../../../etl"
+import type {EvaluationTableColumnsResult} from "../index"
 
 /** Map a JSON-schema-derived `metricType` to a filter value type. */
 function metricTypeToValueType(metricType: string | undefined): FilterValueType | undefined {
