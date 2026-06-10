@@ -34,9 +34,14 @@ export const useNewPlaygroundInputsBodyAtom = atom<boolean>(true)
  * When `true`, chat-capable apps show a `Chat | Completion` segmented control
  * in the generations header that switches the playground behavior at runtime.
  *
- * Default `false`: the switch lands across stacked PRs (chat → completion
- * first, the reverse direction and the sync gate next). OSS flips this on once
- * both directions and the sync gate are ready. Design doc:
+ * The switch lands across stacked PRs (chat → completion first, the reverse
+ * direction and the sync gate next). Design doc:
  * docs/design/playground-mode-switch/.
+ *
+ * TEMPORARILY `true` so the PR's preview environment exposes the control for
+ * testing. The fully wired direction is chat → completion; the reverse only
+ * flips the view back for now (no reshaping or sync gate yet). Set back to
+ * `false` before merge, or keep on once the reverse direction and sync gate
+ * land.
  */
-export const playgroundModeSwitchEnabledAtom = atom<boolean>(false)
+export const playgroundModeSwitchEnabledAtom = atom<boolean>(true)
