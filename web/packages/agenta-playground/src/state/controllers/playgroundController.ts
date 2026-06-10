@@ -104,7 +104,7 @@ import {getRunnableTypeResolver} from "./urlSnapshotController"
 /**
  * Payload for connecting to a testset (load mode)
  */
-interface ConnectToTestsetPayload {
+export interface ConnectToTestsetPayload {
     loadableId: string
     revisionId: string
     testcases: ({id?: string} & Record<string, unknown>)[]
@@ -630,6 +630,41 @@ const importTestcasesAtom = atom(null, (get, set, payload: ImportTestcasesPayloa
         })
     }
 })
+
+/**
+ * Connect to a testset while keeping the current local draft rows.
+ *
+ * `connectToSource` clears all local entities, so rows created manually or
+ * from a trace are destroyed by a plain connect. This action captures the
+ * meaningful local rows first, connects, then re-imports the captured rows
+ * as unsaved additions (`newEntityIdsAtom`), which turns on hasLocalChanges
+ * and lets the user sync them into the test set via the commit flow.
+ *
+ * Chat playgrounds load a single testcase (see the gate in
+ * `connectToTestsetAtom`), so kept rows cannot be appended there; this
+ * action falls back to a plain connect in chat mode. Callers should warn
+ * instead of offering "keep" for chat.
+ */
+const connectToTestsetKeepingLocalRowsAtom = atom(
+    null,
+    (get, set, payload: ConnectToTestsetPayload) => {
+        const isChat = get(isChatModeAtom) ?? false
+        const captured = isChat
+            ? []
+            : get(loadableController.selectors.meaningfulLocalRows(payload.loadableId))
+
+        set(connectToTestsetAtom, payload)
+
+        if (captured.length > 0) {
+            // Strip the old local IDs so importRows creates fresh entities
+            // instead of dedup-checking against IDs the connect just cleared.
+            set(importTestcasesAtom, {
+                loadableId: payload.loadableId,
+                testcases: captured.map(({data}) => ({...data})),
+            })
+        }
+    },
+)
 
 // ============================================================================
 // WP2: ROW WITH INIT COMPOUND ACTION
@@ -2381,6 +2416,9 @@ export const playgroundController = {
 
         /** Import testcases (import mode - no connection) */
         importTestcases: importTestcasesAtom,
+
+        /** Connect to a testset, re-importing local draft rows as unsaved additions */
+        connectToTestsetKeepingLocalRows: connectToTestsetKeepingLocalRowsAtom,
 
         // WP2: Row with init action
         /** Add a row with local testset initialization */
