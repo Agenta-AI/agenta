@@ -79,10 +79,15 @@ def _comma_set_optional(name: str, *legacy_names: str) -> set | None:
 
 def _parse_optional_int_env(name: str) -> int | None:
     raw = os.getenv(name)
-    if raw is None or not raw.strip():
+    if not raw:
         return None
+
+    value = raw.strip()
+    if not value :
+        return None
+    
     try:
-        return int(raw)
+        return int(value)
     except ValueError as e:
         raise ValueError(f"{name} must be a valid integer") from e
 
