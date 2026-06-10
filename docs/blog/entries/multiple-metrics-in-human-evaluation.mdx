@@ -5,6 +5,30 @@ date: 2025-09-09
 tags: [v0.51.0]
 ---
 
+<Summary>
+
+We rebuilt the human evaluation workflow from scratch. Now you can set multiple evaluators and metrics and use them to score the outputs. 
+
+This lets you evaluate the same output on different metrics like **relevance** or **completeness**. You can also create binary, numerical scores, or even use strings for **comments** or **expected answer**. 
+
+Watch the video below and read the [post](/changelog/multiple-metrics-in-human-evaluation) for more details. Or check out the [docs](/evaluation/human-evaluation/quick-start) to learn how to use the new human evaluation workflow.
+
+<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
+  <iframe
+    width="100%"
+    height="500"
+    src="https://www.youtube.com/embed/zpoAbQlsfcw"
+    title="Major Playground Improvements - Demonstration"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+</Summary>
+
+{/* truncate */}
+
 We spent the past months rethinking how evaluation should work. Today we're announcing one of the first big improvements.
 
 The fastest teams building LLM apps were using human evaluation to check their outputs before going live. Agenta was helping them do this in minutes.

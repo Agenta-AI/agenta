@@ -1,10 +1,20 @@
 ---
-title: "REST API Migration (v0.96)"
+title: "Unified Invoke API"
 slug: unified-invoke-api
 date: 2026-04-14
 tags: [v0.96.0]
 description: "Migration guide from the v0.95 REST API to v0.96. Covers the unified /v0/invoke endpoint, the new prompt configuration fetch endpoint, and a complete list of removed REST endpoints with their replacements."
 ---
+
+<Summary>
+
+All application invocation endpoints (`/generate`, `/generate_deployed`, `/test`, `/run`) are now unified into a single `POST /services/{service}/v0/invoke` endpoint. The new format uses structured `references` for targeting applications and environments, and returns outputs under `data.outputs` with `trace_id` and `span_id` for observability.
+
+The old endpoints remain available temporarily via an adapter. See the full guide for before/after examples.
+
+</Summary>
+
+{/* truncate */}
 
 :::warning Guide updated 2026-04-28
 The original version of this guide did not mention the prompt configuration fetch endpoint and lacked several minor endpoints. This update covers them all.
@@ -13,8 +23,6 @@ The original version of this guide did not mention the prompt configuration fetc
 :::danger Deprecation deadline: May 31, 2026
 Every legacy REST endpoint covered in this guide will stop responding on **May 31, 2026**. Until then, an adapter layer keeps the old endpoints working. Update your integration before that date.
 :::
-
-# REST API Migration (v0.96)
 
 ## Overview
 
