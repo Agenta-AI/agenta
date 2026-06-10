@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {Skeleton, Splitter, Tabs, TabsProps} from "antd"
 import clsx from "clsx"
@@ -36,6 +36,24 @@ const TraceContent = ({
     const activeTrace = active
     const spanEntityId = activeTrace?.span_id || activeTrace?.invocationIds?.span_id || activeId
     const [tab, setTab] = useState("overview")
+    const tabsWrapperRef = useRef<HTMLDivElement>(null)
+    const [tabNavHeight, setTabNavHeight] = useState(0)
+
+    // Measure the actual rendered tab nav bar height so sticky JSON headers
+    // can be offset correctly below it (avoids hardcoded magic numbers).
+    useEffect(() => {
+        const el = tabsWrapperRef.current
+        if (!el) return
+        const nav = el.querySelector<HTMLElement>(".ant-tabs-nav")
+        if (!nav) return
+        const observer = new ResizeObserver(() => {
+            setTabNavHeight(nav.getBoundingClientRect().height)
+        })
+        observer.observe(nav)
+        // Capture initial height immediately
+        setTabNavHeight(nav.getBoundingClientRect().height)
+        return () => observer.disconnect()
+    }, [])
 
     const items: TabsProps["items"] = useMemo(() => {
         if (isLoading && !activeTrace) {
@@ -91,6 +109,7 @@ const TraceContent = ({
                                 editable={false}
                                 rootScope="span"
                                 allowSpanCollapse={false}
+                                prettyJsonStickyOffset={tabNavHeight}
                             />
                         ) : (
                             <AccordionTreePanel
@@ -144,7 +163,7 @@ const TraceContent = ({
 
                 <Splitter className="flex-1 min-h-0">
                     <Splitter.Panel min={400} className="w-full flex-1">
-                        <div className="flex-1">
+                        <div ref={tabsWrapperRef} className="flex-1">
                             <Tabs
                                 defaultActiveKey="overview"
                                 activeKey={tab}

@@ -102,6 +102,8 @@ export interface TraceSpanDrillInViewProps extends Omit<
     defaultCollapsed?: boolean
     /** Optional override data for rootScope="span" rendering */
     spanDataOverride?: unknown
+    /** Sticky offset (px) for PrettyJsonView headers — should equal the tab nav bar height */
+    prettyJsonStickyOffset?: number
 }
 
 type RawSpanViewMode = "json" | "yaml"
@@ -296,6 +298,7 @@ export const TraceSpanDrillInView = memo(
         allowSpanCollapse = true,
         defaultCollapsed = false,
         spanDataOverride,
+        prettyJsonStickyOffset = 0,
     }: TraceSpanDrillInViewProps) => {
         const spanEntityData = useAtomValue(traceSpanMolecule.selectors.data(spanId))
         const spanData = spanDataOverride !== undefined ? spanDataOverride : spanEntityData
@@ -579,7 +582,7 @@ export const TraceSpanDrillInView = memo(
                                 <PrettyJsonView
                                     data={prettyJsonSource}
                                     keyPrefix={`trace-span-${textViewerId}`}
-                                    stickyOffset={48}
+                                    stickyOffset={prettyJsonStickyOffset}
                                 />
                             ) : (
                                 <div className="mx-1 my-2 rounded-md bg-[var(--ag-c-FFFFFF)]">
