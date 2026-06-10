@@ -171,7 +171,12 @@ async def send_invitation_email(
 
     from_email = env.smtp.from_email if env.smtp.enabled else env.sendgrid.from_address
     if not from_email:
-        raise ValueError("Email delivery requires a sender email address to work.")
+        raise ValueError(
+            "Email delivery requires a sender email address. "
+            "Set SMTP_FROM_EMAIL, AGENTA_AUTHN_EMAIL_FROM, or "
+            "AGENTA_SEND_EMAIL_FROM_ADDRESS for SMTP delivery, or "
+            "SENDGRID_FROM_ADDRESS for SendGrid fallback."
+        )
 
     await email_service.send_email(
         from_email=from_email,

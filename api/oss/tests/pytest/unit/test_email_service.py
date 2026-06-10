@@ -19,7 +19,6 @@ def _disable_smtp(monkeypatch):
 def _disable_sendgrid(monkeypatch):
     monkeypatch.setattr(env.sendgrid, "api_key", None)
     monkeypatch.setattr(env.sendgrid, "from_address", None)
-    monkeypatch.setattr(email_service, "sg", None)
 
 
 def _enable_smtp(monkeypatch, *, use_tls=True, use_ssl=False, username="user"):
@@ -81,8 +80,8 @@ async def test_send_email_prefers_smtp_over_sendgrid(monkeypatch):
     _enable_smtp(monkeypatch, use_tls=False, use_ssl=False)
     monkeypatch.setattr(env.sendgrid, "api_key", "sg-key")
     monkeypatch.setattr(env.sendgrid, "from_address", "sendgrid@example.com")
-    fake_sendgrid = Mock()
-    monkeypatch.setattr(email_service, "sg", fake_sendgrid)
+    sendgrid_client = Mock()
+    monkeypatch.setattr(email_service.sendgrid, "SendGridAPIClient", sendgrid_client)
     FakeSmtp.instances = []
     monkeypatch.setattr(email_service.smtplib, "SMTP", FakeSmtp)
 
@@ -94,7 +93,7 @@ async def test_send_email_prefers_smtp_over_sendgrid(monkeypatch):
     )
 
     assert FakeSmtp.instances
-    fake_sendgrid.send.assert_not_called()
+    sendgrid_client.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -147,7 +146,8 @@ async def test_send_email_falls_back_to_sendgrid(monkeypatch):
     monkeypatch.setattr(env.sendgrid, "api_key", "sg-key")
     monkeypatch.setattr(env.sendgrid, "from_address", "sendgrid@example.com")
     fake_sendgrid = Mock()
-    monkeypatch.setattr(email_service, "sg", fake_sendgrid)
+    sendgrid_client = Mock(return_value=fake_sendgrid)
+    monkeypatch.setattr(email_service.sendgrid, "SendGridAPIClient", sendgrid_client)
 
     assert await email_service.send_email(
         to_email="to@example.com",
@@ -156,6 +156,7 @@ async def test_send_email_falls_back_to_sendgrid(monkeypatch):
         from_email="caller@example.com",
     )
 
+    sendgrid_client.assert_called_once_with(api_key="sg-key")
     fake_sendgrid.send.assert_called_once()
 
 

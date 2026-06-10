@@ -21,7 +21,7 @@ else:
     if (env.smtp.host or env.smtp.port) and not env.smtp.from_email:
         log.warning("✗ SMTP disabled: missing sender email address")
     else:
-        log.warning("✗ SMTP disabled")
+        log.info("✗ SMTP disabled")
 
 if env.sendgrid.enabled:
     log.info("✓ SendGrid enabled")
@@ -29,7 +29,7 @@ else:
     if env.sendgrid.api_key and not env.sendgrid.from_address:
         log.warning("✗ SendGrid disabled: missing sender email address")
     else:
-        log.warning("✗ SendGrid disabled")
+        log.info("✗ SendGrid disabled")
 
 
 def read_email_template(template_file_path):

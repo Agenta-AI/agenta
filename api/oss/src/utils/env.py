@@ -4,7 +4,7 @@ from uuid import getnode
 from json import loads
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 _TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
@@ -981,6 +981,13 @@ class SmtpConfig(BaseModel):
     timeout: int | None = _parse_optional_positive_int_env("SMTP_TIMEOUT")
 
     model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def _validate_security(self) -> "SmtpConfig":
+        if self.use_tls and self.use_ssl:
+            raise ValueError("SMTP_USE_TLS and SMTP_USE_SSL cannot both be true")
+
+        return self
 
     @property
     def enabled(self) -> bool:
