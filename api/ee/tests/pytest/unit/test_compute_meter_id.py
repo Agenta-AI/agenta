@@ -8,9 +8,10 @@ different `meter_id`s for logically identical scopes, which means duplicate
 rows that the database cannot detect.
 
 These tests pin format invariants (determinism, equivalence, distinctness)
-plus the namespace derivation. Any change that alters the canonical form will
-surface as a failure in the distinctness/equivalence tests or a re-keying of
-the namespace test.
+plus the namespace derivation. The absolute output values are NOT pinned —
+they depend on `AGENTA_UUID_NAMESPACE` which is environment-derived. Any
+change that alters the canonical form will surface as a failure in the
+distinctness/equivalence tests or a re-keying of the namespace test.
 """
 
 import uuid
@@ -23,8 +24,7 @@ from ee.src.core.meters.types import (
     MeterPeriod,
     compute_meter_id,
 )
-from ee.src.core.entitlements.types import Counter
-
+from ee.src.core.access.entitlements.types import Counter
 
 # Fixed UUIDs used across the table — keep them stable.
 ORG = uuid.UUID("a1111111-1111-1111-1111-111111111111")
@@ -34,13 +34,12 @@ USR = uuid.UUID("d4444444-4444-4444-4444-444444444444")
 
 
 # ---------------------------------------------------------------------------
-# Namespace UUID — derived from uuid5(NAMESPACE_DNS, "agenta").
+# Namespace UUID — derived from the fixed project namespace root.
 # ---------------------------------------------------------------------------
 
 
-def test_namespace_uuid_is_derived_from_uuid_namespace():
-    """The meters namespace must be a stable derivative of the project-wide
-    agenta namespace UUID. Changing either side forces a full re-backfill."""
+def test_namespace_uuid_is_derived_from_fixed_root_namespace():
+    """The meters namespace must remain a stable derivative of the fixed root."""
     expected = uuid.uuid5(uuid.uuid5(uuid.NAMESPACE_DNS, "agenta"), "meters")
     assert AGENTA_METERS_NAMESPACE_UUID == expected
 

@@ -20,7 +20,10 @@ from oss.src.core.folders.types import (
     FolderPathDepthExceeded,
     FolderPathLengthExceeded,
 )
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import (
+    TransactionsEngine,
+    get_transactions_engine,
+)
 from oss.src.dbs.postgres.folders.dbes import FolderDBE
 from oss.src.dbs.postgres.folders.mappings import (
     create_dbe_from_dto,
@@ -111,8 +114,10 @@ async def _delete_folder_tree(
 
 
 class FoldersDAO(FoldersDAOInterface):
-    def __init__(self):
-        pass
+    def __init__(self, engine: TransactionsEngine = None):
+        if engine is None:
+            engine = get_transactions_engine()
+        self.engine = engine
 
     @suppress_exceptions(
         exclude=[
@@ -133,7 +138,7 @@ class FoldersDAO(FoldersDAOInterface):
         parent_path = None
 
         if folder_create.parent_id:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 parent = await _get_folder_row(
                     session=session,
                     folder_id=folder_create.parent_id,
@@ -153,7 +158,7 @@ class FoldersDAO(FoldersDAOInterface):
         )
         folder_dbe.created_by_id = user_id
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             try:
                 session.add(folder_dbe)
                 await session.commit()
@@ -175,7 +180,7 @@ class FoldersDAO(FoldersDAOInterface):
         project_id: UUID,
         folder_id: UUID,
     ) -> Optional[Folder]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             folder = await _get_folder_row(
                 session=session,
                 folder_id=folder_id,
@@ -207,7 +212,7 @@ class FoldersDAO(FoldersDAOInterface):
     ) -> Optional[Folder]:
         kind = folder_edit.kind or FolderKind.APPLICATIONS
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             folder = await _get_folder_row(
                 session=session,
                 folder_id=folder_edit.id,
@@ -285,7 +290,7 @@ class FoldersDAO(FoldersDAOInterface):
         user_id: UUID,
         folder_id: UUID,
     ) -> Optional[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             folder = await _get_folder_row(
                 session=session,
                 folder_id=folder_id,
@@ -311,7 +316,7 @@ class FoldersDAO(FoldersDAOInterface):
         project_id: UUID,
         folder_query: FolderQuery,
     ) -> List[Folder]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(FolderDBE).filter(FolderDBE.project_id == project_id)
 
             if folder_query.id is not None:

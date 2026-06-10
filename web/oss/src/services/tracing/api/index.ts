@@ -1,203 +1,20 @@
+import {fetchSpansAnalytics} from "@agenta/entities/trace"
 import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 
 import {SortResult} from "@/oss/components/Filters/Sort"
-import {
-    ensureAppId,
-    ensureProjectId,
-    fetchJson,
-    fetchJsonWithMeta,
-    getBaseUrl,
-} from "@/oss/lib/api/assets/fetchClient"
+import {ensureAppId} from "@/oss/lib/api/assets/fetchClient"
 import {getProjectValues} from "@/oss/state/project"
 
-import {calculateIntervalFromDuration, tracingToGeneration} from "../lib/helpers"
-import {GenerationDashboardData, TracingDashboardData} from "../types"
+import {analyticsToGeneration, calculateIntervalFromDuration} from "../lib/helpers"
+import {GenerationDashboardData} from "../types"
 
 dayjs.extend(utc)
 
-export const fetchAllPreviewTraces = async (
-    params: Record<string, any> = {},
-    appId: string,
-    signal?: AbortSignal,
-) => {
-    const base = getBaseUrl()
-    const projectId = ensureProjectId()
-    const applicationId = ensureAppId(appId)
-
-    // New query endpoint expects POST with JSON body
-    const url = new URL(`${base}/tracing/spans/query`)
-    if (projectId) url.searchParams.set("project_id", projectId)
-    if (applicationId) url.searchParams.set("application_id", applicationId)
-
-    const payload: Record<string, any> = {}
-    Object.entries(params).forEach(([key, value]) => {
-        if (value === undefined || value === null) return
-        if (key === "size") {
-            payload.limit = Number(value)
-        } else if (key === "filter" && typeof value === "string") {
-            try {
-                payload.filter = JSON.parse(value)
-            } catch {
-                payload.filter = value
-            }
-        } else {
-            payload[key] = value
-        }
-    })
-
-    return fetchJson(url, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(payload),
-        signal,
-    })
-}
-
-/**
- * Bucket state for adaptive pacing. `null` when the backend didn't return
- * the corresponding header (OSS deployments without EE throttling, errors
- * before headers, etc.).
- */
-export interface PreviewTracesRateLimit {
-    /** `X-RateLimit-Remaining` — tokens left in the throttle bucket. */
-    remaining: number | null
-    /** `X-RateLimit-Limit` — bucket capacity. Only set on 429 responses. */
-    limit: number | null
-}
-
-/** Successful return shape from `fetchAllPreviewTracesWithMeta`. */
-export interface PreviewTracesWithMetaResult {
-    data: any
-    rateLimit: PreviewTracesRateLimit
-}
-
-const parseRateLimitHeader = (headers: Headers, name: string): number | null => {
-    const raw = headers.get(name)
-    if (!raw) return null
-    const n = Number.parseInt(raw, 10)
-    return Number.isFinite(n) ? n : null
-}
-
-/**
- * Variant of `fetchAllPreviewTraces` that also returns the throttling bucket
- * state via `X-RateLimit-*` headers. Used by the bulk export to pace requests
- * adaptively without depending on knowing the user's plan tier — the server
- * tells us how much headroom is left on every successful response.
- */
-export const fetchAllPreviewTracesWithMeta = async (
-    params: Record<string, any> = {},
-    appId: string,
-    signal?: AbortSignal,
-): Promise<PreviewTracesWithMetaResult> => {
-    const base = getBaseUrl()
-    const projectId = ensureProjectId()
-    const applicationId = ensureAppId(appId)
-
-    const url = new URL(`${base}/tracing/spans/query`)
-    if (projectId) url.searchParams.set("project_id", projectId)
-    if (applicationId) url.searchParams.set("application_id", applicationId)
-
-    const payload: Record<string, any> = {}
-    Object.entries(params).forEach(([key, value]) => {
-        if (value === undefined || value === null) return
-        if (key === "size") {
-            payload.limit = Number(value)
-        } else if (key === "filter" && typeof value === "string") {
-            try {
-                payload.filter = JSON.parse(value)
-            } catch {
-                payload.filter = value
-            }
-        } else {
-            payload[key] = value
-        }
-    })
-
-    const {data, headers} = await fetchJsonWithMeta(url, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(payload),
-        signal,
-    })
-
-    return {
-        data,
-        rateLimit: {
-            remaining: parseRateLimitHeader(headers, "x-ratelimit-remaining"),
-            limit: parseRateLimitHeader(headers, "x-ratelimit-limit"),
-        },
-    }
-}
-
-export const fetchPreviewTrace = async (traceId: string) => {
-    const base = getBaseUrl()
-    const projectId = ensureProjectId()
-
-    const url = new URL(`${base}/tracing/traces/${traceId}`)
-    if (projectId) url.searchParams.set("project_id", projectId)
-
-    return fetchJson(url)
-}
-
-export const deletePreviewTrace = async (traceId: string) => {
-    const base = getBaseUrl()
-    const projectId = ensureProjectId()
-
-    const url = new URL(`${base}/tracing/traces/${traceId}`)
-    if (projectId) url.searchParams.set("project_id", projectId)
-
-    return fetchJson(url, {method: "DELETE"})
-}
-
-export const fetchSessions = async (params: {
-    appId?: string
-    windowing?: {
-        oldest?: string
-        newest?: string
-        next?: string
-        limit?: number
-        order?: string
-    }
-    cursor?: string
-    filter?: any
-    realtime?: boolean
-}) => {
-    const base = getBaseUrl()
-    const projectId = ensureProjectId()
-    const applicationId = params.appId ? ensureAppId(params.appId) : undefined
-
-    const url = new URL(`${base}/tracing/sessions/query`)
-    if (projectId) url.searchParams.set("project_id", projectId)
-    if (applicationId) url.searchParams.set("application_id", applicationId)
-
-    const payload: Record<string, any> = {}
-
-    // Initialize windowing if it doesn't exist but we have a cursor
-    if (params.windowing || params.cursor) {
-        payload.windowing = {...(params.windowing || {})}
-
-        // If cursor is provided, it goes into windowing.next
-        if (params.cursor) {
-            payload.windowing.next = params.cursor
-        }
-    }
-
-    if (params.filter) {
-        payload.filter = params.filter
-    }
-
-    // Add realtime parameter (true = latest/unstable, false/undefined = all/stable)
-    if (params.realtime !== undefined) {
-        payload.realtime = params.realtime
-    }
-
-    return fetchJson(url, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(payload),
-    })
-}
+// AGE-3788: every tracing call in this module is now served by the Fern client
+// under `@agenta/entities/trace` — list/detail/delete/sessions (Phases 1-5) and
+// the analytics dashboard below (Phase 6, `fetchSpansAnalytics` ->
+// POST /spans/analytics/query). No raw `/tracing/*` fetch remains.
 
 export const fetchGenerationsDashboardData = async (
     appId: string | null | undefined,
@@ -212,17 +29,12 @@ export const fetchGenerationsDashboardData = async (
     const {projectId: propsProjectId, signal, ...options} = _options
     const {projectId: stateProjectId} = getProjectValues()
 
-    const base = getBaseUrl()
     const projectId = propsProjectId || stateProjectId
     const applicationId = ensureAppId(appId || undefined)
 
     if (signal?.aborted) {
         throw new DOMException("Aborted", "AbortError")
     }
-
-    const url = new URL(`${base}/tracing/spans/analytics`)
-    if (projectId) url.searchParams.set("project_id", projectId)
-    if (applicationId) url.searchParams.set("application_id", applicationId)
 
     const conditions: any[] = []
 
@@ -285,21 +97,18 @@ export const fetchGenerationsDashboardData = async (
     if (durationHours <= 24) rangeString = "24_hours"
     else if (durationHours <= 168) rangeString = "7_days"
 
-    const payload: Record<string, any> = {
+    const analytics = await fetchSpansAnalytics({
+        projectId: projectId ?? "",
+        appId: applicationId,
         focus: "trace",
         interval,
         oldest: startTime,
         newest: endTime,
-        ...(conditions.length ? {filter: {conditions}} : {}),
-    }
-
-    const response = await fetchJson(url, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(payload),
-        signal,
+        filter: conditions.length ? {conditions} : undefined,
+        abortSignal: signal,
     })
 
-    const valTracing = response as TracingDashboardData
-    return tracingToGeneration(valTracing, rangeString) as GenerationDashboardData
+    // `fetchSpansAnalytics` returns null on non-2xx / shape-mismatch; the
+    // dashboard treats that as "no data" rather than throwing.
+    return analyticsToGeneration(analytics ?? {buckets: []}, rangeString)
 }

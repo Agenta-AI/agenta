@@ -158,7 +158,7 @@ async def aupsert(
 
         req = await evaluator_workflow.inspect()
 
-        legacy_application_flags = SimpleEvaluatorFlags(**req.flags)
+        legacy_application_flags = SimpleEvaluatorFlags(**(req.flags or {}))
 
         simple_evaluator_data = SimpleEvaluatorData(
             **(

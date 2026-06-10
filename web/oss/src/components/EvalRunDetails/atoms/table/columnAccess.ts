@@ -108,9 +108,14 @@ const inferBooleanMetric = (column: EvaluationTableColumn): boolean => {
     const metricKey = column.metricKey?.toLowerCase() ?? ""
 
     if (metricType === "boolean") return true
-    if (valueKey.includes("success") || valueKey.includes("passed")) return true
-    if (metricKey.includes("success") || metricKey.includes("passed")) return true
-    if (path.includes("success") || path.includes("passed")) return true
+    // Only "success" is coerced by name. "passed" is intentionally excluded: an
+    // LLM judge commonly returns it as a count (passed=2 / total=4), and coercing
+    // a 0/1 count to false/true is wrong. A genuinely boolean field still renders
+    // true/false via formatMetricDisplay, and an explicit boolean metricType above
+    // still coerces.
+    if (valueKey.includes("success")) return true
+    if (metricKey.includes("success")) return true
+    if (path.includes("success")) return true
     return false
 }
 

@@ -65,6 +65,8 @@ export {displayedEntityIdsAtom, playgroundInitializedAtom} from "./state"
 // Testset import mutation (consumed by OSS testset integration)
 export {loadTestsetNormalizedMutationAtom} from "./state"
 
+export {filterUnreferencedColumnsForSource} from "./state"
+
 // ============================================================================
 // ENTITY CONTEXT (Dependency Injection)
 // ============================================================================

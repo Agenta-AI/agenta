@@ -295,29 +295,34 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
         },
 
         queryFn: async ({pageParam}: {pageParam?: {newest?: string; oldest?: string}}) => {
-            const {fetchSessions} = await import("@/oss/services/tracing/api")
+            // AGE-3788 Phase 1: sessions now go through the Fern client in
+            // @agenta/entities/trace (POST /spans/sessions/query). projectId is
+            // passed explicitly (the entities fn does not read it from state).
+            const {fetchSessions} = await import("@agenta/entities/trace")
 
-            const response: any = await fetchSessions({
-                appId: (appId as string) || undefined,
-                windowing: {
-                    limit,
-                    // Base time window from sort (initial boundaries for first page)
-                    oldest: baseWindowing.oldest,
-                    newest: baseWindowing.newest,
-                    // Pagination cursors override base boundaries for subsequent pages:
-                    // - In DESC order: pageParam.newest moves backward, oldest stays fixed
-                    // - In ASC order: pageParam.oldest moves forward, newest stays fixed
-                    ...(pageParam?.oldest && {oldest: pageParam.oldest}),
-                    ...(pageParam?.newest && {newest: pageParam.newest}),
+            const response = await fetchSessions(
+                {
+                    appId: (appId as string) || undefined,
+                    windowing: {
+                        limit,
+                        // Base time window from sort (initial boundaries for first page)
+                        oldest: baseWindowing.oldest,
+                        newest: baseWindowing.newest,
+                        // Pagination cursors override base boundaries for subsequent pages:
+                        // - In DESC order: pageParam.newest moves backward, oldest stays fixed
+                        // - In ASC order: pageParam.oldest moves forward, newest stays fixed
+                        ...(pageParam?.oldest && {oldest: pageParam.oldest}),
+                        ...(pageParam?.newest && {newest: pageParam.newest}),
+                    },
+                    realtime: realtimeMode,
                 },
-                filter: undefined,
-                realtime: realtimeMode,
-            })
+                projectId ?? "",
+            )
 
             return {
-                session_ids: response.session_ids || [],
-                count: response.count || 0,
-                nextWindowing: response.windowing,
+                session_ids: response?.session_ids || [],
+                count: response?.count || 0,
+                nextWindowing: response?.windowing,
             }
         },
         enabled: sessionExists && Boolean(appId || projectId),
@@ -405,7 +410,7 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
                     },
                 ])
 
-                return executeTraceQuery({
+                const result = await executeTraceQuery({
                     params: specificParams,
                     pageParam: pageParam as {newest?: string} | undefined,
                     appId: appId as string,
@@ -413,6 +418,15 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
                     hasAnnotationConditions,
                     hasAnnotationOperator,
                 })
+                // Tag each trace with the session it was queried for. The grouping
+                // below relies on this instead of re-reading `attributes.ag.session.id`:
+                // the new /traces/query endpoint canonicalises `ag` to {data,type,metrics}
+                // and no longer serialises `ag.session.id` on the span, but every trace
+                // here is already scoped to `sessionId` by the filter above. (AGE-3788)
+                result.traces.forEach((t) => {
+                    ;(t as TraceSpanNode & {__sessionId?: string}).__sessionId = sessionId
+                })
+                return result
             })
 
             const results = await Promise.all(promises)
@@ -461,7 +475,11 @@ export const sessionsSpansAtom = selectAtom(
                 const key = trace.span_id || trace.key
                 if (!key || seen.has(key)) return
                 seen.add(key)
-                const sessionId = (trace.attributes as any)?.ag?.session?.id as string
+                // Prefer the session id tagged at query time (the trace was fetched
+                // with a per-session filter). Fall back to the attribute path for any
+                // legacy/other caller that still serialises `ag.session.id`. (AGE-3788)
+                const sessionId = ((trace as TraceSpanNode & {__sessionId?: string}).__sessionId ||
+                    (trace.attributes as any)?.ag?.session?.id) as string
 
                 if (sessionId) {
                     if (!grouped[sessionId]) grouped[sessionId] = []

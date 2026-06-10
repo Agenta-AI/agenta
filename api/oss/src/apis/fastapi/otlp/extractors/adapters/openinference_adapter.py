@@ -228,6 +228,17 @@ class OpenInferenceAdapter(BaseAdapter):
                                     f"OpenInferenceAdapter: Suffix '{suffix}' for prefix '{otel_prefix}' did not match '.message.' stripping pattern for key '{key}'. Using original suffix."
                                 )
 
+                            # OpenInference nests each tool call under an extra
+                            # `.tool_call.` segment, e.g.
+                            # `tool_calls.0.tool_call.function.arguments`. Strip it
+                            # so tool calls land in the canonical OpenAI shape
+                            # (`tool_calls.0.function.arguments`) that the rest of
+                            # Agenta — Pretty JSON view, cell renderers, evaluators —
+                            # expects. Without this the UI renders an empty tool call.
+                            suffix = re.sub(
+                                r"(\.tool_calls\.\d+)\.tool_call\.", r"\1.", suffix
+                            )
+
                         new_key = ag_prefix + suffix
                         transformed_attributes[new_key] = value
                         has_data = True

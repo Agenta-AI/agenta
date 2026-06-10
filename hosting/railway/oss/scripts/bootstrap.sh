@@ -72,9 +72,24 @@ ensure_project_linked() {
             | head -n 1 || true)"
     fi
 
-    if [ -n "$existing_project" ]; then
-        railway_call link --project "$PROJECT_NAME" --json >/dev/null
-    else
+    if [ -z "$existing_project" ]; then
+        railway_call init --name "$PROJECT_NAME" --json >/dev/null
+        return
+    fi
+
+    # `project list` and `link --project` can disagree. `project list`
+    # enumerates projects across every workspace the token can see and can lag
+    # behind a just-deleted project, while `link --project` only resolves
+    # within the single workspace it selects. So a project the list still
+    # reports as existing may not actually be linkable — most visibly right
+    # after a preview is destroyed (PR converted to draft) and then rebuilt (PR
+    # marked ready for review). Treat a link failure as "needs to be
+    # (re)created" and fall back to init, instead of aborting the whole setup.
+    local link_status=0
+    railway_call link --project "$PROJECT_NAME" --json >/dev/null || link_status=$?
+    if [ "$link_status" -ne 0 ]; then
+        printf "railway link could not resolve existing project '%s'; recreating it.\n" \
+            "$PROJECT_NAME" >&2
         railway_call init --name "$PROJECT_NAME" --json >/dev/null
     fi
 }

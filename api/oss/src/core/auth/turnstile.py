@@ -2,7 +2,7 @@ import httpx
 
 from supertokens_python.framework.request import BaseRequest
 
-from oss.src.services.exceptions import UnauthorizedException
+from oss.src.utils.exceptions import UnauthorizedException
 from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -70,7 +70,7 @@ async def verify_turnstile_or_raise(
             auth_flow,
             get_client_ip(request),
         )
-        raise UnauthorizedException(detail="Please complete the security check.")
+        raise UnauthorizedException(message="Please complete the security check.")
 
     payload = {
         "secret": env.cloudflare.turnstile.secret_key or "",
@@ -93,7 +93,7 @@ async def verify_turnstile_or_raise(
             remote_ip,
             exc_info=True,
         )
-        raise UnauthorizedException(detail=TURNSTILE_FAILURE_MESSAGE) from None
+        raise UnauthorizedException(message=TURNSTILE_FAILURE_MESSAGE) from None
 
     if verification_result.get("success") is True:
         actual_hostname = _normalize_hostname(verification_result.get("hostname"))
@@ -107,7 +107,7 @@ async def verify_turnstile_or_raise(
                 sorted(expected_hostnames),
                 remote_ip,
             )
-            raise UnauthorizedException(detail=TURNSTILE_FAILURE_MESSAGE)
+            raise UnauthorizedException(message=TURNSTILE_FAILURE_MESSAGE)
 
         log.info(
             "[AUTH] Turnstile verification succeeded auth_flow=%s hostname=%s action=%s client_ip=%s",
@@ -126,4 +126,4 @@ async def verify_turnstile_or_raise(
         verification_result.get("action"),
         remote_ip,
     )
-    raise UnauthorizedException(detail=TURNSTILE_FAILURE_MESSAGE)
+    raise UnauthorizedException(message=TURNSTILE_FAILURE_MESSAGE)

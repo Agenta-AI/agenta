@@ -1,19 +1,18 @@
 import {
+    fetchAllPreviewTracesWithMeta,
     isSpansResponse,
     isTracesResponse,
     transformTracesResponseToTree,
     transformTracingResponse,
+    type PreviewTracesRateLimit,
 } from "@agenta/entities/trace"
 
 import {
     normalizeReferenceValue,
     parseReferenceKey,
 } from "@/oss/components/pages/observability/assets/filters/referenceUtils"
-import {
-    fetchAllPreviewTracesWithMeta,
-    type PreviewTracesRateLimit,
-} from "@/oss/services/tracing/api"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
+import {getProjectValues} from "@/oss/state/project"
 
 export interface Condition {
     field: string
@@ -267,8 +266,14 @@ export const executeTraceQuery = async ({
     // even a long-running scan sees fresh bucket state on every page.
     let lastRateLimit: PreviewTracesRateLimit = {remaining: null, limit: null}
 
+    const {projectId} = getProjectValues()
     const fetchPage = async (pageParams: Record<string, any>) => {
-        const result = await fetchAllPreviewTracesWithMeta(pageParams, appId, signal)
+        const result = await fetchAllPreviewTracesWithMeta(
+            pageParams,
+            appId,
+            projectId ?? "",
+            signal,
+        )
         lastRateLimit = result.rateLimit
         return result.data
     }

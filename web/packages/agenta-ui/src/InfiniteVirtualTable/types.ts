@@ -357,6 +357,12 @@ export interface InfiniteVirtualTableProps<RecordType, ExpandedChildType = unkno
     rowSelection?: InfiniteVirtualTableRowSelection<RecordType>
     resizableColumns?: boolean | ResizableColumnsConfig
     columnVisibility?: ColumnVisibilityConfig<RecordType>
+    /**
+     * When true, disables the built-in guard that prevents row-click navigation
+     * from firing when the click originates from an interactive element (button,
+     * checkbox, dropdown, etc.). Defaults to false — the guard is on by default.
+     */
+    disableInteractiveClickGuard?: boolean
     onColumnToggle?: (payload: {
         scopeId: string | null
         columnKey: string
