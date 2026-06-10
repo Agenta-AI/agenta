@@ -9,7 +9,7 @@ export {
     setOnSelectionChangeCallback,
     getOnSelectionChangeCallback,
 } from "./playgroundController"
-export type {ConnectToTestsetPayload, OpenFromTraceResult} from "./playgroundController"
+export type {OpenFromTraceResult} from "./playgroundController"
 export {outputConnectionController} from "./outputConnectionController"
 export {entitySelectorController} from "./entitySelectorController"
 export {executionController} from "./executionController"

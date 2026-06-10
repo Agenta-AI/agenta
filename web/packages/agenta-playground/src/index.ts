@@ -82,7 +82,7 @@ export type {PlaygroundEntityProviders} from "./state"
 export type {PlaygroundTestResult, PlaygroundNode} from "./state"
 export type {ChatMessage, SimpleChatMessage, MessageTarget} from "./state"
 export type {ChainExecutionResult, ChainNodeInfo} from "./state"
-export type {ConnectToTestsetPayload, OpenFromTraceResult} from "./state"
+export type {OpenFromTraceResult} from "./state"
 
 // ============================================================================
 // TRACE REFERENCE RESOLUTION (shared with OSS trace drawer UI gate)
