@@ -144,6 +144,21 @@ def _send_smtp_email_sync(
 async def _send_sendgrid_email(
     to_email: str, subject: str, html_content: str, from_email: str
 ) -> bool:
+    try:
+        return await asyncio.to_thread(
+            _send_sendgrid_email_sync,
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            from_email=from_email,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _send_sendgrid_email_sync(
+    to_email: str, subject: str, html_content: str, from_email: str
+) -> bool:
     message = Mail(
         from_email=from_email,
         to_emails=to_email,
@@ -151,8 +166,5 @@ async def _send_sendgrid_email(
         html_content=html_content,
     )
 
-    try:
-        sg.send(message)
-        return True
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    sg.send(message)
+    return True
