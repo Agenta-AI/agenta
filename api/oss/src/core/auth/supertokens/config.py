@@ -2,11 +2,6 @@ from typing import Dict, List, Any
 from urllib.parse import urlparse
 
 from supertokens_python import init, InputAppInfo, SupertokensConfig
-from supertokens_python.ingredients.emaildelivery.types import (
-    EmailDeliveryConfig,
-    SMTPSettings,
-    SMTPSettingsFrom,
-)
 from supertokens_python.recipe import (
     emailpassword,
     passwordless,
@@ -61,32 +56,6 @@ def get_supertokens_config() -> Dict[str, Any]:
         "connection_uri": env.supertokens.uri_core,
         "api_key": env.supertokens.api_key,
     }
-
-
-def get_passwordless_email_delivery():
-    """Route passwordless OTP emails through SMTP when SMTP is configured."""
-    if not env.smtp.enabled:
-        return None
-
-    if not env.smtp.use_ssl and not env.smtp.use_tls:
-        log.warning(
-            "Passwordless email delivery via SuperTokens may still attempt STARTTLS "
-            "even though SMTP_USE_TLS=false; set SMTP_USE_SSL=true or "
-            "SMTP_USE_TLS=true to avoid this difference."
-        )
-
-    return EmailDeliveryConfig(
-        service=passwordless.SMTPService(
-            SMTPSettings(
-                host=env.smtp.host,
-                port=env.smtp.port,
-                from_=SMTPSettingsFrom(name="Agenta", email=env.smtp.from_email),
-                username=env.smtp.username,
-                password=env.smtp.password,
-                secure=env.smtp.use_ssl,
-            )
-        )
-    )
 
 
 def get_app_info() -> InputAppInfo:
@@ -433,7 +402,6 @@ def init_supertokens():
                     apis=override_passwordless_apis,
                     functions=override_passwordless_functions,
                 ),
-                email_delivery=get_passwordless_email_delivery(),
             )
         )
 
