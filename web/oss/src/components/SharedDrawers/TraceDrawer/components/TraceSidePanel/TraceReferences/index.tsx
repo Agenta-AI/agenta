@@ -17,9 +17,6 @@ import {projectIdAtom} from "@/oss/state/project"
 
 const titleClass = "text-sm leading-[1.5714285714285714] font-medium"
 
-// The side panel hugs the right edge of the screen, so hovercards open leftward.
-const HOVERCARD_PLACEMENT = "bottomRight" as const
-
 const labelMap: Record<string, string> = {
     evaluator: "Evaluators",
     application: "Applications",
@@ -79,7 +76,6 @@ const TraceReferences = () => {
                         projectURL={projectURL}
                         label={slug}
                         openExternally
-                        hovercardPlacement={HOVERCARD_PLACEMENT}
                     />
                 )
             case "testset":
@@ -90,7 +86,6 @@ const TraceReferences = () => {
                         projectId={projectId}
                         projectURL={projectURL}
                         openExternally
-                        hovercardPlacement={HOVERCARD_PLACEMENT}
                     />
                 )
             case "evaluator":
@@ -102,7 +97,6 @@ const TraceReferences = () => {
                         href={buildEvaluatorTarget({id, slug})?.href ?? undefined}
                         label={slug}
                         openExternally
-                        hovercardPlacement={HOVERCARD_PLACEMENT}
                     />
                 )
             case "environment":
@@ -115,7 +109,6 @@ const TraceReferences = () => {
                         projectURL={projectURL}
                         label={slug}
                         openExternally
-                        hovercardPlacement={HOVERCARD_PLACEMENT}
                     />
                 )
             case "application_variant": {
@@ -138,7 +131,6 @@ const TraceReferences = () => {
                         href={href || undefined}
                         fallbackLabel={slug}
                         openExternally
-                        hovercardPlacement={HOVERCARD_PLACEMENT}
                     />
                 )
             }

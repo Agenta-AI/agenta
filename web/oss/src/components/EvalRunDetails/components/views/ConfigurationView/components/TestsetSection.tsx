@@ -9,33 +9,19 @@ import {runTestsetIdsAtomFamily} from "../../../../atoms/runDerived"
 import {simpleTestsetDetailsAtomFamily} from "../../../../atoms/testsetDetails"
 import {TestsetTagList} from "../../../references"
 
-import {DefList, DefRow, SectionCard, SectionHeaderRow, SectionSkeleton} from "./SectionPrimitives"
+import {SectionCard, SectionHeaderRow, SectionSkeleton} from "./SectionPrimitives"
 
 const {Text} = Typography
 
 interface TestsetSectionProps {
     runId: string
-    /** V2 layout: render definition-list rows only (the shell owns the card). */
-    embedded?: boolean
-    /** Compare mode: the test set differs from the base run. */
-    differs?: boolean
 }
 
-const TestsetSection = ({runId, embedded = false, differs = false}: TestsetSectionProps) => {
+const TestsetSection = ({runId}: TestsetSectionProps) => {
     const testsetIds = useAtomValue(useMemo(() => runTestsetIdsAtomFamily(runId), [runId]))
 
     if (!testsetIds.length) {
         return null
-    }
-
-    if (embedded) {
-        return (
-            <div className="flex flex-col gap-4">
-                {testsetIds.map((id) => (
-                    <EmbeddedTestsetRows key={id} runId={runId} testsetId={id} differs={differs} />
-                ))}
-            </div>
-        )
     }
 
     return (
@@ -46,57 +32,6 @@ const TestsetSection = ({runId, embedded = false, differs = false}: TestsetSecti
                 ))}
             </div>
         </Form>
-    )
-}
-
-const EmbeddedTestsetRows = ({
-    runId,
-    testsetId,
-    differs,
-}: {
-    runId: string
-    testsetId: string
-    differs: boolean
-}) => {
-    const simpleAtom = useMemo(() => simpleTestsetDetailsAtomFamily(testsetId), [testsetId])
-    const simpleQuery = useAtomValue(simpleAtom)
-    const simple = simpleQuery.data
-
-    const testcaseCount =
-        typeof simple?.testcaseCount === "number" && simple.testcaseCount >= 0
-            ? simple.testcaseCount
-            : null
-    const columns = simple?.columnNames && simple.columnNames.length ? simple.columnNames : null
-
-    return (
-        <DefList>
-            <DefRow label="Test set" differs={differs}>
-                <TestsetTagList ids={[testsetId]} runId={runId} />
-            </DefRow>
-            <DefRow label="Test cases">
-                <span className="text-[13px] font-medium [font-variant-numeric:tabular-nums]">
-                    {testcaseCount ?? "—"}
-                </span>
-            </DefRow>
-            <DefRow label="Columns">
-                {columns ? (
-                    columns.map((col) => (
-                        <Tag key={`${testsetId}-${col}`} className="!m-0 font-mono text-[11px]">
-                            {col}
-                        </Tag>
-                    ))
-                ) : (
-                    <Text type="secondary">No column metadata.</Text>
-                )}
-            </DefRow>
-            {simple?.description ? (
-                <DefRow label="Description">
-                    <Text type="secondary" className="leading-5">
-                        {simple.description}
-                    </Text>
-                </DefRow>
-            ) : null}
-        </DefList>
     )
 }
 
@@ -138,7 +73,14 @@ const TestsetCard = ({
     return (
         <SectionCard>
             <SectionHeaderRow
-                left={<TestsetTagList ids={[testsetId]} runId={runId} className="-mt-2" />}
+                left={
+                    <TestsetTagList
+                        ids={[testsetId]}
+                        runId={runId}
+                        className="-mt-2"
+                        toneOverride={null}
+                    />
+                }
                 right={
                     <Button
                         type="text"
