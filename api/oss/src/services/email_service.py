@@ -19,9 +19,9 @@ if env.smtp.enabled:
     log.info("✓ SMTP email enabled")
 else:
     if (env.smtp.host or env.smtp.port) and not env.smtp.from_email:
-        log.warn("✗ SMTP disabled: missing sender email address")
+        log.warning("✗ SMTP disabled: missing sender email address")
     else:
-        log.warn("✗ SMTP disabled")
+        log.warning("✗ SMTP disabled")
 
 if env.sendgrid.enabled:
     sg = sendgrid.SendGridAPIClient(api_key=env.sendgrid.api_key)
