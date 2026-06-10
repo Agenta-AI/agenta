@@ -377,6 +377,31 @@ Stays in OSS (broadly-shared, NOT eval-specific; packages import via `@/oss`-pro
 package-provided equivalents): `@/oss/state/{project,workspace,entities,app}`, `@/oss/lib/Types`,
 `@/oss/lib/api`, `@/oss/components/InfiniteVirtualTable`, generic helpers.
 
+#### WP-4 STATUS (2026-06-10) — leaves done; atom move BLOCKED on a prerequisite
+
+Landed + green (oss tsc steady 588 throughout): WP-4 unblocker (promote metricUtils →
+`@agenta/shared/metrics`, EvaluationStatus → `@agenta/entities/evaluationRun`, SnakeToCamelCaseKeys
+→ `@agenta/shared/types`), **4a** (buildRunIndex + evaluationKind → `@agenta/evaluations/core`),
+**4b** (active eval services → `@agenta/evaluations/services`), **4c+4d** (usePreviewEvaluations →
+`@agenta/evaluations/hooks`; evaluationRuns deduped).
+
+**4e (atom move) is BLOCKED.** Verified: ~18 of the `EvalRunDetails/atoms` couple to OSS entity-state
+(`@/oss/state/entities/{testcase,testset,shared}`), which is a **divergent parallel implementation of
+the existing `@agenta/entities` molecules**. Promoting it cascades into a **14–18 day, ~331-file,
+app-wide entity-layer re-platform with a tsc-invisible silent-regression risk** (flat vs nested
+testcase data). That is its own initiative — see
+[entity-state-consolidation-plan.md](./entity-state-consolidation-plan.md).
+
+**Two ways to unblock 4e (decide when resuming):**
+1. **Injection seams** (recommended to finish the eval migration in isolation): the eval atoms receive
+   testcase/testset/References/workspace data injected from the OSS `-ui` provider (the DoD pattern);
+   OSS entity layer untouched. Moves 4e safely without the consolidation.
+2. **Entity-state consolidation first** (the broader platform goal): execute the C1–C7 plan in the
+   consolidation doc (human-in-the-loop, QA-gated), then 4e is a clean re-point.
+
+4f–4l (state, ETL UI, view re-point, EvaluationRunsTablePOC, delete, parity) all follow 4e and are
+unchanged. The irreversible deletions (4k / consolidation C7) remain gated on manual parity QA.
+
 ### WP-5 — Rename `annotation`→`annotations`, `annotation-ui`→`annotations-ui` (optional/last)
 - Cosmetic alignment with `evaluations`/`evaluations-ui`. Pure rename + re-export shims, no
   logic. Do last to avoid churn during WP-1..4.
