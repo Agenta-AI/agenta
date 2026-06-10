@@ -91,6 +91,14 @@ def _parse_optional_int_env(name: str) -> int | None:
     except ValueError as e:
         raise ValueError(f"{name} must be a valid integer") from e
 
+
+def _parse_optional_port_env(name: str) -> int | None:
+    port = _parse_optional_int_env(name)
+    if port is not None and not 1 <= port <= 65535:
+        raise ValueError(f"{name} must be between 1 and 65535")
+    return port
+
+
 def _parse_bool_env(name: str, default: bool) -> bool:
     raw = os.getenv(name)
     if raw is None:
@@ -954,7 +962,7 @@ class SmtpConfig(BaseModel):
     """SMTP Email configuration"""
 
     host: str | None = os.getenv("SMTP_HOST")
-    port: int | None = _parse_optional_int_env("SMTP_PORT")
+    port: int | None = _parse_optional_port_env("SMTP_PORT")
     username: str | None = os.getenv("SMTP_USERNAME")
     password: str | None = os.getenv("SMTP_PASSWORD")
     from_email: str | None = (
@@ -971,7 +979,7 @@ class SmtpConfig(BaseModel):
     @property
     def enabled(self) -> bool:
         """SMTP enabled only if host, port, and sender are present"""
-        return bool(self.host and self.port and self.from_email)
+        return bool(self.host and self.port is not None and self.from_email)
 
 
 class SendgridConfig(BaseModel):
