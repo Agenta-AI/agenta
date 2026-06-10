@@ -7,4 +7,4 @@ export {
     type PlaygroundFocusDrawerState,
 } from "./focusDrawer"
 
-export {useNewPlaygroundInputsBodyAtom} from "./featureFlags"
+export {useNewPlaygroundInputsBodyAtom, playgroundModeSwitchEnabledAtom} from "./featureFlags"

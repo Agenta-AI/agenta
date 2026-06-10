@@ -65,6 +65,16 @@ export {displayedEntityIdsAtom, playgroundInitializedAtom} from "./state"
 // Testset import mutation (consumed by OSS testset integration)
 export {loadTestsetNormalizedMutationAtom} from "./state"
 
+// Playground mode switch (chat ⇄ completion behavior; consumed by the
+// ModeSwitcher chrome in @agenta/playground-ui)
+export {
+    playgroundCapabilityModeAtom,
+    playgroundModeOverrideAtom,
+    switchPlaygroundModeAtom,
+    playgroundHasConversationAtom,
+    type PlaygroundMode,
+} from "./state"
+
 // ============================================================================
 // ENTITY CONTEXT (Dependency Injection)
 // ============================================================================

@@ -29,3 +29,14 @@ import {atom} from "jotai"
  * follow-ups in the approved design doc.
  */
 export const useNewPlaygroundInputsBodyAtom = atom<boolean>(true)
+
+/**
+ * When `true`, chat-capable apps show a `Chat | Completion` segmented control
+ * in the generations header that switches the playground behavior at runtime.
+ *
+ * Default `false`: the switch lands across stacked PRs (chat → completion
+ * first, the reverse direction and the sync gate next). OSS flips this on once
+ * both directions and the sync gate are ready. Design doc:
+ * docs/design/playground-mode-switch/.
+ */
+export const playgroundModeSwitchEnabledAtom = atom<boolean>(false)

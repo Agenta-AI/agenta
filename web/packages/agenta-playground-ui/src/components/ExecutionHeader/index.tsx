@@ -4,6 +4,7 @@ import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {
     executionController,
     executionItemController,
+    playgroundCapabilityModeAtom,
     playgroundController,
 } from "@agenta/playground"
 import {CollapsibleGroupHeader, RunButton} from "@agenta/ui/components/presentational"
@@ -12,6 +13,9 @@ import {ArrowsInLineVertical, ArrowsOutLineVertical} from "@phosphor-icons/react
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
+
+import {playgroundModeSwitchEnabledAtom} from "../../state/featureFlags"
+import ModeSwitcher from "../ModeSwitcher"
 
 // import RunOptionsPopover from "../ExecutionItems/assets/RunOptionsPopover"
 
@@ -49,6 +53,12 @@ const ExecutionHeader = ({
 }: ExecutionHeaderProps) => {
     const isComparisonView = !entityId
     const isChatMode = useAtomValue(executionController.selectors.isChatMode) ?? false
+    const modeSwitchEnabled = useAtomValue(playgroundModeSwitchEnabledAtom)
+    const capabilityMode = useAtomValue(playgroundCapabilityModeAtom)
+    // The segmented control replaces the panel title for chat-capable apps
+    // when the feature flag is on. It relocates the collapse-all action to an
+    // icon-only button (design: docs/design/playground-mode-switch/).
+    const showModeSwitcher = modeSwitchEnabled && capabilityMode === "chat"
 
     const headerDataSelector = useMemo(
         () =>
@@ -114,7 +124,9 @@ const ExecutionHeader = ({
             )}
         >
             <div className="flex items-center gap-2">
-                {showCollapseToggle ? (
+                {showModeSwitcher ? (
+                    <ModeSwitcher disabled={isComparisonView} />
+                ) : showCollapseToggle ? (
                     <div className="flex items-center">
                         <CollapsibleGroupHeader
                             label={
@@ -152,6 +164,24 @@ const ExecutionHeader = ({
             </div>
 
             <div className="flex items-center gap-2">
+                {showModeSwitcher && showCollapseToggle ? (
+                    <Tooltip title="Collapse all test cases">
+                        <Button
+                            type="text"
+                            size="small"
+                            aria-label="Collapse all test cases"
+                            onClick={() => setIsAllCollapsed(!isAllCollapsed)}
+                            icon={
+                                isAllCollapsed ? (
+                                    <ArrowsOutLineVertical size={16} />
+                                ) : (
+                                    <ArrowsInLineVertical size={16} />
+                                )
+                            }
+                        />
+                    </Tooltip>
+                ) : null}
+
                 <Tooltip title="Clear all">
                     <Button size="small" onClick={() => clearAll()} disabled={isRunning}>
                         Clear

@@ -61,6 +61,24 @@ function freezeConversationsIntoRows(get: Getter, set: Setter, loadableId: strin
 }
 
 /**
+ * Whether the current playground holds a conversation with at least one turn.
+ * Drives the confirm dialog: an empty chat switches to completion silently,
+ * since there is nothing to reshape.
+ */
+export const playgroundHasConversationAtom = atom<boolean>((get) => {
+    const loadableId = get(derivedLoadableIdAtom)
+    if (!loadableId) return false
+    const rowIds = get(loadableController.selectors.displayRowIds(loadableId)) as string[]
+    for (const rowId of rowIds) {
+        const row = get(loadableController.selectors.row(loadableId, rowId)) as {
+            data?: Record<string, unknown>
+        } | null
+        if (normalizeColumnMessages(row?.data?.messages).length > 0) return true
+    }
+    return false
+})
+
+/**
  * Flip the playground behavior, reshaping data for the chat → completion
  * direction. No-op when the app is not chat-capable or the target equals the
  * current behavior.

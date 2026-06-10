@@ -326,7 +326,10 @@ export {syncChatMessagesToEntityAtom} from "./helpers/syncChatMessagesToEntity"
 
 // Playground mode switch (chat ⇄ completion behavior; see
 // docs/design/playground-mode-switch/)
-export {switchPlaygroundModeAtom} from "./helpers/switchPlaygroundMode"
+export {
+    switchPlaygroundModeAtom,
+    playgroundHasConversationAtom,
+} from "./helpers/switchPlaygroundMode"
 export {
     splitConversationForCompletion,
     mergeConversationFromCompletion,
