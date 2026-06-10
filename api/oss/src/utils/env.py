@@ -89,7 +89,7 @@ def _parse_optional_int_env(name: str) -> int | None:
     try:
         return int(value)
     except ValueError as e:
-        raise ValueError(f"{name} must be a valid integer") from e
+        raise ValueError(f"{name} must be a valid integer, got {raw!r}") from e
 
 
 def _parse_optional_port_env(name: str) -> int | None:
