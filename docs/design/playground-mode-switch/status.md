@@ -1,7 +1,7 @@
 # Status
 
-**Stage: PR1 in review (#4609). PR2 in progress on
-`feat/playground-completion-mode-for-chat` (stacked on PR1).**
+**Stage: PR1 in review (#4609). PR2 built and verified on
+`feat/playground-completion-mode-for-chat` (stacked on PR1), ready to push.**
 Last updated: 2026-06-10.
 
 New session? Read [context.md](context.md) for scope and invariants,
@@ -21,6 +21,20 @@ PR stack. All product decisions are made; nothing is blocked on input.
 | Rollout | Toggle behind a flag until the end of PR3 | Both directions plus the sync gate must work before anyone can switch |
 | Persistence | `atomWithStorage`, per-app record, key `agenta:playground:mode` | Repo pattern; survives reloads; never versioned |
 | Transforms | Pure functions in `@agenta/playground` helpers, both directions written in PR2, unit tests in `tests/unit/` | Round-trip identity tests must exist from day one |
+
+## Deferred from PR2 to PR3
+
+These are not blockers for PR2 (the switch is lossless and runs correctly
+without them); they are surfacing/polish:
+
+- **Editable messages-column card in completion rows.** The frozen
+  conversation lives in the row's `messages` column and drives runs, but
+  the prompt does not reference `messages` as a variable, so the column is
+  hidden ("1 unused testcase column hidden"). It is preserved and restored
+  on switch-back, just not yet shown as an editable card.
+- **Post-switch info banner** ("Conversation moved to the `messages`
+  column...").
+- **Completion → chat reverse reshaping + picker** (already PR3 scope).
 
 ## Engineering verifications
 
@@ -46,6 +60,19 @@ PR stack. All product decisions are made; nothing is blocked on input.
   above). Mode switch transforms written as pure helpers
   (`helpers/modeSwitchTransforms.ts`) with 15 unit tests covering the
   split/merge contract and round-trip identity.
+- 2026-06-10 (PR2 complete, behind a flag): wired the full chat → completion
+  path. Load keeps the `messages` column for chat-capable apps; the run
+  path scopes per row and sources each row's history from its own `messages`
+  column (chat-shaped request, reply to the result slot);
+  `switchPlaygroundModeAtom` freezes each conversation on switch; the
+  `Chat | Completion` segmented control + confirm dialog live in the header
+  behind `playgroundModeSwitchEnabledAtom` (default off), disabled in
+  compare view. 88 package unit tests pass; both packages build; lint clean.
+  Verified end to end on the dev box with the flag forced on: switching a
+  chat app froze the conversation into testcase 1 (last reply shown as the
+  row output), and Run posted `data.inputs.messages` = the row's frozen
+  history with the `context` variable and no system-message duplication.
+  Deferred items recorded above.
 - 2026-06-10: PR1 done. `playgroundModeOverrideAtom` +
   `playgroundCapabilityModeAtom` + `playgroundIsChatBehaviorAtom` in
   `web/packages/agenta-playground/src/state/atoms/modeOverride.ts`;
