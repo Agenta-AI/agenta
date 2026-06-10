@@ -514,7 +514,10 @@ const meaningfulLocalRowsAtomFamily = atomFamily((loadableId: string) =>
             return []
         }
 
-        const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+        // Use the loadable-filtered row ids (not the raw molecule list) so rows
+        // the user removed in the playground (hiddenTestcaseIds) don't count as
+        // drafts and can't be resurrected by a keep-and-connect flow.
+        const displayRowIds = get(displayRowIdsAtomFamily(loadableId))
         const rows: TestsetRow[] = []
         for (const id of displayRowIds) {
             const entity = get(testcaseMolecule.data(id))

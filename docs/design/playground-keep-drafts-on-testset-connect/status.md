@@ -1,12 +1,28 @@
 # Status
 
-Last updated: 2026-06-09
+Last updated: 2026-06-10
 
 ## Current state
 
-**Implemented, unit-tested, lint and package builds green.** Committed on
-`fix/playground-keep-drafts-on-testset-connect`, PR stacked on
-`release/v0.103.0` (the v0.103.0 release PR, #4584). Manual QA pending.
+**Implemented, unit-tested, QA-round-1 bugs fixed and re-verified on the dev
+stack.** Committed on `fix/playground-keep-drafts-on-testset-connect`, PR
+#4604 stacked on `release/v0.103.0` (the v0.103.0 release PR, #4584).
+
+## QA round 1 (2026-06-10)
+
+QA reported three bugs against the first commit: Cancel still loaded the
+test set, the modal fired with an inflated draft count, and the picked test
+set rows rendered behind the modal. All three shared one root cause: the
+selection modal committed the picked ids into the global testcase ids atom
+(`commitSelectionDraft`) before the keep/discard decision. Fixed in two
+layers: `LoadModeContent` load mode now discards the draft instead of
+committing it (the connect populates ids itself), and `TestsetDropdown`
+clears stale ids in local mode before measuring drafts. A follow-up review
+also found and fixed: `meaningfulLocalRows` counted rows the user had
+removed (`hiddenTestcaseIds`), which would have resurrected deleted rows on
+keep; and a guard against confirming the selection modal with no real test
+set picked (the `"local"` sentinel). All three QA scenarios plus the
+no-draft and keep paths re-verified in Chrome against the dev stack.
 
 ## Done
 

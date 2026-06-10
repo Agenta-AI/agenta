@@ -262,6 +262,15 @@ export function TestsetDropdown() {
                     testcases: payload.testcases ?? [],
                 })
             } else {
+                // No real testset picked: the modal falls back to the "local"
+                // sentinel as draft key, and the selection then mirrors the
+                // playground's own rows. Connecting to it would bind the
+                // loadable to a bogus source and duplicate the draft rows.
+                if (!payload.revisionId || payload.revisionId === "local") {
+                    setSelectionModalMode(null)
+                    return
+                }
+
                 // Replace mode: connect and sync selected testcases from entity layer
                 const testcases = payload.selectedTestcaseIds.map((id) => {
                     const data = testcaseMolecule.get.data(id)
@@ -274,6 +283,15 @@ export function TestsetDropdown() {
                     testsetName: payload.testsetName ?? "",
                     testsetId: payload.testsetId ?? null,
                     revisionVersion: payload.revisionVersion ?? null,
+                }
+
+                // Invariant: in local mode the global testcase ids atom must be
+                // empty — server ids only exist while connected. Stale ids here
+                // would count as draft rows below and render as phantom rows if
+                // the user cancels the keep/discard modal, so clear them before
+                // measuring. A real connect repopulates them via connectToSource.
+                if (!isConnected) {
+                    store.set(testcaseMolecule.ids, [])
                 }
 
                 // Connecting clears local rows. If the playground holds draft
@@ -305,6 +323,7 @@ export function TestsetDropdown() {
             importTestcases,
             store,
             isChatPlayground,
+            isConnected,
             setKeepDraftRowsModalState,
         ],
     )
@@ -359,6 +378,8 @@ export function TestsetDropdown() {
                 // Connect the newly created testset. The new test set is empty,
                 // so keep any draft rows instead of wiping them: they become
                 // unsaved additions the user can sync as the first commit.
+                // (Chat mode is the exception: the single-testcase gate inside
+                // the action falls back to a plain connect there.)
                 const testcases = result.testcases ?? []
                 connectKeepingDrafts({
                     loadableId,

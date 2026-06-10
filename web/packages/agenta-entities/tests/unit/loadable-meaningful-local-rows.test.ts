@@ -63,6 +63,18 @@ describe("meaningfulLocalRows", () => {
         expect(meaningfulRows(store)).toHaveLength(1)
     })
 
+    it("excludes rows the user removed from the playground (hiddenTestcaseIds)", () => {
+        const store = freshStore()
+        const kept = store.set(testcaseMolecule.actions.add, {data: {country: "France"}})
+        const removed = store.set(testcaseMolecule.actions.add, {data: {country: "Spain"}})
+
+        // Playground row delete hides local rows via the loadable removeRow path
+        store.set(loadableController.actions.removeRow, LOADABLE_ID, removed!.id)
+
+        const rows = meaningfulRows(store)
+        expect(rows.map((r) => r.id)).toEqual([kept!.id])
+    })
+
     it("returns [] once the loadable is connected", () => {
         const store = freshStore()
         store.set(testcaseMolecule.actions.add, {data: {country: "France"}})
