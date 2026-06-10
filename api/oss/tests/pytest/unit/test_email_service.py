@@ -6,6 +6,13 @@ from oss.src.services import email_service
 from oss.src.utils.env import env
 
 
+@pytest.fixture(autouse=True)
+def _clear_sendgrid_client_cache():
+    email_service._get_sendgrid_client.cache_clear()
+    yield
+    email_service._get_sendgrid_client.cache_clear()
+
+
 def _disable_smtp(monkeypatch):
     monkeypatch.setattr(env.smtp, "host", None)
     monkeypatch.setattr(env.smtp, "port", None)
@@ -98,7 +105,7 @@ async def test_send_email_prefers_smtp_over_sendgrid(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_send_email_uses_smtp_ssl_without_starttls(monkeypatch):
-    _enable_smtp(monkeypatch, use_tls=True, use_ssl=True)
+    _enable_smtp(monkeypatch, use_tls=False, use_ssl=True)
     _disable_sendgrid(monkeypatch)
     FakeSmtp.instances = []
     monkeypatch.setattr(email_service.smtplib, "SMTP_SSL", FakeSmtp)
@@ -155,9 +162,15 @@ async def test_send_email_falls_back_to_sendgrid(monkeypatch):
         html_content="<p>Hello</p>",
         from_email="caller@example.com",
     )
+    assert await email_service.send_email(
+        to_email="to@example.com",
+        subject="Subject",
+        html_content="<p>Hello again</p>",
+        from_email="caller@example.com",
+    )
 
     sendgrid_client.assert_called_once_with(api_key="sg-key")
-    fake_sendgrid.send.assert_called_once()
+    assert fake_sendgrid.send.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -196,3 +209,27 @@ def test_incomplete_smtp_does_not_enable_email_otp(monkeypatch):
 
     assert not env.smtp.enabled
     assert env.auth.email_method == "password"
+
+
+def test_get_configured_from_email_prefers_smtp(monkeypatch):
+    _enable_smtp(monkeypatch)
+    monkeypatch.setattr(env.sendgrid, "api_key", "sg-key")
+    monkeypatch.setattr(env.sendgrid, "from_address", "sendgrid@example.com")
+
+    assert email_service.get_configured_from_email() == "smtp@example.com"
+
+
+def test_get_configured_from_email_raises_when_unset(monkeypatch):
+    _disable_smtp(monkeypatch)
+    _disable_sendgrid(monkeypatch)
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "Email delivery requires a sender email address\\. "
+            "Set SMTP_FROM_EMAIL, AGENTA_AUTHN_EMAIL_FROM, or "
+            "AGENTA_SEND_EMAIL_FROM_ADDRESS for SMTP delivery, or "
+            "SENDGRID_FROM_ADDRESS for SendGrid fallback\\."
+        ),
+    ):
+        email_service.get_configured_from_email()

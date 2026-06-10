@@ -159,14 +159,7 @@ async def generate_user_password_reset_link(user_id: str, admin_user_id: str):
         call_to_action=f"""<p>Click the link below to reset your password:</p><br><a href="{password_reset_link}">Reset Password</a>""",
     )
 
-    from_email = env.smtp.from_email if env.smtp.enabled else env.sendgrid.from_address
-    if not from_email:
-        raise ValueError(
-            "Email delivery requires a sender email address. "
-            "Set SMTP_FROM_EMAIL, AGENTA_AUTHN_EMAIL_FROM, or "
-            "AGENTA_SEND_EMAIL_FROM_ADDRESS for SMTP delivery, or "
-            "SENDGRID_FROM_ADDRESS for SendGrid fallback."
-        )
+    from_email = email_service.get_configured_from_email()
 
     await email_service.send_email(
         from_email=from_email,

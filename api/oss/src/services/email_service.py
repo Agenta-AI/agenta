@@ -3,6 +3,7 @@ import os
 import smtplib
 import ssl
 from email.message import EmailMessage
+from functools import lru_cache
 
 import sendgrid
 from sendgrid.helpers.mail import Mail
@@ -18,8 +19,19 @@ log = get_logger(__name__)
 if env.smtp.enabled:
     log.info("✓ SMTP email enabled")
 else:
-    if (env.smtp.host or env.smtp.port) and not env.smtp.from_email:
-        log.warning("✗ SMTP disabled: missing sender email address")
+    smtp_configuration = {
+        "SMTP_HOST": env.smtp.host,
+        "SMTP_PORT": env.smtp.port,
+        "SMTP_FROM_EMAIL": env.smtp.from_email,
+    }
+    if any(smtp_configuration.values()):
+        missing_fields = [
+            field for field, value in smtp_configuration.items() if not value
+        ]
+        log.warning(
+            "✗ SMTP disabled: missing required configuration: %s",
+            ", ".join(missing_fields),
+        )
     else:
         log.info("✗ SMTP disabled")
 
@@ -30,6 +42,20 @@ else:
         log.warning("✗ SendGrid disabled: missing sender email address")
     else:
         log.info("✗ SendGrid disabled")
+
+
+def get_configured_from_email() -> str:
+    """Return the configured sender email for SMTP or SendGrid delivery."""
+    from_email = env.smtp.from_email if env.smtp.enabled else env.sendgrid.from_address
+    if from_email:
+        return from_email
+
+    raise ValueError(
+        "Email delivery requires a sender email address. "
+        "Set SMTP_FROM_EMAIL, AGENTA_AUTHN_EMAIL_FROM, or "
+        "AGENTA_SEND_EMAIL_FROM_ADDRESS for SMTP delivery, or "
+        "SENDGRID_FROM_ADDRESS for SendGrid fallback."
+    )
 
 
 def read_email_template(template_file_path):
@@ -175,6 +201,15 @@ def _send_sendgrid_email_sync(
         html_content=html_content,
     )
 
-    sg = sendgrid.SendGridAPIClient(api_key=env.sendgrid.api_key)
+    api_key = env.sendgrid.api_key
+    if not api_key:
+        raise RuntimeError("SENDGRID_API_KEY must be configured")
+
+    sg = _get_sendgrid_client(api_key)
     sg.send(message)
     return True
+
+
+@lru_cache(maxsize=1)
+def _get_sendgrid_client(api_key: str) -> sendgrid.SendGridAPIClient:
+    return sendgrid.SendGridAPIClient(api_key=api_key)
