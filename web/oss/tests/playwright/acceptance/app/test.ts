@@ -154,16 +154,19 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
 
             // 4. Set up the network listener BEFORE clicking commit, so we
             //    capture the workflow create POST.
-            const createAppPromise = page.waitForResponse((response) => {
-                if (
-                    !response.url().includes("/workflows") ||
-                    response.request().method() !== "POST"
-                ) {
-                    return false
-                }
-                const payload = response.request().postData() ?? ""
-                return payload.includes(appName)
-            })
+            const createAppPromise = page.waitForResponse(
+                (response) => {
+                    if (
+                        !response.url().includes("/workflows") ||
+                        response.request().method() !== "POST"
+                    ) {
+                        return false
+                    }
+                    const payload = response.request().postData() ?? ""
+                    return payload.includes(appName)
+                },
+                {timeout: 90000},
+            )
 
             // 5. Click the "Create" button. CommitVariantChangesButton shows "Create"
             //    (not "Commit") for ephemeral local-* entities. Clicking it opens

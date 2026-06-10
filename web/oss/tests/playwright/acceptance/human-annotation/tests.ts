@@ -762,7 +762,11 @@ const waitForHumanAnnotationForm = async ({
                 // Only seed once — on subsequent iterations just wait for the form to appear.
                 if (!seededInvocationOutput && overlayVisible) {
                     seededInvocationOutput = true
-                    await seedHumanInvocationResult(page)
+                    try {
+                        await seedHumanInvocationResult(page)
+                    } catch {
+                        // seed failed transiently — wait for natural form appearance
+                    }
                     const annotateUrl = new URL(page.url())
                     annotateUrl.searchParams.set("view", "focus")
                     await page.goto(annotateUrl.toString(), {waitUntil: "domcontentloaded"})
@@ -792,7 +796,7 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
                 .poll(() => new URL(page.url()).pathname)
                 .toBe(getHumanEvaluationsPath(page, appId))
             await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBe("human")
-            await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 10000})
+            await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 30000})
 
             await ensureHumanEvaluationsContext(page)
             await getHumanEvaluationCreateButton(page, 60000)

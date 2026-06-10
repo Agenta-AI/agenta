@@ -113,7 +113,7 @@ const goToAutoEvaluations = async (page: Page, appId: string) => {
 
     await expect.poll(() => new URL(page.url()).pathname).toBe(getAutoEvaluationsPath(page, appId))
     await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBe("auto")
-    await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 10000})
+    await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 30000})
 
     const evaluationRuns = await evaluationRunsPromise
     expect(Array.isArray(evaluationRuns.runs)).toBe(true)

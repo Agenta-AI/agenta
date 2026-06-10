@@ -242,37 +242,42 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 expect(typeof role).toBe("string")
 
                 // 2. Click on the message button to create a new prompt slot.
-                // Count ALL shared editors rather than only empty rich-text ones. The
-                // old selector matched `.editor-input[role="textbox"]:has(p:has(br:only-child))`
-                // which only works in rich-text mode. When messageViewModeAtom is "text"
-                // (the default), Lexical switches to code/markdown-source mode where the
-                // empty state is represented by a CodeNode with no <p> elements, so the
-                // old empty-paragraph selector never matched the newly added editor.
-                const editorSelector = `.agenta-shared-editor .editor-input[role="textbox"]`
-                const countBefore = await page.locator(editorSelector).count()
+                // Track the count of role-selector buttons (.message-user-select) rather
+                // than all shared editors. The execution-section variable cards also render
+                // agenta-shared-editor elements, and they appear in the DOM interleaved with
+                // template editors; using the raw editor count causes the index to point at an
+                // execution-section editor instead of the newly added template message editor.
+                // Only template message editors carry a .message-user-select role button, so
+                // counting those gives a stable, isolated index.
+                const roleButtonSelector = ".message-user-select"
+                const msgCountBefore = await page.locator(roleButtonSelector).count()
 
                 await page.getByRole("button", {name: "Message"}).first().click()
 
-                // 3. Wait for the newly added slot to appear (total count must increase).
+                // 3. Wait for the newly added role selector to appear.
                 await expect
-                    .poll(async () => page.locator(editorSelector).count(), {timeout: 15000})
-                    .toBeGreaterThan(countBefore)
+                    .poll(async () => page.locator(roleButtonSelector).count(), {timeout: 15000})
+                    .toBeGreaterThan(msgCountBefore)
 
-                // The new editor is always appended last (messages array is append-only here).
-                const emptyEditorLocator = page.locator(editorSelector).nth(countBefore)
+                // The new role button is always appended last in the template section.
+                const roleButton = page.locator(roleButtonSelector).nth(msgCountBefore)
+
+                // Wait for the role button to be enabled (may be briefly disabled while the
+                // ChatMessageList state settles after inserting the new message).
+                await expect(roleButton).toBeEnabled({timeout: 15000})
+
+                // Locate the text editor inside the same agenta-shared-editor container as
+                // the role button so typing lands in the correct slot.
+                const editorContainer = roleButton.locator(
+                    'xpath=ancestor::div[contains(@class, "agenta-shared-editor")]',
+                )
+                const emptyEditorLocator = editorContainer
+                    .locator('.editor-input[role="textbox"]')
+                    .first()
 
                 await expect(emptyEditorLocator).toBeVisible({timeout: 10000})
 
-                // Get the parent agenta-shared-editor element
-                const editorContainer = emptyEditorLocator.locator(
-                    'xpath=ancestor::div[contains(@class, "agenta-shared-editor")]',
-                )
-
-                // Click the role button and select the new role.
-                // The role button may be transiently disabled while isChatModeAtom resolves
-                // from undefined (loading) to false (completion mode). Wait for it to enable.
-                const roleButton = editorContainer.getByRole("button").first()
-                await expect(roleButton).toBeEnabled({timeout: 60000})
+                // 4. Select the role
                 await roleButton.click()
 
                 // Wait for the dropdown to render and become stable, then click the menu item
@@ -281,11 +286,12 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 await menuItem.scrollIntoViewIfNeeded()
                 await menuItem.click()
 
-                // 4. Add the prompt
+                // 5. Add the prompt
+                await emptyEditorLocator.scrollIntoViewIfNeeded()
                 await emptyEditorLocator.click()
                 await emptyEditorLocator.pressSequentially(prompt, {delay: 50})
 
-                // 5. Verify the prompt is added
+                // 6. Verify the prompt is added
                 await expect(page.getByText(prompt).first()).toBeVisible()
             }
         })
