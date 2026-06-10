@@ -1,6 +1,7 @@
 import {editEvaluationRun, fetchEvaluationRunBatched} from "@agenta/entities/evaluationRun"
 import {fetchWorkflowsBatch} from "@agenta/entities/workflow"
 import {buildRunIndex} from "@agenta/evaluations/core"
+import type {EvaluationRun} from "@agenta/evaluations/hooks"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -8,8 +9,6 @@ import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 
 import {TERMINAL_STATUSES} from "../compare"
 import {effectiveProjectIdAtom} from "../run"
-
-import type {EvaluationRun} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 
 export interface EvaluationRunQueryResult {
     rawRun: EvaluationRun

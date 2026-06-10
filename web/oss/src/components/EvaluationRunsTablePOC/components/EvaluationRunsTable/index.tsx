@@ -1,6 +1,7 @@
 import type {Key, MouseEvent, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {clearPreviewRunsCache} from "@agenta/evaluations/hooks"
 import {useQueryClient} from "@tanstack/react-query"
 import {Grid} from "antd"
 import type {TableProps} from "antd/es/table"
@@ -26,7 +27,6 @@ import EmptyStateHumanEvaluation from "@/oss/components/pages/evaluations/humanE
 import EmptyStateOnlineEvaluation from "@/oss/components/pages/evaluations/onlineEvaluation/EmptyStateOnlineEvaluation"
 import EmptyStateSdkEvaluation from "@/oss/components/pages/evaluations/sdkEvaluation/EmptyStateSdkEvaluation"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
-import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 import {
     onboardingWidgetActivationAtom,
     recordWidgetEventAtom,

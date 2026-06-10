@@ -1,11 +1,10 @@
+import type {EvaluationRun} from "@agenta/evaluations/hooks"
 import type {SnakeToCamelCaseKeys} from "@agenta/shared/types"
 
 import type {InfiniteTableRowBase} from "@/oss/components/InfiniteVirtualTable/types"
 import type {WindowingState} from "@/oss/components/InfiniteVirtualTable/types"
 
 import type {LegacyAutoEvaluation} from "../../state/evaluations/legacyAtoms"
-
-import type {EvaluationRun} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 
 export type PreviewEvaluationRun = SnakeToCamelCaseKeys<EvaluationRun>
 

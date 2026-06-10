@@ -18,6 +18,7 @@ import {
     invalidateWorkflowsListCache,
     invalidateEvaluatorsListCache,
 } from "@agenta/entities/workflow"
+import {usePreviewEvaluations} from "@agenta/evaluations/hooks"
 import {message} from "@agenta/ui/app-message"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -32,10 +33,10 @@ import {registryWorkflowIdOverrideAtom} from "@/oss/components/VariantsComponent
 import useURL from "@/oss/hooks/useURL"
 import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import {redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
-import usePreviewEvaluations from "@/oss/lib/hooks/usePreviewEvaluations"
 import {activeTourIdAtom, currentStepStateAtom} from "@/oss/lib/onboarding"
 import {createEvaluation} from "@/oss/services/evaluations/api"
 import {useAppsData} from "@/oss/state/app/hooks"
+import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {appIdentifiersAtom} from "@/oss/state/appState"
 import {testsetsListQueryAtomFamily} from "@/oss/state/entities/testset"
 
@@ -313,9 +314,11 @@ const NewEvaluationModalInner = ({
         return workflowRevisions || []
     }, [workflowRevisions, selectedAppId])
 
+    const isCustomApp = useAtomValue(currentAppContextAtom)?.appType === "custom"
     const {createNewRun: createPreviewEvaluationRun} = usePreviewEvaluations({
         appId: selectedAppId || appId,
         skip: false,
+        isCustomApp,
     })
     const testsetsQuery = useAtomValue(testsetsListQueryAtomFamily(null))
     const testsets = testsetsQuery.data?.testsets ?? []

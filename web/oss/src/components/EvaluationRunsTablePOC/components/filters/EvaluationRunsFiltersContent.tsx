@@ -1,10 +1,10 @@
 import {useCallback, useEffect, useMemo} from "react"
 import type {CSSProperties, MouseEvent as ReactMouseEvent, ReactNode} from "react"
 
+import type {RunFlagsFilter} from "@agenta/evaluations/hooks"
 import {Button, Divider, Select, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import type {RunFlagsFilter} from "@/oss/lib/hooks/usePreviewEvaluations"
 import {testsetsListQueryAtomFamily} from "@/oss/state/entities/testset"
 
 import {evaluationRunsTableComponentSliceAtom} from "../../atoms/context"

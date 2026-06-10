@@ -11,6 +11,7 @@
 import {EvaluationStatus} from "@agenta/entities/evaluationRun"
 import {fetchWorkflowRevisionById} from "@agenta/entities/workflow"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {clearPreviewRunsCache} from "@agenta/evaluations/hooks"
 import {
     upsertStepResultWithInvocation,
     updateScenarioStatus,
@@ -23,7 +24,6 @@ import {getDefaultStore} from "jotai"
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {queryClient} from "@/oss/lib/api/queryClient"
-import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 import {getProjectValues} from "@/oss/state/project"
 
 import {

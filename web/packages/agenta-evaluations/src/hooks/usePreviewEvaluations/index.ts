@@ -1,62 +1,46 @@
 /* eslint-disable import/order */
 import {useCallback, useMemo} from "react"
 
-import {buildRunConfig, createEvaluationRun, type RevisionSchemaContext} from "@agenta/evaluations"
+import {EvaluationStatus} from "@agenta/entities/evaluationRun"
 import type {OpenAPISpec} from "@agenta/entities/shared/openapi"
+import {fetchRevision} from "@agenta/entities/testset"
+import {testcasesResponseSchema, type Testcase as PreviewTestcase} from "@agenta/entities/testcase"
 import {
     appOpenApiSchemaAtomFamily,
     appRoutePathAtomFamily,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {axios} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
+import type {SnakeToCamelCaseKeys} from "@agenta/shared/types"
 import {getDefaultStore, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {useAppId} from "@/oss/hooks/useAppId"
-import axios from "@/oss/lib/api/assets/axiosConfig"
-import {EvaluationStatus} from "@agenta/entities/evaluationRun"
-import type {SnakeToCamelCaseKeys} from "@agenta/shared/types"
-
-import {EvaluationType} from "@/oss/lib/enums"
-import {buildRunIndex} from "@agenta/evaluations/core"
-import {Testset} from "@/oss/lib/Types"
-import {CreateEvaluationRunInput} from "@/oss/services/evaluationRuns/api/types"
-import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
-import {getProjectValues} from "@/oss/state/project"
-import {fetchRevision} from "@/oss/state/entities/testset"
+import {createEvaluationRun} from "../../controllers"
 import {
-    testcasesResponseSchema,
-    type Testcase as PreviewTestcase,
-} from "@/oss/state/entities/testcase/schema"
+    buildRunConfig,
+    buildRunIndex,
+    type RevisionSchemaContext,
+    type RunConfigTestset,
+} from "../../core"
 
 import {fetchPreviewRunsShared} from "./assets/previewRunsRequest"
+import type {CreateEvaluationRunInput, OssTestset, RunFlagsFilter} from "./previewTypes"
 
-const EMPTY_RUNS: any[] = []
+export type {RunFlagsFilter}
+
+const EMPTY_RUNS: SnakeToCamelCaseKeys<EvaluationRun>[] = []
 export interface PreviewEvaluationRunsData {
     runs: SnakeToCamelCaseKeys<EvaluationRun>[]
     count: number
-}
-
-export interface RunFlagsFilter {
-    is_live?: boolean
-    is_active?: boolean
-    is_closed?: boolean
-    is_queue?: boolean
-    has_queries?: boolean
-    has_testsets?: boolean
-    has_testcases?: boolean
-    has_traces?: boolean
-    has_evaluators?: boolean
-    has_custom?: boolean
-    has_human?: boolean
-    has_auto?: boolean
 }
 
 interface PreviewEvaluationRunsQueryParams {
     projectId?: string
     appId?: string
     searchQuery?: string
-    references: any[]
+    references: unknown[]
     typesKey: string
     debug: boolean
     enabled: boolean
@@ -123,8 +107,8 @@ export {previewEvaluationRunsQueryAtomFamily}
 
 interface PreviewEvaluationsQueryState {
     data?: PreviewEvaluationRunsData
-    mutate: () => Promise<any>
-    refetch: () => Promise<any>
+    mutate: () => Promise<unknown>
+    refetch: () => Promise<unknown>
     isLoading: boolean
     isPending: boolean
     isError: boolean
@@ -135,9 +119,9 @@ import {EnrichedEvaluationRun, EvaluationRun} from "./types"
 
 /**
  * Testset enriched with the testcase ids/rows the creation flow hydrates onto it.
- * `Testset` (from lib/Types) doesn't model `data`, so we widen it locally.
+ * `OssTestset` doesn't model `data`, so we widen it locally.
  */
-type TestsetWithData = Testset & {
+type TestsetWithData = OssTestset & {
     slug?: string | null
     data?: {
         testcaseIds?: string[]
@@ -145,6 +129,9 @@ type TestsetWithData = Testset & {
         [key: string]: unknown
     }
 }
+
+/** Eval-type discriminants the hook branches on (formerly OSS `EvaluationType`). */
+export type PreviewEvaluationType = "human" | "online" | "automatic" | "single_model_test"
 
 /**
  * Custom hook to manage and enrich preview evaluation runs.
@@ -160,52 +147,62 @@ const usePreviewEvaluations = ({
     debug,
     flags,
     appId: appIdOverride,
+    isCustomApp = false,
 }: {
     skip?: boolean
-    types?: EvaluationType[]
+    types?: PreviewEvaluationType[]
     debug?: boolean
     appId?: string | null
     flags?: RunFlagsFilter
+    /**
+     * Whether the current app is a custom workflow. Injected by the OSS caller from
+     * `currentAppContextAtom.appType === "custom"` — the headless package can't read that
+     * OSS atom. Used only when constructing run config in `createNewRun`.
+     */
+    isCustomApp?: boolean
 } = {}): {
     swrData: PreviewEvaluationsQueryState
-    createNewRun: (paramInputs: CreateEvaluationRunInput) => Promise<any>
+    createNewRun: (paramInputs: CreateEvaluationRunInput) => Promise<{
+        runId: string
+        runIds: string[]
+        scenarios: string[]
+    }>
     runs: EnrichedEvaluationRun[]
 } => {
     // atoms
     const searchQuery = useAtomValue(searchQueryAtom)
-    const projectId = getProjectValues().projectId
+    const projectId = useAtomValue(projectIdAtom) ?? undefined
 
     const debugEnabled = debug ?? process.env.NODE_ENV !== "production"
 
     const types = useMemo(() => {
         return propsTypes.map((type) => {
             switch (type) {
-                case EvaluationType.single_model_test:
-                case EvaluationType.human:
-                    return EvaluationType.human
-                case EvaluationType.automatic:
-                case EvaluationType.online:
-                    return EvaluationType.automatic
+                case "single_model_test":
+                case "human":
+                    return "human" as const
+                case "automatic":
+                case "online":
+                    return "automatic" as const
                 default:
                     return type
             }
         })
     }, [propsTypes])
 
-    const routeAppId = useAppId()
-    const appId = (appIdOverride ?? routeAppId) || undefined
+    const appId = appIdOverride || undefined
 
     // Derive effective flags based on types (e.g., online implies is_live=true by default)
     const effectiveFlags = useMemo(() => {
         const base = {...(flags || {})}
-        if (propsTypes.includes(EvaluationType.online) && base.is_live === undefined) {
+        if (propsTypes.includes("online") && base.is_live === undefined) {
             base.is_live = true
         }
         return base
     }, [flags, propsTypes])
 
     const referenceFilters = useMemo(() => {
-        const filters: any[] = []
+        const filters: {application: {id: string}}[] = []
         if (appId) {
             filters.push({
                 application: {id: appId},
@@ -215,8 +212,8 @@ const usePreviewEvaluations = ({
     }, [appId])
 
     // const effectiveEvalType = useMemo(() => {
-    //     if (propsTypes.includes(EvaluationType.online)) return "online" as const
-    //     if (types.includes(EvaluationType.automatic)) return "auto" as const
+    //     if (propsTypes.includes("online")) return "online" as const
+    //     if (types.includes("automatic")) return "auto" as const
     //     return "human" as const
     // }, [propsTypes, types])
 
@@ -258,11 +255,14 @@ const usePreviewEvaluations = ({
     const rawRuns = queryEnabled ? (evaluationRunsQuery.data?.runs ?? EMPTY_RUNS) : EMPTY_RUNS
 
     const evaluationRunsState = useMemo<PreviewEvaluationsQueryState>(() => {
-        const isPending = (evaluationRunsQuery as any).isPending ?? false
-        const isLoading =
-            (evaluationRunsQuery as any).isLoading ??
-            (evaluationRunsQuery as any).isFetching ??
-            isPending
+        const queryState = evaluationRunsQuery as {
+            isPending?: boolean
+            isLoading?: boolean
+            isFetching?: boolean
+            isError?: boolean
+        }
+        const isPending = queryState.isPending ?? false
+        const isLoading = queryState.isLoading ?? queryState.isFetching ?? isPending
         const combinedPending = isPending || isEnrichmentPending
         const combinedLoading = isLoading || isEnrichmentPending
         const data = queryEnabled ? evaluationRunsQuery.data : {runs: [], count: 0}
@@ -272,7 +272,7 @@ const usePreviewEvaluations = ({
             refetch: evaluationRunsQuery.refetch,
             isLoading: combinedLoading,
             isPending: combinedPending,
-            isError: queryEnabled ? ((evaluationRunsQuery as any).isError ?? false) : false,
+            isError: queryEnabled ? (queryState.isError ?? false) : false,
             error: queryEnabled ? evaluationRunsQuery.error : undefined,
         }
     }, [evaluationRunsQuery, queryEnabled, isEnrichmentPending])
@@ -282,20 +282,25 @@ const usePreviewEvaluations = ({
      */
     const computeRuns = useCallback((): EnrichedEvaluationRun[] => {
         if (!rawRuns.length) return []
-        const isOnline = propsTypes.includes(EvaluationType.online)
+        const isOnline = propsTypes.includes("online")
         const enriched: EnrichedEvaluationRun[] = rawRuns
             .map((_run) => {
-                const runClone = structuredClone(_run)
+                const runClone = structuredClone(_run) as EnrichedEvaluationRun & {
+                    runIndex?: ReturnType<typeof buildRunIndex>
+                    flags?: {isActive?: boolean}
+                    status?: unknown
+                    data?: {status?: unknown} & Record<string, unknown>
+                }
                 const runIndex = buildRunIndex(runClone)
                 runClone.runIndex = runIndex
                 // const result = enrichRun(runClone, previewTestsets?.testsets || [], runIndex)
                 if (runClone && isOnline) {
-                    const flags = (runClone as any).flags || {}
+                    const flags = runClone.flags || {}
 
                     if (flags?.isActive === false) {
-                        ;(runClone as any).status = EvaluationStatus.CANCELLED
+                        runClone.status = EvaluationStatus.CANCELLED
                         if (runClone.data) {
-                            ;(runClone.data as any).status = EvaluationStatus.CANCELLED
+                            runClone.data.status = EvaluationStatus.CANCELLED
                         }
                     }
                 }
@@ -313,7 +318,9 @@ const usePreviewEvaluations = ({
 
     const createNewRun = useCallback(
         async (paramInputs: CreateEvaluationRunInput) => {
-            const rawTestset: any = paramInputs.testset
+            const rawTestset = paramInputs.testset as
+                | (TestsetWithData & {revisionId?: string})
+                | undefined
 
             // Prefer revision-based hydration when a revisionId is provided
             if (rawTestset?.revisionId) {
@@ -379,9 +386,7 @@ const usePreviewEvaluations = ({
             // atoms here (the app supplies inputs), then hand plain data to the headless
             // @agenta/evaluations package — it owns config construction + creation.
             const store = getDefaultStore()
-            const isCustom =
-                (store.get(currentAppContextAtom) as {appType?: unknown} | undefined)?.appType ===
-                "custom"
+            const isCustom = isCustomApp
             const schemaContextByRevisionId: Record<string, RevisionSchemaContext> = {}
             for (const rev of paramInputs.revisions ?? []) {
                 const spec = (store.get(appOpenApiSchemaAtomFamily(rev.id)) ??
@@ -399,9 +404,10 @@ const usePreviewEvaluations = ({
             }
 
             const {runs} = buildRunConfig({
-                ...(paramInputs as any),
+                ...paramInputs,
+                testset: paramInputs.testset as RunConfigTestset | undefined,
                 meta: {
-                    ...((paramInputs as any)?.meta || {}),
+                    ...(paramInputs.meta || {}),
                     evaluation_kind: "human",
                 },
                 schemaContextByRevisionId,
@@ -427,7 +433,7 @@ const usePreviewEvaluations = ({
                 scenarios: result.scenarioIds,
             }
         },
-        [evaluationRunsState, projectId],
+        [evaluationRunsState, projectId, isCustomApp],
     )
 
     return {

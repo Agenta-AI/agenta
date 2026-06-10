@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
+import {usePreviewEvaluations} from "@agenta/evaluations/hooks"
 import {message} from "@agenta/ui/app-message"
 import {Button, Checkbox, Input, List, Popover, Space, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
@@ -8,6 +9,7 @@ import Image from "next/image"
 
 import EmptyComponent from "@/oss/components/Placeholders/EmptyComponent"
 import ReferenceTag from "@/oss/components/References/ReferenceTag"
+import {useAppId} from "@/oss/hooks/useAppId"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {projectIdAtom} from "@/oss/state/project"
@@ -22,8 +24,6 @@ import {
 } from "../atoms/compare"
 import useRunScopedUrls from "../hooks/useRunScopedUrls"
 import {setCompareQueryParams} from "../state/urlCompare"
-
-import usePreviewEvaluations from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
 
 const {Text} = Typography
 
@@ -149,7 +149,8 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
     const [searchTerm, setSearchTerm] = useState("")
     const [statusFilter, setStatusFilter] = useState<StatusFilterOption>("all")
 
-    const {runs, swrData} = usePreviewEvaluations({skip: !availability.canCompare})
+    const appId = useAppId()
+    const {runs, swrData} = usePreviewEvaluations({skip: !availability.canCompare, appId})
     const matchingTestsetNameMap = useTestsetNameMap(availability.testsetIds)
     const {buildTestsetHref} = useRunScopedUrls(runId)
 

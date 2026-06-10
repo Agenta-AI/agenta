@@ -21,6 +21,7 @@
     "exports": {
         ".": "./src/index.ts",
         "./core": "./src/core/index.ts",
+        "./hooks": "./src/hooks/index.ts",
         "./controllers": "./src/controllers/index.ts",
         "./state": "./src/state/index.ts",
         "./etl": "./src/etl/index.ts",

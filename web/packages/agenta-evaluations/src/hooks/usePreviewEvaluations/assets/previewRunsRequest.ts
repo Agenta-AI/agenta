@@ -1,22 +1,21 @@
 import {queryEvaluationRunsList} from "@agenta/entities/evaluationRun"
 
-import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
-
-import type {QueryWindowingPayload} from "../../../../services/onlineEvaluations/api"
+import {snakeToCamelCaseKeys} from "../casing"
+import type {QueryWindowingPayload, RunFlagsFilter} from "../previewTypes"
 
 export interface PreviewRunsRequestParams {
     projectId: string
     appId?: string | null
     searchQuery?: string | null
-    references?: any[] | null
-    flags?: Record<string, any> | null
+    references?: unknown[] | null
+    flags?: RunFlagsFilter | Record<string, unknown> | null
     statuses?: string[] | null
     evaluationTypes?: string[] | null
     windowing?: QueryWindowingPayload | null
 }
 
 export interface PreviewRunsResponse {
-    runs: any[]
+    runs: unknown[]
     count: number
     windowing?: QueryWindowingPayload | null
 }
@@ -65,7 +64,7 @@ const normalizeParams = ({
         : null,
 })
 
-const normalizeFlags = (flags: Record<string, any> | null | undefined) => {
+const normalizeFlags = (flags: RunFlagsFilter | Record<string, unknown> | null | undefined) => {
     if (!flags) return null
     const entries = Object.entries(flags).filter(([, value]) => value !== undefined)
     if (!entries.length) return null
@@ -98,7 +97,8 @@ const normalizeEvaluationTypes = (types: string[] | null | undefined) => {
 const buildListArgs = (params: PreviewRunsRequestParams) => {
     const refs = Array.isArray(params.references)
         ? params.references.filter(
-              (entry): entry is Record<string, any> => !!entry && Object.keys(entry).length > 0,
+              (entry): entry is Record<string, unknown> =>
+                  !!entry && Object.keys(entry as object).length > 0,
           )
         : []
     const windowing = params.windowing
@@ -143,7 +143,7 @@ export const fetchPreviewRunsShared = async (
     const request = queryEvaluationRunsList(buildListArgs(params))
         .then((res) => {
             const runs = Array.isArray(res.runs)
-                ? res.runs.map((run: any) => snakeToCamelCaseKeys(run))
+                ? res.runs.map((run: Record<string, unknown>) => snakeToCamelCaseKeys(run))
                 : []
 
             const result: PreviewRunsResponse = {

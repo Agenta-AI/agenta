@@ -14,11 +14,11 @@
  *   invalidate(batcher cache + run + scenarios + metrics + list summary) → both
  *     tables refresh columns AND rows; results pollers then fill cells.
  */
+import {clearPreviewRunsCache} from "@agenta/evaluations/hooks"
 import {atom} from "jotai"
 import {atomWithMutation, queryClientAtom} from "jotai-tanstack-query"
 
 import {clearMetricSelectionCache} from "@/oss/components/EvaluationRunsTablePOC/hooks/useRunMetricSelection"
-import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 import {
     editEvaluationRunShape,
     processEvaluationRunSlice,

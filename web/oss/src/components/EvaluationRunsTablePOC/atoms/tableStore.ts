@@ -1,3 +1,4 @@
+import type {RunFlagsFilter} from "@agenta/evaluations/hooks"
 import {atom} from "jotai"
 import type {PrimitiveAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
@@ -16,8 +17,6 @@ import {buildReferencePayload} from "../utils/referencePayload"
 
 import {computeContextSignature, evaluationRunsMetaContextSliceAtom} from "./context"
 import {fetchEvaluationRunsWindow} from "./fetchAutoEvaluationRuns"
-
-import type {RunFlagsFilter} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/index"
 
 export interface EvaluationRunsTableMeta {
     projectId: string | null

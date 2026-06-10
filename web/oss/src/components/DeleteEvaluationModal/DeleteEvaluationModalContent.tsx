@@ -1,12 +1,11 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {deleteEvaluationRuns} from "@agenta/entities/evaluationRun"
+import {clearPreviewRunsCache} from "@agenta/evaluations/hooks"
 import {message} from "@agenta/ui/app-message"
 import {Typography} from "antd"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
-
-import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 
 import type {DeleteEvaluationModalDeletionConfig} from "./types"
 

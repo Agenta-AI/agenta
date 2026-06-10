@@ -1,9 +1,8 @@
 import {useEffect, useMemo, useRef} from "react"
 
 import {EvaluationStatus} from "@agenta/entities/evaluationRun"
+import {clearPreviewRunsCache} from "@agenta/evaluations/hooks"
 import {useQueryClient} from "@tanstack/react-query"
-
-import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 
 import type {EvaluationRunTableRow} from "../types"
 

@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {clearPreviewRunsCache} from "@agenta/evaluations/hooks"
 import {upsertStepResultWithAnnotation} from "@agenta/evaluations/services/results"
 import {checkAndUpdateRunStatus, updateScenarioStatus} from "@agenta/evaluations/services/scenarios"
 import {uuidToSpanId} from "@agenta/shared/utils"
@@ -9,7 +10,6 @@ import {Button, Card, Typography} from "antd"
 import {useSetAtom} from "jotai"
 
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
-import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
 import {upsertScenarioMetricData} from "@/oss/services/runMetrics/api"
 import {getProjectValues} from "@/oss/state/project"

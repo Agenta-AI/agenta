@@ -1,3 +1,4 @@
+import type {RunFlagsFilter} from "@agenta/evaluations/hooks"
 import {atom} from "jotai"
 import {selectAtom} from "jotai/utils"
 
@@ -7,8 +8,6 @@ import {projectIdAtom} from "@/oss/state/project"
 
 import type {EvaluationRunKind} from "../types"
 import {deriveAppIds} from "../utils/runHelpers"
-
-import type {RunFlagsFilter} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
 
 export interface EvaluationRunsTableOverrides {
     appId: string | null

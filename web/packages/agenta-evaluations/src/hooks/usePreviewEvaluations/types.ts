@@ -1,8 +1,7 @@
 import type {Workflow} from "@agenta/entities/workflow"
 import type {SnakeToCamelCaseKeys} from "@agenta/shared/types"
 
-import {PreviewTestset, WorkspaceMember} from "@/oss/lib/Types"
-import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
+import type {PreviewTestset, WorkspaceMember, EvaluatorDto} from "./previewTypes"
 
 /**
  * Interface representing a single evaluation run as returned from the backend API.
@@ -50,8 +49,10 @@ export interface EvaluationRun {
     /** ID of the user who created the run */
     created_by_id: string
     /** Optional metadata object (arbitrary key-value pairs) */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     meta: Record<string, any>
     /** Flags associated with the run (internal use) */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     flags: Record<string, any>
     /** Current status of the run (e.g., "pending", "completed") */
     status: string

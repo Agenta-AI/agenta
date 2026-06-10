@@ -1,12 +1,12 @@
 import type {Key} from "react"
 
 import {evaluatorsListQueryAtom, workflowVariantsQueryAtomFamily} from "@agenta/entities/workflow"
+import {RunFlagsFilter} from "@agenta/evaluations/hooks"
 import {atom} from "jotai"
 import {atomWithStorage, loadable, selectAtom} from "jotai/utils"
 
 import {getEvaluatorMetricBlueprintAtom} from "@/oss/components/References/atoms/metricBlueprint"
 import {getUniquePartOfId} from "@/oss/lib/helpers/utils"
-import {RunFlagsFilter} from "@/oss/lib/hooks/usePreviewEvaluations"
 import {appsQueryAtom} from "@/oss/state/app"
 import {queriesQueryAtomFamily} from "@/oss/state/queries"
 

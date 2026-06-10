@@ -1,4 +1,6 @@
 import {deriveEvaluationKind} from "@agenta/evaluations/core"
+import type {RunFlagsFilter} from "@agenta/evaluations/hooks"
+import {fetchPreviewRunsShared} from "@agenta/evaluations/hooks"
 
 import type {WindowingState} from "@/oss/components/InfiniteVirtualTable/types"
 
@@ -11,9 +13,6 @@ import type {
     PreviewRunColumnMeta,
     ConcreteEvaluationRunKind,
 } from "../types"
-
-import type {RunFlagsFilter} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
-import {fetchPreviewRunsShared} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 
 interface PreviewEvaluationRunsResult {
     runs: PreviewEvaluationRun[]
