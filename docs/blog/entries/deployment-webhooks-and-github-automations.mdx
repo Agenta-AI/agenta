@@ -6,7 +6,15 @@ tags: [v0.94.0]
 description: "Trigger webhooks and GitHub Actions when you deploy a prompt. Use repository dispatch, workflow dispatch, or a custom HTTPS endpoint."
 ---
 
+<Summary>
+
 You can now trigger automations when a prompt deployment happens in Agenta. Send the event to any HTTPS endpoint, or call GitHub directly with `repository_dispatch` or `workflow_dispatch`.
+
+This makes it easier to connect prompt deployments to CI, repository sync jobs, and pull request workflows. If your GitHub workflow needs the latest prompt content, fetch it from Agenta during the run and commit the result back to your repo.
+
+Learn more: [Webhooks](/prompt-engineering/integrating-prompts/webhooks) | [GitHub Automations](/prompt-engineering/integrating-prompts/github)
+
+</Summary>
 
 {/* truncate */}
 

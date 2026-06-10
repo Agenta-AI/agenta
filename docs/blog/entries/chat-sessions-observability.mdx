@@ -6,6 +6,21 @@ tags: [v0.73.0]
 description: "Track and analyze multi-turn conversations with session grouping, cost analytics, and conversation flow visualization."
 ---
 
+<Summary>
+
+You can now track multi-turn conversations with chat sessions. All traces with the same session ID are automatically grouped together, letting you analyze complete conversations instead of individual requests.
+
+The new session browser shows key metrics like total cost, latency, and token usage per conversation. Open any session to see all traces with their parent-child relationships. This makes debugging chatbots and AI assistants much easier. Add session tracking with one line of code using either our Python SDK or OpenTelemetry.
+
+**Minor improvements:**
+
+- Added time filtering to the analytics dashboard. You can now view metrics for the last 6 hours, 24 hours, 7 days, or 30 days.
+- Added the ability to batch delete multiple traces at once. Select traces using checkboxes and delete them in a single operation.
+
+</Summary>
+
+{/* truncate */}
+
 <div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
   <iframe
     width="100%"
@@ -18,11 +33,11 @@ description: "Track and analyze multi-turn conversations with session grouping, 
   ></iframe>
 </div>
 
+## Overview
+
 Chat sessions bring conversation-level observability to Agenta. You can now group related traces from multi-turn conversations together, making it easy to analyze complete user interactions rather than individual requests.
 
 This feature is essential for debugging chatbots, AI assistants, and any application with multi-turn conversations. You get visibility into the entire conversation flow, including costs, latency, and intermediate steps.
-
-{/* truncate */}
 
 ## Key Capabilities
 
@@ -128,11 +143,6 @@ Understand which conversations are expensive and why. Session-level cost trackin
 
 ### Optimize Performance
 Identify latency issues across entire conversations, not just single requests. See which conversational patterns lead to performance problems and optimize accordingly.
-
-## Minor Improvements
-
-- Added time filtering to the analytics dashboard. You can now view metrics for the last 6 hours, 24 hours, 7 days, or 30 days.
-- Added the ability to batch delete multiple traces at once. Select traces using checkboxes and delete them in a single operation.
 
 ## Getting Started
 

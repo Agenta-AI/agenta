@@ -10,9 +10,15 @@ description: "Compare multiple fields between JSON objects with the new JSON Mul
 import Image from "@theme/IdealImage";
 ```
 
-The JSON Multi-Field Match evaluator lets you validate multiple fields in JSON outputs simultaneously. This makes it ideal for entity extraction tasks where you need to check if your model correctly extracted name, email, address, and other structured fields.
+<Summary>
+
+The new JSON Multi-Field Match evaluator validates multiple fields between JSON objects. Configure any number of field paths using dot notation, JSON Path, or JSON Pointer formats. Each field gets its own score (0 or 1), and an aggregate score shows the percentage of matching fields. This evaluator is ideal for entity extraction tasks like validating extracted names, emails, and addresses. The UI automatically detects fields from your test data for quick setup. This replaces the old JSON Field Match evaluator, which only supported single fields.
+
+</Summary>
 
 {/* truncate */}
+
+The JSON Multi-Field Match evaluator lets you validate multiple fields in JSON outputs simultaneously. This makes it ideal for entity extraction tasks where you need to check if your model correctly extracted name, email, address, and other structured fields.
 
 ## What is JSON Multi-Field Match?
 

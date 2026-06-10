@@ -25,10 +25,29 @@ For every changelog announcement, you create TWO coordinated artifacts:
 - Code examples, screenshots, or embedded videos
 - Links to related documentation
 - User-focused benefits and use cases
-- A `{/* truncate */}` marker after the intro (and any hero video). Everything
-  above the marker is shown on the paginated `/changelog` index page, followed
-  by a "Read more" link. Short entries (a few paragraphs, no H2 sections) need
-  no marker; they appear in full on the index.
+- Two distinct texts: a **short summary** for the `/changelog` index, and the
+  **full write-up** for the entry's own page. The short version is the curated
+  1-2 paragraph summary (it can differ from the long version's opening; do not
+  just copy the first lines of the long write-up). Structure the file as:
+
+  ```mdx
+  ---frontmatter---
+
+  <Summary>
+
+  Curated 1-2 paragraph summary shown on the /changelog index.
+
+  </Summary>
+
+  {/* truncate */}
+
+  Full write-up (## sections, videos, code) shown on the entry's page.
+  ```
+
+  `<Summary>` renders only on the index list (as the preview, with a "Read
+  more" link); it renders nothing on the entry page, so the page shows just the
+  full write-up with no duplication. Keep videos and images in the full
+  write-up below the marker, not in `<Summary>` (the index stays text-only).
 
 **B. Sidebar Announcement** (`web/oss/src/components/SidebarBanners/data/changelog.json`):
 - One-sentence description
@@ -130,7 +149,7 @@ Apply these writing guidelines rigorously:
 Before finalizing, verify:
 - [ ] Version number present and correct
 - [ ] Entry and sidebar announcement created
-- [ ] `{/* truncate */}` marker placed after the intro (for long entries)
+- [ ] Curated summary wrapped in `<Summary>`, then `{/* truncate */}`, then the full write-up
 - [ ] Active voice used where possible
 - [ ] No em dashes present
 - [ ] Feature documentation linked if applicable
@@ -185,8 +204,12 @@ description: "One-sentence description of the feature."
 
 {/* NOTE: Do NOT add an H1 heading here. The frontmatter title is automatically rendered as H1 by Docusaurus. */}
 
-[1-3 intro paragraphs explaining what this feature is and why it matters. This intro
-(plus any hero video above it) is what appears on the /changelog index page.]
+<Summary>
+
+[Curated 1-2 paragraph summary. This is the SHORT version shown on the
+/changelog index. It can differ from the long write-up's opening.]
+
+</Summary>
 
 {/* truncate */}
 
@@ -222,16 +245,18 @@ ag.tracing.store_session(session_id="conversation_123")
 [Optional: What's coming next or related features]
 ```
 
-### Step 4: Place the Truncate Marker
+### Step 4: Write the Summary and Place the Truncate Marker
 
-The `/changelog` index page shows everything above the `{/* truncate */}` marker,
-followed by a "Read more" link. Place the marker so the preview works like a
-summary:
+The `/changelog` index shows the `<Summary>` block (with a "Read more" link);
+the entry page shows everything below `{/* truncate */}`. So:
 
-- Put 1-3 intro paragraphs (and the hero video, if any) above the marker
-- Put the marker before the first `##` section heading
-- Skip the marker entirely for short entries (no `##` sections); they appear in
-  full on the index page
+- Put the curated short summary inside `<Summary>...</Summary>`, then the
+  `{/* truncate */}` marker, then the full write-up.
+- Leave blank lines inside the `<Summary>` tags so the content parses as
+  Markdown (links and bold work).
+- Keep videos and images in the write-up below the marker, not in `<Summary>`.
+- Every entry needs content below the marker (the full write-up); that is what
+  the entry page renders.
 
 ### Step 5: Add Sidebar Announcement
 Add to `/web/oss/src/components/SidebarBanners/data/changelog.json`:
@@ -439,7 +464,7 @@ We're continuing to enhance session tracking with upcoming features like session
 
 When creating a changelog announcement, provide:
 
-1. **Entry content** for `docs/blog/entries/[slug].mdx` (with the `{/* truncate */}` marker placed after the intro)
+1. **Entry content** for `docs/blog/entries/[slug].mdx` (curated summary in `<Summary>`, then `{/* truncate */}`, then the full write-up)
 2. **Sidebar announcement JSON** to add to `changelog.json`
 3. **Confirmation** that you checked for related documentation
 4. **Any questions** or clarifications needed

@@ -1019,6 +1019,19 @@ h1[class*="title_"] {
   display: block;
 }
 
+/* Constrain embedded videos on changelog pages to a sensible, centered size
+   with a 16:9 ratio (the inline height attribute makes them too tall). */
+.blog-wrapper .markdown iframe[src*="youtube"],
+.blog-post-page .markdown iframe[src*="youtube"] {
+  display: block;
+  width: 100%;
+  max-width: 680px;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin-inline: auto;
+  border-radius: 8px;
+}
+
 /* highlight error code */
 .code-block-error-line {
   background-color: #ff000020;
