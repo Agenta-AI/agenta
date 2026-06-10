@@ -951,7 +951,7 @@ class SmtpConfig(BaseModel):
     )
     use_tls: bool = (os.getenv("SMTP_USE_TLS") or "true").lower() in _TRUTHY
     use_ssl: bool = (os.getenv("SMTP_USE_SSL") or "false").lower() in _TRUTHY
-    timeout: int = _parse_optional_int_env("SMTP_TIMEOUT") or 10
+    timeout: int | None = _parse_optional_int_env("SMTP_TIMEOUT")
 
     model_config = ConfigDict(extra="ignore")
 
