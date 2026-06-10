@@ -28,15 +28,15 @@ fi
 # Infer SMTP email delivery from strict SMTP requirements: host + port + sender
 SMTP_FROM_EMAIL_VALUE="${SMTP_FROM_EMAIL:-${AGENTA_AUTHN_EMAIL_FROM:-${AGENTA_SEND_EMAIL_FROM_ADDRESS}}}"
 if [ -n "$SMTP_HOST" ] && [ -n "$SMTP_PORT" ] && [ -n "$SMTP_FROM_EMAIL_VALUE" ]; then
-  AGENTA_SMTP_ENABLED="true"
+  export AGENTA_SMTP_ENABLED="true"
 else
-  AGENTA_SMTP_ENABLED="false"
+  export AGENTA_SMTP_ENABLED="false"
 fi
 
 if [ "${AGENTA_SMTP_ENABLED}" = "true" ] || [ "${AGENTA_SENDGRID_ENABLED}" = "true" ]; then
-  AGENTA_EMAIL_DELIVERY_ENABLED="true"
+  export AGENTA_EMAIL_DELIVERY_ENABLED="true"
 else
-  AGENTA_EMAIL_DELIVERY_ENABLED="false"
+  export AGENTA_EMAIL_DELIVERY_ENABLED="false"
 fi
 
 # Infer AGENTA_TOOLS_ENABLED from COMPOSIO_API_KEY
