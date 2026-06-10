@@ -608,7 +608,23 @@ close the migration with an open entry here.
   branch too (mirror the has-annotation branch), or have the scan reuse the main table's
   `windowing` shape so both paths bound identically. Fix on its **own branch**, not mixed into a
   migration WP.
-- **Status:** OPEN — filed by Arda. Fix before §9 DoD.
+- **UPDATE 2026-06-11 — original root cause FALSIFIED by code inspection.** The plain-filter
+  branch DOES have the lower-bound cursor termination (`minVal <= lowerBound → nextCursor =
+  undefined`, in `executeTraceQuery`'s tail) and it has existed since 2025-12-19 (`80b99892f4`) —
+  pre-dating the Jun 9 repro. The full chain is verified correct in current code: scan
+  `params.oldest` (from sort) → `createAdaptiveTracePageFetcher` preserves it →
+  `fetchAllPreviewTracesWithMeta` → `buildWindowAndFilter` maps flat `oldest`/`newest` →
+  Fern `windowing.{oldest,newest}` → backend-bounded query; cursor pages stop at the lower bound.
+  Candidate explanations for the observed over-add: (a) the legacy pre-Fern transport in the code
+  running at repro time (replaced by the AGE-3788 Fern path now merged via v0.103.1) handled the
+  flat window params differently; (b) accumulation across multiple scan runs (one screenshot
+  showed a queue at 10,647 items — far above one run's 1,000 cap); (c) "invalid-looking" rows
+  being unresolvable-ref scenarios rather than out-of-window traces.
+- **Status:** NEEDS RE-REPRO on the current stack (v0.103.1 + merged FE). Re-run "add all
+  matching to queue" with a filter + time window on a FRESH queue; if it still over-adds, capture
+  the `/traces/query` request body (does `windowing.oldest` appear?) and the added rows'
+  timestamps. If it reproduces → reopen with the captured evidence; if not → close as fixed
+  upstream by the Fern transport migration.
 
 ### 11.2 Combined paginatedStore+molecule leak test dropped in WP-3.5a (coverage gap)
 
