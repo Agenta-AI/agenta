@@ -130,7 +130,6 @@ export function LoadModeContent({
 
     // ===================== Selection State =====================
     const setSelectionDraft = useSetAtom(testcase.actions.setSelectionDraft)
-    const commitSelectionDraft = useSetAtom(testcase.actions.commitSelectionDraft)
     const discardSelectionDraft = useSetAtom(testcase.actions.discardSelectionDraft)
 
     const draftKey = selectedRevisionId ?? "local"
@@ -213,8 +212,15 @@ export function LoadModeContent({
 
             onConfirm(payload)
         } else {
-            // Load mode: commit draft and build payload with metadata
-            commitSelectionDraft(draftKey)
+            // Load mode: hand the selection to the consumer via the payload and
+            // discard the draft WITHOUT committing it. Committing would write
+            // the picked ids into the global testcase ids atom before the
+            // consumer decides to connect — the consumer may defer behind a
+            // confirmation (keep-drafts modal) or abort, and a real connect
+            // populates the ids itself via connectToSource. Pre-committing
+            // rendered the picked testset rows in the playground background
+            // and made them count as local draft rows.
+            discardSelectionDraft(draftKey)
 
             const payload: TestsetSelectionPayload = {
                 revisionId: selectedRevisionId ?? "local",
@@ -237,7 +243,6 @@ export function LoadModeContent({
         currentSelection,
         isViewingConnected,
         discardSelectionDraft,
-        commitSelectionDraft,
         selectedRevisionId,
         onConfirm,
         onCancel,

@@ -209,8 +209,10 @@ const testAutoEval = () => {
             await navigateToRunResults(page, appId, autoRuns[0].id)
             await switchResultsPageTab(page, "Configuration")
 
-            // GeneralSection is always rendered in ConfigurationView
-            await expect(page.getByText("General").first()).toBeVisible({timeout: 10000})
+            // The run summary card (with its Edit button) is always rendered in ConfigurationView
+            await expect(page.getByRole("button", {name: "Edit"}).first()).toBeVisible({
+                timeout: 10000,
+            })
         },
     )
 
