@@ -1,6 +1,7 @@
-# Agenta SDK + LLM client
+# Agenta SDK + LLM client (screening.py)
 agenta
 openai
+openinference-instrumentation-openai
 python-dotenv
 
 # Test set preparation (prepare_testset.py)

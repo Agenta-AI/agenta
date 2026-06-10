@@ -42,7 +42,7 @@ def main() -> None:
             app_slug=APP_SLUG,
             variant_slug=VARIANT_SLUG,
         )
-    print(f"  Committed version {variant['variant_version']}.")
+    print(f"  Committed version {variant.variant_version}.")
 
     print("Deploying to production ...")
     ag.DeploymentManager.deploy(

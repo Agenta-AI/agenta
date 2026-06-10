@@ -1,6 +1,8 @@
 """Streamlit demo: upload a CV as PDF and screen it against the job spec.
 
-The flow mirrors a production setup:
+This file is UI only. All the AI logic (prompt fetching, the LLM call,
+tracing, and feedback) lives in `screening.py`, which any other frontend
+could reuse. The flow mirrors a production setup:
 
 1. The PDF is converted to Markdown locally (markitdown).
 2. The screening prompt is fetched from the Agenta registry — the same
@@ -19,22 +21,15 @@ Run with:
 """
 
 import io
-import json
 import os
 
-import agenta as ag
-import requests
 import streamlit as st
-from agenta.sdk.types import PromptTemplate
 from dotenv import load_dotenv
 from markitdown import MarkItDown
-from openai import OpenAI
 
-from config import APP_SLUG, PROMPT_CONFIG
+import screening
 
 load_dotenv()
-
-FEEDBACK_EVALUATOR_SLUG = "user-feedback"
 
 CLASSIFICATION_STYLES = {
     "strong_match": ("Strong match", st.success),
@@ -51,62 +46,19 @@ SCORE_LABELS = {
 
 
 @st.cache_resource
-def init_agenta() -> None:
-    ag.init()
+def init_screening() -> None:
+    screening.init()
 
 
 @st.cache_data(ttl=60)
-def fetch_prompt_config() -> tuple[dict, str]:
-    """Fetch the prompt deployed to production, falling back to the local default."""
-    try:
-        config = ag.ConfigManager.get_from_registry(app_slug=APP_SLUG)
-        return config, f"Agenta registry ('{APP_SLUG}', production)"
-    except Exception:
-        return PROMPT_CONFIG, "local default (run create_app.py to manage it in Agenta)"
+def fetch_config() -> screening.ScreeningConfig:
+    return screening.fetch_config()
 
 
 @st.cache_data(show_spinner="Converting PDF to Markdown ...")
 def pdf_to_markdown(file_bytes: bytes) -> str:
     result = MarkItDown().convert_stream(io.BytesIO(file_bytes), file_extension=".pdf")
     return result.text_content.strip()
-
-
-@ag.instrument()
-def classify_cv(cv_markdown: str, config: dict) -> dict:
-    prompt = PromptTemplate(**config["prompt"]).format(cv=cv_markdown)
-    response = OpenAI().chat.completions.create(**prompt.to_openai_kwargs())
-    result = json.loads(response.choices[0].message.content)
-    # Capture the trace/span ids while the span is still open, so user
-    # feedback can be linked back to this invocation as an annotation.
-    link = ag.tracing.build_invocation_link()
-    if link is not None:
-        result["_invocation"] = {"trace_id": link.trace_id, "span_id": link.span_id}
-    return result
-
-
-def send_feedback(invocation: dict, thumbs_up: bool, comment: str) -> bool:
-    """Attach user feedback to the screening trace as an Agenta annotation."""
-    outputs: dict = {"score": 1 if thumbs_up else 0}
-    if comment.strip():
-        outputs["comment"] = comment.strip()
-
-    host = os.environ.get("AGENTA_HOST", "https://cloud.agenta.ai").rstrip("/")
-    response = requests.post(
-        f"{host}/api/simple/traces/",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"ApiKey {os.environ['AGENTA_API_KEY']}",
-        },
-        json={
-            "trace": {
-                "data": {"outputs": outputs},
-                "references": {"evaluator": {"slug": FEEDBACK_EVALUATOR_SLUG}},
-                "links": {"invocation": invocation},
-            }
-        },
-        timeout=30,
-    )
-    return response.status_code in (200, 202)
 
 
 def render_result(result: dict) -> None:
@@ -157,7 +109,9 @@ def render_feedback(result: dict) -> None:
     if submitted:
         if rating is None:
             st.warning("Pick 👍 or 👎 first.")
-        elif send_feedback(invocation, thumbs_up=rating == 1, comment=comment):
+        elif screening.send_feedback(
+            invocation, thumbs_up=rating == 1, comment=comment
+        ):
             st.session_state["feedback_sent"] = invocation
             st.rerun()
         else:
@@ -172,10 +126,10 @@ def main() -> None:
         "the job spec by the prompt managed in Agenta."
     )
 
-    init_agenta()
-    config, source = fetch_prompt_config()
-    st.sidebar.markdown(f"**Prompt source:** {source}")
-    st.sidebar.markdown(f"**Model:** {config['prompt']['llm_config']['model']}")
+    init_screening()
+    config = fetch_config()
+    st.sidebar.markdown(f"**Prompt source:** {config.source}")
+    st.sidebar.markdown(f"**Model:** {config.params['prompt']['llm_config']['model']}")
 
     uploaded = st.file_uploader("Candidate CV (PDF)", type=["pdf"])
     if uploaded is None:
@@ -188,15 +142,15 @@ def main() -> None:
 
     if st.button("Screen candidate", type="primary"):
         with st.spinner("Evaluating CV against the job spec ..."):
-            result = classify_cv(cv_markdown, config)
+            result = screening.classify_cv({"cv": cv_markdown}, config)
         st.session_state["screening"] = {"cv": cv_markdown, "result": result}
 
     # Render from session state so the result (and its feedback form)
     # survives the reruns Streamlit triggers on every interaction.
-    screening = st.session_state.get("screening")
-    if screening and screening["cv"] == cv_markdown:
-        render_result(screening["result"])
-        render_feedback(screening["result"])
+    current = st.session_state.get("screening")
+    if current and current["cv"] == cv_markdown:
+        render_result(current["result"])
+        render_feedback(current["result"])
 
 
 if __name__ == "__main__":

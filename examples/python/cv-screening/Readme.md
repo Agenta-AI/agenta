@@ -29,6 +29,7 @@ PDF upload ──> Markdown (markitdown) ──> prompt fetched from Agenta ─�
 | `create_app.py` | Creates the `cv-screening` app in Agenta and deploys the prompt to production |
 | `prepare_testset.py` | Builds `data/testset.csv` from a public resume dataset (optionally uploads it to Agenta) |
 | `data/testset.csv` | 30 real Markdown CVs with hand-labeled expected classifications (committed, ready to upload) |
+| `screening.py` | The AI logic: fetches the prompt, calls the LLM, traces, sends feedback |
 | `app.py` | Streamlit demo UI: upload a PDF, screen the candidate |
 | `make_sample_pdfs.py` | Renders three test set CVs as PDFs for the demo |
 | `data/sample_cvs/` | Sample CV PDFs (one strong match, one potential match, one rejection) |
@@ -114,17 +115,30 @@ LLM-as-a-judge for the reasoning quality.
 streamlit run app.py
 ```
 
-Upload one of the PDFs from `data/sample_cvs/` (or any CV). The app:
+Upload one of the PDFs from `data/sample_cvs/` (or any CV). `app.py` is
+UI only; the AI logic lives in `screening.py`. The flow:
 
-1. converts the PDF to Markdown with [markitdown](https://github.com/microsoft/markitdown),
-2. fetches the production prompt from the Agenta registry
-   (`ag.ConfigManager.get_from_registry`) — so whatever you deploy from the
-   playground is what the app uses, with no redeploy,
+1. the app converts the PDF to Markdown with [markitdown](https://github.com/microsoft/markitdown),
+2. `screening.py` fetches the production prompt from the Agenta registry —
+   so whatever you deploy from the playground is what the app uses, with no
+   redeploy,
 3. calls the LLM with the structured-output schema,
-4. renders the scores, requirement checklists, and final classification.
+4. the app renders the scores, requirement checklists, and final
+   classification.
 
-The `classify_cv` call is instrumented with `@ag.instrument()`, so every
-screening shows up as a trace in Agenta's observability view.
+Every screening shows up as a trace in Agenta's observability view, built
+so you can act on it from the UI:
+
+- `classify_cv` is instrumented with `@ag.instrument()`, and the OpenAI
+  client is auto-instrumented with
+  [OpenInference](https://github.com/Arize-ai/openinference), so each trace
+  has a child LLM span with the exact messages, token counts, and cost.
+- The span's inputs are the prompt's input variables (`{"cv": ...}`), and
+  the prompt configuration is kept out of the trace (`ignore_inputs`).
+- The span is linked to the exact prompt revision it used
+  (`ag.tracing.store_refs`), so you can filter traces by app or environment
+  and open the span in the playground on the same prompt revision, inputs
+  pre-filled.
 
 ### 5. Collect user feedback on screenings
 
