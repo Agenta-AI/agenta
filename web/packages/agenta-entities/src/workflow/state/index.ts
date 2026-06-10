@@ -174,6 +174,9 @@ export {
     evaluatorPresetsAtomFamily,
     // Key map
     evaluatorKeyMapAtom,
+    // Workflow display metadata (version count + last modified)
+    evaluatorWorkflowMetaMapAtom,
+    type EvaluatorWorkflowMeta,
     // Evaluator configs (non-human, non-custom)
     evaluatorConfigsListDataAtom,
     evaluatorConfigsQueryStateAtom,

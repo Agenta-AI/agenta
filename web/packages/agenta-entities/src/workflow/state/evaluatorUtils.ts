@@ -247,6 +247,48 @@ export const evaluatorKeyMapAtom = atom<Map<string, string>>((get) => {
     return map
 })
 
+// ============================================================================
+// EVALUATOR WORKFLOW META MAP
+// ============================================================================
+
+/**
+ * Display metadata for an evaluator workflow row in selection UIs.
+ */
+export interface EvaluatorWorkflowMeta {
+    /**
+     * Number of revisions, derived from the latest revision's version number.
+     * Revisions are sequential and v0 is excluded from pickers, so the latest
+     * version number equals the revision count — no full-list fetch needed.
+     */
+    versionCount: number | null
+    /** Workflow-level `updated_at`, falling back to `created_at`. */
+    lastModifiedAt: string | null
+}
+
+/**
+ * Derived atom: workflowId → display metadata (version count + last modified date).
+ *
+ * Reads the same batched + cached latest-revision queries as `evaluatorKeyMapAtom`,
+ * so subscribing to this atom adds no extra requests.
+ */
+export const evaluatorWorkflowMetaMapAtom = atom<Map<string, EvaluatorWorkflowMeta>>((get) => {
+    const evaluators = get(nonArchivedEvaluatorsAtom)
+    const map = new Map<string, EvaluatorWorkflowMeta>()
+
+    for (const evaluator of evaluators) {
+        if (!evaluator.id) continue
+
+        const revision = get(workflowLatestRevisionQueryAtomFamily(evaluator.id)).data
+
+        map.set(evaluator.id, {
+            versionCount: revision?.version ?? null,
+            lastModifiedAt: evaluator.updated_at ?? evaluator.created_at ?? null,
+        })
+    }
+
+    return map
+})
+
 interface EvaluatorRevisionFlags {
     isFeedback: boolean
     isCustom: boolean

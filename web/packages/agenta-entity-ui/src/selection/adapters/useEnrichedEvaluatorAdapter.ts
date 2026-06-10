@@ -20,9 +20,11 @@ import {
     evaluatorTemplatesMapAtom,
     evaluatorTemplatesDataAtom,
     evaluatorConfigsQueryStateAtom,
+    evaluatorWorkflowMetaMapAtom,
     humanEvaluatorsListQueryAtom,
     workflowAppTypeAtomFamily,
     workflowsListDataAtom,
+    type EvaluatorWorkflowMeta,
 } from "@agenta/entities/workflow"
 import {atom, getDefaultStore, useAtomValue} from "jotai"
 
@@ -115,27 +117,66 @@ export function useEnrichedEvaluatorBrowseAdapter() {
 // ============================================================================
 
 /**
+ * Format an evaluator workflow's metadata as a one-line subtitle,
+ * e.g. "12 versions · Jan 6, 2026". Returns undefined when nothing resolved.
+ */
+function formatWorkflowMetaDescription(
+    meta: EvaluatorWorkflowMeta | undefined,
+): string | undefined {
+    if (!meta) return undefined
+
+    const parts: string[] = []
+
+    if (meta.versionCount != null && meta.versionCount > 0) {
+        parts.push(`${meta.versionCount} ${meta.versionCount === 1 ? "version" : "versions"}`)
+    }
+
+    if (meta.lastModifiedAt) {
+        const date = new Date(meta.lastModifiedAt)
+        if (!isNaN(date.getTime())) {
+            parts.push(
+                date.toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                }),
+            )
+        }
+    }
+
+    return parts.length > 0 ? parts.join(" · ") : undefined
+}
+
+/**
  * Hook that returns an adapter for the evaluator-only picker.
  * Filters to evaluators only (excluding human), with colored type tags.
  *
  * Used by annotation pages and playground evaluator connect flow.
  *
  * @param revisionLabelOverride - Optional custom label renderer for revision level
+ * @param options.showWorkflowMeta - When true, evaluator rows expose a
+ *   "N versions · date" description (consumed by pickers that opt into
+ *   showing parent descriptions). Default false — existing callers unchanged.
  */
 export function useEnrichedEvaluatorOnlyAdapter(
     revisionLabelOverride?: (entity: unknown) => React.ReactNode,
+    options?: {showWorkflowMeta?: boolean},
 ) {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
     const templates = useAtomValue(evaluatorTemplatesDataAtom)
+    const workflowMetaMap = useAtomValue(evaluatorWorkflowMetaMapAtom)
     const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
     const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
     const revisionLabelOverrideRef = useRef(revisionLabelOverride)
+    const workflowMetaMapRef = useRef(workflowMetaMap)
 
     evaluatorKeyMapRef.current = evaluatorKeyMap
     evaluatorDefsByKeyRef.current = evaluatorDefsByKey
     revisionLabelOverrideRef.current = revisionLabelOverride
+    workflowMetaMapRef.current = workflowMetaMap
 
     const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
+    const showWorkflowMeta = Boolean(options?.showWorkflowMeta)
 
     // Build a stable Map<evaluatorKey, primaryCategory> from template data
     const templateCategoryMap = useMemo(() => {
@@ -192,12 +233,20 @@ export function useEnrichedEvaluatorOnlyAdapter(
 
         const getGroupLabel = (key: string): string => CATEGORY_LABELS[key] ?? key
 
+        const getDescription = showWorkflowMeta
+            ? (entity: unknown): string | undefined => {
+                  const w = entity as {id: string}
+                  return formatWorkflowMetaDescription(workflowMetaMapRef.current.get(w.id))
+              }
+            : undefined
+
         const options: NonNullable<Parameters<typeof createWorkflowRevisionAdapter>[0]> = {
             skipVariantLevel: true,
             excludeRevisionZero: true,
             workflowListAtom: autoEvaluatorsListAtom,
             grandparentOverrides: {
                 getLabelNode,
+                getDescription,
                 getGroupKey,
                 getGroupLabel,
                 buildTabs: (entities: unknown[]) => {
@@ -232,7 +281,7 @@ export function useEnrichedEvaluatorOnlyAdapter(
         }
 
         return createWorkflowRevisionAdapter(options)
-    }, [hasRevisionLabelOverride, autoEvaluatorsListAtom])
+    }, [hasRevisionLabelOverride, showWorkflowMeta, autoEvaluatorsListAtom])
 }
 
 type AnnotationWorkflowRevisionSelectionResult = WorkflowRevisionSelectionResult & {

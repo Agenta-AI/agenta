@@ -7,6 +7,8 @@ import {
     parseWorkflowKeyFromUri,
     workflowMolecule,
     createEvaluatorFromTemplate,
+    evaluatorWorkflowMetaMapAtom,
+    workflowLatestRevisionQueryAtomFamily,
 } from "@agenta/entities/workflow"
 import type {EvaluatorCatalogTemplate, WorkflowTypeColor} from "@agenta/entities/workflow"
 import {EntityPicker} from "@agenta/entity-ui"
@@ -20,7 +22,7 @@ import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {Gavel, PencilSimple, Plus} from "@phosphor-icons/react"
 import {Button, Divider, Dropdown, Space, Tag, Tooltip, Typography, message} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
@@ -185,6 +187,50 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         [connectedEvaluatorNodes],
     )
 
+    // Map of workflowId → connected revisions of that workflow, for the picker's
+    // parent checkboxes and selected-revision chips. PlaygroundNode doesn't carry
+    // metadata, so the parent workflow id and version are read reactively from
+    // each connected revision's molecule data.
+    const selectedChildrenByParent = useAtomValue(
+        useMemo(
+            () =>
+                atom((get) => {
+                    const entries: {workflowId: string; id: string; version: number}[] = []
+                    for (const node of connectedEvaluatorNodes) {
+                        const data = get(workflowMolecule.selectors.data(node.entityId)) as {
+                            workflow_id?: string | null
+                            version?: number | null
+                        } | null
+                        if (!data?.workflow_id) continue
+                        entries.push({
+                            workflowId: data.workflow_id,
+                            id: node.entityId,
+                            version: data.version ?? 0,
+                        })
+                    }
+
+                    const map = new Map<string, {id: string; label: string}[]>()
+                    for (const entry of entries.sort((a, b) => b.version - a.version)) {
+                        const arr = map.get(entry.workflowId) ?? []
+                        arr.push({id: entry.id, label: `v${entry.version}`})
+                        map.set(entry.workflowId, arr)
+                    }
+                    return map
+                }),
+            [connectedEvaluatorNodes],
+        ),
+    )
+
+    // Map of workflowId → total revision count, for the indeterminate checkbox state
+    const workflowMetaMap = useAtomValue(evaluatorWorkflowMetaMapAtom)
+    const totalChildrenByParent = useMemo(() => {
+        const map = new Map<string, number>()
+        for (const [workflowId, meta] of workflowMetaMap) {
+            if (meta.versionCount != null) map.set(workflowId, meta.versionCount)
+        }
+        return map
+    }, [workflowMetaMap])
+
     const handleDisconnectAll = useCallback(() => {
         disconnectDownstreamNode("workflow")
     }, [disconnectDownstreamNode])
@@ -196,8 +242,67 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         [disconnectSingleDownstreamNode],
     )
 
-    // Evaluator-only adapter with colored type tags, human filtering, and custom revision labels
-    const evaluatorWorkflowAdapter = useEvaluatorOnlyAdapter(renderWorkflowRevisionLabel)
+    // Disconnect a single revision by its revision (entity) id — used by the
+    // picker's chips and parent checkbox uncheck.
+    const handleDeselectChild = useCallback(
+        (childId: string) => {
+            const node = connectedEvaluatorNodes.find((n) => n.entityId === childId)
+            if (node) disconnectSingleDownstreamNode(node.id)
+        },
+        [connectedEvaluatorNodes, disconnectSingleDownstreamNode],
+    )
+
+    // Parent checkbox toggle: check connects the workflow's latest revision,
+    // uncheck disconnects every connected revision of that workflow.
+    const handleParentToggle = useCallback(
+        (parentId: string, checked: boolean) => {
+            if (!checked) {
+                selectedChildrenByParent
+                    .get(parentId)
+                    ?.forEach((child) => handleDeselectChild(child.id))
+                return
+            }
+
+            const rootNode = nodes.find((n) => n.depth === 0)
+            if (!rootNode) return
+
+            // Latest revision is already batch-fetched and cached for the picker's metadata
+            const revision = getDefaultStore().get(
+                workflowLatestRevisionQueryAtomFamily(parentId),
+            ).data
+            if (!revision?.id || connectedRevisionIds.has(revision.id)) return
+
+            const workflowName = revision.name?.trim() || revision.slug?.trim() || "Evaluator"
+            connectDownstreamNode({
+                sourceNodeId: rootNode.id,
+                entity: {
+                    type: "workflow",
+                    id: revision.id,
+                    label: `${workflowName} / v${revision.version ?? 0}`,
+                    metadata: {
+                        workflowId: parentId,
+                        workflowName,
+                        variantId: "",
+                        variantName: "",
+                        revision: revision.version ?? 0,
+                    },
+                },
+            })
+        },
+        [
+            nodes,
+            selectedChildrenByParent,
+            connectedRevisionIds,
+            connectDownstreamNode,
+            handleDeselectChild,
+        ],
+    )
+
+    // Evaluator-only adapter with colored type tags, human filtering, custom revision
+    // labels, and workflow metadata ("N versions · date") for the picker rows
+    const evaluatorWorkflowAdapter = useEvaluatorOnlyAdapter(renderWorkflowRevisionLabel, {
+        showWorkflowMeta: true,
+    })
 
     // Controlled state for EvaluatorTemplateDropdown
     const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false)
@@ -374,6 +479,15 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                 selectionSummary
                                 childItemLabelMode="simple"
                                 panelWidth={280}
+                                showParentCheckboxes
+                                selectedChildrenByParent={selectedChildrenByParent}
+                                totalChildrenByParent={totalChildrenByParent}
+                                onParentToggle={handleParentToggle}
+                                onDeselectChild={handleDeselectChild}
+                                showParentDescription
+                                showGroupHeaders
+                                showChildSelectAll
+                                onClearAll={handleDisconnectAll}
                                 // TODO: Implement evaluator template creation in checkpoint to with different playground context
                                 // We can scope using entity revision id
                                 // And have multiple playgrounds

@@ -18,7 +18,7 @@ import React, {useCallback, useEffect, useMemo, useState, type CSSProperties} fr
 
 import {cn} from "@agenta/ui"
 import {EntityListItem, SearchInput} from "@agenta/ui/components/selection"
-import {CaretDown, Plus} from "@phosphor-icons/react"
+import {CaretDown, Plus, X} from "@phosphor-icons/react"
 import {Button, Checkbox, Empty, Popover, Spin, Tabs} from "antd"
 
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"
@@ -55,6 +55,7 @@ function ChildPanelContent({
     multiSelect = false,
     selectedChildIds,
     childItemLabelMode = "full",
+    showSelectAll = false,
 }: {
     parentId: string
     parentLabel: string
@@ -69,6 +70,7 @@ function ChildPanelContent({
     multiSelect?: boolean
     selectedChildIds?: Set<string>
     childItemLabelMode?: "full" | "simple"
+    showSelectAll?: boolean
 }) {
     const {items, query} = useLevelData({
         levelConfig: childLevelConfig,
@@ -101,6 +103,16 @@ function ChildPanelContent({
                   .length
             : 0
 
+    // Select every enabled child that isn't selected yet. Only unselected items
+    // are passed to onSelect, which has toggle semantics in multi-select mode.
+    const handleSelectAll = useCallback(() => {
+        for (const item of enabledChildren) {
+            if (!selectedChildIds?.has(childLevelConfig.getId(item))) {
+                onSelect(item)
+            }
+        }
+    }, [enabledChildren, selectedChildIds, childLevelConfig, onSelect])
+
     if (query.isPending) {
         return (
             <div className="flex items-center justify-center py-4 px-6" style={panelStyle}>
@@ -124,6 +136,18 @@ function ChildPanelContent({
                             </span>
                         )}
                     </div>
+                    {showSelectAll &&
+                        enabledChildren.length > 0 &&
+                        selectedCount < enabledChildren.length && (
+                            <Button
+                                type="link"
+                                size="small"
+                                className="!h-auto !p-0 !text-[10px]"
+                                onClick={handleSelectAll}
+                            >
+                                Select all
+                            </Button>
+                        )}
                 </div>
             )}
 
@@ -198,6 +222,41 @@ function ChildPanelContent({
 }
 
 // ============================================================================
+// SELECTED CHILD CHIPS (rendered under a root item's label)
+// ============================================================================
+
+/**
+ * Compact removable chips for a root item's selected children (e.g. "v2 ×").
+ * Clicks inside the chips row stop propagation so they never trigger the
+ * row's navigation click.
+ */
+function SelectedChildChips({
+    chips,
+    onDeselectChild,
+}: {
+    chips: {id: string; label: string}[]
+    onDeselectChild?: (childId: string) => void
+}) {
+    return (
+        <div className="flex flex-wrap gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+            {chips.map((chip) => (
+                <span
+                    key={chip.id}
+                    className="inline-flex items-center gap-1 rounded bg-[var(--ag-rgba-051729-06)] px-1.5 py-0.5 text-[10px] leading-none"
+                >
+                    {chip.label}
+                    <X
+                        size={10}
+                        className="cursor-pointer opacity-60 hover:opacity-100"
+                        onClick={() => onDeselectChild?.(chip.id)}
+                    />
+                </span>
+            ))}
+        </div>
+    )
+}
+
+// ============================================================================
 // ROOT ITEM RENDERER (shared between grouped and flat rendering)
 // ============================================================================
 
@@ -209,6 +268,12 @@ function RootItemRenderer({
     selectedRootId,
     openChildOnHover,
     onRootItemClick,
+    showParentCheckboxes = false,
+    selectedChildrenByParent,
+    totalChildrenByParent,
+    onParentToggle,
+    onDeselectChild,
+    showParentDescription = false,
 }: {
     item: unknown
     rootLevel: HierarchyLevel<unknown>
@@ -217,8 +282,42 @@ function RootItemRenderer({
     selectedRootId: string | null
     openChildOnHover: boolean
     onRootItemClick: (item: unknown) => void
+    showParentCheckboxes?: boolean
+    selectedChildrenByParent?: Map<string, {id: string; label: string}[]>
+    totalChildrenByParent?: Map<string, number>
+    onParentToggle?: (parentId: string, checked: boolean) => void
+    onDeselectChild?: (childId: string) => void
+    showParentDescription?: boolean
 }) {
     const id = rootLevel.getId(item)
+
+    const selectedChildren = selectedChildrenByParent?.get(id)
+    const selectedCount = selectedChildren?.length ?? 0
+    const totalChildren = totalChildrenByParent?.get(id)
+    const isChecked = selectedCount > 0
+    const isIndeterminate = isChecked && totalChildren != null && selectedCount < totalChildren
+
+    // Checkbox toggles selection only; clicks must not bubble to the row
+    // (which opens the child panel).
+    const prefixNode = showParentCheckboxes ? (
+        <span onClick={(e) => e.stopPropagation()} className="flex items-center">
+            <Checkbox
+                checked={isChecked}
+                indeterminate={isIndeterminate}
+                onChange={() => onParentToggle?.(id, !isChecked)}
+            />
+        </span>
+    ) : undefined
+
+    // Subtitle metadata is replaced by the selected-child chips when present.
+    const description =
+        showParentDescription && selectedCount === 0 ? rootLevel.getDescription?.(item) : undefined
+
+    const footerNode =
+        selectedCount > 0 && selectedChildren ? (
+            <SelectedChildChips chips={selectedChildren} onDeselectChild={onDeselectChild} />
+        ) : undefined
+
     return (
         <div
             onMouseEnter={
@@ -228,6 +327,9 @@ function RootItemRenderer({
             <EntityListItem
                 label={rootLevel.getLabel(item)}
                 labelNode={rootLevel.getLabelNode?.(item)}
+                description={description}
+                prefixNode={prefixNode}
+                footerNode={footerNode}
                 hasChildren={totalLevels > 1}
                 isSelectable={totalLevels <= 1}
                 isSelected={id === selectedParentId}
@@ -270,6 +372,19 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     selectedChildIds,
     selectionSummary,
     childItemLabelMode = "full",
+    // Parent multi-select props
+    showParentCheckboxes = false,
+    selectedChildrenByParent,
+    totalChildrenByParent,
+    onParentToggle,
+    onDeselectChild,
+    // Root row metadata
+    showParentDescription = false,
+    // Group headers
+    showGroupHeaders = false,
+    // Bulk actions
+    showChildSelectAll = false,
+    onClearAll,
 }: PopoverCascaderVariantProps<TSelection>) {
     const {hierarchyLevels, createSelection} = useEntitySelectionCore({
         adapter: adapterProp,
@@ -500,6 +615,12 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
             selectedRootId,
             openChildOnHover,
             onRootItemClick: handleRootItemClick,
+            showParentCheckboxes,
+            selectedChildrenByParent,
+            totalChildrenByParent,
+            onParentToggle,
+            onDeselectChild,
+            showParentDescription,
         }),
         [
             rootLevel,
@@ -508,6 +629,12 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
             selectedRootId,
             openChildOnHover,
             handleRootItemClick,
+            showParentCheckboxes,
+            selectedChildrenByParent,
+            totalChildrenByParent,
+            onParentToggle,
+            onDeselectChild,
+            showParentDescription,
         ],
     )
 
@@ -560,10 +687,20 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                 >
                     {/* Selection summary */}
                     {selectionSummaryText ? (
-                        <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-center">
+                        <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-center justify-between">
                             <span className="text-zinc-500 text-[10px]">
                                 {selectionSummaryText}
                             </span>
+                            {onClearAll && (selectedChildIds?.size ?? 0) > 0 && (
+                                <Button
+                                    type="link"
+                                    size="small"
+                                    className="!h-auto !p-0 !text-[10px]"
+                                    onClick={onClearAll}
+                                >
+                                    Clear all
+                                </Button>
+                            )}
                         </div>
                     ) : null}
 
@@ -585,6 +722,15 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                                 {Array.from(groupedItems.groups.entries()).map(
                                     ([groupKey, items]) => (
                                         <div key={groupKey}>
+                                            {showGroupHeaders && (
+                                                <div className="flex items-center gap-2 px-2 pt-2 pb-1">
+                                                    <span className="text-[10px] font-medium text-zinc-400">
+                                                        {rootLevel.getGroupLabel?.(groupKey) ??
+                                                            groupKey}
+                                                    </span>
+                                                    <div className="flex-1 h-px bg-[var(--ag-rgba-051729-06)]" />
+                                                </div>
+                                            )}
                                             {items.map((item) => (
                                                 <RootItemRenderer
                                                     key={rootLevel.getId(item)}
@@ -595,14 +741,25 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                                         </div>
                                     ),
                                 )}
-                                {groupedItems.ungrouped.length > 0 &&
-                                    groupedItems.ungrouped.map((item) => (
-                                        <RootItemRenderer
-                                            key={rootLevel.getId(item)}
-                                            item={item}
-                                            {...rootItemProps}
-                                        />
-                                    ))}
+                                {groupedItems.ungrouped.length > 0 && (
+                                    <div>
+                                        {showGroupHeaders && groupedItems.groups.size > 0 && (
+                                            <div className="flex items-center gap-2 px-2 pt-2 pb-1">
+                                                <span className="text-[10px] font-medium text-zinc-400">
+                                                    Other
+                                                </span>
+                                                <div className="flex-1 h-px bg-[var(--ag-rgba-051729-06)]" />
+                                            </div>
+                                        )}
+                                        {groupedItems.ungrouped.map((item) => (
+                                            <RootItemRenderer
+                                                key={rootLevel.getId(item)}
+                                                item={item}
+                                                {...rootItemProps}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
                             </>
                         ) : (
                             // Flat rendering (no grouping)
@@ -638,6 +795,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                             multiSelect={multiSelect}
                             selectedChildIds={selectedChildIds}
                             childItemLabelMode={childItemLabelMode}
+                            showSelectAll={showChildSelectAll}
                         />
                     </div>
                 )}

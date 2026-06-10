@@ -680,6 +680,83 @@ export interface PopoverCascaderVariantProps<
     childItemLabelMode?: "full" | "simple"
 
     // ========================================================================
+    // PARENT (ROOT) MULTI-SELECT
+    // ========================================================================
+
+    /**
+     * Render a checkbox on each root row (multi-select mode only).
+     * Checked when the parent has at least one selected child (per
+     * `selectedChildrenByParent`); indeterminate when only some of its
+     * children are selected (requires `totalChildrenByParent`).
+     * @default false
+     */
+    showParentCheckboxes?: boolean
+
+    /**
+     * Consumer-provided map: parentId → currently selected children of that
+     * parent. Drives the parent checkbox checked state and the selected-child
+     * chips rendered under the parent label.
+     */
+    selectedChildrenByParent?: Map<string, {id: string; label: string}[]>
+
+    /**
+     * Consumer-provided map: parentId → total child count. Used to render the
+     * parent checkbox as indeterminate when only some children are selected.
+     */
+    totalChildrenByParent?: Map<string, number>
+
+    /**
+     * Called when a parent checkbox is toggled.
+     * `checked: true` — the consumer should select the parent's latest child.
+     * `checked: false` — the consumer should deselect ALL children of that parent.
+     */
+    onParentToggle?: (parentId: string, checked: boolean) => void
+
+    /**
+     * Called when a selected-child chip's remove (×) button is clicked.
+     */
+    onDeselectChild?: (childId: string) => void
+
+    // ========================================================================
+    // ROOT ROW METADATA
+    // ========================================================================
+
+    /**
+     * Show the adapter's `getDescription()` as a subtitle on root rows.
+     * Replaced by the selected-child chips when the row has selections.
+     * @default false
+     */
+    showParentDescription?: boolean
+
+    // ========================================================================
+    // GROUP HEADERS
+    // ========================================================================
+
+    /**
+     * Render group label headers with divider lines above each group when the
+     * "All" tab is active and the adapter provides grouping.
+     * @default false
+     */
+    showGroupHeaders?: boolean
+
+    // ========================================================================
+    // BULK ACTIONS
+    // ========================================================================
+
+    /**
+     * Show a "Select all" link in the child panel header (multi-select only).
+     * Selects every enabled, not-yet-selected child of the open parent.
+     * @default false
+     */
+    showChildSelectAll?: boolean
+
+    /**
+     * When provided, renders a "Clear all" link next to the selection summary
+     * (requires `selectionSummary`). Called to clear the entire selection.
+     */
+    onClearAll?: () => void
+
+    // ========================================================================
     // SELECTION SUMMARY
     // ========================================================================
 
