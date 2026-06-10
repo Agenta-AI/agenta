@@ -2,13 +2,18 @@ from typing import Optional, List, TypeVar, Type
 from uuid import UUID
 from datetime import datetime, timezone
 
-from sqlalchemy import or_, select, func, update
+from sqlalchemy import or_, select, func, update, case, cast, Integer
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.exceptions import EntityCreationConflict
-from oss.src.core.git.types import is_identifying, InitialRevisionConflict
+from oss.src.core.git.types import (
+    is_identifying,
+    InitialRevisionConflict,
+    RevisionVersionConflict,
+)
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.types import VariantForkError
@@ -1002,7 +1007,7 @@ class GitDAO(GitDAOInterface):
 
     # ─ revisions ──────────────────────────────────────────────────────────────
 
-    @suppress_exceptions(exclude=[EntityCreationConflict])
+    @suppress_exceptions(exclude=[EntityCreationConflict, RevisionVersionConflict])
     async def create_revision(
         self,
         *,
@@ -1043,6 +1048,14 @@ class GitDAO(GitDAOInterface):
 
         try:
             async with self.engine.session() as session:
+                version = await self._assign_next_version(
+                    session=session,
+                    project_id=project_id,
+                    variant_id=revision_create.variant_id,
+                )
+
+                revision_dbe.version = version  # type: ignore
+
                 session.add(revision_dbe)
 
                 await session.commit()
@@ -1053,18 +1066,6 @@ class GitDAO(GitDAOInterface):
                 revision = map_dbe_to_dto(
                     DTO=Revision,
                     dbe=revision_dbe,  # type: ignore
-                )
-
-                revision.version = await self._get_version(
-                    project_id=project_id,
-                    variant_id=revision.variant_id,  # type: ignore
-                    revision_id=revision.id,  # type: ignore
-                )
-
-                await self._set_version(
-                    project_id=project_id,
-                    revision_id=revision.id,  # type: ignore
-                    version=revision.version,
                 )
 
                 return revision
@@ -1559,7 +1560,7 @@ class GitDAO(GitDAOInterface):
 
     # --------------------------------------------------------------------------
 
-    @suppress_exceptions(exclude=[InitialRevisionConflict])
+    @suppress_exceptions(exclude=[InitialRevisionConflict, RevisionVersionConflict])
     async def commit_revision(
         self,
         *,
@@ -1603,30 +1604,20 @@ class GitDAO(GitDAOInterface):
 
         try:
             async with self.engine.session() as session:
-                if initial and revision_commit.variant_id:
-                    # Lock the variant row so concurrent initial commits queue up rather
-                    # than racing through the count check below.
-                    await session.execute(
-                        select(self.VariantDBE)  # type: ignore
-                        .where(
-                            self.VariantDBE.project_id == project_id,  # type: ignore
-                            self.VariantDBE.id == revision_commit.variant_id,  # type: ignore
-                        )
-                        .with_for_update()
+                version = await self._assign_next_version(
+                    session=session,
+                    project_id=project_id,
+                    variant_id=revision_commit.variant_id,
+                )
+
+                # The computed version is "0" iff the variant has no revisions
+                # (the variant row is locked, so this cannot race another commit).
+                if initial and revision_commit.variant_id and version != "0":
+                    raise InitialRevisionConflict(
+                        "An initial revision already exists for this variant."
                     )
-                    guard_stmt = (
-                        select(func.count())  # pylint: disable=not-callable
-                        .select_from(self.RevisionDBE)  # type: ignore
-                        .where(
-                            self.RevisionDBE.project_id == project_id,  # type: ignore
-                            self.RevisionDBE.variant_id == revision_commit.variant_id,  # type: ignore
-                        )
-                    )
-                    guard_result = await session.execute(guard_stmt)
-                    if guard_result.scalar_one() > 0:
-                        raise InitialRevisionConflict(
-                            "An initial revision already exists for this variant."
-                        )
+
+                revision_dbe.version = version  # type: ignore
 
                 session.add(revision_dbe)
                 await session.commit()
@@ -1649,18 +1640,6 @@ class GitDAO(GitDAOInterface):
                 )
                 revision.variant_slug = (
                     revision_dbe.variant.slug if revision_dbe.variant else None
-                )
-
-                revision.version = await self._get_version(
-                    project_id=project_id,
-                    variant_id=revision.variant_id,  # type: ignore
-                    revision_id=revision.id,  # type: ignore
-                )
-
-                await self._set_version(
-                    project_id=project_id,
-                    revision_id=revision.id,  # type: ignore
-                    version=revision.version,
                 )
 
                 if revision.version == "0":
@@ -1797,49 +1776,86 @@ class GitDAO(GitDAOInterface):
 
     # ─ helpers ────────────────────────────────────────────────────────────────
 
-    async def _get_version(
+    async def _assign_next_version(
         self,
         *,
+        session: AsyncSession,
         project_id: UUID,
-        variant_id: UUID,
-        revision_id: UUID,
+        variant_id: Optional[UUID],
     ) -> str:
-        async with self.engine.session() as session:
-            stmt = (
-                select(func.count())  # pylint: disable=not-callable
-                .select_from(self.RevisionDBE)  # type: ignore
+        """Compute the version for a new revision, pre-insert, on the caller's session.
+
+        Locks the variant row so commits to one variant serialize, then returns
+        `GREATEST(count, max + 1)` over the variant's existing revisions
+        (archived included). The count term reproduces the legacy positional
+        numbering on healthy data; the max term keeps the version strictly above
+        every existing numeric version even when earlier rows were hard-removed
+        out of band (data migrations, manual DB ops) — the case that used to
+        silently produce duplicate versions. Non-numeric versions (out-of-band
+        writes) are ignored by the max term instead of failing the cast.
+
+        Raises `RevisionVersionConflict` when a live revision already carries
+        the computed version (only possible via out-of-band writers); raised
+        before the insert, so the caller's transaction rolls back cleanly.
+        """
+        if variant_id is not None:
+            await session.execute(
+                select(self.VariantDBE)  # type: ignore
                 .where(
-                    self.RevisionDBE.project_id == project_id,  # type: ignore
-                    self.RevisionDBE.variant_id == variant_id,  # type: ignore
-                    self.RevisionDBE.id < revision_id,  # type: ignore
+                    self.VariantDBE.project_id == project_id,  # type: ignore
+                    self.VariantDBE.id == variant_id,  # type: ignore
+                )
+                .with_for_update()
+            )
+
+        numeric_version = case(
+            (
+                self.RevisionDBE.version.op("~")(r"^\d+$"),  # type: ignore
+                cast(self.RevisionDBE.version, Integer),  # type: ignore
+            )
+        )
+
+        stmt = (
+            select(
+                func.greatest(
+                    func.count(),  # pylint: disable=not-callable
+                    func.coalesce(func.max(numeric_version) + 1, 0),
                 )
             )
-
-            result = await session.execute(stmt)
-
-            position = result.scalar_one()
-
-            return str(position)
-
-    async def _set_version(
-        self,
-        *,
-        project_id: UUID,
-        revision_id: UUID,
-        version: str,
-    ) -> None:
-        async with self.engine.session() as session:
-            stmt = update(self.RevisionDBE).filter(
+            .select_from(self.RevisionDBE)  # type: ignore
+            .where(
                 self.RevisionDBE.project_id == project_id,  # type: ignore
+                self.RevisionDBE.variant_id == variant_id,  # type: ignore
+            )
+        )
+
+        result = await session.execute(stmt)
+
+        version = str(result.scalar_one())
+
+        guard_stmt = (
+            select(func.count())  # pylint: disable=not-callable
+            .select_from(self.RevisionDBE)  # type: ignore
+            .where(
+                self.RevisionDBE.project_id == project_id,  # type: ignore
+                self.RevisionDBE.variant_id == variant_id,  # type: ignore
+                self.RevisionDBE.version == version,  # type: ignore
+                self.RevisionDBE.deleted_at.is_(None),  # type: ignore
+            )
+        )
+
+        guard_result = await session.execute(guard_stmt)
+
+        if guard_result.scalar_one() > 0:
+            log.error(
+                f"Revision version conflict: computed version {version} already "
+                f"exists for variant {variant_id} in project {project_id}"
+            )
+            raise RevisionVersionConflict(
+                f"A revision with version {version} already exists for this variant."
             )
 
-            stmt = stmt.filter(self.RevisionDBE.id == revision_id)  # type: ignore
-
-            stmt = stmt.values(version=version)  # type: ignore
-
-            await session.execute(stmt)
-
-            await session.commit()
+        return version
 
     async def _null_revision_fields(
         self,

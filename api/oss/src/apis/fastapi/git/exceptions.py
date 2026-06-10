@@ -22,6 +22,7 @@ from oss.src.core.git.types import (
     InitialRevisionConflict,
     RetrieveRefsInconsistent,
     RetrieveRefsInsufficient,
+    RevisionVersionConflict,
     VariantForkError,
 )
 
@@ -30,6 +31,14 @@ class InitialRevisionConflictException(HTTPException):
     def __init__(
         self,
         message: str = "An initial revision already exists for this variant.",
+    ):
+        super().__init__(status_code=409, detail=message)
+
+
+class RevisionVersionConflictException(HTTPException):
+    def __init__(
+        self,
+        message: str = "A revision with this version already exists for this variant.",
     ):
         super().__init__(status_code=409, detail=message)
 
@@ -63,6 +72,8 @@ def handle_git_exceptions():
                 return await func(*args, **kwargs)
             except InitialRevisionConflict as e:
                 raise InitialRevisionConflictException(message=e.message) from e
+            except RevisionVersionConflict as e:
+                raise RevisionVersionConflictException(message=e.message) from e
             except VariantForkError as e:
                 raise VariantForkErrorException(message=e.message) from e
             except RetrieveRefsInsufficient as e:
