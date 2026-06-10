@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {humanizeEvaluatorName, humanizeMetricPath} from "@agenta/evaluations/core"
 import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import type {EvaluationRunsColumnExportMetadata} from "@agenta/evaluations/state/runsTable"
 import type {RunMetricDescriptor} from "@agenta/evaluations/state/runsTable"
@@ -32,7 +33,6 @@ import {
 import type {TableColumnConfig} from "@/oss/components/InfiniteVirtualTable/columns/types"
 import {getEvaluatorMetricBlueprintAtom} from "@/oss/components/References/atoms/metricBlueprint"
 import {PreviewCreatedByCell} from "@/oss/components/References/cells/CreatedByCells"
-import {humanizeEvaluatorName, humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import RunActionsCell from "../../components/cells/ActionsCell"
 import {PreviewCreatedCell} from "../../components/cells/CreatedCells"

@@ -1,5 +1,6 @@
 import {useMemo, useCallback, useEffect, useRef} from "react"
 
+import {humanizeMetricPath} from "@agenta/evaluations/core"
 import {
     type EvaluationTableColumn,
     type EvaluationTableColumnGroup,
@@ -13,7 +14,6 @@ import type {ColumnTreeNode, ColumnVisibilityState} from "@/oss/components/Infin
 import ColumnVisibilityPopoverContentBase, {
     type ColumnVisibilityNodeMeta,
 } from "@/oss/components/InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent"
-import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import usePreviewTableData from "../../hooks/usePreviewTableData"
 import {buildSkeletonColumnResult} from "../../utils/buildSkeletonColumns"

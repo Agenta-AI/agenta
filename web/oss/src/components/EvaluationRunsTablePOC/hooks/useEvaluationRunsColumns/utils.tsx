@@ -1,6 +1,7 @@
 import type {ReactNode} from "react"
 
 import {deriveEvaluationKind} from "@agenta/evaluations/core"
+import {humanizeMetricPath} from "@agenta/evaluations/core"
 import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import type {RunMetricDescriptor} from "@agenta/evaluations/state/runsTable"
 import {EVALUATION_KIND_LABELS} from "@agenta/evaluations/state/runsTable"
@@ -13,7 +14,6 @@ import {
 } from "@agenta/evaluations/state/runsTable"
 
 import {ColumnVisibilityHeader} from "@/oss/components/InfiniteVirtualTable"
-import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import type {EvaluatorHandles, EvaluatorReferenceCandidate, RecordPath} from "./types"
 

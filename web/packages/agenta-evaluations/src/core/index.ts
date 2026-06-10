@@ -5,6 +5,7 @@
  */
 export {buildRunConfig} from "./buildRunConfig"
 export {slugify} from "./slugify"
+export {humanizeMetricPath, humanizeEvaluatorName} from "./metrics"
 export {extractEvaluatorMetricKeys} from "./extractEvaluatorMetricKeys"
 export {buildRunIndex, serializeRunIndex, deserializeRunIndex} from "./buildRunIndex"
 export type {StepKind, ColumnDef, StepMeta, RunIndex} from "./buildRunIndex"

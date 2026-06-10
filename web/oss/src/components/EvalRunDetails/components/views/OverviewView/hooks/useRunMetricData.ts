@@ -1,5 +1,6 @@
 import {useMemo} from "react"
 
+import {humanizeMetricPath} from "@agenta/evaluations/core"
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {evaluationRunIndexAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {COMPARISON_SOLID_COLORS} from "@agenta/evaluations/state/evalRun"
@@ -14,8 +15,6 @@ import {
 import type {BasicStats} from "@agenta/shared/metrics"
 import {atom, useAtomValue} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
-
-import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import {INVOCATION_METRIC_KEYS, INVOCATION_METRIC_LABELS} from "../constants"
 import {

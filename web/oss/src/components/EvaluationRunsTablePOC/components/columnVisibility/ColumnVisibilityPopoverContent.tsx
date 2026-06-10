@@ -1,5 +1,6 @@
 import {useCallback, useMemo} from "react"
 
+import {humanizeMetricPath} from "@agenta/evaluations/core"
 import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import type {RunMetricDescriptor} from "@agenta/evaluations/state/runsTable"
 import {Typography} from "antd"
@@ -17,7 +18,6 @@ import {
     type EvaluatorMetricGroupBlueprint,
 } from "@/oss/components/References/atoms/metricBlueprint"
 import {resolvedMetricLabelsAtomFamily} from "@/oss/components/References/atoms/resolvedMetricLabels"
-import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import {evaluationRunsColumnVisibilityContextAtom} from "../../atoms/view"
 import MetricGroupHeader from "../headers/MetricGroupHeader"

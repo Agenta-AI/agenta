@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useCallback, useRef} from "react"
 import type {ReactNode} from "react"
 
+import {humanizeMetricPath} from "@agenta/evaluations/core"
 import {
     EvaluationTableColumn,
     EvaluationTableColumnGroup,
@@ -15,7 +16,6 @@ import type {ColumnTreeNode} from "@/oss/components/InfiniteVirtualTable"
 import ColumnVisibilityMenuTrigger, {
     type ColumnVisibilityNodeMeta,
 } from "@/oss/components/InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityMenuTrigger"
-import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import PreviewEvaluationInputCell from "../components/TableCells/InputCell"
 import StepGroupHeader from "../components/TableHeaders/StepGroupHeader"

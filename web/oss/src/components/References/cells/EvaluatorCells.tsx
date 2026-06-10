@@ -1,12 +1,11 @@
 import {useMemo} from "react"
 
+import {humanizeEvaluatorName} from "@agenta/evaluations/core"
 import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import type {ReferenceColumnDescriptor} from "@agenta/evaluations/state/runsTable"
 import {useRunRowReferences, useRunRowSummary} from "@agenta/evaluations/state/runsTable"
 import {getSlotByRoleOrdinal} from "@agenta/evaluations/state/runsTable"
 import {SkeletonLine} from "@agenta/ui/table"
-
-import {humanizeEvaluatorName} from "@/oss/lib/evaluations/utils/metrics"
 
 import useEvaluatorReference from "../hooks/useEvaluatorReference"
 
