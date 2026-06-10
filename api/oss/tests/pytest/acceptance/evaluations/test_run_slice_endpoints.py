@@ -41,6 +41,26 @@ def _create_simple_evaluator(authed_api) -> dict:
     return response.json()["evaluator"]
 
 
+def _create_mock_application(authed_api) -> dict:
+    slug = uuid4().hex
+    response = authed_api(
+        "POST",
+        "/simple/applications/",
+        json={
+            "application": {
+                "slug": f"application-{slug}",
+                "name": f"Application {slug}",
+                "data": {
+                    "uri": "agenta:custom:mock:v0",
+                    "parameters": {"key": "echo", "kwargs": {}},
+                },
+            }
+        },
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["application"]
+
+
 def _create_simple_testset(authed_api) -> dict:
     slug = uuid4().hex
     response = authed_api(
@@ -63,8 +83,14 @@ def _create_simple_testset(authed_api) -> dict:
 
 
 def _create_testset_evaluator_evaluation(authed_api) -> dict:
-    """A run with a testset input + auto evaluator (no application/LLM)."""
+    """A dispatchable testset -> application -> evaluator run (mock app, no LLM).
+
+    The application step is required: testset -> evaluator (no app) is a
+    `potential`/undispatchable topology that `start` auto-fails-and-closes, which
+    would 409 every subsequent slice op. The mock app keeps it deterministic.
+    """
     testset = _create_simple_testset(authed_api)
+    application = _create_mock_application(authed_api)
     evaluator = _create_simple_evaluator(authed_api)
     response = authed_api(
         "POST",
@@ -75,6 +101,7 @@ def _create_testset_evaluator_evaluation(authed_api) -> dict:
                 "flags": {"is_cached": False, "is_split": False},
                 "data": {
                     "testset_steps": {testset["revision_id"]: "custom"},
+                    "application_steps": {application["revision_id"]: "custom"},
                     "evaluator_steps": {evaluator["revision_id"]: "auto"},
                     "repeats": 1,
                 },

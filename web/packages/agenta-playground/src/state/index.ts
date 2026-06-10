@@ -175,6 +175,8 @@ export {inputVariableNamesAtom} from "./execution"
 // App-level mode selectors
 export {appTypeAtom, isChatModeAtom, type AppType} from "./execution"
 
+export {filterUnreferencedColumnsForSource} from "./execution"
+
 // Row run status
 export {isAnyRunningForRowAtomFamily} from "./execution"
 
@@ -352,6 +354,7 @@ export {
 
 export type {
     BuildEncodedSnapshotResult,
+    ConnectToTestsetPayload,
     CreateSnapshotResult,
     HydrateFromUrlResult,
     HydrateSnapshotResult,

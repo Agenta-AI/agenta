@@ -1730,54 +1730,6 @@ class EvaluationsRouter:
 
         return queue_response
 
-    # POST /evaluations/queues/{queue_id}/archive
-    @intercept_exceptions()
-    @handle_evaluation_closed_exception()
-    async def archive_queue(
-        self,
-        request: Request,
-        *,
-        queue_id: UUID,
-    ) -> EvaluationQueueResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        queue = await self.evaluations_service.archive_queue(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            queue_id=queue_id,
-        )
-        return EvaluationQueueResponse(count=1 if queue else 0, queue=queue)
-
-    # POST /evaluations/queues/{queue_id}/unarchive
-    @intercept_exceptions()
-    @handle_evaluation_closed_exception()
-    async def unarchive_queue(
-        self,
-        request: Request,
-        *,
-        queue_id: UUID,
-    ) -> EvaluationQueueResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        queue = await self.evaluations_service.unarchive_queue(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            queue_id=queue_id,
-        )
-        return EvaluationQueueResponse(count=1 if queue else 0, queue=queue)
-
     # DELETE /evaluations/queues/{queue_id}
     @intercept_exceptions()
     @handle_evaluation_closed_exception()
@@ -2928,6 +2880,7 @@ class SimpleQueuesRouter:
         )
 
     @intercept_exceptions()
+    @handle_evaluation_closed_exception()
     async def delete_simple_queue(
         self,
         request: Request,
@@ -2954,6 +2907,7 @@ class SimpleQueuesRouter:
         )
 
     @intercept_exceptions()
+    @handle_evaluation_closed_exception()
     async def delete_simple_queues(
         self,
         request: Request,

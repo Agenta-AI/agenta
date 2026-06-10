@@ -1,4 +1,4 @@
-import type {Key, MouseEvent, ReactNode} from "react"
+import type {Key, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {clearPreviewRunsCache} from "@agenta/evaluations/hooks"
@@ -42,7 +42,6 @@ import {
 } from "@/oss/lib/onboarding"
 import {useQueryParamState} from "@/oss/state/appState"
 
-import {shouldIgnoreRowClick} from "../../actions/navigationActions"
 import {
     evaluationRunsDeleteContextAtom,
     evaluationRunsTableFetchEnabledAtom,
@@ -344,8 +343,7 @@ const EvaluationRunsTableActive = ({
             const runId = record.preview?.id ?? record.runId
             const isNavigable = Boolean(!record.__isSkeleton && runId)
             return {
-                onClick: (event: MouseEvent<HTMLTableRowElement>) => {
-                    if (shouldIgnoreRowClick(event)) return
+                onClick: () => {
                     if (!isNavigable) return
                     handleOpenRun(record)
                 },

@@ -337,24 +337,26 @@ async def _finalize_run_after_slice(
     ):
         final_flags = final_flags.model_copy(update={"is_active": False})
 
+    # Full-PUT off the current run; only status and is_active are finalize's to set.
+    _run = current_run or run
     try:
         await evaluations_service.edit_run(
             project_id=project_id,
             user_id=user_id,
             #
             run=EvaluationRunEdit(
-                id=run.id,
+                id=_run.id,
                 #
-                name=run.name,
-                description=run.description,
+                name=_run.name,
+                description=_run.description,
                 #
                 flags=final_flags,
-                tags=run.tags,
-                meta=run.meta,
+                tags=_run.tags,
+                meta=_run.meta,
                 #
                 status=run_status,
                 #
-                data=run.data,
+                data=_run.data,
             ),
         )
     except EvaluationClosedConflict:
@@ -723,7 +725,8 @@ class APISliceProcessor:
             ),
         )
         # Inputs are always needed to rebuild the source binding even when the
-        # slice's step_keys exclude them, so probe inputs separately per scenario.
+        # slice's step_keys exclude them, so this fetch omits step_keys (unlike
+        # the slice-scoped `existing` probe above).
         scenario_ids = (
             sorted(set(run_slice.scenario_ids or []), key=str)
             if run_slice.scenario_ids is not None
@@ -734,6 +737,27 @@ class APISliceProcessor:
         )
         if not scenario_ids:
             return ProcessSummary()
+
+        # One batched input fetch for all non-seeded scenarios, grouped in memory:
+        # a per-scenario query here is N round trips on a rerun over many scenarios.
+        non_seeded_ids = [
+            scenario_id
+            for scenario_id in scenario_ids
+            if seed_bindings.get(scenario_id) is None
+        ]
+        input_cells_by_scenario: Dict[UUID, List[EvaluationResult]] = {}
+        if non_seeded_ids:
+            recovered_cells = await self.evaluations_service.query_results(
+                project_id=project_id,
+                #
+                result=EvaluationResultQuery(
+                    run_id=run_id,
+                    #
+                    scenario_ids=non_seeded_ids,
+                ),
+            )
+            for cell in recovered_cells:
+                input_cells_by_scenario.setdefault(cell.scenario_id, []).append(cell)
 
         runners, revisions = await self._resolve_runners_and_revisions(
             project_id=project_id,
@@ -801,15 +825,7 @@ class APISliceProcessor:
                 slice_timestamp = binding.timestamp
                 slice_interval = binding.interval
             else:
-                input_cells = await self.evaluations_service.query_results(
-                    project_id=project_id,
-                    #
-                    result=EvaluationResultQuery(
-                        run_id=run_id,
-                        #
-                        scenario_id=scenario_id,
-                    ),
-                )
+                input_cells = input_cells_by_scenario.get(scenario_id, [])
                 cells_by_step: Dict[str, List[EvaluationResult]] = {}
                 for cell in input_cells:
                     cells_by_step.setdefault(cell.step_key, []).append(cell)

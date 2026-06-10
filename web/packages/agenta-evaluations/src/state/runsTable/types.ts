@@ -78,4 +78,18 @@ export interface EvaluationRunsWindowResult {
     nextOffset: number | null
     nextCursor: string | null
     nextWindowing: WindowingState | null
+    /**
+     * Per-page stats for the run-list **subject** predicate (the structural
+     * "is this run an evaluation of the scoped workflow?" filter). Feeds the
+     * hit-ratio meter: when the rolling pass-ratio is low, the scoped workflow
+     * is being graded far more often than it's evaluated, signalling the
+     * backend role-aware reference filter (v2) is warranted. Absent when no
+     * subject filter is active (project scope).
+     */
+    subjectFilterStats?: {
+        /** Runs reaching the subject check (already past kind/status/search). */
+        scanned: number
+        /** Of those, runs whose subject is the scoped workflow. */
+        matched: number
+    }
 }

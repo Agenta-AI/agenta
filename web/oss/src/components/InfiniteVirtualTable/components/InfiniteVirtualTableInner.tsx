@@ -31,6 +31,7 @@ import useInfiniteScroll from "../hooks/useInfiniteScroll"
 import useScrollContainer from "../hooks/useScrollContainer"
 import useSmartResizableColumns from "../hooks/useSmartResizableColumns"
 import useTableKeyboardShortcuts from "../hooks/useTableKeyboardShortcuts"
+import {shouldIgnoreRowClick} from "../hooks/useTableManager"
 import useTableRowSelection from "../hooks/useTableRowSelection"
 import ColumnVisibilityProvider from "../providers/ColumnVisibilityProvider"
 import type {InfiniteVirtualTableProps} from "../types"
@@ -69,6 +70,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     keyboardShortcuts,
     expandable,
     tableRef,
+    disableInteractiveClickGuard = false,
 }: InfiniteVirtualTableInnerProps<RecordType>) => {
     const generatedScopeId = useId()
     const resolvedScopeId = useMemo(
@@ -500,28 +502,43 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             const shortcutProps = getShortcutRowProps
                 ? (getShortcutRowProps(record, index) ?? {})
                 : {}
-            if (!shortcutProps || Object.keys(shortcutProps).length === 0) {
-                return baseProps
+
+            const baseOnClick = baseProps?.onClick
+            const guardedOnClick =
+                !disableInteractiveClickGuard && baseOnClick
+                    ? (event: React.MouseEvent<HTMLTableRowElement>) => {
+                          if (shouldIgnoreRowClick(event)) return
+                          baseOnClick(event)
+                      }
+                    : baseOnClick
+
+            const hasShortcuts = shortcutProps && Object.keys(shortcutProps).length > 0
+            if (!hasShortcuts) {
+                if (guardedOnClick === baseOnClick) return baseProps
+                return {...baseProps, onClick: guardedOnClick}
             }
             return {
                 ...baseProps,
                 ...shortcutProps,
                 className: clsx(baseProps?.className, shortcutProps?.className),
                 onMouseEnter: mergeHandlers(baseProps?.onMouseEnter, shortcutProps?.onMouseEnter),
+                onClick: guardedOnClick,
             }
         },
-        [finalTableProps.onRow, getShortcutRowProps],
+        [finalTableProps.onRow, getShortcutRowProps, disableInteractiveClickGuard],
     )
 
     const tablePropsWithShortcuts = useMemo<TableProps<RecordType>>(() => {
-        if (!getShortcutRowProps) {
+        const needsMerge =
+            getShortcutRowProps || (Boolean(finalTableProps.onRow) && !disableInteractiveClickGuard)
+        if (!needsMerge) {
             return finalTableProps
         }
         return {
             ...finalTableProps,
             onRow: mergedOnRow,
         }
-    }, [finalTableProps, getShortcutRowProps, mergedOnRow])
+    }, [finalTableProps, getShortcutRowProps, mergedOnRow, disableInteractiveClickGuard])
 
     const tableRowSelection = useTableRowSelection(rowSelection)
 

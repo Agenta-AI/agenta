@@ -114,6 +114,24 @@ export {
     type PredicateGroupFilterOptions,
 } from "./rowPredicateFilter"
 
+// Run-list predicate filter — the run-level counterpart to rowPredicateFilter.
+// Drops whole RUNS from a run list by the ROLE their references play
+// (subject / "application" vs grader / "evaluator"), reusing the same
+// step.type → role convention. Powers "evaluations that evaluated THIS
+// workflow" — the evaluator Evaluations/Overview unification (feature F).
+export {
+    collectRoleReferenceKeys,
+    evaluateRunReferencePredicate,
+    isSubjectRun,
+    hasResolvableSubject,
+    matchesRunReferenceFilter,
+    makeRunReferenceFilter,
+    type RunReferenceStep,
+    type RunReferenceRole,
+    type RunReferencePredicate,
+    type RunReferenceFilterOptions,
+} from "./runReferenceFilter"
+
 // filterSchema — derives the filterable fields (typed + type-matched
 // operators) the Phase 2 filter UI offers. Decision D8 / eval-filtering D4.
 export {

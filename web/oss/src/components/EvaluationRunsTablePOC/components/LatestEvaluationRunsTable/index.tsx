@@ -73,6 +73,10 @@ const LatestEvaluationRunsTable = ({
                     appId,
                     projectIdOverride,
                     includePreview,
+                    // Fixed-size summary (no infinite scroll): over-fetch so the
+                    // subject filter doesn't leave it falsely empty when the
+                    // workflow is graded more than it's evaluated.
+                    fillToLimit: true,
                     ...(appScoped && {scope: "app" as const}),
                 }}
                 pageSize={limit}

@@ -80,6 +80,7 @@ export interface RowPredicate {
  * Cases handled:
  *   - `{type: "binary", freq: [{value, density}]}` → value with highest density
  *   - `{type: "numeric/continuous", mean: N}` → mean
+ *   - `{type: "numeric/discrete", mean: N}` → mean
  *   - `{type: "numeric", mean: N}` → mean
  *   - everything else passes through unchanged
  */

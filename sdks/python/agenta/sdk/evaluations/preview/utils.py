@@ -686,7 +686,7 @@ async def display_evaluation_results(
 
 from typing import Dict, Optional, Any  # noqa: E402
 
-from agenta.sdk.utils.client import authed_api  # noqa: E402
+from agenta.sdk.utils.client import authed_async_api  # noqa: E402
 from typing import Dict, Any, Optional  # noqa: E402
 
 
@@ -706,7 +706,7 @@ async def afetch_trace(
     """
     for attempt in range(max_retries):
         try:
-            response = authed_api()(
+            response = await authed_async_api()(
                 method="GET", endpoint=f"/tracing/traces/{trace_id}"
             )
             response.raise_for_status()

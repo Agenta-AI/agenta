@@ -41,11 +41,17 @@ export const loadableColumnsFromRunnableAtomFamily = atomFamily((loadableId: str
         if (linkedRunnableType === "workflow") {
             const inputPorts = get(workflowMolecule.selectors.inputPorts(linkedRunnableId))
             if (inputPorts.length > 0) {
-                return inputPorts.map((port) => ({
-                    key: port.key,
-                    name: port.name ?? port.key,
-                    type: "string" as const,
-                }))
+                // Mirror the filter in inputVariableNamesAtom: `messages` is
+                // managed by the chat UI internally and must never appear as a
+                // column / variable card for chat apps.
+                const isChat = get(workflowMolecule.selectors.isChat(linkedRunnableId))
+                return inputPorts
+                    .filter((port) => !(isChat && port.key === "messages"))
+                    .map((port) => ({
+                        key: port.key,
+                        name: port.name ?? port.key,
+                        type: "string" as const,
+                    }))
             }
         }
 
