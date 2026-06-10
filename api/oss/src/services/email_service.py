@@ -24,10 +24,8 @@ else:
         log.warning("✗ SMTP disabled")
 
 if env.sendgrid.enabled:
-    sg = sendgrid.SendGridAPIClient(api_key=env.sendgrid.api_key)
     log.info("✓ SendGrid enabled")
 else:
-    sg = None
     if env.sendgrid.api_key and not env.sendgrid.from_address:
         log.warning("✗ SendGrid disabled: missing sender email address")
     else:
@@ -143,14 +141,21 @@ def _send_smtp_email_sync(
 
 async def _send_sendgrid_email(
     to_email: str, subject: str, html_content: str, from_email: str
-)->bool:
-    return await asyncio.to_thread(
-        _send_sendgrid_email_sync,
-        to_email=to_email,
-        subject=subject,
-        html_content=html_content,
-        from_email=from_email,
-    )
+) -> bool:
+    try:
+        return await asyncio.to_thread(
+            _send_sendgrid_email_sync,
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            from_email=from_email,
+        )
+    except Exception:
+        log.exception("Failed to send SendGrid email")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to send email",
+        )
 
 def _send_sendgrid_email_sync(
     to_email: str, subject: str, html_content: str, from_email: str
@@ -162,8 +167,6 @@ def _send_sendgrid_email_sync(
         html_content=html_content,
     )
 
-    try:
-        sg.send(message)
-        return True
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    sg = sendgrid.SendGridAPIClient(api_key=env.sendgrid.api_key)
+    sg.send(message)
+    return True

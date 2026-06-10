@@ -85,7 +85,6 @@ def _parse_optional_int_env(name: str) -> int | None:
     value = raw.strip()
     if not value:
         return None
-    
     try:
         return int(value)
     except ValueError as e:
@@ -95,9 +94,16 @@ def _parse_optional_int_env(name: str) -> int | None:
 def _parse_optional_port_env(name: str) -> int | None:
     port = _parse_optional_int_env(name)
     if port is not None and not 1 <= port <= 65535:
-        raise ValueError(f"{name} must be between 1 and 65535")
+        raise ValueError(f"{name} must be between 1 and 65535, got {port}")
     return port
 
+def _parse_optional_positive_int_env(name: str) -> int | None:
+    value = _parse_optional_int_env(name)
+
+    if value is not None and value <= 0:
+        raise ValueError(f"{name} must be greater than 0, got {value}")
+
+    return value
 
 def _parse_bool_env(name: str, default: bool) -> bool:
     raw = os.getenv(name)
@@ -972,7 +978,7 @@ class SmtpConfig(BaseModel):
     )
     use_tls: bool = _parse_bool_env("SMTP_USE_TLS", default=True) 
     use_ssl: bool = _parse_bool_env("SMTP_USE_SSL", default=False) 
-    timeout: int | None = _parse_optional_int_env("SMTP_TIMEOUT")
+    timeout: int | None = _parse_optional_positive_int_env("SMTP_TIMEOUT")
 
     model_config = ConfigDict(extra="ignore")
 
