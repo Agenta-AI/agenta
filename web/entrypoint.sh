@@ -27,7 +27,17 @@ fi
 
 # Infer SMTP email delivery from strict SMTP requirements: host + port + sender
 SMTP_FROM_EMAIL_VALUE="${SMTP_FROM_EMAIL:-${AGENTA_AUTHN_EMAIL_FROM:-${AGENTA_SEND_EMAIL_FROM_ADDRESS}}}"
-if [ -n "$SMTP_HOST" ] && [ -n "$SMTP_PORT" ] && [ -n "$SMTP_FROM_EMAIL_VALUE" ]; then
+SMTP_PORT_VALID="false"
+case "$SMTP_PORT" in
+  "" | *[!0-9]*) ;;
+  *)
+    if [ "$SMTP_PORT" -ge 1 ] 2>/dev/null && [ "$SMTP_PORT" -le 65535 ] 2>/dev/null; then
+      SMTP_PORT_VALID="true"
+    fi
+    ;;
+esac
+
+if [ -n "$SMTP_HOST" ] && [ "$SMTP_PORT_VALID" = "true" ] && [ -n "$SMTP_FROM_EMAIL_VALUE" ]; then
   export AGENTA_SMTP_ENABLED="true"
 else
   export AGENTA_SMTP_ENABLED="false"

@@ -106,6 +106,13 @@ async def _send_smtp_email(
 def _send_smtp_email_sync(
     to_email: str, subject: str, html_content: str, from_email: str
 ) -> bool:
+    username = env.smtp.username
+    password = env.smtp.password
+    if bool(username) != bool(password):
+        raise RuntimeError(
+            "SMTP_USERNAME and SMTP_PASSWORD must be configured together"
+        )
+
     message = EmailMessage()
     message["From"] = from_email or env.smtp.from_email
     message["To"] = to_email
@@ -121,8 +128,8 @@ def _send_smtp_email_sync(
             context=context,
             timeout=env.smtp.timeout,
         ) as smtp:
-            if env.smtp.username:
-                smtp.login(env.smtp.username, env.smtp.password)
+            if username and password:
+                smtp.login(username, password)
             smtp.send_message(message)
     else:
         with smtplib.SMTP(
@@ -132,8 +139,8 @@ def _send_smtp_email_sync(
         ) as smtp:
             if env.smtp.use_tls:
                 smtp.starttls(context=context)
-            if env.smtp.username:
-                smtp.login(env.smtp.username, env.smtp.password)
+            if username and password:
+                smtp.login(username, password)
             smtp.send_message(message)
 
     return True
@@ -156,6 +163,7 @@ async def _send_sendgrid_email(
             status_code=500,
             detail="Failed to send email",
         )
+
 
 def _send_sendgrid_email_sync(
     to_email: str, subject: str, html_content: str, from_email: str

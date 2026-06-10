@@ -118,6 +118,29 @@ async def test_send_email_uses_smtp_ssl_without_starttls(monkeypatch):
     smtp.send_message.assert_called_once()
 
 
+@pytest.mark.parametrize("missing_credential", ["username", "password"])
+def test_send_smtp_email_requires_username_and_password(
+    monkeypatch, missing_credential
+):
+    _enable_smtp(monkeypatch)
+    monkeypatch.setattr(env.smtp, missing_credential, None)
+    FakeSmtp.instances = []
+    monkeypatch.setattr(email_service.smtplib, "SMTP", FakeSmtp)
+
+    with pytest.raises(
+        RuntimeError,
+        match="SMTP_USERNAME and SMTP_PASSWORD must be configured together",
+    ):
+        email_service._send_smtp_email_sync(
+            to_email="to@example.com",
+            subject="Subject",
+            html_content="<p>Hello</p>",
+            from_email="caller@example.com",
+        )
+
+    assert not FakeSmtp.instances
+
+
 @pytest.mark.asyncio
 async def test_send_email_falls_back_to_sendgrid(monkeypatch):
     _disable_smtp(monkeypatch)

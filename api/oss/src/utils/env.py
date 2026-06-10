@@ -976,8 +976,8 @@ class SmtpConfig(BaseModel):
         or os.getenv("AGENTA_AUTHN_EMAIL_FROM")
         or os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS")
     )
-    use_tls: bool = _parse_bool_env("SMTP_USE_TLS", default=True) 
-    use_ssl: bool = _parse_bool_env("SMTP_USE_SSL", default=False) 
+    use_tls: bool = _parse_bool_env("SMTP_USE_TLS", default=True)
+    use_ssl: bool = _parse_bool_env("SMTP_USE_SSL", default=False)
     timeout: int | None = _parse_optional_positive_int_env("SMTP_TIMEOUT")
 
     model_config = ConfigDict(extra="ignore")
