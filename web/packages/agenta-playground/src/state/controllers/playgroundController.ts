@@ -40,7 +40,6 @@ import {
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import type {Getter, Setter} from "jotai"
-import {getDefaultStore} from "jotai/vanilla"
 
 import type {SnapshotLoadableConnection, SnapshotLocalTestset} from "../../snapshot"
 import {outputConnectionsAtom} from "../atoms/connections"
@@ -51,6 +50,7 @@ import {
     extraColumnsAtom,
     hasMultipleNodesAtom,
     mappingModalOpenAtom,
+    playgroundStoreAtom,
     playgroundDispatchAtom,
     playgroundNodesAtom,
     selectedNodeIdAtom,
@@ -361,7 +361,7 @@ const connectDownstreamNodeAtom = atom(
         // For downstream entities, eagerly subscribe to the molecule's query atom
         // so the per-ID fetch fires immediately.
         if (entity.type === "workflow") {
-            const store = getDefaultStore()
+            const store = get(playgroundStoreAtom)
             const unsub = store.sub(workflowMolecule.selectors.data(entity.id), () => {})
             // Unsubscribe after a generous window — the query cache keeps the data alive.
             setTimeout(() => unsub(), 60_000)
@@ -2271,7 +2271,7 @@ const reconcileRowsToPrimaryAtom = atom(null, (get, set) => {
     const entityLoaded = get(workflowMolecule.selectors.data(entityId)) != null
     if (entityLoaded) return
 
-    const store = getDefaultStore()
+    const store = get(playgroundStoreAtom)
     const unsub = store.sub(workflowMolecule.selectors.inputPorts(entityId), () => {
         const retryStatus = pruneTestcaseRowsForEntity(store.get, store.set, entityId)
         const nowLoaded = store.get(workflowMolecule.selectors.data(entityId)) != null

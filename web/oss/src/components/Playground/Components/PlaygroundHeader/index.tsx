@@ -10,7 +10,7 @@ import {
     evaluatorWorkflowMetaMapAtom,
     workflowLatestRevisionQueryAtomFamily,
 } from "@agenta/entities/workflow"
-import type {EvaluatorCatalogTemplate, WorkflowTypeColor} from "@agenta/entities/workflow"
+import type {EvaluatorCatalogTemplate, Workflow, WorkflowTypeColor} from "@agenta/entities/workflow"
 import {EntityPicker} from "@agenta/entity-ui"
 import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {useEnrichedEvaluatorOnlyAdapter as useEvaluatorOnlyAdapter} from "@agenta/entity-ui/selection"
@@ -22,7 +22,7 @@ import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {Gavel, PencilSimple, Plus} from "@phosphor-icons/react"
 import {Button, Divider, Dropdown, Space, Tag, Tooltip, Typography, message} from "antd"
 import clsx from "clsx"
-import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
+import {atom, getDefaultStore, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
 import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
@@ -308,14 +308,69 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false)
 
     // Open the evaluator template dropdown (called from EntityPicker's onCreateNew)
-    const _handleOpenTemplateDropdown = useCallback(() => {
-        // Small delay to let the EntityPicker popover close first
-        setTimeout(() => {
-            setTemplateDropdownOpen(true)
-        }, 100)
+    const handleOpenTemplateDropdown = useCallback(() => {
+        setTemplateDropdownOpen(true)
     }, [])
 
     const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
+    const playgroundStore = useStore()
+    const currentAppSelection = useMemo(() => {
+        if (currentWorkflowCtx.workflowKind === "evaluator") return undefined
+
+        const rootNode = nodes.find((node) => node.depth === 0)
+        if (!rootNode) return undefined
+
+        return {
+            revisionId: rootNode.entityId,
+            label: rootNode.label?.trim() || currentWorkflow?.name?.trim() || "Application",
+        }
+    }, [currentWorkflow?.name, currentWorkflowCtx.workflowKind, nodes])
+
+    const handleCreatedEvaluator = useCallback(
+        ({
+            newAppId,
+            newRevisionId,
+            workflow,
+        }: {
+            newAppId?: string
+            newRevisionId?: string
+            workflow?: Workflow
+        }) => {
+            if (!newRevisionId) return
+
+            if (workflow) {
+                workflowMolecule.set.seedEntity(newRevisionId, workflow, {store: playgroundStore})
+            }
+
+            const currentNodes = playgroundStore.get(playgroundController.selectors.nodes())
+            const rootNode = currentNodes.find((node) => node.depth === 0)
+            const alreadyConnected = currentNodes.some(
+                (node) => node.depth > 0 && node.entityId === newRevisionId,
+            )
+            if (!rootNode || alreadyConnected) return
+
+            const workflowName = workflow?.name?.trim() || workflow?.slug?.trim() || "Evaluator"
+            const revision = workflow?.version ?? 1
+
+            playgroundStore.set(playgroundController.actions.connectDownstreamNode, {
+                sourceNodeId: rootNode.id,
+                entity: {
+                    type: "workflow",
+                    id: newRevisionId,
+                    label: `${workflowName} / v${revision}`,
+                    metadata: {
+                        workflowId: newAppId ?? workflow?.workflow_id,
+                        workflowName,
+                        variantId: "",
+                        variantName: "",
+                        revision,
+                    },
+                },
+            })
+            workflowMolecule.cache.invalidateList()
+        },
+        [playgroundStore],
+    )
 
     // Handle template selection from EvaluatorTemplateDropdown
     const handleTemplateSelect = useCallback(
@@ -335,9 +390,13 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
             openEvaluatorDrawer({
                 entityId: localId,
                 mode: "create",
+                isolatedPlayground: true,
+                initialAppSelection: currentAppSelection,
+                postCreateNavigation: "stay",
+                onWorkflowCreated: handleCreatedEvaluator,
             })
         },
-        [openEvaluatorDrawer],
+        [currentAppSelection, handleCreatedEvaluator, openEvaluatorDrawer],
     )
 
     // Multi-select: toggle evaluator connection/disconnection
@@ -464,58 +523,59 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                      * playground doesn't make sense (would evaluate itself). */}
                     {currentWorkflowCtx.workflowKind !== "evaluator" && <RunEvaluationButton />}
                     <Divider orientation="vertical" className="!mx-0 h-5" />
-                    <Tooltip title="Add evaluators to automatically score outputs in the playground.">
-                        <span>
-                            <EntityPicker<WorkflowRevisionSelectionResult>
-                                variant="popover-cascader"
-                                adapter={evaluatorWorkflowAdapter}
-                                onSelect={handleEvaluatorToggle}
-                                size="small"
-                                placeholder="Evaluator"
-                                icon={<Gavel size={14} />}
-                                disabled={!hasRootNode}
-                                multiSelect
-                                selectedChildIds={connectedRevisionIds}
-                                selectionSummary
-                                childItemLabelMode="simple"
-                                panelWidth={280}
-                                showParentCheckboxes
-                                selectedChildrenByParent={selectedChildrenByParent}
-                                totalChildrenByParent={totalChildrenByParent}
-                                onParentToggle={handleParentToggle}
-                                onDeselectChild={handleDeselectChild}
-                                showParentDescription
-                                showGroupHeaders
-                                showChildSelectAll
-                                onClearAll={handleDisconnectAll}
-                                // TODO: Implement evaluator template creation in checkpoint to with different playground context
-                                // We can scope using entity revision id
-                                // And have multiple playgrounds
-                                // onCreateNew={handleOpenTemplateDropdown}
-                                // createNewLabel="New evaluator"
-                                popupFooter={
-                                    connectedEvaluatorNodes.length > 0 ? (
-                                        <div className="border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] p-2">
-                                            <Button
-                                                size="small"
-                                                danger
-                                                className="w-full"
-                                                onClick={handleDisconnectAll}
-                                            >
-                                                Disconnect all
-                                            </Button>
-                                        </div>
-                                    ) : undefined
-                                }
-                            />
-                        </span>
-                    </Tooltip>
-                    <EvaluatorTemplateDropdown
-                        onSelect={handleTemplateSelect}
-                        open={templateDropdownOpen}
-                        onOpenChange={setTemplateDropdownOpen}
-                        trigger={<span className="w-0 h-0 inline-block" />}
-                    />
+                    <span className="relative inline-flex">
+                        <Tooltip title="Add evaluators to automatically score outputs in the playground.">
+                            <span>
+                                <EntityPicker<WorkflowRevisionSelectionResult>
+                                    variant="popover-cascader"
+                                    adapter={evaluatorWorkflowAdapter}
+                                    onSelect={handleEvaluatorToggle}
+                                    size="small"
+                                    placeholder="Evaluator"
+                                    icon={<Gavel size={14} />}
+                                    disabled={!hasRootNode}
+                                    multiSelect
+                                    selectedChildIds={connectedRevisionIds}
+                                    selectionSummary
+                                    childItemLabelMode="simple"
+                                    panelWidth={280}
+                                    showParentCheckboxes
+                                    selectedChildrenByParent={selectedChildrenByParent}
+                                    totalChildrenByParent={totalChildrenByParent}
+                                    onParentToggle={handleParentToggle}
+                                    onDeselectChild={handleDeselectChild}
+                                    showParentDescription
+                                    showGroupHeaders
+                                    showChildSelectAll
+                                    onClearAll={handleDisconnectAll}
+                                    onCreateNew={handleOpenTemplateDropdown}
+                                    createNewLabel="Create new"
+                                    popupFooter={
+                                        connectedEvaluatorNodes.length > 0 ? (
+                                            <div className="border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] p-2">
+                                                <Button
+                                                    size="small"
+                                                    danger
+                                                    className="w-full"
+                                                    onClick={handleDisconnectAll}
+                                                >
+                                                    Disconnect all
+                                                </Button>
+                                            </div>
+                                        ) : undefined
+                                    }
+                                />
+                            </span>
+                        </Tooltip>
+                        <EvaluatorTemplateDropdown
+                            onSelect={handleTemplateSelect}
+                            open={templateDropdownOpen}
+                            onOpenChange={setTemplateDropdownOpen}
+                            placement="bottomLeft"
+                            className="pointer-events-none absolute inset-0"
+                            trigger={<span className="block size-full" />}
+                        />
+                    </span>
                     <TestsetDropdown />
                     {isProjectLevelPlayground ? (
                         <Tooltip title="Compare mode is unavailable in project-level playground">

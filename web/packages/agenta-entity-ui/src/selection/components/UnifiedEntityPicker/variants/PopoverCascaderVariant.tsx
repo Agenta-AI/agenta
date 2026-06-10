@@ -14,7 +14,7 @@
  * Pattern: Button trigger → Popover → [Root Panel | Child Panel]
  */
 
-import React, {useCallback, useEffect, useMemo, useState, type CSSProperties} from "react"
+import React, {useCallback, useEffect, useMemo, useRef, useState, type CSSProperties} from "react"
 
 import {cn} from "@agenta/ui"
 import {EntityListItem, SearchInput} from "@agenta/ui/components/selection"
@@ -401,6 +401,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     const [searchTerm, setSearchTerm] = useState("")
     const [selectedRootId, setSelectedRootId] = useState<string | null>(null)
     const [selectedRootEntity, setSelectedRootEntity] = useState<unknown>(null)
+    const pendingCreateRef = useRef(false)
 
     // Active tab state — always starts on "all", reset on close
     const [activeTabKey, setActiveTabKey] = useState<string>("all")
@@ -602,9 +603,18 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     }, [])
 
     const handleCreateNew = useCallback(() => {
-        onCreateNew?.()
+        pendingCreateRef.current = true
         setOpen(false)
-    }, [onCreateNew])
+    }, [])
+
+    const handleAfterOpenChange = useCallback(
+        (isOpen: boolean) => {
+            if (isOpen || !pendingCreateRef.current) return
+            pendingCreateRef.current = false
+            onCreateNew?.()
+        },
+        [onCreateNew],
+    )
 
     // Shared props for RootItemRenderer
     const rootItemProps = useMemo(
@@ -809,6 +819,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
             trigger="click"
             open={open}
             onOpenChange={handleOpenChange}
+            afterOpenChange={handleAfterOpenChange}
             placement={placement}
             styles={{container: {padding: 0}}}
             arrow={false}

@@ -13,7 +13,6 @@ import {loadableController, type RunnableType} from "@agenta/entities/runnable"
 import {projectIdAtom} from "@agenta/shared/state"
 import {isPlainObject} from "@agenta/shared/utils"
 import {atom} from "jotai"
-import {getDefaultStore} from "jotai/vanilla"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {outputConnectionsAtom} from "../atoms/connections"
@@ -56,10 +55,7 @@ import {extractTraceIdFromPayload} from "./trace"
 let _sharedLimiter: (<T>(fn: () => Promise<T>) => Promise<T>) | null = null
 let _sharedLimiterConcurrency = 0
 
-function getSharedConcurrencyLimiter(): <T>(fn: () => Promise<T>) => Promise<T> {
-    const store = getDefaultStore()
-    const concurrency = store.get(executionConcurrencyAtom)
-
+function getSharedConcurrencyLimiter(concurrency: number): <T>(fn: () => Promise<T>) => Promise<T> {
     // Re-create if concurrency changed or first call
     if (!_sharedLimiter || _sharedLimiterConcurrency !== concurrency) {
         _sharedLimiterConcurrency = concurrency
@@ -370,7 +366,7 @@ export const triggerExecutionAtom = atom(
                   )
                 : connections
 
-        const limiter = getSharedConcurrencyLimiter()
+        const limiter = getSharedConcurrencyLimiter(get(executionConcurrencyAtom))
         await limiter(() =>
             executeStepForSessionWithExecutionItems({
                 get,
