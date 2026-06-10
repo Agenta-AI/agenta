@@ -23,7 +23,12 @@
         "./core": "./src/core/index.ts",
         "./controllers": "./src/controllers/index.ts",
         "./state": "./src/state/index.ts",
-        "./etl": "./src/etl/index.ts"
+        "./etl": "./src/etl/index.ts",
+        "./services": "./src/services/index.ts",
+        "./services/results": "./src/services/results.ts",
+        "./services/scenarios": "./src/services/scenarios.ts",
+        "./services/invocations": "./src/services/invocations.ts",
+        "./services/workerUtils": "./src/services/workerUtils.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",

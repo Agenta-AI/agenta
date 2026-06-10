@@ -7,8 +7,8 @@
  */
 
 import {queryEvaluationResults, setEvaluationResults} from "@agenta/entities/evaluationRun"
-
-import {getProjectValues} from "@/oss/state/project"
+import {projectIdAtom} from "@agenta/shared/state"
+import {getDefaultStore} from "jotai"
 
 /**
  * Convert a hex string (32 chars) to UUID format (with dashes).
@@ -29,8 +29,8 @@ export interface StepResult {
     step_key: string
     status: string
     trace_id?: string
-    references?: Record<string, any>
-    data?: Record<string, any>
+    references?: Record<string, unknown>
+    data?: Record<string, unknown>
 }
 
 export interface QueryResultsParams {
@@ -47,7 +47,7 @@ export const queryStepResults = async ({
     scenarioId,
     stepKeys,
 }: QueryResultsParams): Promise<StepResult[]> => {
-    const {projectId} = getProjectValues()
+    const projectId = getDefaultStore().get(projectIdAtom)
     if (!projectId) return []
 
     const results = await queryEvaluationResults({
@@ -90,7 +90,7 @@ export const upsertStepResultWithAnnotation = async ({
     annotationSpanId: string
     status?: string
 }): Promise<void> => {
-    const {projectId} = getProjectValues()
+    const projectId = getDefaultStore().get(projectIdAtom)
     if (!projectId) return
 
     // The API expects UUID format (with dashes); the annotation API returns hex.

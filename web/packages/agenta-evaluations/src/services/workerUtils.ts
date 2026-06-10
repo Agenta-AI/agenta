@@ -27,7 +27,7 @@ export async function updateScenarioStatusRemote(
                 windowing: {},
             }),
         })
-        let scenarioFull: any | null = null
+        let scenarioFull: Record<string, unknown> | null = null
         if (res.ok) {
             // We no longer rely on the scenario payload; server requires id for PATCH
             // Keep minimal object; if server returns extra data in future, parse here
@@ -61,7 +61,7 @@ export async function upsertScenarioStep(params: {
     key: string
     traceId?: string | null
     spanId?: string | null
-    references?: Record<string, any>
+    references?: Record<string, unknown>
 }): Promise<void> {
     const {
         apiUrl,
@@ -98,14 +98,19 @@ export async function upsertScenarioStep(params: {
                 : Array.isArray(data.steps)
                   ? data.steps
                   : []
-            const existing = list.find((s: any) => s.step_key === key || s.stepKey === key)
+            const existing = list.find(
+                (s: Record<string, unknown>) => s.step_key === key || s.stepKey === key,
+            )
             if (existing) {
                 const updated = {
                     ...existing,
                     status,
                     trace_id: traceId,
                     span_id: spanId,
-                    references: {...((existing as any)?.references || {}), ...references},
+                    references: {
+                        ...((existing as {references?: Record<string, unknown>})?.references || {}),
+                        ...references,
+                    },
                 }
                 await fetch(`${apiUrl}/evaluations/results/?project_id=${projectId}`, {
                     method: "PATCH",

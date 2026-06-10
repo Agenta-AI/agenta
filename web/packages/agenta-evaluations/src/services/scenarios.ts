@@ -9,8 +9,8 @@ import {
     queryEvaluationScenarios,
     setEvaluationScenarioStatuses,
 } from "@agenta/entities/evaluationScenario"
-
-import {getProjectValues} from "@/oss/state/project"
+import {projectIdAtom} from "@agenta/shared/state"
+import {getDefaultStore} from "jotai"
 
 /**
  * Update a scenario's status.
@@ -19,7 +19,7 @@ import {getProjectValues} from "@/oss/state/project"
  * overwrite scenario data.
  */
 export const updateScenarioStatus = async (scenarioId: string, status: string): Promise<void> => {
-    const {projectId} = getProjectValues()
+    const projectId = getDefaultStore().get(projectIdAtom)
     if (!projectId) return
 
     await setEvaluationScenarioStatuses({
@@ -33,7 +33,7 @@ export const updateScenarioStatus = async (scenarioId: string, status: string): 
  * Fetches the existing run first so the status edit preserves all other fields.
  */
 export const checkAndUpdateRunStatus = async (runId: string): Promise<void> => {
-    const {projectId} = getProjectValues()
+    const projectId = getDefaultStore().get(projectIdAtom)
     if (!projectId) return
 
     try {

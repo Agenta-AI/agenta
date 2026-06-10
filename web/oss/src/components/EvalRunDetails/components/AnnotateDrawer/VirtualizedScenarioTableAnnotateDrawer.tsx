@@ -1,6 +1,8 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {resolveOutputSchema} from "@agenta/entities/workflow"
+import {upsertStepResultWithAnnotation} from "@agenta/evaluations/services/results"
+import {checkAndUpdateRunStatus, updateScenarioStatus} from "@agenta/evaluations/services/scenarios"
 import {uuidToSpanId} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
@@ -20,11 +22,6 @@ import type {UpdatedMetricsType} from "@/oss/components/SharedDrawers/AnnotateDr
 import {virtualScenarioTableAnnotateDrawerAtom} from "@/oss/lib/atoms/virtualTable"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
-import {upsertStepResultWithAnnotation} from "@/oss/services/evaluations/results/api"
-import {
-    checkAndUpdateRunStatus,
-    updateScenarioStatus,
-} from "@/oss/services/evaluations/scenarios/api"
 import {upsertScenarioMetricData} from "@/oss/services/runMetrics/api"
 import {getProjectValues} from "@/oss/state/project"
 

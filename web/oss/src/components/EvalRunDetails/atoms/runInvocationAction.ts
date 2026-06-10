@@ -11,6 +11,10 @@
 import {EvaluationStatus} from "@agenta/entities/evaluationRun"
 import {fetchWorkflowRevisionById} from "@agenta/entities/workflow"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {
+    upsertStepResultWithInvocation,
+    updateScenarioStatus,
+} from "@agenta/evaluations/services/invocations"
 import {executeWorkflowRevision} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {atom} from "jotai"
@@ -20,10 +24,6 @@ import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRuns
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
-import {
-    upsertStepResultWithInvocation,
-    updateScenarioStatus,
-} from "@/oss/services/evaluations/invocations/api"
 import {getProjectValues} from "@/oss/state/project"
 
 import {

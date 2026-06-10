@@ -1,5 +1,7 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {upsertStepResultWithAnnotation} from "@agenta/evaluations/services/results"
+import {checkAndUpdateRunStatus, updateScenarioStatus} from "@agenta/evaluations/services/scenarios"
 import {uuidToSpanId} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
@@ -9,11 +11,6 @@ import {useSetAtom} from "jotai"
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
-import {upsertStepResultWithAnnotation} from "@/oss/services/evaluations/results/api"
-import {
-    checkAndUpdateRunStatus,
-    updateScenarioStatus,
-} from "@/oss/services/evaluations/scenarios/api"
 import {upsertScenarioMetricData} from "@/oss/services/runMetrics/api"
 import {getProjectValues} from "@/oss/state/project"
 
@@ -317,7 +314,7 @@ const ScenarioAnnotationPanel = ({
             // and determine the correct scenario status
             let scenarioStatus: "success" | "error" = "success"
             try {
-                const {queryStepResults} = await import("@/oss/services/evaluations/results/api")
+                const {queryStepResults} = await import("@agenta/evaluations/services/results")
                 const allResults = await queryStepResults({runId, scenarioId})
 
                 // Check if any result has an error status

@@ -12,8 +12,8 @@
 import {setEvaluationResults} from "@agenta/entities/evaluationRun"
 import {EvaluationStatus} from "@agenta/entities/evaluationRun"
 import {setEvaluationScenarioStatuses} from "@agenta/entities/evaluationScenario"
-
-import {getProjectValues} from "@/oss/state/project"
+import {projectIdAtom} from "@agenta/shared/state"
+import {getDefaultStore} from "jotai"
 
 export interface InvocationReferences {
     application?: {id: string}
@@ -55,7 +55,7 @@ export const upsertStepResultWithInvocation = async ({
     outputs?: unknown
     error?: {message: string; stacktrace?: string}
 }): Promise<void> => {
-    const {projectId} = getProjectValues()
+    const projectId = getDefaultStore().get(projectIdAtom)
     if (!projectId) return
 
     await setEvaluationResults({
@@ -80,7 +80,7 @@ export const updateScenarioStatus = async (
     scenarioId: string,
     status: EvaluationStatus,
 ): Promise<void> => {
-    const {projectId} = getProjectValues()
+    const projectId = getDefaultStore().get(projectIdAtom)
     if (!projectId) return
 
     try {
