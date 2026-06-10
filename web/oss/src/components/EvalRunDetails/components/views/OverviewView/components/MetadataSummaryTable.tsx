@@ -206,13 +206,18 @@ const StatusCell = ({runId}: MetadataCellProps) => {
 
 const ApplicationCell = ({runId, projectURL}: MetadataCellProps) => (
     <div className="flex min-h-[28px] items-center">
-        <ApplicationReferenceLabel runId={runId} projectURL={projectURL} showIconOverride={false} />
+        <ApplicationReferenceLabel
+            runId={runId}
+            projectURL={projectURL}
+            toneOverride={null}
+            showIconOverride={false}
+        />
     </div>
 )
 
 const LegacyVariantCell = memo(({runId}: MetadataCellProps) => (
     <div className="flex min-h-[28px] items-center">
-        <VariantRevisionLabel runId={runId} showIconOverride={false} />
+        <VariantRevisionLabel runId={runId} toneOverride={null} showIconOverride={false} />
     </div>
 ))
 
@@ -256,6 +261,7 @@ const LegacyTestsetsCell = memo(({runId, projectURL}: MetadataCellProps) => {
                 projectURL={projectURL ?? undefined}
                 runId={runId}
                 className="items-center"
+                toneOverride={null}
                 showIconOverride={false}
             />
         </div>

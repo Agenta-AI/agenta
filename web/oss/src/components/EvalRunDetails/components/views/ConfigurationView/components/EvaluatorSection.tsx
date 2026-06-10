@@ -1,4 +1,4 @@
-import {useMemo, useState, type ReactNode} from "react"
+import {useMemo, useState} from "react"
 
 import type {EvaluatorDefinition} from "@agenta/entities/workflow"
 import {DownOutlined} from "@ant-design/icons"
@@ -18,7 +18,7 @@ import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../../../atoms/table/
 import useRunScopedUrls from "../../../../hooks/useRunScopedUrls"
 import {stringifyError} from "../utils"
 
-import {DiffersBadge, SectionCard, SectionLabel} from "./SectionPrimitives"
+import {SectionCard, SectionLabel} from "./SectionPrimitives"
 
 const {Text} = Typography
 const JsonEditor = dynamic(() => import("@agenta/ui/editor").then((module) => module.Editor), {
@@ -26,20 +26,9 @@ const JsonEditor = dynamic(() => import("@agenta/ui/editor").then((module) => mo
 })
 interface EvaluatorSectionProps {
     runId: string
-    /** V2 layout: rows render flush inside the shell card. */
-    embedded?: boolean
-    /** Compare mode: evaluator slugs whose version differs from the base run. */
-    diffSlugs?: Record<string, boolean> | null
-    /** Open the first evaluator row by default (single-run view). */
-    defaultOpenFirst?: boolean
 }
 
-const EvaluatorSection = ({
-    runId,
-    embedded = false,
-    diffSlugs,
-    defaultOpenFirst = false,
-}: EvaluatorSectionProps) => {
+const EvaluatorSection = ({runId}: EvaluatorSectionProps) => {
     const projectId = useAtomValue(effectiveProjectIdAtom)
     const evaluatorsAtom = useMemo(() => evaluationEvaluatorsByRunQueryAtomFamily(runId), [runId])
     const evaluatorsQuery = useAtomValue(evaluatorsAtom)
@@ -81,12 +70,6 @@ const EvaluatorSection = ({
                     runId={runId}
                     projectId={projectId}
                     index={index}
-                    embedded={embedded}
-                    differs={Boolean(
-                        (evaluator.slug && diffSlugs?.[evaluator.slug]) ||
-                        (evaluator.id && diffSlugs?.[evaluator.id]),
-                    )}
-                    defaultCollapsed={defaultOpenFirst ? index !== 0 : false}
                 />
             ))}
         </div>
@@ -99,22 +82,16 @@ const EvaluatorCard = ({
     runId,
     projectId,
     index,
-    embedded = false,
-    differs = false,
-    defaultCollapsed = false,
 }: {
     evaluator: EvaluatorDefinition
     evaluatorTypeLookup: Map<string, {slug: string; label: string}>
     runId: string
     projectId: string | null
     index: number
-    embedded?: boolean
-    differs?: boolean
-    defaultCollapsed?: boolean
 }) => {
     const rawEvaluator = evaluator.raw
     const [view, setView] = useState<"details" | "json">("details")
-    const [collapsed, setCollapsed] = useState(defaultCollapsed)
+    const [collapsed, setCollapsed] = useState(false)
 
     const details = useEvaluatorDetails({
         evaluator: rawEvaluator as any,
@@ -188,125 +165,107 @@ const EvaluatorCard = ({
             projectId={projectId}
             href={evaluatorHref}
             label={evaluatorDisplayLabel}
+            toneOverride={null}
             className="max-w-full"
         />
     )
 
-    const Wrapper = embedded ? EmbeddedEvaluatorRowWrapper : EvaluatorCardWrapper
-
     return (
-        <Wrapper>
-            <div
-                className="flex h-10 items-center justify-between gap-2 bg-[var(--ag-rgba-051729-02)] px-3"
-                style={{
-                    borderBottom:
-                        "var(--Components-Collapse-Global-lineWidth, 1px) solid var(--Colors-Neutral-Border-colorSplit, rgba(5, 23, 41, 0.06))",
-                }}
-            >
-                <div className="flex min-w-0 items-center gap-2">
-                    {titleNode}
-                    {evaluator.version ? (
-                        <span className="rounded-full bg-[var(--ag-c-F2F4F7)] px-2 py-0.5 text-xs font-medium text-[var(--ag-c-475467)]">
-                            V{evaluator.version}
-                        </span>
-                    ) : null}
-                    {differs ? <DiffersBadge /> : null}
-                    {collapsed && evaluator.description ? (
-                        <Text type="secondary" className="min-w-0 flex-1 truncate text-xs">
-                            {evaluator.description}
-                        </Text>
-                    ) : null}
-                </div>
-                <div className="flex items-center gap-2">
-                    {rawEvaluator && hasEvaluatorJson ? (
-                        <Segmented
-                            options={[
-                                {label: "Details", value: "details"},
-                                {label: "JSON", value: "json"},
-                            ]}
+        <Form layout="vertical" requiredMark={false}>
+            <SectionCard className="!gap-0 !p-0 overflow-hidden">
+                <div
+                    className="flex h-10 items-center justify-between gap-2 bg-[var(--ag-rgba-051729-02)] px-3"
+                    style={{
+                        borderBottom:
+                            "var(--Components-Collapse-Global-lineWidth, 1px) solid var(--Colors-Neutral-Border-colorSplit, rgba(5, 23, 41, 0.06))",
+                    }}
+                >
+                    <div className="flex min-w-0 items-center gap-2">
+                        {titleNode}
+                        {evaluator.version ? (
+                            <span className="rounded-full bg-[var(--ag-c-F2F4F7)] px-2 py-0.5 text-xs font-medium text-[var(--ag-c-475467)]">
+                                V{evaluator.version}
+                            </span>
+                        ) : null}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {rawEvaluator && hasEvaluatorJson ? (
+                            <Segmented
+                                options={[
+                                    {label: "Details", value: "details"},
+                                    {label: "JSON", value: "json"},
+                                ]}
+                                size="small"
+                                value={view}
+                                onChange={(val) => setView(val as "details" | "json")}
+                            />
+                        ) : null}
+                        <Button
+                            type="text"
                             size="small"
-                            value={view}
-                            onChange={(val) => setView(val as "details" | "json")}
+                            icon={
+                                <DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />
+                            }
+                            onClick={() => setCollapsed((v) => !v)}
                         />
-                    ) : null}
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
-                        onClick={() => setCollapsed((v) => !v)}
-                    />
+                    </div>
                 </div>
-            </div>
-            {!collapsed ? (
-                <div className="flex flex-col gap-4 p-3">
-                    {rawEvaluator ? (
-                        <>
-                            {evaluator.description ? (
-                                <Text type="secondary">{evaluator.description}</Text>
-                            ) : null}
-                            {view === "json" && hasEvaluatorJson ? (
-                                <div className="rounded-md border border-solid border-[var(--ag-c-E4E7EC)] bg-[var(--ag-c-F8FAFC)]">
-                                    <JsonEditor
-                                        key={evaluatorJsonKey}
-                                        initialValue={evaluatorJson}
-                                        language="json"
-                                        codeOnly
-                                        showToolbar={false}
-                                        disabled
-                                        enableResize={false}
-                                        boundWidth
-                                        dimensions={{width: "100%", height: 260}}
+                {!collapsed ? (
+                    <div className="flex flex-col gap-4 p-3">
+                        {rawEvaluator ? (
+                            <>
+                                {evaluator.description ? (
+                                    <Text type="secondary">{evaluator.description}</Text>
+                                ) : null}
+                                {view === "json" && hasEvaluatorJson ? (
+                                    <div className="rounded-md border border-solid border-[var(--ag-c-E4E7EC)] bg-[var(--ag-c-F8FAFC)]">
+                                        <JsonEditor
+                                            key={evaluatorJsonKey}
+                                            initialValue={evaluatorJson}
+                                            language="json"
+                                            codeOnly
+                                            showToolbar={false}
+                                            disabled
+                                            enableResize={false}
+                                            boundWidth
+                                            dimensions={{width: "100%", height: 260}}
+                                        />
+                                    </div>
+                                ) : (
+                                    <EvaluatorDetailsPreview
+                                        details={details as any}
+                                        typeLabel={finalTypeLabel}
+                                        typeKey={finalTypeKey}
+                                        showType={finalShowType}
                                     />
-                                </div>
-                            ) : (
-                                <EvaluatorDetailsPreview
-                                    details={details as any}
-                                    typeLabel={finalTypeLabel}
-                                    typeKey={finalTypeKey}
-                                    showType={finalShowType}
-                                />
-                            )}
-                        </>
-                    ) : (
-                        <Text type="secondary">
-                            Evaluator configuration snapshot is unavailable for this run.
-                        </Text>
-                    )}
+                                )}
+                            </>
+                        ) : (
+                            <Text type="secondary">
+                                Evaluator configuration snapshot is unavailable for this run.
+                            </Text>
+                        )}
 
-                    {metricsFallback.length > 0 ? (
-                        <div className="flex flex-col gap-1">
-                            <SectionLabel>Metrics</SectionLabel>
-                            <div className="flex flex-wrap gap-2">
-                                {metricsFallback.map((metric) => (
-                                    <Tag key={`${evaluator.id}-${metric.name}`} className="!m-0">
-                                        {metric.displayLabel ?? metric.name}
-                                    </Tag>
-                                ))}
+                        {metricsFallback.length > 0 ? (
+                            <div className="flex flex-col gap-1">
+                                <SectionLabel>Metrics</SectionLabel>
+                                <div className="flex flex-wrap gap-2">
+                                    {metricsFallback.map((metric) => (
+                                        <Tag
+                                            key={`${evaluator.id}-${metric.name}`}
+                                            className="!m-0"
+                                        >
+                                            {metric.displayLabel ?? metric.name}
+                                        </Tag>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    ) : null}
-                </div>
-            ) : null}
-        </Wrapper>
+                        ) : null}
+                    </div>
+                ) : null}
+            </SectionCard>
+        </Form>
     )
 }
-
-const EvaluatorCardWrapper = ({children}: {children: ReactNode}) => (
-    <Form layout="vertical" requiredMark={false}>
-        <SectionCard className="!gap-0 !p-0 overflow-hidden">{children}</SectionCard>
-    </Form>
-)
-
-const EmbeddedEvaluatorRowWrapper = ({children}: {children: ReactNode}) => (
-    // Form keeps the antd Form.Items inside EvaluatorDetailsPreview on the
-    // vertical layout they are designed for.
-    <Form
-        layout="vertical"
-        requiredMark={false}
-        className="overflow-hidden border-0 border-b border-solid border-colorBorderSecondary last:border-b-0"
-    >
-        {children}
-    </Form>
-)
 
 export default EvaluatorSection
