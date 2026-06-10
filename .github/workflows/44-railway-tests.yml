@@ -252,7 +252,7 @@ jobs:
 
             echo "Waiting for ${label}: ${url}"
             for attempt in $(seq 1 30); do
-              if curl -sfL --max-time 10 --connect-timeout 5 -o /dev/null "$url" 2>/dev/null; then
+              if curl -sfL -o /dev/null "$url" 2>/dev/null; then
                 echo "${label} is ready."
                 return 0
               fi
@@ -610,7 +610,7 @@ jobs:
       checks: write
       pull-requests: write
       contents: read
-    timeout-minutes: 60
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -645,21 +645,9 @@ jobs:
         # devDeps (e.g. vitest) aren't pulled by a dependency-only filter.
         run: pnpm install --no-frozen-lockfile
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-
-      - name: Install Playwright system dependencies
+      - name: Install Playwright browsers
         working-directory: web/tests
-        run: pnpm exec playwright install-deps chromium
-
-      - name: Install Playwright browser
-        working-directory: web/tests
-        run: pnpm exec playwright install chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Run web tests
         working-directory: web/tests
