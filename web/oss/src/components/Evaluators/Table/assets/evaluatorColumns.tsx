@@ -277,6 +277,21 @@ const NameCellContent = memo(
 )
 
 /**
+ * Slug cell — workflow-level slug, same source as the Copy Slug action.
+ */
+const SlugCell = memo(({workflowId}: {workflowId: string}) => {
+    const slug = useDefaultStoreAtomValue(workflowSlugAtomFamily(workflowId))
+    if (!slug) return null
+    return (
+        <div className="h-full flex items-center">
+            <Typography.Text type="secondary" className="text-xs truncate block">
+                {slug}
+            </Typography.Text>
+        </div>
+    )
+})
+
+/**
  * Modified-by cell for group parent rows — reads via scalar atomFamily.
  */
 const ModifiedByCell = memo(({workflowId}: {workflowId: string}) => {
@@ -414,6 +429,16 @@ export function createEvaluatorColumns(
                         expandState={expandState}
                     />
                 )
+            },
+        },
+        {
+            type: "text",
+            key: "slug",
+            title: "Slug",
+            width: 200,
+            render: (_value, record) => {
+                if (record.__isSkeleton) return <SkeletonLine width="50%" />
+                return <SlugCell workflowId={record.workflowId} />
             },
         },
         ...(category !== "human"

@@ -1,7 +1,7 @@
 import {createStandardColumns} from "@agenta/ui/table"
 import {FolderFilled} from "@ant-design/icons"
 import {FolderDashed, Note, PencilSimple, Trash} from "@phosphor-icons/react"
-import {Tag} from "antd"
+import {Tag, Typography} from "antd"
 
 import {AppNameCell, AppTypeCell} from "../../app-management/components/appWorkflowColumns"
 import type {AppTreeNode, FolderTreeNode} from "../assets/utils"
@@ -39,6 +39,22 @@ export function createPromptsColumns(actions: PromptsColumnActions) {
                         workflowId={(record as AppTreeNode).workflowId}
                         name={record.name}
                     />
+                )
+            },
+        },
+        {
+            type: "text",
+            key: "slug",
+            title: "Slug",
+            width: 200,
+            render: (_, record) => {
+                if (!record.slug) return null
+                return (
+                    <div className="h-full flex items-center">
+                        <Typography.Text type="secondary" className="text-xs truncate block">
+                            {record.slug}
+                        </Typography.Text>
+                    </div>
                 )
             },
         },
