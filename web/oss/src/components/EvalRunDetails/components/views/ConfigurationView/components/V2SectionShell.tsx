@@ -38,20 +38,14 @@ const V2SectionShell = ({
 
     return (
         <V2Card id={id} className="scroll-mt-4">
+            {/* Mouse-only click target; the caret Button below is the single
+                keyboard-accessible toggle (avoids nested interactive controls). */}
             <div
-                role="button"
-                tabIndex={0}
                 className={clsx(
                     "flex h-10 cursor-pointer select-none items-center gap-2 border-0 border-solid border-colorBorderSecondary px-4",
                     !collapsed && "border-b",
                 )}
                 onClick={() => setCollapsed((value) => !value)}
-                onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault()
-                        setCollapsed((value) => !value)
-                    }
-                }}
             >
                 <Text className="shrink-0 text-[13px] font-semibold">{title}</Text>
                 {count != null ? <CountBadge>{count}</CountBadge> : null}
@@ -74,6 +68,8 @@ const V2SectionShell = ({
                 <Button
                     type="text"
                     size="small"
+                    aria-expanded={!collapsed}
+                    aria-label={`${collapsed ? "Expand" : "Collapse"} ${title} section`}
                     icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
                     onClick={(event) => {
                         event.stopPropagation()

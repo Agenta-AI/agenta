@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
+import {getAgentaSdkClient} from "@agenta/sdk"
 import {message} from "@agenta/ui/app-message"
 import {PencilSimple} from "@phosphor-icons/react"
 import {Button, Input, Skeleton, Tag, Typography} from "antd"
@@ -8,7 +9,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import {CopyIconButton, middleTruncateId} from "@/oss/components/References/ReferenceTag"
-import axios from "@/oss/lib/api/assets/axiosConfig"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {invalidatePreviewRunCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 
@@ -36,7 +37,12 @@ const mapStatusTone = (raw: string): keyof typeof STATUS_DOT_COLORS => {
     if (s.includes("success") || s.includes("completed") || s === "finished" || s === "ok")
         return "success"
     if (s.includes("fail") || s.includes("error")) return "error"
-    if (s.includes("run") || s.includes("progress") || s.includes("queued") || s.includes("active"))
+    if (
+        s.includes("running") ||
+        s.includes("progress") ||
+        s.includes("queued") ||
+        s.includes("active")
+    )
         return "processing"
     if (s.includes("warn") || s.includes("partial") || s.includes("degraded")) return "warning"
     return "default"
@@ -96,13 +102,16 @@ const RunSummaryCard = ({runId}: {runId: string}) => {
     const handleSave = useCallback(async () => {
         try {
             setSaving(true)
-            const base = (runQuery.data?.rawRun ?? runQuery.data?.camelRun ?? {}) as Record<
-                string,
-                any
-            >
-            await axios.patch(`/evaluations/runs/${runId}`, {
-                run: {...base, id: runId, name: editName, description: editDescription},
-            })
+            // Partial edit: the backend updates only the fields present in the
+            // payload (exclude_none), so name/description never clobber the rest.
+            const client = getAgentaSdkClient({host: getAgentaApiUrl()})
+            await client.evaluations.editRun(
+                {
+                    run_id: runId,
+                    run: {id: runId, name: editName, description: editDescription},
+                },
+                projectId ? {queryParams: {project_id: projectId}} : undefined,
+            )
             if (projectId) {
                 invalidatePreviewRunCache(projectId, runId)
             }

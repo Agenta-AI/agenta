@@ -1,4 +1,4 @@
-import {memo, useEffect, useMemo, useState, type ReactNode} from "react"
+import {memo, useEffect, useMemo, useState} from "react"
 
 import {DownOutlined} from "@ant-design/icons"
 import {Button, Segmented, Tag, Typography} from "antd"
@@ -282,7 +282,6 @@ const InvocationSection = ({
                     </div>
                 ) : (
                     <VariantConfigurationBlock
-                        title={null}
                         isLoading={isVariantLoading || variantLoading}
                         hasVariantConfig={Boolean(variantConfig)}
                         promptVariantKey={promptVariantKey}
@@ -312,7 +311,6 @@ const VariantConfigurationBlock = memo(
         variantResolved,
         variantVersion,
         hasParamsSnapshot,
-        title,
     }: {
         isLoading: boolean
         hasVariantConfig: boolean
@@ -324,7 +322,6 @@ const VariantConfigurationBlock = memo(
         variantResolved: any
         variantVersion: number | string | null
         hasParamsSnapshot: boolean
-        title?: ReactNode
     }) => {
         if (isLoading) {
             return <ReadOnlySkeleton />
@@ -335,15 +332,12 @@ const VariantConfigurationBlock = memo(
         }
 
         return (
-            <div className="flex flex-col gap-2">
-                {title ? <div>{title}</div> : null}
-                <PromptConfigCard
-                    className="flex flex-col gap-3"
-                    variantId={promptVariantKey ?? undefined}
-                    parameters={variantParameters}
-                    hasSnapshot={hasParamsSnapshot}
-                />
-            </div>
+            <PromptConfigCard
+                className="flex flex-col gap-3"
+                variantId={promptVariantKey ?? undefined}
+                parameters={variantParameters}
+                hasSnapshot={hasParamsSnapshot}
+            />
         )
     },
 )

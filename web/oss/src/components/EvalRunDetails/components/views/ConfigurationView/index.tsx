@@ -156,6 +156,11 @@ interface ConfigurationDiff {
     app: boolean
     variant: boolean
     evaluators: Record<string, boolean>
+    /**
+     * The base run has evaluators this run lacks. There is no row to badge
+     * for an absent evaluator, so the section header carries the flag.
+     */
+    evaluatorsMissing: boolean
 }
 
 /** Comparable configuration identifiers for one run. */
@@ -169,13 +174,15 @@ const runComparablesAtomFamily = atomFamily((runId: string) =>
         const evaluatorsQuery = get(evaluationEvaluatorsByRunQueryAtomFamily(runId))
         const evaluators = Array.isArray(evaluatorsQuery.data) ? evaluatorsQuery.data : []
 
+        const validTestsetRefs = testsetRefs.filter((ref: any) => ref.testsetId != null)
+
         return {
-            testsetIdsKey: testsetRefs
+            testsetIdsKey: validTestsetRefs
                 .map((ref: any) => String(ref.testsetId))
                 .sort()
                 .join("|"),
             testsetRevisions: Object.fromEntries(
-                testsetRefs.map((ref: any) => [ref.testsetId, ref.revisionId ?? null]),
+                validTestsetRefs.map((ref: any) => [ref.testsetId, ref.revisionId ?? null]),
             ) as Record<string, string | null>,
             appId: applicationRef?.id ?? null,
             variantRevisionId: revisionRef?.id ?? null,
@@ -206,6 +213,10 @@ const configurationDiffAtomFamily = atomFamily(
                     !(slug in base.evaluatorVersions) || base.evaluatorVersions[slug] !== version
             }
 
+            const evaluatorsMissing = Object.keys(base.evaluatorVersions).some(
+                (slug) => !(slug in current.evaluatorVersions),
+            )
+
             // Revisions only count when both runs carry one for the same test
             // set — legacy runs without testset_revision refs must not flag.
             const testsetRevisionDiffers = Object.entries(current.testsetRevisions).some(
@@ -222,6 +233,7 @@ const configurationDiffAtomFamily = atomFamily(
                     current.variantRevisionId !== base.variantRevisionId ||
                     current.variantVersion !== base.variantVersion,
                 evaluators,
+                evaluatorsMissing,
             }
         }),
     (a, b) => a.runId === b.runId && a.baseRunId === b.baseRunId,
@@ -320,6 +332,7 @@ const V2SectionStack = memo(
                         id={`config-section-evaluators${anchorSuffix}`}
                         title="Evaluators"
                         count={summary.evaluatorCount > 0 ? summary.evaluatorCount : null}
+                        differs={Boolean(diff?.evaluatorsMissing)}
                         flush={summary.hasEvaluatorSection}
                     >
                         {summary.hasEvaluatorSection ? (
@@ -346,12 +359,19 @@ const V2Single = memo(({runId}: {runId: string}) => (
         <div className="flex flex-col gap-3 @[860px]:sticky @[860px]:top-4">
             <RunSummaryCard runId={runId} />
             <div className="hidden @[860px]:block">
-                <SectionNavCard runId={runId} />
+                {/* Suffix keeps anchor ids unique when two run views are mounted (split view) */}
+                <SectionNavCard runId={runId} anchorSuffix={`-${runId}`} />
             </div>
         </div>
         <div className="flex min-w-0 flex-col gap-4">
             {/* key: collapse/view state must not leak between runs */}
-            <V2SectionStack key={runId} runId={runId} diff={null} defaultOpenFirstEvaluator />
+            <V2SectionStack
+                key={runId}
+                runId={runId}
+                diff={null}
+                anchorSuffix={`-${runId}`}
+                defaultOpenFirstEvaluator
+            />
         </div>
     </div>
 ))
@@ -375,7 +395,9 @@ const V2CompareColumn = memo(
               : "#2f54eb"
 
         return (
-            <div className="flex min-w-0 flex-col gap-4">
+            // Own @container so DefRow's label-width breakpoint tracks the
+            // column width, not the whole tab.
+            <div className="@container flex min-w-0 flex-col gap-4">
                 {/* Sticky so the run identity stays visible while scrolling long columns */}
                 <div className="sticky top-0 z-10 flex items-center gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2">
                     <span

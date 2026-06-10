@@ -83,7 +83,8 @@ const EvaluatorSection = ({
                     index={index}
                     embedded={embedded}
                     differs={Boolean(
-                        diffSlugs?.[evaluator.slug ?? ""] ?? diffSlugs?.[evaluator.id ?? ""],
+                        (evaluator.slug && diffSlugs?.[evaluator.slug]) ||
+                        (evaluator.id && diffSlugs?.[evaluator.id]),
                     )}
                     defaultCollapsed={defaultOpenFirst ? index !== 0 : false}
                 />

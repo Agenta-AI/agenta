@@ -53,6 +53,7 @@ const SectionNavCard = ({runId, anchorSuffix}: {runId: string; anchorSuffix?: st
                 <button
                     key={key}
                     type="button"
+                    aria-current={effectiveActiveKey === key ? "location" : undefined}
                     className={
                         "flex cursor-pointer items-center gap-2 rounded-md border-0 px-2.5 py-1.5 text-left text-[13px] " +
                         (effectiveActiveKey === key
