@@ -1,6 +1,6 @@
-import type {TableTabsConfig} from "@/oss/components/InfiniteVirtualTable"
+import {type EvaluationRunKind} from "@agenta/evaluations/state/runsTable"
 
-import {type EvaluationRunKind} from "../../types"
+import type {TableTabsConfig} from "@/oss/components/InfiniteVirtualTable"
 
 export interface EvaluationRunsTableProps {
     appId?: string | null

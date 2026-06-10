@@ -1,5 +1,7 @@
 import type {MouseEvent} from "react"
 
+import type {EvaluationRunKind, EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
+import {resolveRowAppId} from "@agenta/evaluations/state/runsTable"
 import {message} from "@agenta/ui/app-message"
 import {getDefaultStore} from "jotai"
 import Router from "next/router"
@@ -8,9 +10,6 @@ import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 // import {, buildEvaluationNavigationUrl} from "@/oss/pages/evaluations/utils"
 import {routerAppIdAtom} from "@/oss/state/app"
 import {urlAtom, waitForValidURL, type URLState} from "@/oss/state/url"
-
-import type {EvaluationRunKind, EvaluationRunTableRow} from "../types"
-import {resolveRowAppId} from "../utils/runHelpers"
 
 import {
     buildAppScopedUrl,

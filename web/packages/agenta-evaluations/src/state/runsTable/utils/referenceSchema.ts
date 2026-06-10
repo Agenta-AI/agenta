@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- relocated runs-table parity data layer (WP-4i); reads dynamic backend-shaped reference payloads, logic unchanged */
 import type {EvaluationRunKind, EvaluationRunTableRow, PreviewRunColumnMeta} from "../types"
 
 export type ReferenceRole = "application" | "variant" | "testset" | "query" | "evaluator"

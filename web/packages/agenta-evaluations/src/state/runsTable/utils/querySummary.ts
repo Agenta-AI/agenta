@@ -1,4 +1,16 @@
-import type {Filter} from "@/oss/lib/Types"
+/**
+ * Minimal query-filter shape consumed by `summarizeQueryFilters`.
+ *
+ * The runs-table only reads `key`, `field`, `operator`, and `value` off each filter; the
+ * full OSS `Filter` type (`@/oss/lib/Types`) carries more fields the summary never touches.
+ * Defined locally to keep the data layer free of any `@/oss` import.
+ */
+export interface QuerySummaryFilter {
+    field?: string
+    key?: string
+    operator?: string
+    value?: unknown
+}
 
 export const formatFilterValue = (value: unknown): string => {
     if (value === null || value === undefined) return "—"
@@ -30,7 +42,7 @@ export const formatFilterValue = (value: unknown): string => {
     return String(value)
 }
 
-export const summarizeQueryFilters = (filters?: Filter[] | null): string | null => {
+export const summarizeQueryFilters = (filters?: QuerySummaryFilter[] | null): string | null => {
     if (!filters || !filters.length) return null
     const parts = filters.map((filter) => {
         const field = filter.key || filter.field || "field"

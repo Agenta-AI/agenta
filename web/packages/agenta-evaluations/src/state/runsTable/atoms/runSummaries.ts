@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- relocated runs-table parity data layer (WP-4i); reads dynamic backend-shaped run payloads, logic unchanged */
 import {fetchEvaluationRunBatched} from "@agenta/entities/evaluationRun"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
+import {snakeToCamelCaseKeys} from "../../evalRun/utils/casing"
 
 export interface PreviewRunSummary {
     id: string

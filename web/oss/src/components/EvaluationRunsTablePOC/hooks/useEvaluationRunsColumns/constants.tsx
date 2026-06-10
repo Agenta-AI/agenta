@@ -1,13 +1,13 @@
 import {type JSX} from "react"
 
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
+import type {ReferenceRole, ReferenceColumnDescriptor} from "@agenta/evaluations/state/runsTable"
+
 import {PreviewAppCell} from "@/oss/components/References/cells/ApplicationCells"
 import {PreviewEvaluatorCell} from "@/oss/components/References/cells/EvaluatorCells"
 import {PreviewQueryCell} from "@/oss/components/References/cells/QueryCells"
 import {PreviewTestsetCell} from "@/oss/components/References/cells/TestsetCells"
 import {PreviewVariantCell} from "@/oss/components/References/cells/VariantCells"
-
-import type {EvaluationRunTableRow} from "../../types"
-import type {ReferenceRole, ReferenceColumnDescriptor} from "../../utils/referenceSchema"
 
 import type {RecordPath} from "./types"
 import {createShouldCellUpdate as baseCreateShouldCellUpdate} from "./utils"

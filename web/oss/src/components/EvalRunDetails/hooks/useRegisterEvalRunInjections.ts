@@ -13,10 +13,10 @@
 import {useEffect} from "react"
 
 import {registerEvalRunInjections, type InjectedReferenceResolver} from "@agenta/evaluations/state"
+import {clearMetricSelectionCache} from "@agenta/evaluations/state/runsTable"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
-import {clearMetricSelectionCache} from "@/oss/components/EvaluationRunsTablePOC/hooks/useRunMetricSelection"
 import {
     appReferenceAtomFamily,
     variantReferenceAtomFamily,

@@ -1,6 +1,12 @@
 import {memo, useMemo, useState, useCallback} from "react"
 
 import {EvaluationStatus} from "@agenta/entities/evaluationRun"
+import {
+    useRunRowDetails,
+    useRunRowSummary,
+    useRunRowReferences,
+} from "@agenta/evaluations/state/runsTable"
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import {message} from "@agenta/ui/app-message"
 import {SkeletonLine} from "@agenta/ui/table"
 import {MoreOutlined} from "@ant-design/icons"
@@ -21,13 +27,6 @@ import {Button, Dropdown, MenuProps, Tooltip} from "antd"
 import {extractPrimaryInvocation} from "@/oss/components/pages/evaluations/utils"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {startSimpleEvaluation, stopSimpleEvaluation} from "@/oss/services/onlineEvaluations/api"
-
-import {
-    useRunRowDetails,
-    useRunRowSummary,
-    useRunRowReferences,
-} from "../../../context/RunRowDataContext"
-import type {EvaluationRunTableRow} from "../../../types"
 
 const CELL_CLASS =
     "flex h-full w-full min-w-0 items-center justify-center px-2 [&_.ant-btn]:h-8 [&_.ant-btn]:w-8"

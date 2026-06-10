@@ -1,7 +1,7 @@
-import usePreviewRunDetails from "../hooks/usePreviewRunDetails"
-import usePreviewRunSummary from "../hooks/usePreviewRunSummary"
-import type {EvaluationRunTableRow} from "../types"
-import {buildReferenceSequence} from "../utils/referenceSchema"
+import usePreviewRunDetails from "./hooks/usePreviewRunDetails"
+import usePreviewRunSummary from "./hooks/usePreviewRunSummary"
+import type {EvaluationRunTableRow} from "./types"
+import {buildReferenceSequence} from "./utils/referenceSchema"
 
 export const useRunRowSummary = (record?: EvaluationRunTableRow, _isVisible = true) => {
     const runId = record?.preview?.id ?? record?.runId ?? null

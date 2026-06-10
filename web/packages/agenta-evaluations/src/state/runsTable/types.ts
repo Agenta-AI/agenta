@@ -1,10 +1,18 @@
-import type {EvaluationRun} from "@agenta/evaluations/hooks"
 import type {SnakeToCamelCaseKeys} from "@agenta/shared/types"
+import type {InfiniteTableRowBase, WindowingState} from "@agenta/ui/table"
 
-import type {InfiniteTableRowBase} from "@/oss/components/InfiniteVirtualTable/types"
-import type {WindowingState} from "@/oss/components/InfiniteVirtualTable/types"
+import type {EvaluationRun} from "../../hooks"
 
-import type {LegacyAutoEvaluation} from "../../state/evaluations/legacyAtoms"
+/**
+ * Legacy auto-evaluation payload carried on a row's `legacy` slot.
+ *
+ * The runs-table only ever reads `legacy` through an `any` cast (e.g. `(row.legacy as any)
+ * ?.name`), so the precise legacy shape is irrelevant here. The original OSS import
+ * (`@/oss/state/evaluations/legacyAtoms`) pointed at a module that no longer exists, so it
+ * is represented here as an opaque record to keep the data layer free of `@/oss` and free
+ * of the dangling import.
+ */
+export type LegacyAutoEvaluation = Record<string, unknown>
 
 export type PreviewEvaluationRun = SnakeToCamelCaseKeys<EvaluationRun>
 

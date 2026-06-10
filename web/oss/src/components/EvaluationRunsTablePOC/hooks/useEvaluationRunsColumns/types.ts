@@ -1,4 +1,4 @@
-import type {EvaluationRunKind, EvaluationRunTableRow} from "../../types"
+import type {EvaluationRunKind, EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 
 export interface UseEvaluationRunsColumnsParams {
     evaluationKind: EvaluationRunKind

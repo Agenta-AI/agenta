@@ -2,6 +2,9 @@ import {useCallback, useEffect, useMemo} from "react"
 import type {CSSProperties, MouseEvent as ReactMouseEvent, ReactNode} from "react"
 
 import type {RunFlagsFilter} from "@agenta/evaluations/hooks"
+import type {ConcreteEvaluationRunKind} from "@agenta/evaluations/state/runsTable"
+import {EVALUATION_KIND_FILTER_OPTIONS, STATUS_OPTIONS} from "@agenta/evaluations/state/runsTable"
+import {buildTestsetOptions} from "@agenta/evaluations/state/runsTable"
 import {Button, Divider, Select, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -22,9 +25,6 @@ import {
     evaluationRunsFiltersDraftInitializeAtom,
     evaluationRunsFiltersDraftClearAtom,
 } from "../../atoms/view"
-import {EVALUATION_KIND_FILTER_OPTIONS, STATUS_OPTIONS} from "../../constants"
-import type {ConcreteEvaluationRunKind} from "../../types"
-import {buildTestsetOptions} from "../../utils/testsetOptions"
 
 import QueryFilterOption from "./QueryFilterOption"
 import QuickDateRangePicker from "./QuickDateRangePicker"

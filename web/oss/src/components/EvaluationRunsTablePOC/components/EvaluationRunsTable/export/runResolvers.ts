@@ -1,7 +1,7 @@
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import {useStore} from "jotai"
 
 import {resolveRunNameForExport} from "@/oss/components/EvaluationRunsTablePOC/hooks/useEvaluationRunsColumns"
-import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
 import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
 
 import {getRecordIdentifiers, logExportAction, normalizeString} from "./helpers"

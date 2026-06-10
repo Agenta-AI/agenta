@@ -1,10 +1,10 @@
 import {previewRunMetricStatsSelectorFamily} from "@agenta/evaluations/state/evalRun"
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
+import type {RunMetricDescriptor} from "@agenta/evaluations/state/runsTable"
 import type {BasicStats} from "@agenta/shared/metrics"
 import {useStore} from "jotai"
 
 import {formatMetricExportLabel} from "@/oss/components/EvaluationRunsTablePOC/hooks/useEvaluationRunsColumns"
-import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
-import type {RunMetricDescriptor} from "@/oss/components/EvaluationRunsTablePOC/types/runMetrics"
 import {evaluatorReferenceAtomFamily} from "@/oss/components/References/atoms/entityReferences"
 import {
     formatEvaluatorMetricValue,

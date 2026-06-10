@@ -1,5 +1,20 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
+import type {EvaluationRunsColumnExportMetadata} from "@agenta/evaluations/state/runsTable"
+import type {RunMetricDescriptor} from "@agenta/evaluations/state/runsTable"
+import {
+    createEvaluatorOutputTypesKey,
+    getOutputTypesMap,
+    isStringOutputType,
+    subscribeToOutputTypes,
+} from "@agenta/evaluations/state/runsTable"
+import {METRIC_COLUMN_CONFIG} from "@agenta/evaluations/state/runsTable"
+import {
+    buildReferenceBlueprint,
+    buildReferenceColumnKey,
+    type ReferenceColumnDescriptor,
+} from "@agenta/evaluations/state/runsTable"
 import {canonicalizeMetricKey} from "@agenta/shared/metrics"
 import type {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -19,12 +34,6 @@ import {getEvaluatorMetricBlueprintAtom} from "@/oss/components/References/atoms
 import {PreviewCreatedByCell} from "@/oss/components/References/cells/CreatedByCells"
 import {humanizeEvaluatorName, humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
-import {
-    createEvaluatorOutputTypesKey,
-    getOutputTypesMap,
-    isStringOutputType,
-    subscribeToOutputTypes,
-} from "../../atoms/evaluatorOutputTypes"
 import RunActionsCell from "../../components/cells/ActionsCell"
 import {PreviewCreatedCell} from "../../components/cells/CreatedCells"
 import PreviewKindCell from "../../components/cells/KindCell"
@@ -33,15 +42,6 @@ import {PreviewRunNameCell} from "../../components/cells/RunNameCells"
 import {PreviewStatusCell} from "../../components/cells/StatusCells"
 import MetricColumnHeader from "../../components/headers/MetricColumnHeader"
 import MetricGroupHeader from "../../components/headers/MetricGroupHeader"
-import {METRIC_COLUMN_CONFIG} from "../../constants"
-import type {EvaluationRunTableRow} from "../../types"
-import type {EvaluationRunsColumnExportMetadata} from "../../types/exportMetadata"
-import type {RunMetricDescriptor} from "../../types/runMetrics"
-import {
-    buildReferenceBlueprint,
-    buildReferenceColumnKey,
-    type ReferenceColumnDescriptor,
-} from "../../utils/referenceSchema"
 
 import {
     REFERENCE_CELL_RENDERERS,

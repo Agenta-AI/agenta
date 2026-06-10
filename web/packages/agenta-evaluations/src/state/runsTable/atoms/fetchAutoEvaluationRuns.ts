@@ -1,10 +1,10 @@
-import {deriveEvaluationKind} from "@agenta/evaluations/core"
-import type {RunFlagsFilter} from "@agenta/evaluations/hooks"
-import {fetchPreviewRunsShared} from "@agenta/evaluations/hooks"
+/* eslint-disable @typescript-eslint/no-explicit-any -- relocated runs-table parity data layer (WP-4i); reads dynamic backend-shaped run payloads, logic unchanged */
+import type {WindowingState} from "@agenta/ui/table"
 
-import type {WindowingState} from "@/oss/components/InfiniteVirtualTable/types"
-
-import type {QueryWindowingPayload} from "../../../services/onlineEvaluations/api"
+import {deriveEvaluationKind} from "../../../core"
+import {fetchPreviewRunsShared} from "../../../hooks"
+import type {RunFlagsFilter} from "../../../hooks"
+import type {QueryWindowingPayload} from "../../evalRunInjection"
 import type {
     PreviewEvaluationRun,
     EvaluationRunApiRow,

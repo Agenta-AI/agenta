@@ -1,4 +1,12 @@
 import type {RunFlagsFilter} from "@agenta/evaluations/hooks"
+import type {
+    EvaluationRunApiRow,
+    EvaluationRunTableRow,
+    EvaluationRunKind,
+    ConcreteEvaluationRunKind,
+} from "@agenta/evaluations/state/runsTable"
+import {buildReferencePayload} from "@agenta/evaluations/state/runsTable"
+import {fetchEvaluationRunsWindow} from "@agenta/evaluations/state/runsTable"
 import {atom} from "jotai"
 import type {PrimitiveAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
@@ -7,16 +15,7 @@ import {atomWithStorage} from "jotai/vanilla/utils"
 import {createInfiniteDatasetStore} from "@/oss/components/InfiniteVirtualTable"
 import type {WindowingState} from "@/oss/components/InfiniteVirtualTable/types"
 
-import type {
-    EvaluationRunApiRow,
-    EvaluationRunTableRow,
-    EvaluationRunKind,
-    ConcreteEvaluationRunKind,
-} from "../types"
-import {buildReferencePayload} from "../utils/referencePayload"
-
 import {computeContextSignature, evaluationRunsMetaContextSliceAtom} from "./context"
-import {fetchEvaluationRunsWindow} from "./fetchAutoEvaluationRuns"
 
 export interface EvaluationRunsTableMeta {
     projectId: string | null

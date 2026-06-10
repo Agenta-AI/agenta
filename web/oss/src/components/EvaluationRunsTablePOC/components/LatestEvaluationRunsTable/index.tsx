@@ -1,12 +1,12 @@
 import {useEffect, useMemo, useState} from "react"
 
+import type {EvaluationRunKind} from "@agenta/evaluations/state/runsTable"
 import {Typography} from "antd"
 import clsx from "clsx"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
 import EvaluationRunsTableStoreProvider from "../../providers/EvaluationRunsTableStoreProvider"
-import type {EvaluationRunKind} from "../../types"
 import EvaluationRunsTablePOC from "../EvaluationRunsTable"
 
 interface LatestEvaluationRunsTableProps {

@@ -1,8 +1,7 @@
 import {deriveEvaluationKind} from "@agenta/evaluations/core"
+import {EVALUATION_KIND_LABELS} from "@agenta/evaluations/state/runsTable"
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import {Tag, Typography} from "antd"
-
-import {EVALUATION_KIND_LABELS} from "../../constants"
-import type {EvaluationRunTableRow} from "../../types"
 
 const CELL_CLASS = "flex h-full w-full min-w-0 items-center gap-2 px-2"
 

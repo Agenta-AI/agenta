@@ -1,5 +1,7 @@
 import {useMemo} from "react"
 
+import {useRunMetricSelection} from "@agenta/evaluations/state/runsTable"
+import type {RunMetricDescriptor} from "@agenta/evaluations/state/runsTable"
 import {canonicalizeMetricKey} from "@agenta/shared/metrics"
 import {Typography} from "antd"
 import {useAtomValueWithSchedule, LOW_PRIORITY} from "jotai-scheduler"
@@ -8,8 +10,6 @@ import {resolvedMetricLabelsAtomFamily} from "@/oss/components/References/atoms/
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import {useEvaluatorHeaderReference} from "../../hooks/useEvaluatorHeaderReference"
-import useRunMetricSelection from "../../hooks/useRunMetricSelection"
-import type {RunMetricDescriptor} from "../../types/runMetrics"
 
 const OUTPUT_METRIC_PATH_PREFIX = /^attributes\.ag\.data\.outputs\.?/i
 

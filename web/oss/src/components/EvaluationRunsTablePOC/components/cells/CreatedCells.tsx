@@ -1,9 +1,8 @@
 import {memo} from "react"
 
+import {useRunRowSummary} from "@agenta/evaluations/state/runsTable"
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import {SkeletonLine} from "@agenta/ui/table"
-
-import {useRunRowSummary} from "../../context/RunRowDataContext"
-import type {EvaluationRunTableRow} from "../../types"
 
 const formatDate = (value?: string | null) => {
     if (!value) return "—"

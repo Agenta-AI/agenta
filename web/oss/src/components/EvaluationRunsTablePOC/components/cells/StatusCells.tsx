@@ -1,7 +1,6 @@
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import {SkeletonLine} from "@agenta/ui/table"
 import {Tooltip, Typography} from "antd"
-
-import type {EvaluationRunTableRow} from "../../types"
 
 type AntBadgeStatus = "success" | "processing" | "default" | "error" | "warning"
 

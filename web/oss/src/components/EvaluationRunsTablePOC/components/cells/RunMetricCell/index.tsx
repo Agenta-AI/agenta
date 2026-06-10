@@ -1,5 +1,13 @@
 import {memo, useEffect, useMemo, useRef, type ReactNode} from "react"
 
+import {
+    createEvaluatorOutputTypesKey,
+    getOutputTypesMap,
+    setOutputTypesMap,
+} from "@agenta/evaluations/state/runsTable"
+import {useRunMetricSelection} from "@agenta/evaluations/state/runsTable"
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
+import type {RunMetricDescriptor} from "@agenta/evaluations/state/runsTable"
 import {canonicalizeMetricKey} from "@agenta/shared/metrics"
 import {type BasicStats} from "@agenta/shared/metrics"
 import {EvaluatorMetricBar} from "@agenta/ui/cell-renderers"
@@ -16,14 +24,6 @@ import {
     formatInvocationMetricValue,
     formatPercent,
 } from "../../../../../lib/runMetrics/formatters"
-import {
-    createEvaluatorOutputTypesKey,
-    getOutputTypesMap,
-    setOutputTypesMap,
-} from "../../../atoms/evaluatorOutputTypes"
-import useRunMetricSelection from "../../../hooks/useRunMetricSelection"
-import type {EvaluationRunTableRow} from "../../../types"
-import type {RunMetricDescriptor} from "../../../types/runMetrics"
 import MetricValueWithPopover from "../../common/MetricValueWithPopover"
 
 import CategoryTags from "./CategoryTags"

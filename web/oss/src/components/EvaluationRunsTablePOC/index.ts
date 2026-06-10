@@ -2,4 +2,3 @@ export {default as EvaluationRunsTablePOC} from "./components/EvaluationRunsTabl
 export {default as LatestEvaluationRunsTable} from "./components/LatestEvaluationRunsTable"
 export {default as EvaluationRunsTableStoreProvider} from "./providers/EvaluationRunsTableStoreProvider"
 export * from "./atoms/tableStore"
-export type {EvaluationRunKind} from "./types"

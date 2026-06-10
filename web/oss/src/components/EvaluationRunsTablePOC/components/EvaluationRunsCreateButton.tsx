@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo} from "react"
 
+import type {ConcreteEvaluationRunKind} from "@agenta/evaluations/state/runsTable"
 import {PlusIcon} from "@phosphor-icons/react"
 import {Button, Dropdown, Tooltip, type ButtonProps, type MenuProps} from "antd"
 import {useAtom, useAtomValue} from "jotai"
@@ -10,7 +11,6 @@ import {
     evaluationRunsCreateTypePreferenceAtom,
     evaluationRunsTableHeaderStateAtom,
 } from "../atoms/view"
-import type {ConcreteEvaluationRunKind} from "../types"
 
 type SupportedCreateType = Extract<
     ConcreteEvaluationRunKind,

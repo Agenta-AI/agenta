@@ -1107,6 +1107,9 @@ importers:
       jotai-family:
         specifier: '>=0.1.0'
         version: 1.0.1(jotai@2.20.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.14)(react@19.2.6))
+      jotai-scheduler:
+        specifier: ^0.0.5
+        version: 0.0.5(jotai@2.20.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
       jotai-tanstack-query:
         specifier: '>=0.9.0'
         version: 0.11.0(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.6))(jotai@2.20.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)

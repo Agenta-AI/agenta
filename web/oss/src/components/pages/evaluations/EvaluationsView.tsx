@@ -9,6 +9,10 @@ import {
     type ReactNode,
 } from "react"
 
+import {
+    ConcreteEvaluationRunKind,
+    type EvaluationRunKind,
+} from "@agenta/evaluations/state/runsTable"
 import {PageLayout} from "@agenta/ui"
 import {CloudServerOutlined} from "@ant-design/icons"
 import {ChartDonutIcon, CodeIcon, ListChecksIcon} from "@phosphor-icons/react"
@@ -16,17 +20,12 @@ import type {TabsProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {
-    EvaluationRunsTablePOC,
-    type EvaluationRunKind,
-} from "@/oss/components/EvaluationRunsTablePOC"
+import {EvaluationRunsTablePOC} from "@/oss/components/EvaluationRunsTablePOC"
 import {evaluationRunsTableContextSetterAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/context"
 import {evaluationRunsTypeFiltersAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/view"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useQueryParamState} from "@/oss/state/appState"
 import {projectIdAtom} from "@/oss/state/project"
-
-import {ConcreteEvaluationRunKind} from "../../EvaluationRunsTablePOC/types"
 
 type EvaluationScope = "app" | "project"
 type AppTabKey = EvaluationRunKind

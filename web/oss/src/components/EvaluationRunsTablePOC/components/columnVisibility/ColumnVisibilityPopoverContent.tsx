@@ -1,5 +1,7 @@
 import {useCallback, useMemo} from "react"
 
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
+import type {RunMetricDescriptor} from "@agenta/evaluations/state/runsTable"
 import {Typography} from "antd"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
@@ -18,8 +20,6 @@ import {resolvedMetricLabelsAtomFamily} from "@/oss/components/References/atoms/
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import {evaluationRunsColumnVisibilityContextAtom} from "../../atoms/view"
-import type {EvaluationRunTableRow} from "../../types"
-import type {RunMetricDescriptor} from "../../types/runMetrics"
 import MetricGroupHeader from "../headers/MetricGroupHeader"
 
 interface ColumnVisibilityPopoverContentProps {

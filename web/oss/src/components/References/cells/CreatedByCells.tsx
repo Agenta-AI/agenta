@@ -1,14 +1,10 @@
 import {memo} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
+import {useRunRowDetails, useRunRowSummary} from "@agenta/evaluations/state/runsTable"
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import {SkeletonLine} from "@agenta/ui/table"
 import {Typography} from "antd"
-
-import {
-    useRunRowDetails,
-    useRunRowSummary,
-} from "@/oss/components/EvaluationRunsTablePOC/context/RunRowDataContext"
-import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
 
 const CELL_CLASS =
     "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2 whitespace-nowrap overflow-hidden"

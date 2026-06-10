@@ -1,11 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- relocated runs-table parity data layer (WP-4i); reads dynamic backend-shaped run payloads, logic unchanged */
 import {useEffect, useMemo} from "react"
 
-import {
-    evaluationRunQueryAtomFamily,
-    evaluationRunWithProjectQueryAtomFamily,
-} from "@agenta/evaluations/state/evalRun"
 import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
+
+import {evaluationRunQueryAtomFamily, evaluationRunWithProjectQueryAtomFamily} from "../../evalRun"
 
 const idleRunQueryAtom = atom({
     data: null,

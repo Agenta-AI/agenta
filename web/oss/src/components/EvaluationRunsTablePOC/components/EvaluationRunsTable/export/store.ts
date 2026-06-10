@@ -1,7 +1,6 @@
 import {evaluationRunQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {previewRunSummaryAtomFamily} from "@agenta/evaluations/state/runsTable"
 import {useStore} from "jotai"
-
-import {previewRunSummaryAtomFamily} from "@/oss/components/EvaluationRunsTablePOC/atoms/runSummaries"
 
 import {logExportAction} from "./helpers"
 

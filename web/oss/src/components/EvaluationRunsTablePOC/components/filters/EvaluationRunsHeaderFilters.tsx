@@ -1,5 +1,8 @@
 import {MouseEvent, useMemo, useState, useCallback} from "react"
 
+import type {ConcreteEvaluationRunKind} from "@agenta/evaluations/state/runsTable"
+import {STATUS_OPTIONS, EVALUATION_KIND_LABELS} from "@agenta/evaluations/state/runsTable"
+import {buildTestsetOptions} from "@agenta/evaluations/state/runsTable"
 import {Input, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -23,9 +26,6 @@ import {
     evaluationRunsTypeFiltersAtom,
     evaluationRunsDateRangeAtom,
 } from "../../atoms/view"
-import {STATUS_OPTIONS, EVALUATION_KIND_LABELS} from "../../constants"
-import type {ConcreteEvaluationRunKind} from "../../types"
-import {buildTestsetOptions} from "../../utils/testsetOptions"
 
 import EvaluationRunsFiltersContent from "./EvaluationRunsFiltersContent"
 

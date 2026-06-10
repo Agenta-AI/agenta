@@ -1,9 +1,9 @@
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {evaluationQueryRevisionAtomFamily} from "@agenta/evaluations/state/evalRun"
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
+import type {ReferenceColumnDescriptor} from "@agenta/evaluations/state/runsTable"
 import {useStore} from "jotai"
 
-import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
-import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 import {extractPrimaryInvocation} from "@/oss/components/pages/evaluations/utils"
 import {
     appReferenceAtomFamily,

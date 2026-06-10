@@ -1,4 +1,4 @@
-import {isUuid} from "@/oss/lib/helpers/utils"
+import {isUuid} from "./uuid"
 
 export const buildReferencePayload = (filters: Record<string, string[]> | null | undefined) => {
     if (!filters) return undefined

@@ -1,10 +1,9 @@
 import {memo} from "react"
 
+import {useRunRowSummary} from "@agenta/evaluations/state/runsTable"
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import {SkeletonLine} from "@agenta/ui/table"
 import {Typography} from "antd"
-
-import {useRunRowSummary} from "../../context/RunRowDataContext"
-import type {EvaluationRunTableRow} from "../../types"
 
 const CELL_CLASS = "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2"
 

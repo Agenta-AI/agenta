@@ -2,6 +2,14 @@ import type {Key} from "react"
 
 import {evaluatorsListQueryAtom, workflowVariantsQueryAtomFamily} from "@agenta/entities/workflow"
 import {RunFlagsFilter} from "@agenta/evaluations/hooks"
+import type {
+    ConcreteEvaluationRunKind,
+    EvaluationRunKind,
+    EvaluationRunTableRow,
+} from "@agenta/evaluations/state/runsTable"
+import {summarizeQueryFilters} from "@agenta/evaluations/state/runsTable"
+import {buildReferencePayload} from "@agenta/evaluations/state/runsTable"
+import {previewRunSummaryAtomFamily} from "@agenta/evaluations/state/runsTable"
 import {atom} from "jotai"
 import {atomWithStorage, loadable, selectAtom} from "jotai/utils"
 
@@ -11,16 +19,12 @@ import {appsQueryAtom} from "@/oss/state/app"
 import {queriesQueryAtomFamily} from "@/oss/state/queries"
 
 import {fromFilteringPayload} from "../../pages/evaluations/onlineEvaluation/assets/helpers"
-import type {ConcreteEvaluationRunKind, EvaluationRunKind, EvaluationRunTableRow} from "../types"
-import {summarizeQueryFilters} from "../utils/querySummary"
-import {buildReferencePayload} from "../utils/referencePayload"
 
 import {
     evaluationRunsTableContextAtom,
     evaluationRunsScopeIdAtom,
     evaluationRunsTableFetchEnabledAtom,
 } from "./context"
-import {previewRunSummaryAtomFamily} from "./runSummaries"
 import {
     evaluationRunsMetaVersionAtom,
     evaluationRunsTableMetaAtom,

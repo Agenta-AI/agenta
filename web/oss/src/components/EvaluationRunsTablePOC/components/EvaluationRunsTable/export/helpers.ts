@@ -1,11 +1,9 @@
 import type {Key} from "react"
 
-import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
-import {
-    buildReferenceSequence,
-    getSlotByRoleOrdinal,
-} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
-import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
+import {buildReferenceSequence, getSlotByRoleOrdinal} from "@agenta/evaluations/state/runsTable"
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
+import type {ReferenceColumnDescriptor} from "@agenta/evaluations/state/runsTable"
+
 import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
 
 export const normalizeString = (value: string | null | undefined) =>

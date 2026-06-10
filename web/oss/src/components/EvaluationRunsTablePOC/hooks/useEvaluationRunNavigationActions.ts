@@ -1,7 +1,8 @@
 import {useCallback} from "react"
 
+import type {EvaluationRunKind, EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
+
 import {navigateToRun, navigateToVariant, navigateToTestset} from "../actions/navigationActions"
-import type {EvaluationRunKind, EvaluationRunTableRow} from "../types"
 
 interface UseEvaluationRunNavigationActionsParams {
     scope: "app" | "project"

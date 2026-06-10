@@ -1,20 +1,19 @@
 import type {ReactNode} from "react"
 
 import {deriveEvaluationKind} from "@agenta/evaluations/core"
-
-import {ColumnVisibilityHeader} from "@/oss/components/InfiniteVirtualTable"
-import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
-
-import {EVALUATION_KIND_LABELS} from "../../constants"
-import type {EvaluationRunTableRow} from "../../types"
-import type {RunMetricDescriptor} from "../../types/runMetrics"
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
+import type {RunMetricDescriptor} from "@agenta/evaluations/state/runsTable"
+import {EVALUATION_KIND_LABELS} from "@agenta/evaluations/state/runsTable"
 import {
     buildReferenceSequence,
     getSlotByRoleOrdinal,
     REFERENCE_ROLE_LABELS,
     type ReferenceColumnDescriptor,
     type ReferenceSlot,
-} from "../../utils/referenceSchema"
+} from "@agenta/evaluations/state/runsTable"
+
+import {ColumnVisibilityHeader} from "@/oss/components/InfiniteVirtualTable"
+import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import type {EvaluatorHandles, EvaluatorReferenceCandidate, RecordPath} from "./types"
 

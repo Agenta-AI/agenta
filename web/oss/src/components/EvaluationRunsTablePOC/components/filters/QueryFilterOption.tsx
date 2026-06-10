@@ -4,13 +4,12 @@ import {
     queryReferenceLookupAtomFamily,
     type EvaluationQueryConfigurationResult,
 } from "@agenta/evaluations/state/evalRun"
+import {summarizeQueryFilters} from "@agenta/evaluations/state/runsTable"
 import {Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
 import {loadable} from "jotai/utils"
 
 import FiltersPreview from "@/oss/components/pages/evaluations/onlineEvaluation/components/FiltersPreview"
-
-import {summarizeQueryFilters} from "../../utils/querySummary"
 
 interface QueryOption {
     value: string
