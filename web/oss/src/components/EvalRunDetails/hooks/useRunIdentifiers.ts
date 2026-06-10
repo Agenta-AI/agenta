@@ -1,8 +1,7 @@
 import {useMemo} from "react"
 
+import {runInvocationRefsAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {useAtomValue} from "jotai"
-
-import {runInvocationRefsAtomFamily} from "../atoms/runDerived"
 
 export interface RunIdentifierSnapshot {
     applicationId: string | null

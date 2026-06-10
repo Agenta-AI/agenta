@@ -18,14 +18,13 @@
 import {useMemo} from "react"
 
 import type {ColumnGroup} from "@agenta/evaluations/etl"
-import {Tooltip} from "antd"
-import {atom, useAtomValue} from "jotai"
-
 import {
     applicationReferenceQueryAtomFamily,
     testsetReferenceQueryAtomFamily,
-} from "../atoms/references"
-import {evaluationEvaluatorsByRunQueryAtomFamily} from "../atoms/table/evaluators"
+} from "@agenta/evaluations/state/evalRun"
+import {evaluationEvaluatorsByRunQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {Tooltip} from "antd"
+import {atom, useAtomValue} from "jotai"
 
 const emptyAtom = atom<{data: {name?: string; slug?: string} | null} | null>(null)
 const emptyEvaluatorsAtom = atom({data: [], isPending: false, isFetching: false, isError: false})

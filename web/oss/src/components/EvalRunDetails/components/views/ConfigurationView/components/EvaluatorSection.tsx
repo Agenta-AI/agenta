@@ -1,6 +1,10 @@
 import {useMemo, useState} from "react"
 
 import type {EvaluatorDefinition} from "@agenta/entities/workflow"
+import {isTerminalStatus} from "@agenta/evaluations/state/evalRun"
+import {effectiveProjectIdAtom} from "@agenta/evaluations/state/evalRun"
+import {runFlagsAtomFamily, runStatusAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {evaluationEvaluatorsByRunQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {DownOutlined, PlusOutlined} from "@ant-design/icons"
 import {Alert, Button, Form, Segmented, Skeleton, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -13,10 +17,6 @@ import {useEvaluatorTypeFromConfigs} from "@/oss/components/pages/evaluations/on
 import {useEvaluatorTypeMeta} from "@/oss/components/pages/evaluations/onlineEvaluation/hooks/useEvaluatorTypeMeta"
 import {EvaluatorReferenceLabel} from "@/oss/components/References/ReferenceLabels"
 
-import {isTerminalStatus} from "../../../../atoms/compare"
-import {effectiveProjectIdAtom} from "../../../../atoms/run"
-import {runFlagsAtomFamily, runStatusAtomFamily} from "../../../../atoms/runDerived"
-import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../../../atoms/table/evaluators"
 import useRunScopedUrls from "../../../../hooks/useRunScopedUrls"
 import {editEvaluationDrawerRunIdAtom} from "../../../../state/editDrawer"
 import {stringifyError} from "../utils"

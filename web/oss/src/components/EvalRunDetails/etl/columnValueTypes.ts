@@ -16,8 +16,7 @@
  */
 
 import type {FilterValueType} from "@agenta/evaluations/etl"
-
-import type {EvaluationTableColumnsResult} from "../atoms/table"
+import type {EvaluationTableColumnsResult} from "@agenta/evaluations/state/evalRun"
 
 /** Map a JSON-schema-derived `metricType` to a filter value type. */
 function metricTypeToValueType(metricType: string | undefined): FilterValueType | undefined {

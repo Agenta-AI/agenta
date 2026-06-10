@@ -1,16 +1,16 @@
 import {memo, useCallback, useMemo, useState, type ReactNode} from "react"
 
+import {
+    previewRunMetricStatsSelectorFamily,
+    temporalMetricStatsAtTimestampSelectorFamily,
+    type RunLevelMetricSelection,
+} from "@agenta/evaluations/state/evalRun"
 import type {BasicStats} from "@agenta/shared/metrics"
 import {formatCurrency, formatLatency} from "@agenta/shared/utils"
 import {Popover} from "antd"
 import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {
-    previewRunMetricStatsSelectorFamily,
-    temporalMetricStatsAtTimestampSelectorFamily,
-    type RunLevelMetricSelection,
-} from "@/oss/components/Evaluations/atoms/runMetrics"
 import {
     ResponsiveFrequencyChart,
     ResponsiveMetricChart,

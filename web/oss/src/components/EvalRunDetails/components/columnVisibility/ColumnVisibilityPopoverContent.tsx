@@ -1,5 +1,12 @@
 import {useMemo, useCallback, useEffect, useRef} from "react"
 
+import {
+    type EvaluationTableColumn,
+    type EvaluationTableColumnGroup,
+    type EvaluationTableColumnsResult,
+    type MetricColumnDefinition,
+} from "@agenta/evaluations/state/evalRun"
+import {resolveGroupLabel, humanizeStepKey, titleize} from "@agenta/evaluations/state/evalRun"
 import {Typography} from "antd"
 
 import type {ColumnTreeNode, ColumnVisibilityState} from "@/oss/components/InfiniteVirtualTable"
@@ -8,15 +15,8 @@ import ColumnVisibilityPopoverContentBase, {
 } from "@/oss/components/InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
-import {
-    type EvaluationTableColumn,
-    type EvaluationTableColumnGroup,
-    type EvaluationTableColumnsResult,
-    type MetricColumnDefinition,
-} from "../../atoms/table"
 import usePreviewTableData from "../../hooks/usePreviewTableData"
 import {buildSkeletonColumnResult} from "../../utils/buildSkeletonColumns"
-import {resolveGroupLabel, humanizeStepKey, titleize} from "../../utils/labelHelpers"
 import StepGroupHeader from "../TableHeaders/StepGroupHeader"
 
 type EvaluationType = "auto" | "human"

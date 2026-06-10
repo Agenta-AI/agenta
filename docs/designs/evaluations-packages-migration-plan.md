@@ -644,5 +644,16 @@ the migration; triage/fix separately (likely with the EvalRunDetails parity QA).
    Possible run-level-stats unwrap inconsistency.
 - **Status:** OPEN — pre-existing; flag to eval owners; verify during EvalRunDetails parity QA.
 
+### 11.4 `no-explicit-any` file-disables on relocated eval atoms (WP-4e-2b debt)
+
+- **Introduced:** WP-4e-2b (relocating EvalRunDetails atoms → `@agenta/evaluations/state/evalRun`).
+- **What:** 27 relocated files carry a file-level `/* eslint-disable @typescript-eslint/no-explicit-any */`
+  header — ~294 load-bearing dynamic-backend-shape `any`s. Done deliberately to keep the move
+  byte-identical (faithful) on a keep-green parity layer rather than risk a 294-site retype; matches
+  existing package precedent (`buildRunIndex`, `usePreviewEvaluations/types`).
+- **Fix direction:** tighten to precise/`unknown` types incrementally, file-by-file, after the
+  EvalRunDetails parity QA confirms behavior.
+- **Status:** OPEN — debt, not a blocker; incremental cleanup.
+
 > **Note:** the OSS tsc baseline dropped from **588 → 522** at WP-4e-2a (the ~45 eval-atom errors +
 > ~21 root-caused side effects fixed). **All subsequent "oss tsc steady" gates use 522, not 588.**

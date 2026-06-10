@@ -6,6 +6,13 @@ import {
     useTestcaseDrawerNavigation,
     type TestcaseDrawerContentRenderProps,
 } from "@agenta/entity-ui/testcase"
+import {scenarioStepsQueryFamily} from "@agenta/evaluations/state/evalRun"
+import {
+    scenarioTestcaseEntityAtomFamily,
+    scenarioTestcaseIdAtomFamily,
+    scenarioTestcaseMetaAtomFamily,
+} from "@agenta/evaluations/state/evalRun"
+import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -13,13 +20,6 @@ import {
     type InfiniteTableStore,
 } from "@/oss/components/InfiniteVirtualTable"
 
-import {scenarioStepsQueryFamily} from "../../atoms/scenarioSteps"
-import {
-    scenarioTestcaseEntityAtomFamily,
-    scenarioTestcaseIdAtomFamily,
-    scenarioTestcaseMetaAtomFamily,
-} from "../../atoms/scenarioTestcase"
-import type {EvaluationTableColumn} from "../../atoms/table"
 import type {PreviewTableRow} from "../../atoms/tableRows"
 import {evaluationPreviewTableStore} from "../../evaluationPreviewTableStore"
 import usePreviewTableData from "../../hooks/usePreviewTableData"

@@ -1,12 +1,12 @@
 import {useMemo, useState} from "react"
 
+import {testsetReferenceQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {runTestsetIdsAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {simpleTestsetDetailsAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {DownOutlined} from "@ant-design/icons"
 import {Button, Form, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
-import {testsetReferenceQueryAtomFamily} from "../../../../atoms/references"
-import {runTestsetIdsAtomFamily} from "../../../../atoms/runDerived"
-import {simpleTestsetDetailsAtomFamily} from "../../../../atoms/testsetDetails"
 import {TestsetTagList} from "../../../references"
 
 import {SectionCard, SectionHeaderRow, SectionSkeleton} from "./SectionPrimitives"

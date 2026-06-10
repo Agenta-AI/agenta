@@ -1,13 +1,13 @@
 import {memo, useEffect, useMemo, useState} from "react"
 
+import {variantReferenceQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {runInvocationRefsAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {evaluationVariantConfigAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {DownOutlined} from "@ant-design/icons"
 import {Button, Segmented, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import {variantReferenceQueryAtomFamily} from "../../../../atoms/references"
-import {runInvocationRefsAtomFamily} from "../../../../atoms/runDerived"
-import {evaluationVariantConfigAtomFamily} from "../../../../atoms/variantConfig"
 import {ApplicationReferenceLabel, VariantRevisionLabel} from "../../../references"
 import {toIdString} from "../utils"
 

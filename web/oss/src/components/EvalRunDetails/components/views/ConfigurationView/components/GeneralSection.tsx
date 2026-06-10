@@ -1,5 +1,6 @@
 import {useMemo, useState} from "react"
 
+import {evaluationRunQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {DownOutlined} from "@ant-design/icons"
 import {PencilSimple} from "@phosphor-icons/react"
 import {Button, Tag, Typography} from "antd"
@@ -7,7 +8,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import ReadOnlyBox from "@/oss/components/pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
 
-import {evaluationRunQueryAtomFamily} from "../../../../atoms/table/run"
 import {editEvaluationDrawerRunIdAtom} from "../../../../state/editDrawer"
 import {deriveRunTags} from "../utils"
 

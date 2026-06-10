@@ -1,22 +1,22 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 import type {CSSProperties, KeyboardEvent, ReactNode, UIEvent} from "react"
 
+import {compareRunIdsAtom, getComparisonColor} from "@agenta/evaluations/state/evalRun"
+import {
+    runDisplayNameAtomFamily,
+    runStatusAtomFamily,
+    runInvocationRefsAtomFamily,
+    runTestsetIdsAtomFamily,
+} from "@agenta/evaluations/state/evalRun"
+import {evaluationRunQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {evaluationEvaluatorsByRunQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {evaluationVariantConfigAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {DownOutlined} from "@ant-design/icons"
 import {Button, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import {compareRunIdsAtom, getComparisonColor} from "../../../atoms/compare"
-import {
-    runDisplayNameAtomFamily,
-    runStatusAtomFamily,
-    runInvocationRefsAtomFamily,
-    runTestsetIdsAtomFamily,
-} from "../../../atoms/runDerived"
-import {evaluationRunQueryAtomFamily} from "../../../atoms/table"
-import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../../atoms/table/evaluators"
-import {evaluationVariantConfigAtomFamily} from "../../../atoms/variantConfig"
 import EvaluationRunTag from "../../EvaluationRunTag"
 
 import EvaluatorSection from "./components/EvaluatorSection"

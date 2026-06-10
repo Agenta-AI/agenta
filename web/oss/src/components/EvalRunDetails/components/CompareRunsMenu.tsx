@@ -1,6 +1,14 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {usePreviewEvaluations} from "@agenta/evaluations/hooks"
+import {
+    MAX_COMPARISON_RUNS,
+    compareAvailabilityAtomFamily,
+    compareRunIdsAtom,
+    compareRunIdsWriteAtom,
+    computeStructureFromRawRun,
+    isTerminalStatus,
+} from "@agenta/evaluations/state/evalRun"
 import {message} from "@agenta/ui/app-message"
 import {Button, Checkbox, Input, List, Popover, Space, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
@@ -14,14 +22,6 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {
-    MAX_COMPARISON_RUNS,
-    compareAvailabilityAtomFamily,
-    compareRunIdsAtom,
-    compareRunIdsWriteAtom,
-    computeStructureFromRawRun,
-    isTerminalStatus,
-} from "../atoms/compare"
 import useRunScopedUrls from "../hooks/useRunScopedUrls"
 import {setCompareQueryParams} from "../state/urlCompare"
 

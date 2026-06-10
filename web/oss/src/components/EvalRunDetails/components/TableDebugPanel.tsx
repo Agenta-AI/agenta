@@ -1,4 +1,7 @@
-import type {EvaluationScenarioRow, EvaluationTableColumnsResult} from "../atoms/table"
+import type {
+    EvaluationScenarioRow,
+    EvaluationTableColumnsResult,
+} from "@agenta/evaluations/state/evalRun"
 
 export interface TableDebugPanelProps {
     runId: string

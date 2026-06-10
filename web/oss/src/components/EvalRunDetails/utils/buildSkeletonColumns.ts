@@ -3,8 +3,11 @@ import type {
     EvaluationTableColumn,
     EvaluationTableColumnGroup,
     EvaluationTableColumnsResult,
-} from "../atoms/table"
-import {GeneralAutoEvalMetricColumns, GeneralHumanEvalMetricColumns} from "../constants/table"
+} from "@agenta/evaluations/state/evalRun"
+import {
+    GeneralAutoEvalMetricColumns,
+    GeneralHumanEvalMetricColumns,
+} from "@agenta/evaluations/state/evalRun"
 
 const SKELETON_COLUMNS_PER_GROUP = 2
 

@@ -1,16 +1,15 @@
 import {useMemo} from "react"
 
 import type {RootDrawerViewMode, TestcaseDataEditorColumn} from "@agenta/entity-ui/testcase"
-import {atom, useAtomValue} from "jotai"
-
-import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
-
-import {invocationTraceSummaryAtomFamily} from "../../atoms/invocationTraceSummary"
+import {invocationTraceSummaryAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {
     buildColumnValueConfig,
     scenarioColumnValueSelectionAtomFamily,
-} from "../../atoms/scenarioColumnValues"
-import type {EvaluationTableColumn} from "../../atoms/table"
+} from "@agenta/evaluations/state/evalRun"
+import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
+import {atom, useAtomValue} from "jotai"
+
+import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 
 import EvalDrawerDataSection from "./EvalDrawerDataSection"
 import type {EvalDrawerOutputSection} from "./model"

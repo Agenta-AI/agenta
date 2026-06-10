@@ -2,6 +2,8 @@ import type {Key, MouseEvent, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {clearPreviewRunsCache} from "@agenta/evaluations/hooks"
+import {activePreviewProjectIdAtom} from "@agenta/evaluations/state/evalRun"
+import {clearAllMetricStatsCaches} from "@agenta/evaluations/state/evalRun"
 import {useQueryClient} from "@tanstack/react-query"
 import {Grid} from "antd"
 import type {TableProps} from "antd/es/table"
@@ -10,8 +12,6 @@ import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {activePreviewProjectIdAtom} from "@/oss/components/EvalRunDetails/atoms/run"
-import {clearAllMetricStatsCaches} from "@/oss/components/EvalRunDetails/atoms/runMetrics"
 import {
     InfiniteVirtualTableFeatureShell,
     type TableFeaturePagination,

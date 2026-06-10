@@ -1,5 +1,6 @@
 import {memo, useMemo} from "react"
 
+import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
 import {
     CellContentPopover,
     ChatMessagesCellContent,
@@ -12,7 +13,6 @@ import {
 } from "@agenta/ui/cell-renderers"
 import {useAtomValue} from "jotai"
 
-import type {EvaluationTableColumn} from "../../atoms/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 import {scenarioRowHeightAtom, type ScenarioRowHeight} from "../../state/rowHeight"
 

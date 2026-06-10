@@ -1,5 +1,6 @@
 import {memo, useMemo} from "react"
 
+import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
 import {
     CellContentPopover,
     ChatMessagesCellContent,
@@ -13,7 +14,6 @@ import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {AlertCircle} from "lucide-react"
 
-import type {EvaluationTableColumn} from "../../atoms/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 import {scenarioRowHeightAtom, type ScenarioRowHeight} from "../../state/rowHeight"
 

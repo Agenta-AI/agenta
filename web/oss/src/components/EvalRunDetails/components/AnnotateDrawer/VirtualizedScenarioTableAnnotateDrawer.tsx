@@ -4,6 +4,21 @@ import {resolveOutputSchema} from "@agenta/entities/workflow"
 import {clearPreviewRunsCache} from "@agenta/evaluations/hooks"
 import {upsertStepResultWithAnnotation} from "@agenta/evaluations/services/results"
 import {checkAndUpdateRunStatus, updateScenarioStatus} from "@agenta/evaluations/services/scenarios"
+import {
+    invalidateAnnotationBatcherCache,
+    scenarioAnnotationsQueryAtomFamily,
+} from "@agenta/evaluations/state/evalRun"
+import {
+    evaluationMetricQueryAtomFamily,
+    invalidateMetricBatcherCache,
+    triggerMetricsRefresh,
+} from "@agenta/evaluations/state/evalRun"
+import {invalidatePreviewRunMetricStatsAtom} from "@agenta/evaluations/state/evalRun"
+import {
+    invalidateScenarioStepsBatcherCache,
+    scenarioStepsQueryFamily,
+} from "@agenta/evaluations/state/evalRun"
+import {evaluationEvaluatorsByRunQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {uuidToSpanId} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
@@ -25,21 +40,6 @@ import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api
 import {upsertScenarioMetricData} from "@/oss/services/runMetrics/api"
 import {getProjectValues} from "@/oss/state/project"
 
-import {
-    invalidateAnnotationBatcherCache,
-    scenarioAnnotationsQueryAtomFamily,
-} from "../../atoms/annotations"
-import {
-    evaluationMetricQueryAtomFamily,
-    invalidateMetricBatcherCache,
-    triggerMetricsRefresh,
-} from "../../atoms/metrics"
-import {invalidatePreviewRunMetricStatsAtom} from "../../atoms/runMetrics"
-import {
-    invalidateScenarioStepsBatcherCache,
-    scenarioStepsQueryFamily,
-} from "../../atoms/scenarioSteps"
-import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../atoms/table/evaluators"
 import {buildScenarioMetricDataFromAnnotation} from "../../utils/buildAnnotationMetricData"
 import {classifyStep} from "../views/SingleScenarioViewerPOC"
 

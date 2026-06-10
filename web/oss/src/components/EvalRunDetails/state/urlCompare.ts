@@ -1,7 +1,6 @@
+import {compareRunIdsAtom} from "@agenta/evaluations/state/evalRun"
 import {getDefaultStore} from "jotai"
 import Router from "next/router"
-
-import {compareRunIdsAtom} from "../atoms/compare"
 
 const COMPARE_QUERY_KEY = "compare"
 

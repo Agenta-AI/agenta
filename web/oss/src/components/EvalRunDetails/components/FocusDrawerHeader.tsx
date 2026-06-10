@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo} from "react"
 
+import {previewEvalTypeAtom} from "@agenta/evaluations/state/evalRun"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {CaretDownIcon, CaretUpIcon} from "@phosphor-icons/react"
 import {Button, Select, SelectProps, Tag, Typography} from "antd"
@@ -8,7 +9,6 @@ import {useAtomValue} from "jotai"
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 
 import {evaluationPreviewTableStore} from "../evaluationPreviewTableStore"
-import {previewEvalTypeAtom} from "../state/evalType"
 import {focusScenarioAtom} from "../state/focusDrawerAtom"
 import {patchFocusDrawerQueryParams} from "../state/urlFocusDrawer"
 

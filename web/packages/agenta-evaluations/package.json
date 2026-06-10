@@ -24,6 +24,7 @@
         "./hooks": "./src/hooks/index.ts",
         "./controllers": "./src/controllers/index.ts",
         "./state": "./src/state/index.ts",
+        "./state/evalRun": "./src/state/evalRun/index.ts",
         "./etl": "./src/etl/index.ts",
         "./services": "./src/services/index.ts",
         "./services/runShape": "./src/services/runShape.ts",
@@ -34,9 +35,12 @@
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
+        "@agenta/playground": "workspace:../agenta-playground",
         "@agenta/sdk": "workspace:../agenta-sdk",
         "@agenta/shared": "workspace:../agenta-shared",
+        "@agenta/ui": "workspace:../agenta-ui",
         "@agentaai/api-client": "workspace:../agenta-api-client",
+        "fast-deep-equal": "^3.1.3",
         "swr": "^2.4.0"
     },
     "peerDependencies": {

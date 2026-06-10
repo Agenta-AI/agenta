@@ -3,6 +3,14 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {clearPreviewRunsCache} from "@agenta/evaluations/hooks"
 import {upsertStepResultWithAnnotation} from "@agenta/evaluations/services/results"
 import {checkAndUpdateRunStatus, updateScenarioStatus} from "@agenta/evaluations/services/scenarios"
+import {invalidateAnnotationBatcherCache} from "@agenta/evaluations/state/evalRun"
+import {
+    invalidateMetricBatcherCache,
+    markScenarioAsRecentlySaved,
+    triggerMetricsRefresh,
+} from "@agenta/evaluations/state/evalRun"
+import {invalidatePreviewRunMetricStatsAtom} from "@agenta/evaluations/state/evalRun"
+import {invalidateScenarioStepsBatcherCache} from "@agenta/evaluations/state/evalRun"
 import {uuidToSpanId} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
@@ -14,14 +22,6 @@ import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api
 import {upsertScenarioMetricData} from "@/oss/services/runMetrics/api"
 import {getProjectValues} from "@/oss/state/project"
 
-import {invalidateAnnotationBatcherCache} from "../../../../atoms/annotations"
-import {
-    invalidateMetricBatcherCache,
-    markScenarioAsRecentlySaved,
-    triggerMetricsRefresh,
-} from "../../../../atoms/metrics"
-import {invalidatePreviewRunMetricStatsAtom} from "../../../../atoms/runMetrics"
-import {invalidateScenarioStepsBatcherCache} from "../../../../atoms/scenarioSteps"
 import {buildScenarioMetricDataFromAnnotation} from "../../../../utils/buildAnnotationMetricData"
 import type {ScenarioAnnotationPanelProps} from "../types"
 

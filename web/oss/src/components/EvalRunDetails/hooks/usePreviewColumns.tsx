@@ -1,6 +1,13 @@
 import {useEffect, useMemo, useCallback, useRef} from "react"
 import type {ReactNode} from "react"
 
+import {
+    EvaluationTableColumn,
+    EvaluationTableColumnGroup,
+    EvaluationTableColumnsResult,
+    MetricColumnDefinition,
+} from "@agenta/evaluations/state/evalRun"
+import {humanizeStepKey, resolveGroupLabel, titleize} from "@agenta/evaluations/state/evalRun"
 import {Typography} from "antd"
 
 import type {ColumnTreeNode} from "@/oss/components/InfiniteVirtualTable"
@@ -9,18 +16,11 @@ import ColumnVisibilityMenuTrigger, {
 } from "@/oss/components/InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityMenuTrigger"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
-import {
-    EvaluationTableColumn,
-    EvaluationTableColumnGroup,
-    EvaluationTableColumnsResult,
-    MetricColumnDefinition,
-} from "../atoms/table"
 import type {PreviewTableRow} from "../atoms/tableRows"
 import PreviewEvaluationInputCell from "../components/TableCells/InputCell"
 import StepGroupHeader from "../components/TableHeaders/StepGroupHeader"
 import {buildPreviewColumns, SkeletonRenderContext} from "../utils/buildPreviewColumns"
 import {buildSkeletonColumnResult} from "../utils/buildSkeletonColumns"
-import {humanizeStepKey, resolveGroupLabel, titleize} from "../utils/labelHelpers"
 
 type TableRowData = PreviewTableRow
 

@@ -2,6 +2,26 @@ import type {KeyboardEvent, ReactNode} from "react"
 import {memo, useCallback, useMemo, useRef, useState} from "react"
 import {isValidElement} from "react"
 
+import type {
+    ColumnValueDescriptor,
+    EvaluationTableColumn,
+    MetricColumnDefinition,
+} from "@agenta/evaluations/state/evalRun"
+import type {EvaluationTableColumnGroup} from "@agenta/evaluations/state/evalRun"
+import {compareRunIdsAtom, MAX_COMPARISON_RUNS} from "@agenta/evaluations/state/evalRun"
+import {invocationTraceSummaryAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {
+    applicationReferenceQueryAtomFamily,
+    testsetReferenceQueryAtomFamily,
+    variantReferenceQueryAtomFamily,
+} from "@agenta/evaluations/state/evalRun"
+import {runDisplayNameAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {
+    columnValueDescriptorMapAtomFamily,
+    createColumnValueDescriptor,
+} from "@agenta/evaluations/state/evalRun"
+import {evaluationRunIndexAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {previewRunMetricStatsSelectorFamily} from "@agenta/evaluations/state/evalRun"
 import {
     formatMetricDisplay,
     METRIC_PLACEHOLDER as METRIC_EMPTY_PLACEHOLDER,
@@ -13,30 +33,10 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {AlertCircle} from "lucide-react"
 import dynamic from "next/dynamic"
 
-import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
 import GenericDrawer from "@/oss/components/GenericDrawer"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 
-import {compareRunIdsAtom, MAX_COMPARISON_RUNS} from "../atoms/compare"
-import {invocationTraceSummaryAtomFamily} from "../atoms/invocationTraceSummary"
-import {
-    applicationReferenceQueryAtomFamily,
-    testsetReferenceQueryAtomFamily,
-    variantReferenceQueryAtomFamily,
-} from "../atoms/references"
-import {runDisplayNameAtomFamily} from "../atoms/runDerived"
-import type {
-    ColumnValueDescriptor,
-    EvaluationTableColumn,
-    MetricColumnDefinition,
-} from "../atoms/table"
-import type {EvaluationTableColumnGroup} from "../atoms/table"
-import {
-    columnValueDescriptorMapAtomFamily,
-    createColumnValueDescriptor,
-} from "../atoms/table/columnAccess"
-import {evaluationRunIndexAtomFamily} from "../atoms/table/run"
 import usePreviewTableData from "../hooks/usePreviewTableData"
 import useRunIdentifiers from "../hooks/useRunIdentifiers"
 import useScenarioCellValue from "../hooks/useScenarioCellValue"

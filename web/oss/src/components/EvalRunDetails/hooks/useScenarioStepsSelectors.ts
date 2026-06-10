@@ -1,13 +1,12 @@
 import {useMemo} from "react"
 
 import type {IStepResponse} from "@agenta/evaluations/core"
+import {activePreviewRunIdAtom} from "@agenta/evaluations/state/evalRun"
+import {scenarioStepsQueryFamily} from "@agenta/evaluations/state/evalRun"
+import {evaluationRunIndexAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {useAtomValue} from "jotai"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-
-import {activePreviewRunIdAtom} from "../atoms/run"
-import {scenarioStepsQueryFamily} from "../atoms/scenarioSteps"
-import {evaluationRunIndexAtomFamily} from "../atoms/table/run"
 
 interface ScenarioStepSelection {
     steps: IStepResponse[]

@@ -1,12 +1,12 @@
 import {useMemo} from "react"
 
+import {runFlagsAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {previewEvalTypeAtom} from "@agenta/evaluations/state/evalRun"
 import {DotsThreeVertical, PencilSimple} from "@phosphor-icons/react"
 import {Button, Dropdown} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {runFlagsAtomFamily} from "../atoms/runDerived"
 import {editEvaluationDrawerRunIdAtom} from "../state/editDrawer"
-import {previewEvalTypeAtom} from "../state/evalType"
 
 /**
  * Actions dropdown rendered next to the run name in the run-details header. Lives in the

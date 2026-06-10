@@ -9,6 +9,18 @@ import {
     useScopeChangeEviction,
     type RunSchema,
 } from "@agenta/evaluations/etl"
+import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
+import {
+    MAX_COMPARISON_RUNS,
+    compareRunIdsAtom,
+    getComparisonColor,
+} from "@agenta/evaluations/state/evalRun"
+import {effectiveProjectIdAtom} from "@agenta/evaluations/state/evalRun"
+import {runDisplayNameAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {
+    DEFAULT_SCENARIO_PAGE_SIZE,
+    evaluationRunQueryAtomFamily,
+} from "@agenta/evaluations/state/evalRun"
 import {message} from "@agenta/ui/app-message"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
@@ -28,11 +40,6 @@ import {
 import useComparisonPaginations from "../EvalRunDetails2/hooks/useComparisonPaginations"
 import useComparisonSchemas from "../EvalRunDetails2/hooks/useComparisonSchemas"
 
-import {MAX_COMPARISON_RUNS, compareRunIdsAtom, getComparisonColor} from "./atoms/compare"
-import {effectiveProjectIdAtom} from "./atoms/run"
-import {runDisplayNameAtomFamily} from "./atoms/runDerived"
-import type {EvaluationTableColumn} from "./atoms/table"
-import {DEFAULT_SCENARIO_PAGE_SIZE, evaluationRunQueryAtomFamily} from "./atoms/table"
 import type {PreviewTableRow} from "./atoms/tableRows"
 import ScenarioColumnVisibilityPopoverContent from "./components/columnVisibility/ColumnVisibilityPopoverContent"
 import {useEtlColumns} from "./etl/useEtlColumns"

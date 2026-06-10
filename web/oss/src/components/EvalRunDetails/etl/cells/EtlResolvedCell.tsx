@@ -37,12 +37,12 @@ import {
     type HydratedScenarioRow,
     type HydratableScenario,
 } from "@agenta/evaluations/etl"
+import {isTerminalStatus} from "@agenta/evaluations/state/evalRun"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {Tag} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
-import {isTerminalStatus} from "../../atoms/compare"
 import {scenarioRowHeightAtom, type ScenarioRowHeight} from "../../state/rowHeight"
 
 type ColumnKind = ColumnGroup["kind"]

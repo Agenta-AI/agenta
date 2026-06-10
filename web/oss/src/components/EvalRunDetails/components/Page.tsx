@@ -1,5 +1,8 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
+import {activePreviewProjectIdAtom, activePreviewRunIdAtom} from "@agenta/evaluations/state/evalRun"
+import {runDisplayNameAtomFamily, runStatusAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {previewEvalTypeAtom} from "@agenta/evaluations/state/evalRun"
 import {PageLayout} from "@agenta/ui"
 import {Tabs} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -10,10 +13,8 @@ import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 
-import {activePreviewProjectIdAtom, activePreviewRunIdAtom} from "../atoms/run"
-import {runDisplayNameAtomFamily, runStatusAtomFamily} from "../atoms/runDerived"
+import {useRegisterEvalRunInjections} from "../hooks/useRegisterEvalRunInjections"
 import {editEvaluationDrawerRunIdAtom} from "../state/editDrawer"
-import {previewEvalTypeAtom} from "../state/evalType"
 import {syncCompareStateFromUrl} from "../state/urlCompare"
 import {syncFocusDrawerStateFromUrl} from "../state/urlFocusDrawer"
 import EvalRunDetailsTable from "../Table"
@@ -42,6 +43,11 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     const setEvalType = useSetAtom(previewEvalTypeAtom)
     const setActiveProjectId = useSetAtom(activePreviewProjectIdAtom)
     const {projectURL} = useURL()
+
+    // Provider seam: populate the relocated eval-run atom injection seams with the real
+    // OSS sources (workspace members, testcase query, reference resolvers, invalidation +
+    // metric-selection callbacks, annotation transform). Stays in OSS by design.
+    useRegisterEvalRunInjections()
 
     // Get the run display name for breadcrumbs
     const runDisplayNameAtom = useMemo(() => runDisplayNameAtomFamily(runId), [runId])

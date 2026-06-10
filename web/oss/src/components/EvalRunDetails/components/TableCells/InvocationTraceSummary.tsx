@@ -1,11 +1,10 @@
 import {memo, useMemo} from "react"
 
+import {invocationTraceSummaryAtomFamily} from "@agenta/evaluations/state/evalRun"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
-
-import {invocationTraceSummaryAtomFamily} from "../../atoms/invocationTraceSummary"
 
 const InvocationTraceSummary = ({
     scenarioId,

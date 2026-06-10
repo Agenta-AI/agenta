@@ -1,5 +1,17 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {
+    compareRunIdsAtom,
+    compareRunIdsWriteAtom,
+    getComparisonSolidColor,
+} from "@agenta/evaluations/state/evalRun"
+import {
+    runDisplayNameAtomFamily,
+    runInvocationRefsAtomFamily,
+    runTestsetIdsAtomFamily,
+    runFlagsAtomFamily,
+} from "@agenta/evaluations/state/evalRun"
+import {previewEvalTypeAtom} from "@agenta/evaluations/state/evalRun"
 import {message} from "@agenta/ui/app-message"
 import {PauseIcon, PlayIcon, XCircleIcon} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
@@ -9,15 +21,7 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {startSimpleEvaluation, stopSimpleEvaluation} from "@/oss/services/onlineEvaluations/api"
 
-import {compareRunIdsAtom, compareRunIdsWriteAtom, getComparisonSolidColor} from "../atoms/compare"
-import {
-    runDisplayNameAtomFamily,
-    runInvocationRefsAtomFamily,
-    runTestsetIdsAtomFamily,
-    runFlagsAtomFamily,
-} from "../atoms/runDerived"
 import ScenarioFilterBar from "../etl/ScenarioFilterBar"
-import {previewEvalTypeAtom} from "../state/evalType"
 
 import CompareRunsMenu from "./CompareRunsMenu"
 import EvaluationRunTag from "./EvaluationRunTag"

@@ -1,5 +1,8 @@
 import {memo, useMemo} from "react"
 
+import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
+import {scenarioHasInvocationAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {previewEvalTypeAtom} from "@agenta/evaluations/state/evalRun"
 import {
     MetricCellContent,
     CellContentPopover,
@@ -14,10 +17,7 @@ import {AlertCircle} from "lucide-react"
 
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
 
-import {scenarioHasInvocationAtomFamily} from "../../atoms/invocationTraceSummary"
-import type {EvaluationTableColumn} from "../../atoms/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
-import {previewEvalTypeAtom} from "../../state/evalType"
 
 const CONTAINER_CLASS = "scenario-table-cell"
 

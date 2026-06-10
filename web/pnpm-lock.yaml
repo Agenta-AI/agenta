@@ -1080,18 +1080,27 @@ importers:
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
+      '@agenta/playground':
+        specifier: workspace:../agenta-playground
+        version: link:../agenta-playground
       '@agenta/sdk':
         specifier: workspace:../agenta-sdk
         version: link:../agenta-sdk
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared
+      '@agenta/ui':
+        specifier: workspace:../agenta-ui
+        version: link:../agenta-ui
       '@agentaai/api-client':
         specifier: workspace:../agenta-api-client
         version: link:../agenta-api-client
       '@tanstack/react-query':
         specifier: '>=5.0.0'
         version: 5.100.9(react@19.2.6)
+      fast-deep-equal:
+        specifier: ^3.1.3
+        version: 3.1.3
       jotai:
         specifier: '>=2.0.0'
         version: 2.20.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.14)(react@19.2.6)

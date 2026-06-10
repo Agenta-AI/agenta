@@ -2,10 +2,10 @@
  * Column label resolvers for scenario table CSV export
  */
 
-import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
+import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
+import {humanizeStepKey, resolveGroupLabel} from "@agenta/evaluations/state/evalRun"
 
-import type {EvaluationTableColumn} from "../atoms/table"
-import {humanizeStepKey, resolveGroupLabel} from "../utils/labelHelpers"
+import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import type {ScenarioColumnExportMetadata} from "./types"
 

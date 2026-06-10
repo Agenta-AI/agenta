@@ -15,6 +15,8 @@
  */
 import {atom, type Atom, type WritableAtom} from "jotai"
 
+import type {AnnotationDto, AnnotationResponseDto} from "./evalRun/atoms/annotationTypes"
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Injected shape: workspace members
 //
@@ -66,6 +68,7 @@ export interface InjectedTestcaseQueryResult {
     isFetching?: boolean
     isLoading?: boolean
     isError?: boolean
+    error?: unknown
 }
 
 /** `(testcaseId) => Atom<InjectedTestcaseQueryResult>` — an `atomFamily`-shaped getter. */
@@ -165,6 +168,72 @@ export const injectedRunInvalidateAtom = atom<(() => void) | null>(null)
 export const injectedClearMetricSelectionAtom = atom<(() => void) | null>(null)
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Injected shape: annotation transform
+//
+// The eval-run annotation batcher (`annotations.ts`) transforms each raw trace into an
+// `AnnotationDto`, resolving `createdBy` against the workspace member list. The transform
+// lived in `@/oss/lib/hooks/useAnnotations/assets/transformer` (`transformApiData`). It is
+// injected here as a pure fn `({data, members}) => AnnotationDto`. Default `null`; when
+// absent the batcher degrades to a verbatim pass-through (no `createdBy` resolution).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type InjectedAnnotationTransform = (args: {
+    data: AnnotationResponseDto
+    members: InjectedWorkspaceMember[]
+}) => AnnotationDto
+
+/**
+ * Injected annotation transform. Default `null`. Populated by the OSS `-ui` layer from
+ * `transformApiData`.
+ */
+export const injectedAnnotationTransformAtom = atom<InjectedAnnotationTransform | null>(null)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Injected shape: online-evaluations query payloads
+//
+// `query.ts` consumed two TYPES from `@/oss/services/onlineEvaluations/api`
+// (`QueryFilteringPayload` / `QueryWindowingPayload`) to type the query-revision snapshot;
+// it calls NO runtime function from that module (it issues its own axios request). The
+// payload shapes are therefore defined locally below, and the seam atom exposes an
+// (optional) handle for any future runtime surface. Default `null`; nothing reads it today.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type OnlineEvalLogicalOperator = "and" | "or" | "not" | "nand" | "nor"
+
+export interface QueryConditionPayload {
+    field: string
+    key?: string
+    value?: unknown
+    operator?: string
+    options?: Record<string, unknown>
+}
+
+export interface QueryFilteringPayload {
+    operator?: OnlineEvalLogicalOperator
+    conditions: (QueryConditionPayload | QueryFilteringPayload)[]
+}
+
+export interface QueryWindowingPayload {
+    newest?: string
+    oldest?: string
+    next?: string
+    limit?: number
+    order?: "ascending" | "descending"
+    interval?: number
+    rate?: number
+}
+
+/** Minimal online-evaluations API surface the eval-run atoms may consume. Empty today. */
+export type InjectedOnlineEvaluationsApi = Record<string, never>
+
+/**
+ * Injected online-evaluations API. Default `null`. The relocated `query.ts` consumes only
+ * the payload TYPES above (no runtime fn), so this seam is currently unused — it exists to
+ * keep the seam shape explicit and let the OSS layer wire a real surface later.
+ */
+export const injectedOnlineEvaluationsApiAtom = atom<InjectedOnlineEvaluationsApi | null>(null)
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Registration write-atom
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -176,6 +245,8 @@ export interface EvalRunInjections {
     referenceResolver?: InjectedReferenceResolver | null
     runInvalidate?: (() => void) | null
     clearMetricSelection?: (() => void) | null
+    annotationTransform?: InjectedAnnotationTransform | null
+    onlineEvaluationsApi?: InjectedOnlineEvaluationsApi | null
 }
 
 /**
@@ -200,6 +271,12 @@ export const registerEvalRunInjections: WritableAtom<null, [EvalRunInjections], 
         }
         if (injections.clearMetricSelection !== undefined) {
             set(injectedClearMetricSelectionAtom, injections.clearMetricSelection)
+        }
+        if (injections.annotationTransform !== undefined) {
+            set(injectedAnnotationTransformAtom, injections.annotationTransform)
+        }
+        if (injections.onlineEvaluationsApi !== undefined) {
+            set(injectedOnlineEvaluationsApiAtom, injections.onlineEvaluationsApi)
         }
     },
 )

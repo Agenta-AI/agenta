@@ -1,13 +1,12 @@
 import {useMemo, useRef} from "react"
 
-import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
-
 import {
     buildColumnValueConfig,
     scenarioColumnValueSelectionAtomFamily,
     type ScenarioColumnValueSelection,
-} from "../atoms/scenarioColumnValues"
-import type {EvaluationTableColumn} from "../atoms/table"
+} from "@agenta/evaluations/state/evalRun"
+import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
+import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import {useCellVisibility} from "./useCellVisibility"
 

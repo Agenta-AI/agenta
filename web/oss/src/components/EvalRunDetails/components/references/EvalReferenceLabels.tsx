@@ -4,6 +4,9 @@
  */
 import {memo, useMemo} from "react"
 
+import {variantReferenceQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {effectiveProjectIdAtom} from "@agenta/evaluations/state/evalRun"
+import {runTestsetRefsAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {useAtomValue} from "jotai"
 
 import {
@@ -17,9 +20,6 @@ import {
 } from "@/oss/components/References"
 import type {ReferenceTone} from "@/oss/components/References/referenceColors"
 
-import {variantReferenceQueryAtomFamily} from "../../atoms/references"
-import {effectiveProjectIdAtom} from "../../atoms/run"
-import {runTestsetRefsAtomFamily} from "../../atoms/runDerived"
 import useRunIdentifiers from "../../hooks/useRunIdentifiers"
 import useRunScopedUrls from "../../hooks/useRunScopedUrls"
 

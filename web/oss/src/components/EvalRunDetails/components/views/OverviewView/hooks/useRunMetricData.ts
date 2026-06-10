@@ -1,22 +1,22 @@
 import {useMemo} from "react"
 
-import type {BasicStats} from "@agenta/shared/metrics"
-import {atom, useAtomValue} from "jotai"
-import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
-
-import {evaluationEvaluatorsByRunQueryAtomFamily} from "@/oss/components/EvalRunDetails/atoms/table/evaluators"
-import {evaluationRunIndexAtomFamily} from "@/oss/components/EvalRunDetails/atoms/table/run"
+import {evaluationEvaluatorsByRunQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {evaluationRunIndexAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {COMPARISON_SOLID_COLORS} from "@agenta/evaluations/state/evalRun"
+import {runDisplayNameAtomFamily, runStatusAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {
     previewRunMetricStatsLoadableFamily,
     previewRunMetricStatsSelectorFamily,
     runTemporalMetricKeysAtomFamily,
     runTemporalMetricSeriesAtomFamily,
     TemporalMetricPoint,
-} from "@/oss/components/Evaluations/atoms/runMetrics"
+} from "@agenta/evaluations/state/evalRun"
+import type {BasicStats} from "@agenta/shared/metrics"
+import {atom, useAtomValue} from "jotai"
+import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
+
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
-import {COMPARISON_SOLID_COLORS} from "../../../../atoms/compare"
-import {runDisplayNameAtomFamily, runStatusAtomFamily} from "../../../../atoms/runDerived"
 import {INVOCATION_METRIC_KEYS, INVOCATION_METRIC_LABELS} from "../constants"
 import {
     buildEvaluatorFallbackMetricsByStep,

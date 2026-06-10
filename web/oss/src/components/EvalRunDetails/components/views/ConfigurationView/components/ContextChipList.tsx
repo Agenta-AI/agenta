@@ -1,10 +1,13 @@
 import {useMemo} from "react"
 
+import {
+    runInvocationRefsAtomFamily,
+    runTestsetIdsAtomFamily,
+} from "@agenta/evaluations/state/evalRun"
 import {useAtomValue} from "jotai"
 
 import {TestsetChipList, VariantReferenceChip} from "@/oss/components/References"
 
-import {runInvocationRefsAtomFamily, runTestsetIdsAtomFamily} from "../../../../atoms/runDerived"
 import {toIdString} from "../utils"
 
 export interface ContextChipListProps {

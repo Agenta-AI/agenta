@@ -1,4 +1,4 @@
-import type {EvaluationTableColumn} from "../../../atoms/table"
+import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
 
 export interface ScenarioStep {
     id?: string

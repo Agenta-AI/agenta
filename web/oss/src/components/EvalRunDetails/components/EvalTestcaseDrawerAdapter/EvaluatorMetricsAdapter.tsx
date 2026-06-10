@@ -1,17 +1,17 @@
 import {useMemo} from "react"
 
 import type {RootDrawerViewMode, TestcaseDataEditorColumn} from "@agenta/entity-ui/testcase"
-import {formatMetricDisplay} from "@agenta/ui/cell-renderers"
-import {atom, useAtomValue} from "jotai"
-
-import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
-import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
-
+import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
 import {
     buildColumnValueConfig,
     scenarioColumnValueSelectionAtomFamily,
-} from "../../atoms/scenarioColumnValues"
-import type {EvaluationTableColumn} from "../../atoms/table"
+} from "@agenta/evaluations/state/evalRun"
+import {previewRunMetricStatsSelectorFamily} from "@agenta/evaluations/state/evalRun"
+import {formatMetricDisplay} from "@agenta/ui/cell-renderers"
+import {atom, useAtomValue} from "jotai"
+
+import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
+
 import {
     isRunMetricColumn,
     resolveRunMetricScalar,

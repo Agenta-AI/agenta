@@ -1,10 +1,9 @@
 import {ReactNode} from "react"
 
+import {getComparisonColor, getComparisonSolidColor} from "@agenta/evaluations/state/evalRun"
 import {PushpinFilled} from "@ant-design/icons"
 import {Tag} from "antd"
 import clsx from "clsx"
-
-import {getComparisonColor, getComparisonSolidColor} from "../atoms/compare"
 
 interface EvaluationRunTagProps {
     label: string

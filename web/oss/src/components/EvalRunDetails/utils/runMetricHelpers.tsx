@@ -1,8 +1,7 @@
 import type {ReactNode} from "react"
 
+import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
 import {bgColors, cn, textColors} from "@agenta/ui"
-
-import type {EvaluationTableColumn} from "../atoms/table"
 
 export interface RunMetricColumn extends EvaluationTableColumn {
     __source?: "runMetric"

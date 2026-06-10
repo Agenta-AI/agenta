@@ -1,6 +1,7 @@
 import {memo, useCallback, useMemo, useState} from "react"
 import type {ReactNode} from "react"
 
+import {previewEvalTypeAtom} from "@agenta/evaluations/state/evalRun"
 import {TreeStructure, Download, Sparkle, Speedometer} from "@phosphor-icons/react"
 import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
@@ -10,7 +11,6 @@ import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 
 import {evaluationPreviewTableStore} from "../evaluationPreviewTableStore"
 import usePreviewTableData from "../hooks/usePreviewTableData"
-import {previewEvalTypeAtom} from "../state/evalType"
 const toSectionAnchorId = (value: string) =>
     `focus-section-${value
         .toLowerCase()

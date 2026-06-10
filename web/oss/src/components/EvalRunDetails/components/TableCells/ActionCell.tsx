@@ -1,13 +1,16 @@
 import {memo, useMemo, useCallback} from "react"
 
+import {activePreviewRunIdAtom} from "@agenta/evaluations/state/evalRun"
+import {triggerRunInvocationAtom, runningInvocationsAtom} from "@agenta/evaluations/state/evalRun"
+import {
+    evaluationRunIndexAtomFamily,
+    evaluationRunQueryAtomFamily,
+} from "@agenta/evaluations/state/evalRun"
 import {Spin} from "antd"
 import {useAtomValue, useSetAtom, getDefaultStore} from "jotai"
 
 import {virtualScenarioTableAnnotateDrawerAtom} from "@/oss/lib/atoms/virtualTable"
 
-import {activePreviewRunIdAtom} from "../../atoms/run"
-import {triggerRunInvocationAtom, runningInvocationsAtom} from "../../atoms/runInvocationAction"
-import {evaluationRunIndexAtomFamily, evaluationRunQueryAtomFamily} from "../../atoms/table/run"
 import {
     useScenarioInputSteps,
     useScenarioInvocationSteps,

@@ -25,11 +25,13 @@ import {
     type RowPredicate,
     type RunSchema,
 } from "@agenta/evaluations/etl"
+import {
+    evaluationRunQueryAtomFamily,
+    tableColumnsAtomFamily,
+} from "@agenta/evaluations/state/evalRun"
 import {Button, Divider, Input, InputNumber, Popover, Select, Tooltip} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 import {Filter as FilterIcon, Loader2, Plus, X} from "lucide-react"
-
-import {evaluationRunQueryAtomFamily, tableColumnsAtomFamily} from "../atoms/table"
 
 import {buildColumnValueTypeResolver} from "./columnValueTypes"
 

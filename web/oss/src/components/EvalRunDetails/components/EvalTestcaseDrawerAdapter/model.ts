@@ -1,6 +1,8 @@
 import type {TestcaseDataEditorColumn} from "@agenta/entity-ui/testcase"
-
-import type {EvaluationTableColumn, EvaluationTableColumnGroup} from "../../atoms/table"
+import type {
+    EvaluationTableColumn,
+    EvaluationTableColumnGroup,
+} from "@agenta/evaluations/state/evalRun"
 
 export interface EvalDrawerItemIdentity {
     drawerItemId: string

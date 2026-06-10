@@ -1,20 +1,19 @@
 import {useMemo} from "react"
 
-import {Tooltip} from "antd"
-import {atom, useAtomValue} from "jotai"
-
+import type {EvaluationTableColumnGroup} from "@agenta/evaluations/state/evalRun"
 import {
     applicationReferenceQueryAtomFamily,
     testsetReferenceQueryAtomFamily,
     variantReferenceQueryAtomFamily,
-} from "../../atoms/references"
-import type {EvaluationTableColumnGroup} from "../../atoms/table/types"
+} from "@agenta/evaluations/state/evalRun"
 import {
     formatReferenceLabel,
     humanizeIdentifier,
     humanizeStepKey,
     titleize,
-} from "../../utils/labelHelpers"
+} from "@agenta/evaluations/state/evalRun"
+import {Tooltip} from "antd"
+import {atom, useAtomValue} from "jotai"
 
 type StepRole = "input" | "invocation" | "query"
 

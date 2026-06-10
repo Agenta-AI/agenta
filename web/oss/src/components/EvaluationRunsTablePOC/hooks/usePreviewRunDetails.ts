@@ -1,12 +1,11 @@
 import {useEffect, useMemo} from "react"
 
-import {atom} from "jotai"
-import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
-
 import {
     evaluationRunQueryAtomFamily,
     evaluationRunWithProjectQueryAtomFamily,
-} from "@/oss/components/EvalRunDetails/atoms/table/run"
+} from "@agenta/evaluations/state/evalRun"
+import {atom} from "jotai"
+import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 const idleRunQueryAtom = atom({
     data: null,

@@ -1,9 +1,9 @@
 import {memo, useMemo} from "react"
 
+import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
 import {ExclamationCircleOutlined} from "@ant-design/icons"
 import {Typography} from "antd"
 
-import type {EvaluationTableColumn} from "../../../atoms/table"
 import useScenarioCellValue from "../../../hooks/useScenarioCellValue"
 import {renderScenarioChatMessages} from "../../../utils/chatMessages"
 

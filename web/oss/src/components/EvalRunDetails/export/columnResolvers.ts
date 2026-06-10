@@ -2,16 +2,16 @@
  * Column value resolvers for scenario table CSV export
  */
 
+import {
+    buildColumnValueConfig,
+    scenarioColumnValueSelectionAtomFamily,
+} from "@agenta/evaluations/state/evalRun"
+import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
 import {formatMetricDisplay} from "@agenta/ui/cell-renderers"
 import {useStore} from "jotai"
 
 import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
 
-import {
-    buildColumnValueConfig,
-    scenarioColumnValueSelectionAtomFamily,
-} from "../atoms/scenarioColumnValues"
-import type {EvaluationTableColumn} from "../atoms/table"
 import type {PreviewTableRow} from "../atoms/tableRows"
 
 import {formatExportValue, logExportAction} from "./helpers"

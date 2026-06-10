@@ -1,8 +1,7 @@
 import {memo, useMemo} from "react"
 
+import {compareRunIdsAtom} from "@agenta/evaluations/state/evalRun"
 import {useAtomValue} from "jotai"
-
-import {compareRunIdsAtom} from "../../atoms/compare"
 
 import {AggregatedOverviewSection, BaseRunMetricsSection} from "./OverviewView/components"
 

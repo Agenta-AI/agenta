@@ -1,13 +1,12 @@
 import {useEffect, useMemo, useRef} from "react"
 
-import {atom} from "jotai"
-import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
-
 import {
     latestTemporalMetricStatsSelectorFamily,
     previewRunMetricStatsSelectorFamily,
     type RunLevelMetricSelection,
-} from "@/oss/components/Evaluations/atoms/runMetrics"
+} from "@agenta/evaluations/state/evalRun"
+import {atom} from "jotai"
+import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import type {ConcreteEvaluationRunKind} from "../types"
 

@@ -7,6 +7,13 @@ import {
     useEnrichedHumanEvaluatorAdapter,
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
+import {saveEvaluationEditAtom} from "@agenta/evaluations/state/evalRun"
+import {
+    evaluationEvaluatorsByRunQueryAtomFamily,
+    evaluatorDefinitionByRevisionQueryAtomFamily,
+} from "@agenta/evaluations/state/evalRun"
+import {evaluationRunQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {derivedEvalTypeAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {VersionBadge} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {Plus, Trash} from "@phosphor-icons/react"
@@ -14,13 +21,6 @@ import {Button, Input, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import {saveEvaluationEditAtom} from "@/oss/components/EvalRunDetails/atoms/mutations/editEvaluation"
-import {
-    evaluationEvaluatorsByRunQueryAtomFamily,
-    evaluatorDefinitionByRevisionQueryAtomFamily,
-} from "@/oss/components/EvalRunDetails/atoms/table/evaluators"
-import {evaluationRunQueryAtomFamily} from "@/oss/components/EvalRunDetails/atoms/table/run"
-import {derivedEvalTypeAtomFamily} from "@/oss/components/EvalRunDetails/state/evalType"
 
 const {Text} = Typography
 

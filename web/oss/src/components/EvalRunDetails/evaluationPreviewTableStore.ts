@@ -1,5 +1,9 @@
 import type {Key} from "react"
 
+import type {WindowingState, EvaluationScenarioRow} from "@agenta/evaluations/state/evalRun"
+import {effectiveProjectIdAtom} from "@agenta/evaluations/state/evalRun"
+import {fetchEvaluationScenarioWindow} from "@agenta/evaluations/state/evalRun"
+import {previewEvalTypeAtom} from "@agenta/evaluations/state/evalRun"
 import {atom, useAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
@@ -9,11 +13,7 @@ import {
 } from "@/oss/components/InfiniteVirtualTable"
 import type {InfiniteDatasetStore} from "@/oss/components/InfiniteVirtualTable/createInfiniteDatasetStore"
 
-import {effectiveProjectIdAtom} from "./atoms/run"
-import type {WindowingState, EvaluationScenarioRow} from "./atoms/table"
-import {fetchEvaluationScenarioWindow} from "./atoms/table/scenarios"
 import type {PreviewTableRow} from "./atoms/tableRows"
-import {previewEvalTypeAtom} from "./state/evalType"
 
 interface EvaluationPreviewMeta {
     projectId: string | null

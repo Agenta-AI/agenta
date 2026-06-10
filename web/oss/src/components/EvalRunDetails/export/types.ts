@@ -2,7 +2,7 @@
  * Export metadata types for scenario table columns
  */
 
-import type {EvaluationTableColumn} from "../atoms/table"
+import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
 
 /**
  * Meta column export descriptor (e.g., scenario index, status, timestamp)

@@ -1,11 +1,10 @@
 import {useMemo} from "react"
 
-import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
-
 import {
     evaluationQueryRevisionAtomFamily,
     type EvaluationQueryConfigurationResult,
-} from "@/oss/components/EvalRunDetails/atoms/query"
+} from "@agenta/evaluations/state/evalRun"
+import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 export const usePreviewQueryRevision = (
     {runId}: {runId: string | null | undefined},

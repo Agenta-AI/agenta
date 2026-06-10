@@ -1,15 +1,15 @@
 import {useMemo, useState} from "react"
 
+import {
+    evaluationQueryReferenceAtomFamily,
+    evaluationQueryRevisionAtomFamily,
+} from "@agenta/evaluations/state/evalRun"
 import {Alert, Segmented, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import FiltersPreview from "@/oss/components/pages/evaluations/onlineEvaluation/components/FiltersPreview"
 
-import {
-    evaluationQueryReferenceAtomFamily,
-    evaluationQueryRevisionAtomFamily,
-} from "../../../../atoms/query"
 import {QueryReferenceLabel} from "../../../references"
 import {formatSamplingRate, stringifyError} from "../utils"
 

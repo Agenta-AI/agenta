@@ -1,24 +1,23 @@
 import React from "react"
 
+import type {
+    EvaluationTableColumn,
+    EvaluationTableColumnGroup,
+    MetricColumnDefinition,
+} from "@agenta/evaluations/state/evalRun"
+import {COLUMN_WIDTHS} from "@agenta/evaluations/state/evalRun"
+import {humanizeStepKey, resolveGroupLabel} from "@agenta/evaluations/state/evalRun"
 import {Tooltip} from "antd"
 import type {ColumnsType, ColumnType} from "antd/es/table"
 import clsx from "clsx"
 
 import {ColumnVisibilityHeader} from "@/oss/components/InfiniteVirtualTable"
 
-import type {
-    EvaluationTableColumn,
-    EvaluationTableColumnGroup,
-    MetricColumnDefinition,
-} from "../atoms/table"
 import PreviewEvaluationActionCell from "../components/TableCells/ActionCell"
 import PreviewEvaluationInputCell from "../components/TableCells/InputCell"
 import PreviewEvaluationInvocationCell from "../components/TableCells/InvocationCell"
 import PreviewEvaluationMetricCell from "../components/TableCells/MetricCell"
 import StepGroupHeader from "../components/TableHeaders/StepGroupHeader"
-import {COLUMN_WIDTHS} from "../constants/table"
-
-import {humanizeStepKey, resolveGroupLabel} from "./labelHelpers"
 
 // antd's ColumnType/ColumnGroupType don't model the custom `columnVisibilityLabel` field
 // that `InfiniteVirtualTable`/`ColumnVisibilityHeader` consume (mirrors `ColumnLike` in

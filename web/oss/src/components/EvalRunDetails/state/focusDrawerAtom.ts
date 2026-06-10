@@ -1,7 +1,7 @@
+import {compareRunIdsAtom} from "@agenta/evaluations/state/evalRun"
 import {atom} from "jotai"
 import {atomWithImmer} from "jotai-immer"
 
-import {compareRunIdsAtom} from "../atoms/compare"
 import type {PreviewTableRow} from "../atoms/tableRows"
 import {evaluationPreviewTableStore} from "../evaluationPreviewTableStore"
 

@@ -1,17 +1,17 @@
 import {memo, useMemo} from "react"
 
-import {Popover, Skeleton, Typography} from "antd"
-import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
-
-import ReferenceTag from "@/oss/components/References/ReferenceTag"
-
 import {
     runCreatedAtAtomFamily,
     runInvocationRefsAtomFamily,
     runTestsetIdsAtomFamily,
     runUpdatedAtAtomFamily,
-} from "../../../../atoms/runDerived"
-import {evaluationRunQueryAtomFamily} from "../../../../atoms/table/run"
+} from "@agenta/evaluations/state/evalRun"
+import {evaluationRunQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {Popover, Skeleton, Typography} from "antd"
+import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
+
+import ReferenceTag from "@/oss/components/References/ReferenceTag"
+
 import {ApplicationReferenceLabel, TestsetTagList, VariantRevisionLabel} from "../../../references"
 
 interface RunNameTagProps {

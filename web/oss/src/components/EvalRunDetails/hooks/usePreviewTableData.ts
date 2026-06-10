@@ -1,13 +1,12 @@
 import {useMemo} from "react"
 
-import {useAtomValue} from "jotai"
-
 import {
     evaluationEvaluatorsByRunQueryAtomFamily,
     evaluationRunQueryAtomFamily,
     tableColumnsAtomFamily,
-} from "../atoms/table"
-import type {EvaluationTableColumnsResult} from "../atoms/table"
+} from "@agenta/evaluations/state/evalRun"
+import type {EvaluationTableColumnsResult} from "@agenta/evaluations/state/evalRun"
+import {useAtomValue} from "jotai"
 
 export interface PreviewTableData {
     columnResult?: EvaluationTableColumnsResult

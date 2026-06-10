@@ -1,13 +1,13 @@
 import {memo, useMemo} from "react"
 
+import {
+    queryReferenceLookupAtomFamily,
+    type EvaluationQueryConfigurationResult,
+} from "@agenta/evaluations/state/evalRun"
 import {Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
 import {loadable} from "jotai/utils"
 
-import {
-    queryReferenceLookupAtomFamily,
-    type EvaluationQueryConfigurationResult,
-} from "@/oss/components/EvalRunDetails/atoms/query"
 import FiltersPreview from "@/oss/components/pages/evaluations/onlineEvaluation/components/FiltersPreview"
 
 import {summarizeQueryFilters} from "../../utils/querySummary"
