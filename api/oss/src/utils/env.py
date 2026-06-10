@@ -79,11 +79,11 @@ def _comma_set_optional(name: str, *legacy_names: str) -> set | None:
 
 def _parse_optional_int_env(name: str) -> int | None:
     raw = os.getenv(name)
-    if not raw:
+    if raw is None:
         return None
 
     value = raw.strip()
-    if not value :
+    if not value:
         return None
     
     try:
@@ -91,7 +91,16 @@ def _parse_optional_int_env(name: str) -> int | None:
     except ValueError as e:
         raise ValueError(f"{name} must be a valid integer") from e
 
+def _parse_bool_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
 
+    value = raw.strip()
+    if not value:
+        return default
+
+    return value.lower() in _TRUTHY
 # ---------------------------------------------------------------------------
 # agenta.access — access controls.
 # ---------------------------------------------------------------------------
@@ -953,8 +962,8 @@ class SmtpConfig(BaseModel):
         or os.getenv("AGENTA_AUTHN_EMAIL_FROM")
         or os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS")
     )
-    use_tls: bool = (os.getenv("SMTP_USE_TLS") or "true").lower() in _TRUTHY
-    use_ssl: bool = (os.getenv("SMTP_USE_SSL") or "false").lower() in _TRUTHY
+    use_tls: bool = _parse_bool_env("SMTP_USE_TLS", default=True) 
+    use_ssl: bool = _parse_bool_env("SMTP_USE_SSL", default=False) 
     timeout: int | None = _parse_optional_int_env("SMTP_TIMEOUT")
 
     model_config = ConfigDict(extra="ignore")
