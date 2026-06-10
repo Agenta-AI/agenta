@@ -151,11 +151,14 @@ const GenerationComparisonChatOutputCell = ({
                                 }}
                                 messageProps={{
                                     className: "!p-0 !mt-0 [&:nth-child(1)]:!mt-0 mt-2",
-                                    // Editor body padding now goes through the
-                                    // editorClassName prop (works after the noProvider
-                                    // className fix), replacing the previous
+                                    // Comparison cells set their own editor padding via
+                                    // editorClassName (works after the noProvider className
+                                    // fix), replacing the previous
                                     // `[&_.agenta-editor-wrapper]:!p-3` container hack.
+                                    // alignTextWithRole is off so the role-alignment inset
+                                    // does not stack on top of this padding.
                                     editorClassName: "!p-3",
+                                    alignTextWithRole: false,
                                     headerClassName:
                                         "min-h-[48px] px-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]",
                                     footerClassName: "px-2",
@@ -201,9 +204,14 @@ const GenerationComparisonChatOutputCell = ({
                         withControls={false}
                         hideUserMessage
                         messageProps={{
-                            className:
-                                "!p-0 [&_.agenta-editor-wrapper]:!p-3 !mt-0 [&:nth-child(1)]:!mt-0 mt-2",
+                            // Padding via editorClassName only (the
+                            // [&_.agenta-editor-wrapper]:!p-3 hack is removed so it does
+                            // not double up now that editorClassName works), and
+                            // alignTextWithRole off so the role-alignment inset does not
+                            // stack on top.
+                            className: "!p-0 !mt-0 [&:nth-child(1)]:!mt-0 mt-2",
                             editorClassName: "!p-3",
+                            alignTextWithRole: false,
                             headerClassName:
                                 "min-h-[48px] border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]",
                             footerClassName: "px-2 !m-0",

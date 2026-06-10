@@ -74,6 +74,14 @@ export interface ChatMessageEditorProps {
      * up via an internal synchronizer mounted inside the EditorProvider.
      */
     markdownView?: boolean
+    /**
+     * Inset the message text + placeholder so they line up with the role label
+     * above (the default tight message layout). Set to false for surfaces that
+     * apply their own editor padding (e.g. the comparison view's `!p-3` cells),
+     * where the alignment inset would stack on top and over-pad the text.
+     * @default true
+     */
+    alignTextWithRole?: boolean
 }
 
 /**
@@ -134,6 +142,7 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
     onFocusChange,
     maxPasteChars = DEFAULT_MAX_TEXT_PASTE_CHARS,
     onPasteLimitExceeded,
+    alignTextWithRole = true,
     ...props
 }) => {
     const selectOptions = useMemo(
@@ -215,18 +224,20 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
             // prop) now that the noProvider className bug is fixed. Code editors
             // (JSON/tool) keep their own gutter, so they are excluded via
             // `:not(.code-only)`. The role label is an antd button outside the
-            // editor and is aligned via the scoped rule in globals.css.
+            // editor and is aligned via the `.agenta-chat-message-editor` rule in
+            // globals.css. Both are skipped when alignTextWithRole is false (e.g.
+            // the comparison view, which applies its own editor padding).
             editorClassName={cn(
-                "[&_.editor-input:not(.code-only)]:px-2 [&_.editor-placeholder]:left-2",
+                alignTextWithRole &&
+                    "[&_.editor-input:not(.code-only)]:px-2 [&_.editor-placeholder]:left-2",
                 editorClassName,
             )}
             placeholder={placeholder}
             disabled={disabled}
             state={disabled ? "readOnly" : state}
-            // `agenta-chat-message-editor` scopes the role-label alignment rule in
-            // globals.css (the role is an antd button, not part of the editor).
             className={cn(
-                "agenta-chat-message-editor relative",
+                alignTextWithRole && "agenta-chat-message-editor",
+                "relative",
                 flexLayouts.column,
                 gapClasses.xs,
                 "rounded-md",
