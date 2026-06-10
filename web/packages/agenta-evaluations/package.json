@@ -26,6 +26,7 @@
         "./state": "./src/state/index.ts",
         "./etl": "./src/etl/index.ts",
         "./services": "./src/services/index.ts",
+        "./services/runShape": "./src/services/runShape.ts",
         "./services/results": "./src/services/results.ts",
         "./services/scenarios": "./src/services/scenarios.ts",
         "./services/invocations": "./src/services/invocations.ts",
@@ -35,7 +36,8 @@
         "@agenta/entities": "workspace:../agenta-entities",
         "@agenta/sdk": "workspace:../agenta-sdk",
         "@agenta/shared": "workspace:../agenta-shared",
-        "@agentaai/api-client": "workspace:../agenta-api-client"
+        "@agentaai/api-client": "workspace:../agenta-api-client",
+        "swr": "^2.4.0"
     },
     "peerDependencies": {
         "@tanstack/react-query": ">=5.0.0",

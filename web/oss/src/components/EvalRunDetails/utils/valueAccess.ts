@@ -1,4 +1,5 @@
-import type {IStepResponse} from "@/oss/lib/evaluations"
+import type {IStepResponse} from "@agenta/evaluations/core"
+
 import type {PreviewTestCase} from "@/oss/lib/Types"
 
 export const splitPath = (path: string): string[] => {

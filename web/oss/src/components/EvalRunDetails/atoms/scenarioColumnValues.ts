@@ -1,8 +1,8 @@
+import type {IStepResponse} from "@agenta/evaluations/core"
 import {formatMetricDisplay} from "@agenta/ui/cell-renderers"
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
-import type {IStepResponse} from "@/oss/lib/evaluations"
 import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 
 import {readInvocationResponse} from "../../../lib/traces/traceUtils"

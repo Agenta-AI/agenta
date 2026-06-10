@@ -1,4 +1,5 @@
-import type {TraceData} from "@/oss/lib/evaluations"
+import type {TraceData} from "@agenta/evaluations/core"
+
 import {resolvePath as resolveTracePath} from "@/oss/lib/traces/traceUtils"
 
 import {resolveValueBySegments, splitPath} from "./valueAccess"

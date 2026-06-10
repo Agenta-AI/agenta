@@ -2,6 +2,10 @@
  * Run-shape API: thin Fern-client wrappers for mutating an existing evaluation
  * run's shape (width/height/depth) plus the slice processor that fills cells.
  *
+ * Relocated verbatim from `@/oss/services/evaluations/runShape/api` during the
+ * WP-4e-1 seam scaffold — logic unchanged. The only former OSS-local dependency,
+ * `getAgentaApiUrl`, now comes from `@agenta/shared/api`.
+ *
  * These are the ONLY place the Fern client is called for this feature — UI and
  * atoms go through the jotai mutation atoms in
  * `EvalRunDetails/atoms/mutations/editEvaluation`, never the client directly.
@@ -16,8 +20,7 @@
  *      brand-new step needs EXPLICIT scenario_ids or it no-ops.
  */
 import {getAgentaSdkClient} from "@agenta/sdk"
-
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {getAgentaApiUrl} from "@agenta/shared/api"
 
 export type EvaluatorOrigin = "custom" | "human" | "auto"
 

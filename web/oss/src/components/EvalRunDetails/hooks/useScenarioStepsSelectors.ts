@@ -1,10 +1,9 @@
 import {useMemo} from "react"
 
+import type {IStepResponse} from "@agenta/evaluations/core"
 import {useAtomValue} from "jotai"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-
-import type {IStepResponse} from "@/oss/lib/evaluations"
 
 import {activePreviewRunIdAtom} from "../atoms/run"
 import {scenarioStepsQueryFamily} from "../atoms/scenarioSteps"

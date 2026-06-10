@@ -27,3 +27,13 @@ export {checkAndUpdateRunStatus} from "./scenarios"
 export {upsertStepResultWithInvocation, type InvocationReferences} from "./invocations"
 
 export {updateScenarioStatusRemote, upsertScenarioStep} from "./workerUtils"
+
+export {
+    editEvaluationRunShape,
+    processEvaluationRunSlice,
+    queryRunScenarioIds,
+    type EvaluatorOrigin,
+    type StepTargets,
+    type EditRunShapeArgs,
+    type ProcessSliceArgs,
+} from "./runShape"

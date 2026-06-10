@@ -1,7 +1,6 @@
+import type {TraceData, TraceNode} from "@agenta/evaluations/core"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-
-import type {TraceData, TraceNode} from "@/oss/lib/evaluations"
 
 import {resolveInvocationTraceValue} from "../utils/traceValue"
 

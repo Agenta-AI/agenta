@@ -15,16 +15,16 @@
  *     tables refresh columns AND rows; results pollers then fill cells.
  */
 import {clearPreviewRunsCache} from "@agenta/evaluations/hooks"
-import {atom} from "jotai"
-import {atomWithMutation, queryClientAtom} from "jotai-tanstack-query"
-
-import {clearMetricSelectionCache} from "@/oss/components/EvaluationRunsTablePOC/hooks/useRunMetricSelection"
 import {
     editEvaluationRunShape,
     processEvaluationRunSlice,
     queryRunScenarioIds,
     type EvaluatorOrigin,
-} from "@/oss/services/evaluations/runShape/api"
+} from "@agenta/evaluations/services/runShape"
+import {atom} from "jotai"
+import {atomWithMutation, queryClientAtom} from "jotai-tanstack-query"
+
+import {clearMetricSelectionCache} from "@/oss/components/EvaluationRunsTablePOC/hooks/useRunMetricSelection"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 import {isTerminalStatus} from "../compare"
