@@ -6,6 +6,7 @@ import {runningInvocationsAtom, triggerRunInvocationAtom} from "@agenta/evaluati
 import {scenarioStepsQueryFamily} from "@agenta/evaluations/state/evalRun"
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {evaluationRunIndexAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {evaluationPreviewTableStore} from "@agenta/evaluations/state/evalRun"
 import {Card, Tag, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -13,7 +14,6 @@ import {useRouter} from "next/router"
 
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 
-import {evaluationPreviewTableStore} from "../../../evaluationPreviewTableStore"
 import usePreviewTableData from "../../../hooks/usePreviewTableData"
 import {pocUrlStateAtom} from "../../../state/urlState"
 

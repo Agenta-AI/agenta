@@ -19,7 +19,7 @@ import usePreviewTableData from "../../hooks/usePreviewTableData"
 import {buildSkeletonColumnResult} from "../../utils/buildSkeletonColumns"
 import StepGroupHeader from "../TableHeaders/StepGroupHeader"
 
-type EvaluationType = "auto" | "human"
+type EvaluationType = "auto" | "human" | "online"
 
 interface ScenarioColumnVisibilityPopoverContentProps {
     runId: string

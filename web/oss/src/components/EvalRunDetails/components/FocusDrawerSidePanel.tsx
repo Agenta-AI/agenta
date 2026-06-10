@@ -1,7 +1,7 @@
 import {memo, useCallback, useMemo, useState} from "react"
 import type {ReactNode} from "react"
 
-import {previewEvalTypeAtom} from "@agenta/evaluations/state/evalRun"
+import {evaluationPreviewTableStore, previewEvalTypeAtom} from "@agenta/evaluations/state/evalRun"
 import {TreeStructure, Download, Sparkle, Speedometer} from "@phosphor-icons/react"
 import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
@@ -9,7 +9,6 @@ import {useAtomValue} from "jotai"
 import CustomTreeComponent from "@/oss/components/CustomUIs/CustomTreeComponent"
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 
-import {evaluationPreviewTableStore} from "../evaluationPreviewTableStore"
 import usePreviewTableData from "../hooks/usePreviewTableData"
 const toSectionAnchorId = (value: string) =>
     `focus-section-${value

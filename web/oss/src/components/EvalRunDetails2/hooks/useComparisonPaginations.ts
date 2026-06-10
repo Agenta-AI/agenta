@@ -1,9 +1,8 @@
 import {useMemo} from "react"
 
+import {evaluationPreviewTableStore} from "@agenta/evaluations/state/evalRun"
 import {atom, useStore} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
-
-import {evaluationPreviewTableStore} from "@/oss/components/EvalRunDetails/evaluationPreviewTableStore"
 
 interface UseComparisonPaginationsArgs {
     compareSlots: (string | null)[]

@@ -1,18 +1,15 @@
 import type {Key} from "react"
 
-import {effectiveProjectIdAtom} from "@agenta/evaluations/state/evalRun"
-import {fetchEvaluationScenarioWindow} from "@agenta/evaluations/state/evalRun"
-import {previewEvalTypeAtom} from "@agenta/evaluations/state/evalRun"
-import type {WindowingState, EvaluationScenarioRow} from "@agenta/evaluations/state/evalRun"
-import type {PreviewTableRow} from "@agenta/evaluations/state/evalRun"
+import {createInfiniteTableStore, useInfiniteTablePagination} from "@agenta/ui/table"
+import type {InfiniteDatasetStore} from "@agenta/ui/table"
 import {atom, useAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import {
-    createInfiniteTableStore,
-    useInfiniteTablePagination,
-} from "@/oss/components/InfiniteVirtualTable"
-import type {InfiniteDatasetStore} from "@/oss/components/InfiniteVirtualTable/createInfiniteDatasetStore"
+import {effectiveProjectIdAtom} from "./atoms/run"
+import {fetchEvaluationScenarioWindow} from "./atoms/table/scenarios"
+import type {WindowingState, EvaluationScenarioRow} from "./atoms/table/types"
+import type {PreviewTableRow} from "./atoms/tableRows"
+import {previewEvalTypeAtom} from "./state/evalType"
 
 interface EvaluationPreviewMeta {
     projectId: string | null

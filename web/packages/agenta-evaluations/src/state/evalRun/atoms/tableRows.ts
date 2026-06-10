@@ -17,4 +17,10 @@ export interface PreviewTableRow {
     /** Timestamp for online evaluation scenarios (batch grouping) */
     timestamp?: string | null
     __isSkeleton: boolean
+    /**
+     * Index signature required to satisfy the table layer's
+     * `InfiniteTableRowBase` constraint (same accommodation as
+     * `EvaluationRunTableRow` in `state/runList/paginatedStore.ts`).
+     */
+    [key: string]: unknown
 }

@@ -60,6 +60,14 @@ export type {PreviewTableRow} from "./atoms/tableRows"
 export * from "./rowHeight"
 export * from "./etl/columnValueTypes"
 
+// ── preview table store + live updates ───────────────────────────────────────
+export {
+    evaluationPreviewTableStore,
+    evaluationPreviewDatasetStore,
+} from "./evaluationPreviewTableStore"
+export {useScenarioLiveUpdates} from "./etl/useScenarioLiveUpdates"
+export type {UseScenarioLiveUpdatesArgs} from "./etl/useScenarioLiveUpdates"
+
 // ── siblings ─────────────────────────────────────────────────────────────────
 export * from "./state/evalType"
 export * from "./utils/valueAccess"

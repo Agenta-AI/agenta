@@ -23,6 +23,11 @@ import {
     evaluationRunQueryAtomFamily,
 } from "@agenta/evaluations/state/evalRun"
 import {scenarioRowHeightAtom} from "@agenta/evaluations/state/evalRun"
+import {
+    evaluationPreviewDatasetStore,
+    evaluationPreviewTableStore,
+    useScenarioLiveUpdates,
+} from "@agenta/evaluations/state/evalRun"
 import {useEtlColumns} from "@agenta/evaluations-ui"
 import {message} from "@agenta/ui/app-message"
 import clsx from "clsx"
@@ -30,6 +35,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
 import {
+    type ColumnVisibilityMenuRenderer,
     InfiniteVirtualTableFeatureShell,
     type TableFeaturePagination,
     type TableScopeConfig,
@@ -44,11 +50,6 @@ import useComparisonPaginations from "../EvalRunDetails2/hooks/useComparisonPagi
 import useComparisonSchemas from "../EvalRunDetails2/hooks/useComparisonSchemas"
 
 import ScenarioColumnVisibilityPopoverContent from "./components/columnVisibility/ColumnVisibilityPopoverContent"
-import {useScenarioLiveUpdates} from "./etl/useScenarioLiveUpdates"
-import {
-    evaluationPreviewDatasetStore,
-    evaluationPreviewTableStore,
-} from "./evaluationPreviewTableStore"
 import {resolveScenarioColumnValue} from "./export/columnResolvers"
 import {buildGroupMap, resolveScenarioColumnLabel} from "./export/labelResolvers"
 import type {ScenarioColumnExportMetadata} from "./export/types"
@@ -1064,21 +1065,19 @@ const EvalRunDetailsTable = ({
                         resizableColumns
                         useSettingsDropdown
                         settingsDropdownMenuItems={rowHeightMenuItems}
-                        columnVisibilityMenuRenderer={(
-                            controls,
-                            close,
-                            {scopeId, onExport, isExporting},
-                        ) => (
-                            <ScenarioColumnVisibilityPopoverContent
-                                controls={controls}
-                                onClose={close}
-                                scopeId={scopeId}
-                                runId={runId}
-                                evaluationType={evaluationType}
-                                onExport={onExport}
-                                isExporting={isExporting}
-                            />
-                        )}
+                        columnVisibilityMenuRenderer={
+                            ((controls, close, {scopeId, onExport, isExporting}) => (
+                                <ScenarioColumnVisibilityPopoverContent
+                                    controls={controls}
+                                    onClose={close}
+                                    scopeId={scopeId}
+                                    runId={runId}
+                                    evaluationType={evaluationType}
+                                    onExport={onExport}
+                                    isExporting={isExporting}
+                                />
+                            )) as ColumnVisibilityMenuRenderer<TableRowData>
+                        }
                         pagination={paginationForShell}
                         exportOptions={exportOptions}
                         tableProps={{

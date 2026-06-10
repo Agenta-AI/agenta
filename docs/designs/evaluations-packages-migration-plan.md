@@ -663,7 +663,10 @@ the migration; triage/fix separately (likely with the EvalRunDetails parity QA).
 - **Fix direction:** migrate `evaluationPreviewTableStore` onto `@agenta/ui/table`'s
   `createInfiniteTableStore`/`useInfiniteTablePagination` (the package equivalents `EvaluationListView`
   already uses) → `@agenta/evaluations`, then `useScenarioLiveUpdates` moves cleanly. Its own small WP.
-- **Status:** OPEN — finish to fully clear eval data logic from OSS.
+- **Status:** ✅ RESOLVED (WP-4g-2). The OSS `InfiniteVirtualTable` turned out to be an API-compatible
+  STALE COPY of `@agenta/ui/table` (not divergent) — both files moved with a simple re-point. KEY
+  finding: the table infra is re-pointable; only the ENTITY-STATE (testcase/testset) is genuinely
+  divergent (the consolidation doc). oss tsc dropped 522→487 (index-sig fix unmasked+fixed ~35 latent).
 
 > **Note:** the OSS tsc baseline dropped from **588 → 522** at WP-4e-2a (the ~45 eval-atom errors +
 > ~21 root-caused side effects fixed). **All subsequent "oss tsc steady" gates use 522, not 588.**
