@@ -1032,6 +1032,16 @@ h1[class*="title_"] {
   border-radius: 8px;
 }
 
+/* Cap changelog screenshots to the same width as videos and center them. */
+.blog-wrapper .markdown img,
+.blog-post-page .markdown img {
+  display: block;
+  max-width: 680px;
+  height: auto;
+  margin-inline: auto;
+  border-radius: 8px;
+}
+
 /* highlight error code */
 .code-block-error-line {
   background-color: #ff000020;

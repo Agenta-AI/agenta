@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {workflowMolecule, workflowVariantsListQueryStateAtomFamily} from "@agenta/entities/workflow"
 import {getDefaultStore, useAtomValue} from "jotai"
 
 interface VariantConfig {
@@ -40,10 +40,26 @@ const usePreviewVariantConfig = (
     const data = useAtomValue(dataAtom, {store: defaultStore})
     const query = useAtomValue(queryAtom, {store: defaultStore})
 
+    // Resolve the VARIANT name, not the revision name. The default variant's
+    // revisions are historically named after the app ("completion-1"), so using
+    // the revision name renders the default variant as the app name instead of
+    // "default". Look the variant up by the revision's workflow_variant_id.
+    const variantsAtom = useMemo(
+        () => workflowVariantsListQueryStateAtomFamily(data?.workflow_id ?? ""),
+        [data?.workflow_id],
+    )
+    const variantsState = useAtomValue(variantsAtom, {store: defaultStore})
+    const variantName = useMemo(() => {
+        const variantId = data?.workflow_variant_id
+        if (!variantId) return null
+        const match = (variantsState.data ?? []).find((v) => v.id === variantId)
+        return match?.name ?? null
+    }, [data?.workflow_variant_id, variantsState.data])
+
     const config: VariantConfig | null =
         enabled && revisionId && data
             ? {
-                  variantName: data.name ?? data.slug ?? null,
+                  variantName: variantName ?? data.name ?? data.slug ?? null,
                   revision: data.version ?? null,
               }
             : null

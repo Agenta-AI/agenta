@@ -33,7 +33,11 @@ For every changelog announcement, you create TWO coordinated artifacts:
   ```mdx
   ---frontmatter---
 
+  import Image from "@theme/IdealImage"; {/* only if you use <Image> */}
+
   <Summary>
+
+  {/* Optional hero video or screenshot, shown on the index */}
 
   Curated 1-2 paragraph summary shown on the /changelog index.
 
@@ -41,13 +45,18 @@ For every changelog announcement, you create TWO coordinated artifacts:
 
   {/* truncate */}
 
+  {/* Repeat the hero video/screenshot here so it also shows on the page */}
+
   Full write-up (## sections, videos, code) shown on the entry's page.
   ```
 
   `<Summary>` renders only on the index list (as the preview, with a "Read
   more" link); it renders nothing on the entry page, so the page shows just the
-  full write-up with no duplication. Keep videos and images in the full
-  write-up below the marker, not in `<Summary>` (the index stays text-only).
+  full write-up with no duplication. If the feature has a demo video or
+  screenshot, put it inside `<Summary>` so it appears on the index, and also in
+  the write-up below the marker so it appears on the entry page. Embedded
+  videos and images are capped to a centered 680px in CSS, so use the existing
+  `<iframe>`/`<Image>` markup as-is.
 
 **B. Sidebar Announcement** (`web/oss/src/components/SidebarBanners/data/changelog.json`):
 - One-sentence description
@@ -254,7 +263,9 @@ the entry page shows everything below `{/* truncate */}`. So:
   `{/* truncate */}` marker, then the full write-up.
 - Leave blank lines inside the `<Summary>` tags so the content parses as
   Markdown (links and bold work).
-- Keep videos and images in the write-up below the marker, not in `<Summary>`.
+- If there is a demo video or screenshot, include it inside `<Summary>` (so it
+  shows on the index) and again in the write-up below the marker (so it shows
+  on the entry page).
 - Every entry needs content below the marker (the full write-up); that is what
   the entry page renders.
 

@@ -80,13 +80,13 @@ class AgentaApi:
         , timeout=_defaulted_timeout)
         self._access: typing.Optional[AccessClient] = None
         self._billing: typing.Optional[BillingClient] = None
+        self._events: typing.Optional[EventsClient] = None
         self._organizations: typing.Optional[OrganizationsClient] = None
         self._workspaces: typing.Optional[WorkspacesClient] = None
         self._secrets: typing.Optional[SecretsClient] = None
         self._webhooks: typing.Optional[WebhooksClient] = None
         self._legacy: typing.Optional[LegacyClient] = None
         self._traces: typing.Optional[TracesClient] = None
-        self._events: typing.Optional[EventsClient] = None
         self._invocations: typing.Optional[InvocationsClient] = None
         self._annotations: typing.Optional[AnnotationsClient] = None
         self._testcases: typing.Optional[TestcasesClient] = None
@@ -117,6 +117,13 @@ class AgentaApi:
             from .billing.client import BillingClient  # noqa: E402
             self._billing = BillingClient(client_wrapper=self._client_wrapper)
         return self._billing
+    
+    @property
+    def events(self):
+        if self._events is None:
+            from .events.client import EventsClient  # noqa: E402
+            self._events = EventsClient(client_wrapper=self._client_wrapper)
+        return self._events
     
     @property
     def organizations(self):
@@ -159,13 +166,6 @@ class AgentaApi:
             from .traces.client import TracesClient  # noqa: E402
             self._traces = TracesClient(client_wrapper=self._client_wrapper)
         return self._traces
-    
-    @property
-    def events(self):
-        if self._events is None:
-            from .events.client import EventsClient  # noqa: E402
-            self._events = EventsClient(client_wrapper=self._client_wrapper)
-        return self._events
     
     @property
     def invocations(self):
@@ -324,13 +324,13 @@ class AsyncAgentaApi:
         , timeout=_defaulted_timeout)
         self._access: typing.Optional[AsyncAccessClient] = None
         self._billing: typing.Optional[AsyncBillingClient] = None
+        self._events: typing.Optional[AsyncEventsClient] = None
         self._organizations: typing.Optional[AsyncOrganizationsClient] = None
         self._workspaces: typing.Optional[AsyncWorkspacesClient] = None
         self._secrets: typing.Optional[AsyncSecretsClient] = None
         self._webhooks: typing.Optional[AsyncWebhooksClient] = None
         self._legacy: typing.Optional[AsyncLegacyClient] = None
         self._traces: typing.Optional[AsyncTracesClient] = None
-        self._events: typing.Optional[AsyncEventsClient] = None
         self._invocations: typing.Optional[AsyncInvocationsClient] = None
         self._annotations: typing.Optional[AsyncAnnotationsClient] = None
         self._testcases: typing.Optional[AsyncTestcasesClient] = None
@@ -361,6 +361,13 @@ class AsyncAgentaApi:
             from .billing.client import AsyncBillingClient  # noqa: E402
             self._billing = AsyncBillingClient(client_wrapper=self._client_wrapper)
         return self._billing
+    
+    @property
+    def events(self):
+        if self._events is None:
+            from .events.client import AsyncEventsClient  # noqa: E402
+            self._events = AsyncEventsClient(client_wrapper=self._client_wrapper)
+        return self._events
     
     @property
     def organizations(self):
@@ -403,13 +410,6 @@ class AsyncAgentaApi:
             from .traces.client import AsyncTracesClient  # noqa: E402
             self._traces = AsyncTracesClient(client_wrapper=self._client_wrapper)
         return self._traces
-    
-    @property
-    def events(self):
-        if self._events is None:
-            from .events.client import AsyncEventsClient  # noqa: E402
-            self._events = AsyncEventsClient(client_wrapper=self._client_wrapper)
-        return self._events
     
     @property
     def invocations(self):

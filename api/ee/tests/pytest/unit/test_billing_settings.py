@@ -9,7 +9,7 @@ state.
 import pytest
 
 from ee.src.core.subscriptions import settings
-from ee.src.core.entitlements.types import DefaultPlan
+from ee.src.core.access.entitlements.types import DefaultPlan
 
 
 # ---------------------------------------------------------------------------

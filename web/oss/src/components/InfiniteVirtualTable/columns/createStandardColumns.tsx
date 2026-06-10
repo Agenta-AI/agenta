@@ -203,6 +203,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
         align: "center",
         // Lock actions column from being toggled in visibility menu
         columnVisibilityLocked: true as any,
+        onCell: () => ({className: "ag-table-actions-cell"}),
         render: (_, record) => {
             if (record.__isSkeleton) return null
 
@@ -294,7 +295,10 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
             }
 
             return (
-                <div className="h-full flex items-center justify-center">
+                <div
+                    className="w-full h-full flex items-center justify-center"
+                    onClick={(e) => e.stopPropagation()}
+                >
                     <Dropdown
                         trigger={["click"]}
                         styles={{root: {width: 200}}}

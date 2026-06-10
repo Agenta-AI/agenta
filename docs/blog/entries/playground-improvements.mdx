@@ -9,7 +9,14 @@ import Image from "@theme/IdealImage";
 <Summary>
 
 - We've improved the workflow for adding outputs to a dataset in the playground. In the past, you had to select the name of the test set each time. Now, the last used test set is selected by default..
-  
+  <Image
+    img={require("/images/changelog/default-selected-testset_video.gif")}
+    style={{
+      display: "block",
+      margin: "20px auto",
+      textAlign: "center",
+    }}
+  />
 - We have significantly improved the debugging experience when creating applications from code. Now, if an application fails, you can view the logs to understand the reason behind the failure.
 - We moved the copy message button in the playground to the output text area.
 - We now hide the cost and usage in the playground when they aren't specified

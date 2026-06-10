@@ -4,7 +4,6 @@ import {Alert, Spin} from "antd"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
-import Session from "supertokens-auth-react/recipe/session"
 import {signInAndUp} from "supertokens-auth-react/recipe/thirdparty"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
@@ -63,18 +62,11 @@ const Callback = () => {
             const response = await signInAndUp()
 
             if (response.status === "OK") {
-                console.log("[AUTH-CALLBACK] signInAndUp OK", response)
-                console.log("[AUTH-CALLBACK] createdNewRecipeUser", {
+                console.log("[AUTH-CALLBACK] signInAndUp OK", {
                     createdNewRecipeUser: response.createdNewRecipeUser,
                     hasUser: Boolean(response.user),
-                    loginMethods: response.user?.loginMethods,
+                    loginMethodsCount: response.user?.loginMethods?.length ?? 0,
                 })
-                try {
-                    const payload = await Session.getAccessTokenPayloadSecurely()
-                    console.log("[AUTH-CALLBACK] session payload", payload)
-                } catch (payloadErr) {
-                    console.warn("[AUTH-CALLBACK] session payload fetch failed", payloadErr)
-                }
                 if (typeof window !== "undefined") {
                     const rawSessionIdentities = window.localStorage.getItem(
                         "authUpgradeSessionIdentities",

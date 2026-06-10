@@ -9,6 +9,16 @@ import Image from "@theme/IdealImage";
 
 <Summary>
 
+<Image
+  style={{
+    display: "block",
+    margin: "20px auto",
+    textAlign: "center",
+  }}
+  img={require("/images/observability/observability.png")}
+  alt="Observability view showing an open trace for an OpenAI application"
+  loading="lazy"
+/>
 This release is one of our biggest yet—one changelog hardly does it justice.
 
 **First up: Observability**
@@ -33,6 +43,18 @@ We’ve completely rewritten the [prompt management SDK](/prompt-engineering/man
 **And finally: LLM-as-a-Judge Overhaul**
 
 We've made significant upgrades to the [LLM-as-a-Judge evaluator](/evaluation/configure-evaluators/llm-as-a-judge). It now supports prompts with multiple messages and has access to all variables in a test case. You can also switch models (currently supporting OpenAI and Anthropic). These changes make the evaluator much more flexible, and we're seeing better results with it.
+
+<Image
+  style={{
+    display: "block",
+    margin: "5px auto",
+    width: "50%",
+    textAlign: "center",
+  }}
+  img={require("/images/evaluation/llm-as-a-judge.gif")}
+  alt="Configuring the LLM-as-a-Judge evaluator"
+  loading="lazy"
+/>
 
 </Summary>
 

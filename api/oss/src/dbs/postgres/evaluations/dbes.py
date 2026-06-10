@@ -3,6 +3,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     UniqueConstraint,
     Index,
+    text,
 )
 
 from oss.src.dbs.postgres.shared.base import Base
@@ -286,6 +287,13 @@ class EvaluationQueueDBE(
             "ix_evaluation_queues_run_id",
             "run_id",
         ),  # for filtering
+        Index(
+            "ux_evaluation_queues_default_per_run",
+            "project_id",
+            "run_id",
+            unique=True,
+            postgresql_where=text("(flags ->> 'is_default')::boolean = true"),
+        ),
         Index(
             "ix_evaluation_queues_user_ids",
             "user_ids",

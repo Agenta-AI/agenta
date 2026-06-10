@@ -354,6 +354,24 @@ class WorkflowRevisionIdAlias(AliasConfig):
     )
 
 
+class WorkflowSlugAlias(AliasConfig):
+    workflow_slug: Optional[str] = None
+    artifact_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="workflow_slug",
+    )
+
+
+class WorkflowVariantSlugAlias(AliasConfig):
+    workflow_variant_slug: Optional[str] = None
+    variant_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="workflow_variant_slug",
+    )
+
+
 # workflows --------------------------------------------------------------------
 
 
@@ -407,6 +425,8 @@ class WorkflowRevision(
     Revision,
     WorkflowIdAlias,
     WorkflowVariantIdAlias,
+    WorkflowSlugAlias,
+    WorkflowVariantSlugAlias,
 ):
     flags: Optional[WorkflowFlags] = None
 
@@ -415,6 +435,8 @@ class WorkflowRevision(
     def model_post_init(self, __context) -> None:
         sync_alias("workflow_id", "artifact_id", self)
         sync_alias("workflow_variant_id", "variant_id", self)
+        sync_alias("workflow_slug", "artifact_slug", self)
+        sync_alias("workflow_variant_slug", "variant_slug", self)
 
 
 class WorkflowRevisionCreate(
@@ -524,6 +546,8 @@ class EvaluatorRevision(BaseModel):
 
     evaluator_id: Optional[UUID] = None
     evaluator_variant_id: Optional[UUID] = None
+    evaluator_slug: Optional[str] = None
+    evaluator_variant_slug: Optional[str] = None
 
 
 class ApplicationServiceRequest(WorkflowServiceRequest):
@@ -560,6 +584,24 @@ class EvaluatorVariantIdAlias(AliasConfig):
         default=None,
         exclude=True,
         alias="evaluator_variant_id",
+    )
+
+
+class EvaluatorSlugAlias(AliasConfig):
+    evaluator_slug: Optional[str] = None
+    workflow_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="evaluator_slug",
+    )
+
+
+class EvaluatorVariantSlugAlias(AliasConfig):
+    evaluator_variant_slug: Optional[str] = None
+    workflow_variant_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="evaluator_variant_slug",
     )
 
 
@@ -658,6 +700,24 @@ class ApplicationRevisionIdAlias(AliasConfig):
     )
 
 
+class ApplicationSlugAlias(AliasConfig):
+    application_slug: Optional[str] = None
+    workflow_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="application_slug",
+    )
+
+
+class ApplicationVariantSlugAlias(AliasConfig):
+    application_variant_slug: Optional[str] = None
+    workflow_variant_slug: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        alias="application_variant_slug",
+    )
+
+
 # globals ----------------------------------------------------------------------
 
 
@@ -721,6 +781,8 @@ class ApplicationRevision(
     WorkflowRevision,
     ApplicationIdAlias,
     ApplicationVariantIdAlias,
+    ApplicationSlugAlias,
+    ApplicationVariantSlugAlias,
 ):
     flags: Optional[ApplicationFlags] = None
 
@@ -729,6 +791,8 @@ class ApplicationRevision(
     def model_post_init(self, __context) -> None:
         sync_alias("application_id", "workflow_id", self)
         sync_alias("application_variant_id", "workflow_variant_id", self)
+        sync_alias("application_slug", "workflow_slug", self)
+        sync_alias("application_variant_slug", "workflow_variant_slug", self)
 
 
 class ApplicationRevisionCreate(

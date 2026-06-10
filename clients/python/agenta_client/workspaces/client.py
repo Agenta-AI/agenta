@@ -203,7 +203,7 @@ class WorkspacesClient:
         Returns a list of all available workspace roles.
         
         Returns:
-            List[WorkspaceRoleResponse]: A list of WorkspaceRole objects representing the available workspace roles.
+            List[WorkspaceRoleResponse]: A list of DefaultRole objects representing the available workspace roles.
         
         Raises:
             HTTPException: If an error occurs while retrieving the workspace roles.
@@ -491,7 +491,7 @@ class AsyncWorkspacesClient:
         Returns a list of all available workspace roles.
         
         Returns:
-            List[WorkspaceRoleResponse]: A list of WorkspaceRole objects representing the available workspace roles.
+            List[WorkspaceRoleResponse]: A list of DefaultRole objects representing the available workspace roles.
         
         Raises:
             HTTPException: If an error occurs while retrieving the workspace roles.

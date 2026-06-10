@@ -59,9 +59,6 @@ const EmailPasswordAuth = ({
             if (turnstileEnabled) {
                 setPendingTurnstileToken(turnstileToken)
             }
-            console.log("[emailpassword-auth] signup submit", {
-                email: values.email,
-            })
             const response = await signUp({
                 formFields: [
                     {
@@ -91,7 +88,7 @@ const EmailPasswordAuth = ({
                 }
                 console.log("[emailpassword-auth] signup ok", {
                     hasUser: Boolean(user),
-                    loginMethods: user?.loginMethods,
+                    loginMethodsCount: user?.loginMethods?.length ?? 0,
                 })
                 await handleAuthSuccess({user})
             }

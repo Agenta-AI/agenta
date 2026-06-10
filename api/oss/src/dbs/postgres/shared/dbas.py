@@ -97,7 +97,6 @@ class LegacyLifecycleDBA:
     )
     updated_at = Column(
         TIMESTAMP(timezone=True),
-        server_onupdate=func.current_timestamp(),
         nullable=True,
     )
     updated_by_id = Column(
@@ -116,7 +115,6 @@ class LifecycleDBA:
     )
     updated_at = Column(
         TIMESTAMP(timezone=True),
-        server_onupdate=func.current_timestamp(),
         nullable=True,
     )
     deleted_at = Column(

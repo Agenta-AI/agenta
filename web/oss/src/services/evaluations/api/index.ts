@@ -1,13 +1,8 @@
+import type {EvaluationConcurrencySettings} from "@/oss/components/pages/evaluations/NewEvaluation/types"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {calcEvalDuration} from "@/oss/lib/evaluations/legacy"
 import {assertValidId, isValidId} from "@/oss/lib/helpers/serviceValidations"
-import {
-    EvaluationStatus,
-    KeyValuePair,
-    LLMRunRateLimit,
-    _Evaluation,
-    _EvaluationScenario,
-} from "@/oss/lib/Types"
+import {EvaluationStatus, KeyValuePair, _Evaluation, _EvaluationScenario} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
 //Prefix convention:
@@ -150,18 +145,16 @@ export type CreateEvaluationData =
           testset_revision_id?: string
           variant_ids?: string[]
           evaluator_revision_ids: string[]
-          rate_limit: LLMRunRateLimit
+          concurrency?: EvaluationConcurrencySettings
           lm_providers_keys?: KeyValuePair
-          correct_answer_column: string
       }
     | {
           testset_id: string
           testset_revision_id?: string
           revisions_ids?: string[]
           evaluator_revision_ids: string[]
-          rate_limit: LLMRunRateLimit
+          concurrency?: EvaluationConcurrencySettings
           lm_providers_keys?: KeyValuePair
-          correct_answer_column: string
           name: string
       }
 export const createEvaluation = async (appId: string, evaluation: CreateEvaluationData) => {
@@ -176,32 +169,49 @@ export const createEvaluation = async (appId: string, evaluation: CreateEvaluati
               : undefined
     const name = "name" in evaluation ? evaluation.name : "Evaluation" // Default name for legacy variant
 
-    // Frontend provides revision IDs directly.
-    return await axios.post(`/simple/evaluations/?project_id=${projectId}`, {
-        evaluation: {
-            name,
-            data: {
-                // All steps use revision IDs directly.
-                testset_steps: evaluation.testset_revision_id
-                    ? {[evaluation.testset_revision_id]: "auto"}
-                    : undefined,
-                application_steps:
-                    revisionIds?.reduce(
-                        (acc, id) => ({...acc, [id]: "auto"}),
-                        {} as Record<string, "auto">,
-                    ) || {},
-                evaluator_steps: evaluation.evaluator_revision_ids.reduce(
-                    (acc, id) => ({...acc, [id]: "auto"}),
-                    {} as Record<string, "auto">,
-                ),
-            },
-            flags: {
-                is_live: false,
-                is_active: true,
-                is_closed: false,
-            },
-        },
-    })
+    // One run per variant. A run carries exactly one application (invocation)
+    // step: a run with multiple application steps is classified `not_planned`
+    // (A/B comparisons must be separate evaluations) and never dispatches, so it
+    // hangs in RUNNING forever. Fan out here so each variant becomes its own
+    // supported testset -> application -> evaluator run.
+    const applicationRevisionIds = revisionIds?.length ? revisionIds : [undefined]
+
+    const evaluatorSteps = evaluation.evaluator_revision_ids.reduce(
+        (acc, id) => ({...acc, [id]: "auto"}),
+        {} as Record<string, "auto">,
+    )
+    const testsetSteps = evaluation.testset_revision_id
+        ? {[evaluation.testset_revision_id]: "auto" as const}
+        : undefined
+
+    const responses = await Promise.all(
+        applicationRevisionIds.map((revisionId) =>
+            // Frontend provides revision IDs directly.
+            axios.post(`/simple/evaluations/?project_id=${projectId}`, {
+                evaluation: {
+                    name,
+                    data: {
+                        // All steps use revision IDs directly.
+                        testset_steps: testsetSteps,
+                        application_steps: revisionId ? {[revisionId]: "auto"} : {},
+                        evaluator_steps: evaluatorSteps,
+                        concurrency: evaluation.concurrency ?? undefined,
+                    },
+                    flags: {
+                        is_live: false,
+                        is_active: true,
+                        is_closed: false,
+                    },
+                },
+            }),
+        ),
+    )
+
+    // Callers read `.data.evaluation.id` off the result; return the first run so
+    // that single-variant flows are unchanged, and expose the rest for callers
+    // that want every created run.
+    const [first, ...rest] = responses
+    return Object.assign(first, {runs: responses, additionalRuns: rest})
 }
 
 export const deleteEvaluations = async (evaluationsIds: string[]) => {
