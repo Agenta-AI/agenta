@@ -9,6 +9,7 @@ import {
     useScopeChangeEviction,
     type RunSchema,
 } from "@agenta/evaluations/etl"
+import {useComparisonPaginations, useComparisonSchemas} from "@agenta/evaluations/hooks"
 import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
 import type {PreviewTableRow} from "@agenta/evaluations/state/evalRun"
 import {
@@ -45,9 +46,6 @@ import {
     EXPORT_RESOLVE_SKIP,
     type TableExportColumnContext,
 } from "@/oss/components/InfiniteVirtualTable/hooks/useTableExport"
-
-import useComparisonPaginations from "../EvalRunDetails2/hooks/useComparisonPaginations"
-import useComparisonSchemas from "../EvalRunDetails2/hooks/useComparisonSchemas"
 
 import ScenarioColumnVisibilityPopoverContent from "./components/columnVisibility/ColumnVisibilityPopoverContent"
 import {resolveScenarioColumnValue} from "./export/columnResolvers"

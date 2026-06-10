@@ -6,7 +6,10 @@ import {
     invalidateEvaluatorsListCache,
     workflowMolecule,
 } from "@agenta/entities/workflow"
-import {workflowRevisionDrawerNavigationIdsAtom} from "@agenta/playground-ui/workflow-revision-drawer"
+import {
+    openWorkflowRevisionDrawerAtom,
+    workflowRevisionDrawerNavigationIdsAtom,
+} from "@agenta/playground-ui/workflow-revision-drawer"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {PageLayout} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
@@ -25,7 +28,6 @@ import {
     setOnboardingWidgetActivationAtom,
 } from "@/oss/lib/onboarding"
 import {appIdentifiersAtom, useQueryParamState} from "@/oss/state/appState"
-import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
 import {getProjectValues} from "@/oss/state/project"
 import {EVALUATOR_FULL_PAGE_NAV_ENABLED, recentEvaluatorIdAtom} from "@/oss/state/workflow"
 
@@ -65,7 +67,7 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
     const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
 
     const [, setQueryRevision] = useQueryParamState("revisionId")
-    const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
+    const openEvaluatorDrawer = useSetAtom(openWorkflowRevisionDrawerAtom)
     const openHumanDrawer = useSetAtom(openHumanEvaluatorDrawerAtom)
     const setNavigationIds = useSetAtom(workflowRevisionDrawerNavigationIdsAtom)
 
@@ -225,7 +227,7 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
 
             openEvaluatorDrawer({
                 entityId: localId,
-                mode: "create",
+                context: "evaluator-create",
                 // The post-create routing (playground vs stay on /evaluators)
                 // is owned by `useDrawerCreateCommitCallback` in the drawer
                 // wrapper now — it reads the just-committed revision's URI /

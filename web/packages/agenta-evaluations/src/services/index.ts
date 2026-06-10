@@ -24,6 +24,8 @@ export {
 
 export {checkAndUpdateRunStatus} from "./scenarios"
 
+export {upsertScenarioMetricData, type UpsertScenarioMetricDataParams} from "./metrics"
+
 export {upsertStepResultWithInvocation, type InvocationReferences} from "./invocations"
 
 export {updateScenarioStatusRemote, upsertScenarioStep} from "./workerUtils"

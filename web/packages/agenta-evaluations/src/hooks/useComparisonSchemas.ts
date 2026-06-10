@@ -1,9 +1,10 @@
 import {useMemo} from "react"
 
-import type {RunSchema} from "@agenta/evaluations/etl"
-import {evaluationRunQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
+
+import type {RunSchema} from "../etl/resolveMappings"
+import {evaluationRunQueryAtomFamily} from "../state/evalRun/atoms/table/run"
 
 interface UseComparisonSchemasArgs {
     compareSlots: (string | null)[]

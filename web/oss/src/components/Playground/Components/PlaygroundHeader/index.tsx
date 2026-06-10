@@ -14,6 +14,7 @@ import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {useEnrichedEvaluatorOnlyAdapter as useEvaluatorOnlyAdapter} from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
+import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {bgColors, textColors} from "@agenta/ui"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
@@ -26,7 +27,6 @@ import dynamic from "next/dynamic"
 import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
-import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 import {currentWorkflowAtom, currentWorkflowContextAtom} from "@/oss/state/workflow"
 import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
@@ -210,7 +210,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         }, 100)
     }, [])
 
-    const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
+    const openEvaluatorDrawer = useSetAtom(openWorkflowRevisionDrawerAtom)
 
     // Handle template selection from EvaluatorTemplateDropdown
     const handleTemplateSelect = useCallback(
@@ -229,7 +229,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
 
             openEvaluatorDrawer({
                 entityId: localId,
-                mode: "create",
+                context: "evaluator-create",
             })
         },
         [openEvaluatorDrawer],

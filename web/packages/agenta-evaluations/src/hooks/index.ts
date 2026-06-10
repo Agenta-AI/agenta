@@ -3,6 +3,9 @@
  *
  * React hooks for preview evaluations.
  */
+export {default as useComparisonPaginations} from "./useComparisonPaginations"
+export {default as useComparisonSchemas} from "./useComparisonSchemas"
+
 export {
     default as usePreviewEvaluations,
     previewEvaluationRunsQueryAtomFamily,

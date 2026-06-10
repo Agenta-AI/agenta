@@ -2,6 +2,7 @@ import {type FC, memo, useCallback, useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {createEvaluatorFromTemplate} from "@agenta/entities/workflow"
+import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {message} from "@agenta/ui/app-message"
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Input, Tabs, Tag, Typography} from "antd"
@@ -12,7 +13,6 @@ import dynamic from "next/dynamic"
 import {openHumanEvaluatorDrawerAtom} from "@/oss/components/Evaluators/Drawers/HumanEvaluatorDrawer/store"
 import useFocusInput from "@/oss/hooks/useFocusInput"
 import type {Evaluator} from "@/oss/lib/Types"
-import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
 
 import TabLabel from "../assets/TabLabel"
 import {NewEvaluationModalContentProps} from "../types"
@@ -81,7 +81,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     const {inputRef} = useFocusInput({isOpen: props.isOpen || false})
     const appSelectionComplete = Boolean(selectedAppId)
 
-    const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
+    const openEvaluatorDrawer = useSetAtom(openWorkflowRevisionDrawerAtom)
     const openHumanDrawer = useSetAtom(openHumanEvaluatorDrawerAtom)
 
     // Handler for opening the human evaluator creation drawer (preview mode)
@@ -106,7 +106,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
 
             openEvaluatorDrawer({
                 entityId: localId,
-                mode: "create",
+                context: "evaluator-create",
                 onEvaluatorCreated,
             })
             onSelectTemplate?.(evaluator)
