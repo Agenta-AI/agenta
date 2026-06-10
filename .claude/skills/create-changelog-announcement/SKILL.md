@@ -8,32 +8,29 @@ user-invocable: true
 # Create Changelog Announcement
 
 This skill guides you through creating complete changelog announcements that include:
-1. Detailed changelog documentation page in `/docs/blog/entries/`
-2. Summary entry in `/docs/blog/main.mdx`
-3. Sidebar announcement card in `/web/oss/src/components/SidebarBanners/data/changelog.json`
-4. Roadmap update in `/docs/src/data/roadmap.ts`
-5. GitHub discussion closure (if applicable)
-6. Social media announcements (LinkedIn, Twitter, Slack)
+1. Changelog entry page in `/docs/blog/entries/` (the changelog index at `/changelog` is generated from these automatically, with pagination)
+2. Sidebar announcement card in `/web/oss/src/components/SidebarBanners/data/changelog.json`
+3. Roadmap update in `/docs/src/data/roadmap.ts`
+4. GitHub discussion closure (if applicable)
+5. Social media announcements (LinkedIn, Twitter, Slack)
 
 ## Your Core Responsibilities
 
 ### 1. **Complete Changelog Creation Workflow**
 
-For every changelog announcement, you create THREE coordinated entries:
+For every changelog announcement, you create TWO coordinated artifacts:
 
-**A. Detailed Entry** (`docs/blog/entries/[feature-slug].mdx`):
+**A. Changelog Entry** (`docs/blog/entries/[feature-slug].mdx`):
 - Comprehensive explanation of the feature or change
 - Code examples, screenshots, or embedded videos
 - Links to related documentation
 - User-focused benefits and use cases
+- A `{/* truncate */}` marker after the intro (and any hero video). Everything
+  above the marker is shown on the paginated `/changelog` index page, followed
+  by a "Read more" link. Short entries (a few paragraphs, no H2 sections) need
+  no marker; they appear in full on the index.
 
-**B. Summary Entry** (`docs/blog/main.mdx`):
-- Concise 1-2 paragraph summary
-- Version number and date
-- Link to detailed entry
-- Embedded media if significant feature
-
-**C. Sidebar Announcement** (`web/oss/src/components/SidebarBanners/data/changelog.json`):
+**B. Sidebar Announcement** (`web/oss/src/components/SidebarBanners/data/changelog.json`):
 - One-sentence description
 - Link to detailed documentation
 - Unique ID with date
@@ -82,7 +79,7 @@ Apply these writing guidelines rigorously:
 
 **Version Format**:
 - Use semantic versioning: `v0.73.0`
-- Include in summary entry
+- Include it as the entry's tag (`tags: [v0.73.0]`); the changelog index shows it as a version chip next to the date
 
 ### 5. **Media Handling**
 
@@ -132,8 +129,8 @@ Apply these writing guidelines rigorously:
 
 Before finalizing, verify:
 - [ ] Version number present and correct
-- [ ] All three entries created (detailed, summary, sidebar)
-- [ ] Summary links to detailed entry correctly
+- [ ] Entry and sidebar announcement created
+- [ ] `{/* truncate */}` marker placed after the intro (for long entries)
 - [ ] Active voice used where possible
 - [ ] No em dashes present
 - [ ] Feature documentation linked if applicable
@@ -144,13 +141,12 @@ Before finalizing, verify:
 
 ### 8. **File Locations Reference**
 
-**Detailed changelog entries:**
+**Changelog entries:**
 - Path: `/docs/blog/entries/[feature-slug].mdx`
 - Example: `/docs/blog/entries/chat-sessions-observability.mdx`
-
-**Summary changelog:**
-- Path: `/docs/blog/main.mdx`
-- Add new entry at the TOP of the file (after imports, before other entries)
+- The changelog index page at `/changelog` is built automatically from these
+  files (sorted by `date`, paginated). There is no separate summary file to
+  maintain.
 
 **Sidebar announcements:**
 - Path: `/web/oss/src/components/SidebarBanners/data/changelog.json`
@@ -189,9 +185,10 @@ description: "One-sentence description of the feature."
 
 {/* NOTE: Do NOT add an H1 heading here. The frontmatter title is automatically rendered as H1 by Docusaurus. */}
 
-## Overview
+[1-3 intro paragraphs explaining what this feature is and why it matters. This intro
+(plus any hero video above it) is what appears on the /changelog index page.]
 
-[2-3 paragraphs explaining what this feature is and why it matters]
+{/* truncate */}
 
 ## Key Capabilities
 
@@ -225,22 +222,16 @@ ag.tracing.store_session(session_id="conversation_123")
 [Optional: What's coming next or related features]
 ```
 
-### Step 4: Add Summary to main.mdx
-Add to `/docs/blog/main.mdx` at the TOP (after imports):
+### Step 4: Place the Truncate Marker
 
-```mdx
-### [Feature Name](/changelog/feature-slug)
+The `/changelog` index page shows everything above the `{/* truncate */}` marker,
+followed by a "Read more" link. Place the marker so the preview works like a
+summary:
 
-_DD Month YYYY_
-
-**vX.Y.Z**
-
-[1-2 paragraph summary explaining what the feature does and why users should care. Focus on benefits and capabilities.]
-
-[Optional: Add embedded video or image if this is a major feature]
-
----
-```
+- Put 1-3 intro paragraphs (and the hero video, if any) above the marker
+- Put the marker before the first `##` section heading
+- Skip the marker entirely for short entries (no `##` sections); they appear in
+  full on the index page
 
 ### Step 5: Add Sidebar Announcement
 Add to `/web/oss/src/components/SidebarBanners/data/changelog.json`:
@@ -406,21 +397,6 @@ Learn more in our documentation:
 We're continuing to enhance session tracking with upcoming features like session-level annotations, session comparisons, and automated session analysis.
 ```
 
-**Summary Entry** (add to `docs/blog/main.mdx`):
-```mdx
-### [Chat Sessions in Observability](/changelog/chat-sessions-observability)
-
-_9 January 2026_
-
-**v0.73.0**
-
-You can now track multi-turn conversations with chat sessions. All traces with the same session ID are automatically grouped together, letting you analyze complete conversations instead of individual requests.
-
-The new session browser shows key metrics like total cost, latency, and token usage per conversation. Open any session to see all traces with their parent-child relationships. This makes debugging chatbots and AI assistants much easier. Add session tracking with one line of code using either our Python SDK or OpenTelemetry.
-
----
-```
-
 **Sidebar Announcement**:
 ```json
 {
@@ -463,21 +439,20 @@ The new session browser shows key metrics like total cost, latency, and token us
 
 When creating a changelog announcement, provide:
 
-1. **Detailed entry content** for `docs/blog/entries/[slug].mdx`
-2. **Summary entry content** to add to `docs/blog/main.mdx`
-3. **Sidebar announcement JSON** to add to `changelog.json`
-4. **Confirmation** that you checked for related documentation
-5. **Any questions** or clarifications needed
+1. **Entry content** for `docs/blog/entries/[slug].mdx` (with the `{/* truncate */}` marker placed after the intro)
+2. **Sidebar announcement JSON** to add to `changelog.json`
+3. **Confirmation** that you checked for related documentation
+4. **Any questions** or clarifications needed
 
 **Be proactive** in identifying unclear requirements. Ask specific questions rather than making assumptions. Your goal is to produce changelog entries that are immediately publishable without requiring revision.
 
 ## Tips for Success
 
-1. **Read existing entries first**: Before creating new entries, read 2-3 recent entries in `main.mdx` and `entries/` to match the tone and structure
+1. **Read existing entries first**: Before creating new entries, read 2-3 recent entries in `entries/` to match the tone and structure
 2. **Be concise**: Users skim changelogs. Front-load the benefit in every sentence.
 3. **Link generously**: Help users find more information easily
 4. **Test your work**: Read the entries out loud to catch awkward phrasing
-5. **Consistency matters**: Ensure terminology matches across all three entries
+5. **Consistency matters**: Ensure terminology matches between the entry and the sidebar announcement
 
 ---
 

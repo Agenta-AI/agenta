@@ -54,6 +54,18 @@ const config: Config = {
         },
         blog: {
           routeBasePath: "/changelog",
+          blogTitle: "Changelog",
+          blogDescription: "New features, improvements, and fixes in Agenta.",
+          postsPerPage: 10,
+          // Keep internal assets (social copy, etc.) out of the published blog.
+          // The first four globs restate the Docusaurus defaults.
+          exclude: [
+            "**/_*.{js,jsx,ts,tsx,md,mdx}",
+            "**/_*/**",
+            "**/*.test.{js,jsx,ts,tsx}",
+            "**/__tests__/**",
+            "announcement-assets/**",
+          ],
           showReadingTime: false,
           feedOptions: {
             type: ["rss", "atom"],
@@ -61,6 +73,9 @@ const config: Config = {
           blogSidebarCount: 0,
           editUrl: "https://github.com/Agenta-AI/agenta/tree/main/docs",
           onInlineTags: "ignore",
+          // Short entries are shown in full on the list page; only long
+          // entries carry a {/* truncate */} marker.
+          onUntruncatedBlogPosts: "ignore",
         },
         theme: {
           customCss: "./src/css/custom.css",
@@ -141,7 +156,7 @@ const config: Config = {
           },
         },
         {
-          to: "/changelog/main",
+          to: "/changelog",
           position: "left",
           label: "Changelog",
           customProps: {
@@ -332,6 +347,10 @@ const config: Config = {
       "@docusaurus/plugin-client-redirects",
       {
         redirects: [
+          {
+            from: "/changelog/main",
+            to: "/changelog",
+          },
           {
             from: "/prompt-management/creating-a-custom-template",
             to: "/custom-workflows/quick-start",

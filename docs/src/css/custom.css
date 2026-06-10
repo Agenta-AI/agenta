@@ -476,8 +476,6 @@ article a:hover {
 }
 
 .cardContainer_node_modules-\@docusaurus-theme-classic-lib-theme-DocCard-styles-module,
-.title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module
-  a,
 .cardContainer_fWXF,
 .hash-link,
 .table-of-contents__link {
@@ -986,36 +984,15 @@ h1[class*="title_"] {
   line-height: 14px !important;
 }
 
-/****************************** changelog file ******************************/
-.container_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Info-styles-module,
-.container_mt6G {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.9rem;
-  margin-bottom: 0;
-  margin-top: 10px;
-  max-width: 1030px;
-  margin-right: auto;
-  margin-left: auto;
-}
-
-.title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module,
-.title_f1Hy {
+/****************************** changelog (blog) pages ******************************/
+/* Single changelog entry page: wide single-column layout */
+.blog-post-page article header h1 {
   margin-top: 40px;
   margin-bottom: 10px;
-  max-width: 1030px;
-  margin-right: auto;
-  margin-left: auto;
 }
 
-/* center the changelog main header and hide its date */
-.changelog-main header .margin-vert--md {
-  display: none;
-}
-
-.changelog-main header h1 {
-  text-align: center;
+.blog-post-page article header time {
+  font-size: 0.9rem;
 }
 
 .blog-post-page .col[class*="col--"] {
@@ -1040,97 +1017,6 @@ h1[class*="title_"] {
 
 .blog-post-page .row {
   display: block;
-}
-
-.changelog {
-  width: 80%;
-  margin-left: auto;
-}
-
-.changelog em {
-  font-style: normal;
-  font-weight: var(--ifm-font-weight-semibold);
-  position: absolute;
-  left: 15px;
-  margin-top: -42px;
-  color: var(--sidebar-link-active-color);
-}
-
-.changelog hr {
-  margin-top: 70px;
-  width: 97%;
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: var(--borderlight);
-}
-
-[data-theme="dark"] .changelog hr {
-  background-color: var(--borderdefault);
-}
-
-.changelog h3 {
-  margin-top: 160px;
-}
-
-.changelog h3:first-child {
-  margin-top: 60px;
-}
-
-@media (max-width: 995px) {
-  .title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module,
-  .title_f1Hy {
-    padding-left: 0px;
-  }
-
-  .changelog {
-    width: 100%;
-    margin-left: auto;
-  }
-
-  .changelog hr {
-    margin-top: 50px;
-    width: 96%;
-  }
-
-  .changelog em {
-    font-weight: 500;
-    position: absolute;
-    left: auto;
-    margin-top: -100px !important;
-  }
-
-  .changelog h3 {
-    margin-top: 195px;
-  }
-
-  .changelog h3:first-child {
-    margin-top: 110px;
-  }
-}
-
-@media (max-width: 520px) {
-  .changelog hr {
-    margin: 50px auto 28%;
-    width: 100%;
-    position: static;
-    left: 0;
-    transform: translateX(0);
-  }
-
-  .changelog em {
-    font-weight: 500;
-    position: absolute;
-    left: auto;
-    margin-top: -105px !important;
-  }
-
-  .changelog h3 {
-    margin-top: 0px;
-    height: auto;
-    max-height: 58px;
-    overflow: hidden;
-  }
 }
 
 /* highlight error code */

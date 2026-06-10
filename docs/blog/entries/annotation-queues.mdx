@@ -24,6 +24,8 @@ The most useful thing you can do when building an LLM app is read your traces. Y
 
 Until now, that loop happened outside Agenta. Annotation queues bring it inside.
 
+{/* truncate */}
+
 A queue holds a batch of traces or a batch of test cases. You attach a scoring schema (defined in the Evaluator Playground), assign reviewers, and watch progress as they work through it. The annotations live on the trace or test case they belong to, and a reviewed trace queue can be exported as a labeled test set in one step.
 
 ## A walkthrough: error analysis on production traces
