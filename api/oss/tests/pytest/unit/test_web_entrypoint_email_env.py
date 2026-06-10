@@ -2,7 +2,14 @@ import subprocess
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[5]
+def find_repo_root(start: Path) -> Path:
+    for parent in [start, *start.parents]:
+        if (parent / "web" / "entrypoint.sh").exists():
+            return parent
+    raise RuntimeError("Could not find repository root")
+
+
+REPO_ROOT = find_repo_root(Path(__file__).resolve())
 
 
 def _run_entrypoint(tmp_path, repo_root, env):
