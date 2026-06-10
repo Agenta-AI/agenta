@@ -287,6 +287,9 @@ async function chooseCustomProvider(drawer: Locator, page: Page): Promise<void> 
 
     // Retry opening the dropdown — the select can transiently detach during the drawer's
     // initial render cycle (Ant Design re-mounts form controls after the slide animation).
+    // Use waitFor (not isVisible) after each click: isVisible is a one-shot snapshot that
+    // never retries, so it returns false if the dropdown hasn't rendered yet at that exact
+    // instant. waitFor({state:'visible'}) retries until the element appears or times out.
     await expect
         .poll(
             async () => {
@@ -306,7 +309,8 @@ async function chooseCustomProvider(drawer: Locator, page: Page): Promise<void> 
                 }
                 return await options
                     .first()
-                    .isVisible({timeout: 3000})
+                    .waitFor({state: "visible", timeout: 5000})
+                    .then(() => true)
                     .catch(() => false)
             },
             {timeout: 30000},

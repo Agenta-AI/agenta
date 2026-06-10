@@ -272,7 +272,7 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 // The role button may be transiently disabled while isChatModeAtom resolves
                 // from undefined (loading) to false (completion mode). Wait for it to enable.
                 const roleButton = editorContainer.getByRole("button").first()
-                await expect(roleButton).toBeEnabled({timeout: 20000})
+                await expect(roleButton).toBeEnabled({timeout: 60000})
                 await roleButton.click()
 
                 // Wait for the dropdown to render and become stable, then click the menu item

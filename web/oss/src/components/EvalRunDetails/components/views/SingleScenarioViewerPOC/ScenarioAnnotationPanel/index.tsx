@@ -257,18 +257,15 @@ const ScenarioAnnotationPanel = ({
             const allRequests = [...updateRequests, ...createRequests]
             const responses = await Promise.all(allRequests.map((r) => r.promise))
 
-            // Annotation records persisted — give immediate user feedback before
-            // the slower supplementary updates (status, metrics, cache invalidation).
-            message.success("Annotations saved successfully")
-
+            // Prevent double-submit while supplementary updates run.
             const currentAnnotationCount = annotations.length
             const newAnnotationsCount = allRequests.filter((r) => r.isNew).length
             expectedAnnotationCountRef.current = currentAnnotationCount + newAnnotationsCount
             setJustSaved(true)
 
-            // Supplementary updates: step-result links, metric aggregates, scenario/run
-            // status, and cache invalidation. These don't affect the saved annotation —
-            // failures here are logged but don't roll back or hide the success toast.
+            // Step 1 (optional): link step results and compute scenario status / metric
+            // aggregates. Failures here are logged but don't block the critical path.
+            let scenarioStatus: "success" | "error" = "success"
             try {
                 const stepResultUpdates: Promise<void>[] = []
                 responses.forEach((response, index) => {
@@ -323,7 +320,6 @@ const ScenarioAnnotationPanel = ({
                     await Promise.all(stepResultUpdates)
                 }
 
-                let scenarioStatus: "success" | "error" = "success"
                 try {
                     const {queryStepResults} =
                         await import("@/oss/services/evaluations/results/api")
@@ -375,41 +371,54 @@ const ScenarioAnnotationPanel = ({
                         data: allMetricData,
                     })
                 }
-
-                await updateScenarioStatus(scenarioId, scenarioStatus)
-                await checkAndUpdateRunStatus(runId)
-
-                markScenarioAsRecentlySaved(scenarioId)
-
-                const {projectId} = getProjectValues()
-                if (projectId) {
-                    await triggerMetricsRefresh({projectId, runId, scenarioId})
-                }
-
-                invalidateAnnotationBatcherCache()
-                invalidateScenarioStepsBatcherCache()
-                invalidateMetricBatcherCache()
-                invalidateRunMetricStats(runId)
-
-                clearPreviewRunsCache()
-                invalidateRunsTable()
-                await queryClient.refetchQueries({
-                    predicate: (query) => {
-                        const key = query.queryKey
-                        if (!Array.isArray(key)) return false
-                        if (key[0] === "evaluation-runs-table") return true
-                        if (key[0] === "preview" && key[1] === "run-metric-stats") return true
-                        if (key[0] === "preview" && key[1] === "evaluation-run") return true
-                        if (key[0] === "eval-table" && key[1] === "scenarios") return true
-                        if (key[0] === "evaluation-preview-table") return true
-                        if (key[0] === "preview" && key[1] === "scenario-steps") return true
-                        if (key[0] === "preview" && key[1] === "scenario-annotations") return true
-                        return false
-                    },
-                })
             } catch (err) {
-                console.error("[ScenarioAnnotationPanel] Post-save update failed:", err)
+                console.error(
+                    "[ScenarioAnnotationPanel] Optional supplementary update failed:",
+                    err,
+                )
             }
+
+            // Step 2 (critical): update scenario/run status and invalidate all caches.
+            // Each awaited call uses .catch() so a failure in one step never skips the rest.
+            // The toast fires last so the test can rely on the Scenarios table being up to date
+            // by the time it sees "Annotations saved successfully".
+            await updateScenarioStatus(scenarioId, scenarioStatus).catch((err) =>
+                console.error("[ScenarioAnnotationPanel] updateScenarioStatus failed:", err),
+            )
+            await checkAndUpdateRunStatus(runId).catch((err) =>
+                console.error("[ScenarioAnnotationPanel] checkAndUpdateRunStatus failed:", err),
+            )
+
+            markScenarioAsRecentlySaved(scenarioId)
+
+            const {projectId} = getProjectValues()
+            if (projectId) {
+                triggerMetricsRefresh({projectId, runId, scenarioId}).catch(() => {})
+            }
+
+            invalidateAnnotationBatcherCache()
+            invalidateScenarioStepsBatcherCache()
+            invalidateMetricBatcherCache()
+            invalidateRunMetricStats(runId)
+
+            clearPreviewRunsCache()
+            invalidateRunsTable()
+            await queryClient.refetchQueries({
+                predicate: (query) => {
+                    const key = query.queryKey
+                    if (!Array.isArray(key)) return false
+                    if (key[0] === "evaluation-runs-table") return true
+                    if (key[0] === "preview" && key[1] === "run-metric-stats") return true
+                    if (key[0] === "preview" && key[1] === "evaluation-run") return true
+                    if (key[0] === "eval-table" && key[1] === "scenarios") return true
+                    if (key[0] === "evaluation-preview-table") return true
+                    if (key[0] === "preview" && key[1] === "scenario-steps") return true
+                    if (key[0] === "preview" && key[1] === "scenario-annotations") return true
+                    return false
+                },
+            })
+
+            message.success("Annotations saved successfully")
         } finally {
             setIsSubmitting(false)
         }

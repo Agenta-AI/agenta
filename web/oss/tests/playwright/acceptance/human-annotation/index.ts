@@ -357,14 +357,27 @@ const humanAnnotationTests = () => {
             // pre-seeding, waitForHumanAnnotationForm waits for the LLM to respond (up to 90s).
             // Seeding here ensures hasInvocationTrace=true when the component mounts, which
             // skips auto-run entirely and lets the annotation form appear immediately.
+            //
+            // The API call can fail transiently (e.g. scenario not yet fully ready after run
+            // creation). Retry a few times before giving up — if all retries fail,
+            // waitForHumanAnnotationForm will seed naturally during the annotation poll.
             const currentRunId = new URL(page.url()).pathname.match(
                 /\/evaluations\/results\/([^/]+)/,
             )?.[1]
             if (currentRunId && secondScenarioId) {
-                await seedHumanInvocationResult(page, {
-                    runId: currentRunId,
-                    scenarioId: secondScenarioId as string,
-                })
+                let preSeedSucceeded = false
+                for (let attempt = 0; attempt < 4 && !preSeedSucceeded; attempt++) {
+                    if (attempt > 0) await page.waitForTimeout(3000)
+                    try {
+                        await seedHumanInvocationResult(page, {
+                            runId: currentRunId,
+                            scenarioId: secondScenarioId as string,
+                        })
+                        preSeedSucceeded = true
+                    } catch {
+                        // transient failure — retry or fall back to natural seeding
+                    }
+                }
             }
 
             const scenario2Url = new URL(page.url())
