@@ -1,3 +1,4 @@
+import {deriveEvaluationKind} from "@agenta/evaluations/core"
 import {createBatchFetcher, type BatchFetcher} from "@agenta/shared/utils"
 import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
@@ -5,7 +6,6 @@ import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 import {getProjectValues} from "@/oss/state/project"

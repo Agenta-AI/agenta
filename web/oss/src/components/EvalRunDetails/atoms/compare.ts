@@ -1,7 +1,6 @@
+import {buildRunIndex, type RunIndex} from "@agenta/evaluations/core"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-
-import {buildRunIndex, type RunIndex} from "@/oss/lib/evaluations/buildRunIndex"
 
 import {evaluationRunQueryAtomFamily} from "./table/run"
 import type {EvaluationRunQueryResult} from "./table/run"

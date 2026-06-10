@@ -1,7 +1,8 @@
 import type {ReactNode} from "react"
 
+import {deriveEvaluationKind} from "@agenta/evaluations/core"
+
 import {ColumnVisibilityHeader} from "@/oss/components/InfiniteVirtualTable"
-import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import {EVALUATION_KIND_LABELS} from "../../constants"

@@ -1,6 +1,5 @@
+import {deriveEvaluationKind} from "@agenta/evaluations/core"
 import {Tag, Typography} from "antd"
-
-import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 
 import {EVALUATION_KIND_LABELS} from "../../constants"
 import type {EvaluationRunTableRow} from "../../types"

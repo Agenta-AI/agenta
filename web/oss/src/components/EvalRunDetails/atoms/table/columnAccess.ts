@@ -1,7 +1,6 @@
+import type {RunIndex} from "@agenta/evaluations/core"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-
-import type {RunIndex} from "@/oss/lib/evaluations/buildRunIndex"
 
 import {splitPath} from "../../utils/valueAccess"
 

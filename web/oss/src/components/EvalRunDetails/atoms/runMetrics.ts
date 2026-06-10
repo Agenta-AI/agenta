@@ -1,11 +1,11 @@
 import {queryEvaluationMetricsBatch} from "@agenta/entities/evaluationRun"
+import {deriveEvaluationKind} from "@agenta/evaluations/core"
 import {createBatchFetcher} from "@agenta/shared/utils"
 import {atom, Atom} from "jotai"
 import {atomFamily, loadable} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {evaluationRunQueryAtomFamily} from "@/oss/components/EvalRunDetails/atoms/table/run"
-import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 import {BasicStats, canonicalizeMetricKey, getMetricValueWithAliases} from "@/oss/lib/metricUtils"
 
 import {previewEvalTypeAtom} from "../state/evalType"

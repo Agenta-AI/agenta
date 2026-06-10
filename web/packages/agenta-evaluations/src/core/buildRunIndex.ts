@@ -28,7 +28,13 @@ export interface StepMeta {
     origin?: string
     /** List of upstream step keys declared in `inputs` */
     upstream: string[]
-    /** Raw references blob – may contain application, evaluator, etc. */
+    /**
+     * Raw references blob – may contain application, evaluator, etc.
+     *
+     * Intentionally typed as `any` to preserve the original public shape relied on by
+     * OSS consumers that pass `refs` into helpers expecting `Record<string, any>`.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     refs: Record<string, any>
 }
 
@@ -43,17 +49,50 @@ export interface RunIndex {
     inputKeys: Set<string>
 }
 
+/** Loose shape of an evaluator reference embedded in a step's references blob. */
+interface RawEvaluatorRef {
+    slug?: string
+    id?: string
+}
+
+/** Loose shape of a single raw step as returned by the run API. */
+interface RawStep {
+    key: string
+    type?: string
+    origin?: string
+    references?: Record<string, unknown> & {evaluator?: RawEvaluatorRef}
+    inputs?: {key: string}[]
+}
+
+/** Loose shape of a single raw column mapping as returned by the run API. */
+interface RawMapping {
+    column: {name: string; kind?: string}
+    step: {key: string; path: string}
+}
+
+/** Loose shape of the raw evaluation run passed to {@link buildRunIndex}. */
+interface RawRun {
+    evaluation_type?: string
+    data?: {
+        evaluation_type?: string
+        steps?: RawStep[]
+        mappings?: RawMapping[]
+    }
+    meta?: {evaluation_type?: string}
+}
+
 /**
  * Build a ready-to-use index for an evaluation run.
  * Call this **once** right after fetching the raw run and cache the result.
  * The index can then be shared by single-scenario and bulk fetchers.
  */
-export function buildRunIndex(rawRun: any): RunIndex {
+export function buildRunIndex(rawRunInput: unknown): RunIndex {
+    const rawRun = (rawRunInput ?? {}) as RawRun
     const steps: Record<string, StepMeta> = {}
     const columnsByStep: Record<string, ColumnDef[]> = {}
 
     // Build evaluator slug->key set later
-    const evaluatorSlugToId = new Map<string, string>()
+    const evaluatorSlugToId = new Map<string, string | undefined>()
 
     // 1️⃣  Index steps -------------------------------------------------------
     const isBrowser = typeof window !== "undefined"
@@ -114,7 +153,7 @@ export function buildRunIndex(rawRun: any): RunIndex {
             key: s.key,
             kind,
             origin,
-            upstream: (s.inputs ?? []).map((i: any) => i.key),
+            upstream: (s.inputs ?? []).map((i) => i.key),
             refs: s.references ?? {},
         }
     }
@@ -179,7 +218,10 @@ export function serializeRunIndex(idx: RunIndex) {
     }
 }
 
-export function deserializeRunIndex(idx: any): RunIndex {
+/** Serialized form of a {@link RunIndex} (Sets flattened to arrays for transport). */
+export type SerializedRunIndex = ReturnType<typeof serializeRunIndex>
+
+export function deserializeRunIndex(idx: SerializedRunIndex): RunIndex {
     return {
         ...idx,
         invocationKeys: new Set(idx.invocationKeys),

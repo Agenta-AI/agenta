@@ -1,10 +1,6 @@
+import {deriveEvaluationKind, type EvaluationRunKind} from "@agenta/evaluations/core"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-
-import {
-    deriveEvaluationKind,
-    type EvaluationRunKind,
-} from "@/oss/lib/evaluations/utils/evaluationKind"
 
 import {evaluationRunQueryAtomFamily} from "../atoms/table/run"
 

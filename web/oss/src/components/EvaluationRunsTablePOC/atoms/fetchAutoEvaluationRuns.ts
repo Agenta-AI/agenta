@@ -1,5 +1,6 @@
+import {deriveEvaluationKind} from "@agenta/evaluations/core"
+
 import type {WindowingState} from "@/oss/components/InfiniteVirtualTable/types"
-import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 
 import type {QueryWindowingPayload} from "../../../services/onlineEvaluations/api"
 import type {

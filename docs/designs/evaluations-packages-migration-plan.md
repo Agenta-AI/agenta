@@ -349,6 +349,34 @@ so the source of truth is OSS `EvalRunDetails/etl`, not annotation (see §4 exce
   the atom/API layer + the real-project read-only smoke + a manual UI matrix. Capture
   before/after screenshots per route.
 
+#### WP-4 execution DAG (leaves-first, mapped 2026-06-10)
+
+No circular deps between subsystems; everything flows lib → services → hooks → atoms → state →
+etl/UI → views. ~12k LOC across 60+ files. Move leaves first, commit each, parity-gate before
+ANY deletion. Sub-steps:
+
+- **4a** `oss/lib/evaluations/` (buildRunIndex, utils/{evaluationKind,metrics}, types, legacy) →
+  `@agenta/evaluations`. ⚠️ Verify: it imports OSS-local legacy (`components/pages/evaluations/
+  cellRenderers`, `services/evaluations/api`) — untangle or carry; and resolve the §6 question
+  (does `buildRunIndex` overlap/collapse into the already-moved `resolveMappings`/`groupRunColumns`?).
+- **4b** `oss/services/evaluations/` (results/scenarios/invocations api + workerUtils) → `@agenta/evaluations`.
+- **4c** `oss/services/evaluationRuns/` (createEvaluationRunConfig) → `@agenta/evaluations` (note buildRunConfig already exists there — dedup).
+- **4d** `oss/lib/hooks/usePreviewEvaluations/` → `@agenta/evaluations` (blocks on 4a, 4c).
+- **4e** `EvalRunDetails/atoms/` (~22 movable files + `evaluationPreviewTableStore`) → `@agenta/evaluations` (blocks on 4a, 4d). `runInvocationAction.ts` couples to EvaluationRunsTablePOC — inject the invalidation callback (don't hard-import).
+- **4f** `EvalRunDetails/state/` → `@agenta/evaluations` (blocks on 4e).
+- **4g** deferred ETL: column hooks `useEtlColumns`/`columnValueTypes`/`useScenarioLiveUpdates` →
+  `@agenta/evaluations`; UI `ScenarioFilterBar`/`EtlColumnHeader`/`EtlResolvedCell` → `@agenta/evaluations-ui` (blocks on 4e, 4b).
+- **4h** re-point `EvalRunDetails/Table.tsx` + index → packages (blocks on 4e/4f/4g).
+- **4i** re-point `EvaluationRunsTablePOC` (+ its export layer) → packages atoms.
+- **4j** resolve `runInvocationAction` coupling (callback injection).
+- **4k** DELETE OSS dups — only after 4h/4i green. Point of no return.
+- **4l** PARITY GATE: integration tests at atom/API layer + real-project smoke + **manual UI
+  matrix + before/after screenshots** across all §4 routes. No deletion sign-off without it.
+
+Stays in OSS (broadly-shared, NOT eval-specific; packages import via `@/oss`-provided or already
+package-provided equivalents): `@/oss/state/{project,workspace,entities,app}`, `@/oss/lib/Types`,
+`@/oss/lib/api`, `@/oss/components/InfiniteVirtualTable`, generic helpers.
+
 ### WP-5 — Rename `annotation`→`annotations`, `annotation-ui`→`annotations-ui` (optional/last)
 - Cosmetic alignment with `evaluations`/`evaluations-ui`. Pure rename + re-export shims, no
   logic. Do last to avoid churn during WP-1..4.
