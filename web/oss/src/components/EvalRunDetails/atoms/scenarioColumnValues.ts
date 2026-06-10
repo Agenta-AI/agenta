@@ -1,4 +1,4 @@
-import type {IStepResponse} from "@agenta/evaluations/core"
+import type {IStepResponse, PreviewTestCase} from "@agenta/evaluations/core"
 import {formatMetricDisplay} from "@agenta/ui/cell-renderers"
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
@@ -387,7 +387,7 @@ const resolveAnnotationValue = (
     if (!annotation) return undefined
 
     const pathSegments = descriptor.pathSegments ?? column.pathSegments ?? splitPath(column.path)
-    const outputs = annotation?.data?.outputs ?? {}
+    const outputs = (annotation?.data?.outputs ?? {}) as Record<string, any>
     const annotationDescriptor = descriptor.annotation
     const metricCandidates = annotationDescriptor?.metricPathCandidates ?? []
 

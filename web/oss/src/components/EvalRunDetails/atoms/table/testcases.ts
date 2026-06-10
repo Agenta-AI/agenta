@@ -1,10 +1,10 @@
+import type {PreviewTestCase} from "@agenta/evaluations/core"
 import {createBatchFetcher, type BatchFetcher} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import type {PreviewTestCase} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
 import {resolveTestcaseValueByPath, splitPath} from "../../utils/valueAccess"
@@ -71,7 +71,9 @@ export const evaluationTestcaseBatcherFamily = atomFamily(({runId}: {runId?: str
                     rows.forEach((row: any) => {
                         const normalized = normalizeTestcase(row)
                         if (normalized?.id) {
-                            result[normalized.id] = normalized
+                            // `id` resolves through PreviewTestCase's index signature (typed
+                            // `unknown`) but is a string at runtime (set in normalizeTestcase).
+                            result[normalized.id as string] = normalized
                         }
                     })
 
@@ -91,7 +93,9 @@ export const evaluationTestcaseBatcherFamily = atomFamily(({runId}: {runId?: str
     }),
 )
 
-export const evaluationTestcaseBatcherAtom = atom((get) => get(evaluationTestcaseBatcherFamily()))
+export const evaluationTestcaseBatcherAtom = atom((get) =>
+    get(evaluationTestcaseBatcherFamily(undefined)),
+)
 
 export const evaluationTestcaseQueryAtomFamily = atomFamily(
     ({testcaseId, runId}: {testcaseId: string; runId?: string | null}) =>

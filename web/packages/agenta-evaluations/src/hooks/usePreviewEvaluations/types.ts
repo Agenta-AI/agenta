@@ -46,6 +46,8 @@ export interface EvaluationRun {
     description: string
     /** ISO timestamp of when the run was created */
     created_at: string
+    /** ISO timestamp of when the run was last updated (present on backend run payloads) */
+    updated_at?: string
     /** ID of the user who created the run */
     created_by_id: string
     /** Optional metadata object (arbitrary key-value pairs) */

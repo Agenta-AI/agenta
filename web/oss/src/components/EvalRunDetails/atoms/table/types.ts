@@ -1,5 +1,9 @@
 import type {EvaluatorDefinition, MetricColumnDefinition} from "@agenta/entities/workflow"
 
+// Re-exported so consumers can pull it from the `atoms/table` barrel alongside the other
+// table types (several already import it this way).
+export type {MetricColumnDefinition}
+
 export type EvaluationColumnKind =
     | "meta"
     | "testset"

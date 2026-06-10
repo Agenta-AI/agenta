@@ -135,7 +135,7 @@ export function readInvocationResponse({
     }
 
     const resolvedCandidates = Array.from(
-        new Set(candidatePaths.filter((p): p is string => typeof p === "string" && p.length)),
+        new Set(candidatePaths.filter((p): p is string => typeof p === "string" && p.length > 0)),
     )
     const resolvedPath = resolvedCandidates[0]
     // --- END PATH RESOLUTION LOGIC ---

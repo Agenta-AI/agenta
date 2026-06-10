@@ -20,6 +20,16 @@ import {COLUMN_WIDTHS} from "../constants/table"
 
 import {humanizeStepKey, resolveGroupLabel} from "./labelHelpers"
 
+// antd's ColumnType/ColumnGroupType don't model the custom `columnVisibilityLabel` field
+// that `InfiniteVirtualTable`/`ColumnVisibilityHeader` consume (mirrors `ColumnLike` in
+// `InfiniteVirtualTable/hooks/useColumnVisibility.ts`). These local aliases add it so the
+// emitted column objects type-check; the field is read at runtime, no behavior change.
+type PreviewColumnType<RowType> = ColumnType<RowType> & {columnVisibilityLabel?: string}
+type PreviewColumnElement<RowType> = ColumnsType<RowType>[number] & {
+    columnVisibilityLabel?: string
+}
+type PreviewColumnsType<RowType> = PreviewColumnElement<RowType>[]
+
 const TITLEIZE = (value: string) =>
     value
         .replace(/[_\-.]+/g, " ")
@@ -245,7 +255,7 @@ export function buildPreviewColumns<RowType>({
         }
     }
 
-    const buildLeafColumn = (column: EvaluationTableColumn): ColumnType<RowType> | null => {
+    const buildLeafColumn = (column: EvaluationTableColumn): PreviewColumnType<RowType> | null => {
         const widthByStepType: Record<string, number> = {
             meta: 80,
             input: COLUMN_WIDTHS.input,
@@ -264,7 +274,13 @@ export function buildPreviewColumns<RowType>({
         const columnType = column.stepType ?? column.kind
         let width =
             widthByStepType[columnType] ??
-            (column.kind === "input" && column.id?.includes("groundTruth")
+            // NOTE (latent dead branch, typed as-is per WP-4e-2a): `column.kind` is an
+            // `EvaluationColumnKind`, which has no `"input"` member (only `stepType` does),
+            // so this comparison is always false at runtime and `width` always falls through
+            // to `COLUMN_WIDTHS.metric`. The cast preserves that exact behavior while letting
+            // the comparison type-check. Likely intended `column.stepType`/`columnType` —
+            // flagged for QA, not changed.
+            ((column.kind as string) === "input" && column.id?.includes("groundTruth")
                 ? COLUMN_WIDTHS.groundTruth
                 : COLUMN_WIDTHS.metric)
 
@@ -454,7 +470,7 @@ export function buildPreviewColumns<RowType>({
 
     const orderedGroups = [...groups].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 
-    const builtColumns: ColumnsType<RowType> = []
+    const builtColumns: PreviewColumnsType<RowType> = []
     const renderedColumnIds = new Set<string>()
 
     // Include scenarioIndexStatus and timestamp columns as leading meta columns

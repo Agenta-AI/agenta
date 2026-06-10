@@ -1,3 +1,4 @@
+import {type EvaluationRunKind} from "@agenta/evaluations/core"
 import {canonicalizeMetricKey} from "@agenta/shared/metrics"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
@@ -14,6 +15,8 @@ import {
     RunRefreshDetailResult,
     ScenarioRefreshDetailResult,
 } from "./runMetrics/types"
+
+export type {MetricProcessor, MetricScope}
 
 // Debug logger that only logs in development environments
 const isDev = process.env.NODE_ENV === "development"
@@ -144,7 +147,7 @@ export const createMetricProcessor = ({
     source,
     evaluationType,
 }: MetricProcessorOptions & {
-    evaluationType?: "auto" | "human" | "online" | null
+    evaluationType?: EvaluationRunKind | null
 }): MetricProcessor => {
     const state: MetricProcessorState = {
         pending: [],
@@ -690,7 +693,7 @@ export const createMetricProcessor = ({
                     )
                     const newMetricIds = runMetrics
                         .map((metric: any) => metric?.id)
-                        .filter((id): id is string => Boolean(id))
+                        .filter((id: unknown): id is string => Boolean(id))
                     const runReasons = new Set<string>()
                     const runOldMetricIds = new Set<string>()
                     pending
@@ -701,7 +704,9 @@ export const createMetricProcessor = ({
                         })
 
                     const oldMetricIdsArray = Array.from(runOldMetricIds)
-                    const reusedRunMetricIds = newMetricIds.filter((id) => runOldMetricIds.has(id))
+                    const reusedRunMetricIds = newMetricIds.filter((id: string) =>
+                        runOldMetricIds.has(id),
+                    )
                     const staleRunMetricIds = oldMetricIdsArray.filter(
                         (id) => !reusedRunMetricIds.includes(id),
                     )

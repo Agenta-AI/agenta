@@ -1,6 +1,4 @@
-import type {IStepResponse} from "@agenta/evaluations/core"
-
-import type {PreviewTestCase} from "@/oss/lib/Types"
+import type {IStepResponse, PreviewTestCase} from "@agenta/evaluations/core"
 
 export const splitPath = (path: string): string[] => {
     return path.split(".").filter(Boolean)

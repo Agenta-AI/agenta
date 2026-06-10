@@ -10,6 +10,7 @@ import {titleize, formatReferenceLabel, humanizeStepKey} from "../../utils/label
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "./evaluators"
 import {evaluationRunQueryAtomFamily} from "./run"
 import type {
+    EvaluationColumnGroupKind,
     EvaluationColumnKind,
     EvaluationTableColumn,
     EvaluationTableColumnGroup,
@@ -140,7 +141,7 @@ type StepRole = "input" | "invocation" | "query"
 interface StepGroupInfo {
     id: string
     label: string
-    kind: "input" | "invocation"
+    kind: EvaluationColumnGroupKind
     columns: EvaluationTableColumn[]
     order: number
     meta?: {
@@ -324,7 +325,7 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
         const evaluatorQuery = get(evaluationEvaluatorsByRunQueryAtomFamily(runId))
         const evaluators = evaluatorQuery?.data ?? []
 
-        const mappings = Array.isArray(runData.camelRun?.data?.mappings)
+        const mappings: RawMapping[] = Array.isArray(runData.camelRun?.data?.mappings)
             ? runData.camelRun.data.mappings
             : []
 

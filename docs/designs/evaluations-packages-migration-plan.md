@@ -625,3 +625,24 @@ close the migration with an open entry here.
 - **Fix direction:** add a UI-free `@agenta/evaluations`-side leak harness (or narrow UI-free
   entities subpaths) that exercises the combined paginatedStore + molecule path. Its own task.
 - **Status:** OPEN — restore before §9 DoD.
+
+### 11.3 Pre-existing latent runtime bugs in EvalRunDetails, surfaced by WP-4e-2a (NOT migration regressions)
+
+WP-4e-2a type-checked the EvalRunDetails atom layer (which OSS ships with ~45 tsc errors the bundler
+ignores). Five latent runtime bugs were **typed-as-is, NOT fixed** (behavior preserved). They predate
+the migration; triage/fix separately (likely with the EvalRunDetails parity QA). For QA:
+1. **`atoms/metrics.ts` `applyAggregatesToRaw`** — referenced in `buildRunLevelMetricData`, defined/
+   imported nowhere → `ReferenceError` whenever run-level metric data is built.
+2. **`atoms/runMetrics.ts` `metricProcessor`** — referenced at the run-level-gap branch (~L880) but the
+   in-scope processor is named `processor` → `ReferenceError` when `shouldMarkRunLevelGap` is true.
+3. **`utils/buildSkeletonColumns.ts`** — the "outputs" group call passes 5 positional args (omits
+   `stepType`) → at runtime `order: NaN`, `stepType: 200` for the outputs skeleton group.
+4. **`utils/buildPreviewColumns.tsx`** — `column.kind === "input"` is always false (kind has no
+   `"input"`; likely meant `stepType`/`columnType`) → width always falls through to `metric`.
+5. **`atoms/runMetrics.ts` (~L1223/1352)** — `loadable.data` is the full `AtomWithQueryResult` wrapper,
+   not the unwrapped `RunLevelStatsMap` (elsewhere at ~L1050 it's correctly unwrapped via `"data" in`).
+   Possible run-level-stats unwrap inconsistency.
+- **Status:** OPEN — pre-existing; flag to eval owners; verify during EvalRunDetails parity QA.
+
+> **Note:** the OSS tsc baseline dropped from **588 → 522** at WP-4e-2a (the ~45 eval-atom errors +
+> ~21 root-caused side effects fixed). **All subsequent "oss tsc steady" gates use 522, not 588.**

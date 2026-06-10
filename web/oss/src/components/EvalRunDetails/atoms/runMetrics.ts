@@ -10,8 +10,21 @@ import {evaluationRunQueryAtomFamily} from "@/oss/components/EvalRunDetails/atom
 
 import {previewEvalTypeAtom} from "../state/evalType"
 
-import {clearBootstrapAttempt, createMetricProcessor, type MetricScope} from "./metricProcessor"
+import {
+    clearBootstrapAttempt,
+    createMetricProcessor,
+    type MetricProcessor,
+    type MetricScope,
+} from "./metricProcessor"
 import {effectiveProjectIdAtom} from "./run"
+
+// NOTE (latent runtime bug, typed as-is per WP-4e-2a): `metricProcessor` is referenced at
+// the run-level-gap branch below but no such binding exists in that scope — the processor
+// created inside `processMetrics` is named `processor` and is out of scope there. At runtime
+// this throws a ReferenceError whenever `shouldMarkRunLevelGap` is true. We declare it
+// (emits no JS) so the type-check is faithful WITHOUT changing the runtime behavior. Do not
+// "fix" by wiring up a real processor — that would change behavior. See QA flag.
+declare const metricProcessor: MetricProcessor
 
 type RunLevelStatsMap = Record<string, BasicStats>
 
@@ -257,7 +270,7 @@ const mergeBasicStats = (current: BasicStats | undefined, incoming: BasicStats):
         result.rank = mergedRank
     }
 
-    const mergedUnique = mergeUniqueValues(result.unique, incoming.unique)
+    const mergedUnique = mergeUniqueValues(result.unique, incoming.unique as any[] | undefined)
     if (mergedUnique) {
         result.unique = mergedUnique
     }
@@ -1207,7 +1220,7 @@ export const runTemporalMetricKeysAtomFamily = atomFamily((runId: string | null 
         if (loadable.state !== "hasData") {
             return cachedFlag ?? false
         }
-        const statsMap = (loadable.data as RunLevelStatsMap) ?? {}
+        const statsMap = (loadable.data as unknown as RunLevelStatsMap) ?? {}
         const inferred = Object.keys(statsMap || {}).some((key) => key.includes("temporal"))
         if (inferred) {
             temporalRunFlags.set(runId, true)
@@ -1336,7 +1349,7 @@ export const latestTemporalMetricStatsSelectorFamily = atomFamily(
             // Fallback to run-level stats if temporal series is empty or doesn't have matching data
             // This is important for online evaluations where metrics might not have timestamps
             if (loadableResult.state === "hasData" && loadableResult.data) {
-                const runLevelStats = loadableResult.data as Record<string, BasicStats>
+                const runLevelStats = loadableResult.data as unknown as Record<string, BasicStats>
                 // Run-level stats use dot separator (stepKey.metricKey), not colon
                 const candidates = [
                     stepKey && metricPath ? `${stepKey}.${metricPath}` : null,
