@@ -151,12 +151,10 @@ const GenerationComparisonChatOutputCell = ({
                                 }}
                                 messageProps={{
                                     className: "!p-0 !mt-0 [&:nth-child(1)]:!mt-0 mt-2",
-                                    // Comparison cells set their own editor padding via
-                                    // editorClassName (works after the noProvider className
-                                    // fix), replacing the previous
-                                    // `[&_.agenta-editor-wrapper]:!p-3` container hack.
-                                    // alignTextWithRole is off so the role-alignment inset
-                                    // does not stack on top of this padding.
+                                    // Comparison cells pad the editor body via
+                                    // editorClassName; alignTextWithRole is off so the
+                                    // role-alignment inset does not stack on top of this
+                                    // padding.
                                     editorClassName: "!p-3",
                                     alignTextWithRole: false,
                                     headerClassName:
@@ -204,11 +202,8 @@ const GenerationComparisonChatOutputCell = ({
                         withControls={false}
                         hideUserMessage
                         messageProps={{
-                            // Padding via editorClassName only (the
-                            // [&_.agenta-editor-wrapper]:!p-3 hack is removed so it does
-                            // not double up now that editorClassName works), and
-                            // alignTextWithRole off so the role-alignment inset does not
-                            // stack on top.
+                            // Padding via editorClassName only; alignTextWithRole off so
+                            // the role-alignment inset does not stack on top.
                             className: "!p-0 !mt-0 [&:nth-child(1)]:!mt-0 mt-2",
                             editorClassName: "!p-3",
                             alignTextWithRole: false,

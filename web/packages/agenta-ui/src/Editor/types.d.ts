@@ -26,6 +26,15 @@ export interface EditorProviderProps extends React.HTMLProps<HTMLDivElement> {
 }
 
 export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
+    /**
+     * Lands on a different node per mode: in provider mode on the
+     * `.agenta-rich-text-editor` wrapper (an ancestor of the editor
+     * container), with `noProvider` on the `.editor-container` div itself.
+     * Descendant selectors (`[&_...]`) behave the same in both modes, but
+     * box-level utilities (padding, width, border) style a different element
+     * depending on the mode.
+     */
+    className?: string
     disabled?: boolean
     id?: string
     initialEditorState?: LexicalEditor["_editorState"]

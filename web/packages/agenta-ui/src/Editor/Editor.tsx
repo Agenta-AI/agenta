@@ -759,11 +759,10 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             <div
                 className={clsx(
                     "editor-container w-full overflow-hidden relative min-h-[inherit]",
-                    // In `noProvider` mode there is no EditorProvider to carry the
-                    // consumer's `className` (it normally lands on
-                    // `.agenta-rich-text-editor`), so apply it to the container here.
-                    // In provider mode EditorInner receives no `className`, so this is
-                    // a no-op and the class still lands on `.agenta-rich-text-editor`.
+                    // `noProvider` mode has no EditorProvider to carry the consumer's
+                    // `className`, so it lands here. In provider mode EditorInner
+                    // receives no `className` (the provider applies it on
+                    // `.agenta-rich-text-editor`), so it is never applied twice.
                     className,
                 )}
             >
