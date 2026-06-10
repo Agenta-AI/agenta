@@ -29,9 +29,9 @@ if env.sendgrid.enabled:
 else:
     sg = None
     if env.sendgrid.api_key and not env.sendgrid.from_address:
-        log.warn("✗ SendGrid disabled: missing sender email address")
+        log.warning("✗ SendGrid disabled: missing sender email address")
     else:
-        log.warn("✗ SendGrid disabled")
+        log.warning("✗ SendGrid disabled")
 
 
 def read_email_template(template_file_path):
@@ -123,7 +123,7 @@ def _send_smtp_email_sync(
             context=context,
             timeout=env.smtp.timeout,
         ) as smtp:
-            if env.smtp.username and env.smtp.password:
+            if env.smtp.username:
                 smtp.login(env.smtp.username, env.smtp.password)
             smtp.send_message(message)
     else:
@@ -134,7 +134,7 @@ def _send_smtp_email_sync(
         ) as smtp:
             if env.smtp.use_tls:
                 smtp.starttls(context=context)
-            if env.smtp.username and env.smtp.password:
+            if env.smtp.username:
                 smtp.login(env.smtp.username, env.smtp.password)
             smtp.send_message(message)
 
@@ -143,18 +143,14 @@ def _send_smtp_email_sync(
 
 async def _send_sendgrid_email(
     to_email: str, subject: str, html_content: str, from_email: str
-) -> bool:
-    try:
-        return await asyncio.to_thread(
-            _send_sendgrid_email_sync,
-            to_email=to_email,
-            subject=subject,
-            html_content=html_content,
-            from_email=from_email,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
+)->bool:
+    return await asyncio.to_thread(
+        _send_sendgrid_email_sync,
+        to_email=to_email,
+        subject=subject,
+        html_content=html_content,
+        from_email=from_email,
+    )
 
 def _send_sendgrid_email_sync(
     to_email: str, subject: str, html_content: str, from_email: str
@@ -166,5 +162,8 @@ def _send_sendgrid_email_sync(
         html_content=html_content,
     )
 
-    sg.send(message)
-    return True
+    try:
+        sg.send(message)
+        return True
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
