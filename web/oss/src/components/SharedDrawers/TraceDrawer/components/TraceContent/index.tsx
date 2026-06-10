@@ -134,7 +134,7 @@ const TraceContent = ({
                 children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
             },
         ]
-    }, [activeTrace, isLoading, traceResponse, error, tab, spanEntityId])
+    }, [activeTrace, isLoading, traceResponse, error, tab, spanEntityId, tabNavHeight])
 
     // Ensure active tab exists in items; if not, switch to first tab
     const itemKeys = useMemo(() => (items || []).map((it) => String(it?.key)), [items])
