@@ -94,7 +94,12 @@ const TraceContent = ({
             {
                 key: "overview",
                 label: "Overview",
-                children: <OverviewTabItem activeTrace={activeTrace} />,
+                children: (
+                    <OverviewTabItem
+                        activeTrace={activeTrace}
+                        prettyJsonStickyOffset={tabNavHeight}
+                    />
+                ),
             },
             {
                 key: "raw_data",

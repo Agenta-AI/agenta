@@ -7,6 +7,7 @@ import {useAtomValue} from "jotai"
 import type {AppProps} from "next/app"
 import dynamic from "next/dynamic"
 import {Inter} from "next/font/google"
+import {useRouter} from "next/router"
 
 import ThemeContextProvider from "@/oss/components/Layout/ThemeContextProvider"
 import {OnboardingProvider} from "@/oss/components/Onboarding"
@@ -56,6 +57,20 @@ const PreloadQueries = () => {
 }
 
 export default function App({Component, pageProps, ...rest}: AppProps) {
+    const router = useRouter()
+
+    if (router.pathname === "/test-pretty-json") {
+        return (
+            <main className={`${inter.variable} font-sans`}>
+                <ThemeContextProvider>
+                    <AppComponent>
+                        <Component {...pageProps} />
+                    </AppComponent>
+                </ThemeContextProvider>
+            </main>
+        )
+    }
+
     return (
         <>
             <GlobalScripts />

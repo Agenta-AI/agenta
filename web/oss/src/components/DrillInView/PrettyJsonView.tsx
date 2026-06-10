@@ -538,7 +538,7 @@ const CopyButton = ({value}: {value: unknown}) => {
         <button
             type="button"
             aria-label={copied ? "Copied" : "Copy to clipboard"}
-            className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 transition-opacity inline-flex items-center justify-center h-[22px] min-w-[22px] px-1.5 ml-auto self-center border border-transparent rounded-sm text-[var(--ant-color-text-quaternary)] cursor-pointer shrink-0 hover:text-[var(--ant-color-text)] hover:bg-[var(--ant-color-bg-container)] hover:border-[var(--ant-color-border)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none"
+            className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 transition-opacity inline-flex items-center justify-center h-[22px] min-w-[22px] px-1.5 ml-auto self-center border border-transparent rounded-sm text-[var(--ant-color-text-quaternary)] cursor-pointer shrink-0 hover:text-[var(--ant-color-text)] hover:bg-colorBgContainer hover:border-[var(--ant-color-border)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none"
             onClick={handleCopy}
             onKeyDown={handleKeyDown}
         >
@@ -599,7 +599,7 @@ const NodeRow = memo(function NodeRow({
     return (
         <div className={isSection ? "pt-1 first:pt-0" : ""}>
             <div
-                className={`group/row flex items-baseline gap-2 py-0.5 px-1 rounded-sm ${ROW_HEIGHT_CLASS} select-none ${collapsible ? "cursor-pointer sticky z-[1] bg-[var(--ant-color-bg-container)]" : ""} hover:bg-[var(--ant-color-fill-quaternary)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none`}
+                className={`group/row flex items-baseline gap-2 py-0.5 px-1 rounded-sm ${ROW_HEIGHT_CLASS} select-none ${collapsible ? "cursor-pointer sticky z-[1] bg-colorBgContainer" : ""} hover:bg-[var(--ant-color-fill-quaternary)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none`}
                 style={
                     collapsible
                         ? {
@@ -732,10 +732,10 @@ const TruncatedMessageBody = memo(function TruncatedMessageBody({
             {isTruncated ? (
                 <div className="absolute bottom-0 left-0 right-0 flex flex-col items-center">
                     <div
-                        className="w-full h-10 bg-gradient-to-t from-[var(--ant-color-bg-container)] to-transparent pointer-events-none"
+                        className="w-full h-10 bg-gradient-to-t from-colorBgContainer to-transparent pointer-events-none"
                         aria-hidden="true"
                     />
-                    <div className="w-full flex justify-center pb-1 bg-[var(--ant-color-bg-container)]">
+                    <div className="w-full flex justify-center pb-1 bg-colorBgContainer">
                         <button
                             type="button"
                             onClick={toggle}
