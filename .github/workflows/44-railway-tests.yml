@@ -645,9 +645,21 @@ jobs:
         # devDeps (e.g. vitest) aren't pulled by a dependency-only filter.
         run: pnpm install --no-frozen-lockfile
 
-      - name: Install Playwright browsers
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright system dependencies
         working-directory: web/tests
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Install Playwright browser
+        working-directory: web/tests
+        run: pnpm exec playwright install chromium
 
       - name: Run web tests
         working-directory: web/tests
