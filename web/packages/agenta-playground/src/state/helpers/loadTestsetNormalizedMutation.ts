@@ -1,6 +1,7 @@
 import {loadableController} from "@agenta/entities/runnable"
 import {atom} from "jotai"
 
+import {playgroundCapabilityModeAtom} from "../atoms/modeOverride"
 import {clearAllMessagesAtom} from "../chat/messageReducer"
 import {derivedLoadableIdAtom, isChatModeAtom} from "../execution/selectors"
 
@@ -15,6 +16,20 @@ const MESSAGE_FIELD_KEYS = new Set([
     "target",
     "label",
 ])
+
+/**
+ * Keys to strip when loading completion rows. `messages` is normally dropped
+ * (chat mode reconstructs it into the conversation), but a chat-capable app
+ * running in completion behavior keeps it: there the `messages` column is the
+ * frozen conversation the row renders and runs against
+ * (docs/design/playground-mode-switch/).
+ */
+function strippedFieldKeysForCompletion(keepMessages: boolean): Set<string> {
+    if (!keepMessages) return MESSAGE_FIELD_KEYS
+    const keys = new Set(MESSAGE_FIELD_KEYS)
+    keys.delete("messages")
+    return keys
+}
 
 /**
  * Load testset rows into normalized package state.
@@ -64,8 +79,13 @@ export const loadTestsetNormalizedMutationAtom = atom(
         } else {
             set(loadableController.actions.clearRows, loadableId)
 
+            // Chat-capable apps in completion behavior keep their `messages`
+            // column (the frozen conversation); pure completion apps drop it.
+            const keepMessages = get(playgroundCapabilityModeAtom) === "chat"
+            const strippedKeys = strippedFieldKeysForCompletion(keepMessages)
+
             for (const row of normalizedRows) {
-                const keys = Object.keys(row.data).filter((k) => !MESSAGE_FIELD_KEYS.has(k))
+                const keys = Object.keys(row.data).filter((k) => !strippedKeys.has(k))
                 const data: Record<string, unknown> = {}
 
                 for (const key of keys) {

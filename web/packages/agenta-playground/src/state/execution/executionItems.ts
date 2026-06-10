@@ -26,6 +26,7 @@ import {
 import type {ChatMessage} from "../chat/messageTypes"
 import {SHARED_SESSION_ID} from "../chat/messageTypes"
 import {buildAssistantMessage} from "../helpers/messageFactory"
+import {normalizeColumnMessages} from "../helpers/modeSwitchTransforms"
 
 import {
     abortRun,
@@ -470,6 +471,24 @@ function buildChatHistoryFromFlatMessages(params: {
     return history
 }
 
+/**
+ * Build chat history from a row's `messages` column (the frozen conversation
+ * a chat-capable app carries while running in completion behavior). Unlike
+ * the flat-message path, each row owns its own history here, so the source
+ * is the row data, not the per-playground message atoms.
+ */
+function buildChatHistoryFromRowColumn(
+    rowData: Record<string, unknown> | null | undefined,
+): TransformMessage[] {
+    return normalizeColumnMessages(rowData?.messages).map((m) => ({
+        role: m.role,
+        content: m.content as string | unknown[],
+        ...(m.name ? {name: String(m.name)} : {}),
+        ...(Array.isArray(m.tool_calls) ? {toolCalls: m.tool_calls} : {}),
+        ...(m.tool_call_id != null ? {toolCallId: String(m.tool_call_id)} : {}),
+    }))
+}
+
 export function createExecutionItemHandle(params: CreateExecutionItemParams): ExecutionItemHandle {
     const references: ExecutionItemReference = {
         loadableId: params.loadableId,
@@ -536,10 +555,17 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
             dispatchWorkerRun,
         } = runParams
 
+        // `mode` follows the app capability and drives the request shape
+        // (chat apps always send a messages payload). The playground behavior
+        // can differ: a chat-capable app the user switched to completion
+        // behavior renders and runs per row, but still sends a chat request,
+        // sourcing each row's history from its own `messages` column.
+        // (docs/design/playground-mode-switch/)
         const mode: ExecutionMode =
             get(workflowMolecule.selectors.executionMode(params.entityId)) === "chat"
                 ? "chat"
                 : "completion"
+        const isCompletionOnChat = mode === "chat" && get(isChatModeAtom) === false
         const normalizedRepetitions = resolveRequestedRepetitions(get, repetitions)
         const effectiveRunId =
             runId ?? (!forceNewRunId && params.runId ? params.runId : undefined) ?? generateId()
@@ -582,7 +608,9 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
         }
 
         const variableSourceRowId = resolveVariableRowId({
-            mode,
+            // Completion-on-chat scopes per row, like completion, so each row
+            // runs against its own variables and history.
+            mode: isCompletionOnChat ? "completion" : mode,
             executionRowId: params.rowId,
             displayRowIds,
         })
@@ -638,31 +666,33 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
         const chatHistory =
             mode === "chat"
                 ? (runParams.chatHistory ??
-                  (() => {
-                      const allMsgIds = get(messageIdsAtomFamily(params.loadableId))
-                      const allMsgsById = get(messagesByIdAtomFamily(params.loadableId))
-                      const logicalRowId = extractLogicalRowId(params.rowId)
+                  (isCompletionOnChat
+                      ? buildChatHistoryFromRowColumn(variableSourceDataForExecution)
+                      : (() => {
+                            const allMsgIds = get(messageIdsAtomFamily(params.loadableId))
+                            const allMsgsById = get(messagesByIdAtomFamily(params.loadableId))
+                            const logicalRowId = extractLogicalRowId(params.rowId)
 
-                      // Find the cut point: include messages up to the next shared message after logicalRowId
-                      const rowIdx = allMsgIds.indexOf(logicalRowId)
-                      let cutIdx = allMsgIds.length
-                      if (rowIdx >= 0) {
-                          for (let i = rowIdx + 1; i < allMsgIds.length; i++) {
-                              const m = allMsgsById[allMsgIds[i]] as ChatMessage | undefined
-                              if (m && m.sessionId === SHARED_SESSION_ID) {
-                                  cutIdx = i
-                                  break
-                              }
-                          }
-                      }
-                      const limitedIds = allMsgIds.slice(0, cutIdx)
+                            // Find the cut point: include messages up to the next shared message after logicalRowId
+                            const rowIdx = allMsgIds.indexOf(logicalRowId)
+                            let cutIdx = allMsgIds.length
+                            if (rowIdx >= 0) {
+                                for (let i = rowIdx + 1; i < allMsgIds.length; i++) {
+                                    const m = allMsgsById[allMsgIds[i]] as ChatMessage | undefined
+                                    if (m && m.sessionId === SHARED_SESSION_ID) {
+                                        cutIdx = i
+                                        break
+                                    }
+                                }
+                            }
+                            const limitedIds = allMsgIds.slice(0, cutIdx)
 
-                      return buildChatHistoryFromFlatMessages({
-                          messageIds: limitedIds,
-                          messagesById: allMsgsById,
-                          sessionId: references.sessionId,
-                      })
-                  })())
+                            return buildChatHistoryFromFlatMessages({
+                                messageIds: limitedIds,
+                                messagesById: allMsgsById,
+                                sessionId: references.sessionId,
+                            })
+                        })()))
                 : undefined
 
         const agConfigFallbacks: AgConfigFallbackCandidate[] = [
