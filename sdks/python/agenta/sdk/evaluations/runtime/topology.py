@@ -102,20 +102,21 @@ def classify_steps_topology(
 
     if has_queries and has_applications:
         return TopologyDecision(
-            status="potential",
+            status="not_planned",
             label="query -> application",
             reason=(
-                "query traces can seed application calls, but source trace links must "
-                "not be attached as application links because that would classify the "
-                "new application traces as annotations"
+                "re-invoking an application over query-sourced traces is not a planned "
+                "shape: source trace links cannot be attached as application links "
+                "without misclassifying the new application traces as annotations"
             ),
         )
 
     if has_testsets and has_evaluators and not has_applications:
         return TopologyDecision(
-            status="potential",
+            status="supported",
             label="testset -> evaluator",
-            reason="non-queue testcase-only evaluator execution needs an explicit evaluator contract",
+            reason="batch testset evaluation with no application is worker-dispatched",
+            dispatch=Dispatch(source="testset", mode="batch"),
         )
 
     if has_queries and has_evaluators and not has_applications:

@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 
-from agenta.sdk.utils.client import authed_api
+from agenta.sdk.utils.client import authed_async_api
 from agenta.sdk.models.evaluations import EvaluationResult
 
 # TODO: ADD TYPES
@@ -30,7 +30,7 @@ async def apopulate(
         )
     run_id = run_ids.pop()
 
-    response = authed_api()(
+    response = await authed_async_api()(
         method="POST",
         endpoint=f"/simple/evaluations/{run_id}/populate",
         json=dict(results=results),
@@ -87,7 +87,7 @@ async def acreate(
         ]
     )
 
-    response = authed_api()(
+    response = await authed_async_api()(
         method="POST",
         endpoint="/evaluations/results/",
         json=payload,

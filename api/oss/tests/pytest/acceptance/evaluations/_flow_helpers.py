@@ -116,6 +116,52 @@ def create_testset(authed_api, *, testcases=None) -> dict:
     return response.json()["testset"]
 
 
+def query_testcase_ids(authed_api, testset) -> list:
+    """Return the testcase ids backing a testset (for direct-testcase queues)."""
+    response = authed_api(
+        "POST",
+        "/testcases/query",
+        json={"testset_id": testset["id"]},
+    )
+    assert response.status_code == 200, response.text
+    return [tc["id"] for tc in response.json().get("testcases", [])]
+
+
+def create_testcases_queue(authed_api, *, evaluator) -> dict:
+    """Create a direct-testcases evaluation queue. Returns the queue dict (with run_id).
+
+    The evaluator is passed as a list, which forces `origin="human"` on the
+    evaluator step — a simple queue must have at least one human evaluator (the
+    API rejects an all-auto queue), so scenarios park at PENDING for manual
+    scoring (submit via `submit_annotation`, finalize via `close_scenario`).
+    """
+    response = authed_api(
+        "POST",
+        "/simple/queues/",
+        json={
+            "queue": {
+                "name": f"testcases-queue-{uuid4().hex[:8]}",
+                "data": {
+                    "kind": "testcases",
+                    "evaluators": [evaluator["revision_id"]],
+                },
+            }
+        },
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["queue"]
+
+
+def add_testcases_to_queue(authed_api, queue_id, testcase_ids) -> None:
+    """Push a batch of testcases into a direct-testcases queue (dispatches the run)."""
+    response = authed_api(
+        "POST",
+        f"/simple/queues/{queue_id}/testcases/",
+        json={"testcase_ids": [str(tid) for tid in testcase_ids]},
+    )
+    assert response.status_code == 200, response.text
+
+
 # - triggering and waiting -----------------------------------------------------
 
 # Terminal statuses for an evaluation run.
@@ -168,6 +214,91 @@ def query_scenarios(authed_api, run_id):
     )
     assert response.status_code == 200, response.text
     return response.json().get("scenarios", [])
+
+
+def wait_for_scenarios_terminal(authed_api, run_id, *, expected_count, max_retries=20):
+    """Poll until `expected_count` scenarios exist and all are terminal.
+
+    For queue-mode runs (direct testcases/traces) the RUN stays open and never
+    finalizes — each pushed batch finalizes its own scenarios — so completion is
+    asserted at the scenario level, not the run level.
+    """
+    wait_for_response(
+        authed_api,
+        "POST",
+        "/evaluations/scenarios/query",
+        json={"scenario": {"run_id": str(run_id)}},
+        condition_fn=lambda r: (
+            r.status_code == 200
+            and len(r.json().get("scenarios", [])) >= expected_count
+            and all(
+                (s.get("status") in TERMINAL_STATUSES)
+                for s in r.json().get("scenarios", [])
+            )
+        ),
+        max_retries=max_retries,
+    )
+    return query_scenarios(authed_api, run_id)
+
+
+def wait_for_scenarios(authed_api, run_id, *, expected_count, max_retries=20):
+    """Poll until at least `expected_count` scenarios exist (any status).
+
+    Human-annotation queue scenarios park at PENDING, so completion can't be
+    asserted at the scenario level — this only waits for them to be minted.
+    """
+    wait_for_response(
+        authed_api,
+        "POST",
+        "/evaluations/scenarios/query",
+        json={"scenario": {"run_id": str(run_id)}},
+        condition_fn=lambda r: (
+            r.status_code == 200
+            and len(r.json().get("scenarios", [])) >= expected_count
+        ),
+        max_retries=max_retries,
+    )
+    return query_scenarios(authed_api, run_id)
+
+
+def submit_annotation(authed_api, *, evaluator, outputs, links) -> dict:
+    """Submit a human annotation trace (the manual score) via POST /simple/traces.
+
+    `links` binds the annotation to the scored coordinate (e.g. the scenario's
+    input/invocation trace). Returns the created trace dict.
+    """
+    response = authed_api(
+        "POST",
+        "/simple/traces/",
+        json={
+            "trace": {
+                "origin": "human",
+                "kind": "eval",
+                "channel": "api",
+                "data": {"outputs": outputs},
+                "references": {"evaluator": {"slug": evaluator["slug"]}},
+                "links": links,
+            }
+        },
+    )
+    assert response.status_code in (200, 202), response.text
+    return response.json()["trace"]
+
+
+def close_scenario(authed_api, scenario, *, status="success") -> dict:
+    """Move a scenario to a terminal status. FULL PUT: rebuild the edit from the
+    fetched scenario, overriding only `status` (a dropped flags/interval/timestamp
+    is wiped on write and would leave the scenario grey).
+    """
+    scenario_edit = dict(scenario)
+    scenario_edit["status"] = status
+    response = authed_api(
+        "PATCH",
+        f"/evaluations/scenarios/{scenario['id']}",
+        json={"scenario": scenario_edit},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["scenario"]
 
 
 def query_metrics(authed_api, run_id):
@@ -270,6 +401,13 @@ def refresh_global_metric(authed_api, run_id, *, expect_evaluators, attempts=8):
 def start_evaluation(authed_api, evaluation_id):
     """Re-start (re-dispatch) an existing simple evaluation."""
     response = authed_api("POST", f"/simple/evaluations/{evaluation_id}/start")
+    assert response.status_code == 200, response.text
+    return response.json().get("evaluation") or {}
+
+
+def stop_evaluation(authed_api, evaluation_id):
+    """Stop (deactivate) a simple evaluation — sets is_active=False."""
+    response = authed_api("POST", f"/simple/evaluations/{evaluation_id}/stop")
     assert response.status_code == 200, response.text
     return response.json().get("evaluation") or {}
 

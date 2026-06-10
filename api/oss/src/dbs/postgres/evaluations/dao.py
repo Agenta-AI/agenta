@@ -901,7 +901,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
         try:
             async with self.engine.session() as session:
-                # One connection per call: a fanned-out slice would exhaust the pool.
+                # One session across the loop to prevent connection pool exhaustion
                 for run_id in {scenario.run_id for scenario in scenarios}:
                     run_flags = await _get_run_flags(
                         project_id=project_id,
@@ -1083,6 +1083,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if not scenario_dbes:
                 return []
 
+            # One session across the loop to prevent connection pool exhaustion
             for scenario_dbe in scenario_dbes:
                 run_flags = await _get_run_flags(
                     session=session,
@@ -1191,6 +1192,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if not scenario_dbes:
                 return []
 
+            # One session across the loop to prevent connection pool exhaustion
             for scenario_dbe in scenario_dbes:
                 run_flags = await _get_run_flags(
                     session=session,
@@ -1458,8 +1460,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         # Batch upsert over the single composite unique index, returning the
         # upserted rows in the same statement (no per-row follow-up SELECT).
         async with self.engine.session() as session:
-            # Reuse this session for the closed-run check so a fanned-out
-            # slice does not exhaust the connection pool.
+            # One session across the loop to prevent connection pool exhaustion
             for run_id in {result.run_id for result in results}:
                 run_flags = await _get_run_flags(
                     project_id=project_id,
@@ -1695,6 +1696,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if not result_dbes:
                 return []
 
+            # One session across the loop to prevent connection pool exhaustion
             for result_dbe in result_dbes:
                 run_flags = await _get_run_flags(
                     session=session,
@@ -1933,16 +1935,19 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         - scenario_id, timestamp, interval (unique key)
         """
 
-        for metric in metrics:
-            run_flags = await _get_run_flags(
-                project_id=project_id,
-                run_id=metric.run_id,
-            )
-
-            if run_flags.get("is_closed", False):
-                raise EvaluationClosedConflict(
-                    run_id=metric.run_id,
+        async with self.engine.session() as session:
+            # One session across the loop to prevent connection pool exhaustion
+            for run_id in {metric.run_id for metric in metrics}:
+                run_flags = await _get_run_flags(
+                    project_id=project_id,
+                    run_id=run_id,
+                    session=session,
                 )
+
+                if run_flags.get("is_closed", False):
+                    raise EvaluationClosedConflict(
+                        run_id=run_id,
+                    )
 
         _metrics = [
             EvaluationMetrics(
@@ -2163,6 +2168,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if not metric_dbes:
                 return []
 
+            # One session across the loop to prevent connection pool exhaustion
             for metric_dbe in metric_dbes:
                 run_flags = await _get_run_flags(
                     session=session,
@@ -2371,16 +2377,19 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         user_id: UUID,
         queues: List[EvaluationQueueCreate],
     ) -> List[EvaluationQueue]:
-        for queue in queues:
-            run_flags = await _get_run_flags(
-                project_id=project_id,
-                run_id=queue.run_id,
-            )
-
-            if run_flags.get("is_closed", False):
-                raise EvaluationClosedConflict(
-                    run_id=queue.run_id,
+        async with self.engine.session() as session:
+            # One session across the loop to prevent connection pool exhaustion
+            for run_id in {queue.run_id for queue in queues}:
+                run_flags = await _get_run_flags(
+                    project_id=project_id,
+                    run_id=run_id,
+                    session=session,
                 )
+
+                if run_flags.get("is_closed", False):
+                    raise EvaluationClosedConflict(
+                        run_id=run_id,
+                    )
 
         queue_dbes = [
             create_dbe_from_dto(
@@ -2577,6 +2586,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if not queue_dbes:
                 return []
 
+            # One session across the loop to prevent connection pool exhaustion
             for queue_dbe in queue_dbes:
                 run_flags = await _get_run_flags(
                     session=session,

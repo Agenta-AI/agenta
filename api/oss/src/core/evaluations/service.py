@@ -624,17 +624,19 @@ class EvaluationsService:
             )
 
         # Scenarios sourced only from a removed step have no remaining cells.
-        orphan_scenario_ids: List[UUID] = []
-        for scenario_id in affected_scenario_ids:
-            remaining = await self.query_results(
-                project_id=project_id,
-                result=EvaluationResultQuery(
-                    run_id=run.id,
-                    scenario_ids=[scenario_id],
-                ),
-            )
-            if not remaining:
-                orphan_scenario_ids.append(scenario_id)
+        remaining = await self.query_results(
+            project_id=project_id,
+            result=EvaluationResultQuery(
+                run_id=run.id,
+                scenario_ids=list(affected_scenario_ids),
+            ),
+        )
+        scenarios_with_cells = {r.scenario_id for r in remaining if r.scenario_id}
+        orphan_scenario_ids: List[UUID] = [
+            scenario_id
+            for scenario_id in affected_scenario_ids
+            if scenario_id not in scenarios_with_cells
+        ]
 
         if orphan_scenario_ids:
             await self.delete_scenarios(
@@ -2691,13 +2693,24 @@ class SimpleEvaluationsService:
                     )
 
                 else:
+                    # No worker path dispatches this topology and re-polling will
+                    # never change that, so finalize the run to a terminal state
+                    # instead of leaving it active and hanging in RUNNING.
                     log.warning(
-                        "[EVAL] [start] [skip] unsupported non-live run topology",
+                        "[EVAL] [start] [fail] unsupported non-live run topology",
                         run_id=run.id,
                         topology=topology.label,
                         topology_status=topology.status,
                         reason=topology.reason,
                     )
+                    failed = await self._fail_evaluation_run(
+                        project_id=project_id,
+                        user_id=user_id,
+                        #
+                        run_id=run.id,
+                    )
+                    if failed:
+                        _evaluation = await self._parse_evaluation_run(run=failed)
 
                 return _evaluation
 
@@ -4061,6 +4074,59 @@ class SimpleEvaluationsService:
                 meta=run.meta,
                 #
                 status=run.status,
+                #
+                data=run.data,
+            ),
+        )
+
+        return run
+
+    async def _fail_evaluation_run(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+    ) -> Optional[EvaluationRun]:
+        """Drive a run to a permanent terminal state: closed, inactive, FAILURE.
+
+        Used when a run can never make progress — e.g. a topology that no worker
+        path dispatches. Re-polling would never help, so close it (no further
+        edits/restarts), deactivate it (scheduler stops polling) and mark it
+        FAILURE rather than leaving it active and hanging in RUNNING.
+        """
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            #
+            run_id=run_id,
+        )
+
+        if not run or not run.id:
+            log.error("[EVAL] [fail] [failure] could not find evaluation run")
+            return None
+
+        if not run.flags:
+            run.flags = EvaluationRunFlags()
+
+        run.flags.is_active = False
+        run.flags.is_closed = True
+
+        run = await self.evaluations_service.edit_run(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            run=EvaluationRunEdit(
+                id=run.id,
+                #
+                name=run.name,
+                description=run.description,
+                #
+                flags=run.flags,
+                tags=run.tags,
+                meta=run.meta,
+                #
+                status=EvaluationStatus.FAILURE,
                 #
                 data=run.data,
             ),

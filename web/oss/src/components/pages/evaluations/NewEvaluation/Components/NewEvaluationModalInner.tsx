@@ -606,7 +606,8 @@ const NewEvaluationModalInner = ({
                         name: evaluationName,
                     })
 
-                    // Extract run ID from response and build link to results
+                    // One run is created per selected variant; link to the first.
+                    const runCount = response.runs?.length ?? 1
                     const runId = response.data?.evaluation?.id
                     if (runId) {
                         const scope = isAppScoped ? "app" : "project"
@@ -620,7 +621,9 @@ const NewEvaluationModalInner = ({
 
                         message.success(
                             <span>
-                                Evaluation started.{" "}
+                                {runCount > 1
+                                    ? `${runCount} evaluations started.`
+                                    : "Evaluation started."}{" "}
                                 <a
                                     href={resultsUrl}
                                     onClick={(e) => {
@@ -634,7 +637,9 @@ const NewEvaluationModalInner = ({
                             </span>,
                         )
                     } else {
-                        message.success("Evaluation started")
+                        message.success(
+                            runCount > 1 ? `${runCount} evaluations started` : "Evaluation started",
+                        )
                     }
 
                     // Trigger revalidation and close modal after successful creation

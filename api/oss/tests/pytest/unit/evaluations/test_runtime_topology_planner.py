@@ -135,7 +135,7 @@ def test_topology_classifier_preserves_current_batch_dispatch_shapes():
     assert (inference_dispatch.source, inference_dispatch.mode) == ("testset", "batch")
 
 
-def test_topology_classifier_names_deferred_shapes():
+def test_topology_classifier_names_not_planned_and_supported_shapes():
     query_to_app = _run(
         steps=[
             _step(
@@ -177,9 +177,14 @@ def test_topology_classifier_names_deferred_shapes():
         ]
     )
 
-    assert classify_run_topology(query_to_app).status == "potential"
-    assert classify_run_topology(testset_to_eval).status == "potential"
+    assert classify_run_topology(query_to_app).status == "not_planned"
     assert classify_run_topology(multi_app).status == "not_planned"
+
+    # testset -> evaluator (no application) is now a supported batch shape.
+    testset_eval_decision = classify_run_topology(testset_to_eval)
+    assert testset_eval_decision.status == "supported"
+    assert testset_eval_decision.dispatch.source == "testset"
+    assert testset_eval_decision.dispatch.mode == "batch"
 
 
 def test_topology_classifier_names_not_planned_source_shapes():
@@ -1471,7 +1476,65 @@ async def test_simple_evaluation_start_dispatches_batch_invocation_by_topology()
 
 
 @pytest.mark.asyncio
-async def test_simple_evaluation_start_does_not_dispatch_potential_topology():
+async def test_simple_evaluation_start_dispatches_testset_to_evaluator_by_topology():
+    project_id = uuid4()
+    user_id = uuid4()
+    run_id = uuid4()
+    run = _run(
+        steps=[
+            _step(
+                "testset-main",
+                "input",
+                references={"testset_revision": Reference(id=uuid4())},
+            ),
+            _step(
+                "evaluator-auto",
+                "annotation",
+                origin="auto",
+                references={"evaluator_revision": Reference(id=uuid4())},
+            ),
+        ],
+    )
+    run.id = run_id
+    worker = SimpleNamespace(
+        process_run_from_source=SimpleNamespace(kiq=AsyncMock()),
+    )
+    service = SimpleEvaluationsService(
+        testsets_service=None,  # type: ignore[arg-type]
+        queries_service=None,  # type: ignore[arg-type]
+        applications_service=None,  # type: ignore[arg-type]
+        evaluators_service=None,  # type: ignore[arg-type]
+        evaluations_service=None,  # type: ignore[arg-type]
+        evaluations_worker=worker,
+    )
+    service.fetch = AsyncMock(
+        return_value=SimpleEvaluation(
+            id=run_id,
+            flags=SimpleEvaluationFlags(is_live=False),
+            data=SimpleEvaluationData(
+                status=None,
+                testset_steps={uuid4(): "custom"},
+                evaluator_steps={uuid4(): "auto"},
+            ),
+        )
+    )
+    service._activate_evaluation_run = AsyncMock(return_value=run)
+
+    await service.start(
+        project_id=project_id,
+        user_id=user_id,
+        evaluation_id=run_id,
+    )
+
+    worker.process_run_from_source.kiq.assert_awaited_once_with(
+        project_id=project_id,
+        user_id=user_id,
+        run_id=run_id,
+    )
+
+
+@pytest.mark.asyncio
+async def test_simple_evaluation_start_does_not_dispatch_not_planned_topology():
     project_id = uuid4()
     user_id = uuid4()
     run_id = uuid4()
@@ -1948,7 +2011,13 @@ async def test_backend_slice_processor_reexecutes_existing_scenario(monkeypatch)
     )
 
     async def _query_results(*, project_id, result=None, windowing=None):
-        if result is not None and result.scenario_id == scenario_id:
+        # The recovery input fetch is the unscoped one (no step_keys); the slice
+        # probe carries step_keys. Match the recovery fetch for our scenario set.
+        if (
+            result is not None
+            and not result.step_keys
+            and scenario_id in (result.scenario_ids or [])
+        ):
             return [input_cell, evaluator_cell]
         return [evaluator_cell]
 
@@ -2083,7 +2152,13 @@ async def test_backend_slice_processor_uses_requested_scenarios_for_missing_cell
     )
 
     async def _query_results(*, project_id, result=None, windowing=None):
-        if result is not None and result.scenario_id == scenario_id:
+        # The recovery input fetch is the unscoped one (no step_keys); the slice
+        # probe carries step_keys. Match the recovery fetch for our scenario set.
+        if (
+            result is not None
+            and not result.step_keys
+            and scenario_id in (result.scenario_ids or [])
+        ):
             return [input_cell, invocation_cell]
         return []
 
@@ -2237,7 +2312,13 @@ async def test_backend_slice_processor_distinguishes_fill_missing_and_force(
     )
 
     async def _query_results(*, project_id, result=None, windowing=None):
-        if result is not None and result.scenario_id == scenario_id:
+        # The recovery input fetch is the unscoped one (no step_keys); the slice
+        # probe carries step_keys. Match the recovery fetch for our scenario set.
+        if (
+            result is not None
+            and not result.step_keys
+            and scenario_id in (result.scenario_ids or [])
+        ):
             return [input_cell, evaluator_cell]
         return [evaluator_cell]
 

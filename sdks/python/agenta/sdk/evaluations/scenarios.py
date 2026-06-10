@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 
-from agenta.sdk.utils.client import authed_api
+from agenta.sdk.utils.client import authed_async_api
 from agenta.sdk.models.evaluations import EvaluationScenario
 
 # TODO: ADD TYPES
@@ -27,7 +27,7 @@ async def aadd(
     if timestamp is not None:
         payload["timestamp"] = timestamp.isoformat()
 
-    response = authed_api()(
+    response = await authed_async_api()(
         method="POST",
         endpoint=f"/simple/evaluations/{run_id}/scenarios/add",
         json=payload,
@@ -66,7 +66,7 @@ async def acreate(
         ]
     )
 
-    response = authed_api()(
+    response = await authed_async_api()(
         method="POST",
         endpoint="/evaluations/scenarios/",
         json=payload,
@@ -129,7 +129,7 @@ async def aedit_scenario(
             timestamp.isoformat() if hasattr(timestamp, "isoformat") else timestamp
         )
 
-    response = authed_api()(
+    response = await authed_async_api()(
         method="PATCH",
         endpoint=f"/evaluations/scenarios/{scenario_id}",
         json=dict(scenario=scenario),

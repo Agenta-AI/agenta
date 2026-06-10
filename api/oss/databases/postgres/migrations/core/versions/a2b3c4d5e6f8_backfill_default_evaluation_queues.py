@@ -35,14 +35,13 @@ depends_on: Union[str, Sequence[str], None] = None
 BATCH_SIZE = 100
 
 
-# Keyset pagination over run ids. id > cursor with ORDER BY id is index-friendly
-# (id is part of the PK) and stable; LIMIT bounds each chunk. Compared as text so
-# the cursor is a plain string seeded as "" below every UUID.
+# Keyset pagination on the native `uuid` id so the PK index drives each page (a
+# text cast would be non-sargable). Seeded with the zero UUID.
 _NEXT_RUN_IDS = sa.text("""
     SELECT id::text
     FROM evaluation_runs
-    WHERE id::text > :cursor
-    ORDER BY id::text
+    WHERE id > CAST(:cursor AS uuid)
+    ORDER BY id
     LIMIT :batch
 """)
 
@@ -59,6 +58,7 @@ _COMPUTE_CHUNK = sa.text("""
         r.id::text                                              AS run_id,
         r.project_id::text                                      AS project_id,
         r.created_by_id::text                                   AS created_by_id,
+        r.name                                                  AS name,
         COALESCE(r.status, 'running')                           AS status,
         COALESCE((r.flags ->> 'has_human')::boolean, false)     AS has_human,
         EXISTS (
@@ -119,6 +119,7 @@ _CREATE_DEFAULT_QUEUES = sa.text("""
         id,
         created_at,
         created_by_id,
+        name,
         flags,
         data,
         status,
@@ -129,6 +130,7 @@ _CREATE_DEFAULT_QUEUES = sa.text("""
         gen_random_uuid(),
         CURRENT_TIMESTAMP,
         CAST(src.created_by_id AS uuid),
+        src.name,
         jsonb_build_object('is_default', true, 'is_sequential', false),
         '{}'::json,
         src.status,
@@ -137,8 +139,9 @@ _CREATE_DEFAULT_QUEUES = sa.text("""
         CAST(:project_ids AS text[]),
         CAST(:run_ids AS text[]),
         CAST(:created_by_ids AS text[]),
+        CAST(:names AS text[]),
         CAST(:statuses AS text[])
-    ) AS src(project_id, run_id, created_by_id, status)
+    ) AS src(project_id, run_id, created_by_id, name, status)
 """)
 
 # Cheap archive: flip deleted_at on the active default queue of each run id that
@@ -199,7 +202,7 @@ def _flags_patch(row) -> str:
 def upgrade() -> None:
     connection = op.get_bind()
 
-    cursor = ""
+    cursor = "00000000-0000-0000-0000-000000000000"
     processed = 0
     created = 0
     archived = 0
@@ -217,6 +220,7 @@ def upgrade() -> None:
         create_projects: List[str] = []
         create_runs: List[str] = []
         create_creators: List[str] = []
+        create_names: List[str] = []
         create_statuses: List[str] = []
 
         archive_projects: List[str] = []
@@ -233,6 +237,7 @@ def upgrade() -> None:
                 create_projects.append(row.project_id)
                 create_runs.append(row.run_id)
                 create_creators.append(row.created_by_id)
+                create_names.append(row.name)
                 create_statuses.append(row.status)
 
             # Non-human runs with a stale active default get it archived.
@@ -250,6 +255,7 @@ def upgrade() -> None:
                     "project_ids": create_projects,
                     "run_ids": create_runs,
                     "created_by_ids": create_creators,
+                    "names": create_names,
                     "statuses": create_statuses,
                 },
             )
