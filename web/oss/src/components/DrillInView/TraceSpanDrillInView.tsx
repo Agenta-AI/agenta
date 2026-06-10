@@ -579,6 +579,7 @@ export const TraceSpanDrillInView = memo(
                                 <PrettyJsonView
                                     data={prettyJsonSource}
                                     keyPrefix={`trace-span-${textViewerId}`}
+                                    stickyOffset={48}
                                 />
                             ) : (
                                 <div className="mx-1 my-2 rounded-md bg-[var(--ag-c-FFFFFF)]">

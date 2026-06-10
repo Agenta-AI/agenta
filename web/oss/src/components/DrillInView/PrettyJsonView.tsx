@@ -572,6 +572,7 @@ const NodeRow = memo(function NodeRow({
     isSection,
     isMessage,
     depth = 0,
+    stickyOffset = 0,
 }: {
     keyLabel: React.ReactNode
     meta?: string
@@ -583,6 +584,7 @@ const NodeRow = memo(function NodeRow({
     isSection?: boolean
     isMessage?: boolean
     depth?: number
+    stickyOffset?: number
 }) {
     const [open, setOpen] = useState(defaultOpen)
     const toggle = useCallback(() => setOpen((o) => !o), [])
@@ -600,7 +602,10 @@ const NodeRow = memo(function NodeRow({
                 className={`group/row flex items-baseline gap-2 py-0.5 px-1 rounded-sm ${ROW_HEIGHT_CLASS} select-none ${collapsible ? "cursor-pointer sticky z-[1] bg-[var(--ant-color-bg-container)]" : ""} hover:bg-[var(--ant-color-fill-quaternary)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none`}
                 style={
                     collapsible
-                        ? {top: `${depth * ROW_HEIGHT_PX}px`, zIndex: Math.max(1, 20 - depth)}
+                        ? {
+                              top: `${stickyOffset + depth * ROW_HEIGHT_PX}px`,
+                              zIndex: Math.max(1, 20 - depth),
+                          }
                         : undefined
                 }
                 onClick={collapsible ? toggle : undefined}
@@ -802,11 +807,13 @@ const MessageNodeRow = memo(function MessageNodeRow({
     index,
     keyPrefix,
     depth = 0,
+    stickyOffset = 0,
 }: {
     msg: {role: string; content: unknown; tool_calls?: unknown[]}
     index: number
     keyPrefix: string
     depth?: number
+    stickyOffset?: number
 }) {
     const role = (msg.role || "").toLowerCase()
     const roleColor = ROLE_COLOR_CLASSES[role] ?? DEFAULT_ROLE_COLOR_CLASS
@@ -845,6 +852,7 @@ const MessageNodeRow = memo(function MessageNodeRow({
                         keyPrefix={`${editorId}-result`}
                         depth={depth + 1}
                         expandDepth={2}
+                        stickyOffset={stickyOffset}
                     />
                 </div>
             )
@@ -864,6 +872,7 @@ const MessageNodeRow = memo(function MessageNodeRow({
                         keyPrefix={`${editorId}-part-${i}`}
                         depth={depth + 1}
                         expandDepth={2}
+                        stickyOffset={stickyOffset}
                     />
                 ))}
                 {hasToolCalls &&
@@ -875,11 +884,12 @@ const MessageNodeRow = memo(function MessageNodeRow({
                             keyPrefix={`${editorId}-tc-${i}`}
                             depth={depth + 1}
                             expandDepth={2}
+                            stickyOffset={stickyOffset}
                         />
                     ))}
             </div>
         )
-    }, [text, toolCalls, editorId, parsedContent, structuredParts, depth])
+    }, [text, toolCalls, editorId, parsedContent, structuredParts, depth, stickyOffset])
 
     return (
         <NodeRow
@@ -906,6 +916,7 @@ const RecursiveNode = memo(function RecursiveNode({
     expandDepth = DEFAULT_EXPAND_DEPTH,
     parentIsArray = false,
     isSection = false,
+    stickyOffset = 0,
 }: {
     name: string | number
     value: unknown
@@ -915,6 +926,7 @@ const RecursiveNode = memo(function RecursiveNode({
     expandDepth?: number
     parentIsArray?: boolean
     isSection?: boolean
+    stickyOffset?: number
 }) {
     const value = useMemo(() => simplifyValue(rawValue), [rawValue])
     const keyLabel = parentIsArray ? `[${name}]` : String(name)
@@ -943,6 +955,7 @@ const RecursiveNode = memo(function RecursiveNode({
                 value={value}
                 isSection={isSection}
                 depth={depth}
+                stickyOffset={stickyOffset}
                 body={
                     <div className="flex flex-col gap-0.5 py-0.5">
                         {normalized.map((msg, i) => (
@@ -952,6 +965,7 @@ const RecursiveNode = memo(function RecursiveNode({
                                 index={i}
                                 keyPrefix={nodePrefix}
                                 depth={depth + 1}
+                                stickyOffset={stickyOffset}
                             />
                         ))}
                     </div>
@@ -977,6 +991,7 @@ const RecursiveNode = memo(function RecursiveNode({
                 value={value}
                 isSection={isSection}
                 depth={depth}
+                stickyOffset={stickyOffset}
                 body={
                     <>
                         <NodeRow
@@ -986,6 +1001,7 @@ const RecursiveNode = memo(function RecursiveNode({
                             defaultOpen={depth + 1 < expandDepth}
                             value={chatResult.messages}
                             depth={depth + 1}
+                            stickyOffset={stickyOffset}
                             body={
                                 <div className="flex flex-col gap-0.5 py-0.5">
                                     {normalized.map((msg, i) => (
@@ -995,6 +1011,7 @@ const RecursiveNode = memo(function RecursiveNode({
                                             index={i}
                                             keyPrefix={`${nodePrefix}-${chatKey}`}
                                             depth={depth + 2}
+                                            stickyOffset={stickyOffset}
                                         />
                                     ))}
                                 </div>
@@ -1009,6 +1026,7 @@ const RecursiveNode = memo(function RecursiveNode({
                                 depth={depth + 1}
                                 maxDepth={maxDepth}
                                 expandDepth={expandDepth}
+                                stickyOffset={stickyOffset}
                             />
                         ))}
                     </>
@@ -1026,6 +1044,7 @@ const RecursiveNode = memo(function RecursiveNode({
                 value={value}
                 isSection={isSection}
                 depth={depth}
+                stickyOffset={stickyOffset}
             />
         )
     }
@@ -1040,6 +1059,7 @@ const RecursiveNode = memo(function RecursiveNode({
                 value={value}
                 isSection={isSection}
                 depth={depth}
+                stickyOffset={stickyOffset}
                 body={
                     <EditorProvider
                         id={nodePrefix}
@@ -1083,6 +1103,7 @@ const RecursiveNode = memo(function RecursiveNode({
                     value={value}
                     isSection={isSection}
                     depth={depth}
+                    stickyOffset={stickyOffset}
                 />
             )
         }
@@ -1096,6 +1117,7 @@ const RecursiveNode = memo(function RecursiveNode({
                 value={value}
                 isSection={isSection}
                 depth={depth}
+                stickyOffset={stickyOffset}
                 body={
                     count > 0
                         ? entries.map(([k, v]) => (
@@ -1108,6 +1130,7 @@ const RecursiveNode = memo(function RecursiveNode({
                                   maxDepth={maxDepth}
                                   expandDepth={expandDepth}
                                   parentIsArray={isArray}
+                                  stickyOffset={stickyOffset}
                               />
                           ))
                         : undefined
@@ -1128,6 +1151,7 @@ const RecursiveNode = memo(function RecursiveNode({
             value={value}
             isSection={isSection}
             depth={depth}
+            stickyOffset={stickyOffset}
         />
     )
 })
@@ -1137,9 +1161,11 @@ const RecursiveNode = memo(function RecursiveNode({
 export const PrettyJsonView = memo(function PrettyJsonView({
     data: rawData,
     keyPrefix,
+    stickyOffset = 0,
 }: {
     data: unknown
     keyPrefix: string
+    stickyOffset?: number
 }) {
     const data = useMemo(() => simplifyValue(rawData), [rawData])
     const topChatResult = useMemo(() => shallowExtractChatMessages(data), [data])
@@ -1186,7 +1212,13 @@ export const PrettyJsonView = memo(function PrettyJsonView({
             <div className="text-[13px] p-2 px-3 pb-4">
                 <div className="flex flex-col gap-0.5">
                     {normalized.map((msg, i) => (
-                        <MessageNodeRow key={i} msg={msg} index={i} keyPrefix={keyPrefix} />
+                        <MessageNodeRow
+                            key={i}
+                            msg={msg}
+                            index={i}
+                            keyPrefix={keyPrefix}
+                            stickyOffset={stickyOffset}
+                        />
                     ))}
                 </div>
             </div>
@@ -1206,6 +1238,7 @@ export const PrettyJsonView = memo(function PrettyJsonView({
                     value={topChatResult.messages}
                     isSection
                     depth={0}
+                    stickyOffset={stickyOffset}
                     body={
                         <div className="flex flex-col gap-0.5 py-0.5">
                             {normalized.map((msg, i) => (
@@ -1215,6 +1248,7 @@ export const PrettyJsonView = memo(function PrettyJsonView({
                                     index={i}
                                     keyPrefix={`${keyPrefix}-${chatKey}`}
                                     depth={1}
+                                    stickyOffset={stickyOffset}
                                 />
                             ))}
                         </div>
@@ -1233,6 +1267,7 @@ export const PrettyJsonView = memo(function PrettyJsonView({
                                 : DEFAULT_EXPAND_DEPTH
                         }
                         isSection
+                        stickyOffset={stickyOffset}
                     />
                 ))}
             </div>
@@ -1242,7 +1277,14 @@ export const PrettyJsonView = memo(function PrettyJsonView({
     if (typeof data === "string") {
         return (
             <div className="text-[13px] p-2 px-3 pb-4">
-                <RecursiveNode name="root" value={data} keyPrefix={keyPrefix} depth={0} isSection />
+                <RecursiveNode
+                    name="root"
+                    value={data}
+                    keyPrefix={keyPrefix}
+                    depth={0}
+                    isSection
+                    stickyOffset={stickyOffset}
+                />
             </div>
         )
     }
@@ -1264,6 +1306,7 @@ export const PrettyJsonView = memo(function PrettyJsonView({
                                 : DEFAULT_EXPAND_DEPTH
                         }
                         isSection
+                        stickyOffset={stickyOffset}
                     />
                 ))}
             </div>
@@ -1272,7 +1315,14 @@ export const PrettyJsonView = memo(function PrettyJsonView({
 
     return (
         <div className="text-[13px] p-2 px-3 pb-4">
-            <RecursiveNode name="root" value={data} keyPrefix={keyPrefix} depth={0} isSection />
+            <RecursiveNode
+                name="root"
+                value={data}
+                keyPrefix={keyPrefix}
+                depth={0}
+                isSection
+                stickyOffset={stickyOffset}
+            />
         </div>
     )
 })
