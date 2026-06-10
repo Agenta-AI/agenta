@@ -947,7 +947,6 @@ class SmtpConfig(BaseModel):
         os.getenv("SMTP_FROM_EMAIL")
         or os.getenv("AGENTA_AUTHN_EMAIL_FROM")
         or os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS")
-        or os.getenv("SENDGRID_FROM_ADDRESS")
     )
     use_tls: bool = (os.getenv("SMTP_USE_TLS") or "true").lower() in _TRUTHY
     use_ssl: bool = (os.getenv("SMTP_USE_SSL") or "false").lower() in _TRUTHY
