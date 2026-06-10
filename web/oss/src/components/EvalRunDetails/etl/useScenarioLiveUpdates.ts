@@ -35,14 +35,13 @@
 import {useCallback, useEffect, useRef} from "react"
 
 import {evaluationResultMolecule, evaluationMetricMolecule} from "@agenta/entities/evaluationRun"
+import {hydrationVersionAtom} from "@agenta/evaluations/etl"
 import {useSetAtom, useStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {isTerminalStatus} from "../atoms/compare"
 import type {PreviewTableRow} from "../atoms/tableRows"
 import {evaluationPreviewTableStore} from "../evaluationPreviewTableStore"
-
-import {hydrationVersionAtom} from "./useHydrateScenarios"
 
 /** Refresh cadence — mirrors the run-status poll in `evaluationRunQueryAtomFamily`. */
 const LIVE_REFRESH_INTERVAL_MS = 5000

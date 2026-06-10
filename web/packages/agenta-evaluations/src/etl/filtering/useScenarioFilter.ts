@@ -18,6 +18,9 @@
 import {useEffect, useMemo} from "react"
 
 import {evaluationResultMolecule, evaluationMetricMolecule} from "@agenta/entities/evaluationRun"
+import {useQueryClient, type QueryClient} from "@tanstack/react-query"
+import {useAtomValue} from "jotai"
+
 import {
     evaluateRowFilter,
     resolveMappings,
@@ -25,9 +28,7 @@ import {
     type PredicateGroup,
     type ResolvedColumn,
     type RunSchema,
-} from "@agenta/evaluations/etl"
-import {useQueryClient, type QueryClient} from "@tanstack/react-query"
-import {useAtomValue} from "jotai"
+} from "../index"
 
 import {
     scenarioFilterAtomFamily,

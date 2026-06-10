@@ -27,6 +27,8 @@ import {useContext, useEffect, useMemo} from "react"
 
 import {evaluationResultMolecule, evaluationMetricMolecule} from "@agenta/entities/evaluationRun"
 import {
+    CellMaterializerContext,
+    hydrationVersionAtom,
     resolveMappings,
     unwrapStatsForCompare,
     type RunSchema,
@@ -42,8 +44,6 @@ import {useAtomValue} from "jotai"
 
 import {isTerminalStatus} from "../../atoms/compare"
 import {scenarioRowHeightAtom, type ScenarioRowHeight} from "../../state/rowHeight"
-import {CellMaterializerContext} from "../cellMaterializerContext"
-import {hydrationVersionAtom} from "../useHydrateScenarios"
 
 type ColumnKind = ColumnGroup["kind"]
 

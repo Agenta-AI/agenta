@@ -149,3 +149,33 @@ export {
     type EntitySlice,
     type PredicateSliceResult,
 } from "./predicateToEntitySlices"
+
+// Filtering hooks + context — React-side ETL pieces (scenario filter state,
+// page-level / cell-level hydration, scope eviction). Decision D8.
+export {
+    scenarioFilterAtomFamily,
+    isConditionComplete,
+    toEffectiveFilter,
+    isScenarioFilterActive,
+    scenarioFilterStatusAtomFamily,
+    type ScenarioFilterStatus,
+} from "./filtering/scenarioFilterState"
+export {
+    useHydrateScenarios,
+    hydrationVersionAtom,
+    type HydratableRowRef,
+    type HydrationProgress,
+    type SliceFetchMode,
+    type UseHydrateScenariosArgs,
+} from "./filtering/useHydrateScenarios"
+export {
+    useScenarioFilter,
+    type UseScenarioFilterArgs,
+    type UseScenarioFilterResult,
+} from "./filtering/useScenarioFilter"
+export {
+    useScopeChangeEviction,
+    type UseScopeChangeEvictionArgs,
+} from "./filtering/useScopeChangeEviction"
+export {useCellMaterialization, type CellMaterializer} from "./filtering/useCellMaterialization"
+export {CellMaterializerContext} from "./filtering/cellMaterializerContext"

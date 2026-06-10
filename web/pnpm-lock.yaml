@@ -1089,6 +1089,9 @@ importers:
       '@agentaai/api-client':
         specifier: workspace:../agenta-api-client
         version: link:../agenta-api-client
+      '@tanstack/react-query':
+        specifier: '>=5.0.0'
+        version: 5.100.9(react@19.2.6)
       jotai:
         specifier: '>=2.0.0'
         version: 2.20.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.14)(react@19.2.6)
@@ -1098,10 +1101,16 @@ importers:
       jotai-tanstack-query:
         specifier: '>=0.9.0'
         version: 0.11.0(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.6))(jotai@2.20.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
+      react:
+        specifier: '>=18.0.0'
+        version: 19.2.6
     devDependencies:
       '@types/node':
         specifier: ^20.8.10
         version: 20.19.39
+      '@types/react':
+        specifier: ^19.0.10
+        version: 19.2.14
       '@vitest/coverage-v8':
         specifier: ^4.1.4
         version: 4.1.6(vitest@4.1.6)

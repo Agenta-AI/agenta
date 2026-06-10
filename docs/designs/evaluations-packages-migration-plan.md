@@ -302,15 +302,28 @@ so the source of truth is OSS `EvalRunDetails/etl`, not annotation (see §4 exce
     First verify nothing in `entities/*` source (only a test) imports it, so there's no
     `entities → evaluations` cycle. Update the `@agenta/entities/evaluationRun/etl` subpath
     consumers to the new `evaluations` path.
-  - **Filtering state/hooks** from OSS `EvalRunDetails/etl/` (`scenarioFilterState`,
-    `useScenarioFilter`, `useHydrateScenarios`, `useEtlColumns`, `useCellMaterialization`,
-    `useScopeChangeEviction`, `columnValueTypes`) → `@agenta/evaluations`.
-  - **Filtering UI** from OSS `EvalRunDetails/etl/` (`ScenarioFilterBar`, `EtlColumnHeader`,
-    `cells/EtlResolvedCell`) → `@agenta/evaluations-ui`.
-- **DoD:** the eval-run ETL (incl. filtering) lives in `evaluations`/`evaluations-ui`; the
-  OSS `EvalRunDetails` view re-points its ETL imports to the package and OSS
-  `EvalRunDetails/etl/` is deleted (the rest of the view — atoms/store — re-points in WP-4);
-  no `entities → evaluations` cycle.
+  - **Filtering state/hooks (CLEAN subset only)** from OSS `EvalRunDetails/etl/` →
+    `@agenta/evaluations`: `scenarioFilterState`, `useScenarioFilter`, `useHydrateScenarios`,
+    `useScopeChangeEviction`, `useCellMaterialization`, `cellMaterializerContext`. These import
+    only entities + `@agenta/evaluations/etl` + react/jotai (verified) — no OSS atom layer.
+
+> **RE-SCOPED 2026-06-10 (atom dependency inversion — verified from code).** The remaining ETL
+> pieces — the **column hooks** `useEtlColumns`/`columnValueTypes`/`useScenarioLiveUpdates` and
+> the **filtering UI** `ScenarioFilterBar`/`EtlColumnHeader`/`cells/EtlResolvedCell` — import the
+> OSS `EvalRunDetails/atoms/*` + `state/*` layer (`atoms/tableRows`, `atoms/table`,
+> `atoms/compare`, `atoms/references`, `atoms/table/evaluators`, `state/rowHeight`,
+> `evaluationPreviewTableStore`). That atom layer is WP-4 scope and transitively pulls in most of
+> the OSS eval data layer (`lib/evaluations`, `services/evaluations`, `usePreviewEvaluations`,
+> `References/atoms`, `EvaluationRunsTablePOC/atoms`, …). So these ETL pieces **CANNOT move before
+> the atom layer**, and the atom-layer move IS WP-4. They are therefore **moved in WP-4**, not
+> here. WP-3.5 ships only the headless primitives (done, 3.5a) + the clean filtering hooks.
+> Consequently the OSS `EvalRunDetails/etl/` dir is NOT fully deleted in WP-3.5 — only its clean
+> files move; the entangled remainder + the dir deletion happen in WP-4.
+
+- **DoD (re-scoped):** the headless ETL primitives + the clean filtering hooks live in
+  `@agenta/evaluations`; the OSS consumers (incl. the still-OSS entangled etl files) re-point to
+  the package; no `entities → evaluations` cycle. The filtering UI + column hooks + the OSS
+  `EvalRunDetails/etl/` deletion move to WP-4 (gated on the atom-layer move).
 - **Integration test (real API, real atoms):** drive the **shipped `evaluations` ETL** —
   hydrate a real run's scenarios and apply a real `rowPredicateFilter`/`filterSchema` over the
   hydrated rows; assert the filtered set. Use real run data; do NOT hand-roll the filter.
@@ -322,6 +335,11 @@ so the source of truth is OSS `EvalRunDetails/etl`, not annotation (see §4 exce
   scenario table + metrics) to consume the `evaluations`/`evaluations-ui` engine + table.
   Then **delete** the OSS eval atoms (~38 in `EvalRunDetails/atoms`, the `EvaluationRunsTablePOC`
   store/atoms) and the now-thin OSS service shells from the prior session.
+- **Absorbs from WP-3.5 (re-scoped 2026-06-10):** the atom-coupled ETL pieces deferred from
+  WP-3.5 — column hooks `useEtlColumns`/`columnValueTypes`/`useScenarioLiveUpdates` →
+  `@agenta/evaluations`; filtering UI `ScenarioFilterBar`/`EtlColumnHeader`/`cells/EtlResolvedCell`
+  → `@agenta/evaluations-ui` — move together with the `EvalRunDetails/atoms`+`state` layer they
+  depend on, and the OSS `EvalRunDetails/etl/` dir is deleted here.
 - **DoD:** OSS eval views are thin route handlers + a `-ui` provider supplying inputs (like
   `AnnotationUIProvider`); the ~50 OSS eval atom files are gone; no `@agenta/*` ← OSS bridge.
 - **Regression gate (the big one):** parity vs the §4 OSS baseline on every listed route —

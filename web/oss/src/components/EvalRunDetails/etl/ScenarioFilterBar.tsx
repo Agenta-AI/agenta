@@ -15,6 +15,9 @@ import {useMemo, useState} from "react"
 
 import {
     buildFilterSchema,
+    isConditionComplete,
+    scenarioFilterAtomFamily,
+    scenarioFilterStatusAtomFamily,
     type ColumnGroup,
     type FilterOperator,
     type FilterValueType,
@@ -29,11 +32,6 @@ import {Filter as FilterIcon, Loader2, Plus, X} from "lucide-react"
 import {evaluationRunQueryAtomFamily, tableColumnsAtomFamily} from "../atoms/table"
 
 import {buildColumnValueTypeResolver} from "./columnValueTypes"
-import {
-    scenarioFilterAtomFamily,
-    isConditionComplete,
-    scenarioFilterStatusAtomFamily,
-} from "./scenarioFilterState"
 
 const OP_LABELS: Record<FilterOperator, string> = {
     eq: "equals",

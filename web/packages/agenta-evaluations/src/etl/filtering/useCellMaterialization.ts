@@ -26,9 +26,10 @@ import {useEffect, useRef} from "react"
 import {evaluationResultMolecule, evaluationMetricMolecule} from "@agenta/entities/evaluationRun"
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {traceSpanMolecule} from "@agenta/entities/trace"
-import type {EntitySlice} from "@agenta/evaluations/etl"
 import {getDefaultStore, useSetAtom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
+
+import type {EntitySlice} from "../index"
 
 import {hydrationVersionAtom} from "./useHydrateScenarios"
 
