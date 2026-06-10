@@ -123,7 +123,7 @@ def _send_smtp_email_sync(
             context=context,
             timeout=env.smtp.timeout,
         ) as smtp:
-            if env.smtp.username:
+            if env.smtp.username and env.smtp.password:
                 smtp.login(env.smtp.username, env.smtp.password)
             smtp.send_message(message)
     else:
@@ -134,7 +134,7 @@ def _send_smtp_email_sync(
         ) as smtp:
             if env.smtp.use_tls:
                 smtp.starttls(context=context)
-            if env.smtp.username:
+            if env.smtp.username and env.smtp.password:
                 smtp.login(env.smtp.username, env.smtp.password)
             smtp.send_message(message)
 
