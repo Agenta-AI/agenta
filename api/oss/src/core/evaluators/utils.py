@@ -56,7 +56,14 @@ def build_evaluator_data(
             "additionalProperties": False,
         }
 
-    if not outputs_schema:
+    # v3 code evaluators return arbitrary JSON, so no outputs schema is declared;
+    # metrics are inferred from traces instead. v1/v2 keep the pinned schema.
+    is_v3_code_evaluator = (
+        evaluator_key == "auto_custom_code_run"
+        and str(settings_values.get("version") or "") == "3"
+    )
+
+    if not outputs_schema and not is_v3_code_evaluator:
         properties = (
             {"score": {"type": "number"}, "success": {"type": "boolean"}}
             if evaluator_key in _SCORE_AND_SUCCESS_EVALUATORS

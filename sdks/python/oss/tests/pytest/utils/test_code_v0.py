@@ -29,17 +29,17 @@ from agenta.sdk.workflows.handlers import code_v0
 
 _code_v0 = code_v0.__wrapped__
 
-# Mirrors registry.get_runner() precedence: local unless explicitly overridden.
+# Mirrors registry.get_runner() precedence: restricted unless explicitly overridden.
 _SANDBOX_RUNNER = (
     os.getenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER")
     or os.getenv("AGENTA_SERVICES_SANDBOX_RUNNER")
-    or "local"
+    or "restricted"
 ).lower()
 
-# Python execution works on both the local and daytona runners, so those tests
-# are not gated. JS/TS runtimes are only supported by the daytona runner (the
-# local runner rejects them), and daytona requires live sandbox credentials, so
-# JS/TS tests only run when daytona is selected.
+# Python execution works on the restricted, local, and daytona runners, so those
+# tests are not gated. JS/TS runtimes are only supported by the daytona runner
+# (the in-process runners reject them), and daytona requires live sandbox
+# credentials, so JS/TS tests only run when daytona is selected.
 daytona_only = pytest.mark.skipif(
     _SANDBOX_RUNNER != "daytona",
     reason=f"Daytona-only test (JS/TS runtime); AGENTA_SERVICES_CODE_SANDBOX_RUNNER={_SANDBOX_RUNNER}",
@@ -68,10 +68,13 @@ def call(
     trace=None,
     runtime="python",
     threshold=None,
+    version=None,
 ):
     params = {"code": code, "runtime": runtime}
     if threshold is not None:
         params["threshold"] = threshold
+    if version is not None:
+        params["version"] = version
     return run(_code_v0(parameters=params, inputs=inputs, outputs=outputs, trace=trace))
 
 
@@ -109,7 +112,7 @@ class TestCodeV0Parameters:
 
 
 # ---------------------------------------------------------------------------
-# 2. Return-type normalisation (float path via LocalRunner)
+# 2. Return-type normalisation (float path via the in-process runner)
 # ---------------------------------------------------------------------------
 
 
@@ -133,7 +136,7 @@ class TestCodeV0Normalisation:
         assert r["success"] is False
 
     def test_boolean_true_becomes_score_one(self):
-        # LocalRunner converts bool via float(); True → 1.0
+        # the runner converts bool via float(); True → 1.0
         r = call(evaluate("return True"))
         assert r["score"] == pytest.approx(1.0)
         assert r["success"] is True
@@ -158,6 +161,55 @@ class TestCodeV0Normalisation:
         r = call(evaluate("return 0.5"))
         assert r["score"] == pytest.approx(0.5)
         assert r["success"] is True
+
+
+# ---------------------------------------------------------------------------
+# 2b. Version "3" — rich (JSON-serializable) outputs
+# ---------------------------------------------------------------------------
+
+
+class TestCodeV0RichOutputs:
+    def test_dict_passes_through(self):
+        r = call(evaluate("return {'relevance': 0.9, 'tone': 0.4}"), version="3")
+        assert r == {"relevance": 0.9, "tone": 0.4}
+
+    def test_nested_dict_passes_through(self):
+        r = call(
+            evaluate("return {'metrics': {'a': 1.0}, 'reason': 'ok'}"), version="3"
+        )
+        assert r == {"metrics": {"a": 1.0}, "reason": "ok"}
+
+    def test_float_normalized_to_score_and_success(self):
+        r = call(evaluate("return 0.8"), version="3")
+        assert r == {"score": 0.8, "success": True}
+
+    def test_bool_normalized_to_success(self):
+        r = call(evaluate("return True"), version="3")
+        assert r == {"success": True}
+
+    def test_string_passes_through(self):
+        r = call(evaluate("return 'looks good'"), version="3")
+        assert r == "looks good"
+
+    def test_list_passes_through(self):
+        r = call(evaluate("return [0.1, 0.2]"), version="3")
+        assert r == [0.1, 0.2]
+
+    def test_none_raises_code_error(self):
+        with pytest.raises(CodeV0Error):
+            call(evaluate("return None"), version="3")
+
+    def test_non_serializable_raises_code_error(self):
+        with pytest.raises(CodeV0Error):
+            call(evaluate("return {'fn': len}"), version="3")
+
+    def test_dict_rejected_on_v2(self):
+        with pytest.raises(CodeV0Error):
+            call(evaluate("return {'score': 1.0}"), version="2")
+
+    def test_dict_rejected_by_default_version(self):
+        with pytest.raises(CodeV0Error):
+            call(evaluate("return {'score': 1.0}"))
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +325,7 @@ class TestCodeV0Errors:
 
 
 # ---------------------------------------------------------------------------
-# 6. Runtime parameter (Python only for LocalRunner)
+# 6. Runtime parameter (Python only for the in-process runner)
 # ---------------------------------------------------------------------------
 
 

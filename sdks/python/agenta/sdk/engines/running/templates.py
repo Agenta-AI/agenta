@@ -145,4 +145,70 @@ result = Number.isFinite(resultNum) ? resultNum : null;
 console.log(JSON.stringify({{ result: result }}));
 """,
     },
+    # v2 templates back the version "3" evaluator interface: same signature as v1,
+    # but the result may be any JSON-serializable value instead of a float.
+    "v2": {
+        "python": """
+import json
+
+# Parse all parameters from a single dict
+params = json.loads({params_json!r})
+inputs = params['inputs']
+outputs = params['outputs']
+trace = params['trace']
+
+# User-provided evaluation code
+{user_code}
+
+# Execute and capture result
+result = evaluate(inputs, outputs, trace)
+
+# Result may be any JSON-serializable value
+try:
+    payload = json.dumps({{"result": result}})
+except (TypeError, ValueError):
+    payload = json.dumps({{"result": None}})
+
+# Print result for capture
+print(payload)
+""",
+        "javascript": """
+// Parse all parameters from a single JSON string
+const params = JSON.parse({params_json!r});
+const inputs = params.inputs;
+const outputs = params.outputs;
+const trace = params.trace;
+
+// User-provided evaluation code
+{user_code}
+
+// Execute and capture result
+let result = evaluate(inputs, outputs, trace);
+if (result === undefined) {{
+    result = null;
+}}
+
+// Print result for capture
+console.log(JSON.stringify({{ result: result }}));
+""",
+        "typescript": """
+// Parse all parameters from a single JSON string
+const params = JSON.parse({params_json!r});
+const inputs = params.inputs;
+const outputs = params.outputs;
+const trace = params.trace;
+
+// User-provided evaluation code
+{user_code}
+
+// Execute and capture result
+let result: any = evaluate(inputs, outputs, trace);
+if (result === undefined) {{
+    result = null;
+}}
+
+// Print result for capture
+console.log(JSON.stringify({{ result: result }}));
+""",
+    },
 }
