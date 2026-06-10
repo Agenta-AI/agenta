@@ -1,4 +1,4 @@
-import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
+import {canonicalizeMetricKey} from "@agenta/shared/metrics"
 
 /**
  * Module-level cache for evaluator output types.

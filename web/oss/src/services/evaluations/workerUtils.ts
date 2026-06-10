@@ -1,4 +1,4 @@
-import {EvaluationStatus} from "@/oss/lib/Types"
+import {EvaluationStatus} from "@agenta/entities/evaluationRun"
 
 /**
  * Update scenario status from a WebWorker / non-axios context.

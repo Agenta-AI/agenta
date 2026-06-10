@@ -14,9 +14,12 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {useAppId} from "@/oss/hooks/useAppId"
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import {EvaluationStatus} from "@agenta/entities/evaluationRun"
+import type {SnakeToCamelCaseKeys} from "@agenta/shared/types"
+
 import {EvaluationType} from "@/oss/lib/enums"
 import {buildRunIndex} from "@agenta/evaluations/core"
-import {EvaluationStatus, SnakeToCamelCaseKeys, Testset} from "@/oss/lib/Types"
+import {Testset} from "@/oss/lib/Types"
 import {CreateEvaluationRunInput} from "@/oss/services/evaluationRuns/api/types"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {getProjectValues} from "@/oss/state/project"

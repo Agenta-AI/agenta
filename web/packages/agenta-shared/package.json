@@ -17,6 +17,7 @@
         "./api/env": "./src/api/env.ts",
         "./state": "./src/state/index.ts",
         "./utils": "./src/utils/index.ts",
+        "./metrics": "./src/metrics/index.ts",
         "./hooks": "./src/hooks/index.ts",
         "./schemas": "./src/schemas/index.ts",
         "./types": "./src/types/index.ts"

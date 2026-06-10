@@ -1,6 +1,5 @@
 import type {RunIndex} from "@agenta/evaluations/core"
-
-import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
+import {canonicalizeMetricKey} from "@agenta/shared/metrics"
 
 interface EvaluatorDefinitionLike {
     id?: string | null

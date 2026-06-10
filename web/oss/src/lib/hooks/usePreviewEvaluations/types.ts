@@ -1,6 +1,7 @@
 import type {Workflow} from "@agenta/entities/workflow"
+import type {SnakeToCamelCaseKeys} from "@agenta/shared/types"
 
-import {PreviewTestset, SnakeToCamelCaseKeys, WorkspaceMember} from "@/oss/lib/Types"
+import {PreviewTestset, WorkspaceMember} from "@/oss/lib/Types"
 import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
 /**

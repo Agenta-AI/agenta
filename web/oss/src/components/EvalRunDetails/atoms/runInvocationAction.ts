@@ -8,6 +8,7 @@
  * resolution via workflowMolecule) rather than a bespoke HTTP call.
  */
 
+import {EvaluationStatus} from "@agenta/entities/evaluationRun"
 import {fetchWorkflowRevisionById} from "@agenta/entities/workflow"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {executeWorkflowRevision} from "@agenta/playground"
@@ -19,7 +20,6 @@ import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRuns
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
-import {EvaluationStatus} from "@/oss/lib/Types"
 import {
     upsertStepResultWithInvocation,
     updateScenarioStatus,

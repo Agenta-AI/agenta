@@ -1,5 +1,7 @@
 import {memo, useEffect, useMemo, useRef, type ReactNode} from "react"
 
+import {canonicalizeMetricKey} from "@agenta/shared/metrics"
+import {type BasicStats} from "@agenta/shared/metrics"
 import {EvaluatorMetricBar} from "@agenta/ui/cell-renderers"
 import {SkeletonLine} from "@agenta/ui/table"
 import {Typography} from "antd"
@@ -7,8 +9,6 @@ import {useSetAtomWithSchedule, LOW_PRIORITY} from "jotai-scheduler"
 
 import {resolvedMetricLabelsAtomFamily} from "@/oss/components/References/atoms/resolvedMetricLabels"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
-import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
-import {type BasicStats} from "@/oss/lib/metricUtils"
 
 import {
     buildFrequencyEntries,

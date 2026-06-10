@@ -10,9 +10,9 @@
  */
 
 import {setEvaluationResults} from "@agenta/entities/evaluationRun"
+import {EvaluationStatus} from "@agenta/entities/evaluationRun"
 import {setEvaluationScenarioStatuses} from "@agenta/entities/evaluationScenario"
 
-import {EvaluationStatus} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
 export interface InvocationReferences {

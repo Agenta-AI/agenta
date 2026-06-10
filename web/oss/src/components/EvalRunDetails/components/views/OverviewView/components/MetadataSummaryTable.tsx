@@ -1,5 +1,6 @@
 import {memo, useMemo, type ReactNode} from "react"
 
+import type {BasicStats} from "@agenta/shared/metrics"
 import {Table, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {atom} from "jotai"
@@ -7,7 +8,6 @@ import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
 import useEvaluatorReference from "@/oss/components/References/hooks/useEvaluatorReference"
-import type {BasicStats} from "@/oss/lib/metricUtils"
 import {useProjectData} from "@/oss/state/project"
 
 import {evaluationQueryRevisionAtomFamily} from "../../../../atoms/query"

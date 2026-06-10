@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useState} from "react"
 
+import {EvaluationStatus} from "@agenta/entities/evaluationRun"
 import {message} from "@agenta/ui/app-message"
 import {
     CopyOutlined,
@@ -16,13 +17,7 @@ import {createUseStyles} from "react-jss"
 
 import {useDurationCounter} from "@/oss/hooks/useDurationCounter"
 import {getTypedValue} from "@/oss/lib/evaluations/legacy"
-import {
-    EvaluationStatus,
-    EvaluatorConfig,
-    JSSTheme,
-    _Evaluation,
-    _EvaluationScenario,
-} from "@/oss/lib/Types"
+import {EvaluatorConfig, JSSTheme, _Evaluation, _EvaluationScenario} from "@/oss/lib/Types"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 

@@ -1,8 +1,10 @@
+import {EvaluationStatus} from "@agenta/entities/evaluationRun"
+
 import type {EvaluationConcurrencySettings} from "@/oss/components/pages/evaluations/NewEvaluation/types"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {calcEvalDuration} from "@/oss/lib/evaluations/legacy"
 import {assertValidId, isValidId} from "@/oss/lib/helpers/serviceValidations"
-import {EvaluationStatus, KeyValuePair, _Evaluation, _EvaluationScenario} from "@/oss/lib/Types"
+import {KeyValuePair, _Evaluation, _EvaluationScenario} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
 //Prefix convention:

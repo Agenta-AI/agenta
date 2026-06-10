@@ -1,5 +1,6 @@
+import {EvaluationStatus} from "@agenta/entities/evaluationRun"
+
 import type {IStepResponse} from "@/oss/lib/evaluations"
-import {EvaluationStatus} from "@/oss/lib/Types"
 
 export interface RunEvalMessage {
     type: "run-invocation"

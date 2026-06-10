@@ -1,6 +1,7 @@
+import type {SnakeToCamelCaseKeys} from "@agenta/shared/types"
+
 import type {InfiniteTableRowBase} from "@/oss/components/InfiniteVirtualTable/types"
 import type {WindowingState} from "@/oss/components/InfiniteVirtualTable/types"
-import type {SnakeToCamelCaseKeys} from "@/oss/lib/Types"
 
 import type {LegacyAutoEvaluation} from "../../state/evaluations/legacyAtoms"
 

@@ -35,6 +35,8 @@ export {
     type EvaluationMetricsResponse,
 } from "./schema"
 
+export {EvaluationStatus} from "./status"
+
 export type {
     EvaluationRunDetailParams,
     EvaluationRunQueryParams,

@@ -1,5 +1,6 @@
+import {canonicalizeMetricKey} from "@agenta/shared/metrics"
+
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
 import {wasScenarioRecentlySaved} from "./metrics"
 import {

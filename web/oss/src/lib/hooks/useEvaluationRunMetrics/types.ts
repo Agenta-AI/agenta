@@ -1,4 +1,5 @@
-import {EvaluationStatus, SnakeToCamelCaseKeys} from "@/oss/lib/Types"
+import {EvaluationStatus} from "@agenta/entities/evaluationRun"
+import type {SnakeToCamelCaseKeys} from "@agenta/shared/types"
 
 // Raw API response type for one metric (snake_case)
 export interface MetricResponse {

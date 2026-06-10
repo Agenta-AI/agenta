@@ -54,6 +54,7 @@ export {
 
 export {
     // Enums
+    EvaluationStatus,
     evaluationRunStepTypeSchema,
     type EvaluationRunStepType,
     evaluationRunStepOriginSchema,

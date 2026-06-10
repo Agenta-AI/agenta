@@ -23,6 +23,8 @@ export interface BasicStats {
     sum?: number
     /** Ordered frequency list (most common first) */
     frequency?: FrequencyEntry[]
+    /** Ordered rank list for categorical metrics (most common first) */
+    rank?: FrequencyEntry[]
     /** Total sample count */
     count?: number
     // backend may add extra fields – index signature keeps type-safety while
@@ -106,7 +108,7 @@ const resolveMetricCandidates = (key: string): string[] => {
  * Returns the first non-undefined candidate.
  */
 export const getMetricValueWithAliases = <T = unknown>(
-    metrics: Record<string, any>,
+    metrics: Record<string, unknown>,
     key: string,
 ): T | undefined => {
     if (!metrics) return undefined
@@ -159,18 +161,18 @@ export const getMetricDisplayName = (key: string): string => {
  *   4. fallback to raw object
  */
 export function extractPrimitive<T = unknown>(metric: MetricValue): T | undefined {
-    if (metric === null || metric === undefined) return undefined as any
+    if (metric === null || metric === undefined) return undefined
 
     // Plain primitives / arrays are returned verbatim.
-    if (typeof metric !== "object" || Array.isArray(metric)) return metric as any
+    if (typeof metric !== "object" || Array.isArray(metric)) return metric as T
 
     const stats = metric as BasicStats
-    if (stats.mean !== undefined) return stats.mean as any
-    if (stats.sum !== undefined) return stats.sum as any
-    if (stats.frequency?.length) return stats.frequency[0].value as any
+    if (stats.mean !== undefined) return stats.mean as T
+    if (stats.sum !== undefined) return stats.sum as T
+    if (stats.frequency?.length) return stats.frequency[0].value as T
 
     // As a last resort return the object itself (caller decides what to do).
-    return metric as any
+    return metric as T
 }
 
 /**
@@ -218,28 +220,28 @@ export function summarizeMetric(
     if (!stats) return undefined
 
     // 1. mean for numeric metrics (latency etc.)
-    if (typeof (stats as any).mean === "number") {
-        return (stats as any).mean
+    if (typeof stats.mean === "number") {
+        return stats.mean
     }
 
     // 2. boolean metrics – proportion of true (percentage)
-    if (schemaType === "boolean" && Array.isArray((stats as any).frequency)) {
-        const trueEntry = (stats as any).frequency.find((f: any) => f.value === true)
-        const total = (stats as any).count ?? 0
+    if (schemaType === "boolean" && Array.isArray(stats.frequency)) {
+        const trueEntry = stats.frequency.find((f) => f.value === true)
+        const total = stats.count ?? 0
         if (total) {
             return ((trueEntry?.count ?? 0) / total) * 100
         }
     }
 
     // 3. ranked categorical metrics – show top value and count
-    if (Array.isArray((stats as any).rank) && (stats as any).rank.length) {
-        const top = (stats as any).rank[0]
-        return `${top.value} (${top.count})`
+    if (Array.isArray(stats.rank) && stats.rank.length) {
+        const top = stats.rank[0]
+        return `${String(top.value)} (${top.count})`
     }
 
     // 4. plain count fallback
-    if (typeof (stats as any).count === "number") {
-        return (stats as any).count
+    if (typeof stats.count === "number") {
+        return stats.count
     }
 
     return undefined
@@ -276,8 +278,8 @@ export function metricCompare(a: unknown, b: unknown): number {
         return Number(boolA) - Number(boolB)
     }
 
-    const numA = Number(a as any)
-    const numB = Number(b as any)
+    const numA = Number(a)
+    const numB = Number(b)
     const bothNumeric = !Number.isNaN(numA) && !Number.isNaN(numB)
     if (bothNumeric) return numA - numB
 

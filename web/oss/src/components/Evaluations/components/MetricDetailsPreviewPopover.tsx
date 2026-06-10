@@ -1,5 +1,6 @@
 import {memo, useCallback, useMemo, useState, type ReactNode} from "react"
 
+import type {BasicStats} from "@agenta/shared/metrics"
 import {formatCurrency, formatLatency} from "@agenta/shared/utils"
 import {Popover} from "antd"
 import {atom} from "jotai"
@@ -15,7 +16,6 @@ import {
     ResponsiveMetricChart,
     buildChartData,
 } from "@/oss/components/Evaluations/MetricDetailsPopover"
-import type {BasicStats} from "@/oss/lib/metricUtils"
 
 const formatNumber = (value: unknown): string => {
     if (typeof value === "number") {

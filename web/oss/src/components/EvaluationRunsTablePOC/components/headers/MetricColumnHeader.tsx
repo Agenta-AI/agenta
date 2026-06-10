@@ -1,11 +1,11 @@
 import {useMemo} from "react"
 
+import {canonicalizeMetricKey} from "@agenta/shared/metrics"
 import {Typography} from "antd"
 import {useAtomValueWithSchedule, LOW_PRIORITY} from "jotai-scheduler"
 
 import {resolvedMetricLabelsAtomFamily} from "@/oss/components/References/atoms/resolvedMetricLabels"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
-import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
 import {useEvaluatorHeaderReference} from "../../hooks/useEvaluatorHeaderReference"
 import useRunMetricSelection from "../../hooks/useRunMetricSelection"

@@ -1,10 +1,10 @@
 import {useEffect, useMemo} from "react"
 
+import {canonicalizeMetricKey} from "@agenta/shared/metrics"
 import {Typography} from "antd"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import useEvaluatorReference from "@/oss/components/References/hooks/useEvaluatorReference"
-import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
 import {createEvaluatorOutputTypesKey, setOutputTypesMap} from "../../atoms/evaluatorOutputTypes"
 import {evaluationRunsProjectIdAtom} from "../../atoms/view"

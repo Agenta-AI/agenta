@@ -1,9 +1,9 @@
 import type {ReactNode} from "react"
 
+import type {BasicStats} from "@agenta/shared/metrics"
 import {Typography} from "antd"
 
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
-import type {BasicStats} from "@/oss/lib/metricUtils"
 
 const CLASS_NAME = "metric-cell-content text-xs whitespace-pre-wrap"
 

@@ -1,5 +1,6 @@
 import {memo, useMemo, useState, useCallback} from "react"
 
+import {EvaluationStatus} from "@agenta/entities/evaluationRun"
 import {message} from "@agenta/ui/app-message"
 import {SkeletonLine} from "@agenta/ui/table"
 import {MoreOutlined} from "@ant-design/icons"
@@ -19,7 +20,6 @@ import {Button, Dropdown, MenuProps, Tooltip} from "antd"
 
 import {extractPrimaryInvocation} from "@/oss/components/pages/evaluations/utils"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-import {EvaluationStatus} from "@/oss/lib/Types"
 import {startSimpleEvaluation, stopSimpleEvaluation} from "@/oss/services/onlineEvaluations/api"
 
 import {

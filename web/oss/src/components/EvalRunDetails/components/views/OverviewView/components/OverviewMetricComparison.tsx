@@ -1,8 +1,7 @@
 import {memo, useMemo} from "react"
 
+import type {BasicStats} from "@agenta/shared/metrics"
 import {Typography} from "antd"
-
-import type {BasicStats} from "@/oss/lib/metricUtils"
 
 import {DEFAULT_SPIDER_SERIES_COLOR, SPIDER_SERIES_COLORS} from "../constants"
 import {useRunMetricData} from "../hooks/useRunMetricData"

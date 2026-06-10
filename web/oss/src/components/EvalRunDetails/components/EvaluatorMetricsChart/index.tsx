@@ -1,5 +1,6 @@
 import {memo, useMemo} from "react"
 
+import type {BasicStats} from "@agenta/shared/metrics"
 import {Card, Skeleton, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue} from "jotai"
@@ -7,7 +8,6 @@ import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
 import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
-import type {BasicStats} from "@/oss/lib/metricUtils"
 
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../atoms/table/evaluators"
 import {buildBooleanHistogram, isBooleanMetricStats} from "../../utils/metricDistributions"

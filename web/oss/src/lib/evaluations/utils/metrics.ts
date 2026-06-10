@@ -1,4 +1,4 @@
-import {canonicalizeMetricKey, getMetricDisplayName} from "@/oss/lib/metricUtils"
+import {canonicalizeMetricKey, getMetricDisplayName} from "@agenta/shared/metrics"
 
 const UPPERCASE_TOKENS = new Set(["json", "csv", "xml", "html", "id", "llm", "api", "url"])
 

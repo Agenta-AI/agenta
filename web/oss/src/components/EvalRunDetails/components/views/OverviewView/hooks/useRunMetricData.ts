@@ -1,5 +1,6 @@
 import {useMemo} from "react"
 
+import type {BasicStats} from "@agenta/shared/metrics"
 import {atom, useAtomValue} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
@@ -13,7 +14,6 @@ import {
     TemporalMetricPoint,
 } from "@/oss/components/Evaluations/atoms/runMetrics"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
-import type {BasicStats} from "@/oss/lib/metricUtils"
 
 import {COMPARISON_SOLID_COLORS} from "../../../../atoms/compare"
 import {runDisplayNameAtomFamily, runStatusAtomFamily} from "../../../../atoms/runDerived"

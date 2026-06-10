@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {canonicalizeMetricKey} from "@agenta/shared/metrics"
 import type {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -17,7 +18,6 @@ import type {TableColumnConfig} from "@/oss/components/InfiniteVirtualTable/colu
 import {getEvaluatorMetricBlueprintAtom} from "@/oss/components/References/atoms/metricBlueprint"
 import {PreviewCreatedByCell} from "@/oss/components/References/cells/CreatedByCells"
 import {humanizeEvaluatorName, humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
-import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
 import {
     createEvaluatorOutputTypesKey,

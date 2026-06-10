@@ -1,8 +1,7 @@
 import type {StepMeta} from "@agenta/evaluations/core"
+import {canonicalizeMetricKey} from "@agenta/shared/metrics"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-
-import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
 import {GeneralAutoEvalMetricColumns, GeneralHumanEvalMetricColumns} from "../../constants/table"
 import {previewEvalTypeAtom} from "../../state/evalType"

@@ -1,6 +1,6 @@
 import {memo, useMemo} from "react"
 
-import type {BasicStats} from "@/oss/lib/metricUtils"
+import type {BasicStats} from "@agenta/shared/metrics"
 
 import EvaluatorMetricsSpiderChart from "../../../EvaluatorMetricsSpiderChart"
 import {

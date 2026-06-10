@@ -1,7 +1,8 @@
+import type {SnakeToCamelCaseKeys} from "@agenta/shared/types"
 import {SWRConfiguration, SWRResponse} from "swr"
 
 import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import type {PreviewTestset, SnakeToCamelCaseKeys} from "@/oss/lib/Types"
+import type {PreviewTestset} from "@/oss/lib/Types"
 
 // --- Step Response Types (snake_case from API) ---
 export interface StepResponse {

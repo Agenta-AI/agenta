@@ -1,4 +1,4 @@
-import type {BasicStats} from "@/oss/lib/metricUtils"
+import type {BasicStats} from "@agenta/shared/metrics"
 
 export interface AggregatedMetricEntrySummary {
     value: number
