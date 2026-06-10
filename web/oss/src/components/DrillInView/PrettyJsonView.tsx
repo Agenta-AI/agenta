@@ -901,6 +901,7 @@ const MessageNodeRow = memo(function MessageNodeRow({
             value={msg.content ?? (toolCalls ? JSON.stringify(toolCalls) : "")}
             body={body}
             depth={depth}
+            stickyOffset={stickyOffset}
         />
     )
 })
