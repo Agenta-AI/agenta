@@ -135,6 +135,7 @@ export {
     extractVariablesFromConfig,
     extractSectionOpenersFromConfig,
     extractVariablesFromEnhancedPrompts,
+    resolveTemplateFormat,
     syncPromptInputKeysInParameters,
 } from "./utils"
 export type {ExecuteRunnableOptions} from "./utils"
