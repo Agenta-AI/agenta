@@ -1,6 +1,7 @@
 # Status
 
-**Stage: PR1 implemented and verified; ready to push. Next: PR2.**
+**Stage: PR1 in review (#4609). PR2 in progress on
+`feat/playground-completion-mode-for-chat` (stacked on PR1).**
 Last updated: 2026-06-10.
 
 New session? Read [context.md](context.md) for scope and invariants,
@@ -21,12 +22,16 @@ PR stack. All product decisions are made; nothing is blocked on input.
 | Persistence | `atomWithStorage`, per-app record, key `agenta:playground:mode` | Repo pattern; survives reloads; never versioned |
 | Transforms | Pure functions in `@agenta/playground` helpers, both directions written in PR2, unit tests in `tests/unit/` | Round-trip identity tests must exist from day one |
 
-## Engineering verifications pending
+## Engineering verifications
 
-- **Template system message round-trip** (PR2, before relying on round-trip
-  identity): confirm the chat working copy and
-  `syncChatMessagesToEntity.ts` never write the variant's system message
-  into the row's `messages` column.
+- **Template system message round-trip: verified safe (2026-06-10).** The
+  ghosted template system message renders read-only from the variant
+  config in `ChatMode` (`ChatMessageList` fed by `extractPromptMessages`,
+  `onChange={noop}`). Nothing seeds `role: "system"` into the chat
+  working copy and `extractAndLoadChatMessages` has no system handling,
+  so the write-back cannot put the template message into the row. A
+  system message in `row.messages` can only come from test set data,
+  which is legitimately kept.
 
 ## Worklog
 
@@ -35,6 +40,12 @@ PR stack. All product decisions are made; nothing is blocked on input.
 - 2026-06-10: research corrected (the chat ↔ row adapter is bidirectional
   and real-time, not one-way). Scope agreed with Mahmoud; plan restructured
   into four stacked PRs; all product questions decided.
+- 2026-06-10 (later): PR1 pushed and opened as #4609 against main (no
+  stacking needed; no applied branch touches the same files). PR2 branch
+  created and stacked on PR1. System-message verification done (see
+  above). Mode switch transforms written as pure helpers
+  (`helpers/modeSwitchTransforms.ts`) with 15 unit tests covering the
+  split/merge contract and round-trip identity.
 - 2026-06-10: PR1 done. `playgroundModeOverrideAtom` +
   `playgroundCapabilityModeAtom` + `playgroundIsChatBehaviorAtom` in
   `web/packages/agenta-playground/src/state/atoms/modeOverride.ts`;
