@@ -1,7 +1,7 @@
 """Render a few test set CVs as PDFs to upload in the Streamlit demo.
 
-Picks one CV per expected classification from `data/testset.csv` and
-writes simple PDFs to `data/sample_cvs/`.
+Picks one strong match, one partial match, and one rejection from
+`data/testset.csv` and writes simple PDFs to `data/sample_cvs/`.
 
 Usage:
     python make_sample_pdfs.py
@@ -14,15 +14,18 @@ from pathlib import Path
 
 from fpdf import FPDF
 
+from prepare_testset import CURATED_RESUMES
+
 DATA_DIR = Path(__file__).parent / "data"
 TESTSET_PATH = DATA_DIR / "testset.csv"
 OUTPUT_DIR = DATA_DIR / "sample_cvs"
 
-# source_id -> output file name
+# Resume ID -> output file name. The CSV rows are written in
+# CURATED_RESUMES order, so the ID's position gives the row index.
 SAMPLES = {
-    "18301617": "candidate_it_manager.pdf",  # strong_match
-    "33241454": "candidate_it_supervisor.pdf",  # potential_match
-    "24221960": "candidate_chef.pdf",  # no_match
+    18301617: "candidate_it_manager.pdf",  # strong match
+    33241454: "candidate_it_supervisor.pdf",  # partial match
+    24221960: "candidate_chef.pdf",  # rejection
 }
 
 MAX_TOKEN_LENGTH = 50
@@ -83,16 +86,18 @@ def main() -> None:
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     with open(TESTSET_PATH, newline="", encoding="utf-8") as f:
-        rows = {row["source_id"]: row for row in csv.DictReader(f)}
+        rows = list(csv.DictReader(f))
 
-    for source_id, filename in SAMPLES.items():
-        row = rows.get(source_id)
-        if row is None:
-            print(f"warning: resume {source_id} not in testset.csv, skipping")
+    resume_ids = list(CURATED_RESUMES)
+    for resume_id, filename in SAMPLES.items():
+        index = resume_ids.index(resume_id)
+        if index >= len(rows):
+            print(f"warning: resume {resume_id} not in testset.csv, skipping")
             continue
+        row = rows[index]
         path = OUTPUT_DIR / filename
         markdown_to_pdf(row["cv"], path)
-        print(f"Wrote {path} ({row['expected_classification']})")
+        print(f"Wrote {path} (expected overall: {row['expected_overall_match']})")
 
 
 if __name__ == "__main__":
