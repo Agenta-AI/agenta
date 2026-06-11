@@ -27,3 +27,15 @@ export {default as EtlResolvedCell, EtlSkeletonCell} from "./components/etl/cell
 export type {EtlResolvedCellProps} from "./components/etl/cells/EtlResolvedCell"
 export {useEtlColumns} from "./components/etl/useEtlColumns"
 export type {UseEtlColumnsArgs} from "./components/etl/useEtlColumns"
+
+// ── metric detail popover + charts ────────────────────────────────────────────
+export {default as MetricDetailsPreviewPopover} from "./components/MetricDetails/MetricDetailsPreviewPopover"
+export {
+    ResponsiveFrequencyChart,
+    ResponsiveMetricChart,
+    buildChartData,
+    format3Sig,
+    formatMetricValue,
+    METRIC_FORMATTERS,
+} from "./components/MetricDetails/MetricDetailsPopover"
+export type {ChartDatum, MetricFormatter} from "./components/MetricDetails/MetricDetailsPopover"

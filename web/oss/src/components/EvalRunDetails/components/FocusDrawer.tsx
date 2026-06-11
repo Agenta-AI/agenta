@@ -22,6 +22,7 @@ import {
 } from "@agenta/evaluations/state/evalRun"
 import {evaluationRunIndexAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {previewRunMetricStatsSelectorFamily} from "@agenta/evaluations/state/evalRun"
+import {MetricDetailsPreviewPopover} from "@agenta/evaluations-ui"
 import {
     formatMetricDisplay,
     METRIC_PLACEHOLDER as METRIC_EMPTY_PLACEHOLDER,
@@ -33,7 +34,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {AlertCircle} from "lucide-react"
 import dynamic from "next/dynamic"
 
-import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
 import GenericDrawer from "@/oss/components/GenericDrawer"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 

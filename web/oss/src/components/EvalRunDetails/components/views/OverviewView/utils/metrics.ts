@@ -1,3 +1,4 @@
+import {format3Sig} from "@agenta/evaluations-ui"
 import type {BasicStats} from "@agenta/shared/metrics"
 import {getMetricValueWithAliases} from "@agenta/shared/metrics"
 
@@ -5,7 +6,6 @@ import {
     buildBooleanHistogram,
     isBooleanMetricStats,
 } from "@/oss/components/EvalRunDetails/utils/metricDistributions"
-import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
 
 import {INVOCATION_METRIC_KEYS, INVOCATION_METRIC_LABELS} from "../constants"
 

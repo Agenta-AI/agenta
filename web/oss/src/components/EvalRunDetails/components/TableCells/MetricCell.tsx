@@ -3,6 +3,7 @@ import {memo, useMemo} from "react"
 import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
 import {scenarioHasInvocationAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {previewEvalTypeAtom} from "@agenta/evaluations/state/evalRun"
+import {MetricDetailsPreviewPopover} from "@agenta/evaluations-ui"
 import {
     MetricCellContent,
     CellContentPopover,
@@ -14,8 +15,6 @@ import {
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {AlertCircle} from "lucide-react"
-
-import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
 
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 

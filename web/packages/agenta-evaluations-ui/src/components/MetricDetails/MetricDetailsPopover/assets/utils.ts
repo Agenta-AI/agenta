@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- relocated chart code reads
+ * dynamic backend stat blobs as `Record<string, any>`; typing the stat shapes is a
+ * separate task, not part of the WP-4h relocation. See migration plan §11.4. */
 import type {ChartDatum, MetricFormatter} from "../types"
 
 /**

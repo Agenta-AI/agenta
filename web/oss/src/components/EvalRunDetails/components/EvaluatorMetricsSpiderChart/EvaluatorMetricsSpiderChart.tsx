@@ -1,5 +1,6 @@
 import {memo, useMemo} from "react"
 
+import {format3Sig} from "@agenta/evaluations-ui"
 import {formatCurrency, formatLatency} from "@agenta/shared/utils"
 import {Typography} from "antd"
 import clsx from "clsx"
@@ -12,8 +13,6 @@ import {
     ResponsiveContainer,
     Tooltip,
 } from "recharts"
-
-import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
 
 import type {EvaluatorMetricsSpiderChartProps, MetricData, SeriesMeta} from "./types"
 

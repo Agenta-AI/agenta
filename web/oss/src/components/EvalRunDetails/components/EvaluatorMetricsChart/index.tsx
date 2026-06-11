@@ -2,13 +2,12 @@ import {memo, useMemo} from "react"
 
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {previewRunMetricStatsSelectorFamily} from "@agenta/evaluations/state/evalRun"
+import {format3Sig} from "@agenta/evaluations-ui"
 import type {BasicStats} from "@agenta/shared/metrics"
 import {Card, Skeleton, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
-
-import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
 
 import {buildBooleanHistogram, isBooleanMetricStats} from "../../utils/metricDistributions"
 

@@ -1,5 +1,6 @@
 import {memo, useMemo} from "react"
 
+import {format3Sig} from "@agenta/evaluations-ui"
 import {Card} from "antd"
 import {
     Bar,
@@ -17,7 +18,6 @@ import {
     buildBooleanHistogram,
     isBooleanMetricStats,
 } from "@/oss/components/EvalRunDetails/utils/metricDistributions"
-import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
 
 import type {AggregatedMetricChartData, AggregatedMetricChartEntry} from "../types"
 

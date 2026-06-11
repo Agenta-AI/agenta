@@ -676,6 +676,10 @@ the migration; triage/fix separately (likely with the EvalRunDetails parity QA).
 - **Fix direction:** tighten to precise/`unknown` types incrementally, file-by-file, after the
   EvalRunDetails parity QA confirms behavior.
 - **Status:** OPEN — debt, not a blocker; incremental cleanup.
+- **WP-4h extension:** the 3 relocated `MetricDetails` files (`MetricDetailsPreviewPopover.tsx`,
+  `MetricDetailsPopover/assets/{ResponsiveMetricChart,utils}.tsx|ts`) carry the same file-level
+  disable for the same reason (dynamic backend stat blobs as `Record<string, any>`). Same fix
+  direction.
 
 ### 11.6 Eval render trees still on the OSS InfiniteVirtualTable copy (follow-up WP)
 
@@ -709,3 +713,61 @@ the migration; triage/fix separately (likely with the EvalRunDetails parity QA).
 
 > **Note:** the OSS tsc baseline dropped from **588 → 522** at WP-4e-2a (the ~45 eval-atom errors +
 > ~21 root-caused side effects fixed). **All subsequent "oss tsc steady" gates use 522, not 588.**
+
+## 12. WP-4h — eval VIEW layer → `@agenta/evaluations-ui` (classified cascade + phased plan)
+
+User explicitly chose the full view-layer move (2026-06-11) over the cheaper in-OSS tidy.
+The data goal is already done bar one service (`onlineEvaluations` start/stop), so WP-4h is
+purely a **presentation relocation**: the three OSS dirs `Evaluations/` (9 files, the
+`MetricDetailsPopover`), `EvaluationRunsTablePOC/` (37 files, run-list), `EvalRunDetails/`
+(113 files, run-details) → one `@agenta/evaluations-ui` tree as siblings
+`{RunsTable, RunDetails, MetricDetails}` (drop the `POC` suffix; fold the misnamed
+`Evaluations/`).
+
+### 12.1 The ~90 `@/oss` couplings, classified
+
+Destination `@agenta/evaluations-ui` already exists (nearly empty) and the seam registry
+(`evalRunInjection.ts` / `registerEvalRunInjections`) from WP-4e is reusable.
+
+| Bucket | Count | Disposition |
+|---|---|---|
+| Internal cross-refs (the 3 dirs) | ~9 | become relative on move — free |
+| Pure utils (`lib/helpers/*`, `runMetrics/formatters`, `onboarding`) | ~8 | move → `@agenta/shared` |
+| Generic UI (`GenericDrawer`, `EnhancedUIs/Drawer`, `SimpleSharedEditor`, `EmptyComponent`, `QuickDateRangePicker`, `lib/atoms/virtualTable`, `CustomTreeComponent`, `DrillInView`) | ~10 | move → `@agenta/ui` **or** seam if self-coupled |
+| OSS app state/hooks (`state/{project,app,appState,workspace,session,url,workflow,queries}`, `hooks/{useURL,useProjectPermissions,useQuery,useAppId}`, `lib/hooks/{useBreadcrumbs,useAnnotations}`) | ~25 | **inject via seam** (extend `registerEvalRunInjections`) |
+| `state/entities/{testset,testcase}` | 3 | **seam** — do NOT drag in the entity consolidation (the 14–18d initiative) |
+| `services/{onlineEvaluations,annotations}/api` | 5 | move the eval-exclusive ones → `@agenta/evaluations`; seam annotations if shared |
+| **References subsystem** | 23 | ⚠️ **shared** — 3,478 LOC / 20 files / **8 non-eval consumers** → **seam, do not relocate** |
+| **onlineEvaluation pages** | ~12 | 2,863 LOC / 20 files, eval-specific but cascades → **seam** (inject EmptyStates/FiltersPreview/EvaluatorDetails) |
+| `SharedDrawers/AnnotateDrawer/*`, `SharedGenerationResultUtils` | ~7 | shared → seam or move-to-package |
+
+### 12.2 Locked decision: SEAM the shared subsystems, MOVE the eval-exclusive code
+
+"Full move" is only completable if References / onlineEvaluation / AnnotateDrawer are
+**injected from OSS**, not physically relocated. References especially is a shared
+annotation subsystem with **8 non-eval consumers** — relocating it is a separate,
+unbounded migration and out of scope. This mirrors the WP-4e discipline (seam the
+`@/oss` wall rather than drag in the consolidation). Physical relocation of References can
+be an additive follow-up. End-state: eval VIEW layer is fully package-resident; the
+genuinely-shared subsystems stay in OSS behind seams.
+
+### 12.3 Phased execution (each phase: build+lint+integration-test, STOP-on-cascade)
+
+- **4h-0 — data tail.** Move `startSimpleEvaluation`/`stopSimpleEvaluation` + `QueryWindowingPayload`
+  → `@agenta/evaluations`; delete `@/oss/services/onlineEvaluations`. 3 importers. On-goal, small.
+- **4h-1 — utils/UI base.** Move pure utils → `@agenta/shared`, generic UI → `@agenta/ui`
+  (or seam the self-coupled ones). tsc-catchable, no behavioral change.
+- **4h-2 — seam scaffolding.** Extend `registerEvalRunInjections` with the view-layer seams:
+  OSS app state/hooks, `state/entities/{testset,testcase}`, References renderers,
+  onlineEvaluation components, AnnotateDrawer. OSS `-ui` provider registers the real sources.
+- **4h-3 — relocate `MetricDetails`** (`Evaluations/`, only 1 `@/oss` coupling) → `evaluations-ui`. Canary.
+  ✅ DONE — moved 9 files → `evaluations-ui/src/components/MetricDetails/`, fixed 7 latent strict-null
+  type errors + added `usehooks-ts`/`jotai-scheduler` deps, re-pointed 9 OSS consumers to the barrel,
+  deleted OSS `components/Evaluations/`. evaluations-ui check green; oss tsc 471→464 (latent errors left
+  with the files); behavioral QA pending (annotations queue metric popover + run-details metric cells).
+- **4h-4 — relocate `RunsTable`** (`EvaluationRunsTablePOC` → `RunsTable`, drop POC) → `evaluations-ui`.
+- **4h-5 — relocate `RunDetails`** (`EvalRunDetails`) → `evaluations-ui`. Largest; behavioral QA.
+- **4h-6 — repoint route shells** (the 6 pages) at `@agenta/evaluations-ui`; OSS keeps only
+  route shells + the injection-seam provider. Delete the 3 emptied OSS dirs.
+- **Gate:** full behavioral QA across run-list (app overview), run-details (results +
+  single_model_test), annotation queue metric popover, annotate flow.

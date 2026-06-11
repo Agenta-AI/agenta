@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- relocated chart code reads
+ * dynamic backend stat blobs as `Record<string, any>`; typing the stat shapes is a
+ * separate task, not part of the WP-4h relocation. See migration plan §11.4. */
 import {memo, useCallback, useMemo, useState, type ReactNode} from "react"
 
 import {
@@ -15,7 +18,7 @@ import {
     ResponsiveFrequencyChart,
     ResponsiveMetricChart,
     buildChartData,
-} from "@/oss/components/Evaluations/MetricDetailsPopover"
+} from "./MetricDetailsPopover"
 
 const formatNumber = (value: unknown): string => {
     if (typeof value === "number") {
@@ -425,8 +428,8 @@ const MetricPopoverContent = ({
         : chartData
               .map((entry) => {
                   if (!entry) return null
-                  const label = entry.name ?? entry.label ?? ""
-                  const rawValue = entry.value ?? entry.count
+                  const label = entry.name ?? ""
+                  const rawValue = entry.value
                   if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
                       return {label, count: rawValue}
                   }
@@ -436,7 +439,7 @@ const MetricPopoverContent = ({
                       count: Number.isFinite(parsed) ? parsed : 0,
                   }
               })
-              .filter((entry): entry is {label: string | number; count: number} => Boolean(entry))
+              .filter((entry): entry is {label: string; count: number} => Boolean(entry))
     const hasFrequencyChart = frequencyChartData.length > 0
     const isCategoricalMultiple = (source: unknown): boolean => {
         if (!source || typeof source !== "object") return false

@@ -23,7 +23,9 @@
         "@phosphor-icons/react": "^2.1.10",
         "clsx": "^2.1.1",
         "dayjs": "^1.11.20",
-        "lucide-react": "^0.479.0"
+        "jotai-scheduler": "^0.0.5",
+        "lucide-react": "^0.479.0",
+        "usehooks-ts": "^3.1.1"
     },
     "peerDependencies": {
         "@phosphor-icons/react": ">=2.0.0",

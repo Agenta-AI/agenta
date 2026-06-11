@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- relocated chart code reads
+ * dynamic backend stat blobs as `Record<string, any>`; typing the stat shapes is a
+ * separate task, not part of the WP-4h relocation. See migration plan §11.4. */
 import {FC, memo, useMemo, useState} from "react"
 
 import type {ChartDatum} from "../types"
@@ -313,7 +316,8 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                 const barLeft =
                                                     margin.left + xScaleVertical(d.edge as number)
                                                 const barRight =
-                                                    margin.left + xScaleVertical(d.edge + binSize)
+                                                    margin.left +
+                                                    xScaleVertical((d.edge as number) + binSize)
                                                 const rawWidth = Math.abs(barRight - barLeft)
                                                 const widthGap = Math.min(
                                                     rawWidth * GAP_RATIO,
@@ -389,7 +393,8 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                             }
 
                                             const barTop =
-                                                margin.top + yScaleHorizontal(d.edge + binSize)
+                                                margin.top +
+                                                yScaleHorizontal((d.edge as number) + binSize)
                                             const barBottom =
                                                 margin.top + yScaleHorizontal(d.edge as number)
                                             const rawHeight = Math.abs(barBottom - barTop)
@@ -764,7 +769,8 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                         )}
                                                         –
                                                         {format3Sig(
-                                                            chartData[hoveredBin].edge + binSize,
+                                                            (chartData[hoveredBin].edge as number) +
+                                                                binSize,
                                                         )}
                                                         {binWidthText ? (
                                                             <span className="ml-2 text-[11px] text-gray-500">

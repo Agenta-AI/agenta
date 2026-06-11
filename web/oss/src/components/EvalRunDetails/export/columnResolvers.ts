@@ -8,10 +8,9 @@ import {
 } from "@agenta/evaluations/state/evalRun"
 import type {EvaluationTableColumn} from "@agenta/evaluations/state/evalRun"
 import type {PreviewTableRow} from "@agenta/evaluations/state/evalRun"
+import {format3Sig} from "@agenta/evaluations-ui"
 import {formatMetricDisplay} from "@agenta/ui/cell-renderers"
 import {useStore} from "jotai"
-
-import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
 
 import {formatExportValue, logExportAction} from "./helpers"
 import type {ScenarioColumnExportMetadata} from "./types"
