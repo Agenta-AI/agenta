@@ -88,6 +88,7 @@ import {
     workflowAppSchemaAtomFamily,
     workflowInterfaceSchemasAtomFamily,
     workflowDraftAtomFamily,
+    workflowArtifactQueryAtomFamily,
     workflowBaseEntityAtomFamily,
     workflowEntityAtomFamily,
     workflowLocalServerDataAtomFamily,
@@ -428,6 +429,24 @@ const nameAtomFamily = atomFamily((workflowId: string) =>
     atom<string | null>((get) => {
         const entity = get(workflowBaseEntityAtomFamily(workflowId))
         return entity?.name ?? null
+    }),
+)
+
+/**
+ * Entity display name resolved from the workflow ARTIFACT.
+ *
+ * Revision `name` carries the variant name ("default"), not the entity name,
+ * so surfaces that label the entity (evaluator tables, annotation cells, page
+ * headers) must read the artifact's name. Accepts a revision id or a workflow
+ * id; falls back to the entity's own name for local drafts without an artifact.
+ */
+const artifactNameAtomFamily = atomFamily((entityId: string) =>
+    atom<string | null>((get) => {
+        if (!entityId) return null
+        const entity = get(workflowBaseEntityAtomFamily(entityId))
+        const artifactId = entity?.workflow_id ?? entityId
+        const artifactQuery = get(workflowArtifactQueryAtomFamily(artifactId))
+        return artifactQuery.data?.name ?? entity?.name ?? null
     }),
 )
 
@@ -1316,6 +1335,8 @@ export const workflowMolecule = {
         outputSchema: outputSchemaAtomFamily,
         /** Workflow name */
         name: nameAtomFamily,
+        /** Entity display name from the workflow artifact (revision names carry the variant name) */
+        artifactName: artifactNameAtomFamily,
         /** Workflow slug */
         slug: slugAtomFamily,
 
@@ -1461,6 +1482,8 @@ export const workflowMolecule = {
             getStore(options).get(parametersAtomFamily(workflowId)),
         name: (workflowId: string, options?: StoreOptions) =>
             getStore(options).get(nameAtomFamily(workflowId)),
+        artifactName: (entityId: string, options?: StoreOptions) =>
+            getStore(options).get(artifactNameAtomFamily(entityId)),
         // Raw flags
         flags: (workflowId: string, options?: StoreOptions) =>
             getStore(options).get(flagsAtomFamily(workflowId)),
