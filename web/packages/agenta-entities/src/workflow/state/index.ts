@@ -177,6 +177,8 @@ export {
     // Workflow display metadata (version count + last modified)
     evaluatorWorkflowMetaMapAtom,
     type EvaluatorWorkflowMeta,
+    // Parent evaluator name lookup per revision
+    evaluatorNameByRevisionAtomFamily,
     // Evaluator configs (non-human, non-custom)
     evaluatorConfigsListDataAtom,
     evaluatorConfigsQueryStateAtom,

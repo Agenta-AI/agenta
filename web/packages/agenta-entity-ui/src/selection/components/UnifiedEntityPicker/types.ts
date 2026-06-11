@@ -611,6 +611,13 @@ export interface PopoverCascaderVariantProps<
     panelWidth?: number
 
     /**
+     * Fixed width of the child (right-hand) panel (px), e.g. the revision
+     * panel. Overrides `panelWidth` for the child panel only; the root panel
+     * keeps `panelWidth`/`panelMinWidth`.
+     */
+    childPanelWidth?: number
+
+    /**
      * Maximum height of item lists (px)
      * @default 340
      */

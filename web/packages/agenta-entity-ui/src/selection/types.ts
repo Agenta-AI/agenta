@@ -255,6 +255,12 @@ export interface HierarchyLevel<T = unknown> {
     getDescription?: (entity: T) => string | undefined
 
     /**
+     * Get a suffix node rendered after the label block, before the chevron
+     * (e.g., an evaluator type tag). Vertically centered against the whole row.
+     */
+    getSuffixNode?: (entity: T) => ReactNode
+
+    /**
      * Filter function to exclude items from the list.
      * Return true to include the item, false to exclude it.
      *

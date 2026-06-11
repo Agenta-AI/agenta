@@ -65,6 +65,12 @@ export interface ListItemProps {
     footerNode?: React.ReactNode
 
     /**
+     * Node rendered after the label block, before the chevron (e.g., a type tag).
+     * Vertically centered against the whole row, independent of the label lines.
+     */
+    suffixNode?: React.ReactNode
+
+    /**
      * Whether the item can be navigated into
      */
     hasChildren?: boolean
@@ -119,6 +125,7 @@ export function ListItem({
     icon,
     prefixNode,
     footerNode,
+    suffixNode,
     hasChildren = false,
     isSelectable = false,
     isSelected = false,
@@ -194,6 +201,10 @@ export function ListItem({
                     {footerNode}
                 </div>
             </div>
+
+            {suffixNode && (
+                <span className="flex-shrink-0 flex items-center ml-2">{suffixNode}</span>
+            )}
 
             {/* Show chevron for items with children (indicates popover/drill-down available) */}
             {hasChildren && (

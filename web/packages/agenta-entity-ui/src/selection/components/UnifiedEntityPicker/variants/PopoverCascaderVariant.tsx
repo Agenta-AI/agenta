@@ -227,8 +227,9 @@ function ChildPanelContent({
 
 /**
  * Compact removable chips for a root item's selected children (e.g. "v2 ×").
- * Clicks inside the chips row stop propagation so they never trigger the
- * row's navigation click.
+ * Only the "×" stops propagation (it deselects); clicks anywhere else in the
+ * chips row bubble up to the row so they open the child panel like the rest
+ * of the row body.
  */
 function SelectedChildChips({
     chips,
@@ -238,7 +239,7 @@ function SelectedChildChips({
     onDeselectChild?: (childId: string) => void
 }) {
     return (
-        <div className="flex flex-wrap gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex flex-wrap gap-1 mt-0.5">
             {chips.map((chip) => (
                 <span
                     key={chip.id}
@@ -248,7 +249,10 @@ function SelectedChildChips({
                     <X
                         size={10}
                         className="cursor-pointer opacity-60 hover:opacity-100"
-                        onClick={() => onDeselectChild?.(chip.id)}
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            onDeselectChild?.(chip.id)
+                        }}
                     />
                 </span>
             ))}
@@ -330,6 +334,7 @@ function RootItemRenderer({
                 description={description}
                 prefixNode={prefixNode}
                 footerNode={footerNode}
+                suffixNode={rootLevel.getSuffixNode?.(item)}
                 hasChildren={totalLevels > 1}
                 isSelectable={totalLevels <= 1}
                 isSelected={id === selectedParentId}
@@ -358,6 +363,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     placement = "bottomLeft",
     panelMinWidth = 220,
     panelWidth,
+    childPanelWidth,
     maxHeight = 340,
     popupFooter,
     onCreateNew,
@@ -466,12 +472,22 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
         [panelWidth, panelMinWidth],
     )
 
+    // The child panel falls back to the shared panelWidth when no dedicated
+    // childPanelWidth is provided.
+    const resolvedChildWidth = childPanelWidth ?? panelWidth
+
     const childPanelStyle = useMemo<CSSProperties>(
         () =>
-            panelWidth != null
-                ? {width: panelWidth}
+            resolvedChildWidth != null
+                ? {width: resolvedChildWidth}
                 : {minWidth: panelMinWidth, maxWidth: panelMinWidth},
-        [panelWidth, panelMinWidth],
+        [resolvedChildWidth, panelMinWidth],
+    )
+
+    const childPanelOuterStyle = useMemo<CSSProperties>(
+        () =>
+            resolvedChildWidth != null ? {width: resolvedChildWidth} : {minWidth: panelMinWidth},
+        [resolvedChildWidth, panelMinWidth],
     )
 
     // Maintain auto-selection to prevent pixel shifts when searching/filtering
@@ -789,7 +805,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
 
                 {/* CHILD PANEL */}
                 {selectedRootId && totalLevels > 1 && (
-                    <div className="flex flex-col" style={panelStyle}>
+                    <div className="flex flex-col" style={childPanelOuterStyle}>
                         <ChildPanelContent
                             parentId={selectedRootId}
                             parentLabel={rootLevel.getLabel(selectedRootEntity!)}

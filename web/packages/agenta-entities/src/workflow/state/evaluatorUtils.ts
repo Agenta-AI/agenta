@@ -33,6 +33,7 @@ import {
     workflowProjectIdAtom,
     workflowLocalServerDataAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    workflowEntityAtomFamily,
     invalidateWorkflowsListCache,
     type WorkflowListRef,
     toWorkflowListRef,
@@ -288,6 +289,25 @@ export const evaluatorWorkflowMetaMapAtom = atom<Map<string, EvaluatorWorkflowMe
 
     return map
 })
+
+/**
+ * Derived atom family: revisionId → parent evaluator workflow's display name.
+ *
+ * Evaluator revisions are frequently named after their variant (e.g. "default"),
+ * so displaying the revision's own `name` is misleading. This resolves the
+ * revision's `workflow_id` against the evaluator list and returns the parent
+ * workflow's name instead. Returns `null` when the revision's parent isn't an
+ * evaluator (e.g. app revisions) so callers can fall back to the revision name.
+ */
+export const evaluatorNameByRevisionAtomFamily = atomFamily((revisionId: string) =>
+    atom<string | null>((get) => {
+        const revision = get(workflowEntityAtomFamily(revisionId))
+        const workflowId = revision?.workflow_id
+        if (!workflowId) return null
+        const evaluator = get(evaluatorsListDataAtom).find((w) => w.id === workflowId)
+        return evaluator?.name?.trim() || null
+    }),
+)
 
 interface EvaluatorRevisionFlags {
     isFeedback: boolean

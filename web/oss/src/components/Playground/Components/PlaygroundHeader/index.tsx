@@ -7,7 +7,9 @@ import {
     parseWorkflowKeyFromUri,
     workflowMolecule,
     createEvaluatorFromTemplate,
+    evaluatorNameByRevisionAtomFamily,
     evaluatorWorkflowMetaMapAtom,
+    evaluatorsListDataAtom,
     workflowLatestRevisionQueryAtomFamily,
 } from "@agenta/entities/workflow"
 import type {EvaluatorCatalogTemplate, Workflow, WorkflowTypeColor} from "@agenta/entities/workflow"
@@ -116,12 +118,18 @@ const EvaluatorTag: React.FC<{
         return getWorkflowTypeColor(workflowType) ?? undefined
     }, [runnableData])
 
+    // Revision entities are often named after their variant ("default"), so
+    // prefer the parent evaluator workflow's name for display.
+    const evaluatorName = useAtomValue(
+        useMemo(() => evaluatorNameByRevisionAtomFamily(node.entityId), [node.entityId]),
+    )
+
     const label = useMemo(() => {
-        const fetchedName = runnableData?.name?.trim()
+        const fetchedName = evaluatorName || runnableData?.name?.trim()
         const name = fetchedName || runnableData?.slug?.trim() || "Evaluator"
         const version = runnableData?.version ?? null
         return version != null ? `${name} v${version}` : name
-    }, [runnableData])
+    }, [evaluatorName, runnableData])
 
     return (
         <Tag
@@ -272,7 +280,14 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
             ).data
             if (!revision?.id || connectedRevisionIds.has(revision.id)) return
 
-            const workflowName = revision.name?.trim() || revision.slug?.trim() || "Evaluator"
+            // The revision's own name is usually the variant name ("default") —
+            // use the evaluator workflow's name from the list instead.
+            const workflowEntityName = getDefaultStore()
+                .get(evaluatorsListDataAtom)
+                .find((w) => w.id === parentId)
+                ?.name?.trim()
+            const workflowName =
+                workflowEntityName || revision.name?.trim() || revision.slug?.trim() || "Evaluator"
             connectDownstreamNode({
                 sourceNodeId: rootNode.id,
                 entity: {
@@ -299,9 +314,12 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     )
 
     // Evaluator-only adapter with colored type tags, human filtering, custom revision
-    // labels, and workflow metadata ("N versions · date") for the picker rows
+    // labels, and workflow metadata ("N versions · date") for the picker rows.
+    // splitTypeTag renders the type tag in the row's suffix slot (vertically
+    // centered) instead of trailing the name.
     const evaluatorWorkflowAdapter = useEvaluatorOnlyAdapter(renderWorkflowRevisionLabel, {
         showWorkflowMeta: true,
+        splitTypeTag: true,
     })
 
     // Controlled state for EvaluatorTemplateDropdown
@@ -314,17 +332,36 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
 
     const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
     const playgroundStore = useStore()
+    // The root node's `label` can be a raw entity UUID (URL-hydrated nodes get
+    // `label: entityId`), so build the display label from entity data instead:
+    // "AppName / vN" — the same format the drawer's app picker produces on a
+    // manual selection (skip-variant adapter), so the preselected state matches.
+    const rootRevisionVersion = useAtomValue(
+        useMemo(() => {
+            const rootEntityId = nodes.find((node) => node.depth === 0)?.entityId
+            return atom((get) => {
+                if (!rootEntityId) return null
+                const data = get(workflowMolecule.selectors.data(rootEntityId)) as {
+                    version?: number | null
+                } | null
+                return data?.version ?? null
+            })
+        }, [nodes]),
+    )
+
     const currentAppSelection = useMemo(() => {
         if (currentWorkflowCtx.workflowKind === "evaluator") return undefined
 
         const rootNode = nodes.find((node) => node.depth === 0)
         if (!rootNode) return undefined
 
+        const appName = currentWorkflow?.name?.trim() || "Application"
+
         return {
             revisionId: rootNode.entityId,
-            label: rootNode.label?.trim() || currentWorkflow?.name?.trim() || "Application",
+            label: rootRevisionVersion != null ? `${appName} / v${rootRevisionVersion}` : appName,
         }
-    }, [currentWorkflow?.name, currentWorkflowCtx.workflowKind, nodes])
+    }, [currentWorkflow?.name, currentWorkflowCtx.workflowKind, nodes, rootRevisionVersion])
 
     const handleCreatedEvaluator = useCallback(
         ({
@@ -538,7 +575,8 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                     selectedChildIds={connectedRevisionIds}
                                     selectionSummary
                                     childItemLabelMode="simple"
-                                    panelWidth={280}
+                                    panelWidth={320}
+                                    childPanelWidth={180}
                                     showParentCheckboxes
                                     selectedChildrenByParent={selectedChildrenByParent}
                                     totalChildrenByParent={totalChildrenByParent}
