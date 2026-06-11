@@ -9,8 +9,6 @@ import {
     createEvaluatorFromTemplate,
     evaluatorNameByRevisionAtomFamily,
     evaluatorWorkflowMetaMapAtom,
-    evaluatorsListDataAtom,
-    workflowLatestRevisionQueryAtomFamily,
 } from "@agenta/entities/workflow"
 import type {EvaluatorCatalogTemplate, Workflow, WorkflowTypeColor} from "@agenta/entities/workflow"
 import {EntityPicker} from "@agenta/entity-ui"
@@ -24,7 +22,7 @@ import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {Gavel, PencilSimple, Plus} from "@phosphor-icons/react"
 import {Button, Divider, Dropdown, Space, Tag, Tooltip, Typography, message} from "antd"
 import clsx from "clsx"
-import {atom, getDefaultStore, useAtomValue, useSetAtom, useStore} from "jotai"
+import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
 import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
@@ -258,59 +256,6 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
             if (node) disconnectSingleDownstreamNode(node.id)
         },
         [connectedEvaluatorNodes, disconnectSingleDownstreamNode],
-    )
-
-    // Parent checkbox toggle: check connects the workflow's latest revision,
-    // uncheck disconnects every connected revision of that workflow.
-    const handleParentToggle = useCallback(
-        (parentId: string, checked: boolean) => {
-            if (!checked) {
-                selectedChildrenByParent
-                    .get(parentId)
-                    ?.forEach((child) => handleDeselectChild(child.id))
-                return
-            }
-
-            const rootNode = nodes.find((n) => n.depth === 0)
-            if (!rootNode) return
-
-            // Latest revision is already batch-fetched and cached for the picker's metadata
-            const revision = getDefaultStore().get(
-                workflowLatestRevisionQueryAtomFamily(parentId),
-            ).data
-            if (!revision?.id || connectedRevisionIds.has(revision.id)) return
-
-            // The revision's own name is usually the variant name ("default") —
-            // use the evaluator workflow's name from the list instead.
-            const workflowEntityName = getDefaultStore()
-                .get(evaluatorsListDataAtom)
-                .find((w) => w.id === parentId)
-                ?.name?.trim()
-            const workflowName =
-                workflowEntityName || revision.name?.trim() || revision.slug?.trim() || "Evaluator"
-            connectDownstreamNode({
-                sourceNodeId: rootNode.id,
-                entity: {
-                    type: "workflow",
-                    id: revision.id,
-                    label: `${workflowName} / v${revision.version ?? 0}`,
-                    metadata: {
-                        workflowId: parentId,
-                        workflowName,
-                        variantId: "",
-                        variantName: "",
-                        revision: revision.version ?? 0,
-                    },
-                },
-            })
-        },
-        [
-            nodes,
-            selectedChildrenByParent,
-            connectedRevisionIds,
-            connectDownstreamNode,
-            handleDeselectChild,
-        ],
     )
 
     // Evaluator-only adapter with colored type tags, human filtering, custom revision
@@ -580,7 +525,6 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                     showParentCheckboxes
                                     selectedChildrenByParent={selectedChildrenByParent}
                                     totalChildrenByParent={totalChildrenByParent}
-                                    onParentToggle={handleParentToggle}
                                     onDeselectChild={handleDeselectChild}
                                     showParentDescription
                                     showGroupHeaders

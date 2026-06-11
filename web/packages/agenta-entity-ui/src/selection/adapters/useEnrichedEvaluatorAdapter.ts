@@ -135,8 +135,8 @@ function formatWorkflowMetaDescription(
         parts.push(`${meta.versionCount} ${meta.versionCount === 1 ? "version" : "versions"}`)
     }
 
-    if (meta.lastModifiedAt) {
-        const date = new Date(meta.lastModifiedAt)
+    if (meta.createdAt) {
+        const date = new Date(meta.createdAt)
         if (!isNaN(date.getTime())) {
             parts.push(
                 date.toLocaleDateString(undefined, {
@@ -319,17 +319,22 @@ type AnnotationWorkflowRevisionSelectionResult = WorkflowRevisionSelectionResult
  */
 export function useEnrichedHumanEvaluatorAdapter(
     revisionLabelOverride?: (entity: unknown) => React.ReactNode,
+    options?: {showWorkflowMeta?: boolean},
 ) {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
+    const workflowMetaMap = useAtomValue(evaluatorWorkflowMetaMapAtom)
     const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
     const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
     const revisionLabelOverrideRef = useRef(revisionLabelOverride)
+    const workflowMetaMapRef = useRef(workflowMetaMap)
 
     evaluatorKeyMapRef.current = evaluatorKeyMap
     evaluatorDefsByKeyRef.current = evaluatorDefsByKey
     revisionLabelOverrideRef.current = revisionLabelOverride
+    workflowMetaMapRef.current = workflowMetaMap
 
     const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
+    const showWorkflowMeta = Boolean(options?.showWorkflowMeta)
 
     // Stable atom that wraps humanEvaluatorsListQueryAtom into ListQueryState<unknown>.
     // Uses a proper Jotai atom so filtering reactively updates when revision data resolves.
@@ -361,6 +366,14 @@ export function useEnrichedHumanEvaluatorAdapter(
             workflowListAtom: humanEvaluatorsListAtom,
             grandparentOverrides: {
                 getLabelNode,
+                getDescription: showWorkflowMeta
+                    ? (entity: unknown): string | undefined => {
+                          const workflow = entity as {id: string}
+                          return formatWorkflowMetaDescription(
+                              workflowMetaMapRef.current.get(workflow.id),
+                          )
+                      }
+                    : undefined,
             },
             toSelection: (path, leafEntity) => {
                 const revision = leafEntity as {id: string; version?: number}
@@ -396,7 +409,7 @@ export function useEnrichedHumanEvaluatorAdapter(
         }
 
         return createWorkflowRevisionAdapter(options)
-    }, [hasRevisionLabelOverride, humanEvaluatorsListAtom])
+    }, [hasRevisionLabelOverride, humanEvaluatorsListAtom, showWorkflowMeta])
 }
 
 /**

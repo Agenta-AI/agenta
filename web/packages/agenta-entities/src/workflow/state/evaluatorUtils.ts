@@ -262,12 +262,12 @@ export interface EvaluatorWorkflowMeta {
      * version number equals the revision count — no full-list fetch needed.
      */
     versionCount: number | null
-    /** Workflow-level `updated_at`, falling back to `created_at`. */
-    lastModifiedAt: string | null
+    /** Workflow-level creation timestamp. */
+    createdAt: string | null
 }
 
 /**
- * Derived atom: workflowId → display metadata (version count + last modified date).
+ * Derived atom: workflowId → display metadata (version count + creation date).
  *
  * Reads the same batched + cached latest-revision queries as `evaluatorKeyMapAtom`,
  * so subscribing to this atom adds no extra requests.
@@ -283,7 +283,7 @@ export const evaluatorWorkflowMetaMapAtom = atom<Map<string, EvaluatorWorkflowMe
 
         map.set(evaluator.id, {
             versionCount: revision?.version ?? null,
-            lastModifiedAt: evaluator.updated_at ?? evaluator.created_at ?? null,
+            createdAt: evaluator.created_at ?? null,
         })
     }
 

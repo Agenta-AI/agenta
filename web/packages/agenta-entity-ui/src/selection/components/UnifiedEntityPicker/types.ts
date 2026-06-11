@@ -713,14 +713,8 @@ export interface PopoverCascaderVariantProps<
     totalChildrenByParent?: Map<string, number>
 
     /**
-     * Called when a parent checkbox is toggled.
-     * `checked: true` — the consumer should select the parent's latest child.
-     * `checked: false` — the consumer should deselect ALL children of that parent.
-     */
-    onParentToggle?: (parentId: string, checked: boolean) => void
-
-    /**
      * Called when a selected-child chip's remove (×) button is clicked.
+     * Also called for every selected child when its parent checkbox is unchecked.
      */
     onDeselectChild?: (childId: string) => void
 

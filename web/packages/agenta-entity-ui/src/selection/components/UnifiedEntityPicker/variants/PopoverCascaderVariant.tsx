@@ -24,6 +24,7 @@ import {Button, Checkbox, Empty, Popover, Spin, Tabs} from "antd"
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"
 import {useLevelData} from "../../../hooks/utilities"
 import type {EntitySelectionResult, HierarchyLevel, SelectionPathItem} from "../../../types"
+import {AutoSelectHandler} from "../shared"
 import type {PopoverCascaderVariantProps} from "../types"
 
 const POPOVER_CASCADER_TEST_IDS = {
@@ -275,8 +276,9 @@ function RootItemRenderer({
     showParentCheckboxes = false,
     selectedChildrenByParent,
     totalChildrenByParent,
-    onParentToggle,
+    onParentCheckboxChange,
     onDeselectChild,
+    isParentSelectionPending = false,
     showParentDescription = false,
 }: {
     item: unknown
@@ -289,8 +291,9 @@ function RootItemRenderer({
     showParentCheckboxes?: boolean
     selectedChildrenByParent?: Map<string, {id: string; label: string}[]>
     totalChildrenByParent?: Map<string, number>
-    onParentToggle?: (parentId: string, checked: boolean) => void
+    onParentCheckboxChange: (item: unknown, checked: boolean) => void
     onDeselectChild?: (childId: string) => void
+    isParentSelectionPending?: boolean
     showParentDescription?: boolean
 }) {
     const id = rootLevel.getId(item)
@@ -308,7 +311,8 @@ function RootItemRenderer({
             <Checkbox
                 checked={isChecked}
                 indeterminate={isIndeterminate}
-                onChange={() => onParentToggle?.(id, !isChecked)}
+                disabled={isParentSelectionPending}
+                onChange={() => onParentCheckboxChange(item, !isChecked)}
             />
         </span>
     ) : undefined
@@ -382,7 +386,6 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     showParentCheckboxes = false,
     selectedChildrenByParent,
     totalChildrenByParent,
-    onParentToggle,
     onDeselectChild,
     // Root row metadata
     showParentDescription = false,
@@ -407,6 +410,10 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     const [searchTerm, setSearchTerm] = useState("")
     const [selectedRootId, setSelectedRootId] = useState<string | null>(null)
     const [selectedRootEntity, setSelectedRootEntity] = useState<unknown>(null)
+    const [pendingParentSelection, setPendingParentSelection] = useState<{
+        id: string
+        label: string
+    } | null>(null)
     const pendingCreateRef = useRef(false)
 
     // Active tab state — always starts on "all", reset on close
@@ -607,6 +614,36 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
         ],
     )
 
+    const handleParentCheckboxChange = useCallback(
+        (parentEntity: unknown, checked: boolean) => {
+            if (pendingParentSelection) return
+
+            const parentId = rootLevel.getId(parentEntity)
+            if (!checked) {
+                selectedChildrenByParent
+                    ?.get(parentId)
+                    ?.forEach((child) => onDeselectChild?.(child.id))
+                return
+            }
+
+            const childLevel = hierarchyLevels[1]
+            if (!childLevel) return
+
+            childLevel.onBeforeLoad?.(parentId)
+            setPendingParentSelection({
+                id: parentId,
+                label: rootLevel.getLabel(parentEntity),
+            })
+        },
+        [
+            hierarchyLevels,
+            onDeselectChild,
+            pendingParentSelection,
+            rootLevel,
+            selectedChildrenByParent,
+        ],
+    )
+
     // Reset state when popover closes
     const handleOpenChange = useCallback((newOpen: boolean) => {
         setOpen(newOpen)
@@ -644,8 +681,9 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
             showParentCheckboxes,
             selectedChildrenByParent,
             totalChildrenByParent,
-            onParentToggle,
+            onParentCheckboxChange: handleParentCheckboxChange,
             onDeselectChild,
+            isParentSelectionPending: pendingParentSelection !== null,
             showParentDescription,
         }),
         [
@@ -658,8 +696,9 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
             showParentCheckboxes,
             selectedChildrenByParent,
             totalChildrenByParent,
-            onParentToggle,
+            handleParentCheckboxChange,
             onDeselectChild,
+            pendingParentSelection,
             showParentDescription,
         ],
     )
@@ -830,29 +869,45 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     )
 
     return (
-        <Popover
-            content={content}
-            trigger="click"
-            open={open}
-            onOpenChange={handleOpenChange}
-            afterOpenChange={handleAfterOpenChange}
-            placement={placement}
-            styles={{container: {padding: 0}}}
-            arrow={false}
-            destroyOnHidden
-            autoAdjustOverflow
-        >
-            <Button
-                size={size}
-                disabled={disabled}
-                className={
-                    className ? `flex items-center gap-1 ${className}` : "flex items-center gap-1"
-                }
+        <>
+            {pendingParentSelection && hierarchyLevels[1] ? (
+                <AutoSelectHandler
+                    parentId={pendingParentSelection.id}
+                    parentLabel={pendingParentSelection.label}
+                    parentLevelConfig={rootLevel}
+                    childLevelConfig={hierarchyLevels[1]}
+                    disabledChildIds={disabledChildIds}
+                    createSelection={createSelection}
+                    onSelect={onSelect}
+                    onComplete={() => setPendingParentSelection(null)}
+                />
+            ) : null}
+            <Popover
+                content={content}
+                trigger="click"
+                open={open}
+                onOpenChange={handleOpenChange}
+                afterOpenChange={handleAfterOpenChange}
+                placement={placement}
+                styles={{container: {padding: 0}}}
+                arrow={false}
+                destroyOnHidden
+                autoAdjustOverflow
             >
-                {icon}
-                {placeholder}
-                {showDropdownIcon ? <CaretDown size={10} /> : null}
-            </Button>
-        </Popover>
+                <Button
+                    size={size}
+                    disabled={disabled}
+                    className={
+                        className
+                            ? `flex items-center gap-1 ${className}`
+                            : "flex items-center gap-1"
+                    }
+                >
+                    {icon}
+                    {placeholder}
+                    {showDropdownIcon ? <CaretDown size={10} /> : null}
+                </Button>
+            </Popover>
+        </>
     )
 }

@@ -161,6 +161,8 @@ export interface UseListPopoverModeResult<TSelection = EntitySelectionResult> {
     // Auto-select state
     /** Parent being auto-selected (for latest selection) */
     autoSelectingParent: {id: string; label: string} | null
+    /** Clear the pending latest-child auto-selection */
+    clearAutoSelectingParent: () => void
 
     // Core
     /** Resolved adapter */
@@ -299,6 +301,9 @@ export function useListPopoverMode<TSelection = EntitySelectionResult>(
         id: string
         label: string
     } | null>(null)
+    const clearAutoSelectingParent = useCallback(() => {
+        setAutoSelectingParent(null)
+    }, [])
 
     // ========================================================================
     // PARENT DATA
@@ -499,6 +504,7 @@ export function useListPopoverMode<TSelection = EntitySelectionResult>(
 
         // Auto-select
         autoSelectingParent,
+        clearAutoSelectingParent,
 
         // Core
         adapter,
@@ -537,6 +543,7 @@ export interface UseAutoSelectLatestChildOptions<TSelection = EntitySelectionRes
     parentLabel: string
     parentLevelConfig: HierarchyLevel<unknown>
     childLevelConfig: HierarchyLevel<unknown>
+    disabledChildIds?: Set<string>
     createSelection: (path: SelectionPathItem[], entity: unknown) => TSelection
     onSelect?: (selection: TSelection) => void
     onComplete: () => void
@@ -547,6 +554,7 @@ export function useAutoSelectLatestChild<TSelection = EntitySelectionResult>({
     parentLabel,
     parentLevelConfig,
     childLevelConfig,
+    disabledChildIds,
     createSelection,
     onSelect,
     onComplete,
@@ -556,30 +564,48 @@ export function useAutoSelectLatestChild<TSelection = EntitySelectionResult>({
     // Fetch children
     const {items: children, query} = useChildrenData(childLevelConfig, parentId, true)
 
-    // Auto-select first child when loaded
     useEffect(() => {
-        if (hasSelectedRef.current || query.isPending || children.length === 0) {
+        hasSelectedRef.current = false
+    }, [parentId])
+
+    // Auto-select first enabled child when loaded
+    useEffect(() => {
+        if (hasSelectedRef.current || query.isPending) return
+
+        const firstChild = children.find(
+            (child) => !disabledChildIds?.has(childLevelConfig.getId(child)),
+        )
+
+        if (firstChild) {
+            hasSelectedRef.current = true
+            const parentPathItem: SelectionPathItem = {
+                type: parentLevelConfig.type,
+                id: parentId,
+                label: parentLabel,
+            }
+
+            const childPathItem = buildPathItem(firstChild, childLevelConfig)
+            const fullPath = [parentPathItem, childPathItem]
+            const selection = createSelection(fullPath, firstChild)
+
+            onSelect?.(selection)
+            onComplete()
             return
         }
 
+        // An empty snapshot can be emitted before a lazy query starts. Only
+        // finish without a selection once the adapter confirms the query
+        // settled, or when loaded children are all disabled.
+        if (!query.isError && !query.isFetched && children.length === 0) return
+
         hasSelectedRef.current = true
-        const firstChild = children[0]
-
-        const parentPathItem: SelectionPathItem = {
-            type: parentLevelConfig.type,
-            id: parentId,
-            label: parentLabel,
-        }
-
-        const childPathItem = buildPathItem(firstChild, childLevelConfig)
-        const fullPath = [parentPathItem, childPathItem]
-        const selection = createSelection(fullPath, firstChild)
-
-        onSelect?.(selection)
         onComplete()
     }, [
         query.isPending,
+        query.isError,
+        query.isFetched,
         children,
+        disabledChildIds,
         parentId,
         parentLabel,
         parentLevelConfig,

@@ -27,14 +27,15 @@ export interface EntityEvaluatorSelectorProps {
     buttonLabel?: string
     onCreate?: () => void
     createLabel?: string
-    disabledRevisionIds?: Set<string>
-    disabledRevisionTooltip?: string
     panelMinWidth?: number
     panelWidth?: number
     childPanelWidth?: number
     disabled?: boolean
-    selectedEvaluatorId?: string | null
-    selectedRevisionId?: string | null
+    selectedRevisionIds: Set<string>
+    selectedRevisionsByEvaluator: Map<string, {id: string; label: string}[]>
+    totalRevisionsByEvaluator: Map<string, number>
+    onDeselectRevision: (revisionId: string) => void
+    onClearAll: () => void
     openVersionOnHover?: boolean
 }
 
@@ -130,14 +131,15 @@ export function EntityEvaluatorSelector({
     buttonLabel = "Add evaluator",
     onCreate,
     createLabel = "Create evaluator",
-    disabledRevisionIds,
-    disabledRevisionTooltip = "Already added",
     panelMinWidth = 280,
     panelWidth,
     childPanelWidth,
     disabled = false,
-    selectedEvaluatorId,
-    selectedRevisionId,
+    selectedRevisionIds,
+    selectedRevisionsByEvaluator,
+    totalRevisionsByEvaluator,
+    onDeselectRevision,
+    onClearAll,
     openVersionOnHover = false,
 }: EntityEvaluatorSelectorProps) {
     const renderRevisionLabel = useCallback((entity: unknown) => {
@@ -166,7 +168,9 @@ export function EntityEvaluatorSelector({
         )
     }, [])
 
-    const evaluatorAdapter = useEnrichedHumanEvaluatorAdapter(renderRevisionLabel)
+    const evaluatorAdapter = useEnrichedHumanEvaluatorAdapter(renderRevisionLabel, {
+        showWorkflowMeta: true,
+    })
 
     return (
         <div className="min-w-0 w-full">
@@ -183,11 +187,17 @@ export function EntityEvaluatorSelector({
                 panelWidth={panelWidth}
                 childPanelWidth={childPanelWidth}
                 disabled={disabled}
-                selectedParentId={selectedEvaluatorId}
-                selectedChildId={selectedRevisionId}
-                disabledChildIds={disabledRevisionIds}
-                disabledChildTooltip={disabledRevisionTooltip}
                 openChildOnHover={openVersionOnHover}
+                multiSelect
+                selectedChildIds={selectedRevisionIds}
+                selectionSummary
+                showParentCheckboxes
+                selectedChildrenByParent={selectedRevisionsByEvaluator}
+                totalChildrenByParent={totalRevisionsByEvaluator}
+                onDeselectChild={onDeselectRevision}
+                showParentDescription
+                showChildSelectAll
+                onClearAll={onClearAll}
                 size="middle"
                 onCreateNew={onCreate}
                 createNewLabel={createLabel}
