@@ -1509,14 +1509,22 @@ class EvaluationsService:
 
         # Rewrite mappings only if a schema was inferred this pass; declared-only
         # runs already have correct mappings. Pass the full set (declared + inferred).
+        # A closed run can't be edited; skip the persist rather than abort the
+        # whole refresh (metric recompute/store below still needs to run).
         if any_inferred and metrics_keys_by_step and run and run.data:
-            await self._update_run_mappings_from_inferred_metrics(
-                project_id=project_id,
-                user_id=user_id,
-                run=run,
-                inferred_metrics_keys_by_step=metrics_keys_by_step,
-                inferred_schemas_by_step=inferred_schemas_by_step,
-            )
+            try:
+                await self._update_run_mappings_from_inferred_metrics(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run=run,
+                    inferred_metrics_keys_by_step=metrics_keys_by_step,
+                    inferred_schemas_by_step=inferred_schemas_by_step,
+                )
+            except EvaluationClosedConflict:
+                log.info(
+                    "[METRICS] Skipping inferred-schema persistence for closed run",
+                    run_id=run.id,
+                )
 
         steps_specs: Dict[str, List[MetricSpec]] = dict()
 
@@ -1787,22 +1795,20 @@ class EvaluationsService:
                     updated_steps.append(step)
 
         if updated_mappings != existing_mappings or updated_steps != existing_steps:
-            run_data = EvaluationRunData(
-                steps=updated_steps,
-                repeats=run.data.repeats,
-                mappings=updated_mappings,
+            run_data = run.data.model_copy(
+                update={"steps": updated_steps, "mappings": updated_mappings}
+            )
+            run_edit = EvaluationRunEdit(
+                **run.model_dump(
+                    include=set(EvaluationRunEdit.model_fields) - {"data"},
+                    exclude_none=True,
+                ),
+                data=run_data,
             )
             await self.edit_run(
                 project_id=project_id,
                 user_id=user_id,
-                run=EvaluationRunEdit(
-                    id=run.id,
-                    name=run.name,
-                    description=run.description,
-                    status=run.status,
-                    flags=run.flags,
-                    data=run_data,
-                ),
+                run=run_edit,
             )
 
     # - EVALUATION QUEUE -------------------------------------------------------
