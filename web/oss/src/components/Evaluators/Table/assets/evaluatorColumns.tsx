@@ -38,9 +38,11 @@ import type {EvaluatorTableRow} from "../../store/evaluatorsPaginatedStore"
 // unnecessary re-renders and avoiding max-update-depth from object churn.
 // ============================================================================
 
-/** Workflow name — string | null */
+/** Entity display name from the workflow artifact — string | null.
+ *  Revision `name` carries the variant name ("default"), so both parent rows
+ *  (workflow id) and revision rows (revision id) resolve the artifact name. */
 const workflowNameAtomFamily = atomFamily((id: string) =>
-    atom<string | null>((get) => get(workflowMolecule.selectors.name(id))),
+    atom<string | null>((get) => get(workflowMolecule.selectors.artifactName(id))),
 )
 /** Workflow slug — string | null */
 const workflowSlugAtomFamily = atomFamily((id: string) =>
