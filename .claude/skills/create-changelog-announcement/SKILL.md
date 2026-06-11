@@ -8,32 +8,57 @@ user-invocable: true
 # Create Changelog Announcement
 
 This skill guides you through creating complete changelog announcements that include:
-1. Detailed changelog documentation page in `/docs/blog/entries/`
-2. Summary entry in `/docs/blog/main.mdx`
-3. Sidebar announcement card in `/web/oss/src/components/SidebarBanners/data/changelog.json`
-4. Roadmap update in `/docs/src/data/roadmap.ts`
-5. GitHub discussion closure (if applicable)
-6. Social media announcements (LinkedIn, Twitter, Slack)
+1. Changelog entry page in `/docs/blog/entries/` (the changelog index at `/changelog` is generated from these automatically, with pagination)
+2. Sidebar announcement card in `/web/oss/src/components/SidebarBanners/data/changelog.json`
+3. Roadmap update in `/docs/src/data/roadmap.ts`
+4. GitHub discussion closure (if applicable)
+5. Social media announcements (LinkedIn, Twitter, Slack)
 
 ## Your Core Responsibilities
 
 ### 1. **Complete Changelog Creation Workflow**
 
-For every changelog announcement, you create THREE coordinated entries:
+For every changelog announcement, you create TWO coordinated artifacts:
 
-**A. Detailed Entry** (`docs/blog/entries/[feature-slug].mdx`):
+**A. Changelog Entry** (`docs/blog/entries/[feature-slug].mdx`):
 - Comprehensive explanation of the feature or change
 - Code examples, screenshots, or embedded videos
 - Links to related documentation
 - User-focused benefits and use cases
+- Two distinct texts: a **short summary** for the `/changelog` index, and the
+  **full write-up** for the entry's own page. The short version is the curated
+  1-2 paragraph summary (it can differ from the long version's opening; do not
+  just copy the first lines of the long write-up). Structure the file as:
 
-**B. Summary Entry** (`docs/blog/main.mdx`):
-- Concise 1-2 paragraph summary
-- Version number and date
-- Link to detailed entry
-- Embedded media if significant feature
+  ```mdx
+  ---frontmatter---
 
-**C. Sidebar Announcement** (`web/oss/src/components/SidebarBanners/data/changelog.json`):
+  import Image from "@theme/IdealImage"; {/* only if you use <Image> */}
+
+  <Summary>
+
+  {/* Optional hero video or screenshot, shown on the index */}
+
+  Curated 1-2 paragraph summary shown on the /changelog index.
+
+  </Summary>
+
+  {/* truncate */}
+
+  {/* Repeat the hero video/screenshot here so it also shows on the page */}
+
+  Full write-up (## sections, videos, code) shown on the entry's page.
+  ```
+
+  `<Summary>` renders only on the index list (as the preview, with a "Read
+  more" link); it renders nothing on the entry page, so the page shows just the
+  full write-up with no duplication. If the feature has a demo video or
+  screenshot, put it inside `<Summary>` so it appears on the index, and also in
+  the write-up below the marker so it appears on the entry page. Embedded
+  videos and images are capped to a centered 680px in CSS, so use the existing
+  `<iframe>`/`<Image>` markup as-is.
+
+**B. Sidebar Announcement** (`web/oss/src/components/SidebarBanners/data/changelog.json`):
 - One-sentence description
 - Link to detailed documentation
 - Unique ID with date
@@ -82,7 +107,7 @@ Apply these writing guidelines rigorously:
 
 **Version Format**:
 - Use semantic versioning: `v0.73.0`
-- Include in summary entry
+- Include it as the entry's tag (`tags: [v0.73.0]`); the changelog index shows it as a version chip next to the date
 
 ### 5. **Media Handling**
 
@@ -132,8 +157,8 @@ Apply these writing guidelines rigorously:
 
 Before finalizing, verify:
 - [ ] Version number present and correct
-- [ ] All three entries created (detailed, summary, sidebar)
-- [ ] Summary links to detailed entry correctly
+- [ ] Entry and sidebar announcement created
+- [ ] Curated summary wrapped in `<Summary>`, then `{/* truncate */}`, then the full write-up
 - [ ] Active voice used where possible
 - [ ] No em dashes present
 - [ ] Feature documentation linked if applicable
@@ -144,13 +169,12 @@ Before finalizing, verify:
 
 ### 8. **File Locations Reference**
 
-**Detailed changelog entries:**
+**Changelog entries:**
 - Path: `/docs/blog/entries/[feature-slug].mdx`
 - Example: `/docs/blog/entries/chat-sessions-observability.mdx`
-
-**Summary changelog:**
-- Path: `/docs/blog/main.mdx`
-- Add new entry at the TOP of the file (after imports, before other entries)
+- The changelog index page at `/changelog` is built automatically from these
+  files (sorted by `date`, paginated). There is no separate summary file to
+  maintain.
 
 **Sidebar announcements:**
 - Path: `/web/oss/src/components/SidebarBanners/data/changelog.json`
@@ -189,9 +213,14 @@ description: "One-sentence description of the feature."
 
 {/* NOTE: Do NOT add an H1 heading here. The frontmatter title is automatically rendered as H1 by Docusaurus. */}
 
-## Overview
+<Summary>
 
-[2-3 paragraphs explaining what this feature is and why it matters]
+[Curated 1-2 paragraph summary. This is the SHORT version shown on the
+/changelog index. It can differ from the long write-up's opening.]
+
+</Summary>
+
+{/* truncate */}
 
 ## Key Capabilities
 
@@ -225,22 +254,20 @@ ag.tracing.store_session(session_id="conversation_123")
 [Optional: What's coming next or related features]
 ```
 
-### Step 4: Add Summary to main.mdx
-Add to `/docs/blog/main.mdx` at the TOP (after imports):
+### Step 4: Write the Summary and Place the Truncate Marker
 
-```mdx
-### [Feature Name](/changelog/feature-slug)
+The `/changelog` index shows the `<Summary>` block (with a "Read more" link);
+the entry page shows everything below `{/* truncate */}`. So:
 
-_DD Month YYYY_
-
-**vX.Y.Z**
-
-[1-2 paragraph summary explaining what the feature does and why users should care. Focus on benefits and capabilities.]
-
-[Optional: Add embedded video or image if this is a major feature]
-
----
-```
+- Put the curated short summary inside `<Summary>...</Summary>`, then the
+  `{/* truncate */}` marker, then the full write-up.
+- Leave blank lines inside the `<Summary>` tags so the content parses as
+  Markdown (links and bold work).
+- If there is a demo video or screenshot, include it inside `<Summary>` (so it
+  shows on the index) and again in the write-up below the marker (so it shows
+  on the entry page).
+- Every entry needs content below the marker (the full write-up); that is what
+  the entry page renders.
 
 ### Step 5: Add Sidebar Announcement
 Add to `/web/oss/src/components/SidebarBanners/data/changelog.json`:
@@ -406,21 +433,6 @@ Learn more in our documentation:
 We're continuing to enhance session tracking with upcoming features like session-level annotations, session comparisons, and automated session analysis.
 ```
 
-**Summary Entry** (add to `docs/blog/main.mdx`):
-```mdx
-### [Chat Sessions in Observability](/changelog/chat-sessions-observability)
-
-_9 January 2026_
-
-**v0.73.0**
-
-You can now track multi-turn conversations with chat sessions. All traces with the same session ID are automatically grouped together, letting you analyze complete conversations instead of individual requests.
-
-The new session browser shows key metrics like total cost, latency, and token usage per conversation. Open any session to see all traces with their parent-child relationships. This makes debugging chatbots and AI assistants much easier. Add session tracking with one line of code using either our Python SDK or OpenTelemetry.
-
----
-```
-
 **Sidebar Announcement**:
 ```json
 {
@@ -463,21 +475,20 @@ The new session browser shows key metrics like total cost, latency, and token us
 
 When creating a changelog announcement, provide:
 
-1. **Detailed entry content** for `docs/blog/entries/[slug].mdx`
-2. **Summary entry content** to add to `docs/blog/main.mdx`
-3. **Sidebar announcement JSON** to add to `changelog.json`
-4. **Confirmation** that you checked for related documentation
-5. **Any questions** or clarifications needed
+1. **Entry content** for `docs/blog/entries/[slug].mdx` (curated summary in `<Summary>`, then `{/* truncate */}`, then the full write-up)
+2. **Sidebar announcement JSON** to add to `changelog.json`
+3. **Confirmation** that you checked for related documentation
+4. **Any questions** or clarifications needed
 
 **Be proactive** in identifying unclear requirements. Ask specific questions rather than making assumptions. Your goal is to produce changelog entries that are immediately publishable without requiring revision.
 
 ## Tips for Success
 
-1. **Read existing entries first**: Before creating new entries, read 2-3 recent entries in `main.mdx` and `entries/` to match the tone and structure
+1. **Read existing entries first**: Before creating new entries, read 2-3 recent entries in `entries/` to match the tone and structure
 2. **Be concise**: Users skim changelogs. Front-load the benefit in every sentence.
 3. **Link generously**: Help users find more information easily
 4. **Test your work**: Read the entries out loud to catch awkward phrasing
-5. **Consistency matters**: Ensure terminology matches across all three entries
+5. **Consistency matters**: Ensure terminology matches between the entry and the sidebar announcement
 
 ---
 

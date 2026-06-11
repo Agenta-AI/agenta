@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-06-05-dark-mode",
+        "title": "Dark Mode",
+        "description": "Agenta now has a dark theme. Switch between light, dark, and system from the top bar.",
+        "link": "https://agenta.ai/docs/changelog/dark-mode"
+    },
+    {
         "id": "changelog-2026-05-18-annotation-queues",
         "title": "Annotation Queues",
         "description": "Annotate traces and test sets and turn them into evals.",

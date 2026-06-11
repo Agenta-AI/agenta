@@ -4,8 +4,27 @@ slug: changes-to-the-sdk
 date: 2023-01-01
 ---
 
+<Summary>
 
+This necessitated modifications to the SDK. Now, the LLM application API returns a JSON instead of a string. The JSON includes the output message, usage details, and cost:
 
+```
+
+{
+"message": string,
+"usage": {
+"prompt_tokens": int,
+"completion_tokens": int,
+"total_tokens": int
+},
+"cost": float
+}
+
+```
+
+</Summary>
+
+{/* truncate */}
 
 This necessitated modifications to the SDK. Now, the LLM application API returns a JSON instead of a string. The JSON includes the output message, usage details, and cost:
 
