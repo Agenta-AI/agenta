@@ -866,43 +866,27 @@ const workflowArtifactBatchFetcher = createBatchFetcher<WorkflowArtifactRequest,
     serializeKey: (req) => `${req.projectId}:${req.workflowId}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, Workflow | null>()
-        const byProject = new Map<string, {workflowIds: string[]; keys: string[]}>()
+        serializedKeys.forEach((key) => results.set(key, null))
 
-        requests.forEach((req, index) => {
-            const key = serializedKeys[index]
-            if (!req.projectId || !req.workflowId) {
-                results.set(key, null)
-                return
-            }
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("workflowArtifactBatchFetcher: requests span multiple projects")
+        }
 
-            const existing = byProject.get(req.projectId)
-            if (existing) {
-                existing.workflowIds.push(req.workflowId)
-                existing.keys.push(key)
-            } else {
-                byProject.set(req.projectId, {workflowIds: [req.workflowId], keys: [key]})
-            }
+        const workflowIds = [...new Set(requests.map((req) => req.workflowId).filter(Boolean))]
+        if (workflowIds.length === 0) return results
+
+        const response = await queryWorkflows({
+            projectId,
+            workflowRefs: workflowIds.map((id) => ({id})),
+            includeArchived: true,
         })
-
-        await Promise.all(
-            Array.from(byProject.entries()).map(async ([projectId, group]) => {
-                try {
-                    const response = await queryWorkflows({
-                        projectId,
-                        workflowRefs: group.workflowIds.map((id) => ({id})),
-                        includeArchived: true,
-                    })
-                    const byId = new Map(
-                        (response.workflows ?? []).map((workflow) => [workflow.id, workflow]),
-                    )
-                    group.workflowIds.forEach((workflowId, index) => {
-                        results.set(group.keys[index], byId.get(workflowId) ?? null)
-                    })
-                } catch {
-                    group.keys.forEach((key) => results.set(key, null))
-                }
-            }),
-        )
+        const byId = new Map((response.workflows ?? []).map((workflow) => [workflow.id, workflow]))
+        requests.forEach((req, index) => {
+            results.set(serializedKeys[index], byId.get(req.workflowId) ?? null)
+        })
 
         return results
     },
