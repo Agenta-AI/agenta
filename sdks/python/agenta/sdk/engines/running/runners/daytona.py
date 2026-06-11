@@ -6,7 +6,7 @@ from typing import Any, Dict, Generator, Union, Optional, TYPE_CHECKING
 import httpx
 
 import agenta as ag
-from agenta.sdk.engines.running.runners.base import CodeRunner
+from agenta.sdk.engines.running.runners.base import CodeRunner, normalize_result
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.lazy import _load_daytona
@@ -17,6 +17,27 @@ if TYPE_CHECKING:
     from daytona import Sandbox
 
 log = get_module_logger(__name__)
+
+# Sentinel: the parsed line did not contain a usable result, keep scanning.
+_NO_MATCH = object()
+
+
+def _coerce_result(result: Any, version: str) -> Any:
+    """Coerce a sandbox-parsed result according to the evaluator interface version.
+
+    Versions "1"/"2" only accept numbers (or None); anything else returns
+    _NO_MATCH so the caller keeps scanning output lines. Version "3" delegates
+    to the shared normalizer so remote results follow the same contract as
+    in-process runners (None and non-finite numbers raise instead of passing
+    through).
+    """
+    if version == "3":
+        return normalize_result(result, version)
+
+    if isinstance(result, (float, int, type(None))):
+        return float(result) if result is not None else None
+
+    return _NO_MATCH
 
 
 def _extract_error_message(error_text: str) -> str:
@@ -327,13 +348,14 @@ class DaytonaRunner(CodeRunner):
         *,
         version: str = "1",
         trace: Optional[Dict[str, Any]] = None,
-    ) -> Union[float, None]:
+    ) -> Any:
         """
         Execute provided code in Daytona sandbox.
 
         The code must define an `evaluate()` function.
         - v1: evaluate(app_params, inputs, output, correct_answer) -> float
         - v2: evaluate(inputs, outputs, trace) -> float
+        - v3: evaluate(inputs, outputs, trace) -> any JSON-serializable value
 
         Args:
             code: The code to be executed
@@ -357,7 +379,7 @@ class DaytonaRunner(CodeRunner):
         with self._sandbox_context(runtime=runtime) as sandbox:
             try:
                 # Prepare all parameters as a single dict based on version
-                if version == "2":
+                if version in ("2", "3"):
                     params = {
                         "inputs": inputs,
                         "outputs": output,
@@ -417,9 +439,9 @@ class DaytonaRunner(CodeRunner):
                     try:
                         result_obj = json.loads(line)
                         if isinstance(result_obj, dict) and "result" in result_obj:
-                            result = result_obj["result"]
-                            if isinstance(result, (float, int, type(None))):
-                                return float(result) if result is not None else None
+                            extracted = _coerce_result(result_obj["result"], version)
+                            if extracted is not _NO_MATCH:
+                                return extracted
                     except json.JSONDecodeError:
                         continue
 
@@ -436,9 +458,9 @@ class DaytonaRunner(CodeRunner):
                     except json.JSONDecodeError:
                         continue
                     if isinstance(result_obj, dict) and "result" in result_obj:
-                        result = result_obj["result"]
-                        if isinstance(result, (float, int, type(None))):
-                            return float(result) if result is not None else None
+                        extracted = _coerce_result(result_obj["result"], version)
+                        if extracted is not _NO_MATCH:
+                            return extracted
 
                 # log.warning(
                 #     "Evaluation output did not include JSON result: %s", response_stdout

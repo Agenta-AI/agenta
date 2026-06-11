@@ -1128,7 +1128,7 @@ const outputPortsAtomFamily = atomFamily((workflowId: string) =>
                     type: "string",
                 }))
             }
-            return [{key: "output", name: "output", type: "string"}]
+            return [{key: "output", name: "output", type: "string", isFallback: true}]
         }
 
         const schemaOutputs = extractOutputPortsFromSchema(entity?.data?.schemas?.outputs)
@@ -1181,11 +1181,11 @@ const outputPortsAtomFamily = atomFamily((workflowId: string) =>
                 }))
             }
             if (schemaOutputs.length > 0) return schemaOutputs
-            return [{key: "score", name: "Score", type: "number"}]
+            return [{key: "score", name: "Score", type: "number", isFallback: true}]
         }
 
         if (schemaOutputs.length > 0) return schemaOutputs
-        return [{key: "output", name: "output", type: "string"}]
+        return [{key: "output", name: "output", type: "string", isFallback: true}]
     }),
 )
 
