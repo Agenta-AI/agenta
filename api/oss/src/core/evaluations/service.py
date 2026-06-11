@@ -22,6 +22,7 @@ from oss.src.core.evaluations.types import (
     EvaluationRunDataStep,
     EvaluationRunDataConcurrency,
     EvaluationRunData,
+    JsonSchemas,
     EvaluationRun,
     EvaluationRunCreate,
     EvaluationRunEdit,
@@ -1428,6 +1429,9 @@ class EvaluationsService:
         # Resolved metric keys per step (declared schema, else trace-inferred);
         # become the run's `mappings`. Rewrite only when something was inferred.
         metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
+        # Trace-inferred outputs schema per step, persisted onto the run step so
+        # the UI can type filter columns for schema-less evaluators.
+        inferred_schemas_by_step: Dict[str, Dict[str, Any]] = {}
         any_inferred = False
 
         for step in refreshable_steps:
@@ -1487,6 +1491,7 @@ class EvaluationsService:
 
                     if metrics_keys:
                         any_inferred = True
+                        inferred_schemas_by_step[step.key] = inferred_schema
 
                 # Record declared + inferred keys; skip [] (would wipe the
                 # step's existing mapping without replacing it).
@@ -1510,6 +1515,7 @@ class EvaluationsService:
                 user_id=user_id,
                 run=run,
                 inferred_metrics_keys_by_step=metrics_keys_by_step,
+                inferred_schemas_by_step=inferred_schemas_by_step,
             )
 
         steps_specs: Dict[str, List[MetricSpec]] = dict()
@@ -1699,6 +1705,7 @@ class EvaluationsService:
         user_id: UUID,
         run: EvaluationRun,
         inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]],
+        inferred_schemas_by_step: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> None:
         existing_mappings = list(run.data.mappings or [])
         updated_mappings: List[EvaluationRunDataMapping] = []
@@ -1764,9 +1771,24 @@ class EvaluationsService:
                     )
                 )
 
-        if updated_mappings != existing_mappings:
+        existing_steps = list(run.data.steps or [])
+        updated_steps = existing_steps
+        if inferred_schemas_by_step:
+            updated_steps = []
+            for step in existing_steps:
+                inferred_outputs = inferred_schemas_by_step.get(step.key)
+                if inferred_outputs and (not step.schemas or not step.schemas.outputs):
+                    updated_steps.append(
+                        step.model_copy(
+                            update={"schemas": JsonSchemas(outputs=inferred_outputs)}
+                        )
+                    )
+                else:
+                    updated_steps.append(step)
+
+        if updated_mappings != existing_mappings or updated_steps != existing_steps:
             run_data = EvaluationRunData(
-                steps=run.data.steps,
+                steps=updated_steps,
                 repeats=run.data.repeats,
                 mappings=updated_mappings,
             )
