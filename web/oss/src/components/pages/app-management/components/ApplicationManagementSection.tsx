@@ -135,7 +135,7 @@ const ApplicationManagementSection = ({mode = "active"}: ApplicationManagementSe
                                 })
                             }
                         >
-                            Archive all
+                            Archive
                         </Button>
                     ) : (
                         <Button

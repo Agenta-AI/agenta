@@ -581,7 +581,7 @@ const TestsetsTable = ({
                         setIsDeleteTestsetModalOpen(true)
                     }}
                 >
-                    Archive all
+                    Archive
                 </Button>
             )
         }

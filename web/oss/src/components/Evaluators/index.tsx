@@ -473,7 +473,7 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
                 <Space>
                     {selectedRowKeys.length > 0 ? (
                         <Button danger icon={<Tray size={14} />} onClick={handleBulkArchive}>
-                            Archive all
+                            Archive
                         </Button>
                     ) : (
                         <Button
