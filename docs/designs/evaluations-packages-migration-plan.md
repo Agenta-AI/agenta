@@ -620,11 +620,14 @@ close the migration with an open entry here.
   flat window params differently; (b) accumulation across multiple scan runs (one screenshot
   showed a queue at 10,647 items — far above one run's 1,000 cap); (c) "invalid-looking" rows
   being unresolvable-ref scenarios rather than out-of-window traces.
-- **Status:** NEEDS RE-REPRO on the current stack (v0.103.1 + merged FE). Re-run "add all
-  matching to queue" with a filter + time window on a FRESH queue; if it still over-adds, capture
-  the `/traces/query` request body (does `windowing.oldest` appear?) and the added rows'
-  timestamps. If it reproduces → reopen with the captured evidence; if not → close as fixed
-  upstream by the Fern transport migration.
+- **Status: ✅ CLOSED 2026-06-11.** Re-repro on the current stack captured the actual
+  `/traces/query` payloads: `windowing.oldest` present, cursor descending — transport correct.
+  The "over-add" was real data: the seeded eval runs generated thousands of in-window
+  invocation traces (one queue holds 11,647 items), so 1,000+ matches were legitimate; user
+  concurred ("maybe that was my mistake"). Related but separate: the queues-table ordering
+  complaint from the same QA was a REAL bug (id-DESC paging vs created_at display) — fixed
+  end-to-end in commit `43523a6695` (backend created_at windowing + tie-break fix + FE
+  windowing threading), verified live by the user.
 
 ### 11.2 Combined paginatedStore+molecule leak test dropped in WP-3.5a (coverage gap)
 
