@@ -152,7 +152,7 @@ class APIScenarioCreator:
         #
         timestamp: Any = None,
         interval: Optional[int] = None,
-        status: Any = EvaluationStatus.RUNNING,
+        status: EvaluationStatus = EvaluationStatus.RUNNING,
     ) -> List[Any]:
         """Mint `count` scenarios for a run in one DAO call.
 

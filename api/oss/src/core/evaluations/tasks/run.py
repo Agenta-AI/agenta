@@ -41,10 +41,13 @@ def _input_step_keys(run: EvaluationRun) -> List[str]:
 
 def _initial_scenario_status(run: EvaluationRun) -> EvaluationStatus:
     if not run.data or not run.data.steps:
-        return EvaluationStatus.RUNNING
+        return EvaluationStatus.PENDING
 
     executable_steps = [step for step in run.data.steps if step.type != "input"]
-    if executable_steps and all(
+    if not executable_steps:
+        return EvaluationStatus.PENDING
+
+    if all(
         step.type == "annotation" and step.origin in {"human", "custom"}
         for step in executable_steps
     ):
