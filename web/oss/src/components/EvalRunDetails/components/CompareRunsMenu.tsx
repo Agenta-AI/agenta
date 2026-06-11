@@ -9,6 +9,7 @@ import {
     computeStructureFromRawRun,
     isTerminalStatus,
 } from "@agenta/evaluations/state/evalRun"
+import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {Button, Checkbox, Input, List, Popover, Space, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
@@ -20,7 +21,6 @@ import ReferenceTag from "@/oss/components/References/ReferenceTag"
 import {useAppId} from "@/oss/hooks/useAppId"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
-import {projectIdAtom} from "@/oss/state/project"
 
 import useRunScopedUrls from "../hooks/useRunScopedUrls"
 import {setCompareQueryParams} from "../state/urlCompare"

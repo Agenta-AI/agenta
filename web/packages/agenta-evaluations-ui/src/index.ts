@@ -39,3 +39,12 @@ export {
     METRIC_FORMATTERS,
 } from "./components/MetricDetails/MetricDetailsPopover"
 export type {ChartDatum, MetricFormatter} from "./components/MetricDetails/MetricDetailsPopover"
+
+// ── eval-view host registry (component/hook injection seam — WP-4h, §12.1c) ────
+export {
+    EvalViewHostProvider,
+    useEvalViewHost,
+    useHostComponent,
+    useHostHook,
+} from "./host/hostRegistry"
+export type {EvalViewHost, HostHook} from "./host/hostRegistry"

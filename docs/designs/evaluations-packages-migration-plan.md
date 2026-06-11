@@ -741,6 +741,35 @@ Destination `@agenta/evaluations-ui` already exists (nearly empty) and the seam 
 | **onlineEvaluation pages** | ~12 | 2,863 LOC / 20 files, eval-specific but cascades → **seam** (inject EmptyStates/FiltersPreview/EvaluatorDetails) |
 | `SharedDrawers/AnnotateDrawer/*`, `SharedGenerationResultUtils` | ~7 | shared → seam or move-to-package |
 
+### 12.1b Coupling re-bucket (post-canary, the 77 remaining) + seam-count finding
+
+After the canary, the 2 remaining dirs import **77 distinct `@/oss` paths**. Facade check: only
+`copyToClipboard` re-exports a package. Package-equivalent check on the app-state/util symbols:
+only `projectIdAtom` (→`@agenta/shared/state`) and `isUuid` (→`@agenta/evaluations`) already exist.
+**Everything else (~70) genuinely needs a seam.** Buckets: A internal self-refs (7, move together),
+B References (14, seam), C onlineEvaluation/pages (15, seam), D OSS app-state (12, seam), E OSS hooks
+(6, seam), F utils/lib (9, seam — moving to shared = app-wide churn), G generic UI (12, seam), H misc (2).
+
+**Cost finding surfaced to the user (2026-06-11):** ~70 injection seams, 18 of which (D+E) are
+non-eval app-context (routing/project/breadcrumbs/onboarding) — i.e. the machinery that makes
+RunDetails *a page*, not a reusable component. Flagged that seaming 70 app-level deps to package-ify a
+page-view is brittle architecture orthogonal to the (already-complete) data goal. **User chose the full
+~70-seam relocation anyway.** Proceeding faithfully; recording the cost here as the rationale of record.
+
+### 12.1c Seam architecture — three channels
+
+Atoms alone can't carry this (hooks/components aren't atoms). Three injection channels:
+1. **Injected atoms** (buckets D state, H `virtualTable`): extend `registerEvalRunInjections` with
+   `injected*Atom`s set by the OSS provider — the proven WP-4e mechanism. (`projectIdAtom`/`isUuid`
+   are plain re-points, not seams.)
+2. **Injected hook/fn registry** (bucket E hooks + bucket F pure utils that stay in OSS): a module-level
+   registry of function implementations the OSS provider populates at boot; package code calls the
+   registered impl (`useURL`, `useAppId`, `useProjectPermissions`, `useBreadcrumbsEffect`,
+   `getProjectValues`, `getUniquePartOfId`, `formatDate24`, `buildRevisionsQueryParam`).
+3. **Injected component slots** (buckets B References, C onlineEvaluation, G generic UI, AnnotateDrawer):
+   a React context (`EvalViewHostProvider` in evaluations-ui) supplying OSS-owned components as slots;
+   package views render `slots.ReferenceTag` etc. OSS provides the real components at the route shell.
+
 ### 12.2 Locked decision: SEAM the shared subsystems, MOVE the eval-exclusive code
 
 "Full move" is only completable if References / onlineEvaluation / AnnotateDrawer are
