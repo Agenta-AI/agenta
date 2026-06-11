@@ -137,7 +137,7 @@ function findLatestRevisionForTestsetInCache(
  *
  * Benefits:
  * - Deduplicates concurrent requests for the same revision
- * - Groups requests by project and fetches in a single API call per project
+ * - Fetches all requested revisions in a single API call
  * - Falls back to individual fetches on batch failure
  */
 const revisionBatchFetcher = createBatchFetcher<RevisionRequest, Revision | null>({
@@ -146,79 +146,69 @@ const revisionBatchFetcher = createBatchFetcher<RevisionRequest, Revision | null
     serializeKey: (req) => `${req.projectId}:${req.id}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, Revision | null>()
+        serializedKeys.forEach((key) => results.set(key, null))
 
-        // Group by projectId and resolve from cache first
-        const byProject = new Map<string, string[]>()
-        const queryClientsByProject = new Map<string, Set<QueryClient>>()
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("revisionBatchFetcher: requests span multiple projects")
+        }
+
+        // Resolve from cache first
+        const revisionIds: string[] = []
+        const queryClients = new Set<QueryClient>()
         requests.forEach((req, index) => {
             const key = serializedKeys[index]
-            if (!isValidUUID(req.id)) {
-                results.set(key, null)
-                return
-            }
+            if (!isValidUUID(req.id)) return
 
             if (req.queryClient) {
-                const cached = findRevisionInCache(req.queryClient, req.projectId, req.id)
+                const cached = findRevisionInCache(req.queryClient, projectId, req.id)
                 if (cached) {
                     results.set(key, cached)
                     return
                 }
+                queryClients.add(req.queryClient)
             }
 
-            const existing = byProject.get(req.projectId) || []
-            existing.push(req.id)
-            byProject.set(req.projectId, existing)
-            if (req.queryClient) {
-                const clients = queryClientsByProject.get(req.projectId) ?? new Set<QueryClient>()
-                clients.add(req.queryClient)
-                queryClientsByProject.set(req.projectId, clients)
-            }
+            revisionIds.push(req.id)
         })
 
-        // Fetch revisions in batch per project
-        for (const [projectId, revisionIds] of byProject) {
-            if (revisionIds.length === 0) continue
+        if (revisionIds.length === 0) return results
 
-            try {
-                // Use batch API for better performance
-                const batchResults = await fetchRevisionsBatch(projectId, revisionIds)
-                const queryClients = queryClientsByProject.get(projectId) ?? new Set<QueryClient>()
+        const primeCaches = (revision: Revision) => {
+            queryClients.forEach((queryClient) => {
+                primeRevisionDetailCache(queryClient, projectId, revision)
+                primeLatestRevisionCacheForTestset(queryClient, projectId, revision)
+            })
+        }
 
-                // Map results back to serialized keys
-                for (const revisionId of revisionIds) {
-                    const key = `${projectId}:${revisionId}`
-                    const revision = batchResults.get(revisionId) ?? null
+        try {
+            // Use batch API for better performance
+            const batchResults = await fetchRevisionsBatch(projectId, revisionIds)
+
+            for (const revisionId of revisionIds) {
+                const key = `${projectId}:${revisionId}`
+                const revision = batchResults.get(revisionId) ?? null
+                results.set(key, revision)
+                if (revision) primeCaches(revision)
+            }
+        } catch (error) {
+            console.error("[revisionBatchFetcher] Batch fetch failed, falling back:", error)
+
+            // Fallback to individual fetches on batch failure
+            for (const revisionId of revisionIds) {
+                const key = `${projectId}:${revisionId}`
+                try {
+                    const revision = await fetchRevision({id: revisionId, projectId})
                     results.set(key, revision)
-
-                    if (revision) {
-                        queryClients.forEach((queryClient) => {
-                            primeRevisionDetailCache(queryClient, projectId, revision)
-                            primeLatestRevisionCacheForTestset(queryClient, projectId, revision)
-                        })
-                    }
-                }
-            } catch (error) {
-                console.error("[revisionBatchFetcher] Batch fetch failed, falling back:", error)
-
-                // Fallback to individual fetches on batch failure
-                for (const revisionId of revisionIds) {
-                    const key = `${projectId}:${revisionId}`
-                    try {
-                        const revision = await fetchRevision({id: revisionId, projectId})
-                        results.set(key, revision)
-                        const queryClients = queryClientsByProject.get(projectId)
-                        queryClients?.forEach((queryClient) => {
-                            primeRevisionDetailCache(queryClient, projectId, revision)
-                            primeLatestRevisionCacheForTestset(queryClient, projectId, revision)
-                        })
-                    } catch (individualError) {
-                        console.error(
-                            "[revisionBatchFetcher] Individual fetch failed:",
-                            revisionId,
-                            individualError,
-                        )
-                        results.set(key, null)
-                    }
+                    if (revision) primeCaches(revision)
+                } catch (individualError) {
+                    console.error(
+                        "[revisionBatchFetcher] Individual fetch failed:",
+                        revisionId,
+                        individualError,
+                    )
                 }
             }
         }
@@ -301,44 +291,27 @@ const latestRevisionBatchFetcher = createBatchFetcher<LatestRevisionRequest, Rev
     serializeKey: (req) => `${req.projectId}:${req.testsetId}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, Revision | null>()
+        serializedKeys.forEach((key) => results.set(key, null))
 
-        // Group by projectId (should typically be same project)
-        const byProject = new Map<string, string[]>()
-        requests.forEach((req, index) => {
-            const key = serializedKeys[index]
-            if (!req.testsetId) {
-                results.set(key, null)
-                return
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("latestRevisionBatchFetcher: requests span multiple projects")
+        }
+
+        const testsetIds = [...new Set(requests.map((req) => req.testsetId).filter(Boolean))]
+        if (testsetIds.length === 0) return results
+
+        try {
+            const revisionMap = await fetchLatestRevisionsBatch(projectId, testsetIds)
+
+            for (const testsetId of testsetIds) {
+                const key = `${projectId}:${testsetId}`
+                results.set(key, revisionMap.get(testsetId) ?? null)
             }
-            const existing = byProject.get(req.projectId) || []
-            existing.push(req.testsetId)
-            byProject.set(req.projectId, existing)
-        })
-
-        // Batch fetch for each project
-        for (const [projectId, testsetIds] of byProject) {
-            if (testsetIds.length === 0) continue
-
-            try {
-                const revisionMap = await fetchLatestRevisionsBatch(projectId, testsetIds)
-
-                // Map results back to serialized keys
-                for (const testsetId of testsetIds) {
-                    const key = `${projectId}:${testsetId}`
-                    results.set(key, revisionMap.get(testsetId) ?? null)
-                }
-            } catch (error) {
-                console.error(
-                    "[latestRevisionBatchFetcher] Failed to fetch batch:",
-                    testsetIds,
-                    error,
-                )
-                // Set null for all failed requests
-                for (const testsetId of testsetIds) {
-                    const key = `${projectId}:${testsetId}`
-                    results.set(key, null)
-                }
-            }
+        } catch (error) {
+            console.error("[latestRevisionBatchFetcher] Failed to fetch batch:", testsetIds, error)
         }
 
         return results
@@ -530,22 +503,22 @@ const testsetBatchFetcher = createBatchFetcher<TestsetRequest, Testset | null>({
     serializeKey: (req) => `${req.projectId}:${req.testsetId}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, Testset | null>()
+        serializedKeys.forEach((key) => results.set(key, null))
 
-        // Group by projectId and resolve from cache first
-        const byProject = new Map<
-            string,
-            {
-                queryClient?: QueryClient
-                toFetch: {key: string; testsetId: string}[]
-            }
-        >()
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("testsetBatchFetcher: requests span multiple projects")
+        }
+
+        // Resolve from cache first
+        let queryClient: QueryClient | undefined
+        const toFetch: {key: string; testsetId: string}[] = []
 
         requests.forEach((req, index) => {
             const key = serializedKeys[index]
-            if (!isValidUUID(req.testsetId)) {
-                results.set(key, null)
-                return
-            }
+            if (!isValidUUID(req.testsetId)) return
 
             // Check TanStack Query cache first
             if (req.queryClient) {
@@ -554,62 +527,47 @@ const testsetBatchFetcher = createBatchFetcher<TestsetRequest, Testset | null>({
                     results.set(key, cached)
                     return
                 }
+                queryClient = queryClient ?? req.queryClient
             }
 
-            const group = byProject.get(req.projectId)
-            if (group) {
-                group.toFetch.push({key, testsetId: req.testsetId})
-                if (!group.queryClient && req.queryClient) {
-                    group.queryClient = req.queryClient
-                }
-            } else {
-                byProject.set(req.projectId, {
-                    queryClient: req.queryClient,
-                    toFetch: [{key, testsetId: req.testsetId}],
-                })
-            }
+            toFetch.push({key, testsetId: req.testsetId})
         })
 
-        // Fetch each project's testsets in batch
-        await Promise.all(
-            Array.from(byProject.entries()).map(async ([projectId, {queryClient, toFetch}]) => {
-                if (toFetch.length === 0) return
+        if (toFetch.length === 0) return results
 
-                const testsetIds = toFetch.map((t) => t.testsetId)
+        const testsetIds = toFetch.map((t) => t.testsetId)
 
-                try {
-                    const batchResults = await fetchTestsetsBatch(projectId, testsetIds)
+        try {
+            const batchResults = await fetchTestsetsBatch(projectId, testsetIds)
 
-                    toFetch.forEach(({key, testsetId}) => {
-                        const testset = batchResults.get(testsetId) ?? null
+            toFetch.forEach(({key, testsetId}) => {
+                const testset = batchResults.get(testsetId) ?? null
+                results.set(key, testset)
+
+                // Prime individual query cache entries
+                if (queryClient && testset) {
+                    primeTestsetDetailCache(queryClient, projectId, testset)
+                }
+            })
+        } catch {
+            // Fall back to individual fetches
+            await Promise.all(
+                toFetch.map(async ({key, testsetId}) => {
+                    try {
+                        const testset = await fetchTestsetDetail({
+                            id: testsetId,
+                            projectId,
+                        })
                         results.set(key, testset)
-
-                        // Prime individual query cache entries
                         if (queryClient && testset) {
                             primeTestsetDetailCache(queryClient, projectId, testset)
                         }
-                    })
-                } catch {
-                    // Fall back to individual fetches
-                    await Promise.all(
-                        toFetch.map(async ({key, testsetId}) => {
-                            try {
-                                const testset = await fetchTestsetDetail({
-                                    id: testsetId,
-                                    projectId,
-                                })
-                                results.set(key, testset)
-                                if (queryClient && testset) {
-                                    primeTestsetDetailCache(queryClient, projectId, testset)
-                                }
-                            } catch {
-                                results.set(key, null)
-                            }
-                        }),
-                    )
-                }
-            }),
-        )
+                    } catch {
+                        results.set(key, null)
+                    }
+                }),
+            )
+        }
 
         return results
     },

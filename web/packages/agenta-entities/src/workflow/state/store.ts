@@ -230,39 +230,22 @@ const workflowRevisionBatchFetcher = createBatchFetcher<WorkflowRevisionRequest,
     serializeKey: (req) => `${req.projectId}:${req.revisionId}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, Workflow | null>()
-        const byProject = new Map<string, {revisionIds: string[]; keys: string[]}>()
+        serializedKeys.forEach((key) => results.set(key, null))
 
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("workflowRevisionBatchFetcher: requests span multiple projects")
+        }
+
+        const revisionIds = [...new Set(requests.map((req) => req.revisionId).filter(Boolean))]
+        if (revisionIds.length === 0) return results
+
+        const revisionMap = await fetchWorkflowRevisionsByIdsBatch(projectId, revisionIds)
         requests.forEach((req, index) => {
-            const key = serializedKeys[index]
-            if (!req.projectId || !req.revisionId) {
-                results.set(key, null)
-                return
-            }
-
-            const existing = byProject.get(req.projectId)
-            if (existing) {
-                existing.revisionIds.push(req.revisionId)
-                existing.keys.push(key)
-            } else {
-                byProject.set(req.projectId, {
-                    revisionIds: [req.revisionId],
-                    keys: [key],
-                })
-            }
+            results.set(serializedKeys[index], revisionMap.get(req.revisionId) ?? null)
         })
-
-        await Promise.all(
-            Array.from(byProject.entries()).map(async ([projectId, group]) => {
-                const revisionMap = await fetchWorkflowRevisionsByIdsBatch(
-                    projectId,
-                    group.revisionIds,
-                )
-                group.revisionIds.forEach((revisionId, index) => {
-                    const key = group.keys[index]
-                    results.set(key, revisionMap.get(revisionId) ?? null)
-                })
-            }),
-        )
 
         return results
     },
@@ -277,75 +260,65 @@ const workflowLatestRevisionBatchFetcher = createBatchFetcher<
     serializeKey: (req) => `${req.projectId}:${req.workflowId}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, Workflow | null>()
-        const byProject = new Map<
-            string,
-            {workflowIds: string[]; keys: string[]; queryClients: Set<QueryClient>}
-        >()
+        serializedKeys.forEach((key) => results.set(key, null))
+
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("workflowLatestRevisionBatchFetcher: requests span multiple projects")
+        }
+
+        const pending: {workflowId: string; key: string}[] = []
+        const queryClients = new Set<QueryClient>()
 
         requests.forEach((req, index) => {
             const key = serializedKeys[index]
-            if (!req.projectId || !req.workflowId) {
-                results.set(key, null)
-                return
-            }
+            if (!req.workflowId) return
 
             if (req.queryClient) {
                 const cached = findLatestWorkflowRevisionInCache(
                     req.queryClient,
-                    req.projectId,
+                    projectId,
                     req.workflowId,
                 )
                 if (cached) {
                     results.set(key, cached)
                     return
                 }
+                queryClients.add(req.queryClient)
             }
 
-            const existing = byProject.get(req.projectId)
-            if (existing) {
-                existing.workflowIds.push(req.workflowId)
-                existing.keys.push(key)
-                if (req.queryClient) existing.queryClients.add(req.queryClient)
-            } else {
-                byProject.set(req.projectId, {
-                    workflowIds: [req.workflowId],
-                    keys: [key],
-                    queryClients: new Set(req.queryClient ? [req.queryClient] : []),
-                })
-            }
+            pending.push({workflowId: req.workflowId, key})
         })
 
-        await Promise.all(
-            Array.from(byProject.entries()).map(async ([projectId, group]) => {
-                try {
-                    const revisionMap = await fetchWorkflowsBatch(projectId, group.workflowIds)
-                    group.workflowIds.forEach((workflowId, index) => {
-                        const key = group.keys[index]
-                        const revision = revisionMap.get(workflowId) ?? null
-                        results.set(key, revision)
+        if (pending.length === 0) return results
 
-                        if (revision) {
-                            group.queryClients.forEach((queryClient) => {
-                                queryClient.setQueryData(
-                                    ["workflows", "latestRevision", workflowId, projectId],
-                                    revision,
-                                )
-                                primeWorkflowRevisionDetailCache(queryClient, projectId, revision)
-                            })
-                        }
-                    })
-                } catch (error) {
-                    console.error(
-                        "[workflowLatestRevisionBatchFetcher] Failed to fetch latest revisions:",
-                        group.workflowIds,
-                        error,
-                    )
-                    group.keys.forEach((key) => {
-                        results.set(key, null)
+        try {
+            const revisionMap = await fetchWorkflowsBatch(
+                projectId,
+                pending.map((entry) => entry.workflowId),
+            )
+            pending.forEach(({workflowId, key}) => {
+                const revision = revisionMap.get(workflowId) ?? null
+                results.set(key, revision)
+
+                if (revision) {
+                    queryClients.forEach((queryClient) => {
+                        queryClient.setQueryData(
+                            ["workflows", "latestRevision", workflowId, projectId],
+                            revision,
+                        )
+                        primeWorkflowRevisionDetailCache(queryClient, projectId, revision)
                     })
                 }
-            }),
-        )
+            })
+        } catch (error) {
+            console.error(
+                "[workflowLatestRevisionBatchFetcher] Failed to fetch latest revisions:",
+                error,
+            )
+        }
 
         return results
     },

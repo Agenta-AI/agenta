@@ -277,6 +277,16 @@ Do NOT use `useEffect` with manual state for data fetching. Use `atomWithQuery`.
 
 Legacy SWR + axios is present in older code but must not be used for new features.
 
+### Single project scope
+
+Exactly one `project_id` is in scope at any time in the web app. Never write code that
+handles multiple projects defensively. In particular, a `createBatchFetcher` `batchFn`
+must not group requests by project or fan out one query per project: take the project
+from the first request, throw if any request disagrees, and resolve all ids with a
+single call (the `/query` endpoints accept multiple refs). Grouping by other dimensions
+(a revision-scoped cache, a run id the API requires) is fine; the project dimension is
+always singular.
+
 ## Styling
 
 Always prefer Tailwind utility classes over CSS-in-JS or separate CSS files.

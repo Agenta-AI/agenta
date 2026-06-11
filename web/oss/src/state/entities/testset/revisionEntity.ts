@@ -52,65 +52,47 @@ const revisionBatchFetcher = createBatchFetcher<RevisionRequest, Revision | null
     serializeKey: (req: RevisionRequest) => `${req.projectId}:${req.revisionId}`,
     batchFn: async (requests: RevisionRequest[], serializedKeys: string[]) => {
         const results = new Map<string, Revision | null>()
+        serializedKeys.forEach((key) => results.set(key, null))
 
-        // Group by projectId (should all be same in practice)
-        const byProject = new Map<string, string[]>()
-        requests.forEach((req, index) => {
-            const key = serializedKeys[index]
-            // Skip invalid UUIDs
-            if (!isValidUUID(req.revisionId)) {
-                results.set(key, null)
-                return
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("revisionBatchFetcher: requests span multiple projects")
+        }
+
+        const revisionIds = [...new Set(requests.map((req) => req.revisionId).filter(isValidUUID))]
+        if (revisionIds.length === 0) return results
+
+        try {
+            const requestBody = {
+                testset_revision_refs: revisionIds.map((id) => ({id})),
+                windowing: {limit: revisionIds.length},
             }
-            const existing = byProject.get(req.projectId) || []
-            existing.push(req.revisionId)
-            byProject.set(req.projectId, existing)
-        })
+            const response = await axios.post(
+                `${getAgentaApiUrl()}/testsets/revisions/query`,
+                requestBody,
+                {params: {project_id: projectId, include_testcases: false}},
+            )
 
-        // Fetch each project's revisions
-        for (const [projectId, revisionIds] of byProject) {
-            if (revisionIds.length === 0) continue
+            const revisions = response.data?.testset_revisions ?? []
+            const byId = new Map<string, Revision>()
 
-            try {
-                const requestBody = {
-                    testset_revision_refs: revisionIds.map((id) => ({id})),
-                    windowing: {limit: revisionIds.length},
+            revisions.forEach((raw: unknown) => {
+                try {
+                    const revision = normalizeRevision(raw)
+                    byId.set(revision.id, revision)
+                } catch (e) {
+                    console.error("[revisionBatchFetcher] Failed to normalize revision:", e, raw)
                 }
-                const response = await axios.post(
-                    `${getAgentaApiUrl()}/testsets/revisions/query`,
-                    requestBody,
-                    {params: {project_id: projectId, include_testcases: false}},
-                )
+            })
 
-                const revisions = response.data?.testset_revisions ?? []
-                const byId = new Map<string, Revision>()
-
-                revisions.forEach((raw: unknown) => {
-                    try {
-                        const revision = normalizeRevision(raw)
-                        byId.set(revision.id, revision)
-                    } catch (e) {
-                        console.error(
-                            "[revisionBatchFetcher] Failed to normalize revision:",
-                            e,
-                            raw,
-                        )
-                    }
-                })
-
-                // Map results back to request keys
-                revisionIds.forEach((id) => {
-                    const key = `${projectId}:${id}`
-                    const result = byId.get(id) ?? null
-                    results.set(key, result)
-                })
-            } catch (_error) {
-                // Set null for all failed requests
-                revisionIds.forEach((id) => {
-                    const key = `${projectId}:${id}`
-                    results.set(key, null)
-                })
-            }
+            // Map results back to request keys
+            revisionIds.forEach((id) => {
+                results.set(`${projectId}:${id}`, byId.get(id) ?? null)
+            })
+        } catch (_error) {
+            // results already null-filled
         }
 
         return results
