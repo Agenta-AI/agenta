@@ -21,6 +21,7 @@ import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
 import {clearSessionResponsesAtom, messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat"
 import {
     collectDownstreamReferencedColumns,
+    collectTestcaseServerColumns,
     reconcileRowDataForEntity,
 } from "../helpers/entityInputContract"
 
@@ -336,8 +337,14 @@ export const triggerExecutionAtom = atom(
         // swaps. Columns a downstream evaluator references via `<input>_key`
         // settings (e.g. correct_answer_key → ground_truth) are protected so a
         // strict clean against the app contract doesn't drop intentional eval
-        // inputs.
+        // inputs. The synced test set's own columns are protected too (#4647):
+        // a column the prompt doesn't reference is intentional test set data,
+        // not a stale leftover, and deleting it here emptied the "unused
+        // testcase columns" footer on Run.
         const protectedColumns = collectDownstreamReferencedColumns(get, nodes)
+        for (const column of collectTestcaseServerColumns(get, testcaseRowId)) {
+            protectedColumns.add(column)
+        }
         const reconciledRow = reconcileRowDataForEntity(get, rootEntityId, rawTestcaseData, {
             protectedKeys: protectedColumns,
         })
