@@ -12,9 +12,9 @@
  * follow-up tracked in the design doc.
  *
  * The family key uses `generationRowId` rather than `testcaseId` because
- * draft variables (referenced by the prompt but absent from the testcase)
- * don't yet have a stable testcase column ID. Generation rows are stable for
- * both authored and draft variables.
+ * variables referenced by the prompt but absent from the testcase don't yet
+ * have a stable testcase column ID. Generation rows are stable before and
+ * after the column is authored.
  */
 
 import type {ViewType} from "@agenta/entity-ui/view-types"

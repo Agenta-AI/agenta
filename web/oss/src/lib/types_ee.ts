@@ -60,10 +60,14 @@ export interface GenerationDashboardData {
         cost: number
         latency: number
         total_tokens: number
-        prompt_tokens: number
-        completion_tokens: number
-        enviornment: string
-        variant: string
+        // AGE-3788: optional — the new /spans/analytics/query metrics carry no
+        // prompt/completion token split or per-bucket environment/variant, and
+        // the legacy transform never populated them. Kept in sync with the
+        // duplicate interface in services/tracing/types.
+        prompt_tokens?: number
+        completion_tokens?: number
+        enviornment?: string
+        variant?: string
     }[]
     total_count: number
     failure_rate: number

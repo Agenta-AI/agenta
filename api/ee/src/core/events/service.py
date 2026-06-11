@@ -13,8 +13,8 @@ from datetime import datetime, timezone, timedelta
 
 from oss.src.utils.logging import get_module_logger
 
-from ee.src.core.entitlements.types import Tracker, Counter
-from ee.src.core.entitlements.controls import get_plans
+from ee.src.core.access.entitlements.types import Tracker, Counter
+from ee.src.core.access.controls import get_plans
 from ee.src.dbs.postgres.events.dao import EventsRetentionDAO
 
 

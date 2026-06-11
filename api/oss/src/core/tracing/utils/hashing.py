@@ -1,6 +1,6 @@
 from hashlib import blake2b
 from json import dumps
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple
 from uuid import UUID
 
 from oss.src.core.tracing.dtos import OTelSpan
@@ -12,15 +12,11 @@ HASH_REFERENCE_KEYS = set(REFERENCE_KEYS) - {
 }
 
 
-def _trace_id_from_uuid(trace_id: Union[UUID, str]) -> str:
-    if isinstance(trace_id, UUID):
-        return trace_id.hex
+def _trace_id_from_uuid(trace_id: str) -> str:
     return UUID(trace_id).hex
 
 
-def _span_id_from_uuid(span_id: Union[UUID, str]) -> str:
-    if isinstance(span_id, UUID):
-        return span_id.hex[16:]
+def _span_id_from_uuid(span_id: str) -> str:
     return UUID(span_id).hex[16:]
 
 

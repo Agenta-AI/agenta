@@ -288,6 +288,13 @@ export interface RunnablePort {
      * holds* and *how to reference it in the prompt template*.
      */
     helpText?: string
+    /**
+     * True when the port was synthesized as a generic default because the
+     * entity declares no output shape (e.g., code evaluators returning
+     * arbitrary dicts). Consumers must not treat fallback ports as an
+     * authoritative key list — render whatever the response actually contains.
+     */
+    isFallback?: boolean
 }
 
 // ============================================================================

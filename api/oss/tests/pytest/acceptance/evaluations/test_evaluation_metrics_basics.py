@@ -43,7 +43,7 @@ class TestEvaluationMetricsBasics:
         assert response["count"] == 1
         # ----------------------------------------------------------------------
 
-    def test_edit_evaluation_metrics(self, authed_api):
+    def test_upsert_evaluation_metrics(self, authed_api):
         # ARRANGE --------------------------------------------------------------
         runs = [
             {"name": "test_edit_evaluation_metrics"},
@@ -89,7 +89,7 @@ class TestEvaluationMetricsBasics:
         metrics[0]["data"]["boolean_metric"] = False
 
         response = authed_api(
-            "PATCH",
+            "POST",
             "/evaluations/metrics/",
             json={"metrics": metrics},
         )
@@ -214,32 +214,25 @@ class TestEvaluationMetricsBasics:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        # NOTE: GET /metrics/{id} does not exist, use POST /metrics/query
         response = authed_api(
-            "POST",
-            "/evaluations/metrics/query",
-            json={
-                "metrics": {
-                    "run_id": run_id,
-                },
-            },
+            "GET",
+            f"/evaluations/metrics/{metric['id']}",
         )
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
-        assert response["count"] >= 1
-        metric_ids = [m["id"] for m in response["metrics"]]
-        assert metric["id"] in metric_ids
-        matched = [m for m in response["metrics"] if m["id"] == metric["id"]][0]
+        assert response["count"] == 1
+        matched = response["metrics"][0]
+        assert matched["id"] == metric["id"]
         assert matched["data"]["integer_metric"] == 42
         assert matched["data"]["float_metric"] == 3.14
         assert matched["data"]["string_metric"] == "test"
         assert matched["data"]["boolean_metric"] is True
         # ----------------------------------------------------------------------
 
-    def test_edit_evaluation_metric(self, authed_api):
+    def test_upsert_evaluation_metric(self, authed_api):
         # ARRANGE --------------------------------------------------------------
         runs = [
             {"name": "test_edit_evaluation_metric"},
@@ -286,7 +279,7 @@ class TestEvaluationMetricsBasics:
         metric["data"]["boolean_metric"] = False
 
         response = authed_api(
-            "PATCH",
+            "POST",
             "/evaluations/metrics/",
             json={"metrics": [metric]},
         )
@@ -345,8 +338,7 @@ class TestEvaluationMetricsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            "/evaluations/metrics/",
-            json={"metrics_ids": [metric["id"]]},
+            f"/evaluations/metrics/{metric['id']}",
         )
         # ----------------------------------------------------------------------
 
@@ -360,8 +352,7 @@ class TestEvaluationMetricsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            "/evaluations/metrics/",
-            json={"metrics_ids": [metric["id"]]},
+            f"/evaluations/metrics/{metric['id']}",
         )
         # ----------------------------------------------------------------------
 
@@ -369,4 +360,46 @@ class TestEvaluationMetricsBasics:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 0
+        # ----------------------------------------------------------------------
+
+    def test_invalid_metric_shape_is_rejected(self, authed_api):
+        # A metric with BOTH scenario_id and timestamp set matches none of the
+        # three partial unique indexes (global/variational/temporal). It must be
+        # rejected (422), not silently dropped.
+        # ARRANGE --------------------------------------------------------------
+        runs = [
+            {"name": "test_invalid_metric_shape"},
+        ]
+
+        response = authed_api(
+            "POST",
+            "/evaluations/runs/",
+            json={"runs": runs},
+        )
+
+        assert response.status_code == 200
+
+        run_id = response.json()["runs"][0]["id"]
+
+        metrics = [
+            {
+                "run_id": run_id,
+                "scenario_id": run_id,  # any UUID; the shape check runs first
+                "timestamp": "2026-01-01T00:00:00+00:00",
+                "status": "success",
+                "data": {"integer_metric": 1},
+            },
+        ]
+        # ----------------------------------------------------------------------
+
+        # ACT ------------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/evaluations/metrics/",
+            json={"metrics": metrics},
+        )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 422, response.text
         # ----------------------------------------------------------------------

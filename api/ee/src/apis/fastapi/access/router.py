@@ -4,8 +4,8 @@ from fastapi import APIRouter
 
 from oss.src.utils.exceptions import intercept_exceptions
 
-from ee.src.core.entitlements.types import SCOPES, Tracker
-from ee.src.core.entitlements.controls import (
+from ee.src.core.access.entitlements.types import SCOPES, Tracker
+from ee.src.core.access.controls import (
     get_plans,
     get_plan_description,
     get_roles,
@@ -70,6 +70,6 @@ class AccessRouter:
         verbatim from access-controls, including the `"*"` wildcard for
         `owner` — callers that need to render the full permission list
         should expand the wildcard themselves (see
-        `ee.src.services.converters._expand_permissions`).
+        `ee.src.services.db_manager_ee._expand_permissions`).
         """
         return {scope: list(get_roles(scope)) for scope in SCOPES}
