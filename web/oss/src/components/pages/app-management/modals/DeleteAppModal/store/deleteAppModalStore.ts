@@ -6,16 +6,16 @@ export interface DeleteAppDetails {
     name: string
 }
 
-type DeleteAppArchivedCallback = (appDetails: DeleteAppDetails) => void | Promise<void>
+type DeleteAppArchivedCallback = (appDetails: DeleteAppDetails[]) => void | Promise<void>
 
-export interface OpenDeleteAppModalPayload extends DeleteAppDetails {
-    onArchived?: DeleteAppArchivedCallback
-}
+export type OpenDeleteAppModalPayload =
+    | (DeleteAppDetails & {onArchived?: DeleteAppArchivedCallback})
+    | {apps: DeleteAppDetails[]; onArchived?: DeleteAppArchivedCallback}
 
 // The shape of the modal state
 export interface DeleteAppModalState {
     open: boolean
-    appDetails: DeleteAppDetails | null
+    appDetails: DeleteAppDetails[]
     confirmLoading?: boolean
     onArchived?: DeleteAppArchivedCallback
 }
@@ -23,7 +23,7 @@ export interface DeleteAppModalState {
 // Main atom for the modal state
 export const deleteAppModalAtom = atom<DeleteAppModalState>({
     open: false,
-    appDetails: null,
+    appDetails: [],
     confirmLoading: false,
     onArchived: undefined,
 })
@@ -34,14 +34,15 @@ export const deleteAppModalAppDetailsAtom = atom((get) => get(deleteAppModalAtom
 
 // Actions
 export const openDeleteAppModalAtom = atom(null, (get, set, payload: OpenDeleteAppModalPayload) => {
-    const {onArchived, ...appDetails} = payload
+    const {onArchived} = payload
+    const appDetails = "apps" in payload ? payload.apps : [{id: payload.id, name: payload.name}]
     set(deleteAppModalAtom, {open: true, appDetails, confirmLoading: false, onArchived})
 })
 
 export const closeDeleteAppModalAtom = atom(null, (get, set) =>
     set(deleteAppModalAtom, {
         open: false,
-        appDetails: null,
+        appDetails: [],
         confirmLoading: false,
         onArchived: undefined,
     }),

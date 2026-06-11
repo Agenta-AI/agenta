@@ -1,4 +1,4 @@
-import {memo, useCallback, useEffect, useMemo, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     createEvaluatorFromTemplate,
@@ -39,7 +39,7 @@ import {
     getEvaluatorsTableState,
     invalidateEvaluatorManagementQueries,
 } from "./store/evaluatorsPaginatedStore"
-import EvaluatorsTable from "./Table/EvaluatorsTable"
+import EvaluatorsTable, {type EvaluatorsTableSelection} from "./Table/EvaluatorsTable"
 
 const isValidEvaluatorTab = (value: string): value is EvaluatorCategory => {
     return EVALUATOR_TABS.some(({key}) => key === value)
@@ -165,6 +165,7 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
     const [isDeleting, setIsDeleting] = useState(false)
     const [deleteTargetIds, setDeleteTargetIds] = useState<string[]>([])
     const [deleteTargetRevisionIds, setDeleteTargetRevisionIds] = useState<string[]>([])
+    const clearSelectionAfterArchiveRef = useRef<(() => void) | null>(null)
 
     const refetchAll = useCallback(() => {
         invalidateEvaluatorsListCache()
@@ -322,6 +323,9 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
             await Promise.all(
                 deleteTargetIds.map((id) => workflowMolecule.lifecycle.archive(id, {projectId})),
             )
+            await invalidateEvaluatorManagementQueries()
+            refetchAll()
+            clearSelectionAfterArchiveRef.current?.()
 
             message.success(
                 deleteTargetIds.length === 1
@@ -336,8 +340,9 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
             setIsDeleteModalOpen(false)
             setDeleteTargetIds([])
             setDeleteTargetRevisionIds([])
+            clearSelectionAfterArchiveRef.current = null
         }
-    }, [activeTab, deleteTargetIds])
+    }, [activeTab, deleteTargetIds, refetchAll])
 
     const columnActions = useMemo(
         () =>
@@ -364,6 +369,7 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
                           if (!record.workflowId) return
                           setDeleteTargetIds([record.workflowId])
                           setDeleteTargetRevisionIds(record.revisionId ? [record.revisionId] : [])
+                          clearSelectionAfterArchiveRef.current = null
                           setIsDeleteModalOpen(true)
                       },
                   },
@@ -439,37 +445,70 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
         )
     }, [isArchived, projectURL, router])
 
-    const primaryActions = useMemo(() => {
-        if (isArchived) return undefined
+    const renderPrimaryActions = useCallback(
+        ({selectedRowKeys, selectedRecords, clearSelection}: EvaluatorsTableSelection) => {
+            if (isArchived) return undefined
 
-        return (
-            <Space>
-                <Button
-                    icon={<Tray size={14} />}
-                    onClick={() =>
-                        router.push(`${projectURL}/evaluators/archived?tab=${activeTab}`)
-                    }
-                    type="text"
-                >
-                    Archived
-                </Button>
-                {activeTab === "human" ? (
-                    <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenHumanDrawer}>
-                        Create new
-                    </Button>
-                ) : (
-                    <EvaluatorTemplateDropdown
-                        onSelect={handleSelectTemplate}
-                        trigger={
-                            <Button type="primary" icon={<PlusOutlined />}>
-                                Create new
-                            </Button>
-                        }
-                    />
-                )}
-            </Space>
-        )
-    }, [activeTab, handleOpenHumanDrawer, handleSelectTemplate, isArchived, projectURL, router])
+            const handleBulkArchive = () => {
+                const selectedEvaluators = Array.from(
+                    new Map(
+                        selectedRecords
+                            .filter((record) => record.workflowId)
+                            .map((record) => [record.workflowId, record]),
+                    ).values(),
+                )
+                if (!selectedEvaluators.length) return
+
+                setDeleteTargetIds(selectedEvaluators.map((record) => record.workflowId))
+                setDeleteTargetRevisionIds(
+                    selectedEvaluators
+                        .map((record) => record.revisionId)
+                        .filter((revisionId): revisionId is string => Boolean(revisionId)),
+                )
+                clearSelectionAfterArchiveRef.current = clearSelection
+                setIsDeleteModalOpen(true)
+            }
+
+            return (
+                <Space>
+                    {selectedRowKeys.length > 0 ? (
+                        <Button danger icon={<Tray size={14} />} onClick={handleBulkArchive}>
+                            Archive all
+                        </Button>
+                    ) : (
+                        <Button
+                            icon={<Tray size={14} />}
+                            onClick={() =>
+                                router.push(`${projectURL}/evaluators/archived?tab=${activeTab}`)
+                            }
+                            type="text"
+                        >
+                            Archived
+                        </Button>
+                    )}
+                    {activeTab === "human" ? (
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={handleOpenHumanDrawer}
+                        >
+                            Create new
+                        </Button>
+                    ) : (
+                        <EvaluatorTemplateDropdown
+                            onSelect={handleSelectTemplate}
+                            trigger={
+                                <Button type="primary" icon={<PlusOutlined />}>
+                                    Create new
+                                </Button>
+                            }
+                        />
+                    )}
+                </Space>
+            )
+        },
+        [activeTab, handleOpenHumanDrawer, handleSelectTemplate, isArchived, projectURL, router],
+    )
 
     return (
         <PageLayout
@@ -484,7 +523,7 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
                 actions={columnActions}
                 searchDeps={[searchTerm]}
                 filters={filters}
-                primaryActions={isArchived ? undefined : primaryActions}
+                renderPrimaryActions={isArchived ? undefined : renderPrimaryActions}
                 displayMode="grouped"
             />
 
@@ -494,6 +533,7 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
                     setIsDeleteModalOpen(false)
                     setDeleteTargetIds([])
                     setDeleteTargetRevisionIds([])
+                    clearSelectionAfterArchiveRef.current = null
                 }}
                 onConfirm={handleConfirmDelete}
                 confirmLoading={isDeleting}
