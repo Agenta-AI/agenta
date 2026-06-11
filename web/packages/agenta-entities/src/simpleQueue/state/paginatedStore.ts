@@ -47,16 +47,6 @@ function isQueueVisible(queue: SimpleQueue): boolean {
     return true
 }
 
-/**
- * Sort newest-first by `created_at`. The backend pages by UUID7 `id` (insert
- * order), which normally tracks `created_at` — but they diverge when rows carry
- * an explicit `created_at` (seeded/imported data), so we sort on the timestamp
- * the table actually displays. ISO-8601 strings sort lexically = chronologically.
- */
-function byCreatedAtDesc(a: SimpleQueue, b: SimpleQueue): number {
-    return (b.created_at ?? "").localeCompare(a.created_at ?? "")
-}
-
 // ============================================================================
 // TABLE ROW TYPE
 // ============================================================================
@@ -127,7 +117,12 @@ export const simpleQueuePaginatedStore = createPaginatedEntityStore<
 >({
     entityName: "simpleQueue",
     metaAtom: simpleQueuePaginatedMetaAtom,
-    fetchPage: async ({meta, limit, cursor}): Promise<InfiniteTableFetchResult<SimpleQueue>> => {
+    fetchPage: async ({
+        meta,
+        limit,
+        cursor,
+        windowing,
+    }): Promise<InfiniteTableFetchResult<SimpleQueue>> => {
         if (!meta.projectId) {
             return {
                 rows: [],
@@ -139,26 +134,41 @@ export const simpleQueuePaginatedStore = createPaginatedEntityStore<
             }
         }
 
-        const windowing: WindowingState = {
-            next: cursor,
-            limit,
-            order: "descending",
-        }
+        // The backend windows by created_at descending with an id tie-break,
+        // so subsequent pages must thread the FULL windowing from the previous
+        // response (`newest` timestamp boundary + `next` id), not just the id.
+        const requestWindowing: WindowingState = windowing
+            ? {
+                  ...windowing,
+                  limit: windowing.limit ?? limit,
+                  order: windowing.order ?? "descending",
+              }
+            : {next: cursor, limit, order: "descending"}
 
         const response = await querySimpleQueues({
             projectId: meta.projectId,
             kind: meta.kind,
             name: meta.searchTerm,
-            windowing,
+            windowing: requestWindowing,
         })
 
+        const nextWindowing: WindowingState | null = response.windowing?.next
+            ? {
+                  next: response.windowing.next,
+                  newest: response.windowing.newest ?? null,
+                  oldest: response.windowing.oldest ?? null,
+                  limit: response.windowing.limit ?? limit,
+                  order: response.windowing.order ?? "descending",
+              }
+            : null
+
         return {
-            rows: response.queues.filter(isQueueVisible).sort(byCreatedAtDesc),
+            rows: response.queues.filter(isQueueVisible),
             totalCount: null,
             hasMore: !!response.windowing?.next,
             nextCursor: response.windowing?.next ?? null,
             nextOffset: null,
-            nextWindowing: null,
+            nextWindowing,
         }
     },
     rowConfig: {

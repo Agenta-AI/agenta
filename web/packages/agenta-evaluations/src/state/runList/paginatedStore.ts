@@ -25,7 +25,8 @@ import {atom} from "jotai"
  * an explicit `created_at` (seeded/imported data), so we sort on the timestamp
  * the table actually displays. ISO-8601 strings sort lexically = chronologically.
  *
- * Mirrors the queue store's `byCreatedAtDesc`.
+ * (The queue store no longer needs this: its backend now windows by
+ * `created_at` directly. Runs still page by `id`.)
  */
 function byCreatedAtDesc(a: EvaluationRun, b: EvaluationRun): number {
     return (b.created_at ?? "").localeCompare(a.created_at ?? "")
