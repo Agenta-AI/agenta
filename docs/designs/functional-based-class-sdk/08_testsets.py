@@ -1,16 +1,19 @@
-"""Testsets as classes. (POC, does not run.)
+"""ag.Testset — NOT a Workflow. (POC, does not run.)
 
-A testset class declares its columns as a Pydantic model. That buys:
-- the platform validates rows against the schema, on upload and on edit
-- typed iteration in code, no dict["colunm_typo"] surprises
-- fail-fast compatibility checks: before an evaluation runs anything, the
-  testset columns are checked against the application's Inputs and every
-  evaluator's Inputs
+Diff this against ../function-based-sdk/08_testsets.py (functional original) and
+../class-based-sdk/08_testsets.py (class proposal).
 
-The schema compiles into the same JSON Schema machinery as everything else
-in this POC, so the testset UI can render typed cells (numbers, enums,
-nested JSON) instead of treating every column as text.
+A testset is shaped differently from the runnable workflows: an inner `Case`
+model (the row schema) + optional `cases` seed data, no Parameters and no
+handler. It is absent from `WorkflowFlags` and does NOT subclass `Workflow`. In
+00_core.py it gets its own tiny base, separate from the Application/Evaluator/
+Configuration front-ends. That separation is the point: the type hierarchy
+matches the data model instead of forcing a non-workflow under `Workflow`.
+
+PART B is ../class-based-sdk/08_testsets.py running verbatim on the shim.
 """
+
+from __future__ import annotations
 
 import asyncio
 
@@ -18,11 +21,22 @@ from pydantic import BaseModel, Field
 
 import agenta as ag
 
-from application import HotelAgent  # 01_application.py
 from core import Testset  # 00_core.py — its own base, NOT a Workflow
+
+from application import HotelAgent  # 01_application.py (the compatibility check)
 from evaluators import RubricJudge  # 02_evaluators.py
 
-ag.Testset = Testset  # what the SDK __init__ would export
+# =========================================================================
+# PART A — no base to define. ag.Testset is the standalone Testset base from
+# 00_core.py (deliberately not under Workflow), bound onto `ag`.
+# =========================================================================
+
+ag.Testset = Testset  # type: ignore[attr-defined]
+
+
+# =========================================================================
+# PART B — ../../class-based-sdk/08_testsets.py, verbatim, on the shim.
+# =========================================================================
 
 
 class HotelFAQ(ag.Testset):
@@ -37,7 +51,6 @@ class HotelFAQ(ag.Testset):
         expected_answer: str
         difficulty: int = Field(1, ge=1, le=3)
 
-    # Optional seed data, committed with the class on first push.
     cases = [
         Case(
             message="Do you have a pool?",
@@ -56,12 +69,10 @@ async def main():
 
     await HotelFAQ.apush()
 
-    # Typed access. Editors keep working in the UI; this pulls their edits.
     testset = await HotelFAQ.afetch()
     for case in testset:
         print(case.message, case.difficulty)
 
-    # Append programmatically, validated against Case.
     await HotelFAQ.aadd(
         cases=[HotelFAQ.Case(message="Is parking free?", expected_answer="Yes.")]
     )

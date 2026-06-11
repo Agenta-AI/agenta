@@ -1,12 +1,17 @@
-"""An application as a class. (POC, does not run.)
+"""ag.Application as sugar over the functional core. (POC, does not run.)
 
-The class is the workflow:
-- `Parameters`, `Inputs`, `Outputs` compile to the revision's JSON schemas.
-- `run()` is the handler. It is auto-instrumented: one root span per invocation
-  with inputs, outputs, cost, and token capture.
-- `stream()` is optional. Declare it only if the app can stream.
-- `slug`, `name`, `description` map to the workflow identity on the platform.
+Diff this against ../function-based-sdk/01_application.py (the functional
+original) and ../class-based-sdk/01_application.py (the class proposal it
+reproduces).
+
+PART A is nearly empty — ag.Application is just the class front-end from
+00_core.py, bound onto `ag`. PART B is ../class-based-sdk/01_application.py
+running VERBATIM on top of it. Nothing in PART B knows it is sugar; `apush()`,
+`HotelAgent(parameters={...})`, `.invoke()`, and `.inspect()` all work because
+each delegates to the functional handle.
 """
+
+from __future__ import annotations
 
 import asyncio
 from typing import AsyncIterator
@@ -16,9 +21,20 @@ from pydantic import BaseModel, Field
 
 import agenta as ag
 
-from core import Application  # 00_core.py — the native class base
+from core import Application  # 00_core.py — class front-end over the one base
 
-ag.Application = Application  # what the SDK __init__ would export
+# =========================================================================
+# PART A — there is no base to define here. ag.Application is the class
+# front-end from 00_core.py. Binding it onto `ag` is what the real SDK
+# __init__ does; the example body below is unchanged.
+# =========================================================================
+
+ag.Application = Application  # type: ignore[attr-defined]
+
+
+# =========================================================================
+# PART B — ../class-based-sdk/01_application.py, VERBATIM, on the shim.
+# =========================================================================
 
 
 class HotelAgent(ag.Application):
@@ -113,9 +129,6 @@ async def main():
 
     # Full pipeline (vault -> resolver -> normalizer), same code path the
     # platform runs. Plain kwargs; the SDK builds the wire request internally.
-    # WorkflowInvokeRequest stays as the HTTP body format for /invoke (it also
-    # carries references, selector, secrets, credentials), but local callers
-    # never construct it.
     _response = await agent.invoke(
         inputs={"message": "Is breakfast included?"},
         parameters={"top_k": 2},

@@ -23,6 +23,11 @@ from pydantic import BaseModel, Field
 
 import agenta as ag
 
+from core import Application, Configuration  # 00_core.py — native class bases
+
+ag.Configuration = Configuration  # what the SDK __init__ would export
+ag.Application = Application  # for the SupportAgent reference in main()
+
 
 class ConciergeConfig(ag.Configuration):
     slug = "concierge-config"

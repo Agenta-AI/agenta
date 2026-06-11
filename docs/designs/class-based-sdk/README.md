@@ -1,8 +1,23 @@
 # Class-based SDK (POC)
 
-**Status: design proposal. None of this code runs.** `ag.Application`, `ag.Evaluator`,
-`ag.serve`, and the related methods do not exist yet. This folder shows what the
-authoring experience would look like if the SDK were class-oriented.
+**Status: design proposal. None of this code runs.** This folder shows what the
+authoring experience would look like if the SDK were class-oriented. The bases
+the examples subclass — `ag.Application`, `ag.Evaluator`, `ag.Configuration`,
+`ag.Testset` — are defined in [`00_core.py`](00_core.py), implemented natively
+as classes (no functional layer underneath). That is this folder's foundation.
+
+> One of three peer demos under `docs/designs/`, with aligned filenames
+> (`00_*` foundation + `01_application.py` … `08_testsets.py`) so they diff 1:1:
+>
+> | folder | `00_*` foundation | `01`–`08` |
+> |---|---|---|
+> | [class-based-sdk/](.) (this one) | `00_core.py` — bases as **native classes** | class API |
+> | [function-based-sdk/](../function-based-sdk/) | `00_core.py` — no base classes; decorators + closures | function API |
+> | [functional-based-class-sdk/](../functional-based-class-sdk/) | `00_core.py` — the **same bases on the functional core** | class API as sugar |
+>
+> Same `01`–`08` examples everywhere; three different `00_*` foundations. The
+> third folder proves the class API is sugar by rebuilding `00_core.py` on top
+> of the function front-end.
 
 ## The idea
 

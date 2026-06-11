@@ -30,6 +30,10 @@ from pydantic_ai import Agent as PydanticAgent  # noqa: E402
 
 import agenta as ag
 
+from core import Application  # 00_core.py — the native class base
+
+ag.Application = Application  # what the SDK __init__ would export
+
 
 # =========================================================================
 # Tier 1: MANUAL. Plain ag.Application, Pydantic AI inside run().

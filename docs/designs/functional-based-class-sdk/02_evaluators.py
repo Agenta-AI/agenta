@@ -1,16 +1,18 @@
-"""Evaluators as classes. (POC, does not run.)
+"""ag.Evaluator as sugar over the functional core. (POC, does not run.)
 
-An evaluator is a workflow with `is_evaluator=True`, so the authoring model is
-identical to applications. The differences:
-- you implement `evaluate()` instead of `run()`
-- `Inputs` are the testcase columns the evaluator consumes (permissive by
-  default, since batch mode passes every column)
-- `evaluate()` also receives `outputs` (the application output under
-  evaluation) and `trace` (the full execution trace)
+Diff this against ../function-based-sdk/02_evaluators.py (functional original)
+and ../class-based-sdk/02_evaluators.py (class proposal).
 
-`Parameters` are the evaluator settings users edit in the UI. `Outputs` is the
-declared metrics schema, which the UI uses to render score columns.
+In 00_core.py, the Evaluator front-end differs from Application by exactly one
+word — `_handler_name = "evaluate"` — and one flag (`is_evaluator` vs
+`is_application`). Everything else — schemas, pinning, push, router — is the
+shared `Workflow` base. That one-word difference is the entire "evaluators are a
+different base class" story.
+
+PART B is ../class-based-sdk/02_evaluators.py running verbatim on the shim.
 """
+
+from __future__ import annotations
 
 import asyncio
 
@@ -19,9 +21,19 @@ from pydantic import BaseModel, ConfigDict, Field
 
 import agenta as ag
 
-from core import Evaluator  # 00_core.py — the native class base
+from core import Evaluator  # 00_core.py — WorkflowClass path, is_evaluator flag
 
-ag.Evaluator = Evaluator  # what the SDK __init__ would export
+# =========================================================================
+# PART A — no base to define. ag.Evaluator is the class front-end from
+# 00_core.py, bound onto `ag`.
+# =========================================================================
+
+ag.Evaluator = Evaluator  # type: ignore[attr-defined]
+
+
+# =========================================================================
+# PART B — ../class-based-sdk/02_evaluators.py, VERBATIM, on the shim.
+# =========================================================================
 
 
 class StartsCapitalized(ag.Evaluator):
