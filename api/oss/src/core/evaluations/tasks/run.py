@@ -39,6 +39,20 @@ def _input_step_keys(run: EvaluationRun) -> List[str]:
     return [step.key for step in run.data.steps if step.type == "input"]
 
 
+def _initial_scenario_status(run: EvaluationRun) -> EvaluationStatus:
+    if not run.data or not run.data.steps:
+        return EvaluationStatus.RUNNING
+
+    executable_steps = [step for step in run.data.steps if step.type != "input"]
+    if executable_steps and all(
+        step.type == "annotation" and step.origin in {"human", "custom"}
+        for step in executable_steps
+    ):
+        return EvaluationStatus.PENDING
+
+    return EvaluationStatus.RUNNING
+
+
 # =============================================================================
 # RunProcessor — the worker-side orchestrator for a run's source flows.
 #
@@ -166,6 +180,7 @@ class RunProcessor:
             #
             timestamp=timestamp,
             interval=interval,
+            status=_initial_scenario_status(run),
         )
 
         bindings: List[ScenarioBinding] = []

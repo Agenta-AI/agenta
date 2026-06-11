@@ -152,8 +152,9 @@ class APIScenarioCreator:
         #
         timestamp: Any = None,
         interval: Optional[int] = None,
+        status: Any = EvaluationStatus.RUNNING,
     ) -> List[Any]:
-        """Mint `count` RUNNING scenarios for a run in one DAO call.
+        """Mint `count` scenarios for a run in one DAO call.
 
         The unified ingest flows (run/slice) mint all scenarios up front, then
         populate and re-execute them. `timestamp`/`interval` are the run-wide
@@ -174,7 +175,7 @@ class APIScenarioCreator:
                     timestamp=timestamp,
                     interval=interval,
                     #
-                    status=EvaluationStatus.RUNNING,
+                    status=status,
                 )
                 for _ in range(count)
             ],
