@@ -12,8 +12,7 @@ import {
     type ReferenceColumnDescriptor,
     type ReferenceSlot,
 } from "@agenta/evaluations/state/runsTable"
-
-import {ColumnVisibilityHeader} from "@/oss/components/InfiniteVirtualTable"
+import {ColumnVisibilityHeader} from "@agenta/ui/table"
 
 import type {EvaluatorHandles, EvaluatorReferenceCandidate, RecordPath} from "./types"
 

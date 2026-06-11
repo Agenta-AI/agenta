@@ -7,11 +7,10 @@ import type {
 } from "@agenta/evaluations/state/evalRun"
 import {COLUMN_WIDTHS} from "@agenta/evaluations/state/evalRun"
 import {humanizeStepKey, resolveGroupLabel} from "@agenta/evaluations/state/evalRun"
+import {ColumnVisibilityHeader} from "@agenta/ui/table"
 import {Tooltip} from "antd"
 import type {ColumnsType, ColumnType} from "antd/es/table"
 import clsx from "clsx"
-
-import {ColumnVisibilityHeader} from "@/oss/components/InfiniteVirtualTable"
 
 import PreviewEvaluationActionCell from "../components/TableCells/ActionCell"
 import PreviewEvaluationInputCell from "../components/TableCells/InputCell"

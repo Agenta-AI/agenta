@@ -31,21 +31,21 @@ import {
 } from "@agenta/evaluations/state/evalRun"
 import {useEtlColumns} from "@agenta/evaluations-ui"
 import {message} from "@agenta/ui/app-message"
+import {
+    EXPORT_RESOLVE_SKIP,
+    InfiniteVirtualTableFeatureShell,
+    useInfiniteTablePagination,
+    type ColumnVisibilityMenuRenderer,
+    type InfiniteDatasetStore,
+    type TableExportColumnContext,
+    type TableFeaturePagination,
+    type TableScopeConfig,
+} from "@agenta/ui/table"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
-import {
-    type ColumnVisibilityMenuRenderer,
-    InfiniteVirtualTableFeatureShell,
-    type TableFeaturePagination,
-    type TableScopeConfig,
-    useInfiniteTablePagination,
-} from "@/oss/components/InfiniteVirtualTable"
-import {
-    EXPORT_RESOLVE_SKIP,
-    type TableExportColumnContext,
-} from "@/oss/components/InfiniteVirtualTable/hooks/useTableExport"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 
 import ScenarioColumnVisibilityPopoverContent from "./components/columnVisibility/ColumnVisibilityPopoverContent"
 import {resolveScenarioColumnValue} from "./export/columnResolvers"
@@ -79,6 +79,12 @@ const EvalRunDetailsTable = ({
     const runDisplayName = useAtomValue(runDisplayNameAtom)
     const rowHeightMenuItems = useRowHeightMenuItems()
     const store = useStore()
+    /*
+     * The package shell has no built-in permission check; gate the export
+     * feature here (the OSS shell used to read
+     * useProjectPermissions().canExportData internally).
+     */
+    const {canExportData} = useProjectPermissions()
 
     const basePagination = useInfiniteTablePagination({
         store: evaluationPreviewTableStore,
@@ -1038,6 +1044,7 @@ const EvalRunDetailsTable = ({
             <section className="bg-zinc-1 w-full h-full overflow-hidden flex flex-col px-2">
                 <div className="w-full grow min-h-0 overflow-auto">
                     <InfiniteVirtualTableFeatureShell<TableRowData>
+                        enableExport={canExportData}
                         /*
                          * Remount on filter change. Applying a filter
                          * shrinks the row set sharply; remounting resets
@@ -1046,7 +1053,13 @@ const EvalRunDetailsTable = ({
                          * Column visibility survives (localStorage-backed).
                          */
                         key={`scenario-table-${runId}-${JSON.stringify(effectiveFilter)}`}
-                        datasetStore={evaluationPreviewDatasetStore}
+                        datasetStore={
+                            evaluationPreviewDatasetStore as unknown as InfiniteDatasetStore<
+                                TableRowData,
+                                unknown,
+                                unknown
+                            >
+                        }
                         tableScope={tableScope}
                         store={store}
                         columns={tableColumns}

@@ -15,12 +15,8 @@ import {
     scenarioTestcaseMetaAtomFamily,
 } from "@agenta/evaluations/state/evalRun"
 import {evaluationPreviewTableStore} from "@agenta/evaluations/state/evalRun"
+import {useInfiniteTablePagination, type InfiniteTableStore} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom} from "jotai"
-
-import {
-    useInfiniteTablePagination,
-    type InfiniteTableStore,
-} from "@/oss/components/InfiniteVirtualTable"
 
 import usePreviewTableData from "../../hooks/usePreviewTableData"
 import {

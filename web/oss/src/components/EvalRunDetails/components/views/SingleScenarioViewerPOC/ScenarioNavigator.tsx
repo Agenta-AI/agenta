@@ -1,10 +1,9 @@
 import {memo, useCallback, useEffect, useMemo} from "react"
 
 import {evaluationPreviewTableStore} from "@agenta/evaluations/state/evalRun"
+import {useInfiniteTablePagination} from "@agenta/ui/table"
 import {LeftOutlined, RightOutlined} from "@ant-design/icons"
 import {Button, Select, SelectProps, Tag, Typography} from "antd"
-
-import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 
 interface ScenarioNavigatorProps {
     runId: string

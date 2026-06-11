@@ -12,6 +12,15 @@ import type {
 import {useEvaluationRunsPolling} from "@agenta/evaluations/state/runsTable"
 import {clearMetricSelectionCache} from "@agenta/evaluations/state/runsTable"
 import {resolveRowAppId} from "@agenta/evaluations/state/runsTable"
+import {
+    EXPORT_RESOLVE_SKIP,
+    InfiniteVirtualTableFeatureShell,
+    useTableExport,
+    type InfiniteDatasetStore,
+    type TableExportColumnContext,
+    type TableFeaturePagination,
+    type TableScopeConfig,
+} from "@agenta/ui/table"
 import {useQueryClient} from "@tanstack/react-query"
 import {Grid} from "antd"
 import type {TableProps} from "antd/es/table"
@@ -20,15 +29,6 @@ import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {
-    InfiniteVirtualTableFeatureShell,
-    type TableFeaturePagination,
-    type TableScopeConfig,
-} from "@/oss/components/InfiniteVirtualTable"
-import useTableExport, {
-    EXPORT_RESOLVE_SKIP,
-    type TableExportColumnContext,
-} from "@/oss/components/InfiniteVirtualTable/hooks/useTableExport"
 import EmptyStateAllEvaluations from "@/oss/components/pages/evaluations/allEvaluations/EmptyStateAllEvaluations"
 import EmptyStateEvaluation from "@/oss/components/pages/evaluations/autoEvaluation/EmptyStateEvaluation"
 import EmptyStateHumanEvaluation from "@/oss/components/pages/evaluations/humanEvaluation/EmptyStateHumanEvaluation"
@@ -758,7 +758,19 @@ const EvaluationRunsTableActive = ({
         >
             <InfiniteVirtualTableFeatureShell<EvaluationRunTableRow>
                 key={scopeId ?? "evaluation-runs-table"}
-                datasetStore={evaluationRunsDatasetStore}
+                /*
+                 * The package shell has no built-in permission check; gate the
+                 * export feature here (the OSS shell used to read
+                 * useProjectPermissions().canExportData internally).
+                 */
+                enableExport={canExportData}
+                datasetStore={
+                    evaluationRunsDatasetStore as unknown as InfiniteDatasetStore<
+                        EvaluationRunTableRow,
+                        unknown,
+                        unknown
+                    >
+                }
                 tableScope={tableScope}
                 columns={columns}
                 rowKey={rowKeyExtractor}

@@ -17,6 +17,13 @@ import {
     type ReferenceColumnDescriptor,
 } from "@agenta/evaluations/state/runsTable"
 import {canonicalizeMetricKey} from "@agenta/shared/metrics"
+import {
+    ColumnVisibilityMenuTrigger,
+    createColumnVisibilityAwareCell,
+    createComponentCell,
+    createTableColumns,
+    type TableColumnConfig,
+} from "@agenta/ui/table"
 import type {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -24,13 +31,6 @@ import {
     INVOCATION_METRIC_KEYS,
     INVOCATION_METRIC_LABELS,
 } from "@/oss/components/EvalRunDetails/components/views/OverviewView/constants"
-import {
-    ColumnVisibilityMenuTrigger,
-    createColumnVisibilityAwareCell,
-    createComponentCell,
-    createTableColumns,
-} from "@/oss/components/InfiniteVirtualTable"
-import type {TableColumnConfig} from "@/oss/components/InfiniteVirtualTable/columns/types"
 import {getEvaluatorMetricBlueprintAtom} from "@/oss/components/References/atoms/metricBlueprint"
 import {PreviewCreatedByCell} from "@/oss/components/References/cells/CreatedByCells"
 

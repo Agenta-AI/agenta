@@ -1,4 +1,4 @@
-import type {ReactNode} from "react"
+import type {MouseEvent, ReactNode} from "react"
 
 import type {ColumnsType} from "antd/es/table"
 
@@ -156,6 +156,24 @@ const buildColumn = <Row extends object>(
 
     if (config.exportMetadata !== undefined) {
         column.exportMetadata = config.exportMetadata
+    }
+
+    // Auto-stop click propagation in action columns so clicks on empty cell area
+    // don't bubble to the row navigation handler.
+    if (config.key === "actions") {
+        const prevOnCell = column.onCell
+        column.onCell = (record: Row, index?: number) => {
+            const base = prevOnCell ? prevOnCell(record, index) : {}
+            const prevClick = base.onClick
+            return {
+                ...base,
+                className: cn(base.className, "ag-table-actions-cell"),
+                onClick: (e: MouseEvent<HTMLTableCellElement>) => {
+                    e.stopPropagation()
+                    prevClick?.(e)
+                },
+            }
+        }
     }
 
     return column

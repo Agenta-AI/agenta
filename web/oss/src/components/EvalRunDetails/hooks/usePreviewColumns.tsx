@@ -10,12 +10,12 @@ import {
 } from "@agenta/evaluations/state/evalRun"
 import {humanizeStepKey, resolveGroupLabel, titleize} from "@agenta/evaluations/state/evalRun"
 import type {PreviewTableRow} from "@agenta/evaluations/state/evalRun"
-import {Typography} from "antd"
-
-import type {ColumnTreeNode} from "@/oss/components/InfiniteVirtualTable"
-import ColumnVisibilityMenuTrigger, {
+import {
+    ColumnVisibilityMenuTrigger,
+    type ColumnTreeNode,
     type ColumnVisibilityNodeMeta,
-} from "@/oss/components/InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityMenuTrigger"
+} from "@agenta/ui/table"
+import {Typography} from "antd"
 
 import PreviewEvaluationInputCell from "../components/TableCells/InputCell"
 import StepGroupHeader from "../components/TableHeaders/StepGroupHeader"

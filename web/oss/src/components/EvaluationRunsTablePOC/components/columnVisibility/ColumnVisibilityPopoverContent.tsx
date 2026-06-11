@@ -3,16 +3,15 @@ import {useCallback, useMemo} from "react"
 import {humanizeMetricPath} from "@agenta/evaluations/core"
 import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import type {RunMetricDescriptor} from "@agenta/evaluations/state/runsTable"
+import {
+    ColumnVisibilityPopoverContentBase,
+    type ColumnTreeNode,
+    type ColumnVisibilityNodeMeta,
+    type ColumnVisibilityState,
+} from "@agenta/ui/table"
 import {Typography} from "antd"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {
-    type ColumnVisibilityState,
-    type ColumnTreeNode,
-} from "@/oss/components/InfiniteVirtualTable"
-import ColumnVisibilityPopoverContentBase, {
-    type ColumnVisibilityNodeMeta,
-} from "@/oss/components/InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent"
 import {
     getEvaluatorMetricBlueprintAtom,
     type EvaluatorMetricGroupBlueprint,

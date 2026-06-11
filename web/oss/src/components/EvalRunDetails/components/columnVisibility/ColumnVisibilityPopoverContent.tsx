@@ -8,12 +8,13 @@ import {
     type MetricColumnDefinition,
 } from "@agenta/evaluations/state/evalRun"
 import {resolveGroupLabel, humanizeStepKey, titleize} from "@agenta/evaluations/state/evalRun"
-import {Typography} from "antd"
-
-import type {ColumnTreeNode, ColumnVisibilityState} from "@/oss/components/InfiniteVirtualTable"
-import ColumnVisibilityPopoverContentBase, {
+import {
+    ColumnVisibilityPopoverContentBase,
+    type ColumnTreeNode,
     type ColumnVisibilityNodeMeta,
-} from "@/oss/components/InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent"
+    type ColumnVisibilityState,
+} from "@agenta/ui/table"
+import {Typography} from "antd"
 
 import usePreviewTableData from "../../hooks/usePreviewTableData"
 import {buildSkeletonColumnResult} from "../../utils/buildSkeletonColumns"
