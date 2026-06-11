@@ -11,7 +11,10 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
-from agenta.sdk.middlewares.running.resolver import _has_embed_markers
+from agenta.sdk.middlewares.running.resolver import (
+    _has_embed_markers,
+    resolve_references_with_info,
+)
 
 
 class TestHasEmbedMarkers:
@@ -418,6 +421,24 @@ class TestResolverMiddlewareEmbedGate:
             assert TracingContext.get().selector is None
         finally:
             TracingContext.reset(token)
+
+
+class TestResolverReferenceValidation:
+    @pytest.mark.asyncio
+    async def test_rejects_competing_application_and_evaluator_refs(self):
+        from agenta.sdk.models.workflows import WorkflowInvokeRequest
+
+        request = WorkflowInvokeRequest(
+            references={
+                "application": {"slug": "my-app"},
+                "evaluator": {"slug": "my-eval"},
+            }
+        )
+
+        with pytest.raises(ValueError, match="Competing execution target references"):
+            await resolve_references_with_info(
+                request=request, credentials="test-creds"
+            )
 
 
 class TestResolverMiddlewareTracingParameters:
