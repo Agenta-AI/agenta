@@ -37,11 +37,10 @@ def _fetch_variants_missing_v0(
             SELECT
                 project_id,
                 artifact_id,
-                variant_id,
-                MIN(created_at) AS first_created_at
+                variant_id
             FROM workflow_revisions
             WHERE (
-                :last_variant_id IS NULL
+                CAST(:last_variant_id AS uuid) IS NULL
                 OR variant_id > CAST(:last_variant_id AS uuid)
             )
             GROUP BY project_id, artifact_id, variant_id
@@ -53,18 +52,18 @@ def _fetch_variants_missing_v0(
             missing.project_id,
             missing.artifact_id,
             missing.variant_id,
-            missing.first_created_at,
+            first_revision.created_at AS first_created_at,
             first_revision.created_by_id,
             first_revision.author,
             first_revision.name,
             first_revision.description
         FROM missing
         JOIN LATERAL (
-            SELECT created_by_id, author, name, description
+            SELECT created_at, created_by_id, author, name, description
             FROM workflow_revisions
             WHERE project_id = missing.project_id
               AND variant_id = missing.variant_id
-            ORDER BY created_at ASC, id ASC
+            ORDER BY id ASC
             LIMIT 1
         ) AS first_revision ON true
         ORDER BY missing.variant_id
@@ -147,7 +146,7 @@ def _fetch_variants_with_duplicate_versions(
             variant_id
         FROM workflow_revisions
         WHERE (
-            :last_variant_id IS NULL
+            CAST(:last_variant_id AS uuid) IS NULL
             OR variant_id > CAST(:last_variant_id AS uuid)
         )
         GROUP BY project_id, variant_id
@@ -176,7 +175,7 @@ def _fetch_variant_revisions(
         FROM workflow_revisions
         WHERE project_id = :project_id
           AND variant_id = :variant_id
-        ORDER BY created_at ASC, id ASC
+        ORDER BY id ASC
     """)
 
     return session.execute(
@@ -246,7 +245,9 @@ def _create_revision_version_mapping(
             version
         )
         VALUES (:project_id, :revision_id, :version)
-        ON CONFLICT (revision_id) DO UPDATE SET version = EXCLUDED.version
+        ON CONFLICT (revision_id) DO UPDATE SET
+            project_id = EXCLUDED.project_id,
+            version = EXCLUDED.version
     """)
 
     session.execute(create_query)
@@ -398,6 +399,7 @@ def upgrade_workflow_revision_versions(session: Connection) -> None:
         if not variants:
             break
 
+        batch_mapping: list[dict[str, Any]] = []
         for variant in variants:
             update_count, mapping = _repair_duplicate_variant_versions(
                 session=session,
@@ -405,14 +407,19 @@ def upgrade_workflow_revision_versions(session: Connection) -> None:
             )
             updated_revisions += update_count
             repaired_duplicate_variants += 1
-            if mapping:
-                _create_revision_version_mapping(
-                    session=session,
-                    batch_mapping=mapping,
-                )
+            batch_mapping.extend(mapping)
+
+        if batch_mapping:
+            _create_revision_version_mapping(
+                session=session,
+                batch_mapping=batch_mapping,
+            )
+            for project_id in sorted(
+                {mapping["project_id"] for mapping in batch_mapping}
+            ):
                 updated_environment_revisions += _update_environment_references(
                     session=session,
-                    project_id=variant.project_id,
+                    project_id=project_id,
                 )
 
         session.commit()
