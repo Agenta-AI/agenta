@@ -3,11 +3,11 @@ import {MouseEvent, useMemo, useState, useCallback} from "react"
 import type {ConcreteEvaluationRunKind} from "@agenta/evaluations/state/runsTable"
 import {STATUS_OPTIONS, EVALUATION_KIND_LABELS} from "@agenta/evaluations/state/runsTable"
 import {buildTestsetOptions} from "@agenta/evaluations/state/runsTable"
+import {FiltersPopoverTrigger} from "@agenta/ui/table"
 import {Input, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import {FiltersPopoverTrigger} from "@/oss/components/InfiniteVirtualTable"
 import {
     getReferenceToneColors,
     type ReferenceTone,

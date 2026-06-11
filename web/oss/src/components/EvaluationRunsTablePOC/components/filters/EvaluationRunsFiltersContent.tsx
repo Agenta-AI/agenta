@@ -8,6 +8,7 @@ import {buildTestsetOptions} from "@agenta/evaluations/state/runsTable"
 import {Button, Divider, Select, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import QuickDateRangePicker from "@/oss/components/Filters/QuickDateRangePicker"
 import {testsetsListQueryAtomFamily} from "@/oss/state/entities/testset"
 
 import {evaluationRunsTableComponentSliceAtom} from "../../atoms/context"
@@ -27,7 +28,6 @@ import {
 } from "../../atoms/view"
 
 import QueryFilterOption from "./QueryFilterOption"
-import QuickDateRangePicker from "./QuickDateRangePicker"
 
 interface TagRenderProps {
     label: ReactNode
