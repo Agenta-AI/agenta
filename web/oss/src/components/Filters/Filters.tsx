@@ -1,6 +1,6 @@
 import {useMemo, useState} from "react"
 
-import {evaluatorsListDataAtom} from "@agenta/entities/workflow"
+import {evaluatorsListDataAtom, evaluatorFeedbackSchemasAtom} from "@agenta/entities/workflow"
 import {
     ArrowClockwiseIcon,
     CaretDownIcon,
@@ -286,6 +286,7 @@ const Filters: React.FC<Props> = ({
     reconcileFilterRows,
 }) => {
     const evaluatorPreviews = useAtomValue(evaluatorsListDataAtom)
+    const evaluatorFeedbackSchemas = useAtomValue(evaluatorFeedbackSchemasAtom)
 
     const annotationEvaluatorOptions = useMemo(
         () =>
@@ -309,23 +310,21 @@ const Filters: React.FC<Props> = ({
     }
 
     const annotationFeedbackOptions = useMemo(() => {
-        if (!evaluatorPreviews) return [] as AnnotationFeedbackOption[]
         const options: AnnotationFeedbackOption[] = []
-        evaluatorPreviews.forEach((evaluator: any) => {
-            const metrics = evaluator.metrics ?? {}
-            Object.entries(metrics).forEach(([key, schema]) => {
+        evaluatorFeedbackSchemas.forEach((evaluator) => {
+            Object.entries(evaluator.properties).forEach(([key, schema]) => {
                 const typedSchema = schema as any
                 options.push({
                     label: typedSchema?.title ?? key,
                     value: key,
-                    evaluatorSlug: evaluator.slug,
-                    evaluatorLabel: evaluator.name || evaluator.slug,
+                    evaluatorSlug: evaluator.slug ?? "",
+                    evaluatorLabel: evaluator.name || evaluator.slug || "",
                     type: deriveFeedbackValueType(typedSchema),
                 })
             })
         })
         return options
-    }, [evaluatorPreviews])
+    }, [evaluatorFeedbackSchemas])
 
     // Dedupe feedback options by feedback key across evaluators
     const dedupeFeedbackOptions = (options: AnnotationFeedbackOption[]) => {
