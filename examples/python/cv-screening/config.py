@@ -35,18 +35,13 @@ You are an experienced technical recruiter screening CVs for the following posit
 
 {JOB_SPEC}
 
-Evaluate the candidate's CV against this job specification. Score each area from 1 (very poor fit) to 5 (excellent fit):
+Evaluate the candidate's CV against this job specification on two dimensions, then give an overall recommendation:
 
-- experience: depth and relevance of professional experience for this role
-- technical_skills: match between the candidate's technical skills and the role
-- leadership: people management, budget and vendor ownership
-- education_certifications: relevant degrees and certifications
+- tech_match: do the candidate's technical skills cover what the role needs?
+- experience_match: do the years of experience, seniority, and leadership scope fit the role?
+- overall_match: would you advance this candidate to an interview? This is a holistic judgment against the full job specification (including any requirement not covered by the two dimensions above, such as languages or location), not just a combination of the other two.
 
-Then give a final classification:
-
-- strong_match: meets all requirements; should be interviewed
-- potential_match: meets most requirements or has closely transferable experience; worth a closer look
-- no_match: does not meet the core requirements
+For each of the three, answer true or false and give a one-or-two-sentence reason. Also list any must-have requirements that are missing or not evidenced in the CV.
 
 Base your evaluation only on what is written in the CV. Do not reward keyword stuffing: look for evidence such as responsibilities held, years of experience, and concrete accomplishments.\
 """
@@ -65,57 +60,44 @@ CLASSIFICATION_SCHEMA = {
     "schema": {
         "type": "object",
         "properties": {
-            "scores": {
-                "type": "object",
-                "properties": {
-                    "experience": {"type": "integer", "minimum": 1, "maximum": 5},
-                    "technical_skills": {"type": "integer", "minimum": 1, "maximum": 5},
-                    "leadership": {"type": "integer", "minimum": 1, "maximum": 5},
-                    "education_certifications": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 5,
-                    },
-                },
-                "required": [
-                    "experience",
-                    "technical_skills",
-                    "leadership",
-                    "education_certifications",
-                ],
-                "additionalProperties": False,
+            "tech_match": {
+                "type": "boolean",
+                "description": "Do the candidate's technical skills cover what the role needs?",
             },
-            "matched_requirements": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Must-have requirements the candidate clearly meets",
+            "tech_reason": {
+                "type": "string",
+                "description": "One or two sentences justifying tech_match",
+            },
+            "experience_match": {
+                "type": "boolean",
+                "description": "Do the years of experience, seniority, and leadership scope fit the role?",
+            },
+            "experience_reason": {
+                "type": "string",
+                "description": "One or two sentences justifying experience_match",
+            },
+            "overall_match": {
+                "type": "boolean",
+                "description": "Holistic recommendation: advance this candidate to an interview?",
+            },
+            "overall_reason": {
+                "type": "string",
+                "description": "One or two sentences justifying overall_match",
             },
             "missing_requirements": {
                 "type": "array",
                 "items": {"type": "string"},
                 "description": "Must-have requirements the candidate does not meet or that are not evidenced in the CV",
             },
-            "nice_to_haves": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Nice-to-have qualifications found in the CV",
-            },
-            "classification": {
-                "type": "string",
-                "enum": ["strong_match", "potential_match", "no_match"],
-            },
-            "reasoning": {
-                "type": "string",
-                "description": "Two or three sentences justifying the classification",
-            },
         },
         "required": [
-            "scores",
-            "matched_requirements",
+            "tech_match",
+            "tech_reason",
+            "experience_match",
+            "experience_reason",
+            "overall_match",
+            "overall_reason",
             "missing_requirements",
-            "nice_to_haves",
-            "classification",
-            "reasoning",
         ],
         "additionalProperties": False,
     },

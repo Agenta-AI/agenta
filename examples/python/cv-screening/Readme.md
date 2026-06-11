@@ -2,9 +2,9 @@
 
 A complete walkthrough for building a CV classifier with Agenta: a prompt
 that evaluates a candidate's CV (as Markdown) against a job specification
-and returns a structured assessment — per-area scores, matched and missing
-requirements, and a final classification (`strong_match`, `potential_match`,
-or `no_match`).
+and returns a structured assessment — a technical-skills match, an
+experience match, and an overall hire/no-hire recommendation, each with a
+short reason, plus the list of missing must-have requirements.
 
 The split between Agenta and the application code follows the pattern we
 recommend for production:
@@ -28,7 +28,7 @@ PDF upload ──> Markdown (markitdown) ──> prompt fetched from Agenta ─�
 | `config.py` | Job spec, prompt messages, structured-output JSON schema, app slugs |
 | `create_app.py` | Creates the `cv-screening` app in Agenta and deploys the prompt to production |
 | `prepare_testset.py` | Builds `data/testset.csv` from a public resume dataset (optionally uploads it to Agenta) |
-| `data/testset.csv` | 30 real Markdown CVs with hand-labeled expected classifications (committed, ready to upload) |
+| `data/testset.csv` | 30 real Markdown CVs with hand-labeled expected matches (committed, ready to upload) |
 | `screening.py` | The AI logic: fetches the prompt, calls the LLM, traces, sends feedback |
 | `app.py` | Streamlit demo UI: upload a PDF, screen the candidate |
 | `make_sample_pdfs.py` | Renders three test set CVs as PDFs for the demo |
@@ -47,7 +47,7 @@ HTML to clean Markdown, and labels each one by hand against the IT Manager
 job spec in `config.py`:
 
 - **6 strong matches** — seasoned IT managers, directors, and a VP of IT
-- **7 potential matches** — IT specialists and supervisors missing
+- **7 partial matches** — IT specialists and supervisors missing
   management scope, plus an engineering manager with weak IT depth
 - **17 rejections** — interns, and candidates from unrelated fields (chef,
   teacher, attorney, finance analyst, ...), including one resume that is
@@ -59,9 +59,14 @@ Each CSV row has:
 | Column | Content |
 | --- | --- |
 | `cv` | The CV as Markdown — maps to the `{{cv}}` input of the prompt |
-| `expected_classification` | Hand-assigned ground truth (`strong_match` / `potential_match` / `no_match`) |
-| `source_category` | Original category label from the dataset |
-| `source_id` | Resume ID in the source dataset |
+| `expected_tech_match` | Hand-assigned ground truth for `tech_match` (`true` / `false`) |
+| `expected_experience_match` | Hand-assigned ground truth for `experience_match` (`true` / `false`) |
+| `expected_overall_match` | Hand-assigned ground truth for `overall_match` (`true` / `false`) |
+
+An empty expected cell means "no ground truth for this dimension"; the code
+evaluator below skips it. That is how you add a test case that only pins
+down the overall decision (for example, a CV that fails a new requirement)
+without having to label the other dimensions.
 
 The CVs are Markdown rather than PDFs on purpose: PDF parsing happens
 outside Agenta (in the app), so the test set captures exactly what the
@@ -103,11 +108,39 @@ dataset.)
 ### 3. Iterate and evaluate in Agenta
 
 In the playground, load test cases from the test set and experiment with
-the prompt: tighten the requirements, change the model, adjust the scoring
-rubric. Then run an evaluation against the test set — since the output is
-structured JSON and the test set has an `expected_classification` column,
-you can use a JSON-field match evaluator on `classification`, or add an
-LLM-as-a-judge for the reasoning quality.
+the prompt: tighten the requirements, change the model, adjust the
+instructions. To score runs against the hand-labeled
+`expected_*` columns, create a custom code evaluator (Evaluators →
+Create → Code) with:
+
+```python
+import json
+from typing import Dict, Any
+
+FIELDS = ("tech_match", "experience_match", "overall_match")
+
+
+def evaluate(
+    inputs: Dict[str, Any],
+    outputs: Any,
+    trace: Dict[str, Any],
+) -> float:
+    result = json.loads(outputs) if isinstance(outputs, str) else outputs
+
+    checked = []
+    for field in FIELDS:
+        expected = str(inputs.get(f"expected_{field}") or "").strip().lower()
+        if expected not in ("true", "false"):
+            continue  # empty cell: no ground truth for this dimension
+        checked.append(str(result.get(field)).lower() == expected)
+
+    return sum(checked) / len(checked) if checked else 1.0
+```
+
+It compares each of the three match booleans to its `expected_*` column
+and returns the fraction that agree. Empty expected cells are skipped, so
+a test case can pin down only one dimension. Then run an evaluation with
+the test set and this evaluator.
 
 ### 4. Run the demo app
 
@@ -123,8 +156,8 @@ UI only; the AI logic lives in `screening.py`. The flow:
    so whatever you deploy from the playground is what the app uses, with no
    redeploy,
 3. calls the LLM with the structured-output schema,
-4. the app renders the scores, requirement checklists, and final
-   classification.
+4. the app renders the three match verdicts with their reasons and the
+   missing requirements.
 
 Every screening shows up as a trace in Agenta's observability view, built
 so you can act on it from the UI:
@@ -157,6 +190,31 @@ can filter for badly rated screenings, inspect the CVs that caused them,
 and turn them into new test cases. To see aggregated stats for the
 `user-feedback` evaluator in the UI, create a matching human evaluator
 (Evaluators → Human evaluators) with the same slug.
+
+### 6. Close the loop: from feedback to a deployed fix
+
+The pieces above compose into the core Agenta workflow. Say the role
+requires fluent German, but the prompt doesn't mention it:
+
+1. **Recruiter** screens a CV in the app, sees "Advance to interview" for
+   a candidate with no German, and submits a 👎 with the comment
+   *"candidate doesn't speak German"*.
+2. **AI engineer** filters traces by the `user-feedback` annotation, opens
+   the badly rated trace, and opens its span in the playground — landing
+   on the exact prompt revision with the CV pre-filled.
+3. In the playground, they add *"Fluent German (the company's working
+   language)"* to the must-have requirements and rerun: `overall_match`
+   flips to `false` and German shows up in `missing_requirements`, while
+   `tech_match` and `experience_match` stay `true`.
+4. They add the CV to the test set as a new test case with
+   `expected_overall_match = false` and the other two expected columns
+   left **empty** — the code evaluator only checks the overall decision
+   for this case.
+5. They run an evaluation comparing the deployed revision against the new
+   one. The old prompt fails the new test case; the new prompt passes it
+   without regressing the other 30.
+6. They deploy the new revision to production. The Streamlit app picks it
+   up on the next screening — no code change, no redeploy.
 
 ## Adapting it to your role
 

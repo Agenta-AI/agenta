@@ -10,8 +10,8 @@ could reuse. The flow mirrors a production setup:
    test set.
 3. The prompt is formatted with the CV and sent to the LLM with a JSON
    schema response format.
-4. The structured result (per-area scores and final classification) is
-   rendered as a small dashboard.
+4. The structured result (tech / experience / overall match, each with
+   a reason) is rendered as a small dashboard.
 5. The user can rate the screening (thumbs up/down plus an optional
    comment); the feedback is attached to the trace in Agenta as an
    annotation.
@@ -31,17 +31,9 @@ import screening
 
 load_dotenv()
 
-CLASSIFICATION_STYLES = {
-    "strong_match": ("Strong match", st.success),
-    "potential_match": ("Potential match", st.warning),
-    "no_match": ("No match", st.error),
-}
-
-SCORE_LABELS = {
+MATCH_LABELS = {
+    "tech": "Technical skills",
     "experience": "Experience",
-    "technical_skills": "Technical skills",
-    "leadership": "Leadership",
-    "education_certifications": "Education & certs",
 }
 
 
@@ -62,28 +54,21 @@ def pdf_to_markdown(file_bytes: bytes) -> str:
 
 
 def render_result(result: dict) -> None:
-    label, banner = CLASSIFICATION_STYLES[result["classification"]]
-    banner(f"**{label}** — {result['reasoning']}")
+    banner = st.success if result["overall_match"] else st.error
+    verdict = "Advance to interview" if result["overall_match"] else "Do not advance"
+    banner(f"**{verdict}** — {result['overall_reason']}")
 
-    columns = st.columns(len(SCORE_LABELS))
-    for column, (key, score_label) in zip(columns, SCORE_LABELS.items()):
+    columns = st.columns(len(MATCH_LABELS))
+    for column, (key, label) in zip(columns, MATCH_LABELS.items()):
         with column:
-            st.metric(score_label, f"{result['scores'][key]}/5")
-            st.progress(result["scores"][key] / 5)
+            icon = "✅" if result[f"{key}_match"] else "❌"
+            st.markdown(f"#### {icon} {label}")
+            st.markdown(result[f"{key}_reason"])
 
-    matched, missing, extras = st.columns(3)
-    with matched:
-        st.subheader("Requirements met")
-        for item in result["matched_requirements"] or ["—"]:
-            st.markdown(f"- ✅ {item}")
-    with missing:
-        st.subheader("Requirements missing")
-        for item in result["missing_requirements"] or ["—"]:
+    if result["missing_requirements"]:
+        st.subheader("Missing requirements")
+        for item in result["missing_requirements"]:
             st.markdown(f"- ❌ {item}")
-    with extras:
-        st.subheader("Nice-to-haves")
-        for item in result["nice_to_haves"] or ["—"]:
-            st.markdown(f"- ⭐ {item}")
 
 
 def render_feedback(result: dict) -> None:

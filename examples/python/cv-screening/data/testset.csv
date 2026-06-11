@@ -1,4 +1,4 @@
-cv,expected_classification,source_category,source_id
+cv,expected_tech_match,expected_experience_match,expected_overall_match
 "# INFORMATION TECHNOLOGY MANAGER
 
 ## Summary
@@ -50,7 +50,7 @@ Microsoft Certified Professional, Tech Skills** : June 1999
 
 ## Skills
 
-Active Directory, Adobe, Antivirus, Backup Exec, Backup, Budget, business processes, call center, call center, capacity planning, Cisco, computer assembly, Hardware, contracts, Direct Attached Storage, DAS, Database, Dell, Dell Servers, Designing, Desktops, Documentation, Firewall, HP, hiring, information systems, information systems, ISO 9000, Leadership, Linux, Logistics, Logistics and Management, Mac, MAC OS, Managing, Access, Microsoft Certified Professional, Microsoft Exchange, Microsoft Office Professional, office, Microsoft Project, Microsoft SQL, Microsoft Visio Professional, Windows 7, Windows 8, Windows, Enterprise, NAS, Network Attached Storage, Network Printers, Network, Networking, new product development, Operating Systems, PBX, PCI, Phone System, policies, Project Management, quality, quality assurance, quality improvement, QuickBooks Pro, Research, Robotic, safety, Storage Area Network, SAN, scheduling, Servers, Microsoft SQL Server, Symantec, teamwork, technical analysis, phones, Troubleshooting, upgrade, Visio Professional, vision, Web Portal, WAN",strong_match,INFORMATION-TECHNOLOGY,18301617
+Active Directory, Adobe, Antivirus, Backup Exec, Backup, Budget, business processes, call center, call center, capacity planning, Cisco, computer assembly, Hardware, contracts, Direct Attached Storage, DAS, Database, Dell, Dell Servers, Designing, Desktops, Documentation, Firewall, HP, hiring, information systems, information systems, ISO 9000, Leadership, Linux, Logistics, Logistics and Management, Mac, MAC OS, Managing, Access, Microsoft Certified Professional, Microsoft Exchange, Microsoft Office Professional, office, Microsoft Project, Microsoft SQL, Microsoft Visio Professional, Windows 7, Windows 8, Windows, Enterprise, NAS, Network Attached Storage, Network Printers, Network, Networking, new product development, Operating Systems, PBX, PCI, Phone System, policies, Project Management, quality, quality assurance, quality improvement, QuickBooks Pro, Research, Robotic, safety, Storage Area Network, SAN, scheduling, Servers, Microsoft SQL Server, Symantec, teamwork, technical analysis, phones, Troubleshooting, upgrade, Visio Professional, vision, Web Portal, WAN",true,true,true
 "# INFORMATION TECHNOLOGY MANAGER
 
 ## Experience
@@ -113,7 +113,7 @@ Active Directory, Adobe, Antivirus, Backup Exec, Backup, Budget, business proces
 
 ## Skills
 
-4D, Active Directory, Adobe Products, Apple, Automation, backup, Broadcast, budget planning, Computer Technician, Hardware installation and configuration, Hardware, databases, Database, DHCP, DNS, editing, Final Cut, firewall, FTP, inventory, LAN, Mac, Magic, access, Microsoft Exchange Server, Windows 7, Windows, 2000, Windows XP, Network Administration, network, OS, operating system, Power Builder 6.5, Power Builder 9.0, processes, QuickBooks Pro, research, Sales, SAN, Servers, Software installation, Microsoft SQL Server, Streaming Video, Sybase SQL Anywhere 7.0, Sybase SQL Anywhere 9.0, Sybase SQL Anywhere, Symantec, Technical support, Television, video, VPN, Windows Server, Windows 2000 Server",strong_match,INFORMATION-TECHNOLOGY,13836471
+4D, Active Directory, Adobe Products, Apple, Automation, backup, Broadcast, budget planning, Computer Technician, Hardware installation and configuration, Hardware, databases, Database, DHCP, DNS, editing, Final Cut, firewall, FTP, inventory, LAN, Mac, Magic, access, Microsoft Exchange Server, Windows 7, Windows, 2000, Windows XP, Network Administration, network, OS, operating system, Power Builder 6.5, Power Builder 9.0, processes, QuickBooks Pro, research, Sales, SAN, Servers, Software installation, Microsoft SQL Server, Streaming Video, Sybase SQL Anywhere 7.0, Sybase SQL Anywhere 9.0, Sybase SQL Anywhere, Symantec, Technical support, Television, video, VPN, Windows Server, Windows 2000 Server",true,true,true
 "# DIRECTOR OF INFORMATION TECHNOLOGY
 
 ## Summary
@@ -185,7 +185,7 @@ January 1991 to January 1992
 
 ## Skills
 
-Accounting, Active Directory, anti-virus, AntiVirus, Apple, Arcserve, Audio, Backup, BGP, budgets, Cisco Routers, Citrix, hardware, contracts, DHCP, disaster recovery, DNS, Firewalls, firewall, focus, FTP, hardware configuration and troubleshooting, HP, imaging, IP, LAN, leadership, LINC, Domino, Lotus Notes, MA, Mac, Director, Exchange Server, Mail, office, Windows 7, network administration, Nas, Network, networking, Novell servers, Operating Systems, OS, operating system, PCI, camera, policies, Project leader, proposals, real estate, risk management, San, server configuration, SQL, SSL, Switches, switch, Symantec, technical support, Trend, trouble shooting, UNIX, upgrading, Video, VPN, WAN, Windows Server",strong_match,INFORMATION-TECHNOLOGY,17688766
+Accounting, Active Directory, anti-virus, AntiVirus, Apple, Arcserve, Audio, Backup, BGP, budgets, Cisco Routers, Citrix, hardware, contracts, DHCP, disaster recovery, DNS, Firewalls, firewall, focus, FTP, hardware configuration and troubleshooting, HP, imaging, IP, LAN, leadership, LINC, Domino, Lotus Notes, MA, Mac, Director, Exchange Server, Mail, office, Windows 7, network administration, Nas, Network, networking, Novell servers, Operating Systems, OS, operating system, PCI, camera, policies, Project leader, proposals, real estate, risk management, San, server configuration, SQL, SSL, Switches, switch, Symantec, technical support, Trend, trouble shooting, UNIX, upgrading, Video, VPN, WAN, Windows Server",true,true,true
 "# DIRECTOR OF INFORMATION TECHNOLOGY
 
 ## Executive Profile
@@ -263,7 +263,7 @@ Team Leadership \* Managing conflict \* Effect Supervision of employees
 
 ## Skills
 
-Accounting, Analyst, business processes, Change Management, Cisco Certified, Coaching, hardware, conversion, clients, direction, e-mail, employee training, Engineer, ERP, Finance, financials, human resources, HR, information security, information technology, inventory, IP, Leadership, Team Leadership, Managing People, Managing, Mentoring, MS Office suite, Office, Windows 7, Windows 98, Windows XP, migration, needs analysis, Enterprise, Network Administrator, network, Operating System, Organizational Development, phone system, policies, printers, processes, Programmer, Project Management, purchasing, reporting, Seminars, servers, Service Level Agreements, SLA, software development, strategic, Strategic Planning, Supervision, technical support, telecom, telecommunication, Telephony, Trainer, Wordperfect",strong_match,INFORMATION-TECHNOLOGY,28672970
+Accounting, Analyst, business processes, Change Management, Cisco Certified, Coaching, hardware, conversion, clients, direction, e-mail, employee training, Engineer, ERP, Finance, financials, human resources, HR, information security, information technology, inventory, IP, Leadership, Team Leadership, Managing People, Managing, Mentoring, MS Office suite, Office, Windows 7, Windows 98, Windows XP, migration, needs analysis, Enterprise, Network Administrator, network, Operating System, Organizational Development, phone system, policies, printers, processes, Programmer, Project Management, purchasing, reporting, Seminars, servers, Service Level Agreements, SLA, software development, strategic, Strategic Planning, Supervision, technical support, telecom, telecommunication, Telephony, Trainer, Wordperfect",true,true,true
 "# VP OF INFORMATION TECHNOLOGY
 
 ## Executive Profile
@@ -350,7 +350,7 @@ cable. Directed and trained subordinate Technicians.  Configured
 5 stations with CAT5 and fiber optic cable.  Conducted
 quarterly and annual formal performance reviews for all subordinates.  Installed
 Windows NT system on more than 400 computers. Earned
-good conduct and sharpshooter awards.",strong_match,INFORMATION-TECHNOLOGY,41344156
+good conduct and sharpshooter awards.",true,true,true
 "# INFORMATION TECHNOLOGY SENIOR MANAGER
 
 ## Summary
@@ -431,7 +431,7 @@ good conduct and sharpshooter awards.",strong_match,INFORMATION-TECHNOLOGY,41344
 
 ## Skills
 
-streamline, Banking, budget, Business Systems, C, Cisco, closing 3, Consulting, contracts, CRM, Client, Customer Service, E-Business, Email, Senior Management, Finance, Guardian, Information Systems, Information Technology, Insurance, Investments, ITIL, ITIL v, Leadership, Director, Managing, money, MSA, negotiating, Enterprise, Oracle, Project Management, quality, Relationship Management, RFI, RFP, Sales, Sales Support, SLA, Strategic, technical support, Vendor Management, VoIP",strong_match,INFORMATION-TECHNOLOGY,17681064
+streamline, Banking, budget, Business Systems, C, Cisco, closing 3, Consulting, contracts, CRM, Client, Customer Service, E-Business, Email, Senior Management, Finance, Guardian, Information Systems, Information Technology, Insurance, Investments, ITIL, ITIL v, Leadership, Director, Managing, money, MSA, negotiating, Enterprise, Oracle, Project Management, quality, Relationship Management, RFI, RFP, Sales, Sales Support, SLA, Strategic, technical support, Vendor Management, VoIP",true,true,true
 "# INFORMATION TECHNOLOGY SUPERVISOR
 
 ## Summary
@@ -502,7 +502,7 @@ Army Achievement Medal for impacting the communications network and overall succ
 
 ## Skills
 
-Army, Cisco, counseling, customer assistance, database, documentation, Information Technology, inventory, IP, LAN, Windows 7, Network, personnel, policies, protocols, repairs, Routing, San, supervisor, test equipment, troubleshoot, WAN",potential_match,INFORMATION-TECHNOLOGY,33241454
+Army, Cisco, counseling, customer assistance, database, documentation, Information Technology, inventory, IP, LAN, Windows 7, Network, personnel, policies, protocols, repairs, Routing, San, supervisor, test equipment, troubleshoot, WAN",true,false,false
 "# INFORMATION TECHNOLOGY SPECIALIST
 
 ## Professional Summary
@@ -611,7 +611,7 @@ A+, Active Directory, administrative, antivirus, C, Client and Server, Compaq, H
 ## Additional Information
 
 - Security Clearance
- TSCI - Top Secret Security Clearance",potential_match,INFORMATION-TECHNOLOGY,24913648
+ TSCI - Top Secret Security Clearance",true,false,false
 "# INFORMATION TECHNOLOGY SPECIALIST I
 
 ## Professional Summary
@@ -669,7 +669,7 @@ EMC Networker week long course
 ArcGIS week long course
 Windows 2012 - Powershell week long course** :
 
-## Skills",potential_match,INFORMATION-TECHNOLOGY,66832845
+## Skills",true,false,false
 "# INFORMATION TECHNOLOGY SPECIALIST GS11
 
 ## Experience
@@ -762,7 +762,7 @@ budget, cabling, cisco, hardware, Client, documentation, Electrician, feasibilit
 - AWARDS:
  Superior Performer, 2nd Quarter 2003; USAF Achievement Medal, June 2000; Humanitarian Service Medal, January 1998; 20 CRS Maintenance Professional of the Year, 1998; Airman of the Quarter, May 1997; Airman of the Month, March 1997; Airman of the Month, February 1997
  OTHER INFORMATION:
- While stationed in South Carolina performed three years of volunteer electrical work for Habitat for Humanity. While doing this work I learned the fundamentals of wiring a house for electric, cable, and telephone.",potential_match,INFORMATION-TECHNOLOGY,21780877
+ While stationed in South Carolina performed three years of volunteer electrical work for Habitat for Humanity. While doing this work I learned the fundamentals of wiring a house for electric, cable, and telephone.",true,false,false
 "# ADMINISTRATOR OF INFORMATION TECHNOLOGY
 
 ## Summary
@@ -843,7 +843,7 @@ Arabic (fluent)
 
 ## Skills
 
-Arabic, Back-up, budgets, hardware, client, Database, database management, designing, disaster recovery, documentation, financial, Help Desk, HP, local area network, LAN, Leadership, access, 2000, network, networks, NT servers, PC's, policies, printer, processes, Research, sql, MS SQL, desktop support, training programs, Trouble shooting, troubleshooting, Upgrades, WAN, workflow",potential_match,INFORMATION-TECHNOLOGY,25959103
+Arabic, Back-up, budgets, hardware, client, Database, database management, designing, disaster recovery, documentation, financial, Help Desk, HP, local area network, LAN, Leadership, access, 2000, network, networks, NT servers, PC's, policies, printer, processes, Research, sql, MS SQL, desktop support, training programs, Trouble shooting, troubleshooting, Upgrades, WAN, workflow",true,false,false
 "# INFORMATION TECHNOLOGY INSTRUCTOR
 
 ## Summary
@@ -917,7 +917,7 @@ Media Design Productivity Other · Photoshop · Microsoft · Network Management 
 
 ## Skills
 
-Photoshop, Premier, art, Cable, Hardware, computer repair, curriculum development, client, Customer service training, Database, Department of Health, documentation, Dreamweaver, Fireworks, Flash, help desk, HTML Coding, Illustrator, InDesign, information technology, Inventory control, Mac OS, market, Excel, Microsoft Networking, Outlook, Powerpoint, Windows OS, Word, multimedia presentations, Natural, Network Management, Novell, PHP, progress, QuarkXpress, staff training, technical support, user training, phone, troubleshooting, Wiring",potential_match,INFORMATION-TECHNOLOGY,25990239
+Photoshop, Premier, art, Cable, Hardware, computer repair, curriculum development, client, Customer service training, Database, Department of Health, documentation, Dreamweaver, Fireworks, Flash, help desk, HTML Coding, Illustrator, InDesign, information technology, Inventory control, Mac OS, market, Excel, Microsoft Networking, Outlook, Powerpoint, Windows OS, Word, multimedia presentations, Natural, Network Management, Novell, PHP, progress, QuarkXpress, staff training, technical support, user training, phone, troubleshooting, Wiring",true,true,false
 "# ENGINEERING MANAGER
 
 ## Profile
@@ -994,7 +994,7 @@ Fluent in Spanish
 
 ## Skills
 
-Billing, blueprints, carpentry, detail-oriented, electrical wiring, engineer, HVAC, materials, Excel, Outlook, window, Windows XP, Word, Oil, painting, Plumbing, read, repairs, safety, Soldering, Fluent in Spanish, Welding, wiring",potential_match,ENGINEERING,44624796
+Billing, blueprints, carpentry, detail-oriented, electrical wiring, engineer, HVAC, materials, Excel, Outlook, window, Windows XP, Word, Oil, painting, Plumbing, read, repairs, safety, Soldering, Fluent in Spanish, Welding, wiring",false,true,false
 "# INFORMATION TECHNOLOGY INTERN
 
 ## Professional Profile
@@ -1055,7 +1055,7 @@ American Sign Language, Excellent communication, customer service, databases, En
  \*Delta Alpha Pi Honor Society 2015 - 2016
  \*Phi Sigma Pi National Honor Fraternity 2015 - 2016
  \*Signify Club President 2015 - 2016
- \*Delta Sigma Phi Fraternity Brother 2012",no_match,INFORMATION-TECHNOLOGY,68460556
+ \*Delta Sigma Phi Fraternity Brother 2012",false,false,false
 "# INFORMATION TECHNOLOGY (INTERNSHIP)
 
 ## Summary
@@ -1156,7 +1156,7 @@ English Dialect and Language
 
 Chose to be Graduation Speaker for the Classs
 
-GPA 3.4",no_match,INFORMATION-TECHNOLOGY,20024870
+GPA 3.4",false,false,false
 "# INFORMATION TECHNOLOGY COORDINATOR
 
 ## Professional Summary
@@ -1240,7 +1240,7 @@ Member, Cook County Bar Association Member, Lake County Bar Association
 
 ## Skills
 
-Executive and Legal Support, Business Analysis, Strong Communication Skills, Business Operations, Detail oriented, Documentation and Time Management, Information Technology and Technical Support, Leadership, Legal Terminology, Managerial Experience, Meeting Organizational Skills, Advanced Problem-solving Skills, Paralegal , Performance appraisals, Personnel, Presentations, Processes, Procurement, Project Management, LR&W, Westlaw, LexisNexis",no_match,INFORMATION-TECHNOLOGY,91697974
+Executive and Legal Support, Business Analysis, Strong Communication Skills, Business Operations, Detail oriented, Documentation and Time Management, Information Technology and Technical Support, Leadership, Legal Terminology, Managerial Experience, Meeting Organizational Skills, Advanced Problem-solving Skills, Paralegal , Performance appraisals, Personnel, Presentations, Processes, Procurement, Project Management, LR&W, Westlaw, LexisNexis",false,false,false
 "# ENGINEERING TECHNICIAN
 
 ## Highlights
@@ -1306,7 +1306,7 @@ Information Systems Security Association (ISSA)
 
 ## Skills
 
-budget, hardware, network systems, database, Dec, documentation, inspection, logistics, meetings, MS Excel, Microsoft Office, Outlook, PowerPoint, network, networking, Operating Systems, Oracle, personnel, presentations, progress, quality, Maintain documentation, routers, safety, scheduling, shipping, spreadsheets, supervision",no_match,ENGINEERING,14206561
+budget, hardware, network systems, database, Dec, documentation, inspection, logistics, meetings, MS Excel, Microsoft Office, Outlook, PowerPoint, network, networking, Operating Systems, Oracle, personnel, presentations, progress, quality, Maintain documentation, routers, safety, scheduling, shipping, spreadsheets, supervision",false,false,false
 "# ENGINEERING INTERN
 
 ## Professional Summary
@@ -1360,7 +1360,7 @@ Less than 2% of boys that enter Boy Scouting program achieve the rank of Eagle S
 
 ## Skills
 
-Proficiency in C++, AutoCAD, AutoCAD Inventor, Python, Linux, Xcode, Visual Basic, MS Word, MS Powerpoint, Programming in MS Excel",no_match,ENGINEERING,54227873
+Proficiency in C++, AutoCAD, AutoCAD Inventor, Python, Linux, Xcode, Visual Basic, MS Word, MS Powerpoint, Programming in MS Excel",false,false,false
 "# CONSULTANT
 
 ## Professional Summary
@@ -1424,7 +1424,7 @@ Management, Visio, websites
 
 **Tools:** Balsamiq, ALM Octane, Agile Manager, Trello, Version One, Microsoft Office Suite, Visio
 
-**Methodologies:** Agile, Kanban, Lean, Human Centered design, Design Thinking",no_match,CONSULTANT,88907739
+**Methodologies:** Agile, Kanban, Lean, Human Centered design, Design Thinking",false,false,false
 "# CONSULTANT
 
 ## Summary
@@ -1519,7 +1519,7 @@ Board of Trustee-St. Paul's Episcopal Day School-Current
 
 ## Skills
 
-ADA, Benefits, budget, business process improvement, interpersonal communication, consulting, client, clients, Employee Relations, filing, focus, Human Resources, HR, image, interpretation, team -building, Legal Compliance, Director, access, Works, networking, Organizational Development, payroll, policies, project management, reporting, risk management, sales, scanning, seminars, Staffing, strategy, Strategic Planning, phone, training programs, Vendor Management",no_match,CONSULTANT,27096471
+ADA, Benefits, budget, business process improvement, interpersonal communication, consulting, client, clients, Employee Relations, filing, focus, Human Resources, HR, image, interpretation, team -building, Legal Compliance, Director, access, Works, networking, Organizational Development, payroll, policies, project management, reporting, risk management, sales, scanning, seminars, Staffing, strategy, Strategic Planning, phone, training programs, Vendor Management",false,false,false
 "# DIRECTOR OF BUSINESS DEVELOPMENT
 
 ## Summary
@@ -1625,7 +1625,7 @@ January 2009
 
 ## Skills
 
-account management, streamline, business development, cold calling, compliance management, inventory management, inventory levels, inventory control, logistics, mailing, marketing strategies, process management, sales, VoIP",no_match,BUSINESS-DEVELOPMENT,38688388
+account management, streamline, business development, cold calling, compliance management, inventory management, inventory levels, inventory control, logistics, mailing, marketing strategies, process management, sales, VoIP",false,false,false
 "# BUSINESS DEVELOPMENT ANALYST
 
 ## Summary
@@ -1700,7 +1700,7 @@ May, 2016
 
 Minors: Business Law and Marketing
 
-Alpha Epsilon Pi - Social Officer; August 2013 – May 2016",no_match,BUSINESS-DEVELOPMENT,25397102
+Alpha Epsilon Pi - Social Officer; August 2013 – May 2016",false,false,false
 "# CHEF
 
 ## Summary
@@ -1753,7 +1753,7 @@ Obtained my High school diploma in 2011.
 
 ## Skills
 
-Warehouse worker, Cashier, Line Cook, Closing, Communication Skills, Interpersonal Skills, Customer Service Skills, Leadership Skills, Organizational Skills, Fast learner, Research, Very Friendly, Adaptable.",no_match,CHEF,24221960
+Warehouse worker, Cashier, Line Cook, Closing, Communication Skills, Interpersonal Skills, Customer Service Skills, Leadership Skills, Organizational Skills, Fast learner, Research, Very Friendly, Adaptable.",false,false,false
 "# FITNESS SPECIALIST
 
 ## Summary
@@ -1848,7 +1848,7 @@ SECONDARY
 
 - Computer literate: ( Excel, Power Point, Word, Mind Body)
 - Conferences: consulting, Designing, health promotion.
-- Educator and Bilingual",no_match,FITNESS,24444525
+- Educator and Bilingual",false,false,false
 "# TEACHER
 
 ## Summary
@@ -1921,7 +1921,7 @@ Interpersonal skills and communication
 
 Team leader for second grade team for five years
 
-Teacher of the year at Providence Elementary 2015-2016",no_match,TEACHER,19918523
+Teacher of the year at Providence Elementary 2015-2016",false,false,false
 "# HEALTHCARE ADMINISTRATOR
 
 ## Professional Summary
@@ -2068,7 +2068,7 @@ U.S. Department of State: Certificate of Appreciation for Exemplary Participatio
 
 U.S. Department of State: Certificate of Recognition for Outstanding Performance 2009
 
-U.S. Department of State: Certificate of Appreciation for Outstanding Performance 2010, 2011, 2012, 2013, 2014, 2015",no_match,HEALTHCARE,23138078
+U.S. Department of State: Certificate of Appreciation for Outstanding Performance 2010, 2011, 2012, 2013, 2014, 2015",false,false,false
 "# SALES
 
 ## Summary
@@ -2130,7 +2130,7 @@ Communications *West Virginia State University* － City , State
 
 ## Skills
 
-Air Force 2, attention to detail, interpersonal and communication, communications skills, Oral Communication, creative problem solving, Customer Relations, customer service, government, innovation, Inspection, Leadership, materials, Problem Solving, Public Safety, Public Speaking, Quality, Safety, sales, supervisory, Supervision, technician",no_match,SALES,87118391
+Air Force 2, attention to detail, interpersonal and communication, communications skills, Oral Communication, creative problem solving, Customer Relations, customer service, government, innovation, Inspection, Leadership, materials, Problem Solving, Public Safety, Public Speaking, Quality, Safety, sales, supervisory, Supervision, technician",false,false,false
 "# HR SPECIALIST, US HR OPERATIONS
 
 ## Summary
@@ -2226,7 +2226,7 @@ Planned and executed event focusing on Connecticut's creative corridor, growth 
 
 ## Skills
 
-Adobe Photoshop, ADP, Asset Management, branding, brochures, content, Customer Care, Final Cut Pro, graphics, graphic, HR, Illustrator, InDesign, Innovation, inventory, Lotus Notes, marketing, marketing materials, marketing material, materials, Microsoft Office, SharePoint, newsletter, presentations, process improvement, Project Management, promotional materials, publications, Quality, real-time, Recruitment, reporting, RFP, sales, stories, Employee Development, video, web design, website, articles",no_match,HR,22323967
+Adobe Photoshop, ADP, Asset Management, branding, brochures, content, Customer Care, Final Cut Pro, graphics, graphic, HR, Illustrator, InDesign, Innovation, inventory, Lotus Notes, marketing, marketing materials, marketing material, materials, Microsoft Office, SharePoint, newsletter, presentations, process improvement, Project Management, promotional materials, publications, Quality, real-time, Recruitment, reporting, RFP, sales, stories, Employee Development, video, web design, website, articles",false,false,false
 "# FINANCE ANALYST
 
 ## Summary
@@ -2326,7 +2326,7 @@ Strategic and analytical finance professional with 4+ years of success in financ
 
 ## Skills
 
-binder, clientele, clients, features, financial, forms, insurance, litigation, marketing strategies, market, meetings, networking, police, policies, recording, seminars, settlements, Sigma, technical assistance, underwriter",no_match,FINANCE,23955183
+binder, clientele, clients, features, financial, forms, insurance, litigation, marketing strategies, market, meetings, networking, police, policies, recording, seminars, settlements, Sigma, technical assistance, underwriter",false,false,false
 "# ADVOCATE
 
 ## Professional Summary
@@ -2418,4 +2418,4 @@ Maryland Bar
 
 ## Skills
 
-Training, Liaison, Federal Government, Public Policy",no_match,ADVOCATE,14445309
+Training, Liaison, Federal Government, Public Policy",false,false,false
