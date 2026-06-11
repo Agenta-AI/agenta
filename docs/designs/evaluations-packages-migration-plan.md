@@ -677,6 +677,18 @@ the migration; triage/fix separately (likely with the EvalRunDetails parity QA).
   EvalRunDetails parity QA confirms behavior.
 - **Status:** OPEN — debt, not a blocker; incremental cleanup.
 
+### 11.6 Eval render trees still on the OSS InfiniteVirtualTable copy (follow-up WP)
+
+- **Discovered:** 2026-06-11 components/hooks consolidation audit. The `EvaluationRunsTablePOC`
+  and `EvalRunDetails` RENDER TREES still consume the OSS `@/oss/components/InfiniteVirtualTable`
+  copy (shell, export hook, columnVisibility base, scroll-container context). The `@agenta/ui`
+  copy has diverged **ahead** (row-height, type-chips, grouped trees — 300+ diff lines on the
+  shell). Partial re-points would split jotai context/atom identity between the two copies, so
+  the switch must be done per render-tree in one pass (POC tree, then EvalRunDetails tree), with
+  behavioral QA. Self-contained leaf pieces were already re-pointed (FiltersPopoverTrigger,
+  TableTabsConfig). Its own WP; pairs naturally with 4h (view move to evaluations-ui).
+- **Status:** OPEN — follow-up; not a data-logic item.
+
 ### 11.5 `useScenarioLiveUpdates` + `evaluationPreviewTableStore` not yet moved (WP-4g deferral)
 
 - **Discovered:** WP-4g. `EvalRunDetails/etl/useScenarioLiveUpdates.ts` (eval data logic) is still in
