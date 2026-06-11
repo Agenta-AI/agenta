@@ -106,6 +106,7 @@ const APIKeys: React.FC = () => {
                                             ...monospaceKeyStyle,
                                             color: token.colorTextSecondary,
                                             fontWeight: 600,
+                                            wordBreak: "break-all" as const,
                                         }}
                                     >
                                         {data}
