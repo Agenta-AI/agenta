@@ -687,7 +687,12 @@ the migration; triage/fix separately (likely with the EvalRunDetails parity QA).
   the switch must be done per render-tree in one pass (POC tree, then EvalRunDetails tree), with
   behavioral QA. Self-contained leaf pieces were already re-pointed (FiltersPopoverTrigger,
   TableTabsConfig). Its own WP; pairs naturally with 4h (view move to evaluations-ui).
-- **Status:** OPEN — follow-up; not a data-logic item.
+- **Status:** ✅ RESOLVED (slice 1 `c2a420bd02` switched the eval trees; slice 2 `c7baf6d2e8`
+  re-pointed the remaining consumers — Testsets/Testcases/Playground/AddToTestsetDrawer trees +
+  the testcase/testset/shared entity-state paginatedStores' table-infra imports — and **DELETED
+  the entire OSS `components/InfiniteVirtualTable/` copy** (55 files / ~9,928 LOC). The entity-state
+  table-infra imports were independent of the molecule consolidation, so deletion did NOT need it.
+  oss tsc 480→471. Whole app now uses one table component (`@agenta/ui/table`).
 
 ### 11.5 `useScenarioLiveUpdates` + `evaluationPreviewTableStore` not yet moved (WP-4g deferral)
 
