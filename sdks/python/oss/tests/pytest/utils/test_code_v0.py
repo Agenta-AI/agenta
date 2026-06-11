@@ -203,6 +203,14 @@ class TestCodeV0RichOutputs:
         with pytest.raises(CodeV0Error):
             call(evaluate("return {'fn': len}"), version="3")
 
+    def test_nan_raises_code_error(self):
+        with pytest.raises(CodeV0Error):
+            call(evaluate("return float('nan')"), version="3")
+
+    def test_nested_infinity_raises_code_error(self):
+        with pytest.raises(CodeV0Error):
+            call(evaluate("return {'score': float('inf')}"), version="3")
+
     def test_dict_rejected_on_v2(self):
         with pytest.raises(CodeV0Error):
             call(evaluate("return {'score': 1.0}"), version="2")

@@ -1,6 +1,6 @@
 # Rich Outputs for Code Evaluators
 
-**Status:** Implemented (interface version "3", uncommitted), pending manual QA
+**Status:** Implemented (interface version "3"), verified on the dev stack, in review as [PR #4626](https://github.com/Agenta-AI/agenta/pull/4626)
 **Related workspace:** [align-evaluator-interface](../align-evaluator-interface/README.md) (settled the v2 signature, kept `-> float`)
 
 ## Summary

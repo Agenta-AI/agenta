@@ -6,7 +6,9 @@
 
 Implemented and verified end to end on the dev deployment. Version "3" of the
 code evaluator interface accepts rich (JSON-serializable) returns. All SDK and
-API unit tests pass. Not committed.
+API unit tests pass. In review as
+[PR #4626](https://github.com/Agenta-AI/agenta/pull/4626) targeting
+`release/v0.103.0`.
 
 ## Verified on the dev stack (2026-06-10, port 8280)
 

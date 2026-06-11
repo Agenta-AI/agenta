@@ -1,4 +1,5 @@
 import json
+import math
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Union, Optional
 
@@ -10,18 +11,25 @@ def normalize_result(result: Any, version: str) -> Any:
     Version "3" accepts any JSON-serializable value; dict outputs become multiple
     metrics downstream. The JSON round-trip both rejects non-serializable results
     and ensures no sandbox-internal objects leak past the runner boundary.
+    NaN/Infinity are rejected (allow_nan=False): they are not valid JSON and would
+    behave differently across runtimes.
     """
     if version == "3":
         if isinstance(result, bool):
             return result
         if isinstance(result, (int, float)):
-            return float(result)
+            numeric = float(result)
+            if not math.isfinite(numeric):
+                raise TypeError(
+                    "Result is not JSON-serializable: non-finite floats are not supported"
+                )
+            return numeric
         if result is None:
             raise TypeError(
                 "Evaluator returned None: return a float, bool, str, dict, or list"
             )
         try:
-            return json.loads(json.dumps(result))
+            return json.loads(json.dumps(result, allow_nan=False))
         except (TypeError, ValueError) as e:
             raise TypeError(f"Result is not JSON-serializable: {type(result)}") from e
 

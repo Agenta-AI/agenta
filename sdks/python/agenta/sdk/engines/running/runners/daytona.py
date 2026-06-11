@@ -6,7 +6,7 @@ from typing import Any, Dict, Generator, Union, Optional, TYPE_CHECKING
 import httpx
 
 import agenta as ag
-from agenta.sdk.engines.running.runners.base import CodeRunner
+from agenta.sdk.engines.running.runners.base import CodeRunner, normalize_result
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.lazy import _load_daytona
@@ -26,15 +26,13 @@ def _coerce_result(result: Any, version: str) -> Any:
     """Coerce a sandbox-parsed result according to the evaluator interface version.
 
     Versions "1"/"2" only accept numbers (or None); anything else returns
-    _NO_MATCH so the caller keeps scanning output lines. Version "3" accepts
-    any JSON value as-is, with numbers normalized to float.
+    _NO_MATCH so the caller keeps scanning output lines. Version "3" delegates
+    to the shared normalizer so remote results follow the same contract as
+    in-process runners (None and non-finite numbers raise instead of passing
+    through).
     """
     if version == "3":
-        if isinstance(result, bool):
-            return result
-        if isinstance(result, (int, float)):
-            return float(result)
-        return result
+        return normalize_result(result, version)
 
     if isinstance(result, (float, int, type(None))):
         return float(result) if result is not None else None

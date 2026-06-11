@@ -163,11 +163,9 @@ trace = params['trace']
 # Execute and capture result
 result = evaluate(inputs, outputs, trace)
 
-# Result may be any JSON-serializable value
-try:
-    payload = json.dumps({{"result": result}})
-except (TypeError, ValueError):
-    payload = json.dumps({{"result": None}})
+# Result must be JSON-serializable; let failures raise so the caller sees
+# the real error instead of a silent null result.
+payload = json.dumps({{"result": result}}, allow_nan=False)
 
 # Print result for capture
 print(payload)
