@@ -398,7 +398,7 @@ const AnnotationColumnHeader = memo(function AnnotationColumnHeader({
     def: AnnotationColumnDef
 }) {
     const evaluatorLookupId = def.evaluatorRevisionId ?? def.evaluatorId ?? ""
-    const name = useAtomValue(workflowMolecule.selectors.name(evaluatorLookupId))
+    const name = useAtomValue(workflowMolecule.selectors.artifactName(evaluatorLookupId))
     const slug = useAtomValue(workflowMolecule.selectors.slug(evaluatorLookupId))
     const displaySlug = def.evaluatorSlug || slug
     const displayName = name || displaySlug || def.columnName || def.stepKey
@@ -426,7 +426,7 @@ const AnnotationGroupHeader = memo(function AnnotationGroupHeader({
     onToggle: () => void
 }) {
     const evaluatorLookupId = def.evaluatorRevisionId ?? def.evaluatorId ?? ""
-    const name = useAtomValue(workflowMolecule.selectors.name(evaluatorLookupId))
+    const name = useAtomValue(workflowMolecule.selectors.artifactName(evaluatorLookupId))
     const slug = useAtomValue(workflowMolecule.selectors.slug(evaluatorLookupId))
     const displaySlug = def.evaluatorSlug || slug
     const displayName = name || displaySlug || def.columnName || def.stepKey
@@ -1172,7 +1172,7 @@ function resolveExportColumnLabel(
             const annotationDef = def.annotationDef
             const evaluatorLookupId = annotationDef.evaluatorRevisionId ?? annotationDef.evaluatorId
             const name = evaluatorLookupId
-                ? store.get(workflowMolecule.selectors.name(evaluatorLookupId))
+                ? store.get(workflowMolecule.selectors.artifactName(evaluatorLookupId))
                 : null
             const slug = evaluatorLookupId
                 ? store.get(workflowMolecule.selectors.slug(evaluatorLookupId))
