@@ -29,17 +29,17 @@ from agenta.sdk.workflows.handlers import code_v0
 
 _code_v0 = code_v0.__wrapped__
 
-# Mirrors registry.get_runner() precedence: local unless explicitly overridden.
+# Mirrors registry.get_runner() precedence: restricted unless explicitly overridden.
 _SANDBOX_RUNNER = (
     os.getenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER")
     or os.getenv("AGENTA_SERVICES_SANDBOX_RUNNER")
-    or "local"
+    or "restricted"
 ).lower()
 
-# Python execution works on both the local and daytona runners, so those tests
-# are not gated. JS/TS runtimes are only supported by the daytona runner (the
-# local runner rejects them), and daytona requires live sandbox credentials, so
-# JS/TS tests only run when daytona is selected.
+# Python execution works on the restricted, local, and daytona runners, so those
+# tests are not gated. JS/TS runtimes are only supported by the daytona runner
+# (the in-process runners reject them), and daytona requires live sandbox
+# credentials, so JS/TS tests only run when daytona is selected.
 daytona_only = pytest.mark.skipif(
     _SANDBOX_RUNNER != "daytona",
     reason=f"Daytona-only test (JS/TS runtime); AGENTA_SERVICES_CODE_SANDBOX_RUNNER={_SANDBOX_RUNNER}",
@@ -109,7 +109,7 @@ class TestCodeV0Parameters:
 
 
 # ---------------------------------------------------------------------------
-# 2. Return-type normalisation (float path via LocalRunner)
+# 2. Return-type normalisation (float path via the in-process runner)
 # ---------------------------------------------------------------------------
 
 
@@ -133,7 +133,7 @@ class TestCodeV0Normalisation:
         assert r["success"] is False
 
     def test_boolean_true_becomes_score_one(self):
-        # LocalRunner converts bool via float(); True → 1.0
+        # the runner converts bool via float(); True → 1.0
         r = call(evaluate("return True"))
         assert r["score"] == pytest.approx(1.0)
         assert r["success"] is True
@@ -273,7 +273,7 @@ class TestCodeV0Errors:
 
 
 # ---------------------------------------------------------------------------
-# 6. Runtime parameter (Python only for LocalRunner)
+# 6. Runtime parameter (Python only for the in-process runner)
 # ---------------------------------------------------------------------------
 
 
