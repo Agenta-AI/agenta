@@ -24,14 +24,14 @@
  * ```
  */
 
-import {atom} from "jotai"
-
-import type {BaseTableMeta} from "@/oss/components/InfiniteVirtualTable/helpers/createSimpleTableStore"
 import type {
+    BaseTableMeta,
     InfiniteTableFetchResult,
     InfiniteTableRowBase,
     WindowingState,
-} from "@/oss/components/InfiniteVirtualTable/types"
+} from "@agenta/ui/table"
+import {atom} from "jotai"
+
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project"
