@@ -643,7 +643,10 @@ close the migration with an open entry here.
 - **Net:** lost leak-regression coverage for the paginatedStore + molecule combination.
 - **Fix direction:** add a UI-free `@agenta/evaluations`-side leak harness (or narrow UI-free
   entities subpaths) that exercises the combined paginatedStore + molecule path. Its own task.
-- **Status:** OPEN — restore before §9 DoD.
+- **Status:** ✅ RESOLVED — restored as `web/packages/agenta-evaluations/tests/unit/combinedLeak.test.ts`
+  (vitest, runs in the standard unit suite): 12-iteration paginatedStore+molecule pipeline asserting
+  atom-family params and TanStack cache entries drain to baseline after per-iteration teardown
+  (heap-slope budget additionally asserted when `--expose-gc` is available).
 
 ### 11.3 Pre-existing latent runtime bugs in EvalRunDetails, surfaced by WP-4e-2a (NOT migration regressions)
 
