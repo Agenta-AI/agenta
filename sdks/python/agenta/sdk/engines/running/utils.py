@@ -12,6 +12,7 @@ from agenta.sdk.engines.running.handlers import (
     feedback_v0,
     hook_v0,
     code_v0,
+    mock_v0,
     config_v0,
     match_v0,
     llm_v0,
@@ -43,6 +44,7 @@ from agenta.sdk.engines.running.interfaces import (
     feedback_v0_interface,
     hook_v0_interface,
     code_v0_interface,
+    mock_v0_interface,
     config_v0_interface,
     match_v0_interface,
     llm_v0_interface,
@@ -76,6 +78,7 @@ INTERFACE_REGISTRY: dict = dict(
             feedback=dict(v0=feedback_v0_interface),
             hook=dict(v0=hook_v0_interface),
             code=dict(v0=code_v0_interface),
+            mock=dict(v0=mock_v0_interface),
             snippet=dict(v0=config_v0_interface),
         ),
         builtin=dict(
@@ -337,6 +340,7 @@ HANDLER_REGISTRY: dict = dict(
             hook=dict(v0=hook_v0),
             snippet=dict(v0=config_v0),
             code=dict(v0=code_v0),
+            mock=dict(v0=mock_v0),
         ),
         builtin=dict(
             # --- NEW URI
@@ -534,6 +538,8 @@ _AGENTA_ROLE_TABLE: dict = {
     ("custom", "code"): (True, True, False),
     ("custom", "hook"): (True, True, False),
     ("custom", "feedback"): (True, True, False),
+    # agenta:custom:mock — deterministic test workflow (app + evaluator, no LLM/sandbox)
+    ("custom", "mock"): (True, True, False),
     # agenta:builtin:* — application-only (not evaluators)
     ("builtin", "chat"): (True, False, False),
     ("builtin", "completion"): (True, False, False),

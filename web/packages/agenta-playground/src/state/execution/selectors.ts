@@ -8,7 +8,12 @@
  */
 
 import {loadableStateAtomFamily} from "@agenta/entities/loadable"
-import {loadableController, type RunnablePort} from "@agenta/entities/runnable"
+import {
+    extractInputPortsFromSchema,
+    loadableController,
+    syncPromptInputKeysInParameters,
+    type RunnablePort,
+} from "@agenta/entities/runnable"
 import {testcaseMolecule, isSystemField} from "@agenta/entities/testcase"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {atom, type Getter} from "jotai"
@@ -37,6 +42,57 @@ import {displayedEntityIdsAtom} from "./displayedEntities"
 import {createExecutionItemHandle, type ExecutionItemLifecycleSnapshot} from "./executionItems"
 import type {RunStatus} from "./types"
 import {splitInputsVisibility} from "./visibility"
+
+interface WorkflowDataForInputKeys {
+    data?: {
+        parameters?: Record<string, unknown> | null
+        schemas?: {
+            inputs?: unknown
+        } | null
+    } | null
+}
+
+function collectCommittedInputKeys(serverData: WorkflowDataForInputKeys | null): string[] | null {
+    if (!serverData) return null
+
+    const keys: string[] = []
+    const seen = new Set<string>()
+    const add = (key: unknown) => {
+        if (typeof key !== "string" || !key || seen.has(key)) return
+        seen.add(key)
+        keys.push(key)
+    }
+
+    for (const port of extractInputPortsFromSchema(serverData.data?.schemas?.inputs)) {
+        add(port.key)
+    }
+
+    const parameters = serverData.data?.parameters
+    if (parameters && typeof parameters === "object" && !Array.isArray(parameters)) {
+        const synced = syncPromptInputKeysInParameters(parameters)
+        if (!synced || typeof synced !== "object" || Array.isArray(synced)) return keys
+
+        const stack: unknown[] = [synced]
+        while (stack.length > 0) {
+            const current = stack.pop()
+            if (!current || typeof current !== "object" || Array.isArray(current)) continue
+
+            const record = current as Record<string, unknown>
+            const inputKeys = record.input_keys
+            if (Array.isArray(inputKeys)) {
+                for (const key of inputKeys) add(key)
+            }
+
+            for (const value of Object.values(record)) {
+                if (value && typeof value === "object" && !Array.isArray(value)) {
+                    stack.push(value)
+                }
+            }
+        }
+    }
+
+    return keys
+}
 
 /**
  * UI-display helper. Converts a cell value to a string for rendering inside
@@ -326,7 +382,13 @@ const referencedVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
     atom<string[]>((get) => {
         const loadableId = get(derivedLoadableIdAtom)
         if (!loadableId) return []
-        const isChat = get(isChatModeAtom) === true
+        // isChatModeAtom returns undefined while the entity query is in-flight.
+        // Treating undefined as false (completion) would expose `messages` as a
+        // variable card during the loading window. Return empty until the mode
+        // is known so nothing flashes before data arrives.
+        const isChatMode = get(isChatModeAtom)
+        if (isChatMode === undefined) return []
+        const isChat = isChatMode
         const columns = get(loadableController.selectors.columns(loadableId))
         const primaryKeys = columns.map((column) => column.key)
         const evaluatorKeys = get(evaluatorExpectedColumnsAtom)
@@ -382,13 +444,40 @@ export const rowVariableKeysWithContextAtom = rowVariableKeysAtomFamily("")
 
 export {referencedVariableKeysAtomFamily, rowVariableKeysAtomFamily}
 
+const draftReferencedVariableKeysAtom = atom<string[]>((get) => {
+    const rootNodes = get(playgroundNodesAtom).filter((node) => node.depth === 0)
+
+    const currentKeys = new Set<string>()
+    const committedKeys = new Set<string>()
+    let hasCommittedBaseline = false
+
+    for (const node of rootNodes) {
+        const serverData = get(workflowMolecule.selectors.serverData(node.entityId))
+        const committed = collectCommittedInputKeys(serverData as WorkflowDataForInputKeys | null)
+        if (!committed) continue
+
+        hasCommittedBaseline = true
+        for (const key of committed) committedKeys.add(key)
+
+        const currentPorts = get(
+            workflowMolecule.selectors.inputPorts(node.entityId),
+        ) as RunnablePort[]
+        for (const port of currentPorts) {
+            if (port.key) currentKeys.add(port.key)
+        }
+    }
+
+    if (!hasCommittedBaseline) return []
+    return [...currentKeys].filter((key) => !committedKeys.has(key))
+})
+
 // ============================================================================
 // PLAYGROUND INPUTS VISIBILITY (Step 4 of the playground mustache + input UX)
 // ============================================================================
 
 /**
  * The visibility view that `PlaygroundInputsBody` consumes: referenced
- * variables (with draft annotation for those missing from the testcase) +
+ * variables (with `undefined` values for those missing from the testcase) +
  * unreferenced testcase columns.
  *
  * Reactivity:
@@ -416,7 +505,15 @@ export const playgroundInputsAtomFamily = atomFamily(
     ({testcaseId, downstreamKey = ""}: PlaygroundInputsAtomKey) =>
         atom((get) => {
             const referencedKeys = get(referencedVariableKeysAtomFamily(downstreamKey))
-            const isChat = get(isChatModeAtom) === true
+            const draftKeys = get(draftReferencedVariableKeysAtom)
+            // isChatModeAtom is undefined while the entity query is in-flight.
+            // Treating undefined as false would prevent `messages` / `outputs`
+            // from being stripped from the testcase data during the loading
+            // window, causing them to flash in the unreferenced-columns footer.
+            // Return empty visibility until the mode is resolved.
+            const isChatMode = get(isChatModeAtom)
+            if (isChatMode === undefined) return {inputs: [], unreferencedColumns: []}
+            const isChat = isChatMode
             // `testcaseMolecule.data(id)` returns the testcase ENTITY
             // (`{id, data, flags, tags, meta, ...}`), not the row data
             // dict. The actual column values live at `entity.data` — see
@@ -445,7 +542,7 @@ export const playgroundInputsAtomFamily = atomFamily(
                 testcaseData[key] = value
             }
 
-            return splitInputsVisibility({referencedKeys, testcaseData})
+            return splitInputsVisibility({referencedKeys, draftKeys, testcaseData})
         }),
     (a, b) => a.testcaseId === b.testcaseId && (a.downstreamKey ?? "") === (b.downstreamKey ?? ""),
 )

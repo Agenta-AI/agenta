@@ -9,7 +9,6 @@
 
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 
-import {deleteEvaluationQueue, deleteEvaluationQueues} from "../../evaluationQueue/api"
 import {safeParseWithLogging} from "../../shared"
 import {
     simpleQueueResponseSchema,
@@ -159,8 +158,9 @@ export async function fetchSimpleQueue({
 /**
  * Delete a simple queue by ID.
  *
- * Uses the existing evaluation queue delete endpoint because simple queues are
- * backed by evaluation queues.
+ * Endpoint: `DELETE /simple/queues/{queue_id}`. The service deletes the
+ * underlying run when the target is the run's default queue (which cannot be
+ * deleted directly), so the caller never special-cases it.
  */
 export async function deleteSimpleQueue(
     projectId: string,
@@ -170,11 +170,13 @@ export async function deleteSimpleQueue(
         return {count: 0, queue_id: null}
     }
 
-    const response = await deleteEvaluationQueue({id: queueId, projectId})
+    const response = await axios.delete(`${getAgentaApiUrl()}/simple/queues/${queueId}`, {
+        params: {project_id: projectId},
+    })
 
     const validated = safeParseWithLogging(
         simpleQueueIdResponseSchema,
-        response,
+        response.data,
         "[deleteSimpleQueue]",
     )
     return validated ?? {count: 0, queue_id: null}
@@ -183,8 +185,7 @@ export async function deleteSimpleQueue(
 /**
  * Delete multiple simple queues by ID.
  *
- * Uses the existing evaluation queue bulk delete endpoint because simple
- * queues are backed by evaluation queues.
+ * Endpoint: `DELETE /simple/queues/`.
  */
 export async function deleteSimpleQueues(
     projectId: string,
@@ -195,11 +196,14 @@ export async function deleteSimpleQueues(
         return {count: 0, queue_ids: []}
     }
 
-    const response = await deleteEvaluationQueues(projectId, normalizedQueueIds)
+    const response = await axios.delete(`${getAgentaApiUrl()}/simple/queues/`, {
+        params: {project_id: projectId},
+        data: {queue_ids: normalizedQueueIds},
+    })
 
     const validated = safeParseWithLogging(
         simpleQueueIdsResponseSchema,
-        response,
+        response.data,
         "[deleteSimpleQueues]",
     )
     return validated ?? {count: 0, queue_ids: []}

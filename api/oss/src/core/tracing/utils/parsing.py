@@ -132,8 +132,7 @@ def parse_trace_id_to_uuid(
         clean_trace_id = str(UUID(trace_id))
     except Exception as e:
         log.error(
-            "trace_id must be a UUID, got %s [%s]",
-            type(trace_id),
+            "trace_id must be a UUID-style or hex string, got %r",
             trace_id,
         )
         raise TypeError() from e
@@ -160,8 +159,7 @@ def parse_span_id_to_uuid(
         clean_span_id = str(UUID(span_id))
     except Exception as e:
         log.error(
-            "span_id must be a UUID, got %s [%s]",
-            type(span_id),
+            "span_id must be a UUID-style or hex string, got %r",
             span_id,
         )
         raise TypeError() from e
@@ -170,23 +168,15 @@ def parse_span_id_to_uuid(
 
 
 def parse_trace_id_from_uuid(
-    trace_id: Union[UUID, str],
+    trace_id: str,
 ):
-    if isinstance(trace_id, UUID):
-        return trace_id.hex
-
-    if isinstance(trace_id, str):
-        return UUID(trace_id).hex
+    return UUID(trace_id).hex
 
 
 def parse_span_id_from_uuid(
-    span_id: Union[UUID, str],
+    span_id: str,
 ):
-    if isinstance(span_id, UUID):
-        return span_id.hex[16:]
-
-    if isinstance(span_id, str):
-        return UUID(span_id).hex[16:]
+    return UUID(span_id).hex[16:]
 
 
 def parse_span_kind_to_enum(

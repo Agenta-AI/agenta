@@ -155,7 +155,7 @@ Find help, explore resources, or get involved:
 ### 🧰 Support
 
 - **📚 [Documentation](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Full guides and API reference  
-- **📋 [Changelog](https://agenta.ai/docs/changelog/main?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Track recent updates  
+- **📋 [Changelog](https://agenta.ai/docs/changelog?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Track recent updates  
 - **💬 [Slack Community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw)** – Ask questions and get support  
 
 ### 🤝 Contribute

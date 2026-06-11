@@ -1,4 +1,4 @@
-import type {ReactNode} from "react"
+import type {MouseEvent, ReactNode} from "react"
 
 import type {ColumnsType} from "antd/es/table"
 import clsx from "clsx"
@@ -130,6 +130,24 @@ const buildColumn = <Row extends object>(
 
     if (config.exportMetadata !== undefined) {
         ;(column as any).exportMetadata = config.exportMetadata
+    }
+
+    // Auto-stop click propagation in action columns so clicks on empty cell area
+    // don't bubble to the row navigation handler.
+    if (config.key === "actions") {
+        const prevOnCell = column.onCell as ((record: Row, index?: number) => any) | undefined
+        column.onCell = (record: Row, index?: number) => {
+            const base = prevOnCell ? prevOnCell(record, index) : {}
+            const prevClick = (base as any)?.onClick
+            return {
+                ...base,
+                className: clsx((base as any)?.className, "ag-table-actions-cell"),
+                onClick: (e: MouseEvent<HTMLTableDataCellElement>) => {
+                    e.stopPropagation()
+                    prevClick?.(e)
+                },
+            }
+        }
     }
 
     return column

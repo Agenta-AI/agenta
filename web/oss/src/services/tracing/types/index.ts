@@ -120,26 +120,11 @@ export interface SpansResponse {
     spans: TraceSpan[]
 }
 
-export interface TracingDashboardData {
-    buckets: {
-        errors: {
-            costs: number
-            count: number
-            duration: number
-            tokens: number
-        }
-        timestamp: string
-        total: {
-            costs: number
-            count: number
-            duration: number
-            tokens: number
-        }
-        interval: number
-    }[]
-    count: number
-    version: string
-}
+// AGE-3788: `TracingDashboardData` (the old success/error bucket split returned
+// by the deprecated `/tracing/spans/analytics`) was removed. The dashboard now
+// reads spec-based metric buckets from `/spans/analytics/query` via the entities
+// `AnalyticsResponse` type; `analyticsToGeneration` maps them onto
+// `GenerationDashboardData` below.
 
 export interface GenerationDashboardData {
     data: {
@@ -149,10 +134,14 @@ export interface GenerationDashboardData {
         cost: number
         latency: number
         total_tokens: number
-        prompt_tokens: number
-        completion_tokens: number
-        enviornment: string
-        variant: string
+        // The new `/spans/analytics/query` metrics do not split tokens by
+        // prompt/completion and carry no environment/variant per bucket. These
+        // were never populated by the legacy transform either and are unread by
+        // the observability dashboard, so they are optional.
+        prompt_tokens?: number
+        completion_tokens?: number
+        enviornment?: string
+        variant?: string
     }[]
     total_count: number
     failure_rate: number

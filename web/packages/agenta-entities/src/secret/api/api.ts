@@ -3,7 +3,7 @@
  *
  * HTTP functions for the `/secrets/` endpoint family, backed by the
  * Fern-generated `@agentaai/api-client` via `@agenta/sdk`. The backend
- * still exposes the deprecated `/vault/v1/secrets/` mount for backwards
+ * still exposes the deprecated `/secrets/` mount for backwards
  * compatibility, but new callers go through the canonical path.
  */
 
