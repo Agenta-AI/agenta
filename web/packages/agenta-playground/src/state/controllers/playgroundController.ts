@@ -2150,22 +2150,46 @@ function relinkLoadableSessions(
         set(executionStateAtomFamily(newLoadableId), nextExecState)
         set(executionStateAtomFamily(oldLoadableId), createInitialExecutionState())
 
-        // Also migrate row-level execution results stored on the loadable
-        // state itself. These render the per-row output cells; leaving them
-        // behind makes the just-committed revision look like it never ran.
+        // Also migrate state stored on the loadable itself:
+        //  - executionResults: per-row output cells; leaving them behind makes
+        //    the just-committed revision look like it never ran.
+        //  - the testset connection (connectedSource*, hiddenTestcaseIds,
+        //    activeRowId): the connection is keyed by loadableId, so an anchor
+        //    commit would strand it on the old key. The playground then
+        //    silently drops to local mode — the TestsetDropdown shows
+        //    unsynced and the connection-gated unused-columns footer
+        //    disappears — and the URL snapshot re-encodes the rows as a
+        //    local testset, losing the server link entirely.
         // `linkToRunnable` will overwrite linkedRunnable* immediately after
-        // this, so we don't touch those fields here — only the
-        // execution-output map needs to move.
+        // this, so we don't touch those fields here.
         const oldLoadableState = get(loadableStateAtomFamily(oldLoadableId))
-        if (Object.keys(oldLoadableState.executionResults).length > 0) {
+        const movesExecutionResults = Object.keys(oldLoadableState.executionResults).length > 0
+        const movesConnection = Boolean(oldLoadableState.connectedSourceId)
+        if (movesExecutionResults || movesConnection) {
             const newLoadableState = get(loadableStateAtomFamily(newLoadableId))
             set(loadableStateAtomFamily(newLoadableId), {
                 ...newLoadableState,
-                executionResults: oldLoadableState.executionResults,
+                ...(movesExecutionResults
+                    ? {executionResults: oldLoadableState.executionResults}
+                    : {}),
+                ...(movesConnection
+                    ? {
+                          connectedSourceId: oldLoadableState.connectedSourceId,
+                          connectedSourceName: oldLoadableState.connectedSourceName,
+                          connectedSourceType: oldLoadableState.connectedSourceType,
+                          hiddenTestcaseIds: oldLoadableState.hiddenTestcaseIds,
+                          activeRowId: oldLoadableState.activeRowId,
+                      }
+                    : {}),
             })
             set(loadableStateAtomFamily(oldLoadableId), {
                 ...oldLoadableState,
                 executionResults: {},
+                connectedSourceId: null,
+                connectedSourceName: null,
+                connectedSourceType: null,
+                hiddenTestcaseIds: new Set<string>(),
+                activeRowId: null,
             })
         }
     } else if (execRewrote) {
