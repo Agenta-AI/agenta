@@ -794,8 +794,19 @@ genuinely-shared subsystems stay in OSS behind seams.
   type errors + added `usehooks-ts`/`jotai-scheduler` deps, re-pointed 9 OSS consumers to the barrel,
   deleted OSS `components/Evaluations/`. evaluations-ui check green; oss tsc 471→464 (latent errors left
   with the files); behavioral QA pending (annotations queue metric popover + run-details metric cells).
+- **4h-2 — seam infra.** ✅ DONE (`554954b14f`): `EvalViewHostProvider`/`useHostComponent`/`useHostHook`
+  (component+hook channel) in evaluations-ui; the atom channel (`registerEvalRunInjections`) already existed.
+  4h-4 added a 4th channel: `fnRegistry` (`registerEvalViewFns`/`getEvalViewFns`) for non-React functions
+  consumed outside React (navigation builders, url helpers).
 - **4h-4 — relocate `RunsTable`** (`EvaluationRunsTablePOC` → `RunsTable`, drop POC) → `evaluations-ui`.
-- **4h-5 — relocate `RunDetails`** (`EvalRunDetails`) → `evaluations-ui`. Largest; behavioral QA.
+  ✅ DONE (`329aa640db`): all 37 files moved as one closed cluster (tree too interconnected to split —
+  `useEvaluationRunsColumns` pulls every cell/header). ~20 atom seams + component/hook host + fnRegistry
+  added; OSS seam boundary `EvalRunsViewHost.tsx` mounted at `EvaluationsView` + the app overview page.
+  oss tsc 464→454 (10 latent strict-null fixed). Verified: no package→`@/oss` leak; host wraps both render
+  sites. References/onlineEvaluation/AnnotateDrawer stayed in OSS behind seams (§12.2). Behavioral QA pending.
+- **4h-5 — relocate `RunDetails`** (`EvalRunDetails`, 113 files) → `evaluations-ui`. Largest; behavioral QA.
+  Reuses all 4 seam channels; the run-details OSS provider `useRegisterEvalRunInjections` (mounted at the
+  run-details `Page.tsx`) extends to register the new seams + a host provider at the route shell.
 - **4h-6 — repoint route shells** (the 6 pages) at `@agenta/evaluations-ui`; OSS keeps only
   route shells + the injection-seam provider. Delete the 3 emptied OSS dirs.
 - **Gate:** full behavioral QA across run-list (app overview), run-details (results +
