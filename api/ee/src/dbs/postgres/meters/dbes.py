@@ -1,5 +1,4 @@
 from sqlalchemy import PrimaryKeyConstraint, ForeignKeyConstraint, Index
-from sqlalchemy.orm import relationship
 
 from oss.src.dbs.postgres.shared.base import Base
 from ee.src.dbs.postgres.meters.dbas import MeterDBA
@@ -14,7 +13,8 @@ class MeterDBE(Base, MeterDBA):
         ),
         ForeignKeyConstraint(
             ["organization_id"],
-            ["subscriptions.organization_id"],
+            ["organizations.id"],
+            ondelete="CASCADE",
         ),
         Index(
             "idx_synced_value",
@@ -35,5 +35,3 @@ class MeterDBE(Base, MeterDBA):
             "day",
         ),
     )
-
-    subscription = relationship("SubscriptionDBE", back_populates="meters")

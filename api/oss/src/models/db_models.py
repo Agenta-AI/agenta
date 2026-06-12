@@ -47,7 +47,7 @@ class OrganizationDB(Base):
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
-        nullable=False,
+        nullable=True,
     )
     #
     updated_at = Column(
@@ -59,21 +59,9 @@ class OrganizationDB(Base):
         DateTime(timezone=True),
         nullable=True,
     )
-    created_by_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="RESTRICT"),
-        nullable=False,
-    )
-    updated_by_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    deleted_by_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True,
-    )
+    created_by_id = Column(UUID(as_uuid=True), nullable=True)
+    updated_by_id = Column(UUID(as_uuid=True), nullable=True)
+    deleted_by_id = Column(UUID(as_uuid=True), nullable=True)
 
 
 class WorkspaceDB(Base):
@@ -100,6 +88,10 @@ class WorkspaceDB(Base):
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_by_id = Column(UUID(as_uuid=True), nullable=True)
+    updated_by_id = Column(UUID(as_uuid=True), nullable=True)
+    deleted_by_id = Column(UUID(as_uuid=True), nullable=True)
 
     organization = relationship(
         "oss.src.models.db_models.OrganizationDB",
@@ -125,6 +117,10 @@ class UserDB(Base):
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_by_id = Column(UUID(as_uuid=True), nullable=True)
+    updated_by_id = Column(UUID(as_uuid=True), nullable=True)
+    deleted_by_id = Column(UUID(as_uuid=True), nullable=True)
 
 
 class ProjectDB(Base):
@@ -145,6 +141,10 @@ class ProjectDB(Base):
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_by_id = Column(UUID(as_uuid=True), nullable=True)
+    updated_by_id = Column(UUID(as_uuid=True), nullable=True)
+    deleted_by_id = Column(UUID(as_uuid=True), nullable=True)
 
     organization_id = Column(
         UUID(as_uuid=True),
@@ -190,6 +190,17 @@ class OrganizationMemberDB(Base):
         server_default="viewer",
     )
 
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_by_id = Column(UUID(as_uuid=True), nullable=True)
+    updated_by_id = Column(UUID(as_uuid=True), nullable=True)
+    deleted_by_id = Column(UUID(as_uuid=True), nullable=True)
+
     user = relationship(
         "oss.src.models.db_models.UserDB",
     )
@@ -226,6 +237,10 @@ class WorkspaceMemberDB(Base):
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_by_id = Column(UUID(as_uuid=True), nullable=True)
+    updated_by_id = Column(UUID(as_uuid=True), nullable=True)
+    deleted_by_id = Column(UUID(as_uuid=True), nullable=True)
 
     user = relationship(
         "oss.src.models.db_models.UserDB",
@@ -265,6 +280,10 @@ class ProjectMemberDB(Base):
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_by_id = Column(UUID(as_uuid=True), nullable=True)
+    updated_by_id = Column(UUID(as_uuid=True), nullable=True)
+    deleted_by_id = Column(UUID(as_uuid=True), nullable=True)
 
     user = relationship(
         "oss.src.models.db_models.UserDB",
@@ -288,7 +307,9 @@ class InvitationDB(Base):
     email = Column(String, nullable=False)
     used = Column(Boolean, default=False)
     role = Column(String, nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     project_id = Column(
         UUID(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
@@ -298,6 +319,13 @@ class InvitationDB(Base):
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_by_id = Column(UUID(as_uuid=True), nullable=True)
+    updated_by_id = Column(UUID(as_uuid=True), nullable=True)
+    deleted_by_id = Column(UUID(as_uuid=True), nullable=True)
 
     user = relationship(
         "oss.src.models.db_models.UserDB",
@@ -324,9 +352,7 @@ class APIKeyDB(Base):
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
-    created_by_id = Column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
+    created_by_id = Column(UUID(as_uuid=True), nullable=True)
     rate_limit = Column(Integer, default=0)
     hidden = Column(Boolean, default=False)
     expiration_date = Column(DateTime(timezone=True), nullable=True)
@@ -336,9 +362,13 @@ class APIKeyDB(Base):
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    updated_by_id = Column(UUID(as_uuid=True), nullable=True)
+    deleted_by_id = Column(UUID(as_uuid=True), nullable=True)
 
     user = relationship(
         "oss.src.models.db_models.UserDB",
+        primaryjoin="foreign(APIKeyDB.created_by_id) == UserDB.id",
         backref="api_key_owner",
     )
     project = relationship(
