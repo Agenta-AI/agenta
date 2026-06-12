@@ -48,6 +48,24 @@ key owner's account and organizations. The acceptance suite covers it with
 `test_delete_account_rejects_api_key` (API key, 403, account survives); the happy-path and
 shared-org tests sign in for real and use the session bearer token.
 
+## Multi-org deletion fix (bug follow-up)
+
+Deleting an account 500'd for users who had accepted an invitation into another
+organization. Accepting an invite stamps the host org's `project_invitations.user_id`
+with the invitee's id, and that FK (plus the `modified_by_id` audit columns on
+variants/revisions/environments and `webhook_subscriptions.created_by_id`) has no
+`ON DELETE` rule. The host org survives the cascade, so `DELETE FROM users` hit a
+foreign-key violation after SuperTokens and Stripe were already processed: the request
+returned 500 and the frontend never ran the logout flow.
+
+The fix is `_admin_detach_user_references` in `oss/src/services/db_manager.py`, which
+runs inside the same transaction as the cascade, before the user delete: it deletes the
+user's invitation rows and webhook subscriptions (`created_by_id` is NOT NULL) and nulls
+the `modified_by_id` audit columns. This covers the admin delete path too, which had the
+same latent bug. Regression test:
+`test_delete_own_account_succeeds_after_accepted_invite` drives the real invite → accept
+→ delete flow.
+
 ## Needs sign-off
 
 All accepted as recommended and built:

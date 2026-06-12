@@ -8,6 +8,7 @@ delete the owning account. The tests therefore sign in for real to get a
 session, and separately assert that an API key is refused.
 """
 
+from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 import requests
@@ -142,6 +143,71 @@ class TestSelfServeAccountDeletion:
             timeout=BASE_TIMEOUT,
         )
         assert after.status_code == 200, after.text
+
+    def test_delete_own_account_succeeds_after_accepted_invite(self, ag_env):
+        """A user who accepted an invite into another org can delete their account.
+
+        Accepting an invitation stamps the host org's invitation row with the
+        invitee's user id (project_invitations.user_id has no ON DELETE), so the
+        host org's surviving rows used to block the user delete with an FK
+        violation and the endpoint returned 500 after the auth login was
+        already gone.
+        """
+        uid = uuid4().hex[:12]
+        host_email = f"host-{uid}@test.agenta.ai"
+        guest_email = f"guest-{uid}@test.agenta.ai"
+        api_url = ag_env["api_url"]
+
+        host = _create_account(ag_env, email=host_email)
+        _create_account(ag_env, email=guest_email)
+        host_bearer = _signin(api_url, email=host_email)
+        guest_bearer = _signin(api_url, email=guest_email)
+
+        host_org_id = list(host["organizations"].values())[0]["id"]
+        host_ws_id = list(host["workspaces"].values())[0]["id"]
+        host_project_id = list(host["projects"].values())[0]["id"]
+
+        # Real invite flow: with email sending disabled the endpoint returns
+        # the invite URL, which carries the token.
+        invited = requests.post(
+            f"{api_url}/organizations/{host_org_id}/workspaces/{host_ws_id}/invite",
+            headers={"Authorization": host_bearer},
+            json=[{"email": guest_email, "roles": ["viewer"]}],
+            timeout=BASE_TIMEOUT,
+        )
+        assert invited.status_code == 200, invited.text
+        invite_url = invited.json().get("url")
+        assert invite_url, f"expected invite url in response: {invited.text}"
+        token = parse_qs(urlparse(invite_url).query)["token"][0]
+
+        accepted = requests.post(
+            f"{api_url}/organizations/{host_org_id}/workspaces/{host_ws_id}"
+            f"/invite/accept?project_id={host_project_id}",
+            headers={"Authorization": guest_bearer},
+            json={"token": token, "email": guest_email},
+            timeout=BASE_TIMEOUT,
+        )
+        assert accepted.status_code == 200, accepted.text
+
+        # The guest now belongs to two orgs and deletes their own account.
+        deleted = requests.delete(
+            f"{api_url}/profile",
+            headers={"Authorization": guest_bearer},
+            timeout=BASE_TIMEOUT,
+        )
+        assert deleted.status_code == 200, deleted.text
+
+        # The host org survives untouched.
+        host_after = requests.get(
+            f"{api_url}/profile",
+            headers={"Authorization": host_bearer},
+            timeout=BASE_TIMEOUT,
+        )
+        assert host_after.status_code == 200, host_after.text
+
+        # The guest's email is freed for a fresh signup.
+        recreated = _create_account(ag_env, email=guest_email)
+        assert recreated["user"]["email"] == guest_email
 
     def test_delete_account_rejects_api_key(self, ag_env):
         """A leaked API key must not be able to delete the owning account."""
