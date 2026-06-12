@@ -17,6 +17,19 @@ export const usePlaygroundNodeLabels = (nodes: PlaygroundNode[] | null) => {
                 const names: Record<string, string> = {}
                 for (const node of nodes) {
                     const data = get(workflowMolecule.selectors.data(node.entityId))
+                    // Evaluators don't use variants: label them by the entity
+                    // (artifact) name. The revision's own `name` carries the
+                    // variant name ("default"). App nodes keep the revision
+                    // name, which is the variant label in comparison views.
+                    if (data?.flags?.is_evaluator) {
+                        const artifactName = get(
+                            workflowMolecule.selectors.artifactName(node.entityId),
+                        )
+                        if (artifactName) {
+                            names[node.id] = artifactName
+                            continue
+                        }
+                    }
                     if (data?.name) {
                         names[node.id] = data.name
                     }

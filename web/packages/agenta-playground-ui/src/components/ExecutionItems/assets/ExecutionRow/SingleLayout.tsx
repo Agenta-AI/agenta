@@ -347,12 +347,16 @@ const DownstreamNodeCard = ({
     }
 
     // Success -> extract and display value(s)
-    // Filter to only show fields defined in output ports (excludes backend-injected fields like "success")
+    // Filter to only show fields defined in output ports (excludes backend-injected
+    // fields like "success"). Fallback ports are a synthesized default, not a
+    // declared shape, so they must not filter the response (e.g., code evaluators
+    // returning arbitrary dicts).
     const rawEntries = extractDisplayEntries(fullResult.output)
+    const declaredPorts = outputPorts.filter((port) => !port.isFallback)
     const entries =
-        rawEntries && outputPorts.length > 0
+        rawEntries && declaredPorts.length > 0
             ? (() => {
-                  const portKeys = new Set(outputPorts.map((p) => p.key))
+                  const portKeys = new Set(declaredPorts.map((p) => p.key))
                   const filtered = rawEntries.filter(([key]) => portKeys.has(key))
                   return filtered.length > 0 ? filtered : rawEntries
               })()

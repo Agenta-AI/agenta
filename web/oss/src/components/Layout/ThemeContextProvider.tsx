@@ -107,6 +107,19 @@ const DARK_TOKEN_OVERRIDES = {
         "0 0 0 1px rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44), 0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28)",
     boxShadowTertiary:
         "0 0 0 1px rgba(255, 255, 255, 0.12), 0 1px 2px 0 rgba(0, 0, 0, 0.30), 0 1px 6px -1px rgba(0, 0, 0, 0.20), 0 2px 4px 0 rgba(0, 0, 0, 0.20)",
+    // The drawer EDGE shadow uses the directional boxShadowDrawer* tokens, NOT the
+    // boxShadow token above — darkAlgorithm leaves these as a white diffuse glow, which
+    // reads as a faint light halo down the drawer's page-facing edge on the dark surface.
+    // Match the curated overlay style: a crisp 1px ring on the page-facing edge for
+    // separation + dark diffuse for depth (the same recipe as boxShadow, made directional).
+    boxShadowDrawerRight:
+        "-1px 0 0 0 rgba(255, 255, 255, 0.16), -6px 0 16px 0 rgba(0, 0, 0, 0.44), -3px 0 6px -4px rgba(0, 0, 0, 0.52), -9px 0 28px 8px rgba(0, 0, 0, 0.28)",
+    boxShadowDrawerLeft:
+        "1px 0 0 0 rgba(255, 255, 255, 0.16), 6px 0 16px 0 rgba(0, 0, 0, 0.44), 3px 0 6px -4px rgba(0, 0, 0, 0.52), 9px 0 28px 8px rgba(0, 0, 0, 0.28)",
+    boxShadowDrawerTop:
+        "0 1px 0 0 rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44), 0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28)",
+    boxShadowDrawerBottom:
+        "0 -1px 0 0 rgba(255, 255, 255, 0.16), 0 -6px 16px 0 rgba(0, 0, 0, 0.44), 0 -3px 6px -4px rgba(0, 0, 0, 0.52), 0 -9px 28px 8px rgba(0, 0, 0, 0.28)",
     // Lift the overlay surface a touch more above the page so popups read as a
     // distinct layer, not just a ring (container is ~#141414; default elevated
     // ~#1f1f1f is only marginally lighter).

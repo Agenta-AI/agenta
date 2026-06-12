@@ -463,21 +463,41 @@ export const nonArchivedAppWorkflowsAtom = atom<Workflow[]>((get) => {
 // ============================================================================
 
 /**
- * Query atom family for fetching variants of a workflow.
- * Used in the Workflow → Variant → Revision selection hierarchy.
+ * Variants query keyed by explicit projectId. This is the canonical query;
+ * the explicit key lets it run inside isolated Jotai stores (e.g. the
+ * evaluation tables) where the global projectIdAtom is not hydrated.
  */
-export const workflowVariantsQueryAtomFamily = atomFamily((workflowId: string) =>
-    atomWithQuery((get) => {
-        const projectId = get(workflowProjectIdAtom)
-        return {
+export const workflowVariantsScopedQueryAtomFamily = atomFamily(
+    ({projectId, workflowId}: {projectId: string; workflowId: string}) =>
+        atomWithQuery(() => ({
             queryKey: ["workflows", "variants", workflowId, projectId],
             queryFn: async (): Promise<WorkflowVariantsResponse> => {
                 if (!projectId || !workflowId) return {count: 0, workflow_variants: []}
                 return queryWorkflowVariants(workflowId, projectId)
             },
-            enabled: get(sessionAtom) && !!projectId && !!workflowId,
+            enabled: !!projectId && !!workflowId,
             staleTime: 30_000,
+        })),
+    (a, b) => a.projectId === b.projectId && a.workflowId === b.workflowId,
+)
+
+/**
+ * Query atom family for fetching variants of a workflow.
+ * Used in the Workflow → Variant → Revision selection hierarchy.
+ * Default-store wrapper around the scoped query above.
+ */
+export const workflowVariantsQueryAtomFamily = atomFamily((workflowId: string) =>
+    atom((get) => {
+        const projectId = get(workflowProjectIdAtom)
+        if (!projectId || !workflowId || !get(sessionAtom)) {
+            return {
+                data: undefined as WorkflowVariantsResponse | undefined,
+                isPending: Boolean(workflowId),
+                isError: false,
+                error: null,
+            }
         }
+        return get(workflowVariantsScopedQueryAtomFamily({projectId, workflowId}))
     }),
 )
 
@@ -850,6 +870,118 @@ export const workflowAppTypeAtomFamily = atomFamily((workflowId: string) =>
         return deriveWorkflowTypeFromRevision(query.data)
     }),
 )
+
+// ============================================================================
+// ARTIFACT QUERY (workflow-level container — entity name/description)
+// ============================================================================
+
+interface WorkflowArtifactRequest {
+    projectId: string
+    workflowId: string
+}
+
+const workflowArtifactBatchFetcher = createBatchFetcher<WorkflowArtifactRequest, Workflow | null>({
+    maxBatchSize: 50,
+    flushDelay: 10,
+    serializeKey: (req) => `${req.projectId}:${req.workflowId}`,
+    batchFn: async (requests, serializedKeys) => {
+        const results = new Map<string, Workflow | null>()
+        serializedKeys.forEach((key) => results.set(key, null))
+
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("workflowArtifactBatchFetcher: requests span multiple projects")
+        }
+
+        const workflowIds = [...new Set(requests.map((req) => req.workflowId).filter(Boolean))]
+        if (workflowIds.length === 0) return results
+
+        const response = await queryWorkflows({
+            projectId,
+            workflowRefs: workflowIds.map((id) => ({id})),
+            includeArchived: true,
+        })
+        const byId = new Map((response.workflows ?? []).map((workflow) => [workflow.id, workflow]))
+        requests.forEach((req, index) => {
+            results.set(serializedKeys[index], byId.get(req.workflowId) ?? null)
+        })
+
+        return results
+    },
+})
+
+/**
+ * Artifact query keyed by explicit projectId. This is the canonical query;
+ * the explicit key lets it run inside isolated Jotai stores (e.g. the
+ * evaluation tables) where the global projectIdAtom is not hydrated.
+ *
+ * Deliberately keyed apart from the revision caches: `workflowQueryAtomFamily`
+ * and the latest-revision query both resolve revisions, so the artifact would
+ * otherwise compete with a revision for the same cache slot. The artifact is
+ * the source of truth for the entity's display name — revision `name` carries
+ * the variant name ("default"), not the entity name.
+ */
+export const workflowArtifactScopedQueryAtomFamily = atomFamily(
+    ({projectId, workflowId}: WorkflowArtifactRequest) =>
+        atomWithQuery(() => ({
+            queryKey: ["workflows", "artifact", workflowId, projectId],
+            queryFn: async (): Promise<Workflow | null> => {
+                if (!projectId || !workflowId) return null
+                return workflowArtifactBatchFetcher({projectId, workflowId})
+            },
+            enabled:
+                !!projectId &&
+                !!workflowId &&
+                !isLocalDraftId(workflowId) &&
+                !isPlaceholderId(workflowId),
+            staleTime: 60_000,
+        })),
+    (a, b) => a.projectId === b.projectId && a.workflowId === b.workflowId,
+)
+
+/**
+ * Default-store wrapper around the scoped artifact query: fills projectId
+ * from the global atom and gates on the session.
+ */
+export const workflowArtifactQueryAtomFamily = atomFamily((workflowId: string) =>
+    atom((get) => {
+        const projectId = get(workflowProjectIdAtom)
+        if (!projectId || !workflowId || !get(sessionAtom)) {
+            return {
+                data: null as Workflow | null,
+                isPending: Boolean(workflowId),
+                isError: false,
+                error: null,
+            }
+        }
+        return get(workflowArtifactScopedQueryAtomFamily({projectId, workflowId}))
+    }),
+)
+
+/**
+ * Prime the artifact query cache from an already-fetched workflows list
+ * (e.g. a page-level `queryWorkflows` call) so artifact-name lookups
+ * resolve without extra requests.
+ */
+export function primeWorkflowArtifactCacheImperative(
+    workflows: (Workflow | null | undefined)[],
+    options?: StoreOptions,
+): void {
+    const store = getStore(options)
+    const projectId = store.get(workflowProjectIdAtom)
+    if (!projectId) return
+    try {
+        const queryClient = store.get(queryClientAtom)
+        for (const workflow of workflows) {
+            if (!workflow?.id) continue
+            queryClient.setQueryData(["workflows", "artifact", workflow.id, projectId], workflow)
+        }
+    } catch {
+        // queryClientAtom may not be initialized yet (rare)
+    }
+}
 
 // ============================================================================
 // SINGLE ENTITY QUERY
@@ -2118,6 +2250,8 @@ export function invalidateWorkflowsListCache(options?: StoreOptions) {
     try {
         const qc = store.get(queryClientAtom)
         qc.invalidateQueries({queryKey: ["workflows", "apps"], exact: false})
+        // Artifact-level metadata (name/description) may have changed too
+        qc.invalidateQueries({queryKey: ["workflows", "artifact"], exact: false})
     } catch {
         // queryClientAtom may not be initialized yet
     }
@@ -2216,6 +2350,7 @@ export function invalidateWorkflowCache(workflowId: string, options?: StoreOptio
     try {
         const qc = store.get(queryClientAtom)
         qc.invalidateQueries({queryKey: ["workflows", "revision", workflowId], exact: false})
+        qc.invalidateQueries({queryKey: ["workflows", "artifact", workflowId], exact: false})
     } catch {
         // queryClientAtom may not be initialized yet
     }
@@ -2237,7 +2372,12 @@ export function invalidateWorkflowVariantsCache(workflowId: string, options?: St
     } catch {
         // queryClientAtom may not be initialized yet
     }
-    store.set(workflowVariantsQueryAtomFamily(workflowId))
+    // The query-key invalidation above refetches every active observer; the
+    // wrapper atom is read-only so there is no per-atom refetch trigger.
+    const projectId = store.get(workflowProjectIdAtom)
+    if (projectId && workflowId) {
+        store.set(workflowVariantsScopedQueryAtomFamily({projectId, workflowId}))
+    }
 }
 
 /**

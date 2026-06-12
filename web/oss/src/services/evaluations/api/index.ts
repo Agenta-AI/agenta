@@ -274,8 +274,7 @@ export const fetchEvaluatonIdsByResource = async ({
 }) => {
     const {projectId} = getProjectValues()
 
-    // Build references filter based on resource type
-    const references = resourceIds.map((id) => {
+    const buildReference = (id: string) => {
         switch (resourceType) {
             case "testset":
                 return {testset: {id}}
@@ -286,17 +285,30 @@ export const fetchEvaluatonIdsByResource = async ({
             default:
                 return {}
         }
-    })
+    }
 
-    // Use preview API to query runs by references
-    const response = await axios.post(`/evaluations/runs/query?project_id=${projectId}`, {
-        run: {
-            references,
-        },
-    })
+    // Query the preview API once per resource id: the backend matches references
+    // with JSONB containment (AND semantics), so a single multi-reference query
+    // would only find runs that use ALL of the resources at once.
+    const responses = await Promise.all(
+        resourceIds.map((id) =>
+            axios.post(`/evaluations/runs/query?project_id=${projectId}`, {
+                run: {
+                    references: [buildReference(id)],
+                },
+            }),
+        ),
+    )
+
+    const runIds = new Set<string>()
+    for (const response of responses) {
+        for (const run of response.data?.runs ?? []) {
+            if (run?.id) runIds.add(run.id)
+        }
+    }
 
     // Return evaluation IDs in same format as legacy endpoint
     return {
-        data: response.data?.runs?.map((run: any) => run.id) || [],
+        data: Array.from(runIds),
     }
 }

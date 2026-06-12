@@ -415,11 +415,16 @@ export {
     // Connection atoms
     outputConnectionsAtom,
     playgroundDispatchAtom,
+    // Mode override atoms (chat ⇄ completion behavior; see
+    // docs/design/playground-mode-switch/)
+    playgroundCapabilityModeAtom,
+    playgroundModeOverrideAtom,
     playgroundNodesAtom,
     primaryEntityIdAtom,
     primaryNodeAtom,
     selectedNodeIdAtom,
     testsetModalOpenAtom,
+    type PlaygroundMode,
 } from "./atoms"
 
 // ============================================================================
