@@ -24,7 +24,7 @@ import {Button, Checkbox, Empty, Popover, Spin, Tabs} from "antd"
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"
 import {useLevelData} from "../../../hooks/utilities"
 import type {EntitySelectionResult, HierarchyLevel, SelectionPathItem} from "../../../types"
-import {AutoSelectHandler, getParentCheckboxState} from "../shared/AutoSelectHandler"
+import {AutoSelectHandler} from "../shared"
 import type {PopoverCascaderVariantProps} from "../types"
 
 const POPOVER_CASCADER_TEST_IDS = {
@@ -304,10 +304,8 @@ function RootItemRenderer({
     const selectedChildren = selectedChildrenByParent?.get(id)
     const selectedCount = selectedChildren?.length ?? 0
     const totalChildren = totalChildrenByParent?.get(id)
-    const {checked: isChecked, indeterminate: isIndeterminate} = getParentCheckboxState(
-        selectedCount,
-        totalChildren,
-    )
+    const isChecked = selectedCount > 0
+    const isIndeterminate = isChecked && totalChildren != null && selectedCount < totalChildren
 
     // Checkbox toggles selection only; clicks must not bubble to the row
     // (which opens the child panel).
@@ -331,6 +329,18 @@ function RootItemRenderer({
             <SelectedChildChips chips={selectedChildren} onDeselectChild={onDeselectChild} />
         ) : undefined
 
+    // When the child panel opens on hover, the row body click is free to
+    // toggle the parent checkbox (same as clicking the checkbox) and must not
+    // also drill into the panel. Otherwise the row click opens the child panel.
+    const handleItemClick = () => {
+        if (openChildOnHover && showParentCheckboxes) {
+            onParentCheckboxChange(item, !isChecked)
+            return
+        }
+
+        onRootItemClick(item)
+    }
+
     return (
         <div
             onMouseEnter={
@@ -348,8 +358,8 @@ function RootItemRenderer({
                 isSelectable={totalLevels <= 1}
                 isSelected={id === selectedParentId}
                 isHovered={id === selectedRootId}
-                onClick={() => onRootItemClick(item)}
-                onSelect={() => onRootItemClick(item)}
+                onClick={handleItemClick}
+                onSelect={handleItemClick}
             />
         </div>
     )
@@ -892,8 +902,6 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                     parentLevelConfig={rootLevel}
                     childLevelConfig={hierarchyLevels[1]}
                     disabledChildIds={disabledChildIds}
-                    selectedChildIds={selectedChildIds}
-                    selectionMode="all"
                     createSelection={createSelection}
                     onSelect={onSelect}
                     onComplete={() => setPendingParentSelection(null)}
