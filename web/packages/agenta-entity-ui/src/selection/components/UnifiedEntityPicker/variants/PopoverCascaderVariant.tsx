@@ -24,7 +24,7 @@ import {Button, Checkbox, Empty, Popover, Spin, Tabs} from "antd"
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"
 import {useLevelData} from "../../../hooks/utilities"
 import type {EntitySelectionResult, HierarchyLevel, SelectionPathItem} from "../../../types"
-import {AutoSelectHandler} from "../shared"
+import {AutoSelectHandler, getParentCheckboxState} from "../shared/AutoSelectHandler"
 import type {PopoverCascaderVariantProps} from "../types"
 
 const POPOVER_CASCADER_TEST_IDS = {
@@ -304,8 +304,10 @@ function RootItemRenderer({
     const selectedChildren = selectedChildrenByParent?.get(id)
     const selectedCount = selectedChildren?.length ?? 0
     const totalChildren = totalChildrenByParent?.get(id)
-    const isChecked = selectedCount > 0
-    const isIndeterminate = isChecked && totalChildren != null && selectedCount < totalChildren
+    const {checked: isChecked, indeterminate: isIndeterminate} = getParentCheckboxState(
+        selectedCount,
+        totalChildren,
+    )
 
     // Checkbox toggles selection only; clicks must not bubble to the row
     // (which opens the child panel).
@@ -890,6 +892,8 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                     parentLevelConfig={rootLevel}
                     childLevelConfig={hierarchyLevels[1]}
                     disabledChildIds={disabledChildIds}
+                    selectedChildIds={selectedChildIds}
+                    selectionMode="all"
                     createSelection={createSelection}
                     onSelect={onSelect}
                     onComplete={() => setPendingParentSelection(null)}
