@@ -1,0 +1,4 @@
+2c2
+< ## SCHEMA DUMP — database: agenta_oss_tracing
+---
+> ## SCHEMA DUMP — database: agenta_ee_tracing

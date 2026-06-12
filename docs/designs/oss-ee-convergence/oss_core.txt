@@ -1,0 +1,1043 @@
+################################################################
+## SCHEMA DUMP — database: agenta_oss_core
+################################################################
+server: 17.10 (Debian 17.10-1.pgdg13+1)
+
+## EXTENSIONS
+EXTENSION ltree 1.3
+EXTENSION pgcrypto 1.3
+EXTENSION plpgsql 1.0
+
+## ENUM TYPES
+ENUM public.app_type_enum = (CHAT_TEMPLATE, COMPLETION_TEMPLATE, CHAT_SERVICE, COMPLETION_SERVICE, CUSTOM, SDK_CUSTOM)
+ENUM public.folder_kind_enum = (APPLICATIONS)
+ENUM public.nodetype = (AGENT, WORKFLOW, CHAIN, TASK, TOOL, EMBEDDING, QUERY, COMPLETION, CHAT, RERANK)
+ENUM public.secretkind_enum = (PROVIDER_KEY, CUSTOM_PROVIDER, SSO_PROVIDER, WEBHOOK_PROVIDER)
+ENUM public.templatetype = (IMAGE, ZIP)
+ENUM public.treetype = (INVOCATION)
+
+## SEQUENCES
+
+## COLUMNS (sorted by name; see COLUMN-ORDER for physical order)
+TABLE public.alembic_version COLUMN version_num character varying(32) NOT NULL
+TABLE public.api_keys COLUMN created_at timestamp with time zone
+TABLE public.api_keys COLUMN created_by_id uuid
+TABLE public.api_keys COLUMN expiration_date timestamp with time zone
+TABLE public.api_keys COLUMN hashed_key character varying
+TABLE public.api_keys COLUMN hidden boolean
+TABLE public.api_keys COLUMN id uuid NOT NULL
+TABLE public.api_keys COLUMN prefix character varying
+TABLE public.api_keys COLUMN project_id uuid
+TABLE public.api_keys COLUMN rate_limit integer
+TABLE public.api_keys COLUMN updated_at timestamp with time zone
+TABLE public.app_db COLUMN app_name character varying
+TABLE public.app_db COLUMN app_type app_type_enum
+TABLE public.app_db COLUMN created_at timestamp with time zone
+TABLE public.app_db COLUMN folder_id uuid
+TABLE public.app_db COLUMN id uuid NOT NULL
+TABLE public.app_db COLUMN modified_by_id uuid
+TABLE public.app_db COLUMN project_id uuid NOT NULL
+TABLE public.app_db COLUMN updated_at timestamp with time zone
+TABLE public.app_variant_revisions COLUMN base_id uuid
+TABLE public.app_variant_revisions COLUMN commit_message character varying(255)
+TABLE public.app_variant_revisions COLUMN config_name character varying NOT NULL
+TABLE public.app_variant_revisions COLUMN config_parameters json NOT NULL
+TABLE public.app_variant_revisions COLUMN created_at timestamp with time zone
+TABLE public.app_variant_revisions COLUMN hidden boolean
+TABLE public.app_variant_revisions COLUMN id uuid NOT NULL
+TABLE public.app_variant_revisions COLUMN modified_by_id uuid
+TABLE public.app_variant_revisions COLUMN project_id uuid NOT NULL
+TABLE public.app_variant_revisions COLUMN revision integer
+TABLE public.app_variant_revisions COLUMN updated_at timestamp with time zone
+TABLE public.app_variant_revisions COLUMN variant_id uuid
+TABLE public.app_variants COLUMN app_id uuid
+TABLE public.app_variants COLUMN base_id uuid
+TABLE public.app_variants COLUMN base_name character varying
+TABLE public.app_variants COLUMN config_name character varying NOT NULL
+TABLE public.app_variants COLUMN config_parameters json NOT NULL DEFAULT '{}'::json
+TABLE public.app_variants COLUMN created_at timestamp with time zone
+TABLE public.app_variants COLUMN hidden boolean
+TABLE public.app_variants COLUMN id uuid NOT NULL
+TABLE public.app_variants COLUMN image_id uuid
+TABLE public.app_variants COLUMN modified_by_id uuid
+TABLE public.app_variants COLUMN project_id uuid NOT NULL
+TABLE public.app_variants COLUMN revision integer
+TABLE public.app_variants COLUMN updated_at timestamp with time zone
+TABLE public.app_variants COLUMN variant_name character varying
+TABLE public.auto_evaluation_aggregated_results COLUMN evaluation_id uuid
+TABLE public.auto_evaluation_aggregated_results COLUMN evaluator_config_id uuid
+TABLE public.auto_evaluation_aggregated_results COLUMN id uuid NOT NULL
+TABLE public.auto_evaluation_aggregated_results COLUMN result jsonb
+TABLE public.auto_evaluation_evaluator_configs COLUMN evaluation_id uuid NOT NULL
+TABLE public.auto_evaluation_evaluator_configs COLUMN evaluator_config_id uuid NOT NULL
+TABLE public.auto_evaluation_evaluator_configs COLUMN id uuid NOT NULL
+TABLE public.auto_evaluation_scenario_results COLUMN evaluation_scenario_id uuid
+TABLE public.auto_evaluation_scenario_results COLUMN evaluator_config_id uuid
+TABLE public.auto_evaluation_scenario_results COLUMN id uuid NOT NULL
+TABLE public.auto_evaluation_scenario_results COLUMN result jsonb
+TABLE public.auto_evaluation_scenarios COLUMN correct_answers jsonb
+TABLE public.auto_evaluation_scenarios COLUMN cost integer
+TABLE public.auto_evaluation_scenarios COLUMN created_at timestamp with time zone
+TABLE public.auto_evaluation_scenarios COLUMN evaluation_id uuid
+TABLE public.auto_evaluation_scenarios COLUMN id uuid NOT NULL
+TABLE public.auto_evaluation_scenarios COLUMN inputs jsonb
+TABLE public.auto_evaluation_scenarios COLUMN is_pinned boolean
+TABLE public.auto_evaluation_scenarios COLUMN latency integer
+TABLE public.auto_evaluation_scenarios COLUMN note character varying
+TABLE public.auto_evaluation_scenarios COLUMN outputs jsonb
+TABLE public.auto_evaluation_scenarios COLUMN project_id uuid NOT NULL
+TABLE public.auto_evaluation_scenarios COLUMN updated_at timestamp with time zone
+TABLE public.auto_evaluation_scenarios COLUMN variant_id uuid
+TABLE public.auto_evaluations COLUMN app_id uuid
+TABLE public.auto_evaluations COLUMN average_cost jsonb
+TABLE public.auto_evaluations COLUMN average_latency jsonb
+TABLE public.auto_evaluations COLUMN created_at timestamp with time zone
+TABLE public.auto_evaluations COLUMN id uuid NOT NULL
+TABLE public.auto_evaluations COLUMN project_id uuid NOT NULL
+TABLE public.auto_evaluations COLUMN status jsonb
+TABLE public.auto_evaluations COLUMN testset_id uuid
+TABLE public.auto_evaluations COLUMN total_cost jsonb
+TABLE public.auto_evaluations COLUMN updated_at timestamp with time zone
+TABLE public.auto_evaluations COLUMN variant_id uuid
+TABLE public.auto_evaluations COLUMN variant_revision_id uuid
+TABLE public.auto_evaluator_configs COLUMN created_at timestamp with time zone
+TABLE public.auto_evaluator_configs COLUMN evaluator_key character varying
+TABLE public.auto_evaluator_configs COLUMN id uuid NOT NULL
+TABLE public.auto_evaluator_configs COLUMN name character varying
+TABLE public.auto_evaluator_configs COLUMN project_id uuid NOT NULL
+TABLE public.auto_evaluator_configs COLUMN settings_values jsonb
+TABLE public.auto_evaluator_configs COLUMN updated_at timestamp with time zone
+TABLE public.bases COLUMN app_id uuid
+TABLE public.bases COLUMN base_name character varying
+TABLE public.bases COLUMN created_at timestamp with time zone
+TABLE public.bases COLUMN deployment_id uuid
+TABLE public.bases COLUMN id uuid NOT NULL
+TABLE public.bases COLUMN image_id uuid
+TABLE public.bases COLUMN project_id uuid NOT NULL
+TABLE public.bases COLUMN updated_at timestamp with time zone
+TABLE public.deployments COLUMN app_id uuid
+TABLE public.deployments COLUMN container_id character varying
+TABLE public.deployments COLUMN container_name character varying
+TABLE public.deployments COLUMN created_at timestamp with time zone
+TABLE public.deployments COLUMN id uuid NOT NULL
+TABLE public.deployments COLUMN project_id uuid NOT NULL
+TABLE public.deployments COLUMN status character varying
+TABLE public.deployments COLUMN updated_at timestamp with time zone
+TABLE public.deployments COLUMN uri character varying
+TABLE public.docker_images COLUMN created_at timestamp with time zone
+TABLE public.docker_images COLUMN deletable boolean
+TABLE public.docker_images COLUMN docker_id character varying
+TABLE public.docker_images COLUMN id uuid NOT NULL
+TABLE public.docker_images COLUMN project_id uuid NOT NULL
+TABLE public.docker_images COLUMN tags character varying
+TABLE public.docker_images COLUMN template_uri character varying
+TABLE public.docker_images COLUMN type character varying
+TABLE public.docker_images COLUMN updated_at timestamp with time zone
+TABLE public.environment_artifacts COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.environment_artifacts COLUMN created_by_id uuid NOT NULL
+TABLE public.environment_artifacts COLUMN deleted_at timestamp with time zone
+TABLE public.environment_artifacts COLUMN deleted_by_id uuid
+TABLE public.environment_artifacts COLUMN description character varying
+TABLE public.environment_artifacts COLUMN flags jsonb
+TABLE public.environment_artifacts COLUMN folder_id uuid
+TABLE public.environment_artifacts COLUMN id uuid NOT NULL
+TABLE public.environment_artifacts COLUMN meta json
+TABLE public.environment_artifacts COLUMN name character varying
+TABLE public.environment_artifacts COLUMN project_id uuid NOT NULL
+TABLE public.environment_artifacts COLUMN slug character varying NOT NULL
+TABLE public.environment_artifacts COLUMN tags jsonb
+TABLE public.environment_artifacts COLUMN updated_at timestamp with time zone
+TABLE public.environment_artifacts COLUMN updated_by_id uuid
+TABLE public.environment_revisions COLUMN artifact_id uuid NOT NULL
+TABLE public.environment_revisions COLUMN author uuid NOT NULL
+TABLE public.environment_revisions COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.environment_revisions COLUMN created_by_id uuid NOT NULL
+TABLE public.environment_revisions COLUMN data jsonb
+TABLE public.environment_revisions COLUMN date timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.environment_revisions COLUMN deleted_at timestamp with time zone
+TABLE public.environment_revisions COLUMN deleted_by_id uuid
+TABLE public.environment_revisions COLUMN description character varying
+TABLE public.environment_revisions COLUMN flags jsonb
+TABLE public.environment_revisions COLUMN id uuid NOT NULL
+TABLE public.environment_revisions COLUMN message character varying
+TABLE public.environment_revisions COLUMN meta json
+TABLE public.environment_revisions COLUMN name character varying
+TABLE public.environment_revisions COLUMN project_id uuid NOT NULL
+TABLE public.environment_revisions COLUMN slug character varying NOT NULL
+TABLE public.environment_revisions COLUMN tags jsonb
+TABLE public.environment_revisions COLUMN updated_at timestamp with time zone
+TABLE public.environment_revisions COLUMN updated_by_id uuid
+TABLE public.environment_revisions COLUMN variant_id uuid NOT NULL
+TABLE public.environment_revisions COLUMN version character varying
+TABLE public.environment_variants COLUMN artifact_id uuid NOT NULL
+TABLE public.environment_variants COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.environment_variants COLUMN created_by_id uuid NOT NULL
+TABLE public.environment_variants COLUMN deleted_at timestamp with time zone
+TABLE public.environment_variants COLUMN deleted_by_id uuid
+TABLE public.environment_variants COLUMN description character varying
+TABLE public.environment_variants COLUMN flags jsonb
+TABLE public.environment_variants COLUMN id uuid NOT NULL
+TABLE public.environment_variants COLUMN meta json
+TABLE public.environment_variants COLUMN name character varying
+TABLE public.environment_variants COLUMN project_id uuid NOT NULL
+TABLE public.environment_variants COLUMN slug character varying NOT NULL
+TABLE public.environment_variants COLUMN tags jsonb
+TABLE public.environment_variants COLUMN updated_at timestamp with time zone
+TABLE public.environment_variants COLUMN updated_by_id uuid
+TABLE public.environments COLUMN app_id uuid
+TABLE public.environments COLUMN created_at timestamp with time zone
+TABLE public.environments COLUMN deployed_app_variant_id uuid
+TABLE public.environments COLUMN deployed_app_variant_revision_id uuid
+TABLE public.environments COLUMN deployment_id uuid
+TABLE public.environments COLUMN id uuid NOT NULL
+TABLE public.environments COLUMN name character varying
+TABLE public.environments COLUMN project_id uuid NOT NULL
+TABLE public.environments COLUMN revision integer
+TABLE public.environments_revisions COLUMN commit_message character varying(255)
+TABLE public.environments_revisions COLUMN created_at timestamp with time zone
+TABLE public.environments_revisions COLUMN deployed_app_variant_revision_id uuid
+TABLE public.environments_revisions COLUMN deployment_id uuid
+TABLE public.environments_revisions COLUMN environment_id uuid
+TABLE public.environments_revisions COLUMN id uuid NOT NULL
+TABLE public.environments_revisions COLUMN modified_by_id uuid
+TABLE public.environments_revisions COLUMN project_id uuid NOT NULL
+TABLE public.environments_revisions COLUMN revision integer
+TABLE public.evaluation_metrics COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.evaluation_metrics COLUMN created_by_id uuid NOT NULL
+TABLE public.evaluation_metrics COLUMN data json
+TABLE public.evaluation_metrics COLUMN deleted_at timestamp with time zone
+TABLE public.evaluation_metrics COLUMN deleted_by_id uuid
+TABLE public.evaluation_metrics COLUMN flags jsonb
+TABLE public.evaluation_metrics COLUMN id uuid NOT NULL
+TABLE public.evaluation_metrics COLUMN interval integer
+TABLE public.evaluation_metrics COLUMN meta json
+TABLE public.evaluation_metrics COLUMN project_id uuid NOT NULL
+TABLE public.evaluation_metrics COLUMN run_id uuid NOT NULL
+TABLE public.evaluation_metrics COLUMN scenario_id uuid
+TABLE public.evaluation_metrics COLUMN status character varying NOT NULL
+TABLE public.evaluation_metrics COLUMN tags jsonb
+TABLE public.evaluation_metrics COLUMN timestamp timestamp with time zone
+TABLE public.evaluation_metrics COLUMN updated_at timestamp with time zone
+TABLE public.evaluation_metrics COLUMN updated_by_id uuid
+TABLE public.evaluation_metrics COLUMN version character varying
+TABLE public.evaluation_queues COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.evaluation_queues COLUMN created_by_id uuid NOT NULL
+TABLE public.evaluation_queues COLUMN data json
+TABLE public.evaluation_queues COLUMN deleted_at timestamp with time zone
+TABLE public.evaluation_queues COLUMN deleted_by_id uuid
+TABLE public.evaluation_queues COLUMN description character varying
+TABLE public.evaluation_queues COLUMN flags jsonb
+TABLE public.evaluation_queues COLUMN id uuid NOT NULL
+TABLE public.evaluation_queues COLUMN meta json
+TABLE public.evaluation_queues COLUMN name character varying
+TABLE public.evaluation_queues COLUMN project_id uuid NOT NULL
+TABLE public.evaluation_queues COLUMN run_id uuid NOT NULL
+TABLE public.evaluation_queues COLUMN status character varying NOT NULL DEFAULT 'pending'::character varying
+TABLE public.evaluation_queues COLUMN tags jsonb
+TABLE public.evaluation_queues COLUMN updated_at timestamp with time zone
+TABLE public.evaluation_queues COLUMN updated_by_id uuid
+TABLE public.evaluation_queues COLUMN user_ids uuid[]
+TABLE public.evaluation_queues COLUMN version character varying
+TABLE public.evaluation_results COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.evaluation_results COLUMN created_by_id uuid NOT NULL
+TABLE public.evaluation_results COLUMN deleted_at timestamp with time zone
+TABLE public.evaluation_results COLUMN deleted_by_id uuid
+TABLE public.evaluation_results COLUMN error jsonb
+TABLE public.evaluation_results COLUMN flags jsonb
+TABLE public.evaluation_results COLUMN hash_id uuid
+TABLE public.evaluation_results COLUMN id uuid NOT NULL
+TABLE public.evaluation_results COLUMN interval integer
+TABLE public.evaluation_results COLUMN meta json
+TABLE public.evaluation_results COLUMN project_id uuid NOT NULL
+TABLE public.evaluation_results COLUMN repeat_idx integer
+TABLE public.evaluation_results COLUMN run_id uuid NOT NULL
+TABLE public.evaluation_results COLUMN scenario_id uuid NOT NULL
+TABLE public.evaluation_results COLUMN status character varying NOT NULL
+TABLE public.evaluation_results COLUMN step_key character varying NOT NULL
+TABLE public.evaluation_results COLUMN tags jsonb
+TABLE public.evaluation_results COLUMN testcase_id uuid
+TABLE public.evaluation_results COLUMN timestamp timestamp with time zone
+TABLE public.evaluation_results COLUMN trace_id uuid
+TABLE public.evaluation_results COLUMN updated_at timestamp with time zone
+TABLE public.evaluation_results COLUMN updated_by_id uuid
+TABLE public.evaluation_results COLUMN version character varying
+TABLE public.evaluation_runs COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.evaluation_runs COLUMN created_by_id uuid NOT NULL
+TABLE public.evaluation_runs COLUMN data json
+TABLE public.evaluation_runs COLUMN deleted_at timestamp with time zone
+TABLE public.evaluation_runs COLUMN deleted_by_id uuid
+TABLE public.evaluation_runs COLUMN description character varying
+TABLE public.evaluation_runs COLUMN flags jsonb
+TABLE public.evaluation_runs COLUMN id uuid NOT NULL
+TABLE public.evaluation_runs COLUMN meta json
+TABLE public.evaluation_runs COLUMN name character varying
+TABLE public.evaluation_runs COLUMN project_id uuid NOT NULL
+TABLE public.evaluation_runs COLUMN references jsonb
+TABLE public.evaluation_runs COLUMN status character varying NOT NULL
+TABLE public.evaluation_runs COLUMN tags jsonb
+TABLE public.evaluation_runs COLUMN updated_at timestamp with time zone
+TABLE public.evaluation_runs COLUMN updated_by_id uuid
+TABLE public.evaluation_runs COLUMN version character varying
+TABLE public.evaluation_scenarios COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.evaluation_scenarios COLUMN created_by_id uuid NOT NULL
+TABLE public.evaluation_scenarios COLUMN deleted_at timestamp with time zone
+TABLE public.evaluation_scenarios COLUMN deleted_by_id uuid
+TABLE public.evaluation_scenarios COLUMN flags jsonb
+TABLE public.evaluation_scenarios COLUMN id uuid NOT NULL
+TABLE public.evaluation_scenarios COLUMN interval integer
+TABLE public.evaluation_scenarios COLUMN meta json
+TABLE public.evaluation_scenarios COLUMN project_id uuid NOT NULL
+TABLE public.evaluation_scenarios COLUMN run_id uuid NOT NULL
+TABLE public.evaluation_scenarios COLUMN status character varying NOT NULL
+TABLE public.evaluation_scenarios COLUMN tags jsonb
+TABLE public.evaluation_scenarios COLUMN timestamp timestamp with time zone
+TABLE public.evaluation_scenarios COLUMN updated_at timestamp with time zone
+TABLE public.evaluation_scenarios COLUMN updated_by_id uuid
+TABLE public.evaluation_scenarios COLUMN version character varying
+TABLE public.folders COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.folders COLUMN created_by_id uuid NOT NULL
+TABLE public.folders COLUMN deleted_at timestamp with time zone
+TABLE public.folders COLUMN deleted_by_id uuid
+TABLE public.folders COLUMN description character varying
+TABLE public.folders COLUMN flags jsonb
+TABLE public.folders COLUMN id uuid NOT NULL
+TABLE public.folders COLUMN kind folder_kind_enum
+TABLE public.folders COLUMN meta json
+TABLE public.folders COLUMN name character varying
+TABLE public.folders COLUMN parent_id uuid
+TABLE public.folders COLUMN path ltree NOT NULL
+TABLE public.folders COLUMN project_id uuid NOT NULL
+TABLE public.folders COLUMN slug character varying NOT NULL
+TABLE public.folders COLUMN tags jsonb
+TABLE public.folders COLUMN updated_at timestamp with time zone
+TABLE public.folders COLUMN updated_by_id uuid
+TABLE public.human_evaluation_variants COLUMN human_evaluation_id uuid
+TABLE public.human_evaluation_variants COLUMN id uuid NOT NULL
+TABLE public.human_evaluation_variants COLUMN variant_id uuid
+TABLE public.human_evaluation_variants COLUMN variant_revision_id uuid
+TABLE public.human_evaluations COLUMN app_id uuid
+TABLE public.human_evaluations COLUMN created_at timestamp with time zone
+TABLE public.human_evaluations COLUMN evaluation_type character varying
+TABLE public.human_evaluations COLUMN id uuid NOT NULL
+TABLE public.human_evaluations COLUMN project_id uuid NOT NULL
+TABLE public.human_evaluations COLUMN status character varying
+TABLE public.human_evaluations COLUMN testset_id uuid
+TABLE public.human_evaluations COLUMN updated_at timestamp with time zone
+TABLE public.human_evaluations_scenarios COLUMN correct_answer character varying
+TABLE public.human_evaluations_scenarios COLUMN created_at timestamp with time zone
+TABLE public.human_evaluations_scenarios COLUMN evaluation_id uuid
+TABLE public.human_evaluations_scenarios COLUMN id uuid NOT NULL
+TABLE public.human_evaluations_scenarios COLUMN inputs jsonb
+TABLE public.human_evaluations_scenarios COLUMN is_pinned boolean
+TABLE public.human_evaluations_scenarios COLUMN note character varying
+TABLE public.human_evaluations_scenarios COLUMN outputs jsonb
+TABLE public.human_evaluations_scenarios COLUMN project_id uuid NOT NULL
+TABLE public.human_evaluations_scenarios COLUMN score character varying
+TABLE public.human_evaluations_scenarios COLUMN updated_at timestamp with time zone
+TABLE public.human_evaluations_scenarios COLUMN vote character varying
+TABLE public.ids_mapping COLUMN id uuid NOT NULL
+TABLE public.ids_mapping COLUMN objectid character varying NOT NULL
+TABLE public.ids_mapping COLUMN table_name character varying NOT NULL
+TABLE public.ids_mapping COLUMN uuid uuid NOT NULL
+TABLE public.organizations COLUMN created_at timestamp with time zone NOT NULL
+TABLE public.organizations COLUMN created_by_id uuid NOT NULL
+TABLE public.organizations COLUMN deleted_at timestamp with time zone
+TABLE public.organizations COLUMN deleted_by_id uuid
+TABLE public.organizations COLUMN description character varying
+TABLE public.organizations COLUMN flags jsonb
+TABLE public.organizations COLUMN id uuid NOT NULL
+TABLE public.organizations COLUMN meta jsonb
+TABLE public.organizations COLUMN name character varying
+TABLE public.organizations COLUMN owner_id uuid NOT NULL
+TABLE public.organizations COLUMN slug character varying
+TABLE public.organizations COLUMN tags jsonb
+TABLE public.organizations COLUMN updated_at timestamp with time zone
+TABLE public.organizations COLUMN updated_by_id uuid
+TABLE public.project_invitations COLUMN created_at timestamp with time zone
+TABLE public.project_invitations COLUMN email character varying NOT NULL
+TABLE public.project_invitations COLUMN expiration_date timestamp with time zone
+TABLE public.project_invitations COLUMN id uuid NOT NULL
+TABLE public.project_invitations COLUMN project_id uuid NOT NULL
+TABLE public.project_invitations COLUMN role character varying NOT NULL
+TABLE public.project_invitations COLUMN token character varying NOT NULL
+TABLE public.project_invitations COLUMN used boolean
+TABLE public.project_invitations COLUMN user_id uuid
+TABLE public.projects COLUMN created_at timestamp with time zone
+TABLE public.projects COLUMN id uuid NOT NULL
+TABLE public.projects COLUMN is_default boolean
+TABLE public.projects COLUMN organization_id uuid
+TABLE public.projects COLUMN project_name character varying NOT NULL
+TABLE public.projects COLUMN updated_at timestamp with time zone
+TABLE public.projects COLUMN workspace_id uuid
+TABLE public.query_artifacts COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.query_artifacts COLUMN created_by_id uuid NOT NULL
+TABLE public.query_artifacts COLUMN deleted_at timestamp with time zone
+TABLE public.query_artifacts COLUMN deleted_by_id uuid
+TABLE public.query_artifacts COLUMN description character varying
+TABLE public.query_artifacts COLUMN flags jsonb
+TABLE public.query_artifacts COLUMN folder_id uuid
+TABLE public.query_artifacts COLUMN id uuid NOT NULL
+TABLE public.query_artifacts COLUMN meta json
+TABLE public.query_artifacts COLUMN name character varying
+TABLE public.query_artifacts COLUMN project_id uuid NOT NULL
+TABLE public.query_artifacts COLUMN slug character varying NOT NULL
+TABLE public.query_artifacts COLUMN tags jsonb
+TABLE public.query_artifacts COLUMN updated_at timestamp with time zone
+TABLE public.query_artifacts COLUMN updated_by_id uuid
+TABLE public.query_revisions COLUMN artifact_id uuid NOT NULL
+TABLE public.query_revisions COLUMN author uuid NOT NULL
+TABLE public.query_revisions COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.query_revisions COLUMN created_by_id uuid NOT NULL
+TABLE public.query_revisions COLUMN data json
+TABLE public.query_revisions COLUMN date timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.query_revisions COLUMN deleted_at timestamp with time zone
+TABLE public.query_revisions COLUMN deleted_by_id uuid
+TABLE public.query_revisions COLUMN description character varying
+TABLE public.query_revisions COLUMN flags jsonb
+TABLE public.query_revisions COLUMN id uuid NOT NULL
+TABLE public.query_revisions COLUMN message character varying
+TABLE public.query_revisions COLUMN meta json
+TABLE public.query_revisions COLUMN name character varying
+TABLE public.query_revisions COLUMN project_id uuid NOT NULL
+TABLE public.query_revisions COLUMN slug character varying NOT NULL
+TABLE public.query_revisions COLUMN tags jsonb
+TABLE public.query_revisions COLUMN updated_at timestamp with time zone
+TABLE public.query_revisions COLUMN updated_by_id uuid
+TABLE public.query_revisions COLUMN variant_id uuid NOT NULL
+TABLE public.query_revisions COLUMN version character varying
+TABLE public.query_variants COLUMN artifact_id uuid NOT NULL
+TABLE public.query_variants COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.query_variants COLUMN created_by_id uuid NOT NULL
+TABLE public.query_variants COLUMN deleted_at timestamp with time zone
+TABLE public.query_variants COLUMN deleted_by_id uuid
+TABLE public.query_variants COLUMN description character varying
+TABLE public.query_variants COLUMN flags jsonb
+TABLE public.query_variants COLUMN id uuid NOT NULL
+TABLE public.query_variants COLUMN meta json
+TABLE public.query_variants COLUMN name character varying
+TABLE public.query_variants COLUMN project_id uuid NOT NULL
+TABLE public.query_variants COLUMN slug character varying NOT NULL
+TABLE public.query_variants COLUMN tags jsonb
+TABLE public.query_variants COLUMN updated_at timestamp with time zone
+TABLE public.query_variants COLUMN updated_by_id uuid
+TABLE public.secrets COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.secrets COLUMN data bytea
+TABLE public.secrets COLUMN description character varying
+TABLE public.secrets COLUMN id uuid NOT NULL
+TABLE public.secrets COLUMN kind secretkind_enum
+TABLE public.secrets COLUMN name character varying
+TABLE public.secrets COLUMN organization_id uuid
+TABLE public.secrets COLUMN project_id uuid
+TABLE public.secrets COLUMN updated_at timestamp with time zone
+TABLE public.secrets COLUMN updated_by_id uuid
+TABLE public.templates COLUMN description character varying
+TABLE public.templates COLUMN digest character varying
+TABLE public.templates COLUMN id uuid NOT NULL
+TABLE public.templates COLUMN last_pushed timestamp with time zone
+TABLE public.templates COLUMN name character varying
+TABLE public.templates COLUMN repo_name character varying
+TABLE public.templates COLUMN size integer
+TABLE public.templates COLUMN tag_id integer
+TABLE public.templates COLUMN template_uri character varying
+TABLE public.templates COLUMN title character varying
+TABLE public.templates COLUMN type templatetype NOT NULL
+TABLE public.testcase_blobs COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.testcase_blobs COLUMN created_by_id uuid NOT NULL
+TABLE public.testcase_blobs COLUMN data json
+TABLE public.testcase_blobs COLUMN deleted_at timestamp with time zone
+TABLE public.testcase_blobs COLUMN deleted_by_id uuid
+TABLE public.testcase_blobs COLUMN flags jsonb
+TABLE public.testcase_blobs COLUMN id uuid NOT NULL
+TABLE public.testcase_blobs COLUMN meta json
+TABLE public.testcase_blobs COLUMN project_id uuid NOT NULL
+TABLE public.testcase_blobs COLUMN set_id uuid
+TABLE public.testcase_blobs COLUMN tags jsonb
+TABLE public.testcase_blobs COLUMN updated_at timestamp with time zone
+TABLE public.testcase_blobs COLUMN updated_by_id uuid
+TABLE public.testset_artifacts COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.testset_artifacts COLUMN created_by_id uuid NOT NULL
+TABLE public.testset_artifacts COLUMN deleted_at timestamp with time zone
+TABLE public.testset_artifacts COLUMN deleted_by_id uuid
+TABLE public.testset_artifacts COLUMN description character varying
+TABLE public.testset_artifacts COLUMN flags jsonb
+TABLE public.testset_artifacts COLUMN folder_id uuid
+TABLE public.testset_artifacts COLUMN id uuid NOT NULL
+TABLE public.testset_artifacts COLUMN meta json
+TABLE public.testset_artifacts COLUMN name character varying
+TABLE public.testset_artifacts COLUMN project_id uuid NOT NULL
+TABLE public.testset_artifacts COLUMN slug character varying NOT NULL
+TABLE public.testset_artifacts COLUMN tags jsonb
+TABLE public.testset_artifacts COLUMN updated_at timestamp with time zone
+TABLE public.testset_artifacts COLUMN updated_by_id uuid
+TABLE public.testset_revisions COLUMN artifact_id uuid NOT NULL
+TABLE public.testset_revisions COLUMN author uuid NOT NULL
+TABLE public.testset_revisions COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.testset_revisions COLUMN created_by_id uuid NOT NULL
+TABLE public.testset_revisions COLUMN data json
+TABLE public.testset_revisions COLUMN date timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.testset_revisions COLUMN deleted_at timestamp with time zone
+TABLE public.testset_revisions COLUMN deleted_by_id uuid
+TABLE public.testset_revisions COLUMN description character varying
+TABLE public.testset_revisions COLUMN flags jsonb
+TABLE public.testset_revisions COLUMN id uuid NOT NULL
+TABLE public.testset_revisions COLUMN message character varying
+TABLE public.testset_revisions COLUMN meta json
+TABLE public.testset_revisions COLUMN name character varying
+TABLE public.testset_revisions COLUMN project_id uuid NOT NULL
+TABLE public.testset_revisions COLUMN slug character varying NOT NULL
+TABLE public.testset_revisions COLUMN tags jsonb
+TABLE public.testset_revisions COLUMN updated_at timestamp with time zone
+TABLE public.testset_revisions COLUMN updated_by_id uuid
+TABLE public.testset_revisions COLUMN variant_id uuid NOT NULL
+TABLE public.testset_revisions COLUMN version character varying
+TABLE public.testset_variants COLUMN artifact_id uuid NOT NULL
+TABLE public.testset_variants COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.testset_variants COLUMN created_by_id uuid NOT NULL
+TABLE public.testset_variants COLUMN deleted_at timestamp with time zone
+TABLE public.testset_variants COLUMN deleted_by_id uuid
+TABLE public.testset_variants COLUMN description character varying
+TABLE public.testset_variants COLUMN flags jsonb
+TABLE public.testset_variants COLUMN id uuid NOT NULL
+TABLE public.testset_variants COLUMN meta json
+TABLE public.testset_variants COLUMN name character varying
+TABLE public.testset_variants COLUMN project_id uuid NOT NULL
+TABLE public.testset_variants COLUMN slug character varying NOT NULL
+TABLE public.testset_variants COLUMN tags jsonb
+TABLE public.testset_variants COLUMN updated_at timestamp with time zone
+TABLE public.testset_variants COLUMN updated_by_id uuid
+TABLE public.testsets COLUMN created_at timestamp with time zone
+TABLE public.testsets COLUMN csvdata jsonb
+TABLE public.testsets COLUMN id uuid NOT NULL
+TABLE public.testsets COLUMN name character varying
+TABLE public.testsets COLUMN project_id uuid NOT NULL
+TABLE public.testsets COLUMN updated_at timestamp with time zone
+TABLE public.tool_connections COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.tool_connections COLUMN created_by_id uuid NOT NULL
+TABLE public.tool_connections COLUMN data json
+TABLE public.tool_connections COLUMN deleted_at timestamp with time zone
+TABLE public.tool_connections COLUMN deleted_by_id uuid
+TABLE public.tool_connections COLUMN description character varying
+TABLE public.tool_connections COLUMN flags jsonb
+TABLE public.tool_connections COLUMN id uuid NOT NULL
+TABLE public.tool_connections COLUMN integration_key character varying NOT NULL
+TABLE public.tool_connections COLUMN meta json
+TABLE public.tool_connections COLUMN name character varying
+TABLE public.tool_connections COLUMN project_id uuid NOT NULL
+TABLE public.tool_connections COLUMN provider_key character varying NOT NULL
+TABLE public.tool_connections COLUMN slug character varying NOT NULL
+TABLE public.tool_connections COLUMN status jsonb
+TABLE public.tool_connections COLUMN tags jsonb
+TABLE public.tool_connections COLUMN updated_at timestamp with time zone
+TABLE public.tool_connections COLUMN updated_by_id uuid
+TABLE public.user_identities COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.user_identities COLUMN created_by_id uuid
+TABLE public.user_identities COLUMN deleted_at timestamp with time zone
+TABLE public.user_identities COLUMN deleted_by_id uuid
+TABLE public.user_identities COLUMN domain character varying
+TABLE public.user_identities COLUMN id uuid NOT NULL
+TABLE public.user_identities COLUMN method character varying NOT NULL
+TABLE public.user_identities COLUMN subject character varying NOT NULL
+TABLE public.user_identities COLUMN updated_at timestamp with time zone
+TABLE public.user_identities COLUMN updated_by_id uuid
+TABLE public.user_identities COLUMN user_id uuid NOT NULL
+TABLE public.users COLUMN created_at timestamp with time zone
+TABLE public.users COLUMN email character varying
+TABLE public.users COLUMN id uuid NOT NULL
+TABLE public.users COLUMN is_active boolean NOT NULL DEFAULT true
+TABLE public.users COLUMN uid character varying
+TABLE public.users COLUMN updated_at timestamp with time zone
+TABLE public.users COLUMN username character varying
+TABLE public.webhook_deliveries COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.webhook_deliveries COLUMN created_by_id uuid
+TABLE public.webhook_deliveries COLUMN data json
+TABLE public.webhook_deliveries COLUMN deleted_at timestamp with time zone
+TABLE public.webhook_deliveries COLUMN deleted_by_id uuid
+TABLE public.webhook_deliveries COLUMN event_id uuid NOT NULL
+TABLE public.webhook_deliveries COLUMN id uuid NOT NULL
+TABLE public.webhook_deliveries COLUMN project_id uuid NOT NULL
+TABLE public.webhook_deliveries COLUMN status jsonb
+TABLE public.webhook_deliveries COLUMN subscription_id uuid NOT NULL
+TABLE public.webhook_deliveries COLUMN updated_at timestamp with time zone
+TABLE public.webhook_deliveries COLUMN updated_by_id uuid
+TABLE public.webhook_subscriptions COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.webhook_subscriptions COLUMN created_by_id uuid NOT NULL
+TABLE public.webhook_subscriptions COLUMN data json
+TABLE public.webhook_subscriptions COLUMN deleted_at timestamp with time zone
+TABLE public.webhook_subscriptions COLUMN deleted_by_id uuid
+TABLE public.webhook_subscriptions COLUMN description character varying
+TABLE public.webhook_subscriptions COLUMN flags jsonb
+TABLE public.webhook_subscriptions COLUMN id uuid NOT NULL
+TABLE public.webhook_subscriptions COLUMN meta json
+TABLE public.webhook_subscriptions COLUMN name character varying
+TABLE public.webhook_subscriptions COLUMN project_id uuid NOT NULL
+TABLE public.webhook_subscriptions COLUMN secret_id uuid
+TABLE public.webhook_subscriptions COLUMN tags jsonb
+TABLE public.webhook_subscriptions COLUMN updated_at timestamp with time zone
+TABLE public.webhook_subscriptions COLUMN updated_by_id uuid
+TABLE public.workflow_artifacts COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.workflow_artifacts COLUMN created_by_id uuid NOT NULL
+TABLE public.workflow_artifacts COLUMN deleted_at timestamp with time zone
+TABLE public.workflow_artifacts COLUMN deleted_by_id uuid
+TABLE public.workflow_artifacts COLUMN description character varying
+TABLE public.workflow_artifacts COLUMN flags jsonb
+TABLE public.workflow_artifacts COLUMN folder_id uuid
+TABLE public.workflow_artifacts COLUMN id uuid NOT NULL
+TABLE public.workflow_artifacts COLUMN meta json
+TABLE public.workflow_artifacts COLUMN name character varying
+TABLE public.workflow_artifacts COLUMN project_id uuid NOT NULL
+TABLE public.workflow_artifacts COLUMN slug character varying NOT NULL
+TABLE public.workflow_artifacts COLUMN tags jsonb
+TABLE public.workflow_artifacts COLUMN updated_at timestamp with time zone
+TABLE public.workflow_artifacts COLUMN updated_by_id uuid
+TABLE public.workflow_revisions COLUMN artifact_id uuid NOT NULL
+TABLE public.workflow_revisions COLUMN author uuid NOT NULL
+TABLE public.workflow_revisions COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.workflow_revisions COLUMN created_by_id uuid NOT NULL
+TABLE public.workflow_revisions COLUMN data json
+TABLE public.workflow_revisions COLUMN date timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.workflow_revisions COLUMN deleted_at timestamp with time zone
+TABLE public.workflow_revisions COLUMN deleted_by_id uuid
+TABLE public.workflow_revisions COLUMN description character varying
+TABLE public.workflow_revisions COLUMN flags jsonb
+TABLE public.workflow_revisions COLUMN id uuid NOT NULL
+TABLE public.workflow_revisions COLUMN message character varying
+TABLE public.workflow_revisions COLUMN meta json
+TABLE public.workflow_revisions COLUMN name character varying
+TABLE public.workflow_revisions COLUMN project_id uuid NOT NULL
+TABLE public.workflow_revisions COLUMN slug character varying NOT NULL
+TABLE public.workflow_revisions COLUMN tags jsonb
+TABLE public.workflow_revisions COLUMN updated_at timestamp with time zone
+TABLE public.workflow_revisions COLUMN updated_by_id uuid
+TABLE public.workflow_revisions COLUMN variant_id uuid NOT NULL
+TABLE public.workflow_revisions COLUMN version character varying
+TABLE public.workflow_variants COLUMN artifact_id uuid NOT NULL
+TABLE public.workflow_variants COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.workflow_variants COLUMN created_by_id uuid NOT NULL
+TABLE public.workflow_variants COLUMN deleted_at timestamp with time zone
+TABLE public.workflow_variants COLUMN deleted_by_id uuid
+TABLE public.workflow_variants COLUMN description character varying
+TABLE public.workflow_variants COLUMN flags jsonb
+TABLE public.workflow_variants COLUMN id uuid NOT NULL
+TABLE public.workflow_variants COLUMN meta json
+TABLE public.workflow_variants COLUMN name character varying
+TABLE public.workflow_variants COLUMN project_id uuid NOT NULL
+TABLE public.workflow_variants COLUMN slug character varying NOT NULL
+TABLE public.workflow_variants COLUMN tags jsonb
+TABLE public.workflow_variants COLUMN updated_at timestamp with time zone
+TABLE public.workflow_variants COLUMN updated_by_id uuid
+TABLE public.workspaces COLUMN created_at timestamp with time zone
+TABLE public.workspaces COLUMN description character varying
+TABLE public.workspaces COLUMN id uuid NOT NULL
+TABLE public.workspaces COLUMN name character varying
+TABLE public.workspaces COLUMN organization_id uuid
+TABLE public.workspaces COLUMN type character varying
+TABLE public.workspaces COLUMN updated_at timestamp with time zone
+
+## COLUMN ORDER
+TABLE public.alembic_version COLUMN-ORDER (version_num)
+TABLE public.api_keys COLUMN-ORDER (id, prefix, hashed_key, project_id, created_by_id, rate_limit, hidden, expiration_date, created_at, updated_at)
+TABLE public.app_db COLUMN-ORDER (id, app_name, created_at, updated_at, modified_by_id, project_id, app_type, folder_id)
+TABLE public.app_variant_revisions COLUMN-ORDER (id, variant_id, revision, modified_by_id, base_id, config_name, created_at, updated_at, project_id, commit_message, hidden, config_parameters)
+TABLE public.app_variants COLUMN-ORDER (id, app_id, variant_name, revision, image_id, modified_by_id, base_name, base_id, config_name, created_at, updated_at, project_id, hidden, config_parameters)
+TABLE public.auto_evaluation_aggregated_results COLUMN-ORDER (id, evaluation_id, evaluator_config_id, result)
+TABLE public.auto_evaluation_evaluator_configs COLUMN-ORDER (id, evaluation_id, evaluator_config_id)
+TABLE public.auto_evaluation_scenario_results COLUMN-ORDER (id, evaluation_scenario_id, evaluator_config_id, result)
+TABLE public.auto_evaluation_scenarios COLUMN-ORDER (id, evaluation_id, variant_id, inputs, outputs, correct_answers, is_pinned, note, latency, cost, created_at, updated_at, project_id)
+TABLE public.auto_evaluations COLUMN-ORDER (id, app_id, status, testset_id, variant_id, variant_revision_id, average_cost, total_cost, average_latency, created_at, updated_at, project_id)
+TABLE public.auto_evaluator_configs COLUMN-ORDER (id, name, evaluator_key, settings_values, created_at, updated_at, project_id)
+TABLE public.bases COLUMN-ORDER (id, app_id, base_name, image_id, deployment_id, created_at, updated_at, project_id)
+TABLE public.deployments COLUMN-ORDER (id, app_id, container_name, container_id, uri, status, created_at, updated_at, project_id)
+TABLE public.docker_images COLUMN-ORDER (id, type, template_uri, docker_id, tags, deletable, created_at, updated_at, project_id)
+TABLE public.environment_artifacts COLUMN-ORDER (project_id, id, slug, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, flags, tags, meta, name, description, folder_id)
+TABLE public.environment_revisions COLUMN-ORDER (project_id, artifact_id, variant_id, id, slug, version, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, flags, tags, meta, name, description, message, author, date, data)
+TABLE public.environment_variants COLUMN-ORDER (project_id, artifact_id, id, slug, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, flags, tags, meta, name, description)
+TABLE public.environments COLUMN-ORDER (id, app_id, name, revision, deployed_app_variant_id, deployed_app_variant_revision_id, deployment_id, created_at, project_id)
+TABLE public.environments_revisions COLUMN-ORDER (id, environment_id, revision, modified_by_id, deployed_app_variant_revision_id, deployment_id, created_at, project_id, commit_message)
+TABLE public.evaluation_metrics COLUMN-ORDER (project_id, id, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, meta, flags, data, status, scenario_id, run_id, tags, timestamp, interval, version)
+TABLE public.evaluation_queues COLUMN-ORDER (project_id, id, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, flags, tags, meta, data, run_id, name, description, status, version, user_ids)
+TABLE public.evaluation_results COLUMN-ORDER (project_id, id, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, meta, flags, status, timestamp, step_key, hash_id, trace_id, testcase_id, error, scenario_id, run_id, tags, repeat_idx, interval, version)
+TABLE public.evaluation_runs COLUMN-ORDER (project_id, id, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, name, description, meta, flags, data, status, tags, references, version)
+TABLE public.evaluation_scenarios COLUMN-ORDER (project_id, id, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, meta, flags, status, run_id, tags, timestamp, interval, version)
+TABLE public.folders COLUMN-ORDER (project_id, id, name, description, slug, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, tags, flags, meta, kind, path, parent_id)
+TABLE public.human_evaluation_variants COLUMN-ORDER (id, human_evaluation_id, variant_id, variant_revision_id)
+TABLE public.human_evaluations COLUMN-ORDER (id, app_id, status, evaluation_type, testset_id, created_at, updated_at, project_id)
+TABLE public.human_evaluations_scenarios COLUMN-ORDER (id, evaluation_id, inputs, outputs, vote, score, correct_answer, created_at, updated_at, is_pinned, note, project_id)
+TABLE public.ids_mapping COLUMN-ORDER (id, table_name, objectid, uuid)
+TABLE public.organizations COLUMN-ORDER (id, name, description, created_at, updated_at, slug, flags, tags, meta, owner_id, created_by_id, updated_by_id, deleted_at, deleted_by_id)
+TABLE public.project_invitations COLUMN-ORDER (id, token, email, used, role, user_id, project_id, expiration_date, created_at)
+TABLE public.projects COLUMN-ORDER (id, project_name, is_default, created_at, updated_at, workspace_id, organization_id)
+TABLE public.query_artifacts COLUMN-ORDER (project_id, id, slug, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, flags, tags, meta, name, description, folder_id)
+TABLE public.query_revisions COLUMN-ORDER (project_id, artifact_id, variant_id, id, slug, version, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, flags, tags, meta, name, description, message, author, date, data)
+TABLE public.query_variants COLUMN-ORDER (project_id, artifact_id, id, slug, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, flags, tags, meta, name, description)
+TABLE public.secrets COLUMN-ORDER (id, kind, data, project_id, created_at, updated_at, updated_by_id, name, description, organization_id)
+TABLE public.templates COLUMN-ORDER (id, type, template_uri, tag_id, name, repo_name, title, description, size, digest, last_pushed)
+TABLE public.testcase_blobs COLUMN-ORDER (project_id, set_id, id, data, tags, flags, meta, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id)
+TABLE public.testset_artifacts COLUMN-ORDER (project_id, id, slug, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, flags, meta, name, description, tags, folder_id)
+TABLE public.testset_revisions COLUMN-ORDER (project_id, artifact_id, variant_id, id, slug, version, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, flags, meta, name, description, message, author, date, data, tags)
+TABLE public.testset_variants COLUMN-ORDER (project_id, artifact_id, id, slug, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, flags, meta, name, description, tags)
+TABLE public.testsets COLUMN-ORDER (id, name, csvdata, created_at, updated_at, project_id)
+TABLE public.tool_connections COLUMN-ORDER (project_id, id, slug, name, description, provider_key, integration_key, tags, flags, data, status, meta, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id)
+TABLE public.user_identities COLUMN-ORDER (id, user_id, method, subject, domain, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id)
+TABLE public.users COLUMN-ORDER (id, uid, username, email, created_at, updated_at, is_active)
+TABLE public.webhook_deliveries COLUMN-ORDER (project_id, id, subscription_id, event_id, status, data, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id)
+TABLE public.webhook_subscriptions COLUMN-ORDER (project_id, id, name, description, data, flags, meta, tags, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, secret_id)
+TABLE public.workflow_artifacts COLUMN-ORDER (project_id, id, slug, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, flags, meta, name, description, tags, folder_id)
+TABLE public.workflow_revisions COLUMN-ORDER (project_id, artifact_id, variant_id, id, slug, version, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, flags, meta, name, description, message, author, date, data, tags)
+TABLE public.workflow_variants COLUMN-ORDER (project_id, artifact_id, id, slug, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, flags, meta, name, description, tags)
+TABLE public.workspaces COLUMN-ORDER (id, name, type, description, organization_id, created_at, updated_at)
+
+## CONSTRAINTS (PK / FK / UNIQUE / CHECK / EXCLUDE)
+TABLE public.alembic_version CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+TABLE public.api_keys CONSTRAINT api_keys_created_by_id_fkey FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE SET NULL
+TABLE public.api_keys CONSTRAINT api_keys_pkey PRIMARY KEY (id)
+TABLE public.api_keys CONSTRAINT api_keys_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.app_db CONSTRAINT app_db_modified_by_id_fkey FOREIGN KEY (modified_by_id) REFERENCES users(id)
+TABLE public.app_db CONSTRAINT app_db_pkey PRIMARY KEY (id)
+TABLE public.app_db CONSTRAINT app_db_projects_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.app_db CONSTRAINT fk_app_db_folder_id_folders FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
+TABLE public.app_variant_revisions CONSTRAINT app_variant_revisions_base_id_fkey FOREIGN KEY (base_id) REFERENCES bases(id)
+TABLE public.app_variant_revisions CONSTRAINT app_variant_revisions_modified_by_id_fkey FOREIGN KEY (modified_by_id) REFERENCES users(id)
+TABLE public.app_variant_revisions CONSTRAINT app_variant_revisions_pkey PRIMARY KEY (id)
+TABLE public.app_variant_revisions CONSTRAINT app_variant_revisions_projects_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.app_variant_revisions CONSTRAINT app_variant_revisions_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES app_variants(id) ON DELETE CASCADE
+TABLE public.app_variants CONSTRAINT app_variants_app_id_fkey FOREIGN KEY (app_id) REFERENCES app_db(id) ON DELETE CASCADE
+TABLE public.app_variants CONSTRAINT app_variants_base_id_fkey FOREIGN KEY (base_id) REFERENCES bases(id)
+TABLE public.app_variants CONSTRAINT app_variants_image_id_fkey FOREIGN KEY (image_id) REFERENCES docker_images(id) ON DELETE SET NULL
+TABLE public.app_variants CONSTRAINT app_variants_modified_by_id_fkey FOREIGN KEY (modified_by_id) REFERENCES users(id)
+TABLE public.app_variants CONSTRAINT app_variants_pkey PRIMARY KEY (id)
+TABLE public.app_variants CONSTRAINT app_variants_projects_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.auto_evaluation_aggregated_results CONSTRAINT evaluation_aggregated_results_evaluation_id_fkey FOREIGN KEY (evaluation_id) REFERENCES auto_evaluations(id) ON DELETE CASCADE
+TABLE public.auto_evaluation_aggregated_results CONSTRAINT evaluation_aggregated_results_evaluator_config_id_fkey FOREIGN KEY (evaluator_config_id) REFERENCES auto_evaluator_configs(id) ON DELETE SET NULL
+TABLE public.auto_evaluation_aggregated_results CONSTRAINT evaluation_aggregated_results_pkey PRIMARY KEY (id)
+TABLE public.auto_evaluation_evaluator_configs CONSTRAINT evaluation_evaluator_configs_evaluation_id_fkey FOREIGN KEY (evaluation_id) REFERENCES auto_evaluations(id) ON DELETE CASCADE
+TABLE public.auto_evaluation_evaluator_configs CONSTRAINT evaluation_evaluator_configs_evaluator_config_id_fkey FOREIGN KEY (evaluator_config_id) REFERENCES auto_evaluator_configs(id) ON DELETE SET NULL
+TABLE public.auto_evaluation_evaluator_configs CONSTRAINT evaluation_evaluator_configs_id_key UNIQUE (id)
+TABLE public.auto_evaluation_evaluator_configs CONSTRAINT evaluation_evaluator_configs_pkey PRIMARY KEY (id, evaluation_id, evaluator_config_id)
+TABLE public.auto_evaluation_scenario_results CONSTRAINT evaluation_scenario_results_evaluation_scenario_id_fkey FOREIGN KEY (evaluation_scenario_id) REFERENCES auto_evaluation_scenarios(id) ON DELETE CASCADE
+TABLE public.auto_evaluation_scenario_results CONSTRAINT evaluation_scenario_results_evaluator_config_id_fkey FOREIGN KEY (evaluator_config_id) REFERENCES auto_evaluator_configs(id) ON DELETE SET NULL
+TABLE public.auto_evaluation_scenario_results CONSTRAINT evaluation_scenario_results_pkey PRIMARY KEY (id)
+TABLE public.auto_evaluation_scenarios CONSTRAINT evaluation_scenarios_evaluation_id_fkey FOREIGN KEY (evaluation_id) REFERENCES auto_evaluations(id) ON DELETE CASCADE
+TABLE public.auto_evaluation_scenarios CONSTRAINT evaluation_scenarios_pkey PRIMARY KEY (id)
+TABLE public.auto_evaluation_scenarios CONSTRAINT evaluation_scenarios_projects_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.auto_evaluation_scenarios CONSTRAINT evaluation_scenarios_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES app_variants(id) ON DELETE SET NULL
+TABLE public.auto_evaluations CONSTRAINT evaluations_app_id_fkey FOREIGN KEY (app_id) REFERENCES app_db(id) ON DELETE CASCADE
+TABLE public.auto_evaluations CONSTRAINT evaluations_pkey PRIMARY KEY (id)
+TABLE public.auto_evaluations CONSTRAINT evaluations_projects_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.auto_evaluations CONSTRAINT evaluations_testset_id_fkey FOREIGN KEY (testset_id) REFERENCES testsets(id) ON DELETE SET NULL
+TABLE public.auto_evaluations CONSTRAINT evaluations_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES app_variants(id) ON DELETE SET NULL
+TABLE public.auto_evaluations CONSTRAINT evaluations_variant_revision_id_fkey FOREIGN KEY (variant_revision_id) REFERENCES app_variant_revisions(id) ON DELETE SET NULL
+TABLE public.auto_evaluator_configs CONSTRAINT evaluators_configs_pkey PRIMARY KEY (id)
+TABLE public.auto_evaluator_configs CONSTRAINT evaluators_configs_projects_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.bases CONSTRAINT bases_deployment_id_fkey FOREIGN KEY (deployment_id) REFERENCES deployments(id) ON DELETE SET NULL
+TABLE public.bases CONSTRAINT bases_image_id_fkey FOREIGN KEY (image_id) REFERENCES docker_images(id) ON DELETE SET NULL
+TABLE public.bases CONSTRAINT bases_pkey PRIMARY KEY (id)
+TABLE public.bases CONSTRAINT bases_projects_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.deployments CONSTRAINT deployments_app_id_fkey FOREIGN KEY (app_id) REFERENCES app_db(id) ON DELETE CASCADE
+TABLE public.deployments CONSTRAINT deployments_pkey PRIMARY KEY (id)
+TABLE public.deployments CONSTRAINT deployments_projects_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.docker_images CONSTRAINT docker_images_pkey PRIMARY KEY (id)
+TABLE public.docker_images CONSTRAINT docker_images_projects_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.environment_artifacts CONSTRAINT environment_artifacts_folder_id_fkey FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
+TABLE public.environment_artifacts CONSTRAINT environment_artifacts_pkey PRIMARY KEY (project_id, id)
+TABLE public.environment_artifacts CONSTRAINT environment_artifacts_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.environment_artifacts CONSTRAINT environment_artifacts_project_id_slug_key UNIQUE (project_id, slug)
+TABLE public.environment_revisions CONSTRAINT environment_revisions_pkey PRIMARY KEY (project_id, id)
+TABLE public.environment_revisions CONSTRAINT environment_revisions_project_id_artifact_id_fkey FOREIGN KEY (project_id, artifact_id) REFERENCES environment_artifacts(project_id, id) ON DELETE CASCADE
+TABLE public.environment_revisions CONSTRAINT environment_revisions_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.environment_revisions CONSTRAINT environment_revisions_project_id_slug_key UNIQUE (project_id, slug)
+TABLE public.environment_revisions CONSTRAINT environment_revisions_project_id_variant_id_fkey FOREIGN KEY (project_id, variant_id) REFERENCES environment_variants(project_id, id) ON DELETE CASCADE
+TABLE public.environment_variants CONSTRAINT environment_variants_pkey PRIMARY KEY (project_id, id)
+TABLE public.environment_variants CONSTRAINT environment_variants_project_id_artifact_id_fkey FOREIGN KEY (project_id, artifact_id) REFERENCES environment_artifacts(project_id, id) ON DELETE CASCADE
+TABLE public.environment_variants CONSTRAINT environment_variants_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.environment_variants CONSTRAINT environment_variants_project_id_slug_key UNIQUE (project_id, slug)
+TABLE public.environments CONSTRAINT environments_app_id_fkey FOREIGN KEY (app_id) REFERENCES app_db(id) ON DELETE CASCADE
+TABLE public.environments CONSTRAINT environments_deployed_app_variant_id_fkey FOREIGN KEY (deployed_app_variant_id) REFERENCES app_variants(id) ON DELETE SET NULL
+TABLE public.environments CONSTRAINT environments_deployed_app_variant_revision_id_fkey FOREIGN KEY (deployed_app_variant_revision_id) REFERENCES app_variant_revisions(id) ON DELETE SET NULL
+TABLE public.environments CONSTRAINT environments_deployment_id_fkey FOREIGN KEY (deployment_id) REFERENCES deployments(id) ON DELETE SET NULL
+TABLE public.environments CONSTRAINT environments_pkey PRIMARY KEY (id)
+TABLE public.environments CONSTRAINT environments_projects_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.environments_revisions CONSTRAINT environments_revisions_deployed_app_variant_revision_id_fkey FOREIGN KEY (deployed_app_variant_revision_id) REFERENCES app_variant_revisions(id) ON DELETE SET NULL
+TABLE public.environments_revisions CONSTRAINT environments_revisions_deployment_id_fkey FOREIGN KEY (deployment_id) REFERENCES deployments(id) ON DELETE SET NULL
+TABLE public.environments_revisions CONSTRAINT environments_revisions_environment_id_fkey FOREIGN KEY (environment_id) REFERENCES environments(id) ON DELETE CASCADE
+TABLE public.environments_revisions CONSTRAINT environments_revisions_modified_by_id_fkey FOREIGN KEY (modified_by_id) REFERENCES users(id)
+TABLE public.environments_revisions CONSTRAINT environments_revisions_pkey PRIMARY KEY (id)
+TABLE public.environments_revisions CONSTRAINT environments_revisions_projects_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.evaluation_metrics CONSTRAINT evaluation_metrics_pkey PRIMARY KEY (project_id, id)
+TABLE public.evaluation_metrics CONSTRAINT evaluation_metrics_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.evaluation_metrics CONSTRAINT evaluation_metrics_project_id_run_id_fkey FOREIGN KEY (project_id, run_id) REFERENCES evaluation_runs(project_id, id) ON DELETE CASCADE
+TABLE public.evaluation_metrics CONSTRAINT evaluation_metrics_project_id_scenario_id_fkey FOREIGN KEY (project_id, scenario_id) REFERENCES evaluation_scenarios(project_id, id) ON DELETE CASCADE
+TABLE public.evaluation_queues CONSTRAINT evaluation_queues_pkey PRIMARY KEY (project_id, id)
+TABLE public.evaluation_queues CONSTRAINT evaluation_queues_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.evaluation_queues CONSTRAINT evaluation_queues_project_id_run_id_fkey FOREIGN KEY (project_id, run_id) REFERENCES evaluation_runs(project_id, id) ON DELETE CASCADE
+TABLE public.evaluation_results CONSTRAINT evaluation_steps_pkey PRIMARY KEY (project_id, id)
+TABLE public.evaluation_results CONSTRAINT evaluation_steps_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.evaluation_results CONSTRAINT evaluation_steps_project_id_run_id_fkey FOREIGN KEY (project_id, run_id) REFERENCES evaluation_runs(project_id, id) ON DELETE CASCADE
+TABLE public.evaluation_results CONSTRAINT evaluation_steps_project_id_scenario_id_fkey FOREIGN KEY (project_id, scenario_id) REFERENCES evaluation_scenarios(project_id, id) ON DELETE CASCADE
+TABLE public.evaluation_results CONSTRAINT uq_evaluation_results_project_run_scenario_step_repeat UNIQUE (project_id, run_id, scenario_id, step_key, repeat_idx)
+TABLE public.evaluation_runs CONSTRAINT evaluation_runs_pkey PRIMARY KEY (project_id, id)
+TABLE public.evaluation_runs CONSTRAINT evaluation_runs_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.evaluation_scenarios CONSTRAINT evaluation_scenarios_pkey1 PRIMARY KEY (project_id, id)
+TABLE public.evaluation_scenarios CONSTRAINT evaluation_scenarios_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.evaluation_scenarios CONSTRAINT evaluation_scenarios_project_id_run_id_fkey FOREIGN KEY (project_id, run_id) REFERENCES evaluation_runs(project_id, id) ON DELETE CASCADE
+TABLE public.folders CONSTRAINT folders_pkey PRIMARY KEY (project_id, id)
+TABLE public.folders CONSTRAINT folders_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.folders CONSTRAINT folders_project_id_parent_id_fkey FOREIGN KEY (project_id, parent_id) REFERENCES folders(project_id, id) ON DELETE CASCADE
+TABLE public.folders CONSTRAINT uq_folders_id UNIQUE (id)
+TABLE public.folders CONSTRAINT uq_folders_project_parent_slug UNIQUE (project_id, parent_id, slug)
+TABLE public.folders CONSTRAINT uq_folders_project_path UNIQUE (project_id, path)
+TABLE public.human_evaluation_variants CONSTRAINT human_evaluation_variants_human_evaluation_id_fkey FOREIGN KEY (human_evaluation_id) REFERENCES human_evaluations(id) ON DELETE CASCADE
+TABLE public.human_evaluation_variants CONSTRAINT human_evaluation_variants_pkey PRIMARY KEY (id)
+TABLE public.human_evaluation_variants CONSTRAINT human_evaluation_variants_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES app_variants(id) ON DELETE SET NULL
+TABLE public.human_evaluation_variants CONSTRAINT human_evaluation_variants_variant_revision_id_fkey FOREIGN KEY (variant_revision_id) REFERENCES app_variant_revisions(id) ON DELETE SET NULL
+TABLE public.human_evaluations CONSTRAINT human_evaluations_app_id_fkey FOREIGN KEY (app_id) REFERENCES app_db(id) ON DELETE CASCADE
+TABLE public.human_evaluations CONSTRAINT human_evaluations_pkey PRIMARY KEY (id)
+TABLE public.human_evaluations CONSTRAINT human_evaluations_projects_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.human_evaluations CONSTRAINT human_evaluations_testset_id_fkey FOREIGN KEY (testset_id) REFERENCES testsets(id)
+TABLE public.human_evaluations_scenarios CONSTRAINT human_evaluations_scenarios_evaluation_id_fkey FOREIGN KEY (evaluation_id) REFERENCES human_evaluations(id) ON DELETE CASCADE
+TABLE public.human_evaluations_scenarios CONSTRAINT human_evaluations_scenarios_pkey PRIMARY KEY (id)
+TABLE public.human_evaluations_scenarios CONSTRAINT human_evaluations_scenarios_projects_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.ids_mapping CONSTRAINT ids_mapping_pkey PRIMARY KEY (id)
+TABLE public.organizations CONSTRAINT fk_organizations_created_by_id_users FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE RESTRICT
+TABLE public.organizations CONSTRAINT fk_organizations_deleted_by_id_users FOREIGN KEY (deleted_by_id) REFERENCES users(id) ON DELETE SET NULL
+TABLE public.organizations CONSTRAINT fk_organizations_owner_id_users FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT
+TABLE public.organizations CONSTRAINT fk_organizations_updated_by_id_users FOREIGN KEY (updated_by_id) REFERENCES users(id) ON DELETE SET NULL
+TABLE public.organizations CONSTRAINT organizations_pkey PRIMARY KEY (id)
+TABLE public.organizations CONSTRAINT uq_organizations_slug UNIQUE (slug)
+TABLE public.project_invitations CONSTRAINT project_invitations_pkey PRIMARY KEY (id)
+TABLE public.project_invitations CONSTRAINT project_invitations_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.project_invitations CONSTRAINT project_invitations_token_key UNIQUE (token)
+TABLE public.project_invitations CONSTRAINT project_invitations_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+TABLE public.projects CONSTRAINT fk_projects_organization_id FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
+TABLE public.projects CONSTRAINT fk_projects_workspace_id FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+TABLE public.projects CONSTRAINT projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+TABLE public.projects CONSTRAINT projects_pkey PRIMARY KEY (id)
+TABLE public.projects CONSTRAINT uq_projects_id UNIQUE (id)
+TABLE public.query_artifacts CONSTRAINT fk_query_artifacts_folder_id_folders FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
+TABLE public.query_artifacts CONSTRAINT query_artifacts_pkey PRIMARY KEY (project_id, id)
+TABLE public.query_artifacts CONSTRAINT query_artifacts_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.query_artifacts CONSTRAINT query_artifacts_project_id_slug_key UNIQUE (project_id, slug)
+TABLE public.query_revisions CONSTRAINT query_revisions_pkey PRIMARY KEY (project_id, id)
+TABLE public.query_revisions CONSTRAINT query_revisions_project_id_artifact_id_fkey FOREIGN KEY (project_id, artifact_id) REFERENCES query_artifacts(project_id, id) ON DELETE CASCADE
+TABLE public.query_revisions CONSTRAINT query_revisions_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.query_revisions CONSTRAINT query_revisions_project_id_slug_key UNIQUE (project_id, slug)
+TABLE public.query_revisions CONSTRAINT query_revisions_project_id_variant_id_fkey FOREIGN KEY (project_id, variant_id) REFERENCES query_variants(project_id, id) ON DELETE CASCADE
+TABLE public.query_variants CONSTRAINT query_variants_pkey PRIMARY KEY (project_id, id)
+TABLE public.query_variants CONSTRAINT query_variants_project_id_artifact_id_fkey FOREIGN KEY (project_id, artifact_id) REFERENCES query_artifacts(project_id, id) ON DELETE CASCADE
+TABLE public.query_variants CONSTRAINT query_variants_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.query_variants CONSTRAINT query_variants_project_id_slug_key UNIQUE (project_id, slug)
+TABLE public.secrets CONSTRAINT secrets_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+TABLE public.secrets CONSTRAINT secrets_pkey PRIMARY KEY (id)
+TABLE public.secrets CONSTRAINT secrets_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.templates CONSTRAINT templates_name_key UNIQUE (name)
+TABLE public.templates CONSTRAINT templates_pkey PRIMARY KEY (id)
+TABLE public.testcase_blobs CONSTRAINT testcase_blobs_pkey PRIMARY KEY (project_id, id)
+TABLE public.testcase_blobs CONSTRAINT testcase_blobs_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.testcase_blobs CONSTRAINT testcase_blobs_project_id_set_id_fkey FOREIGN KEY (project_id, set_id) REFERENCES testset_artifacts(project_id, id) ON DELETE CASCADE
+TABLE public.testcase_blobs CONSTRAINT testcase_blobs_project_id_set_id_id_key UNIQUE (project_id, set_id, id)
+TABLE public.testset_artifacts CONSTRAINT fk_testset_artifacts_folder_id_folders FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
+TABLE public.testset_artifacts CONSTRAINT testset_artifacts_pkey PRIMARY KEY (project_id, id)
+TABLE public.testset_artifacts CONSTRAINT testset_artifacts_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.testset_artifacts CONSTRAINT testset_artifacts_project_id_slug_key UNIQUE (project_id, slug)
+TABLE public.testset_revisions CONSTRAINT testset_revisions_pkey PRIMARY KEY (project_id, id)
+TABLE public.testset_revisions CONSTRAINT testset_revisions_project_id_artifact_id_fkey FOREIGN KEY (project_id, artifact_id) REFERENCES testset_artifacts(project_id, id) ON DELETE CASCADE
+TABLE public.testset_revisions CONSTRAINT testset_revisions_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.testset_revisions CONSTRAINT testset_revisions_project_id_slug_key UNIQUE (project_id, slug)
+TABLE public.testset_revisions CONSTRAINT testset_revisions_project_id_variant_id_fkey FOREIGN KEY (project_id, variant_id) REFERENCES testset_variants(project_id, id) ON DELETE CASCADE
+TABLE public.testset_variants CONSTRAINT testset_variants_pkey PRIMARY KEY (project_id, id)
+TABLE public.testset_variants CONSTRAINT testset_variants_project_id_artifact_id_fkey FOREIGN KEY (project_id, artifact_id) REFERENCES testset_artifacts(project_id, id) ON DELETE CASCADE
+TABLE public.testset_variants CONSTRAINT testset_variants_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.testset_variants CONSTRAINT testset_variants_project_id_slug_key UNIQUE (project_id, slug)
+TABLE public.testsets CONSTRAINT testsets_pkey PRIMARY KEY (id)
+TABLE public.testsets CONSTRAINT testsets_projects_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.tool_connections CONSTRAINT tool_connections_pkey PRIMARY KEY (project_id, id)
+TABLE public.tool_connections CONSTRAINT tool_connections_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.tool_connections CONSTRAINT uq_tool_connections_project_provider_integration_slug UNIQUE (project_id, provider_key, integration_key, slug)
+TABLE public.user_identities CONSTRAINT uq_user_identities_method_subject UNIQUE (method, subject)
+TABLE public.user_identities CONSTRAINT user_identities_pkey PRIMARY KEY (id)
+TABLE public.user_identities CONSTRAINT user_identities_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+TABLE public.users CONSTRAINT users_email_key UNIQUE (email)
+TABLE public.users CONSTRAINT users_pkey PRIMARY KEY (id)
+TABLE public.webhook_deliveries CONSTRAINT webhook_deliveries_pkey PRIMARY KEY (project_id, id)
+TABLE public.webhook_subscriptions CONSTRAINT webhook_subscriptions_created_by_id_fkey FOREIGN KEY (created_by_id) REFERENCES users(id)
+TABLE public.webhook_subscriptions CONSTRAINT webhook_subscriptions_pkey PRIMARY KEY (project_id, id)
+TABLE public.webhook_subscriptions CONSTRAINT webhook_subscriptions_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.webhook_subscriptions CONSTRAINT webhook_subscriptions_secret_id_fkey FOREIGN KEY (secret_id) REFERENCES secrets(id) ON DELETE SET NULL
+TABLE public.workflow_artifacts CONSTRAINT fk_workflow_artifacts_folder_id_folders FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
+TABLE public.workflow_artifacts CONSTRAINT workflow_artifacts_pkey PRIMARY KEY (project_id, id)
+TABLE public.workflow_artifacts CONSTRAINT workflow_artifacts_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.workflow_artifacts CONSTRAINT workflow_artifacts_project_id_slug_key UNIQUE (project_id, slug)
+TABLE public.workflow_revisions CONSTRAINT workflow_revisions_pkey PRIMARY KEY (project_id, id)
+TABLE public.workflow_revisions CONSTRAINT workflow_revisions_project_id_artifact_id_fkey FOREIGN KEY (project_id, artifact_id) REFERENCES workflow_artifacts(project_id, id) ON DELETE CASCADE
+TABLE public.workflow_revisions CONSTRAINT workflow_revisions_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.workflow_revisions CONSTRAINT workflow_revisions_project_id_slug_key UNIQUE (project_id, slug)
+TABLE public.workflow_revisions CONSTRAINT workflow_revisions_project_id_variant_id_fkey FOREIGN KEY (project_id, variant_id) REFERENCES workflow_variants(project_id, id) ON DELETE CASCADE
+TABLE public.workflow_variants CONSTRAINT workflow_variants_pkey PRIMARY KEY (project_id, id)
+TABLE public.workflow_variants CONSTRAINT workflow_variants_project_id_artifact_id_fkey FOREIGN KEY (project_id, artifact_id) REFERENCES workflow_artifacts(project_id, id) ON DELETE CASCADE
+TABLE public.workflow_variants CONSTRAINT workflow_variants_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+TABLE public.workflow_variants CONSTRAINT workflow_variants_project_id_slug_key UNIQUE (project_id, slug)
+TABLE public.workspaces CONSTRAINT workspaces_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+TABLE public.workspaces CONSTRAINT workspaces_pkey PRIMARY KEY (id)
+
+## INDEXES
+TABLE public.alembic_version INDEX alembic_version_pkc CREATE UNIQUE INDEX alembic_version_pkc ON public.alembic_version USING btree (version_num)
+TABLE public.api_keys INDEX api_keys_pkey CREATE UNIQUE INDEX api_keys_pkey ON public.api_keys USING btree (id)
+TABLE public.app_db INDEX app_db_pkey CREATE UNIQUE INDEX app_db_pkey ON public.app_db USING btree (id)
+TABLE public.app_variant_revisions INDEX app_variant_revisions_pkey CREATE UNIQUE INDEX app_variant_revisions_pkey ON public.app_variant_revisions USING btree (id)
+TABLE public.app_variants INDEX app_variants_pkey CREATE UNIQUE INDEX app_variants_pkey ON public.app_variants USING btree (id)
+TABLE public.auto_evaluation_aggregated_results INDEX evaluation_aggregated_results_pkey CREATE UNIQUE INDEX evaluation_aggregated_results_pkey ON public.auto_evaluation_aggregated_results USING btree (id)
+TABLE public.auto_evaluation_evaluator_configs INDEX evaluation_evaluator_configs_id_key CREATE UNIQUE INDEX evaluation_evaluator_configs_id_key ON public.auto_evaluation_evaluator_configs USING btree (id)
+TABLE public.auto_evaluation_evaluator_configs INDEX evaluation_evaluator_configs_pkey CREATE UNIQUE INDEX evaluation_evaluator_configs_pkey ON public.auto_evaluation_evaluator_configs USING btree (id, evaluation_id, evaluator_config_id)
+TABLE public.auto_evaluation_scenario_results INDEX evaluation_scenario_results_pkey CREATE UNIQUE INDEX evaluation_scenario_results_pkey ON public.auto_evaluation_scenario_results USING btree (id)
+TABLE public.auto_evaluation_scenarios INDEX evaluation_scenarios_pkey CREATE UNIQUE INDEX evaluation_scenarios_pkey ON public.auto_evaluation_scenarios USING btree (id)
+TABLE public.auto_evaluations INDEX evaluations_pkey CREATE UNIQUE INDEX evaluations_pkey ON public.auto_evaluations USING btree (id)
+TABLE public.auto_evaluator_configs INDEX evaluators_configs_pkey CREATE UNIQUE INDEX evaluators_configs_pkey ON public.auto_evaluator_configs USING btree (id)
+TABLE public.bases INDEX bases_pkey CREATE UNIQUE INDEX bases_pkey ON public.bases USING btree (id)
+TABLE public.deployments INDEX deployments_pkey CREATE UNIQUE INDEX deployments_pkey ON public.deployments USING btree (id)
+TABLE public.docker_images INDEX docker_images_pkey CREATE UNIQUE INDEX docker_images_pkey ON public.docker_images USING btree (id)
+TABLE public.docker_images INDEX ix_docker_images_docker_id CREATE INDEX ix_docker_images_docker_id ON public.docker_images USING btree (docker_id)
+TABLE public.environment_artifacts INDEX environment_artifacts_pkey CREATE UNIQUE INDEX environment_artifacts_pkey ON public.environment_artifacts USING btree (project_id, id)
+TABLE public.environment_artifacts INDEX environment_artifacts_project_id_slug_key CREATE UNIQUE INDEX environment_artifacts_project_id_slug_key ON public.environment_artifacts USING btree (project_id, slug)
+TABLE public.environment_artifacts INDEX ix_environment_artifacts_folder_id CREATE INDEX ix_environment_artifacts_folder_id ON public.environment_artifacts USING btree (folder_id)
+TABLE public.environment_artifacts INDEX ix_environment_artifacts_project_id_slug CREATE INDEX ix_environment_artifacts_project_id_slug ON public.environment_artifacts USING btree (project_id, slug)
+TABLE public.environment_revisions INDEX environment_revisions_pkey CREATE UNIQUE INDEX environment_revisions_pkey ON public.environment_revisions USING btree (project_id, id)
+TABLE public.environment_revisions INDEX environment_revisions_project_id_slug_key CREATE UNIQUE INDEX environment_revisions_project_id_slug_key ON public.environment_revisions USING btree (project_id, slug)
+TABLE public.environment_revisions INDEX ix_environment_revisions_project_id_artifact_id CREATE INDEX ix_environment_revisions_project_id_artifact_id ON public.environment_revisions USING btree (project_id, artifact_id)
+TABLE public.environment_revisions INDEX ix_environment_revisions_project_id_slug CREATE INDEX ix_environment_revisions_project_id_slug ON public.environment_revisions USING btree (project_id, slug)
+TABLE public.environment_revisions INDEX ix_environment_revisions_project_id_variant_id CREATE INDEX ix_environment_revisions_project_id_variant_id ON public.environment_revisions USING btree (project_id, variant_id)
+TABLE public.environment_variants INDEX environment_variants_pkey CREATE UNIQUE INDEX environment_variants_pkey ON public.environment_variants USING btree (project_id, id)
+TABLE public.environment_variants INDEX environment_variants_project_id_slug_key CREATE UNIQUE INDEX environment_variants_project_id_slug_key ON public.environment_variants USING btree (project_id, slug)
+TABLE public.environment_variants INDEX ix_environment_variants_project_id_artifact_id CREATE INDEX ix_environment_variants_project_id_artifact_id ON public.environment_variants USING btree (project_id, artifact_id)
+TABLE public.environment_variants INDEX ix_environment_variants_project_id_slug CREATE INDEX ix_environment_variants_project_id_slug ON public.environment_variants USING btree (project_id, slug)
+TABLE public.environments INDEX environments_pkey CREATE UNIQUE INDEX environments_pkey ON public.environments USING btree (id)
+TABLE public.environments_revisions INDEX environments_revisions_pkey CREATE UNIQUE INDEX environments_revisions_pkey ON public.environments_revisions USING btree (id)
+TABLE public.evaluation_metrics INDEX evaluation_metrics_pkey CREATE UNIQUE INDEX evaluation_metrics_pkey ON public.evaluation_metrics USING btree (project_id, id)
+TABLE public.evaluation_metrics INDEX ix_evaluation_metrics_flags CREATE INDEX ix_evaluation_metrics_flags ON public.evaluation_metrics USING gin (flags)
+TABLE public.evaluation_metrics INDEX ix_evaluation_metrics_project_id CREATE INDEX ix_evaluation_metrics_project_id ON public.evaluation_metrics USING btree (project_id)
+TABLE public.evaluation_metrics INDEX ix_evaluation_metrics_run_id CREATE INDEX ix_evaluation_metrics_run_id ON public.evaluation_metrics USING btree (run_id)
+TABLE public.evaluation_metrics INDEX ix_evaluation_metrics_scenario_id CREATE INDEX ix_evaluation_metrics_scenario_id ON public.evaluation_metrics USING btree (scenario_id)
+TABLE public.evaluation_metrics INDEX ix_evaluation_metrics_tags CREATE INDEX ix_evaluation_metrics_tags ON public.evaluation_metrics USING gin (tags)
+TABLE public.evaluation_metrics INDEX ix_evaluation_metrics_timestamp_interval CREATE INDEX ix_evaluation_metrics_timestamp_interval ON public.evaluation_metrics USING btree ("timestamp", "interval")
+TABLE public.evaluation_metrics INDEX ux_evaluation_metrics_global CREATE UNIQUE INDEX ux_evaluation_metrics_global ON public.evaluation_metrics USING btree (project_id, run_id) WHERE ((scenario_id IS NULL) AND ("timestamp" IS NULL))
+TABLE public.evaluation_metrics INDEX ux_evaluation_metrics_temporal CREATE UNIQUE INDEX ux_evaluation_metrics_temporal ON public.evaluation_metrics USING btree (project_id, run_id, "timestamp") WHERE ((scenario_id IS NULL) AND ("timestamp" IS NOT NULL))
+TABLE public.evaluation_metrics INDEX ux_evaluation_metrics_variational CREATE UNIQUE INDEX ux_evaluation_metrics_variational ON public.evaluation_metrics USING btree (project_id, run_id, scenario_id) WHERE (("timestamp" IS NULL) AND (scenario_id IS NOT NULL))
+TABLE public.evaluation_queues INDEX evaluation_queues_pkey CREATE UNIQUE INDEX evaluation_queues_pkey ON public.evaluation_queues USING btree (project_id, id)
+TABLE public.evaluation_queues INDEX ix_evaluation_queues_flags CREATE INDEX ix_evaluation_queues_flags ON public.evaluation_queues USING gin (flags)
+TABLE public.evaluation_queues INDEX ix_evaluation_queues_project_id CREATE INDEX ix_evaluation_queues_project_id ON public.evaluation_queues USING btree (project_id)
+TABLE public.evaluation_queues INDEX ix_evaluation_queues_run_id CREATE INDEX ix_evaluation_queues_run_id ON public.evaluation_queues USING btree (run_id)
+TABLE public.evaluation_queues INDEX ix_evaluation_queues_tags CREATE INDEX ix_evaluation_queues_tags ON public.evaluation_queues USING gin (tags)
+TABLE public.evaluation_queues INDEX ix_evaluation_queues_user_ids CREATE INDEX ix_evaluation_queues_user_ids ON public.evaluation_queues USING gin (user_ids)
+TABLE public.evaluation_queues INDEX ux_evaluation_queues_default_per_run CREATE UNIQUE INDEX ux_evaluation_queues_default_per_run ON public.evaluation_queues USING btree (project_id, run_id) WHERE (((flags ->> 'is_default'::text))::boolean = true)
+TABLE public.evaluation_results INDEX evaluation_steps_pkey CREATE UNIQUE INDEX evaluation_steps_pkey ON public.evaluation_results USING btree (project_id, id)
+TABLE public.evaluation_results INDEX ix_evaluation_results_flags CREATE INDEX ix_evaluation_results_flags ON public.evaluation_results USING gin (flags)
+TABLE public.evaluation_results INDEX ix_evaluation_results_project_id CREATE INDEX ix_evaluation_results_project_id ON public.evaluation_results USING btree (project_id)
+TABLE public.evaluation_results INDEX ix_evaluation_results_repeat_idx CREATE INDEX ix_evaluation_results_repeat_idx ON public.evaluation_results USING btree (repeat_idx)
+TABLE public.evaluation_results INDEX ix_evaluation_results_run_id CREATE INDEX ix_evaluation_results_run_id ON public.evaluation_results USING btree (run_id)
+TABLE public.evaluation_results INDEX ix_evaluation_results_scenario_id CREATE INDEX ix_evaluation_results_scenario_id ON public.evaluation_results USING btree (scenario_id)
+TABLE public.evaluation_results INDEX ix_evaluation_results_step_key CREATE INDEX ix_evaluation_results_step_key ON public.evaluation_results USING btree (step_key)
+TABLE public.evaluation_results INDEX ix_evaluation_results_tags CREATE INDEX ix_evaluation_results_tags ON public.evaluation_results USING gin (tags)
+TABLE public.evaluation_results INDEX ix_evaluation_results_timestamp_interval CREATE INDEX ix_evaluation_results_timestamp_interval ON public.evaluation_results USING btree ("timestamp", "interval")
+TABLE public.evaluation_results INDEX uq_evaluation_results_project_run_scenario_step_repeat CREATE UNIQUE INDEX uq_evaluation_results_project_run_scenario_step_repeat ON public.evaluation_results USING btree (project_id, run_id, scenario_id, step_key, repeat_idx)
+TABLE public.evaluation_runs INDEX evaluation_runs_pkey CREATE UNIQUE INDEX evaluation_runs_pkey ON public.evaluation_runs USING btree (project_id, id)
+TABLE public.evaluation_runs INDEX ix_evaluation_runs_flags CREATE INDEX ix_evaluation_runs_flags ON public.evaluation_runs USING gin (flags)
+TABLE public.evaluation_runs INDEX ix_evaluation_runs_project_id CREATE INDEX ix_evaluation_runs_project_id ON public.evaluation_runs USING btree (project_id)
+TABLE public.evaluation_runs INDEX ix_evaluation_runs_references CREATE INDEX ix_evaluation_runs_references ON public.evaluation_runs USING gin ("references" jsonb_path_ops)
+TABLE public.evaluation_runs INDEX ix_evaluation_runs_tags CREATE INDEX ix_evaluation_runs_tags ON public.evaluation_runs USING gin (tags)
+TABLE public.evaluation_scenarios INDEX evaluation_scenarios_pkey1 CREATE UNIQUE INDEX evaluation_scenarios_pkey1 ON public.evaluation_scenarios USING btree (project_id, id)
+TABLE public.evaluation_scenarios INDEX ix_evaluation_scenarios_flags CREATE INDEX ix_evaluation_scenarios_flags ON public.evaluation_scenarios USING gin (flags)
+TABLE public.evaluation_scenarios INDEX ix_evaluation_scenarios_project_id CREATE INDEX ix_evaluation_scenarios_project_id ON public.evaluation_scenarios USING btree (project_id)
+TABLE public.evaluation_scenarios INDEX ix_evaluation_scenarios_run_id CREATE INDEX ix_evaluation_scenarios_run_id ON public.evaluation_scenarios USING btree (run_id)
+TABLE public.evaluation_scenarios INDEX ix_evaluation_scenarios_tags CREATE INDEX ix_evaluation_scenarios_tags ON public.evaluation_scenarios USING gin (tags)
+TABLE public.evaluation_scenarios INDEX ix_evaluation_scenarios_timestamp_interval CREATE INDEX ix_evaluation_scenarios_timestamp_interval ON public.evaluation_scenarios USING btree ("timestamp", "interval")
+TABLE public.folders INDEX folders_pkey CREATE UNIQUE INDEX folders_pkey ON public.folders USING btree (project_id, id)
+TABLE public.folders INDEX ix_folders_project_kind CREATE INDEX ix_folders_project_kind ON public.folders USING btree (project_id, kind)
+TABLE public.folders INDEX ix_folders_project_path CREATE INDEX ix_folders_project_path ON public.folders USING btree (project_id, path)
+TABLE public.folders INDEX uq_folders_id CREATE UNIQUE INDEX uq_folders_id ON public.folders USING btree (id)
+TABLE public.folders INDEX uq_folders_project_parent_slug CREATE UNIQUE INDEX uq_folders_project_parent_slug ON public.folders USING btree (project_id, parent_id, slug)
+TABLE public.folders INDEX uq_folders_project_path CREATE UNIQUE INDEX uq_folders_project_path ON public.folders USING btree (project_id, path)
+TABLE public.human_evaluation_variants INDEX human_evaluation_variants_pkey CREATE UNIQUE INDEX human_evaluation_variants_pkey ON public.human_evaluation_variants USING btree (id)
+TABLE public.human_evaluations INDEX human_evaluations_pkey CREATE UNIQUE INDEX human_evaluations_pkey ON public.human_evaluations USING btree (id)
+TABLE public.human_evaluations_scenarios INDEX human_evaluations_scenarios_pkey CREATE UNIQUE INDEX human_evaluations_scenarios_pkey ON public.human_evaluations_scenarios USING btree (id)
+TABLE public.ids_mapping INDEX ids_mapping_pkey CREATE UNIQUE INDEX ids_mapping_pkey ON public.ids_mapping USING btree (id)
+TABLE public.organizations INDEX ix_organizations_slug CREATE INDEX ix_organizations_slug ON public.organizations USING btree (slug)
+TABLE public.organizations INDEX organizations_pkey CREATE UNIQUE INDEX organizations_pkey ON public.organizations USING btree (id)
+TABLE public.organizations INDEX uq_organizations_slug CREATE UNIQUE INDEX uq_organizations_slug ON public.organizations USING btree (slug)
+TABLE public.project_invitations INDEX project_invitations_pkey CREATE UNIQUE INDEX project_invitations_pkey ON public.project_invitations USING btree (id)
+TABLE public.project_invitations INDEX project_invitations_token_key CREATE UNIQUE INDEX project_invitations_token_key ON public.project_invitations USING btree (token)
+TABLE public.projects INDEX ix_projects_organization_id CREATE INDEX ix_projects_organization_id ON public.projects USING btree (organization_id)
+TABLE public.projects INDEX projects_pkey CREATE UNIQUE INDEX projects_pkey ON public.projects USING btree (id)
+TABLE public.projects INDEX uq_projects_id CREATE UNIQUE INDEX uq_projects_id ON public.projects USING btree (id)
+TABLE public.query_artifacts INDEX ix_query_artifacts_folder_id CREATE INDEX ix_query_artifacts_folder_id ON public.query_artifacts USING btree (folder_id)
+TABLE public.query_artifacts INDEX ix_query_artifacts_project_id_slug CREATE INDEX ix_query_artifacts_project_id_slug ON public.query_artifacts USING btree (project_id, slug)
+TABLE public.query_artifacts INDEX query_artifacts_pkey CREATE UNIQUE INDEX query_artifacts_pkey ON public.query_artifacts USING btree (project_id, id)
+TABLE public.query_artifacts INDEX query_artifacts_project_id_slug_key CREATE UNIQUE INDEX query_artifacts_project_id_slug_key ON public.query_artifacts USING btree (project_id, slug)
+TABLE public.query_revisions INDEX ix_query_revisions_project_id_artifact_id CREATE INDEX ix_query_revisions_project_id_artifact_id ON public.query_revisions USING btree (project_id, artifact_id)
+TABLE public.query_revisions INDEX ix_query_revisions_project_id_slug CREATE INDEX ix_query_revisions_project_id_slug ON public.query_revisions USING btree (project_id, slug)
+TABLE public.query_revisions INDEX ix_query_revisions_project_id_variant_id CREATE INDEX ix_query_revisions_project_id_variant_id ON public.query_revisions USING btree (project_id, variant_id)
+TABLE public.query_revisions INDEX query_revisions_pkey CREATE UNIQUE INDEX query_revisions_pkey ON public.query_revisions USING btree (project_id, id)
+TABLE public.query_revisions INDEX query_revisions_project_id_slug_key CREATE UNIQUE INDEX query_revisions_project_id_slug_key ON public.query_revisions USING btree (project_id, slug)
+TABLE public.query_variants INDEX ix_query_variants_project_id_artifact_id CREATE INDEX ix_query_variants_project_id_artifact_id ON public.query_variants USING btree (project_id, artifact_id)
+TABLE public.query_variants INDEX ix_query_variants_project_id_slug CREATE INDEX ix_query_variants_project_id_slug ON public.query_variants USING btree (project_id, slug)
+TABLE public.query_variants INDEX query_variants_pkey CREATE UNIQUE INDEX query_variants_pkey ON public.query_variants USING btree (project_id, id)
+TABLE public.query_variants INDEX query_variants_project_id_slug_key CREATE UNIQUE INDEX query_variants_project_id_slug_key ON public.query_variants USING btree (project_id, slug)
+TABLE public.secrets INDEX secrets_pkey CREATE UNIQUE INDEX secrets_pkey ON public.secrets USING btree (id)
+TABLE public.templates INDEX templates_name_key CREATE UNIQUE INDEX templates_name_key ON public.templates USING btree (name)
+TABLE public.templates INDEX templates_pkey CREATE UNIQUE INDEX templates_pkey ON public.templates USING btree (id)
+TABLE public.testcase_blobs INDEX ix_testcase_blobs_project_id_set_id CREATE INDEX ix_testcase_blobs_project_id_set_id ON public.testcase_blobs USING btree (project_id, set_id)
+TABLE public.testcase_blobs INDEX ix_testcase_blobs_project_id_set_id_id CREATE INDEX ix_testcase_blobs_project_id_set_id_id ON public.testcase_blobs USING btree (project_id, set_id, id)
+TABLE public.testcase_blobs INDEX testcase_blobs_pkey CREATE UNIQUE INDEX testcase_blobs_pkey ON public.testcase_blobs USING btree (project_id, id)
+TABLE public.testcase_blobs INDEX testcase_blobs_project_id_set_id_id_key CREATE UNIQUE INDEX testcase_blobs_project_id_set_id_id_key ON public.testcase_blobs USING btree (project_id, set_id, id)
+TABLE public.testset_artifacts INDEX ix_testset_artifacts_folder_id CREATE INDEX ix_testset_artifacts_folder_id ON public.testset_artifacts USING btree (folder_id)
+TABLE public.testset_artifacts INDEX ix_testset_artifacts_project_id_slug CREATE INDEX ix_testset_artifacts_project_id_slug ON public.testset_artifacts USING btree (project_id, slug)
+TABLE public.testset_artifacts INDEX testset_artifacts_pkey CREATE UNIQUE INDEX testset_artifacts_pkey ON public.testset_artifacts USING btree (project_id, id)
+TABLE public.testset_artifacts INDEX testset_artifacts_project_id_slug_key CREATE UNIQUE INDEX testset_artifacts_project_id_slug_key ON public.testset_artifacts USING btree (project_id, slug)
+TABLE public.testset_revisions INDEX ix_testset_revisions_project_id_artifact_id CREATE INDEX ix_testset_revisions_project_id_artifact_id ON public.testset_revisions USING btree (project_id, artifact_id)
+TABLE public.testset_revisions INDEX ix_testset_revisions_project_id_slug CREATE INDEX ix_testset_revisions_project_id_slug ON public.testset_revisions USING btree (project_id, slug)
+TABLE public.testset_revisions INDEX ix_testset_revisions_project_id_variant_id CREATE INDEX ix_testset_revisions_project_id_variant_id ON public.testset_revisions USING btree (project_id, variant_id)
+TABLE public.testset_revisions INDEX testset_revisions_pkey CREATE UNIQUE INDEX testset_revisions_pkey ON public.testset_revisions USING btree (project_id, id)
+TABLE public.testset_revisions INDEX testset_revisions_project_id_slug_key CREATE UNIQUE INDEX testset_revisions_project_id_slug_key ON public.testset_revisions USING btree (project_id, slug)
+TABLE public.testset_variants INDEX ix_testset_variants_project_id_artifact_id CREATE INDEX ix_testset_variants_project_id_artifact_id ON public.testset_variants USING btree (project_id, artifact_id)
+TABLE public.testset_variants INDEX ix_testset_variants_project_id_slug CREATE INDEX ix_testset_variants_project_id_slug ON public.testset_variants USING btree (project_id, slug)
+TABLE public.testset_variants INDEX testset_variants_pkey CREATE UNIQUE INDEX testset_variants_pkey ON public.testset_variants USING btree (project_id, id)
+TABLE public.testset_variants INDEX testset_variants_project_id_slug_key CREATE UNIQUE INDEX testset_variants_project_id_slug_key ON public.testset_variants USING btree (project_id, slug)
+TABLE public.testsets INDEX testsets_pkey CREATE UNIQUE INDEX testsets_pkey ON public.testsets USING btree (id)
+TABLE public.tool_connections INDEX ix_tool_connections_project_provider_integration CREATE INDEX ix_tool_connections_project_provider_integration ON public.tool_connections USING btree (project_id, provider_key, integration_key)
+TABLE public.tool_connections INDEX tool_connections_pkey CREATE UNIQUE INDEX tool_connections_pkey ON public.tool_connections USING btree (project_id, id)
+TABLE public.tool_connections INDEX uq_tool_connections_project_provider_integration_slug CREATE UNIQUE INDEX uq_tool_connections_project_provider_integration_slug ON public.tool_connections USING btree (project_id, provider_key, integration_key, slug)
+TABLE public.user_identities INDEX ix_user_identities_domain CREATE INDEX ix_user_identities_domain ON public.user_identities USING btree (domain)
+TABLE public.user_identities INDEX ix_user_identities_user_method CREATE INDEX ix_user_identities_user_method ON public.user_identities USING btree (user_id, method)
+TABLE public.user_identities INDEX uq_user_identities_method_subject CREATE UNIQUE INDEX uq_user_identities_method_subject ON public.user_identities USING btree (method, subject)
+TABLE public.user_identities INDEX user_identities_pkey CREATE UNIQUE INDEX user_identities_pkey ON public.user_identities USING btree (id)
+TABLE public.users INDEX ix_users_uid CREATE UNIQUE INDEX ix_users_uid ON public.users USING btree (uid)
+TABLE public.users INDEX users_email_key CREATE UNIQUE INDEX users_email_key ON public.users USING btree (email)
+TABLE public.users INDEX users_pkey CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)
+TABLE public.webhook_deliveries INDEX ix_webhook_deliveries_event_id_created_at CREATE INDEX ix_webhook_deliveries_event_id_created_at ON public.webhook_deliveries USING btree (event_id, created_at)
+TABLE public.webhook_deliveries INDEX ix_webhook_deliveries_project_id_created_at CREATE INDEX ix_webhook_deliveries_project_id_created_at ON public.webhook_deliveries USING btree (project_id, created_at)
+TABLE public.webhook_deliveries INDEX ix_webhook_deliveries_status_created_at CREATE INDEX ix_webhook_deliveries_status_created_at ON public.webhook_deliveries USING btree (status, created_at)
+TABLE public.webhook_deliveries INDEX ix_webhook_deliveries_subscription_id_created_at CREATE INDEX ix_webhook_deliveries_subscription_id_created_at ON public.webhook_deliveries USING btree (subscription_id, created_at)
+TABLE public.webhook_deliveries INDEX ix_webhook_deliveries_subscription_id_event_id CREATE UNIQUE INDEX ix_webhook_deliveries_subscription_id_event_id ON public.webhook_deliveries USING btree (project_id, subscription_id, event_id)
+TABLE public.webhook_deliveries INDEX webhook_deliveries_pkey CREATE UNIQUE INDEX webhook_deliveries_pkey ON public.webhook_deliveries USING btree (project_id, id)
+TABLE public.webhook_subscriptions INDEX ix_webhook_subscriptions_project_id_created_at CREATE INDEX ix_webhook_subscriptions_project_id_created_at ON public.webhook_subscriptions USING btree (project_id, created_at)
+TABLE public.webhook_subscriptions INDEX ix_webhook_subscriptions_project_id_deleted_at CREATE INDEX ix_webhook_subscriptions_project_id_deleted_at ON public.webhook_subscriptions USING btree (project_id, deleted_at)
+TABLE public.webhook_subscriptions INDEX webhook_subscriptions_pkey CREATE UNIQUE INDEX webhook_subscriptions_pkey ON public.webhook_subscriptions USING btree (project_id, id)
+TABLE public.workflow_artifacts INDEX ix_workflow_artifacts_folder_id CREATE INDEX ix_workflow_artifacts_folder_id ON public.workflow_artifacts USING btree (folder_id)
+TABLE public.workflow_artifacts INDEX ix_workflow_artifacts_project_id_slug CREATE INDEX ix_workflow_artifacts_project_id_slug ON public.workflow_artifacts USING btree (project_id, slug)
+TABLE public.workflow_artifacts INDEX workflow_artifacts_pkey CREATE UNIQUE INDEX workflow_artifacts_pkey ON public.workflow_artifacts USING btree (project_id, id)
+TABLE public.workflow_artifacts INDEX workflow_artifacts_project_id_slug_key CREATE UNIQUE INDEX workflow_artifacts_project_id_slug_key ON public.workflow_artifacts USING btree (project_id, slug)
+TABLE public.workflow_revisions INDEX ix_workflow_revisions_project_id_artifact_id CREATE INDEX ix_workflow_revisions_project_id_artifact_id ON public.workflow_revisions USING btree (project_id, artifact_id)
+TABLE public.workflow_revisions INDEX ix_workflow_revisions_project_id_slug CREATE INDEX ix_workflow_revisions_project_id_slug ON public.workflow_revisions USING btree (project_id, slug)
+TABLE public.workflow_revisions INDEX ix_workflow_revisions_project_id_variant_id CREATE INDEX ix_workflow_revisions_project_id_variant_id ON public.workflow_revisions USING btree (project_id, variant_id)
+TABLE public.workflow_revisions INDEX workflow_revisions_pkey CREATE UNIQUE INDEX workflow_revisions_pkey ON public.workflow_revisions USING btree (project_id, id)
+TABLE public.workflow_revisions INDEX workflow_revisions_project_id_slug_key CREATE UNIQUE INDEX workflow_revisions_project_id_slug_key ON public.workflow_revisions USING btree (project_id, slug)
+TABLE public.workflow_variants INDEX ix_workflow_variants_project_id_artifact_id CREATE INDEX ix_workflow_variants_project_id_artifact_id ON public.workflow_variants USING btree (project_id, artifact_id)
+TABLE public.workflow_variants INDEX ix_workflow_variants_project_id_slug CREATE INDEX ix_workflow_variants_project_id_slug ON public.workflow_variants USING btree (project_id, slug)
+TABLE public.workflow_variants INDEX workflow_variants_pkey CREATE UNIQUE INDEX workflow_variants_pkey ON public.workflow_variants USING btree (project_id, id)
+TABLE public.workflow_variants INDEX workflow_variants_project_id_slug_key CREATE UNIQUE INDEX workflow_variants_project_id_slug_key ON public.workflow_variants USING btree (project_id, slug)
+TABLE public.workspaces INDEX workspaces_pkey CREATE UNIQUE INDEX workspaces_pkey ON public.workspaces USING btree (id)
+
+## TRIGGERS
+
+## VIEWS
+
+## ALEMBIC
+ALEMBIC-VERSION a2b3c4d5e6f8
+

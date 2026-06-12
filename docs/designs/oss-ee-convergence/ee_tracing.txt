@@ -1,0 +1,108 @@
+################################################################
+## SCHEMA DUMP — database: agenta_ee_tracing
+################################################################
+server: 17.10 (Debian 17.10-1.pgdg13+1)
+
+## EXTENSIONS
+EXTENSION plpgsql 1.0
+
+## ENUM TYPES
+ENUM public.nodetype = (AGENT, WORKFLOW, CHAIN, TASK, TOOL, EMBEDDING, QUERY, COMPLETION, CHAT, RERANK)
+ENUM public.otelspankind = (SPAN_KIND_UNSPECIFIED, SPAN_KIND_INTERNAL, SPAN_KIND_SERVER, SPAN_KIND_CLIENT, SPAN_KIND_PRODUCER, SPAN_KIND_CONSUMER)
+ENUM public.otelstatuscode = (STATUS_CODE_UNSET, STATUS_CODE_OK, STATUS_CODE_ERROR)
+ENUM public.spantype = (AGENT, CHAIN, WORKFLOW, TASK, TOOL, EMBEDDING, QUERY, LLM, COMPLETION, CHAT, RERANK, UNKNOWN)
+ENUM public.tracetype = (INVOCATION, ANNOTATION, UNKNOWN)
+ENUM public.treetype = (INVOCATION)
+
+## SEQUENCES
+
+## COLUMNS (sorted by name; see COLUMN-ORDER for physical order)
+TABLE public.alembic_version COLUMN version_num character varying(32) NOT NULL
+TABLE public.events COLUMN attributes jsonb
+TABLE public.events COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.events COLUMN created_by_id uuid
+TABLE public.events COLUMN deleted_at timestamp with time zone
+TABLE public.events COLUMN deleted_by_id uuid
+TABLE public.events COLUMN event_id uuid NOT NULL
+TABLE public.events COLUMN event_type character varying NOT NULL
+TABLE public.events COLUMN project_id uuid NOT NULL
+TABLE public.events COLUMN request_id uuid NOT NULL
+TABLE public.events COLUMN request_type character varying NOT NULL
+TABLE public.events COLUMN status_code character varying
+TABLE public.events COLUMN status_message character varying
+TABLE public.events COLUMN timestamp timestamp with time zone NOT NULL
+TABLE public.events COLUMN updated_at timestamp with time zone
+TABLE public.events COLUMN updated_by_id uuid
+TABLE public.spans COLUMN attributes jsonb
+TABLE public.spans COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+TABLE public.spans COLUMN created_by_id uuid NOT NULL
+TABLE public.spans COLUMN deleted_at timestamp with time zone
+TABLE public.spans COLUMN deleted_by_id uuid
+TABLE public.spans COLUMN end_time timestamp with time zone NOT NULL
+TABLE public.spans COLUMN events jsonb
+TABLE public.spans COLUMN exception jsonb
+TABLE public.spans COLUMN hashes jsonb
+TABLE public.spans COLUMN links jsonb
+TABLE public.spans COLUMN parent_id uuid
+TABLE public.spans COLUMN project_id uuid NOT NULL
+TABLE public.spans COLUMN references jsonb
+TABLE public.spans COLUMN span_id uuid NOT NULL
+TABLE public.spans COLUMN span_kind otelspankind NOT NULL
+TABLE public.spans COLUMN span_name character varying NOT NULL
+TABLE public.spans COLUMN span_type spantype
+TABLE public.spans COLUMN start_time timestamp with time zone NOT NULL
+TABLE public.spans COLUMN status_code otelstatuscode NOT NULL
+TABLE public.spans COLUMN status_message character varying
+TABLE public.spans COLUMN trace_id uuid NOT NULL
+TABLE public.spans COLUMN trace_type tracetype
+TABLE public.spans COLUMN updated_at timestamp with time zone
+TABLE public.spans COLUMN updated_by_id uuid
+
+## COLUMN ORDER
+TABLE public.alembic_version COLUMN-ORDER (version_num)
+TABLE public.events COLUMN-ORDER (project_id, request_id, event_id, request_type, event_type, timestamp, status_code, status_message, attributes, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id)
+TABLE public.spans COLUMN-ORDER (project_id, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id, trace_id, span_id, parent_id, span_kind, span_name, start_time, end_time, status_code, status_message, attributes, events, links, references, trace_type, span_type, hashes, exception)
+
+## CONSTRAINTS (PK / FK / UNIQUE / CHECK / EXCLUDE)
+TABLE public.alembic_version CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+TABLE public.events CONSTRAINT events_pkey PRIMARY KEY (project_id, request_id, event_id)
+TABLE public.spans CONSTRAINT spans_pkey PRIMARY KEY (project_id, trace_id, span_id)
+
+## INDEXES
+TABLE public.alembic_version INDEX alembic_version_pkc CREATE UNIQUE INDEX alembic_version_pkc ON public.alembic_version USING btree (version_num)
+TABLE public.events INDEX events_pkey CREATE UNIQUE INDEX events_pkey ON public.events USING btree (project_id, request_id, event_id)
+TABLE public.events INDEX ix_events_attributes_gin CREATE INDEX ix_events_attributes_gin ON public.events USING gin (attributes)
+TABLE public.events INDEX ix_events_fts_attributes_gin CREATE INDEX ix_events_fts_attributes_gin ON public.events USING gin (to_tsvector('simple'::regconfig, attributes))
+TABLE public.events INDEX ix_events_project_id CREATE INDEX ix_events_project_id ON public.events USING btree (project_id)
+TABLE public.events INDEX ix_events_project_id_event_id CREATE INDEX ix_events_project_id_event_id ON public.events USING btree (project_id, event_id)
+TABLE public.events INDEX ix_events_project_id_event_type CREATE INDEX ix_events_project_id_event_type ON public.events USING btree (project_id, event_type)
+TABLE public.events INDEX ix_events_project_id_request_id CREATE INDEX ix_events_project_id_request_id ON public.events USING btree (project_id, request_id)
+TABLE public.events INDEX ix_events_project_id_request_id_created_at CREATE INDEX ix_events_project_id_request_id_created_at ON public.events USING btree (project_id, request_id, created_at DESC)
+TABLE public.events INDEX ix_events_project_id_request_type CREATE INDEX ix_events_project_id_request_type ON public.events USING btree (project_id, request_type)
+TABLE public.events INDEX ix_events_project_id_timestamp CREATE INDEX ix_events_project_id_timestamp ON public.events USING btree (project_id, "timestamp")
+TABLE public.spans INDEX ix_attributes_gin CREATE INDEX ix_attributes_gin ON public.spans USING gin (attributes)
+TABLE public.spans INDEX ix_events_gin CREATE INDEX ix_events_gin ON public.spans USING gin (events jsonb_path_ops)
+TABLE public.spans INDEX ix_hashes_gin CREATE INDEX ix_hashes_gin ON public.spans USING gin (hashes jsonb_path_ops)
+TABLE public.spans INDEX ix_links_gin CREATE INDEX ix_links_gin ON public.spans USING gin (links)
+TABLE public.spans INDEX ix_project_id CREATE INDEX ix_project_id ON public.spans USING btree (project_id)
+TABLE public.spans INDEX ix_project_id_span_id CREATE INDEX ix_project_id_span_id ON public.spans USING btree (project_id, span_id)
+TABLE public.spans INDEX ix_project_id_start_time CREATE INDEX ix_project_id_start_time ON public.spans USING btree (project_id, start_time)
+TABLE public.spans INDEX ix_project_id_trace_id CREATE INDEX ix_project_id_trace_id ON public.spans USING btree (project_id, trace_id)
+TABLE public.spans INDEX ix_references_gin CREATE INDEX ix_references_gin ON public.spans USING gin ("references")
+TABLE public.spans INDEX ix_spans_fts_attributes_gin CREATE INDEX ix_spans_fts_attributes_gin ON public.spans USING gin (to_tsvector('simple'::regconfig, attributes))
+TABLE public.spans INDEX ix_spans_fts_events_gin CREATE INDEX ix_spans_fts_events_gin ON public.spans USING gin (to_tsvector('simple'::regconfig, events))
+TABLE public.spans INDEX ix_spans_project_id_span_type CREATE INDEX ix_spans_project_id_span_type ON public.spans USING btree (project_id, span_type)
+TABLE public.spans INDEX ix_spans_project_id_trace_id_created_at CREATE INDEX ix_spans_project_id_trace_id_created_at ON public.spans USING btree (project_id, trace_id, created_at DESC)
+TABLE public.spans INDEX ix_spans_project_id_trace_id_start_time CREATE INDEX ix_spans_project_id_trace_id_start_time ON public.spans USING btree (project_id, trace_id, start_time DESC)
+TABLE public.spans INDEX ix_spans_project_id_trace_type CREATE INDEX ix_spans_project_id_trace_type ON public.spans USING btree (project_id, trace_type)
+TABLE public.spans INDEX ix_spans_root_project_created_trace CREATE INDEX ix_spans_root_project_created_trace ON public.spans USING btree (project_id, created_at, trace_id) WHERE (parent_id IS NULL)
+TABLE public.spans INDEX spans_pkey CREATE UNIQUE INDEX spans_pkey ON public.spans USING btree (project_id, trace_id, span_id)
+TABLE public.spans INDEX ux_spans_root_per_trace CREATE UNIQUE INDEX ux_spans_root_per_trace ON public.spans USING btree (project_id, trace_id) WHERE (parent_id IS NULL)
+
+## TRIGGERS
+
+## VIEWS
+
+## ALEMBIC
+ALEMBIC-VERSION d1e2f3a4b5c6
+

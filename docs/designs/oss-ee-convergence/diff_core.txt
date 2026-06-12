@@ -1,0 +1,298 @@
+2c2
+< ## SCHEMA DUMP — database: agenta_oss_core
+---
+> ## SCHEMA DUMP — database: agenta_ee_core
+13a14
+> ENUM public.meters_type = (USERS, EVALUATIONS_RUN, TRACES_INGESTED, TRACES_RETRIEVED, CREDITS_CONSUMED, EVENTS_INGESTED)
+24c25
+< TABLE public.api_keys COLUMN created_by_id uuid
+---
+> TABLE public.api_keys COLUMN created_by_id uuid NOT NULL
+30c31
+< TABLE public.api_keys COLUMN project_id uuid
+---
+> TABLE public.api_keys COLUMN project_id uuid NOT NULL
+38a40
+> TABLE public.app_db COLUMN organization_id uuid
+40a43
+> TABLE public.app_db COLUMN workspace_id uuid
+62a66
+> TABLE public.app_variants COLUMN organization_id uuid
+66a71
+> TABLE public.app_variants COLUMN workspace_id uuid
+86a92
+> TABLE public.auto_evaluation_scenarios COLUMN organization_id uuid
+90a97
+> TABLE public.auto_evaluation_scenarios COLUMN workspace_id uuid
+95a103
+> TABLE public.auto_evaluations COLUMN organization_id uuid
+102a111,112
+> TABLE public.auto_evaluations COLUMN workspace_id uuid
+> TABLE public.auto_evaluator_configs COLUMN app_id uuid
+106a117
+> TABLE public.auto_evaluator_configs COLUMN organization_id uuid
+109a121
+> TABLE public.auto_evaluator_configs COLUMN workspace_id uuid
+115a128
+> TABLE public.bases COLUMN organization_id uuid
+117a131
+> TABLE public.bases COLUMN workspace_id uuid
+118a133
+> TABLE public.deployments COLUMN cloud_map_service_id character varying
+122a138
+> TABLE public.deployments COLUMN organization_id uuid
+126a143
+> TABLE public.deployments COLUMN workspace_id uuid
+130a148
+> TABLE public.docker_images COLUMN organization_id uuid
+135a154
+> TABLE public.docker_images COLUMN workspace_id uuid
+193a213
+> TABLE public.environments COLUMN organization_id uuid
+195a216
+> TABLE public.environments COLUMN workspace_id uuid
+202a224
+> TABLE public.environments_revisions COLUMN organization_id uuid
+204a227
+> TABLE public.environments_revisions COLUMN workspace_id uuid
+321a345
+> TABLE public.human_evaluations COLUMN organization_id uuid
+325a350
+> TABLE public.human_evaluations COLUMN workspace_id uuid
+332a358
+> TABLE public.human_evaluations_scenarios COLUMN organization_id uuid
+337a364
+> TABLE public.human_evaluations_scenarios COLUMN workspace_id uuid
+341a369,416
+> TABLE public.meters COLUMN day smallint
+> TABLE public.meters COLUMN key meters_type NOT NULL
+> TABLE public.meters COLUMN meter_id uuid NOT NULL
+> TABLE public.meters COLUMN month smallint
+> TABLE public.meters COLUMN organization_id uuid
+> TABLE public.meters COLUMN project_id uuid
+> TABLE public.meters COLUMN synced bigint NOT NULL
+> TABLE public.meters COLUMN user_id uuid
+> TABLE public.meters COLUMN value bigint NOT NULL
+> TABLE public.meters COLUMN workspace_id uuid
+> TABLE public.meters COLUMN year smallint
+> TABLE public.organization_domains COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+> TABLE public.organization_domains COLUMN created_by_id uuid NOT NULL
+> TABLE public.organization_domains COLUMN deleted_at timestamp with time zone
+> TABLE public.organization_domains COLUMN deleted_by_id uuid
+> TABLE public.organization_domains COLUMN description character varying
+> TABLE public.organization_domains COLUMN flags jsonb
+> TABLE public.organization_domains COLUMN id uuid NOT NULL
+> TABLE public.organization_domains COLUMN meta jsonb
+> TABLE public.organization_domains COLUMN name character varying
+> TABLE public.organization_domains COLUMN organization_id uuid NOT NULL
+> TABLE public.organization_domains COLUMN slug character varying NOT NULL
+> TABLE public.organization_domains COLUMN tags jsonb
+> TABLE public.organization_domains COLUMN token character varying
+> TABLE public.organization_domains COLUMN updated_at timestamp with time zone
+> TABLE public.organization_domains COLUMN updated_by_id uuid
+> TABLE public.organization_members COLUMN created_at timestamp with time zone
+> TABLE public.organization_members COLUMN id uuid NOT NULL
+> TABLE public.organization_members COLUMN organization_id uuid
+> TABLE public.organization_members COLUMN role character varying NOT NULL DEFAULT 'viewer'::character varying
+> TABLE public.organization_members COLUMN updated_at timestamp with time zone
+> TABLE public.organization_members COLUMN updated_by_id uuid
+> TABLE public.organization_members COLUMN user_id uuid
+> TABLE public.organization_providers COLUMN created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+> TABLE public.organization_providers COLUMN created_by_id uuid NOT NULL
+> TABLE public.organization_providers COLUMN deleted_at timestamp with time zone
+> TABLE public.organization_providers COLUMN deleted_by_id uuid
+> TABLE public.organization_providers COLUMN description character varying
+> TABLE public.organization_providers COLUMN flags jsonb
+> TABLE public.organization_providers COLUMN id uuid NOT NULL
+> TABLE public.organization_providers COLUMN meta jsonb
+> TABLE public.organization_providers COLUMN name character varying
+> TABLE public.organization_providers COLUMN organization_id uuid NOT NULL
+> TABLE public.organization_providers COLUMN secret_id uuid NOT NULL
+> TABLE public.organization_providers COLUMN slug character varying NOT NULL
+> TABLE public.organization_providers COLUMN tags jsonb
+> TABLE public.organization_providers COLUMN updated_at timestamp with time zone
+> TABLE public.organization_providers COLUMN updated_by_id uuid
+364a440,447
+> TABLE public.project_members COLUMN created_at timestamp with time zone
+> TABLE public.project_members COLUMN id uuid NOT NULL
+> TABLE public.project_members COLUMN is_demo boolean
+> TABLE public.project_members COLUMN project_id uuid NOT NULL
+> TABLE public.project_members COLUMN role character varying
+> TABLE public.project_members COLUMN updated_at timestamp with time zone
+> TABLE public.project_members COLUMN updated_by_id uuid
+> TABLE public.project_members COLUMN user_id uuid
+432a516,521
+> TABLE public.subscriptions COLUMN active boolean NOT NULL
+> TABLE public.subscriptions COLUMN anchor smallint
+> TABLE public.subscriptions COLUMN customer_id character varying
+> TABLE public.subscriptions COLUMN organization_id uuid NOT NULL
+> TABLE public.subscriptions COLUMN plan character varying NOT NULL
+> TABLE public.subscriptions COLUMN subscription_id character varying
+511a601
+> TABLE public.testsets COLUMN organization_id uuid
+513a604
+> TABLE public.testsets COLUMN workspace_id uuid
+627a719,725
+> TABLE public.workspace_members COLUMN created_at timestamp with time zone
+> TABLE public.workspace_members COLUMN id uuid NOT NULL
+> TABLE public.workspace_members COLUMN role character varying
+> TABLE public.workspace_members COLUMN updated_at timestamp with time zone
+> TABLE public.workspace_members COLUMN updated_by_id uuid
+> TABLE public.workspace_members COLUMN user_id uuid
+> TABLE public.workspace_members COLUMN workspace_id uuid
+638,639c736,737
+< TABLE public.api_keys COLUMN-ORDER (id, prefix, hashed_key, project_id, created_by_id, rate_limit, hidden, expiration_date, created_at, updated_at)
+< TABLE public.app_db COLUMN-ORDER (id, app_name, created_at, updated_at, modified_by_id, project_id, app_type, folder_id)
+---
+> TABLE public.api_keys COLUMN-ORDER (id, prefix, hashed_key, rate_limit, hidden, expiration_date, created_at, updated_at, project_id, created_by_id)
+> TABLE public.app_db COLUMN-ORDER (id, app_name, created_at, updated_at, workspace_id, organization_id, modified_by_id, project_id, app_type, folder_id)
+641c739
+< TABLE public.app_variants COLUMN-ORDER (id, app_id, variant_name, revision, image_id, modified_by_id, base_name, base_id, config_name, created_at, updated_at, project_id, hidden, config_parameters)
+---
+> TABLE public.app_variants COLUMN-ORDER (id, app_id, variant_name, revision, image_id, modified_by_id, base_name, base_id, config_name, created_at, updated_at, workspace_id, organization_id, project_id, hidden, config_parameters)
+645,650c743,748
+< TABLE public.auto_evaluation_scenarios COLUMN-ORDER (id, evaluation_id, variant_id, inputs, outputs, correct_answers, is_pinned, note, latency, cost, created_at, updated_at, project_id)
+< TABLE public.auto_evaluations COLUMN-ORDER (id, app_id, status, testset_id, variant_id, variant_revision_id, average_cost, total_cost, average_latency, created_at, updated_at, project_id)
+< TABLE public.auto_evaluator_configs COLUMN-ORDER (id, name, evaluator_key, settings_values, created_at, updated_at, project_id)
+< TABLE public.bases COLUMN-ORDER (id, app_id, base_name, image_id, deployment_id, created_at, updated_at, project_id)
+< TABLE public.deployments COLUMN-ORDER (id, app_id, container_name, container_id, uri, status, created_at, updated_at, project_id)
+< TABLE public.docker_images COLUMN-ORDER (id, type, template_uri, docker_id, tags, deletable, created_at, updated_at, project_id)
+---
+> TABLE public.auto_evaluation_scenarios COLUMN-ORDER (id, evaluation_id, variant_id, inputs, outputs, correct_answers, is_pinned, note, latency, cost, created_at, updated_at, workspace_id, organization_id, project_id)
+> TABLE public.auto_evaluations COLUMN-ORDER (id, app_id, status, testset_id, variant_id, variant_revision_id, average_cost, total_cost, average_latency, created_at, updated_at, workspace_id, organization_id, project_id)
+> TABLE public.auto_evaluator_configs COLUMN-ORDER (id, app_id, name, evaluator_key, settings_values, created_at, updated_at, workspace_id, organization_id, project_id)
+> TABLE public.bases COLUMN-ORDER (id, app_id, base_name, image_id, deployment_id, created_at, updated_at, workspace_id, organization_id, project_id)
+> TABLE public.deployments COLUMN-ORDER (id, app_id, container_name, container_id, uri, status, created_at, updated_at, cloud_map_service_id, workspace_id, organization_id, project_id)
+> TABLE public.docker_images COLUMN-ORDER (id, type, template_uri, docker_id, tags, deletable, created_at, updated_at, workspace_id, organization_id, project_id)
+654,655c752,753
+< TABLE public.environments COLUMN-ORDER (id, app_id, name, revision, deployed_app_variant_id, deployed_app_variant_revision_id, deployment_id, created_at, project_id)
+< TABLE public.environments_revisions COLUMN-ORDER (id, environment_id, revision, modified_by_id, deployed_app_variant_revision_id, deployment_id, created_at, project_id, commit_message)
+---
+> TABLE public.environments COLUMN-ORDER (id, app_id, name, revision, deployed_app_variant_id, deployed_app_variant_revision_id, deployment_id, created_at, workspace_id, organization_id, project_id)
+> TABLE public.environments_revisions COLUMN-ORDER (id, environment_id, revision, modified_by_id, deployed_app_variant_revision_id, deployment_id, created_at, workspace_id, organization_id, project_id, commit_message)
+663,664c761,762
+< TABLE public.human_evaluations COLUMN-ORDER (id, app_id, status, evaluation_type, testset_id, created_at, updated_at, project_id)
+< TABLE public.human_evaluations_scenarios COLUMN-ORDER (id, evaluation_id, inputs, outputs, vote, score, correct_answer, created_at, updated_at, is_pinned, note, project_id)
+---
+> TABLE public.human_evaluations COLUMN-ORDER (id, app_id, status, evaluation_type, testset_id, created_at, updated_at, workspace_id, organization_id, project_id)
+> TABLE public.human_evaluations_scenarios COLUMN-ORDER (id, evaluation_id, inputs, outputs, vote, score, correct_answer, created_at, updated_at, is_pinned, note, workspace_id, organization_id, project_id)
+665a764,767
+> TABLE public.meters COLUMN-ORDER (key, value, synced, organization_id, year, month, workspace_id, project_id, user_id, day, meter_id)
+> TABLE public.organization_domains COLUMN-ORDER (id, organization_id, slug, name, description, token, flags, tags, meta, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id)
+> TABLE public.organization_members COLUMN-ORDER (id, user_id, organization_id, role, created_at, updated_at, updated_by_id)
+> TABLE public.organization_providers COLUMN-ORDER (id, organization_id, slug, name, description, secret_id, flags, tags, meta, created_at, updated_at, deleted_at, created_by_id, updated_by_id, deleted_by_id)
+667a770
+> TABLE public.project_members COLUMN-ORDER (id, user_id, project_id, role, created_at, updated_at, is_demo, updated_by_id)
+672a776
+> TABLE public.subscriptions COLUMN-ORDER (plan, active, organization_id, customer_id, subscription_id, anchor)
+678c782
+< TABLE public.testsets COLUMN-ORDER (id, name, csvdata, created_at, updated_at, project_id)
+---
+> TABLE public.testsets COLUMN-ORDER (id, name, csvdata, created_at, updated_at, workspace_id, organization_id, project_id)
+686a791
+> TABLE public.workspace_members COLUMN-ORDER (id, user_id, workspace_id, role, created_at, updated_at, updated_by_id)
+691d795
+< TABLE public.api_keys CONSTRAINT api_keys_created_by_id_fkey FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE SET NULL
+694c798
+< TABLE public.app_db CONSTRAINT app_db_modified_by_id_fkey FOREIGN KEY (modified_by_id) REFERENCES users(id)
+---
+> TABLE public.app_db CONSTRAINT app_db_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
+696a801
+> TABLE public.app_db CONSTRAINT app_db_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+706a812
+> TABLE public.app_variants CONSTRAINT app_variants_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
+708a815
+> TABLE public.app_variants CONSTRAINT app_variants_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+719a827
+> TABLE public.auto_evaluation_scenarios CONSTRAINT evaluation_scenarios_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
+722a831
+> TABLE public.auto_evaluation_scenarios CONSTRAINT evaluation_scenarios_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+723a833
+> TABLE public.auto_evaluations CONSTRAINT evaluations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
+728a839,840
+> TABLE public.auto_evaluations CONSTRAINT evaluations_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+> TABLE public.auto_evaluator_configs CONSTRAINT evaluators_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
+730a843
+> TABLE public.auto_evaluator_configs CONSTRAINT evaluators_configs_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+732a846
+> TABLE public.bases CONSTRAINT bases_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
+734a849
+> TABLE public.bases CONSTRAINT bases_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+735a851
+> TABLE public.deployments CONSTRAINT deployments_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
+737a854,855
+> TABLE public.deployments CONSTRAINT deployments_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+> TABLE public.docker_images CONSTRAINT docker_images_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
+739a858
+> TABLE public.docker_images CONSTRAINT docker_images_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+756a876
+> TABLE public.environments CONSTRAINT environments_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
+758a879
+> TABLE public.environments CONSTRAINT environments_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+762a884
+> TABLE public.environments_revisions CONSTRAINT environments_revisions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
+764a887
+> TABLE public.environments_revisions CONSTRAINT environments_revisions_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+792a916
+> TABLE public.human_evaluations CONSTRAINT human_evaluations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
+795a920
+> TABLE public.human_evaluations CONSTRAINT human_evaluations_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+796a922
+> TABLE public.human_evaluations_scenarios CONSTRAINT human_evaluations_scenarios_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
+798a925
+> TABLE public.human_evaluations_scenarios CONSTRAINT human_evaluations_scenarios_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+799a927,937
+> TABLE public.meters CONSTRAINT meters_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES subscriptions(organization_id)
+> TABLE public.meters CONSTRAINT meters_pkey PRIMARY KEY (meter_id)
+> TABLE public.organization_domains CONSTRAINT organization_domains_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+> TABLE public.organization_domains CONSTRAINT organization_domains_pkey PRIMARY KEY (id)
+> TABLE public.organization_members CONSTRAINT organization_members_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+> TABLE public.organization_members CONSTRAINT organization_members_pkey PRIMARY KEY (id)
+> TABLE public.organization_members CONSTRAINT organization_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+> TABLE public.organization_providers CONSTRAINT organization_providers_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+> TABLE public.organization_providers CONSTRAINT organization_providers_pkey PRIMARY KEY (id)
+> TABLE public.organization_providers CONSTRAINT organization_providers_secret_id_fkey FOREIGN KEY (secret_id) REFERENCES secrets(id) ON DELETE CASCADE
+> TABLE public.organization_providers CONSTRAINT uq_organization_providers_org_slug UNIQUE (organization_id, slug)
+810,811c948,950
+< TABLE public.projects CONSTRAINT fk_projects_organization_id FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
+< TABLE public.projects CONSTRAINT fk_projects_workspace_id FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+---
+> TABLE public.project_members CONSTRAINT project_members_pkey PRIMARY KEY (id)
+> TABLE public.project_members CONSTRAINT project_members_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+> TABLE public.project_members CONSTRAINT project_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+814c953
+< TABLE public.projects CONSTRAINT uq_projects_id UNIQUE (id)
+---
+> TABLE public.projects CONSTRAINT projects_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+830a970
+> TABLE public.subscriptions CONSTRAINT subscriptions_pkey PRIMARY KEY (organization_id)
+849a990
+> TABLE public.testsets CONSTRAINT testsets_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
+851a993
+> TABLE public.testsets CONSTRAINT testsets_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL
+877a1020,1022
+> TABLE public.workspace_members CONSTRAINT workspace_members_pkey PRIMARY KEY (id)
+> TABLE public.workspace_members CONSTRAINT workspace_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+> TABLE public.workspace_members CONSTRAINT workspace_members_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+960a1106,1117
+> TABLE public.meters INDEX idx_meters_org_key_period CREATE INDEX idx_meters_org_key_period ON public.meters USING btree (organization_id, key, year, month, day)
+> TABLE public.meters INDEX idx_synced_value CREATE INDEX idx_synced_value ON public.meters USING btree (synced, value)
+> TABLE public.meters INDEX meters_pkey CREATE UNIQUE INDEX meters_pkey ON public.meters USING btree (meter_id)
+> TABLE public.organization_domains INDEX ix_organization_domains_flags CREATE INDEX ix_organization_domains_flags ON public.organization_domains USING gin (flags)
+> TABLE public.organization_domains INDEX ix_organization_domains_org CREATE INDEX ix_organization_domains_org ON public.organization_domains USING btree (organization_id)
+> TABLE public.organization_domains INDEX organization_domains_pkey CREATE UNIQUE INDEX organization_domains_pkey ON public.organization_domains USING btree (id)
+> TABLE public.organization_domains INDEX uq_organization_domains_slug_verified CREATE UNIQUE INDEX uq_organization_domains_slug_verified ON public.organization_domains USING btree (slug) WHERE ((flags ->> 'is_verified'::text) = 'true'::text)
+> TABLE public.organization_members INDEX organization_members_pkey CREATE UNIQUE INDEX organization_members_pkey ON public.organization_members USING btree (id)
+> TABLE public.organization_providers INDEX ix_organization_providers_flags CREATE INDEX ix_organization_providers_flags ON public.organization_providers USING gin (flags)
+> TABLE public.organization_providers INDEX ix_organization_providers_org CREATE INDEX ix_organization_providers_org ON public.organization_providers USING btree (organization_id)
+> TABLE public.organization_providers INDEX organization_providers_pkey CREATE UNIQUE INDEX organization_providers_pkey ON public.organization_providers USING btree (id)
+> TABLE public.organization_providers INDEX uq_organization_providers_org_slug CREATE UNIQUE INDEX uq_organization_providers_org_slug ON public.organization_providers USING btree (organization_id, slug)
+965a1123
+> TABLE public.project_members INDEX project_members_pkey CREATE UNIQUE INDEX project_members_pkey ON public.project_members USING btree (id)
+968d1125
+< TABLE public.projects INDEX uq_projects_id CREATE UNIQUE INDEX uq_projects_id ON public.projects USING btree (id)
+982a1140,1141
+> TABLE public.subscriptions INDEX ix_subscriptions_plan CREATE INDEX ix_subscriptions_plan ON public.subscriptions USING btree (plan)
+> TABLE public.subscriptions INDEX subscriptions_pkey CREATE UNIQUE INDEX subscriptions_pkey ON public.subscriptions USING btree (organization_id)
+1034a1194
+> TABLE public.workspace_members INDEX workspace_members_pkey CREATE UNIQUE INDEX workspace_members_pkey ON public.workspace_members USING btree (id)
