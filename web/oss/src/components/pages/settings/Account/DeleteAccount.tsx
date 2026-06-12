@@ -2,8 +2,9 @@ import {useState} from "react"
 
 import {Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
-import {Button, Input, Modal, Typography, message} from "antd"
+import {Button, Input, Typography, message} from "antd"
 
+import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {useSession} from "@/oss/hooks/useSession"
 import {deleteAccount} from "@/oss/services/profile"
 import {useProfileData} from "@/oss/state/profile"
@@ -71,7 +72,7 @@ const DeleteAccount: React.FC = () => {
                 </div>
             </div>
 
-            <Modal
+            <EnhancedModal
                 title="Delete account"
                 open={isModalOpen}
                 okText="Delete account"
@@ -84,8 +85,6 @@ const DeleteAccount: React.FC = () => {
                 onCancel={closeModal}
                 onOk={() => deleteMutation.mutate()}
                 confirmLoading={deleteMutation.isPending}
-                destroyOnHidden
-                centered
                 width={450}
             >
                 <div className="flex flex-col gap-3">
@@ -123,7 +122,7 @@ const DeleteAccount: React.FC = () => {
                         />
                     </div>
                 </div>
-            </Modal>
+            </EnhancedModal>
         </section>
     )
 }
