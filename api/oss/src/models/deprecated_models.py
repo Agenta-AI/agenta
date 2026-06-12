@@ -4,11 +4,29 @@ import uuid_utils.compat as uuid
 from sqlalchemy.orm import declarative_base
 from sqlalchemy_json import mutable_json_type
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, Integer
+from sqlalchemy import (
+    Column,
+    String,
+    DateTime,
+    ForeignKey,
+    Boolean,
+    Integer,
+    Enum,
+    JSON,
+    Table,
+)
+
+from oss.src.models.shared_models import AppType
 
 
 DeprecatedBase = declarative_base()
 AltDeprecatedBase = declarative_base()
+
+# Final shapes of the legacy app-centric tables dropped in 3d4e5f6a7b8c /
+# 4e5f6a7b8c9d, frozen here because earlier migrations still query them.
+# Separate base: extend_existing on DeprecatedBase would merge these columns
+# into the older partial shapes above.
+DroppedBase = declarative_base()
 
 
 class ProjectScopedAppDB(DeprecatedBase):
@@ -505,6 +523,279 @@ class DeprecatedEvaluationScenarioDB(DeprecatedBase):
     note = Column(String)
     latency = Column(Integer)
     cost = Column(Integer)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class AppDB(DroppedBase):
+    __tablename__ = "app_db"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_name = Column(String)
+    app_type = Column(Enum(AppType, name="app_type_enum"), nullable=True)  # type: ignore
+    project_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    folder_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("folders.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class DeploymentDB(DroppedBase):
+    __tablename__ = "deployments"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
+    project_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    uri = Column(String)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class VariantBaseDB(DroppedBase):
+    __tablename__ = "bases"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
+    project_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    base_name = Column(String)
+    deployment_id = Column(
+        UUID(as_uuid=True), ForeignKey("deployments.id", ondelete="SET NULL")
+    )
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class AppVariantDB(DroppedBase):
+    __tablename__ = "app_variants"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
+    variant_name = Column(String)
+    revision = Column(Integer)
+    project_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    base_name = Column(String)
+    base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
+    config_name = Column(String, nullable=False)
+    config_parameters = Column(
+        mutable_json_type(dbtype=JSON, nested=True),  # type: ignore
+        nullable=False,
+        default=dict,
+    )
+    hidden = Column(Boolean, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class AppVariantRevisionsDB(DroppedBase):
+    __tablename__ = "app_variant_revisions"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    variant_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="CASCADE")
+    )
+    revision = Column(Integer)
+    commit_message = Column(String(length=255), nullable=True)
+    project_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
+    hidden = Column(Boolean, nullable=True)
+    config_name = Column(String, nullable=False)
+    config_parameters = Column(
+        mutable_json_type(dbtype=JSON, nested=True),  # type: ignore
+        nullable=False,
+        default=dict,
+    )
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class AppEnvironmentDB(DroppedBase):
+    __tablename__ = "environments"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
+    name = Column(String)
+    project_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    revision = Column(Integer)
+    deployed_app_variant_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="SET NULL")
+    )
+    deployed_app_variant_revision_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id", ondelete="SET NULL")
+    )
+    deployment_id = Column(
+        UUID(as_uuid=True), ForeignKey("deployments.id", ondelete="SET NULL")
+    )
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class AppEnvironmentRevisionDB(DroppedBase):
+    __tablename__ = "environments_revisions"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    environment_id = Column(
+        UUID(as_uuid=True), ForeignKey("environments.id", ondelete="CASCADE")
+    )
+    project_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    revision = Column(Integer)
+    commit_message = Column(String(length=255), nullable=True)
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    deployed_app_variant_revision_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id", ondelete="SET NULL")
+    )
+    deployment_id = Column(
+        UUID(as_uuid=True), ForeignKey("deployments.id", ondelete="SET NULL")
+    )
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class TestsetDB(DroppedBase):
+    __tablename__ = "testsets"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    name = Column(String)
+    project_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    csvdata = Column(mutable_json_type(dbtype=JSONB, nested=True))
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class EvaluatorConfigDB(DroppedBase):
+    __tablename__ = "auto_evaluator_configs"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+
+    project_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name = Column(String)
+    evaluator_key = Column(String)
+    settings_values = Column(mutable_json_type(dbtype=JSONB, nested=True), default=dict)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
