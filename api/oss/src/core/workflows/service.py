@@ -396,6 +396,52 @@ class WorkflowsService:
         )
 
     @staticmethod
+    def _validate_execution_reference_families(
+        *,
+        request: WorkflowServiceRequest,
+    ) -> tuple[Optional[Reference], Optional[Reference], Optional[Reference]]:
+        refs = request.references or {}
+
+        families = {
+            "workflow": (
+                refs.get("workflow"),
+                refs.get("workflow_variant"),
+                refs.get("workflow_revision"),
+            ),
+            "application": (
+                refs.get("application"),
+                refs.get("application_variant"),
+                refs.get("application_revision"),
+            ),
+            "evaluator": (
+                refs.get("evaluator"),
+                refs.get("evaluator_variant"),
+                refs.get("evaluator_revision"),
+            ),
+        }
+
+        populated = [
+            (name, artifact_ref, variant_ref, revision_ref)
+            for name, (artifact_ref, variant_ref, revision_ref) in families.items()
+            if any(ref is not None for ref in (artifact_ref, variant_ref, revision_ref))
+        ]
+
+        if len(populated) > 1:
+            names = ", ".join(name for name, *_ in populated)
+            error = ValueError(
+                "Workflow execution accepts exactly one of the workflow, "
+                f"application, or evaluator reference families. Received: {names}."
+            )
+            error.status_code = 400  # type: ignore[attr-defined]
+            raise error
+
+        if not populated:
+            return None, None, None
+
+        _, artifact_ref, variant_ref, revision_ref = populated[0]
+        return artifact_ref, variant_ref, revision_ref
+
+    @staticmethod
     def _get_revision_data(
         *,
         request: WorkflowServiceRequest,
@@ -525,11 +571,20 @@ class WorkflowsService:
             return
 
         refs = request.references
-        workflow_ref = refs.get("workflow")
+        (
+            workflow_ref,
+            workflow_variant_ref,
+            workflow_revision_ref,
+        ) = self._validate_execution_reference_families(request=request)
         workflow_revision = None
+        selector_key = (
+            request.selector.get("key")
+            if isinstance(request.selector, dict)
+            else getattr(request.selector, "key", None)
+        )
 
         if "environment" in refs:
-            key = (
+            key = selector_key or (
                 f"{workflow_ref.slug}.revision"
                 if workflow_ref and workflow_ref.slug
                 else None
@@ -540,12 +595,12 @@ class WorkflowsService:
                 key=key,
             )
 
-        elif "workflow_revision" in refs or "workflow" in refs:
+        elif workflow_revision_ref or workflow_variant_ref or workflow_ref:
             workflow_revision, _, _ = await self.retrieve_workflow_revision(
                 project_id=project_id,
                 workflow_ref=workflow_ref,
-                workflow_variant_ref=refs.get("workflow_variant"),
-                workflow_revision_ref=refs.get("workflow_revision"),
+                workflow_variant_ref=workflow_variant_ref,
+                workflow_revision_ref=workflow_revision_ref,
             )
 
         if workflow_revision and workflow_revision.data:

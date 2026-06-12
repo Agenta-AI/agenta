@@ -449,7 +449,9 @@ class GitDAO(GitDAOInterface):
             tags=variant_create.tags,
             meta=variant_create.meta,
             #
-            name=variant_create.name,
+            # Temporary default until the SDK can send variant display names;
+            # without it SDK-created variants surface as NULL and break entity labels.
+            name=variant_create.name or variant_create.slug,
             description=variant_create.description,
         )
 
