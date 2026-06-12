@@ -101,98 +101,106 @@ function ChildPanelContent({
                   .length
             : 0
 
-    if (query.isPending) {
-        return (
-            <div className="flex items-center justify-center py-4 px-6" style={panelStyle}>
-                <Spin size="small" />
-            </div>
-        )
-    }
-
     return (
         <div data-testid={POPOVER_CASCADER_TEST_IDS.childPanel} style={panelStyle}>
-            {/* Child panel header */}
-            {multiSelect && (
-                <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-start justify-between">
-                    <div className="flex flex-col gap-0.5">
-                        <span className="text-[10px] font-medium truncate" title={parentLabel}>
-                            {parentLabel}
-                        </span>
-                        {multiSelect && (
-                            <span className="text-zinc-500 text-[10px]">
-                                {selectedCount} of {filteredItems.length} selected
-                            </span>
+            {query.isPending ? (
+                // Render the loading spinner inside the SAME fixed-width panel chrome as the
+                // loaded content (panelStyle is the fixed childPanelStyle). Previously the
+                // pending state early-returned a separate `px-6` container, so the right
+                // panel's footprint could differ between loading and loaded — causing a
+                // layout shift when a parent item was selected.
+                <div className="flex items-center justify-center py-6">
+                    <Spin size="small" />
+                </div>
+            ) : (
+                <>
+                    {/* Child panel header */}
+                    {multiSelect && (
+                        <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-start justify-between">
+                            <div className="flex flex-col gap-0.5">
+                                <span
+                                    className="text-[10px] font-medium truncate"
+                                    title={parentLabel}
+                                >
+                                    {parentLabel}
+                                </span>
+                                {multiSelect && (
+                                    <span className="text-zinc-500 text-[10px]">
+                                        {selectedCount} of {filteredItems.length} selected
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Child items */}
+                    <div className="overflow-y-auto py-1 px-1" style={{maxHeight}}>
+                        {filteredItems.length === 0 ? (
+                            <Empty
+                                description="No items"
+                                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                                className="my-4"
+                            />
+                        ) : multiSelect ? (
+                            // Multi-select: checkboxes
+                            filteredItems.map((item) => {
+                                const itemId = childLevelConfig.getId(item)
+                                const label = childLevelConfig.getLabel(item)
+                                const labelNode = getItemLabelNode?.(item)
+                                const isDisabled = disabledIds?.has(itemId) ?? false
+                                const isChecked = selectedChildIds?.has(itemId) ?? false
+
+                                return (
+                                    <div
+                                        key={itemId}
+                                        className={cn(
+                                            "flex items-center gap-2 px-2 py-1.5 rounded-md",
+                                            isDisabled
+                                                ? "opacity-50 cursor-not-allowed"
+                                                : "cursor-pointer hover:bg-[var(--ag-rgba-051729-04)]",
+                                        )}
+                                        onClick={() => {
+                                            if (!isDisabled) onSelect(item)
+                                        }}
+                                    >
+                                        <Checkbox
+                                            checked={isChecked}
+                                            disabled={isDisabled}
+                                            className="pointer-events-none"
+                                        />
+                                        <span className="truncate text-sm" title={label}>
+                                            {labelNode ?? label}
+                                        </span>
+                                    </div>
+                                )
+                            })
+                        ) : (
+                            // Single-select: click items
+                            filteredItems.map((item) => {
+                                const itemId = childLevelConfig.getId(item)
+                                const label = childLevelConfig.getLabel(item)
+                                const labelNode = getItemLabelNode?.(item)
+                                const isSelected = itemId === selectedId
+                                const isDisabled = disabledIds?.has(itemId) ?? false
+
+                                return (
+                                    <EntityListItem
+                                        key={itemId}
+                                        label={label}
+                                        labelNode={labelNode}
+                                        isSelectable={!isDisabled}
+                                        isSelected={isSelected}
+                                        isDisabled={isDisabled}
+                                        onClick={() => !isDisabled && onSelect(item)}
+                                        onSelect={() => !isDisabled && onSelect(item)}
+                                        className="!py-1.5"
+                                    />
+                                )
+                            })
                         )}
                     </div>
-                </div>
+                </>
             )}
-
-            {/* Child items */}
-            <div className="overflow-y-auto py-1 px-1" style={{maxHeight}}>
-                {filteredItems.length === 0 ? (
-                    <Empty
-                        description="No items"
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        className="my-4"
-                    />
-                ) : multiSelect ? (
-                    // Multi-select: checkboxes
-                    filteredItems.map((item) => {
-                        const itemId = childLevelConfig.getId(item)
-                        const label = childLevelConfig.getLabel(item)
-                        const labelNode = getItemLabelNode?.(item)
-                        const isDisabled = disabledIds?.has(itemId) ?? false
-                        const isChecked = selectedChildIds?.has(itemId) ?? false
-
-                        return (
-                            <div
-                                key={itemId}
-                                className={cn(
-                                    "flex items-center gap-2 px-2 py-1.5 rounded-md",
-                                    isDisabled
-                                        ? "opacity-50 cursor-not-allowed"
-                                        : "cursor-pointer hover:bg-[var(--ag-rgba-051729-04)]",
-                                )}
-                                onClick={() => {
-                                    if (!isDisabled) onSelect(item)
-                                }}
-                            >
-                                <Checkbox
-                                    checked={isChecked}
-                                    disabled={isDisabled}
-                                    className="pointer-events-none"
-                                />
-                                <span className="truncate text-sm" title={label}>
-                                    {labelNode ?? label}
-                                </span>
-                            </div>
-                        )
-                    })
-                ) : (
-                    // Single-select: click items
-                    filteredItems.map((item) => {
-                        const itemId = childLevelConfig.getId(item)
-                        const label = childLevelConfig.getLabel(item)
-                        const labelNode = getItemLabelNode?.(item)
-                        const isSelected = itemId === selectedId
-                        const isDisabled = disabledIds?.has(itemId) ?? false
-
-                        return (
-                            <EntityListItem
-                                key={itemId}
-                                label={label}
-                                labelNode={labelNode}
-                                isSelectable={!isDisabled}
-                                isSelected={isSelected}
-                                isDisabled={isDisabled}
-                                onClick={() => !isDisabled && onSelect(item)}
-                                onSelect={() => !isDisabled && onSelect(item)}
-                                className="!py-1.5"
-                            />
-                        )
-                    })
-                )}
-            </div>
         </div>
     )
 }
@@ -622,7 +630,9 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
 
                 {/* CHILD PANEL */}
                 {selectedRootId && totalLevels > 1 && (
-                    <div className="flex flex-col" style={panelStyle}>
+                    // Fixed width (childPanelStyle), not the growable panelStyle, so the
+                    // child column never changes width between loading and loaded states.
+                    <div className="flex flex-col" style={childPanelStyle}>
                         <ChildPanelContent
                             parentId={selectedRootId}
                             parentLabel={rootLevel.getLabel(selectedRootEntity!)}
