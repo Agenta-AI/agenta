@@ -549,6 +549,7 @@ class ResultSetter(Protocol):
         *,
         cell,
         trace_id=None,
+        hash_id=None,
         testcase_id=None,
         error=None,
     ) -> Any: ...

@@ -100,6 +100,7 @@ class SDKResultSetter:
         *,
         cell,
         trace_id=None,
+        hash_id=None,
         testcase_id=None,
         error=None,
     ) -> Dict[str, Any]:
@@ -112,6 +113,7 @@ class SDKResultSetter:
             #
             status=getattr(cell.status, "value", cell.status),
             trace_id=trace_id if trace_id is not None else cell.trace_id,
+            hash_id=hash_id if hash_id is not None else getattr(cell, "hash_id", None),
             testcase_id=str(
                 testcase_id if testcase_id is not None else cell.testcase_id
             )
@@ -141,8 +143,16 @@ class SDKScenarioEditor:
             #
             status=getattr(status, "value", status),
             #
+            # The edit is a full PUT, not a partial PATCH: every field not sent is
+            # overwritten to its default. Carry EVERY persisted scenario field so
+            # the status write does not wipe them (a dropped `flags` is what
+            # leaves a scenario grey instead of green in the UI).
+            flags=getattr(scenario, "flags", None),
             tags=getattr(scenario, "tags", None),
             meta=getattr(scenario, "meta", None),
+            #
+            interval=getattr(scenario, "interval", None),
+            timestamp=getattr(scenario, "timestamp", None),
         )
 
 

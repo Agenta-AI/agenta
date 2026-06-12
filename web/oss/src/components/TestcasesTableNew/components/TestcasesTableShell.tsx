@@ -696,21 +696,27 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                 align: "center",
                 columnVisibilityLocked: true as any,
                 exportEnabled: false as any, // Exclude from client-side CSV export
+                onCell: () => ({className: "ag-table-actions-cell"}),
                 render: (_, record) => {
                     if (record.__isSkeleton || isShowingSkeleton) return null
 
                     return (
-                        <TestcaseRowActionsDropdown
-                            testcaseId={record.id ? String(record.id) : String(record.key)}
-                            onEdit={() => {
-                                if (record.id) onRowClick(record)
-                            }}
-                            onDelete={() => {
-                                if (record.key) {
-                                    table.deleteTestcases([String(record.key)])
-                                }
-                            }}
-                        />
+                        <div
+                            className="w-full h-full flex items-center justify-center"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <TestcaseRowActionsDropdown
+                                testcaseId={record.id ? String(record.id) : String(record.key)}
+                                onEdit={() => {
+                                    if (record.id) onRowClick(record)
+                                }}
+                                onDelete={() => {
+                                    if (record.key) {
+                                        table.deleteTestcases([String(record.key)])
+                                    }
+                                }}
+                            />
+                        </div>
                     )
                 },
             },

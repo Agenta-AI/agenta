@@ -1,6 +1,6 @@
 from typing import Any, Dict, Union, Optional
 
-from agenta.sdk.engines.running.runners.base import CodeRunner
+from agenta.sdk.engines.running.runners.base import CodeRunner, normalize_result
 
 
 class LocalRunner(CodeRunner):
@@ -18,7 +18,7 @@ class LocalRunner(CodeRunner):
         *,
         version: str = "1",
         trace: Optional[Dict[str, Any]] = None,
-    ) -> Union[float, None]:
+    ) -> Any:
         """
         Execute provided Python code directly.
 
@@ -30,11 +30,13 @@ class LocalRunner(CodeRunner):
             correct_answer: The correct answer (or target) for comparison (v1 only)
             runtime: Runtime environment (only "python" is supported for local runner)
             templates: Wrapper templates keyed by runtime (unused for local runner).
-            version: Evaluator interface version ("1" = legacy, "2" = new)
-            trace: Full trace data (v2 only)
+            version: Evaluator interface version ("1" = legacy, "2" = float-only,
+                "3" = rich outputs)
+            trace: Full trace data (v2+ only)
 
         Returns:
-            Float score between 0 and 1, or None if execution fails
+            Versions "1"/"2": float score between 0 and 1.
+            Version "3": any JSON-serializable value.
         """
         # Normalize runtime: None means python
         runtime = runtime or "python"
@@ -54,24 +56,12 @@ class LocalRunner(CodeRunner):
 
             fn = environment["evaluate"]
 
-            if version == "2":
+            if version in ("2", "3"):
                 result = fn(inputs, output, trace)
             else:
                 result = fn(app_params, inputs, output, correct_answer)
 
-            # Attempt to convert result to float
-            if isinstance(result, (float, int, str)):
-                try:
-                    result = float(result)
-                except ValueError as e:
-                    raise ValueError(f"Result cannot be converted to float: {e}")
-
-            if not isinstance(result, float):
-                raise TypeError(
-                    f"Result is not a float after conversion: {type(result)}"
-                )
-
-            return result
+            return normalize_result(result, version)
 
         except KeyError as e:
             raise KeyError(f"Missing expected key in environment: {e}")

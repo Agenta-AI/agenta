@@ -1,4 +1,5 @@
 import {loadableController, type RequestPayloadData} from "@agenta/entities/runnable"
+import {isLocalDraftId, isPlaceholderId} from "@agenta/entities/shared"
 import {
     stripAgentaMetadataDeep,
     stripEnhancedWrappers,
@@ -208,6 +209,39 @@ const MODEL_ATTACHMENT_ALLOWLIST = ["gemini"]
 function asRecord(value: unknown): Record<string, unknown> | null {
     if (!value || typeof value !== "object" || Array.isArray(value)) return null
     return value as Record<string, unknown>
+}
+
+/**
+ * Strip reference `id`s that aren't real server UUIDs (local-draft or
+ * placeholder ids) from a request body's `references` map.
+ *
+ * The backend `/invoke` validator rejects a non-UUID reference id with a 422
+ * (QA 2026-06-05: an unsaved evaluator opened from the drawer shipped
+ * `references.evaluator_revision.id = "local-…"` → "Input should be a valid
+ * UUID"). This is the last line of defense, applied to the FINAL merged
+ * references regardless of which builder produced them (requestPayload
+ * references, executionRunner stage self/upstream references, or
+ * trace-span-extracted references). Slugs and versions are plain strings the
+ * backend accepts and are kept; a slot left with no fields is dropped.
+ */
+function sanitizeReferenceIds(references: unknown): Record<string, unknown> | null {
+    const refs = asRecord(references)
+    if (!refs) return null
+    let mutated = false
+    const out: Record<string, unknown> = {}
+    for (const [slot, value] of Object.entries(refs)) {
+        const ref = asRecord(value)
+        const id = ref?.id
+        if (ref && typeof id === "string" && (isLocalDraftId(id) || isPlaceholderId(id))) {
+            const rest = {...ref}
+            delete rest.id
+            mutated = true
+            if (Object.keys(rest).length > 0) out[slot] = rest
+        } else {
+            out[slot] = value
+        }
+    }
+    return mutated ? out : refs
 }
 
 function unwrapValue(value: unknown): unknown {
@@ -1320,6 +1354,18 @@ function buildExecutionItem(
         requestBody.references = existingReferences
             ? {...existingReferences, ...params.references}
             : params.references
+    }
+
+    // Final guard: never ship a local-draft / placeholder id in a reference —
+    // the backend `/invoke` validator 422s on non-UUID reference ids (QA
+    // 2026-06-05). Covers every reference source after they're merged above.
+    if (requestBody.references !== undefined) {
+        const sanitized = sanitizeReferenceIds(requestBody.references)
+        if (sanitized && Object.keys(sanitized).length > 0) {
+            requestBody.references = sanitized
+        } else {
+            delete requestBody.references
+        }
     }
 
     const references: ExecutionItemReference = {

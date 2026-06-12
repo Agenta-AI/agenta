@@ -139,8 +139,7 @@ async def process_sources(
         **({"retry_delay": retry_delay} if retry_delay else {}),
     )
 
-    async def _process_one(source_item: ResolvedSourceItem) -> None:
-        scenario = await create_scenario(run_id=run_id)
+    async def _process_one(scenario: Any, source_item: ResolvedSourceItem) -> None:
         scenario_id = scenario.id
 
         logger.info(
@@ -304,12 +303,19 @@ async def process_sources(
                 if execution.outputs is None and execution.trace is not None:
                     execution.outputs = _extract_outputs(execution.trace)
 
+                # Persist the EXECUTED status, not the planned one. `batch_cell`
+                # still carries its pre-execution status (e.g. QUEUED); the result
+                # row must record the verdict the runner produced (SUCCESS/ERRORS)
+                # or the cell stays QUEUED in the DB and renders grey in the UI.
+                batch_cell.status = execution.status
+
                 _remember(
                     batch_cell,
                     await set_results.set(
                         cell=batch_cell,
                         #
                         trace_id=execution.trace_id,
+                        hash_id=execution.hash_id,
                         testcase_id=source_item.testcase_id,
                         error=execution.error,
                     ),
@@ -445,18 +451,33 @@ async def process_sources(
             )
 
     async def _guarded_process_one(source_item: ResolvedSourceItem) -> None:
-        # One scenario's failure (e.g. create_scenario or an unhandled error in
-        # the loop) must not abort the whole slice. Isolate it: log and continue
-        # so sibling scenarios still run and partial results survive.
+        # One scenario's failure must not abort the slice. Isolate it, but record
+        # it: mark the scenario errored and roll it up so it does not vanish.
         try:
-            await _process_one(source_item)
+            scenario = await create_scenario(run_id=run_id)
         except Exception:  # pylint: disable=broad-exception-caught
             logger.error(
-                "[SLICE] scenario processing failed",
+                "[SLICE] scenario creation failed",
                 run_id=str(run_id),
                 step_key=source_item.step_key,
                 exc_info=True,
             )
+            return
+
+        try:
+            await _process_one(scenario, source_item)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.error(
+                "[SLICE] scenario processing failed",
+                run_id=str(run_id),
+                scenario_id=str(scenario.id),
+                step_key=source_item.step_key,
+                exc_info=True,
+            )
+            if edit_scenario is not None:
+                await edit_scenario(scenario=scenario, status=EvaluationStatus.ERRORS)
+            async with processed_lock:
+                processed.append(ProcessedScenario(scenario=scenario, has_errors=True))
 
     await asyncio.gather(*(_guarded_process_one(item) for item in source_items))
 
@@ -683,6 +704,11 @@ def _remember_context(
     span_id: Optional[str],
     outputs: Optional[Any],
 ) -> None:
+    # Only the application produces path context; evaluators consume it and must
+    # never overwrite a sibling's, so evaluator order stays irrelevant.
+    if cell.step_type != "invocation":
+        return
+
     context = {
         "trace": trace,
         "trace_id": trace_id,
@@ -690,7 +716,7 @@ def _remember_context(
         "outputs": outputs,
     }
     context_by_repeat[cell.repeat_idx] = context
-    if cell.step_type == "invocation" and 0 not in context_by_repeat:
+    if 0 not in context_by_repeat:
         context_by_repeat[0] = context
 
 

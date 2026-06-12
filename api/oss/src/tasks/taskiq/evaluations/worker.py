@@ -251,19 +251,22 @@ class EvaluationsWorker:
             if oldest is None:
                 oldest = newest - timedelta(minutes=1)
 
-            result = await self._with_job_lock(
-                run_id,
-                job_id=context.message.task_id or str(uuid4()),
-                job_type="api",
-                allow_concurrency=False,
-                runner=lambda: self.run_processor.run_from_source(
-                    project_id=project_id,
-                    user_id=user_id,
-                    run_id=run_id,
-                    newest=newest,
-                    oldest=oldest,
-                ),
-            )
+            try:
+                result = await self._with_job_lock(
+                    run_id,
+                    job_id=context.message.task_id or str(uuid4()),
+                    job_type="api",
+                    allow_concurrency=False,
+                    runner=lambda: self.run_processor.run_from_source(
+                        project_id=project_id,
+                        user_id=user_id,
+                        run_id=run_id,
+                        newest=newest,
+                        oldest=oldest,
+                    ),
+                )
+            except JobLockSkippedError:
+                return None
             log.info("[TASK] Completed process_run_from_source")
             return result
 
@@ -285,21 +288,24 @@ class EvaluationsWorker:
             context: Context = TaskiqDepends(),
         ) -> Any:
             log.info("[TASK] Starting process_run_from_batch", source_kind=source_kind)
-            result = await self._with_job_lock(
-                run_id,
-                job_id=context.message.task_id or str(uuid4()),
-                job_type="api",
-                allow_concurrency=True,
-                runner=lambda: self.run_processor.run_from_batch(
-                    project_id=project_id,
-                    user_id=user_id,
-                    run_id=run_id,
-                    source_kind=source_kind,
-                    trace_ids=trace_ids,
-                    testcase_ids=testcase_ids,
-                    input_step_key=input_step_key,
-                ),
-            )
+            try:
+                result = await self._with_job_lock(
+                    run_id,
+                    job_id=context.message.task_id or str(uuid4()),
+                    job_type="api",
+                    allow_concurrency=True,
+                    runner=lambda: self.run_processor.run_from_batch(
+                        project_id=project_id,
+                        user_id=user_id,
+                        run_id=run_id,
+                        source_kind=source_kind,
+                        trace_ids=trace_ids,
+                        testcase_ids=testcase_ids,
+                        input_step_key=input_step_key,
+                    ),
+                )
+            except JobLockSkippedError:
+                return None
             log.info("[TASK] Completed process_run_from_batch", source_kind=source_kind)
             return result
 
@@ -321,21 +327,24 @@ class EvaluationsWorker:
             context: Context = TaskiqDepends(),
         ) -> Any:
             log.info("[TASK] Starting process_rerun", run_id=str(run_id))
-            result = await self._with_job_lock(
-                run_id,
-                job_id=context.message.task_id or str(uuid4()),
-                job_type="api",
-                allow_concurrency=True,
-                runner=lambda: self.run_processor.rerun(
-                    project_id=project_id,
-                    user_id=user_id,
-                    run_id=run_id,
-                    scenario_ids=scenario_ids,
-                    step_keys=step_keys,
-                    repeat_idxs=repeat_idxs,
-                    overwrite=overwrite,
-                ),
-            )
+            try:
+                result = await self._with_job_lock(
+                    run_id,
+                    job_id=context.message.task_id or str(uuid4()),
+                    job_type="api",
+                    allow_concurrency=True,
+                    runner=lambda: self.run_processor.rerun(
+                        project_id=project_id,
+                        user_id=user_id,
+                        run_id=run_id,
+                        scenario_ids=scenario_ids,
+                        step_keys=step_keys,
+                        repeat_idxs=repeat_idxs,
+                        overwrite=overwrite,
+                    ),
+                )
+            except JobLockSkippedError:
+                return None
             log.info("[TASK] Completed process_rerun", run_id=str(run_id))
             return result
 

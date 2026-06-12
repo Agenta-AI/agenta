@@ -253,7 +253,24 @@ const DownstreamNodeCard = ({
                 }),
             [rowId, scopedEntityId],
         ),
-    ) as {status?: string; output?: unknown; error?: {message: string} | null} | null
+    ) as {
+        status?: string
+        output?: unknown
+        error?: {message: string} | null
+        traceId?: string | null
+    } | null
+
+    // Trace-link affordance for the downstream (evaluator) result — surfaced in
+    // the card legend so users can open the evaluator's own trace to debug a
+    // grade, the same way the primary app row exposes its trace (QA 2026-06-05:
+    // "show the trace links (icon) for evaluators too").
+    const providers = usePlaygroundUIOptional()
+    const SharedGenerationResultUtils = providers?.SharedGenerationResultUtils
+    const nodeTraceId = fullResult?.traceId ?? null
+    const traceActions =
+        nodeTraceId && SharedGenerationResultUtils ? (
+            <SharedGenerationResultUtils traceId={nodeTraceId} actionsOnly />
+        ) : undefined
 
     // Read output ports from the runnable bridge (includes per-field schema)
     const outputPorts = useAtomValue(
@@ -286,7 +303,7 @@ const DownstreamNodeCard = ({
     // Idle / cancelled / no result — show expected fields with placeholder dashes
     if (!fullResult || rawStatus === "idle" || rawStatus === "cancelled") {
         return (
-            <NodeResultCard name={nodeName} status={rawStatus}>
+            <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
                 <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} idle />
             </NodeResultCard>
         )
@@ -295,7 +312,7 @@ const DownstreamNodeCard = ({
     // Running / pending -> loading skeleton
     if (rawStatus === "running" || rawStatus === "pending") {
         return (
-            <NodeResultCard name={nodeName} status={rawStatus}>
+            <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
                 <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} loading />
             </NodeResultCard>
         )
@@ -308,7 +325,7 @@ const DownstreamNodeCard = ({
                 ? fullResult.error.message
                 : "Error"
         return (
-            <NodeResultCard name={nodeName} status={rawStatus}>
+            <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
                 <span className="text-[var(--ant-color-error)] text-xs leading-5">{errorMsg}</span>
             </NodeResultCard>
         )
@@ -321,7 +338,7 @@ const DownstreamNodeCard = ({
                 ? fullResult.error.message
                 : "Skipped"
         return (
-            <NodeResultCard name={nodeName} status={rawStatus}>
+            <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
                 <span className="text-[var(--ant-color-text-tertiary)] text-xs leading-5 italic">
                     {skipMsg}
                 </span>
@@ -330,12 +347,16 @@ const DownstreamNodeCard = ({
     }
 
     // Success -> extract and display value(s)
-    // Filter to only show fields defined in output ports (excludes backend-injected fields like "success")
+    // Filter to only show fields defined in output ports (excludes backend-injected
+    // fields like "success"). Fallback ports are a synthesized default, not a
+    // declared shape, so they must not filter the response (e.g., code evaluators
+    // returning arbitrary dicts).
     const rawEntries = extractDisplayEntries(fullResult.output)
+    const declaredPorts = outputPorts.filter((port) => !port.isFallback)
     const entries =
-        rawEntries && outputPorts.length > 0
+        rawEntries && declaredPorts.length > 0
             ? (() => {
-                  const portKeys = new Set(outputPorts.map((p) => p.key))
+                  const portKeys = new Set(declaredPorts.map((p) => p.key))
                   const filtered = rawEntries.filter(([key]) => portKeys.has(key))
                   return filtered.length > 0 ? filtered : rawEntries
               })()
@@ -343,14 +364,14 @@ const DownstreamNodeCard = ({
 
     if (!entries || entries.length === 0) {
         return (
-            <NodeResultCard name={nodeName} status={rawStatus}>
+            <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
                 <span className="text-xs leading-5">—</span>
             </NodeResultCard>
         )
     }
 
     return (
-        <NodeResultCard name={nodeName} status={rawStatus}>
+        <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
             <div
                 className="grid items-baseline text-xs leading-5"
                 style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 6}}
@@ -828,10 +849,14 @@ const SingleView = ({
                                     className={clsx(
                                         "flex items-start gap-2 px-3 py-2 rounded-md",
                                         "bg-blue-50 border border-solid border-blue-100",
+                                        "dark:bg-blue-900/20 dark:border-blue-900/40",
                                     )}
                                 >
-                                    <Info size={14} className="text-blue-500 mt-0.5 shrink-0" />
-                                    <div className="flex-1 text-xs text-gray-700 leading-relaxed">
+                                    <Info
+                                        size={14}
+                                        className="text-blue-500 dark:text-blue-300 mt-0.5 shrink-0"
+                                    />
+                                    <div className="flex-1 text-xs text-gray-700 dark:text-blue-50 leading-relaxed">
                                         Fill these with the data the application being evaluated
                                         received and produced. The evaluator will judge this pair —
                                         not your own typed values.
@@ -841,6 +866,7 @@ const SingleView = ({
                                         onClick={() => setEvaluatorCalloutDismissed(true)}
                                         className={clsx(
                                             "shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-700 hover:bg-blue-100",
+                                            "dark:text-blue-200 dark:hover:text-blue-50 dark:hover:bg-blue-900/40",
                                             "border-0 bg-transparent cursor-pointer",
                                         )}
                                         aria-label="Dismiss"

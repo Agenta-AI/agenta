@@ -181,7 +181,8 @@ export function getAtPath(obj: unknown, path: string): unknown {
 /**
  * Try to find `path` somewhere inside a trace envelope. Handles every shape
  * we've seen in the wild:
- *   - `{spans: {<rootSpanName>: span}}`   — bulk /tracing/spans/query
+ *   - `{spans: {<rootSpanName>: span}}`   — legacy-map shape from the adapter
+ *                                          (Fern /traces/query, via fernTracesToLegacyTraceMap)
  *   - `{spans: [span, ...]}`              — array form (some endpoints)
  *   - `{response: {tree: [...]}}`         — agenta-format wrapped response
  *   - the envelope IS the span             — endpoint-stripped form

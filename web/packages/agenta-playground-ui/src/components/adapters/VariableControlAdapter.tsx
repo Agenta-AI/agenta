@@ -522,7 +522,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 enableTokens={!editorProps?.codeOnly}
                 disabled={isEffectivelyDisabled}
             >
-                <MarkdownViewSynchronizer enabled={viewMode === "markdown"} />
+                <MarkdownViewSynchronizer enabled={viewMode === "text"} />
                 <SharedEditor
                     id={editorId}
                     noProvider

@@ -17,6 +17,10 @@ root conventions live in `/AGENTS.md`.
 Run `ruff format` then `ruff check --fix` within the API folder (from the repo root:
 `ruff format` then `ruff check`). Fix all errors before committing.
 
+## Code comments
+
+Keep AI-generated in-code comments minimal. Comment only the non-obvious *why* (a subtle invariant, a workaround, a pool/concurrency hazard), never the *what* the code already states. Prefer one terse line over a multi-line block; do not narrate steps, restate the code, or leave TODO-style prose. If a comment is needed to explain *what* a block does, rename or extract instead.
+
 ## API Architecture Patterns
 
 Use this section for all new work.

@@ -852,6 +852,99 @@ export const workflowAppTypeAtomFamily = atomFamily((workflowId: string) =>
 )
 
 // ============================================================================
+// ARTIFACT QUERY (workflow-level container — entity name/description)
+// ============================================================================
+
+interface WorkflowArtifactRequest {
+    projectId: string
+    workflowId: string
+}
+
+const workflowArtifactBatchFetcher = createBatchFetcher<WorkflowArtifactRequest, Workflow | null>({
+    maxBatchSize: 50,
+    flushDelay: 10,
+    serializeKey: (req) => `${req.projectId}:${req.workflowId}`,
+    batchFn: async (requests, serializedKeys) => {
+        const results = new Map<string, Workflow | null>()
+        serializedKeys.forEach((key) => results.set(key, null))
+
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("workflowArtifactBatchFetcher: requests span multiple projects")
+        }
+
+        const workflowIds = [...new Set(requests.map((req) => req.workflowId).filter(Boolean))]
+        if (workflowIds.length === 0) return results
+
+        const response = await queryWorkflows({
+            projectId,
+            workflowRefs: workflowIds.map((id) => ({id})),
+            includeArchived: true,
+        })
+        const byId = new Map((response.workflows ?? []).map((workflow) => [workflow.id, workflow]))
+        requests.forEach((req, index) => {
+            results.set(serializedKeys[index], byId.get(req.workflowId) ?? null)
+        })
+
+        return results
+    },
+})
+
+/**
+ * Query atom family for the workflow ARTIFACT (the workflow-level container).
+ *
+ * Deliberately keyed apart from the revision caches: `workflowQueryAtomFamily`
+ * and the latest-revision query both resolve revisions, so the artifact would
+ * otherwise compete with a revision for the same cache slot. The artifact is
+ * the source of truth for the entity's display name — revision `name` carries
+ * the variant name ("default"), not the entity name.
+ */
+export const workflowArtifactQueryAtomFamily = atomFamily((workflowId: string) =>
+    atomWithQuery((get) => {
+        const projectId = get(workflowProjectIdAtom)
+        return {
+            queryKey: ["workflows", "artifact", workflowId, projectId],
+            queryFn: async (): Promise<Workflow | null> => {
+                if (!projectId || !workflowId) return null
+                return workflowArtifactBatchFetcher({projectId, workflowId})
+            },
+            enabled:
+                get(sessionAtom) &&
+                !!projectId &&
+                !!workflowId &&
+                !isLocalDraftId(workflowId) &&
+                !isPlaceholderId(workflowId),
+            staleTime: 60_000,
+        }
+    }),
+)
+
+/**
+ * Prime the artifact query cache from an already-fetched workflows list
+ * (e.g. a page-level `queryWorkflows` call) so artifact-name lookups
+ * resolve without extra requests.
+ */
+export function primeWorkflowArtifactCacheImperative(
+    workflows: (Workflow | null | undefined)[],
+    options?: StoreOptions,
+): void {
+    const store = getStore(options)
+    const projectId = store.get(workflowProjectIdAtom)
+    if (!projectId) return
+    try {
+        const queryClient = store.get(queryClientAtom)
+        for (const workflow of workflows) {
+            if (!workflow?.id) continue
+            queryClient.setQueryData(["workflows", "artifact", workflow.id, projectId], workflow)
+        }
+    } catch {
+        // queryClientAtom may not be initialized yet (rare)
+    }
+}
+
+// ============================================================================
 // SINGLE ENTITY QUERY
 // ============================================================================
 
@@ -1623,7 +1716,13 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
         const serverData = get(workflowServerDataSelectorFamily(workflowId))
 
         if (!serverData) {
-            return !!entityData
+            // serverData = null means the server query is still loading for
+            // non-local entities. We can't compute a diff against an unknown
+            // baseline, so default to not-dirty until the query resolves.
+            // For local (ephemeral / local-*) entities null serverData is
+            // expected — they have no server baseline — so preserve the
+            // existing "dirty if entity exists" behaviour for that path.
+            return isLocal ? !!entityData : false
         }
         if (!entityData) return false
 
@@ -1633,7 +1732,7 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
         // are nested (normalized in workflowEntityAtomFamily). Apply the same
         // nesting to server params so comparison is like-for-like.
         const rawServerParams = serverData.data?.parameters as Record<string, unknown> | undefined
-        const serverParams =
+        let serverParams =
             rawServerParams && serverData.flags?.is_evaluator
                 ? nestEvaluatorConfiguration(
                       rawServerParams,
@@ -1641,6 +1740,20 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
                           null,
                   )
                 : rawServerParams
+
+        // Mirror the input_keys sync that updateWorkflowDraftAtom applies at write
+        // time. The write path calls syncPromptInputKeysInParameters on outgoing
+        // params, so server params (without the sync) and entity params (with the
+        // sync) would always differ on `input_keys`, producing a permanent false
+        // dirty state for any app that has template variables.
+        if (
+            serverParams &&
+            !serverData.flags?.is_evaluator &&
+            !serverData.flags?.is_custom &&
+            !serverData.flags?.is_feedback
+        ) {
+            serverParams = syncPromptInputKeysInParameters(serverParams) as typeof serverParams
+        }
 
         // No parameters on entity side — check for other data changes
         if (!entityParams) {
@@ -1747,11 +1860,35 @@ export const updateWorkflowDraftAtom = atom(
                 updateKeys.length === 0 &&
                 (!rawUpdatedData || dataKeys.every((key) => key === "parameters"))
 
-            if (
-                isParametersOnlyUpdate &&
-                isEqual(incomingParameters, serverData?.data?.parameters ?? null)
-            ) {
-                return
+            if (isParametersOnlyUpdate) {
+                // Server data hasn't loaded yet for a real (non-local) revision.
+                // Creating a draft now would produce a false diff — skip and let
+                // the pending-hydrations path (SUB 1) re-apply the patch once
+                // the query resolves and we have an actual baseline to compare.
+                if (!isLocalDraftId(workflowId) && serverData === null) {
+                    return
+                }
+                // Compare synced versions of both params. The write path always
+                // applies syncPromptInputKeysInParameters to outgoing parameters,
+                // so a stale localStorage snapshot that only differs by auto-
+                // computed input_keys would otherwise bypass this guard and
+                // produce a perpetual false draft on every reload.
+                const guardFlags = serverData?.flags
+                const shouldSyncForGuard =
+                    !!guardFlags &&
+                    !guardFlags.is_custom &&
+                    !guardFlags.is_evaluator &&
+                    !guardFlags.is_feedback
+                const syncForGuard = (p: Record<string, unknown> | null) =>
+                    p && shouldSyncForGuard ? syncPromptInputKeysInParameters(p) : p
+                if (
+                    isEqual(
+                        syncForGuard(incomingParameters),
+                        syncForGuard(serverData?.data?.parameters ?? null),
+                    )
+                ) {
+                    return
+                }
             }
         }
 
@@ -2074,6 +2211,8 @@ export function invalidateWorkflowsListCache(options?: StoreOptions) {
     try {
         const qc = store.get(queryClientAtom)
         qc.invalidateQueries({queryKey: ["workflows", "apps"], exact: false})
+        // Artifact-level metadata (name/description) may have changed too
+        qc.invalidateQueries({queryKey: ["workflows", "artifact"], exact: false})
     } catch {
         // queryClientAtom may not be initialized yet
     }
@@ -2172,6 +2311,7 @@ export function invalidateWorkflowCache(workflowId: string, options?: StoreOptio
     try {
         const qc = store.get(queryClientAtom)
         qc.invalidateQueries({queryKey: ["workflows", "revision", workflowId], exact: false})
+        qc.invalidateQueries({queryKey: ["workflows", "artifact", workflowId], exact: false})
     } catch {
         // queryClientAtom may not be initialized yet
     }

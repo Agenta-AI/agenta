@@ -246,8 +246,11 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
 
     const query = useAtomValue(workflowMolecule.selectors.query(evaluatorId))
     const evaluator = useAtomValue(workflowMolecule.selectors.data(evaluatorId))
+    // Entity display name lives on the artifact; the revision's own `name`
+    // carries the variant name ("default").
+    const artifactName = useAtomValue(workflowMolecule.selectors.artifactName(evaluatorId))
 
-    const displayName = evaluator?.name || evaluator?.slug || evaluatorId.slice(0, 8)
+    const displayName = artifactName || evaluator?.slug || evaluatorId.slice(0, 8)
     const isHuman = evaluator?.flags?.is_feedback ?? false
     const isCustom = evaluator?.flags?.is_custom ?? false
     const version = evaluator?.version
@@ -524,6 +527,8 @@ interface ConfigurationViewProps {
 const kindLabels: Record<string, string> = {
     traces: "Traces",
     testcases: "Test cases",
+    testsets: "Test set",
+    queries: "Queries",
 }
 
 const COMPACT_FORM_ITEM_CLASS = "!mb-0"

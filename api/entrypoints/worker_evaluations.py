@@ -57,21 +57,49 @@ ag.init(
     api_url=env.agenta.api_url,
 )
 
+
 # BROKER -------------------------------------------------------------------
+class _NoRedeliveryRedisStreamBroker(RedisStreamBroker):
+    """Stream broker that never redelivers. `listen()` reads only NEW messages
+    (`>`) and skips the XAUTOCLAIM pending-replay block, so a task that crashed
+    mid-run is not re-served to later workers. Evaluation tasks are not safely
+    re-runnable (`retry_on_error=False`); a stuck unacked entry replaying on every
+    worker restart is worse than dropping it.
+    """
+
+    async def listen(self):
+        from taskiq import AckableMessage
+        from redis.asyncio import Redis
+
+        async with Redis(connection_pool=self.connection_pool) as redis_conn:
+            while True:
+                fetched = await redis_conn.xreadgroup(
+                    self.consumer_group_name,
+                    self.consumer_name,
+                    {
+                        self.queue_name: ">",
+                        **self.additional_streams,
+                    },
+                    block=self.block,
+                    noack=False,
+                    count=self.count,
+                )
+                for stream, msg_list in fetched:
+                    for msg_id, msg in msg_list:
+                        yield AckableMessage(
+                            data=msg[b"data"],
+                            ack=self._ack_generator(id=msg_id, queue_name=stream),
+                        )
+
+
 # Create broker with durable Redis Streams for task queues
-broker = RedisStreamBroker(
+broker = _NoRedeliveryRedisStreamBroker(
     url=env.redis.uri_durable,
     queue_name="queues:evaluations",
     consumer_group_name="worker-evaluations",
-    # Disable automatic redelivery for long-running evaluation tasks
-    # Evaluations can run for hours, so we set idle_timeout to effectively infinity
-    # to prevent XAUTOCLAIM from redelivering tasks that are still processing.
-    # Default is 600,000ms (10 min) which causes duplicate processing every 10 minutes.
-    idle_timeout=1209600000,  # 14 days in milliseconds - effectively disabled for long evaluations
-    # Ensure socket doesn't timeout during blocking reads (xread_block defaults to 2000ms)
-    # socket_timeout must be >= xread_block / 1000 to avoid connection errors
-    socket_timeout=30,  # seconds - safely covers the 2000ms block time
-    socket_connect_timeout=30,  # seconds
+    # socket_timeout must be >= xread_block / 1000 to avoid connection errors.
+    socket_timeout=30,
+    socket_connect_timeout=30,
 )
 
 

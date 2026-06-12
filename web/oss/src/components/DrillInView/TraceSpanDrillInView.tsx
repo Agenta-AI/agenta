@@ -102,6 +102,8 @@ export interface TraceSpanDrillInViewProps extends Omit<
     defaultCollapsed?: boolean
     /** Optional override data for rootScope="span" rendering */
     spanDataOverride?: unknown
+    /** Sticky offset (px) for PrettyJsonView headers — should equal the tab nav bar height */
+    prettyJsonStickyOffset?: number
 }
 
 type RawSpanViewMode = "json" | "yaml"
@@ -296,6 +298,7 @@ export const TraceSpanDrillInView = memo(
         allowSpanCollapse = true,
         defaultCollapsed = false,
         spanDataOverride,
+        prettyJsonStickyOffset = 0,
     }: TraceSpanDrillInViewProps) => {
         const spanEntityData = useAtomValue(traceSpanMolecule.selectors.data(spanId))
         const spanData = spanDataOverride !== undefined ? spanDataOverride : spanEntityData
@@ -466,7 +469,7 @@ export const TraceSpanDrillInView = memo(
         if (rootScope === "span") {
             const showTitle = Boolean(title)
             return (
-                <div className="rounded-md overflow-hidden bg-[var(--ag-c-FFFFFF)]">
+                <div className="rounded-md bg-[var(--ag-c-FFFFFF)]">
                     <div
                         className={`drill-in-field-header rounded-md flex items-center justify-between py-2 px-3 bg-[var(--ag-c-FFFFFF)] border border-solid border-[var(--ag-rgba-051729-06)] ${allowSpanCollapse ? "cursor-pointer" : ""}`}
                         onClick={allowSpanCollapse ? toggleCollapsed : undefined}
@@ -509,7 +512,7 @@ export const TraceSpanDrillInView = memo(
                         </div>
                     </div>
                     {(!allowSpanCollapse || !isCollapsed) && (
-                        <div className="relative overflow-hidden">
+                        <div className="relative">
                             {isSearchOpen && isCodeMode && (
                                 <div className="absolute right-4 top-3 z-20 flex items-center gap-2 rounded-xl border border-[var(--ag-rgba-051729-14)] bg-[var(--ag-c-FFFFFF)] px-2 py-2 shadow-[0_8px_24px_rgba(5,23,41,0.12)] max-w-[calc(100%-2rem)]">
                                     <Input
@@ -576,12 +579,11 @@ export const TraceSpanDrillInView = memo(
                                     </EditorProvider>
                                 </DrillInProvider>
                             ) : isPrettyJson ? (
-                                <div className="overflow-y-auto">
-                                    <PrettyJsonView
-                                        data={prettyJsonSource}
-                                        keyPrefix={`trace-span-${textViewerId}`}
-                                    />
-                                </div>
+                                <PrettyJsonView
+                                    data={prettyJsonSource}
+                                    keyPrefix={`trace-span-${textViewerId}`}
+                                    stickyOffset={prettyJsonStickyOffset}
+                                />
                             ) : (
                                 <div className="mx-1 my-2 rounded-md bg-[var(--ag-c-FFFFFF)]">
                                     <TextModeViewer
@@ -655,8 +657,8 @@ export const TraceSpanDrillInView = memo(
 
         // Type assertion needed because traceSpanMolecule.drillIn is optional in the general type
         // but we know it's configured for the trace entity
-        const entityWithDrillIn = traceSpan as typeof traceSpanMolecule & {
-            drillIn: NonNullable<typeof traceSpanMoleculeMolecule.drillIn>
+        const entityWithDrillIn = traceSpanMolecule as typeof traceSpanMolecule & {
+            drillIn: NonNullable<typeof traceSpanMolecule.drillIn>
         }
 
         return (

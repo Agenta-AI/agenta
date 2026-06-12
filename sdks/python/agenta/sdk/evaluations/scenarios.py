@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 
-from agenta.sdk.utils.client import authed_api
+from agenta.sdk.utils.client import authed_async_api
 from agenta.sdk.models.evaluations import EvaluationScenario
 
 # TODO: ADD TYPES
@@ -27,7 +27,7 @@ async def aadd(
     if timestamp is not None:
         payload["timestamp"] = timestamp.isoformat()
 
-    response = authed_api()(
+    response = await authed_async_api()(
         method="POST",
         endpoint=f"/simple/evaluations/{run_id}/scenarios/add",
         json=payload,
@@ -66,7 +66,7 @@ async def acreate(
         ]
     )
 
-    response = authed_api()(
+    response = await authed_async_api()(
         method="POST",
         endpoint="/evaluations/scenarios/",
         json=payload,
@@ -89,8 +89,11 @@ async def aedit_scenario(
     *,
     scenario_id: UUID,
     status: str,
+    flags: Optional[Dict[str, Any]] = None,
     tags: Optional[Dict[str, Any]] = None,
     meta: Optional[Dict[str, Any]] = None,
+    interval: Optional[int] = None,
+    timestamp: Optional[Any] = None,
 ) -> Optional[EvaluationScenario]:
     """Edit a single scenario (status, and optionally tags/meta).
 
@@ -99,7 +102,8 @@ async def aedit_scenario(
     the SDK evaluate loop's `edit_scenario` adapter to flip each scenario to its
     computed SUCCESS/ERRORS/PENDING status after its cells are written.
 
-    Carries `tags`/`meta` like the API's `APIScenarioEditor`, and tolerates a
+    Carries `flags`/`tags`/`meta` like the API's `APIScenarioEditor` (the edit is
+    a full PUT, so omitting them would wipe them), and tolerates a
     run closed mid-flight: the API returns 409 (EvaluationClosedException) for an
     edit against a locked run — closing is a lock, not a failure, so we return
     None rather than raising, matching the API adapter's
@@ -109,12 +113,23 @@ async def aedit_scenario(
         id=str(scenario_id),
         status=status,
     )
+    # The edit is a full PUT, not a partial PATCH: fields omitted from the body
+    # are overwritten to their defaults. Send flags/tags/meta so the status
+    # write preserves them (a wiped `flags` is what leaves a scenario grey).
+    if flags is not None:
+        scenario["flags"] = flags
     if tags is not None:
         scenario["tags"] = tags
     if meta is not None:
         scenario["meta"] = meta
+    if interval is not None:
+        scenario["interval"] = interval
+    if timestamp is not None:
+        scenario["timestamp"] = (
+            timestamp.isoformat() if hasattr(timestamp, "isoformat") else timestamp
+        )
 
-    response = authed_api()(
+    response = await authed_async_api()(
         method="PATCH",
         endpoint=f"/evaluations/scenarios/{scenario_id}",
         json=dict(scenario=scenario),
