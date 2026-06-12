@@ -371,7 +371,31 @@ async def accept_organization_invitation(
         )
         if invitation is not None:
             await db_manager.update_invitation(
-                str(invitation.id), values_to_update={"used": True}
+                str(invitation.id),
+                values_to_update={"user_id": str(user_exists.id), "used": True},
+            )
+
+            project = await db_manager.get_project_by_id(
+                project_id=str(invitation.project_id)
+            )
+            if project is None:
+                raise HTTPException(
+                    status_code=400, detail="Invited project no longer exists"
+                )
+
+            organization = await db_manager.get_organization_by_id(
+                organization_id=str(project.organization_id)
+            )
+            workspace = await db_manager.get_workspace(
+                workspace_id=str(project.workspace_id)
+            )
+
+            await db_manager.add_user_to_workspace_and_org(
+                organization=organization,
+                workspace=workspace,
+                user=user_exists,
+                project_id=str(project.id),
+                role=invitation.role,
             )
             return True
 
