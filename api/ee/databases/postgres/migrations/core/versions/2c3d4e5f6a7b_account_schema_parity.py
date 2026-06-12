@@ -1,8 +1,9 @@
 """align account tables with the shared SQLAlchemy model (schema parity)
 
-api_keys.created_by_id becomes nullable with an ON DELETE SET NULL FK to users
-(the model's shape; OSS already has both), and projects.organization_id /
-workspace_id become NOT NULL with the workspace FK cascading.
+api_keys.created_by_id becomes nullable (no FK: lifecycle actor columns stay
+loose by convention; OSS drops its legacy FK in the cleanup migration), and
+projects.organization_id / workspace_id become NOT NULL with the workspace FK
+cascading.
 
 Revision ID: 2c3d4e5f6a7b
 Revises: a2b3c4d5e6f8
@@ -25,20 +26,6 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     # -- API KEYS ---------------------------------------------------------------
     op.alter_column("api_keys", "created_by_id", existing_type=sa.UUID(), nullable=True)
-    # NOT VALID first so the ADD takes no long lock on a large table.
-    op.execute(
-        "ALTER TABLE api_keys ADD CONSTRAINT api_keys_created_by_id_fkey"
-        " FOREIGN KEY (created_by_id) REFERENCES users(id)"
-        " ON DELETE SET NULL NOT VALID"
-    )
-    op.execute(
-        """
-        UPDATE api_keys SET created_by_id = NULL
-        WHERE created_by_id IS NOT NULL
-          AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = created_by_id)
-        """
-    )
-    op.execute("ALTER TABLE api_keys VALIDATE CONSTRAINT api_keys_created_by_id_fkey")
 
     # -- PROJECTS ---------------------------------------------------------------
     op.drop_constraint("projects_workspace_id_fkey", "projects", type_="foreignkey")
@@ -130,7 +117,6 @@ def downgrade() -> None:
         ondelete="SET NULL",
     )
 
-    op.drop_constraint("api_keys_created_by_id_fkey", "api_keys", type_="foreignkey")
     op.execute("DELETE FROM api_keys WHERE created_by_id IS NULL")
     op.alter_column(
         "api_keys", "created_by_id", existing_type=sa.UUID(), nullable=False
