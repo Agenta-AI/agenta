@@ -42,6 +42,12 @@ This key has no env-var or `env.py` equivalent.
 
 ## Agenta — access
 
+The first four variables (allowed/blocked domains and emails, allowed owner
+emails) apply to both the open source and Enterprise editions. See
+[Restrict Sign-ups and Organization Creation](/self-host/guides/restrict-organization-creation)
+for how they behave. The plan and role variables are Enterprise-only; see
+[Dynamic Access Controls](/self-host/dynamic-access-controls).
+
 | Env var | env.py path | values.yaml path |
 |---|---|---|
 | `AGENTA_ACCESS_ALLOWED_DOMAINS` | `agenta.access.allowed_domains` | `agenta.access.allowedDomains` |

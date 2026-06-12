@@ -26,6 +26,23 @@ bottom.
 - Docs writing: the Diátaxis framework digest at `agents/docs/diataxis/`, and the
   `write-docs` skill for Agenta style, voice, and structure.
 
+## Branching and PRs with GitButler
+
+This repo may be in GitButler workspace mode (current branch `gitbutler/workspace`).
+If so, use the `but` CLI instead of raw `git branch`/`git commit`:
+
+- `but status` shows lanes and unassigned changes; `but branch new <name>` creates a
+  parallel lane; add `--anchor <parent-branch>` to stack on a parent.
+- `but commit <branch> -m "..."` commits the uncommitted changes to that branch.
+  Pre-commit hooks (ruff, prettier, gitleaks) run; if a hook reformats files the
+  commit aborts — just rerun it. Changes belonging to another lane's commits stay
+  unassigned rather than being folded in.
+- `but pr new` needs interactive forge auth; use `but push <branch>` then
+  `gh pr create --head <branch> --base <parent-or-main>` instead. For stacked PRs,
+  set `--base` to the parent branch so each PR shows only its own diff.
+- To update an already-committed file, `but absorb <path>` amends it into the right
+  commit; force-push with `but push <branch> -f`.
+
 ## Before committing
 
 - Frontend changes: run `pnpm lint-fix` within the `web` folder. Details: `web/AGENTS.md`.

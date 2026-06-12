@@ -1,0 +1,45 @@
+---
+title: Migrate to Multi-Organization OSS
+sidebar_label: single-org → multi-org (OSS)
+description: 'What changes for self-hosted open source deployments when Agenta OSS becomes multi-organization: open signup replaces invite-only, membership rows are backfilled, and the access env vars are now enforced. Covers what to set before upgrading.'
+---
+
+:::info When you need this guide
+You're on this page if you run a self-hosted **open source** Agenta instance created before the multi-organization release. That release removes the single-organization limit from OSS: every allowed user gets their own organization on signup, organizations can be created, renamed, transferred, and deleted from the UI, and the `AGENTA_ACCESS_*` variables are enforced the same way as in Enterprise. Enterprise deployments are unaffected; their behavior already worked this way.
+:::
+
+## The one thing to do before upgrading
+
+**Your instance flips from invite-only to open signup.** Before this release, only the first user could sign up freely; everyone else needed an invitation to your single organization. After it, anyone who can reach your instance can sign up and gets their own organization.
+
+If your instance is reachable beyond a trusted network, set access controls in your environment file **before** upgrading:
+
+```bash
+# Only these emails can create organizations; everyone else needs an invitation
+AGENTA_ACCESS_ALLOWED_OWNER_EMAILS=admin@company.com
+
+# Optional: only these domains can sign up at all
+AGENTA_ACCESS_ALLOWED_DOMAINS=company.com
+```
+
+See [Restrict Sign-ups and Organization Creation](/self-host/guides/restrict-organization-creation) for all options. If your instance is on a private network or open signup is what you want, there is nothing to do.
+
+## What the migration does to your data
+
+The schema migrations run as part of the normal [upgrade process](/self-host/upgrading). For existing deployments they:
+
+- Create the `organization_members`, `workspace_members`, and `project_members` tables and backfill them: the organization owner becomes an `owner` member, and every user who joined through an invitation becomes a member with the role from their invitation.
+- Keep your existing organization as a normal organization. Its members, projects, and data are untouched; it just stops being special.
+- Tighten a few constraints (`api_keys.project_id`, `projects.organization_id`/`workspace_id` become required). API keys created before project scoping existed are removed; they could not authenticate anything.
+- Drop the legacy tables of the old app-centric architecture (`app_db`, `app_variants`, old `testsets`, old evaluation tables, and similar). Their data was migrated to the current entities by earlier releases. If you skipped many releases, upgrade through them in order.
+
+## What changes day to day
+
+- Users in your organization see an organization switcher and a "New organization" entry in the sidebar. Whether new organizations can actually be created depends on `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS`.
+- Organization owners can rename, transfer, and delete organizations from the sidebar.
+- Inviting users works as before. Accepted invitations now create explicit membership records.
+- Role-based access control, SSO, and domain verification remain Enterprise features. OSS roles stay coarse (owner and member).
+
+## Rollback
+
+The membership backfill and constraint changes are reversible with `alembic downgrade`, but the legacy-table drop is not. Take a database backup before upgrading, as with any release.
