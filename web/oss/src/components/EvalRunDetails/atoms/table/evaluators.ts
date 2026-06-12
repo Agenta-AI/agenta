@@ -63,6 +63,33 @@ const evaluatorRevisionQueryAtomFamily = atomFamily(
  * shared projectIdAtom/sessionAtom which may not be populated in the
  * evaluations scoped store.
  */
+/**
+ * Resolve a single evaluator definition (incl. output metrics) by its REVISION id.
+ *
+ * Mirrors the per-ref resolution in `evaluationEvaluatorsByRunQueryAtomFamily`, but for a
+ * standalone revision (e.g. an evaluator staged in the Edit drawer before it's saved to a
+ * run). Reuses the same revision→workflow query so results are shared/cached.
+ */
+export const evaluatorDefinitionByRevisionQueryAtomFamily = atomFamily(
+    (revisionId: string | null) =>
+        atom<{definition: EvaluatorDefinition | null; isPending: boolean}>((get) => {
+            if (!revisionId) return {definition: null, isPending: false}
+
+            const projectId = get(effectiveProjectIdAtom)
+            if (!projectId) return {definition: null, isPending: true}
+
+            const query = get(evaluatorRevisionQueryAtomFamily({projectId, id: revisionId}))
+            if (query.isPending || query.isFetching) {
+                return {definition: null, isPending: true}
+            }
+
+            const workflow = query.data
+            if (!workflow) return {definition: null, isPending: false}
+
+            return {definition: toEvaluatorDefinitionFromWorkflow(workflow), isPending: false}
+        }),
+)
+
 export const evaluationEvaluatorsByRunQueryAtomFamily = atomFamily((runId: string | null) =>
     atom<EvaluatorQueryResult>((get) => {
         if (!runId) {

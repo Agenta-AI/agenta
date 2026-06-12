@@ -2924,6 +2924,63 @@ class SimpleEvaluationsService:
             )
             return False
 
+        # Re-activate the run before dispatching: the slice re-executes scenarios
+        # (e.g. a newly added evaluator over existing outputs), so the run is genuinely
+        # running again. Set it synchronously here so the status is visible the moment the
+        # 202 returns; `_finalize_run_after_slice` floors it back to a terminal status
+        # (RUNNING ranks below SUCCESS) and clears is_active when scoring completes.
+        flags = run.flags.model_copy() if run.flags else EvaluationRunFlags()
+        flags.is_active = True
+        await self.evaluations_service.edit_run(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            run=EvaluationRunEdit(
+                id=run.id,
+                #
+                name=run.name,
+                description=run.description,
+                #
+                flags=flags,
+                tags=run.tags,
+                meta=run.meta,
+                #
+                status=EvaluationStatus.RUNNING,
+                #
+                data=run.data,
+            ),
+        )
+
+        # Mirror the re-activation at the scenario level so per-scenario status indicators
+        # also reflect the reprocess. edit_scenarios is a full PUT, so every persisted field
+        # is carried over and only status/is_active flip; the engine writes each scenario's
+        # terminal status back as it finishes.
+        scenarios = await self.evaluations_service.query_scenarios(
+            project_id=project_id,
+            scenario=EvaluationScenarioQuery(run_id=run_id, ids=scenario_ids),
+            windowing=Windowing(limit=10_000),
+        )
+        if scenarios:
+            await self.evaluations_service.edit_scenarios(
+                project_id=project_id,
+                user_id=user_id,
+                scenarios=[
+                    EvaluationScenarioEdit(
+                        id=scenario.id,
+                        flags=(
+                            scenario.flags.model_copy(update={"is_active": True})
+                            if scenario.flags
+                            else EvaluationRunFlags(is_active=True)
+                        ),
+                        status=EvaluationStatus.RUNNING,
+                        interval=scenario.interval,
+                        timestamp=scenario.timestamp,
+                        meta=scenario.meta,
+                    )
+                    for scenario in scenarios
+                ],
+            )
+
         await self.evaluations_task_runner.process_rerun(
             project_id=project_id,
             user_id=user_id,
