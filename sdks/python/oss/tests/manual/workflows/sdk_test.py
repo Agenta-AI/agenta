@@ -16,8 +16,6 @@ ag.init(
 
 # - THIS IS THE USER'S CODE -------------------------------------------- START -
 
-VERSION = "2025.07.14"
-
 SCHEMAS = {
     "parameters": {
         "type": "object",
@@ -46,7 +44,6 @@ SCHEMAS = {
 
 
 @ag.workflow(
-    version=VERSION,
     schemas=SCHEMAS,
 )
 @ag.instrument()

@@ -65,7 +65,7 @@ function ChatMessageObjectField({
             disabled={!editable}
             isJSON={isCodeMode}
             language={editorLanguage}
-            markdownView={viewMode === "markdown"}
+            markdownView={viewMode === "text"}
             enableTokens={!isCodeMode}
             templateFormat="curly"
             onChangeRole={(newRole: string) => {

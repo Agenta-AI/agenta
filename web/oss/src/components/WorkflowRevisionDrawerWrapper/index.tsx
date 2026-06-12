@@ -15,18 +15,12 @@ import {testcaseMolecule} from "@agenta/entities/testcase"
 import {
     registerWorkflowCommitCallbacks,
     getWorkflowCommitCallbacks,
-    hasFullPagePlaygroundUX,
     parseEvaluatorKeyFromUri,
     evaluatorTemplatesMapAtom,
     workflowMolecule,
     discardLocalServerDataAtom,
 } from "@agenta/entities/workflow"
-import {EntityPicker} from "@agenta/entity-ui"
 import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
-import {
-    createWorkflowRevisionAdapter,
-    type WorkflowRevisionSelectionResult,
-} from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus, VariantNameCell} from "@agenta/entity-ui/variant"
 import {playgroundController} from "@agenta/playground"
 import {
@@ -53,7 +47,7 @@ import {
 } from "@agenta/playground-ui/workflow-revision-drawer"
 import {EnvironmentTag} from "@agenta/ui"
 import {Rocket} from "@phosphor-icons/react"
-import {Button, Typography, message} from "antd"
+import {Button, message} from "antd"
 import {getDefaultStore, useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -64,9 +58,10 @@ import {
     connectAppToEvaluatorAtom,
     persistedAppSelectionAtom,
     persistedTestsetSelectionAtom,
-    selectedAppLabelAtom,
 } from "@/oss/components/Evaluators/components/ConfigureEvaluator/atoms"
 import EvaluatorPlaygroundHeader from "@/oss/components/Evaluators/components/ConfigureEvaluator/EvaluatorPlaygroundHeader"
+import SelectAppEmptyState from "@/oss/components/Evaluators/components/ConfigureEvaluator/SelectAppEmptyState"
+import {useEvaluatorRunControls} from "@/oss/components/Evaluators/components/ConfigureEvaluator/useEvaluatorRunControls"
 import {clearEvaluatorWorkflowCache} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
 import {invalidateAppManagementWorkflowQueries} from "@/oss/components/pages/app-management/store"
 import {invalidatePromptsWorkflowQueries} from "@/oss/components/pages/prompts/store"
@@ -82,6 +77,11 @@ import {EVALUATOR_FULL_PAGE_NAV_ENABLED} from "@/oss/state/workflow"
 
 const PlaygroundMainView = dynamic(
     () => import("@/oss/components/Playground/Components/MainLayout"),
+    {ssr: false},
+)
+
+const TestsetDropdown = dynamic(
+    () => import("@/oss/components/Playground/Components/TestsetDropdown"),
     {ssr: false},
 )
 
@@ -160,6 +160,8 @@ const DrawerAppPlayground = memo(({entityId}: {entityId: string}) => {
         [],
     )
 
+    const renderTestsetActions = useCallback(() => <TestsetDropdown />, [])
+
     return (
         <OSSPlaygroundShell providers={providers}>
             <PlaygroundMainView
@@ -168,6 +170,7 @@ const DrawerAppPlayground = memo(({entityId}: {entityId: string}) => {
                 embedded
                 configViewMode={configViewMode}
                 onConfigViewModeChange={setConfigViewMode}
+                renderTestsetActions={renderTestsetActions}
             />
         </OSSPlaygroundShell>
     )
@@ -192,7 +195,6 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
     const resetAll = useSetAtom(playgroundController.actions.resetAll)
     const clearAllRuns = useSetAtom(clearAllRunsMutationAtom)
     const setInitialized = useSetAtom(playgroundInitializedAtom)
-    const setSelectedAppLabel = useSetAtom(selectedAppLabelAtom)
     const setConnectedTestset = useSetAtom(connectedTestsetAtom)
     const connectApp = useSetAtom(connectAppToEvaluatorAtom)
     const setPersistedTestset = useSetAtom(persistedTestsetSelectionAtom)
@@ -203,10 +205,12 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
 
             const store = getDefaultStore()
 
-            // Restore persisted app selection (survives drawer close/reopen and commits)
+            // Restore persisted app selection (survives drawer close/reopen and commits).
+            // `selectedAppLabelAtom` is derived from the node graph now — the
+            // `connectApp` call below seeds the depth-0 node with the persisted
+            // label, which the derived atom picks up automatically.
             const persisted = store.get(persistedAppSelectionAtom)
             if (persisted) {
-                setSelectedAppLabel(persisted.appLabel)
                 connectApp({
                     appRevisionId: persisted.appRevisionId,
                     appLabel: persisted.appLabel,
@@ -264,7 +268,8 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
 
             resetAll()
             setInitialized(false)
-            setSelectedAppLabel(null)
+            // `selectedAppLabelAtom` is derived from the node graph — `resetAll`
+            // above clears the nodes, which flips the label back to `null`.
             setConnectedTestset(null)
         }
     }, [
@@ -273,7 +278,6 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
         resetAll,
         clearAllRuns,
         setInitialized,
-        setSelectedAppLabel,
         setConnectedTestset,
         connectApp,
     ])
@@ -303,60 +307,28 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
         })
     }, [connectedTestset, setPersistedTestset])
 
-    const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
+    // Shared run controls — the same hook the full page and the creation drawer
+    // use, so every evaluator surface gates runs identically (run-on aware) and
+    // can't drift apart again. (This drawer previously hardcoded
+    // `runDisabled={!hasAppConnected}`, which ignored the run-on mode and forced
+    // an app even in test-case mode.)
+    const {appWorkflowAdapter, handleAppSelect, selectedAppLabel, runDisabled} =
+        useEvaluatorRunControls()
 
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
-    const evaluatorNode = useMemo(() => {
-        const downstream = nodes.find((n) => n.depth > 0)
-        if (downstream) return downstream
-        return nodes[0] ?? null
-    }, [nodes])
-
-    // Derive from nodes directly (single source of truth, no atom indirection)
-    const hasAppConnected = useMemo(() => nodes.some((n) => n.depth > 0), [nodes])
     const configEntityIds = useMemo(() => {
         const downstream = nodes.filter((n) => n.depth > 0)
         if (downstream.length > 0) return downstream.map((n) => n.entityId)
         return nodes.map((n) => n.entityId)
     }, [nodes])
 
-    const appWorkflowAdapter = useMemo(
-        () =>
-            createWorkflowRevisionAdapter({
-                skipVariantLevel: true,
-                excludeRevisionZero: true,
-                flags: {is_evaluator: false, is_feedback: false},
-            }),
-        [],
-    )
-
-    const handleAppSelect = useCallback(
-        (selection: WorkflowRevisionSelectionResult) => {
-            if (!evaluatorNode) return
-            connectApp({
-                appRevisionId: selection.id,
-                appLabel: selection.label,
-                evaluatorRevisionId: evaluatorNode.entityId,
-                evaluatorLabel: evaluatorNode.label ?? "Evaluator",
-            })
-        },
-        [connectApp, evaluatorNode],
-    )
-
     const runDisabledContent = useMemo(
         () => (
-            <>
-                <Typography.Text type="secondary" className="text-sm">
-                    Select an app to run the evaluator chain
-                </Typography.Text>
-                <EntityPicker<WorkflowRevisionSelectionResult>
-                    variant="popover-cascader"
-                    adapter={appWorkflowAdapter}
-                    onSelect={handleAppSelect}
-                    size="middle"
-                    placeholder={selectedAppLabel ?? "Select app"}
-                />
-            </>
+            <SelectAppEmptyState
+                adapter={appWorkflowAdapter}
+                onSelect={handleAppSelect}
+                selectedAppLabel={selectedAppLabel}
+            />
         ),
         [appWorkflowAdapter, handleAppSelect, selectedAppLabel],
     )
@@ -374,12 +346,7 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
     return (
         <OSSPlaygroundShell providers={providers}>
             <div className="flex flex-col w-full h-full overflow-hidden">
-                {isExpanded && (
-                    <EvaluatorPlaygroundHeader
-                        appWorkflowAdapter={appWorkflowAdapter}
-                        onAppSelect={handleAppSelect}
-                    />
-                )}
+                {isExpanded && <EvaluatorPlaygroundHeader />}
                 <PlaygroundMainView
                     mode="evaluator"
                     viewMode={isExpanded ? "full" : "configOnly"}
@@ -387,7 +354,7 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
                     configViewMode={configViewMode}
                     onConfigViewModeChange={setConfigViewMode}
                     configEntityIdsOverride={configEntityIds}
-                    runDisabled={!hasAppConnected}
+                    runDisabled={runDisabled}
                     runDisabledContent={runDisabledContent}
                 />
             </div>
@@ -484,23 +451,18 @@ const useDrawerCreateCommitCallback = () => {
                     // (`Router.pathname` only flips on `routeChangeComplete`,
                     // so a synchronous close after `router.push` would patch
                     // the still-current `/evaluators` URL and push back to it.)
+                    //
                     // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the
-                    // flag is off, post-create stays in the drawer flow even
-                    // for evaluators whose classifier supports full-page UX.
-                    let eligibleForPlayground = false
-                    if (
-                        EVALUATOR_FULL_PAGE_NAV_ENABLED &&
-                        newAppId &&
-                        newRevisionId &&
-                        newWorkflow
-                    ) {
-                        eligibleForPlayground = hasFullPagePlaygroundUX({
-                            flags: newWorkflow.flags ?? null,
-                            data: newWorkflow.data ?? null,
-                            meta: newWorkflow.meta ?? null,
-                            slug: newWorkflow.slug ?? null,
-                        })
-                    }
+                    // flag is off, post-create stays in the drawer flow. When
+                    // on, every freshly committed evaluator (regardless of
+                    // template type) lands on `/apps/<id>/playground` —
+                    // mirroring app-create's post-commit navigation. The
+                    // earlier classifier-only gate was removed so declarative
+                    // evaluators get the same surface (variants, traces,
+                    // sidebar context) as LLM/code ones.
+                    const eligibleForPlayground = Boolean(
+                        EVALUATOR_FULL_PAGE_NAV_ENABLED && newAppId && newRevisionId,
+                    )
 
                     if (eligibleForPlayground && newAppId && newRevisionId) {
                         const url = `${baseAppURLRef.current}/${encodeURIComponent(

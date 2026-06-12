@@ -20,7 +20,8 @@
  * `VariableControlAdapter` rendering for `<PlaygroundInputsBody />`.
  *
  * Visibility rule (computed by the parent, passed in here):
- *   - `inputs`:               referenced variables, including draft ones.
+ *   - `inputs`:               referenced variables, including those whose
+ *                              testcase column does not exist yet.
  *                              Each gets an expanded card.
  *   - `unreferencedColumns`:  testcase columns the prompt doesn't reference.
  *                              Collapsed under a single footer row.
@@ -41,10 +42,10 @@ import {VariableCard} from "./VariableCard"
 export interface PlaygroundInputsBodyVariable {
     /** Variable name (testcase column or template-referenced variable). */
     name: string
-    /** Native value, or `undefined` for draft variables. */
+    /** Native value, or `undefined` when no testcase column exists yet. */
     value: unknown
-    /** True when the variable is referenced by the prompt but not authored
-     *  on the testcase yet. Renders a `[draft]` badge. */
+    /** Optional UI badge flag. Missing prompt-variable testcase data does not
+     *  set this flag. */
     isDraft?: boolean
     /** Optional tooltip text explaining the variable's role. Surfaced as a
      *  small Info icon in the card header — used for evaluator envelope
@@ -54,15 +55,16 @@ export interface PlaygroundInputsBodyVariable {
      *  `string` / `number` / `integer` / `boolean`). When the variable is
      *  a draft (no value yet), this drives the default view mode and the
      *  TypeChip variant so the card opens in the right shape — e.g. a
-     *  `geo` port referenced via `{{geo.region}}` opens as Form with an
-     *  `object` chip instead of a text input with a `null` chip. */
+     *  `geo` port referenced via `{{geo.region}}` with no testcase column
+     *  opens as Form with an `object` chip instead of a text input with a
+     *  `null` chip. */
     expectedType?: ExpectedType
     /** Declared port schema (JSON Schema fragment with `properties` /
      *  `_pathHints`). When the variable is a draft, Form / JSON / YAML
-     *  modes pre-render an empty-value skeleton matching this shape so
-     *  the user sees the expected sub-fields without having to add them
-     *  manually. Render-only — the testcase value stays untouched until
-     *  the user actually edits a field. */
+     *  modes pre-render an empty-value skeleton matching this shape when no
+     *  testcase value exists, so the user sees the expected sub-fields without
+     *  having to add them manually. Render-only — the testcase value stays
+     *  untouched until the user actually edits a field. */
     expectedSchema?: unknown
 }
 
@@ -84,13 +86,11 @@ export interface PlaygroundInputsBodySection {
 
 export interface PlaygroundInputsBodyProps {
     /** Stable identifier for the playground generation row this card lives
-     *  in. Used to key per-variable view-mode atoms — must be stable across
-     *  testcase column adds (so draft variables don't lose their selected
-     *  mode when the column gets persisted). */
+     *  in. Used to key per-variable view-mode atoms — must be stable when a
+     *  missing testcase column gets persisted. */
     rowId: string
     /** Variables referenced by the prompt chain. Rendered as expanded cards
-     *  in order. Include draft variables (referenced but not on testcase)
-     *  with `isDraft: true`. Ignored when `sections` is provided. */
+     *  in order. Ignored when `sections` is provided. */
     inputs: PlaygroundInputsBodyVariable[]
     /** Optional grouped layout. When present, replaces the flat `inputs`
      *  rendering with one left-border block per section. Used by the
@@ -112,9 +112,9 @@ export interface PlaygroundInputsBodyProps {
      *  so the testcase entity is updated atomically. NATIVE value — no
      *  stringification by the caller. */
     onValueChange: (name: string, value: unknown) => void
-    /** Optional. Creates a new testcase column on first edit of a draft
-     *  variable. If undefined, draft edits route through `onValueChange`
-     *  and the caller decides how to persist. */
+    /** Optional compatibility hook for callers that still mark cards as
+     *  draft. Missing prompt-variable testcase data should still persist
+     *  through `onValueChange`. */
     onAddDraftColumn?: (name: string, value: unknown) => void
     /** Optional. Notified when the user changes the view mode for a card. */
     onViewModeChange?: (name: string, mode: ViewType) => void
@@ -140,8 +140,8 @@ export function PlaygroundInputsBody({
     templateFormat,
 }: PlaygroundInputsBodyProps) {
     // `sections` takes precedence over the flat `inputs` list. We still need
-    // to look up by name to route draft edits, so unify the membership
-    // source here.
+    // to look up by name to route optional draft edits, so unify the
+    // membership source here.
     const allVariables: PlaygroundInputsBodyVariable[] = sections
         ? sections.flatMap((s) => s.variables)
         : inputs

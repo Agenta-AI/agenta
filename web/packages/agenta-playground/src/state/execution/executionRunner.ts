@@ -9,11 +9,15 @@ import {
     type StageExecutionResult,
     type EntitySelection,
 } from "@agenta/entities/runnable"
+import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {generateId} from "@agenta/shared/utils"
 import type {Getter, Setter} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
+import {messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat/messageAtoms"
+import {SHARED_SESSION_ID, type ChatMessage} from "../chat/messageTypes"
+import {reconcileRowDataForEntity} from "../helpers/entityInputContract"
 import type {OutputConnection, PlaygroundNode} from "../types"
 
 import {
@@ -41,6 +45,24 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function readString(value: unknown): string | undefined {
     return typeof value === "string" && value.trim().length > 0 ? value : undefined
+}
+
+function toPlainChatMessage(message: ChatMessage): Record<string, unknown> {
+    const {sessionId: _sessionId, parentId: _parentId, ...plain} = message
+    return plain as Record<string, unknown>
+}
+
+function buildSharedChatInputs(get: Getter, loadableId: string): Record<string, unknown> {
+    const messageIds = get(messageIdsAtomFamily(loadableId))
+    const messagesById = get(messagesByIdAtomFamily(loadableId))
+
+    const messages = messageIds
+        .map((messageId) => messagesById[messageId])
+        .filter((message): message is ChatMessage => Boolean(message))
+        .filter((message) => message.sessionId === SHARED_SESSION_ID)
+        .map(toPlainChatMessage)
+
+    return messages.length > 0 ? {messages} : {}
 }
 
 function normalizeApplicationReferences(
@@ -140,6 +162,118 @@ function buildUpstreamReferences(params: {
     ) as RequestPayloadData | null
 
     return normalizeApplicationReferences(sourcePayload?.references)
+}
+
+/**
+ * Build the `references.evaluator{,_variant,_revision}` map for a chain stage
+ * whose target node is an evaluator.
+ *
+ * The playground node's `entity.id` is a REVISION id. We read the merged
+ * revision record from the workflow molecule and pull both the revision-level
+ * fields (id / slug / version) and the parent workflow + variant identity
+ * (workflow_id, workflow_slug, workflow_variant_id, workflow_variant_slug)
+ * that the backend writes on revision responses.
+ *
+ * The trace storage layer indexes evaluator references by these fields:
+ *   - `references.evaluator.{id, slug}` ← parent workflow identity
+ *   - `references.evaluator_variant.{id, slug}` ← parent variant identity
+ *   - `references.evaluator_revision.{id, slug, version}` ← this revision
+ *
+ * Without these, traces emitted from playground chain runs don't surface on
+ * the evaluator's `/apps/<evalId>/traces` page — the page filters by
+ * `references.evaluator.slug`, and a missing slot returns 0 matches.
+ * Matches the shape backend evaluation runs emit (verified against real
+ * auto-evaluation trace data on 2026-05-28).
+ *
+ * Returns `undefined` when the node isn't an evaluator workflow, or when the
+ * revision data isn't available yet (rare — only during initial hydration).
+ */
+function buildEvaluatorSelfReferences(params: {
+    get: Getter
+    revisionId: string
+}): TraceReferenceMap | undefined {
+    const revision = params.get(workflowMolecule.selectors.data(params.revisionId)) as
+        | (Record<string, unknown> & {flags?: Record<string, unknown> | null})
+        | null
+    if (!revision) return undefined
+    if (!revision.flags?.is_evaluator) return undefined
+
+    // A local-draft evaluator (opened in the drawer playground but not yet
+    // saved) has no committed server identity — its ids are `local-…` strings.
+    // The backend's reference validator rejects those as non-UUIDs (422, QA
+    // 2026-06-05). Drop any id that's a local draft so we never ship one as a
+    // reference; slugs and version are plain strings the backend accepts and
+    // are kept.
+    const realId = (value: unknown): string | undefined => {
+        const s = readString(value)
+        return s && !isLocalDraftId(s) ? s : undefined
+    }
+
+    const refs: TraceReferenceMap = {}
+
+    // evaluator (parent workflow)
+    const workflowId = realId(revision.workflow_id)
+    const workflowSlug = readString(revision.workflow_slug)
+    if (workflowId || workflowSlug) {
+        refs.evaluator = {
+            ...(workflowId ? {id: workflowId} : {}),
+            ...(workflowSlug ? {slug: workflowSlug} : {}),
+        }
+    }
+
+    // evaluator_variant (parent variant)
+    const variantId = realId(revision.workflow_variant_id) ?? realId(revision.variant_id)
+    const variantSlug = readString(revision.workflow_variant_slug)
+    if (variantId || variantSlug) {
+        refs.evaluator_variant = {
+            ...(variantId ? {id: variantId} : {}),
+            ...(variantSlug ? {slug: variantSlug} : {}),
+        }
+    }
+
+    // evaluator_revision (this revision)
+    const revisionId = realId(revision.id) ?? realId(params.revisionId)
+    const revisionSlug = readString(revision.slug)
+    const revisionVersion =
+        typeof revision.version === "number"
+            ? String(revision.version)
+            : readString(revision.version)
+    if (revisionId || revisionSlug || revisionVersion) {
+        refs.evaluator_revision = {
+            ...(revisionId ? {id: revisionId} : {}),
+            ...(revisionSlug ? {slug: revisionSlug} : {}),
+            ...(revisionVersion ? {version: revisionVersion} : {}),
+        }
+    }
+
+    return Object.keys(refs).length > 0 ? refs : undefined
+}
+
+/**
+ * Reconcile row data to an entity's input contract at execution time.
+ *
+ * This is the runtime safety net for #4525 / AGE-3793: testcase rows live in
+ * a shared store and preserve every key the user ever ran with (chat apps
+ * populate `messages`, completion apps populate template variables, etc.).
+ * When the user swaps the primary app, the same row carries stale keys.
+ *
+ * Reconciliation primarily happens at swap time in the playground controller
+ * (`pruneTestcaseRowsForEntity`); this pass catches the hydration window
+ * where the new entity's input contract wasn't yet resolved at swap time but
+ * IS resolved by the time the request is built.
+ *
+ * Delegates to the shared `reconcileRowDataForEntity` — allow-list derived
+ * from `inputPorts` (the same source `executionItems` uses for `variables`),
+ * NOT `inputSchema.properties` (empty for completion apps). Apps get a strict
+ * allow-list; evaluators / unresolved contracts get a chat-transport-only
+ * strip so workflows depending on extra testcase columns keep working.
+ */
+function reconcileEntityInputData(
+    get: Getter,
+    data: Record<string, unknown>,
+    entityId: string,
+): Record<string, unknown> {
+    return reconcileRowDataForEntity(get, entityId, data).data
 }
 
 function createConcurrencyLimiter(concurrency: number) {
@@ -340,8 +474,26 @@ export async function executeStepForSessionWithExecutionItems(
 
                     let nodeInputs: Record<string, unknown>
                     if (node.depth === 0) {
-                        nodeInputs = {...data}
+                        // Reconcile the row to the root entity's input contract so
+                        // stale keys from a previous primary app (e.g. chat `messages`
+                        // / `context` after swapping the upstream app in the
+                        // LLM-as-a-judge playground — issue #4525 / AGE-3793) don't
+                        // leak into the new app's request body via the downstream
+                        // "spread all keys" fallback in resolveVariableValues. Apps
+                        // get a strict allow-list (from inputPorts); evaluators get a
+                        // chat-transport-only strip.
+                        const rootEntityId = node.entity.id as string
+                        nodeInputs = reconcileEntityInputData(get, data, rootEntityId)
                     } else {
+                        // Reconcile testcase data before chain / evaluator input
+                        // construction, so the downstream "spread all keys" fallbacks
+                        // (resolveChainInputs no-mapping branch and
+                        // buildEvaluatorExecutionInputs additionalProperties spread)
+                        // can't carry stale keys from a previous app into the current
+                        // target entity (#4525 / AGE-3793).
+                        const targetEntityId = node.entity.id as string
+                        const dataForChain = reconcileEntityInputData(get, data, targetEntityId)
+
                         // Check whether the incoming connection has explicit valid mappings.
                         // resolveChainInputs always returns non-empty (fallback spreads testcaseData
                         // + prediction), so we can't rely on its result length alone.
@@ -359,7 +511,7 @@ export async function executeStepForSessionWithExecutionItems(
                                 allConnections,
                                 nodeId,
                                 nodeResults,
-                                data,
+                                dataForChain,
                             )
                             nodeInputs = resolved
                         } else {
@@ -375,18 +527,31 @@ export async function executeStepForSessionWithExecutionItems(
 
                             const evalStore = getDefaultStore()
                             const stageConfiguration = evalStore.get(
-                                workflowMolecule.selectors.configuration(node.entity.id as string),
+                                workflowMolecule.selectors.configuration(targetEntityId),
                             )
                             const stageSchemas = evalStore.get(
-                                workflowMolecule.selectors.ioSchemas(node.entity.id as string),
+                                workflowMolecule.selectors.ioSchemas(targetEntityId),
                             )
                             const inputSchema =
                                 (stageSchemas?.inputSchema as
                                     | Record<string, unknown>
                                     | undefined) ?? null
+                            const rootChatInputs =
+                                session.mode === "chat"
+                                    ? buildSharedChatInputs(get, loadableId)
+                                    : undefined
+                            // Base the evaluator testcase on the stripped
+                            // `dataForChain` (not raw `data`) so stale chat-
+                            // transport keys from a previous chat app can't leak
+                            // in (#4525 / AGE-3793), then layer the current
+                            // shared chat inputs on top for chat-mode runs.
+                            const evaluatorTestcaseData =
+                                rootChatInputs && Object.keys(rootChatInputs).length > 0
+                                    ? {...dataForChain, ...rootChatInputs}
+                                    : dataForChain
 
                             const evaluatorInputContext = {
-                                testcaseData: data,
+                                testcaseData: evaluatorTestcaseData,
                                 upstreamOutput,
                                 settings: stageConfiguration ?? {},
                                 inputSchema,
@@ -443,20 +608,27 @@ export async function executeStepForSessionWithExecutionItems(
                                   nodeResults,
                               })
                             : undefined
-
-                    const isEvaluatorStage =
-                        node.depth > 0 &&
-                        get(workflowMolecule.selectors.isEvaluator(node.entity.id as string))
-                    const stageReferences =
-                        node.depth > 0 && !isEvaluatorStage
-                            ? buildUpstreamReferences({
-                                  get,
-                                  incomingConnection: allConnections.find(
-                                      (connection) => connection.targetNodeId === nodeId,
-                                  ),
-                                  runnableNodes,
-                              })
-                            : undefined
+                    const stageReferences = (() => {
+                        if (node.depth === 0) return undefined
+                        const upstream = buildUpstreamReferences({
+                            get,
+                            incomingConnection: allConnections.find(
+                                (connection) => connection.targetNodeId === nodeId,
+                            ),
+                            runnableNodes,
+                        })
+                        // For evaluator stages, also attach the evaluator's
+                        // own identity so the emitted trace can be found via
+                        // `references.evaluator.slug` on the evaluator's
+                        // /apps/<evalId>/traces page. Merges with upstream
+                        // application refs (the app being scored).
+                        const selfEval = buildEvaluatorSelfReferences({
+                            get,
+                            revisionId: node.entity.id as string,
+                        })
+                        if (!upstream && !selfEval) return undefined
+                        return {...(upstream ?? {}), ...(selfEval ?? {})}
+                    })()
 
                     const stageExecutionItem = stageHandle.run({
                         get,
@@ -544,7 +716,10 @@ export async function executeStepForSessionWithExecutionItems(
                 if (abortController.signal.aborted) break
 
                 const perSession2 = sessionOptions?.[session.id]
-                const nodeInputs2 = {...data}
+                // Same reconciliation as the first-run path above — repetitions
+                // hit the same root entity, so stale keys must be filtered
+                // identically (issue #4525 / AGE-3793).
+                const nodeInputs2 = reconcileEntityInputData(get, data, session.runnableId)
                 const repetitionItem = rootExecutionHandle.retry({
                     get,
                     headers: perSession2?.headers ?? {},

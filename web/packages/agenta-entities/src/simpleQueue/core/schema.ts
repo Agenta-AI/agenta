@@ -16,10 +16,10 @@ import {timestampFieldsSchema, auditFieldsSchema} from "../../shared"
 // ============================================================================
 
 /**
- * SimpleQueue kind — "traces" or "testcases".
- * Maps to backend `SimpleQueueKind` enum.
+ * SimpleQueue kind. Maps to backend `SimpleQueueKind`: source-backed queues
+ * ("queries", "testsets") and direct queues ("traces", "testcases").
  */
-export const simpleQueueKindSchema = z.enum(["traces", "testcases"])
+export const simpleQueueKindSchema = z.enum(["queries", "testsets", "traces", "testcases"])
 export type SimpleQueueKind = z.infer<typeof simpleQueueKindSchema>
 
 /**
@@ -51,6 +51,16 @@ export const simpleQueueSettingsSchema = z.object({
 })
 
 export type SimpleQueueSettings = z.infer<typeof simpleQueueSettingsSchema>
+
+/**
+ * SimpleQueue flags. Maps to backend `EvaluationQueueFlags`.
+ */
+export const simpleQueueFlagsSchema = z.object({
+    is_sequential: z.boolean().optional(),
+    is_default: z.boolean().optional(),
+})
+
+export type SimpleQueueFlags = z.infer<typeof simpleQueueFlagsSchema>
 
 /**
  * SimpleQueueData — the data payload of a SimpleQueue.
@@ -90,6 +100,9 @@ export const simpleQueueSchema = z
 
         // Status
         status: evaluationStatusSchema.nullable().optional(),
+
+        // Flags
+        flags: simpleQueueFlagsSchema.nullable().optional(),
 
         // Data payload
         data: simpleQueueDataSchema.nullable().optional(),

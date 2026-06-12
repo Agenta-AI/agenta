@@ -4,6 +4,7 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .evaluation_run_data_concurrency import EvaluationRunDataConcurrency
 from .evaluation_status import EvaluationStatus
 from .simple_evaluation_data_application_steps import SimpleEvaluationDataApplicationSteps
 from .simple_evaluation_data_evaluator_steps import SimpleEvaluationDataEvaluatorSteps
@@ -18,6 +19,7 @@ class SimpleEvaluationData(UniversalBaseModel):
     application_steps: typing.Optional[SimpleEvaluationDataApplicationSteps] = None
     evaluator_steps: typing.Optional[SimpleEvaluationDataEvaluatorSteps] = None
     repeats: typing.Optional[int] = None
+    concurrency: typing.Optional[EvaluationRunDataConcurrency] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

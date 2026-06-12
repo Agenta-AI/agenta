@@ -673,8 +673,8 @@ const OnboardingCard = ({
         return cloneElement(element, {
             style: {
                 ...baseStyle,
-                color: "#ffffff",
-                backgroundColor: "white",
+                color: "var(--ag-colorBgElevated)",
+                backgroundColor: "var(--ag-colorBgElevated)",
             },
         })
     }, [arrow])
@@ -702,7 +702,14 @@ const OnboardingCard = ({
                 transition: isDraggingRef.current ? "none" : "transform 0.1s ease-out",
             }}
         >
-            <Card className="!rounded-xl !p-0 shadow-lg" classNames={{body: "!px-4 !py-[10px]"}}>
+            <Card
+                className="!rounded-xl !p-0 shadow-lg"
+                classNames={{body: "!px-4 !py-[10px]"}}
+                style={{
+                    backgroundColor: "var(--ag-colorBgElevated)",
+                    borderColor: "var(--ag-colorBorder)",
+                }}
+            >
                 <div className="flex w-full flex-col gap-4">
                     {/* Header with drag handle */}
                     <div className="flex flex-col gap-1">
@@ -710,7 +717,7 @@ const OnboardingCard = ({
                             {/* Drag handle */}
                             <div
                                 onMouseDown={handleMouseDown}
-                                className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                                className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-gray-100 text-colorTextTertiary hover:text-colorTextSecondary"
                                 title="Drag to move"
                             >
                                 <DotsSixVertical size={16} weight="bold" />
@@ -742,7 +749,7 @@ const OnboardingCard = ({
                                     onClick={handlePrev}
                                     icon={<ArrowLeft size={14} className="mt-0.5" />}
                                     disabled={currentStep === 0}
-                                    className="!text-xs !h-[26px] rounded-lg !border-colorBorder hover:!border-colorBorder bg-[var(--ag-c-FFFFFF)] text-colorText hover:!text-colorTextSecondary"
+                                    className="!text-xs !h-[26px] rounded-lg !border-colorBorder hover:!border-colorBorder bg-[var(--ag-c-FFFFFF)] !text-[var(--ant-color-text)] dark:!text-white"
                                     size="small"
                                 >
                                     {labels.previous ?? "Previous"}
@@ -753,7 +760,7 @@ const OnboardingCard = ({
                                     onClick={handleNext}
                                     icon={<ArrowRight size={14} className="mt-0.5" />}
                                     iconPlacement="end"
-                                    className="!text-xs !h-[26px] bg-colorPrimary hover:!bg-colorPrimaryHover rounded-lg"
+                                    className="!text-xs !h-[26px] bg-colorPrimary hover:!bg-colorPrimaryHover rounded-lg dark:!text-[#141414]"
                                     size="small"
                                 >
                                     {currentStep < totalSteps - 1
@@ -768,7 +775,7 @@ const OnboardingCard = ({
                 {showSkip && skipTour && currentStep < totalSteps - 1 && (
                     <Button
                         type="default"
-                        className="!text-xs mt-2 w-full rounded-lg !border-colorBorder hover:!border-colorBorder bg-[var(--ag-c-FFFFFF)] text-colorText hover:!text-colorTextSecondary"
+                        className="!text-xs mt-2 w-full rounded-lg !border-colorBorder hover:!border-colorBorder bg-[var(--ag-c-FFFFFF)] !text-[var(--ant-color-text)]"
                         onClick={handleSkip}
                         size="small"
                     >
@@ -778,7 +785,10 @@ const OnboardingCard = ({
 
                 {/* Arrow - hide if user has moved the card */}
                 {adjustedArrow && userOffset.x === 0 && userOffset.y === 0 && (
-                    <div className="mt-2 flex w-full justify-center !bg-[var(--ag-c-FFFFFF)]">
+                    <div
+                        className="mt-2 flex w-full justify-center"
+                        style={{backgroundColor: "var(--ag-colorBgElevated)"}}
+                    >
                         {adjustedArrow}
                     </div>
                 )}

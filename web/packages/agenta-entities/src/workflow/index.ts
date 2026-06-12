@@ -83,15 +83,23 @@ export {
     parseWorkflowKeyFromUri,
     buildWorkflowUri,
     generateSlug,
+    // Workflow type utilities
+    WORKFLOW_TYPE_COLOR_MAP,
+    getWorkflowTypeColor,
+    getWorkflowTypeLabel,
+    normalizeWorkflowTypeKey,
+    type WorkflowTypeColor,
     // Evaluator-specific utilities (for evaluator-type workflows)
-    getEvaluatorColor,
-    type EvaluatorColor,
-    getAppTypeColor,
     parseEvaluatorKeyFromUri,
     buildEvaluatorUri,
     isOnlineCapableEvaluator,
     hasFullPagePlaygroundUX,
     collectEvaluatorCandidates,
+    // Observability defaults
+    defaultTraceTypeForWorkflow,
+    type TraceTypeDefault,
+    type ObservabilityTab,
+    type WorkflowKindForTraceDefault,
     // Output schema utilities
     resolveInputSchema,
     resolveOutputSchema,
@@ -232,6 +240,9 @@ export {
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    // Artifact (workflow-level container — entity display name)
+    workflowArtifactQueryAtomFamily,
+    primeWorkflowArtifactCacheImperative,
     // Commit / Archive
     commitWorkflowRevisionAtom,
     commitWorkflowRevision,
@@ -281,6 +292,7 @@ export {
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
     fullPagePlaygroundEvaluatorsAtom,
+    nonHumanEvaluatorsAtom,
     // Templates
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,

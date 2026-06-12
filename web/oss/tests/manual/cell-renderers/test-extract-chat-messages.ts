@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 
 import {
     extractChatMessages,
-    getBeautifiedJsonEntries,
+    getPrettyJsonEntries,
     selectPreviewChatMessages,
 } from "@agenta/ui/cell-renderers"
 
@@ -53,11 +53,11 @@ const run = () => {
     assert.equal(extractChatMessages(stringified), null)
     assert.deepEqual(extractChatMessages(JSON.parse(stringified)), JSON.parse(stringified))
 
-    assert.deepEqual(getBeautifiedJsonEntries({context: "you are a helpful chat bot"}), [
+    assert.deepEqual(getPrettyJsonEntries({context: "you are a helpful chat bot"}), [
         {key: "context", value: "you are a helpful chat bot"},
     ])
-    assert.equal(getBeautifiedJsonEntries({}), null)
-    assert.equal(getBeautifiedJsonEntries([{context: "not a record"}]), null)
+    assert.equal(getPrettyJsonEntries({}), null)
+    assert.equal(getPrettyJsonEntries([{context: "not a record"}]), null)
 
     const previewMessages = [
         {role: "user", content: "hi"},

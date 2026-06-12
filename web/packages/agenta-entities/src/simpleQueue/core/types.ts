@@ -6,6 +6,8 @@
 
 import type {WindowingState} from "../../shared/tableTypes"
 
+import type {SimpleQueueKind} from "./schema"
+
 // ============================================================================
 // API PARAMETER TYPES
 // ============================================================================
@@ -15,7 +17,7 @@ import type {WindowingState} from "../../shared/tableTypes"
  */
 export interface SimpleQueueListParams {
     projectId: string
-    kind?: "traces" | "testcases" | null
+    kind?: SimpleQueueKind | null
     userId?: string | null
     name?: string | null
     windowing?: WindowingState | null

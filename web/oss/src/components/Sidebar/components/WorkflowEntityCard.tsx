@@ -1,7 +1,7 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {
-    fullPagePlaygroundEvaluatorsAtom,
+    nonHumanEvaluatorsAtom,
     nonArchivedAppWorkflowsAtom,
     nonArchivedEvaluatorsAtom,
     parseWorkflowKeyFromUri,
@@ -69,6 +69,7 @@ const SwitcherRow = memo(
                 <WorkflowTypeTag
                     isEvaluator={isEvaluator}
                     workflowKey={evaluatorKey}
+                    evaluatorTypeKey={appType}
                     workflowType={appType}
                     className="shrink-0"
                 />
@@ -96,7 +97,9 @@ const SWITCHER_MENU_CLASS = clsx(
     "[&_.ant-dropdown-menu-item-group-title]:sticky",
     "[&_.ant-dropdown-menu-item-group-title]:top-0",
     "[&_.ant-dropdown-menu-item-group-title]:z-10",
-    "[&_.ant-dropdown-menu-item-group-title]:bg-[var(--ag-c-FFFFFF)]",
+    "[&_.ant-dropdown-menu-item-group-title]:!bg-[var(--ant-color-bg-elevated)]",
+    "[&_.ant-dropdown-menu-item-group-title]:!text-[var(--ant-color-text-secondary)]",
+    "[&_.ant-dropdown-menu-item-group-title]:!pb-2",
 )
 
 /**
@@ -113,25 +116,25 @@ const SWITCHER_MENU_CLASS = clsx(
 const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     const ctx = useAtomValue(currentWorkflowContextAtom)
     const apps = useAtomValue(nonArchivedAppWorkflowsAtom) as readonly Workflow[]
-    // Full set of evaluators — used for resolving the *active* workflow (the
-    // user may be inside a drawer-only evaluator currently). The switcher
-    // dropdown below uses `fullPagePlaygroundEvaluators` instead so it only
-    // lists evaluators whose destination is /apps/[id]/playground — clicking
-    // a declarative classifier or human evaluator from the sidebar would
-    // route through the route guard and bounce back to /evaluators, which is
-    // confusing.
     const evaluators = useAtomValue(nonArchivedEvaluatorsAtom) as readonly Workflow[]
+    // The switcher lists every AUTOMATIC evaluator — LLM, code, AND the
+    // declarative classifiers (exact match, regex, similarity / semantic
+    // similarity, json diff, contains json, …). `nonHumanEvaluatorsAtom`
+    // resolves `is_feedback` from each evaluator's LATEST REVISION — the
+    // workflow LIST records this card reads from `nonArchivedEvaluatorsAtom`
+    // carry NO `is_feedback`/`is_llm`/`is_code` flags (those live on the
+    // revision, not the parent artifact), which is why the old
+    // `!w.flags?.is_feedback` filter never excluded anything and human
+    // evaluators leaked in (QA 2026-06-05). It drops ONLY human (`is_feedback`)
+    // evaluators; navigation lands on the workflow's current sub-page (Overview/
+    // Evaluations are valid for every evaluator), so matchers no longer dead-end.
+    const automaticEvaluators = useAtomValue(nonHumanEvaluatorsAtom) as readonly Workflow[]
     // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the flag is off, the
-    // switcher dropdown hides the "Evaluators" group entirely. Clicking an
-    // entry would route to `/apps/<evaluatorId>/playground`, which the
-    // (also-gated) `PlaygroundRouter` guard would immediately bounce back to
-    // `/evaluators` — exposing the entry would just produce a flicker.
-    const fullPagePlaygroundEvaluatorsRaw = useAtomValue(
-        fullPagePlaygroundEvaluatorsAtom,
-    ) as readonly Workflow[]
-    const fullPagePlaygroundEvaluators: readonly Workflow[] = EVALUATOR_FULL_PAGE_NAV_ENABLED
-        ? fullPagePlaygroundEvaluatorsRaw
-        : EMPTY_WORKFLOWS
+    // switcher dropdown hides the "Evaluators" group entirely.
+    const switcherEvaluators: readonly Workflow[] = useMemo(() => {
+        if (!EVALUATOR_FULL_PAGE_NAV_ENABLED) return EMPTY_WORKFLOWS
+        return automaticEvaluators
+    }, [automaticEvaluators])
     const recentAppId = useAtomValue(recentAppIdAtom)
     const recentEvaluatorId = useAtomValue(recentEvaluatorIdAtom)
     const navigateToWorkflow = useSetAtom(routerAppNavigationAtom)
@@ -189,16 +192,16 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
                 children: apps.map((w) => toMenuItem(w, false)),
             })
         }
-        if (fullPagePlaygroundEvaluators.length) {
+        if (switcherEvaluators.length) {
             items.push({
                 key: "evaluators-header",
                 type: "group",
                 label: "Evaluators",
-                children: fullPagePlaygroundEvaluators.map((w) => toMenuItem(w, true)),
+                children: switcherEvaluators.map((w) => toMenuItem(w, true)),
             })
         }
         return items
-    }, [apps, fullPagePlaygroundEvaluators])
+    }, [apps, switcherEvaluators])
 
     const handleSwitcherClick = useCallback<NonNullable<MenuProps["onClick"]>>(
         ({key}) => {
@@ -222,26 +225,28 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
 
     if (collapsed) {
         return (
-            <Dropdown
-                trigger={["click"]}
-                placement="bottomLeft"
-                destroyOnHidden
-                open={switcherOpen}
-                onOpenChange={setSwitcherOpen}
-                styles={{root: {zIndex: 2000, minWidth: 280}}}
-                menu={{
-                    items: switcherItems,
-                    selectedKeys,
-                    onClick: handleSwitcherClick,
-                    className: SWITCHER_MENU_CLASS,
-                }}
-            >
-                <Button
-                    type="text"
-                    className="flex items-center justify-center w-full"
-                    icon={<ArrowsLeftRight size={14} />}
-                />
-            </Dropdown>
+            <div className="flex justify-center w-full">
+                <Dropdown
+                    trigger={["click"]}
+                    placement="bottomLeft"
+                    destroyOnHidden
+                    open={switcherOpen}
+                    onOpenChange={setSwitcherOpen}
+                    styles={{root: {zIndex: 2000, minWidth: 280}}}
+                    menu={{
+                        items: switcherItems,
+                        selectedKeys,
+                        onClick: handleSwitcherClick,
+                        className: SWITCHER_MENU_CLASS,
+                    }}
+                >
+                    <Button
+                        type="text"
+                        className="!w-[28px] !h-[28px] !p-0 flex items-center justify-center"
+                        icon={<ArrowsLeftRight size={14} />}
+                    />
+                </Dropdown>
+            </div>
         )
     }
 
@@ -298,6 +303,7 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
                 <WorkflowTypeTag
                     isEvaluator={isEvaluator}
                     workflowKey={evaluatorKey}
+                    evaluatorTypeKey={appType}
                     workflowType={appType}
                 />
             </div>

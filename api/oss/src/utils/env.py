@@ -97,6 +97,7 @@ def _parse_optional_port_env(name: str) -> int | None:
         raise ValueError(f"{name} must be between 1 and 65535, got {port}")
     return port
 
+
 def _parse_optional_positive_int_env(name: str) -> int | None:
     value = _parse_optional_int_env(name)
 
@@ -104,6 +105,7 @@ def _parse_optional_positive_int_env(name: str) -> int | None:
         raise ValueError(f"{name} must be greater than 0, got {value}")
 
     return value
+
 
 def _parse_bool_env(name: str, default: bool) -> bool:
     raw = os.getenv(name)
@@ -115,6 +117,8 @@ def _parse_bool_env(name: str, default: bool) -> bool:
         return default
 
     return value.lower() in _TRUTHY
+
+
 # ---------------------------------------------------------------------------
 # agenta.access — access controls.
 # ---------------------------------------------------------------------------
@@ -124,7 +128,7 @@ class AccessConfig(BaseModel):
     """Access controls (allow/block lists, plans + roles, default plan).
 
     JSON env vars are parsed here at startup. Schema validation happens in
-    ``ee.src.core.entitlements.controls``.
+    ``ee.src.core.access.controls``.
 
     `default_plan` lives here (not under `agenta`) because it's part of the
     access-controls surface: it selects which entry of the effective plan

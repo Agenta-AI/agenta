@@ -2,15 +2,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from oss.src.services import email_service
+from oss.src.utils import emailing
 from oss.src.utils.env import env
-
-
-@pytest.fixture(autouse=True)
-def _clear_sendgrid_client_cache():
-    email_service._get_sendgrid_client.cache_clear()
-    yield
-    email_service._get_sendgrid_client.cache_clear()
 
 
 def _disable_smtp(monkeypatch):
@@ -62,13 +55,16 @@ async def test_send_email_uses_smtp_with_starttls(monkeypatch):
     _enable_smtp(monkeypatch, use_tls=True, use_ssl=False)
     _disable_sendgrid(monkeypatch)
     FakeSmtp.instances = []
-    monkeypatch.setattr(email_service.smtplib, "SMTP", FakeSmtp)
+    monkeypatch.setattr(emailing.smtplib, "SMTP", FakeSmtp)
 
-    assert await email_service.send_email(
+    assert await emailing.send_email(
         to_email="to@example.com",
         subject="Subject",
-        html_content="<p>Hello</p>",
         from_email="caller@example.com",
+        username="Caller",
+        action="sent you a message",
+        workspace="their workspace",
+        call_to_action="<p>Hello</p>",
     )
 
     smtp = FakeSmtp.instances[0]
@@ -87,20 +83,23 @@ async def test_send_email_prefers_smtp_over_sendgrid(monkeypatch):
     _enable_smtp(monkeypatch, use_tls=False, use_ssl=False)
     monkeypatch.setattr(env.sendgrid, "api_key", "sg-key")
     monkeypatch.setattr(env.sendgrid, "from_address", "sendgrid@example.com")
-    sendgrid_client = Mock()
-    monkeypatch.setattr(email_service.sendgrid, "SendGridAPIClient", sendgrid_client)
+    load_sendgrid = Mock()
+    monkeypatch.setattr(emailing, "_load_sendgrid", load_sendgrid)
     FakeSmtp.instances = []
-    monkeypatch.setattr(email_service.smtplib, "SMTP", FakeSmtp)
+    monkeypatch.setattr(emailing.smtplib, "SMTP", FakeSmtp)
 
-    assert await email_service.send_email(
+    assert await emailing.send_email(
         to_email="to@example.com",
         subject="Subject",
-        html_content="<p>Hello</p>",
         from_email="caller@example.com",
+        username="Caller",
+        action="sent you a message",
+        workspace="their workspace",
+        call_to_action="<p>Hello</p>",
     )
 
     assert FakeSmtp.instances
-    sendgrid_client.assert_not_called()
+    load_sendgrid.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -108,13 +107,16 @@ async def test_send_email_uses_smtp_ssl_without_starttls(monkeypatch):
     _enable_smtp(monkeypatch, use_tls=False, use_ssl=True)
     _disable_sendgrid(monkeypatch)
     FakeSmtp.instances = []
-    monkeypatch.setattr(email_service.smtplib, "SMTP_SSL", FakeSmtp)
+    monkeypatch.setattr(emailing.smtplib, "SMTP_SSL", FakeSmtp)
 
-    assert await email_service.send_email(
+    assert await emailing.send_email(
         to_email="to@example.com",
         subject="Subject",
-        html_content="<p>Hello</p>",
         from_email="caller@example.com",
+        username="Caller",
+        action="sent you a message",
+        workspace="their workspace",
+        call_to_action="<p>Hello</p>",
     )
 
     smtp = FakeSmtp.instances[0]
@@ -131,13 +133,13 @@ def test_send_smtp_email_requires_username_and_password(
     _enable_smtp(monkeypatch)
     monkeypatch.setattr(env.smtp, missing_credential, None)
     FakeSmtp.instances = []
-    monkeypatch.setattr(email_service.smtplib, "SMTP", FakeSmtp)
+    monkeypatch.setattr(emailing.smtplib, "SMTP", FakeSmtp)
 
     with pytest.raises(
         RuntimeError,
         match="SMTP_USERNAME and SMTP_PASSWORD must be configured together",
     ):
-        email_service._send_smtp_email_sync(
+        emailing._send_smtp_email_sync(
             to_email="to@example.com",
             subject="Subject",
             html_content="<p>Hello</p>",
@@ -153,23 +155,27 @@ async def test_send_email_falls_back_to_sendgrid(monkeypatch):
     monkeypatch.setattr(env.sendgrid, "api_key", "sg-key")
     monkeypatch.setattr(env.sendgrid, "from_address", "sendgrid@example.com")
     fake_sendgrid = Mock()
-    sendgrid_client = Mock(return_value=fake_sendgrid)
-    monkeypatch.setattr(email_service.sendgrid, "SendGridAPIClient", sendgrid_client)
+    monkeypatch.setattr(emailing, "_load_sendgrid", Mock(return_value=fake_sendgrid))
 
-    assert await email_service.send_email(
+    assert await emailing.send_email(
         to_email="to@example.com",
         subject="Subject",
-        html_content="<p>Hello</p>",
         from_email="caller@example.com",
+        username="Caller",
+        action="sent you a message",
+        workspace="their workspace",
+        call_to_action="<p>Hello</p>",
     )
-    assert await email_service.send_email(
+    assert await emailing.send_email(
         to_email="to@example.com",
         subject="Subject",
-        html_content="<p>Hello again</p>",
         from_email="caller@example.com",
+        username="Caller",
+        action="sent you another message",
+        workspace="their workspace",
+        call_to_action="<p>Hello again</p>",
     )
 
-    sendgrid_client.assert_called_once_with(api_key="sg-key")
     assert fake_sendgrid.send.call_count == 2
 
 
@@ -177,12 +183,16 @@ async def test_send_email_falls_back_to_sendgrid(monkeypatch):
 async def test_send_email_noops_when_no_provider_is_configured(monkeypatch):
     _disable_smtp(monkeypatch)
     _disable_sendgrid(monkeypatch)
+    monkeypatch.setattr(emailing, "_load_sendgrid", Mock(return_value=None))
 
-    assert await email_service.send_email(
+    assert await emailing.send_email(
         to_email="to@example.com",
         subject="Subject",
-        html_content="<p>Hello</p>",
         from_email="caller@example.com",
+        username="Caller",
+        action="sent you a message",
+        workspace="their workspace",
+        call_to_action="<p>Hello</p>",
     )
 
 
@@ -211,15 +221,15 @@ def test_incomplete_smtp_does_not_enable_email_otp(monkeypatch):
     assert env.auth.email_method == "password"
 
 
-def test_get_configured_from_email_prefers_smtp(monkeypatch):
+def test_get_sender_email_prefers_smtp(monkeypatch):
     _enable_smtp(monkeypatch)
     monkeypatch.setattr(env.sendgrid, "api_key", "sg-key")
     monkeypatch.setattr(env.sendgrid, "from_address", "sendgrid@example.com")
 
-    assert email_service.get_configured_from_email() == "smtp@example.com"
+    assert emailing._get_sender_email() == "smtp@example.com"
 
 
-def test_get_configured_from_email_raises_when_unset(monkeypatch):
+def test_get_sender_email_raises_when_unset(monkeypatch):
     _disable_smtp(monkeypatch)
     _disable_sendgrid(monkeypatch)
 
@@ -232,4 +242,4 @@ def test_get_configured_from_email_raises_when_unset(monkeypatch):
             "SENDGRID_FROM_ADDRESS for SendGrid fallback\\."
         ),
     ):
-        email_service.get_configured_from_email()
+        emailing._get_sender_email()

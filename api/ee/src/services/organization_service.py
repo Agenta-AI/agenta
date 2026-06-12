@@ -12,7 +12,7 @@ from fastapi import HTTPException
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     UpdateSecretDTO,
@@ -38,7 +38,7 @@ from ee.src.core.organizations.types import (
 )
 
 from ee.src.services import db_manager_ee
-from oss.src.services import email_service
+from oss.src.utils import emailing
 from oss.src.models.db_models import UserDB
 from oss.src.models.db_models import (
     WorkspaceDB,
@@ -87,8 +87,6 @@ async def send_invitation_email(
         bool: True if the email was sent successfully, False otherwise.
     """
 
-    html_template = email_service.read_email_template("./templates/send_email.html")
-
     token_param = quote(token, safe="")
     email_param = quote(email, safe="")
     org_param = quote(str(organization.id), safe="")
@@ -108,21 +106,17 @@ async def send_invitation_email(
     if not (env.smtp.enabled or env.sendgrid.enabled):
         return invite_link
 
-    html_content = html_template.format(
-        username_placeholder=user.username,
-        action_placeholder="invited you to join",
-        workspace_placeholder=organization.name,
+    await emailing.send_email(
+        from_email="account@hello.agenta.ai",
+        to_email=email,
+        subject=f"{user.username} invited you to join {organization.name}",
+        username=user.username,
+        action="invited you to join",
+        workspace=organization.name,
         call_to_action=(
             "Click the link below to accept the invitation:</p><br>"
             f'<a href="{invite_link}">Accept Invitation</a>'
         ),
-    )
-
-    await email_service.send_email(
-        from_email="account@hello.agenta.ai",
-        to_email=email,
-        subject=f"{user.username} invited you to join {organization.name}",
-        html_content=html_content,
     )
     return True
 
@@ -141,24 +135,21 @@ async def notify_org_admin_invitation(workspace: WorkspaceDB, user: UserDB) -> b
 
     organization = await db_manager_ee.get_organization(str(workspace.organization_id))
     project = await db_manager_ee.get_project_by_workspace(str(workspace.id))
-    html_template = email_service.read_email_template("./templates/send_email.html")
-    html_content = html_template.format(
-        username_placeholder=user.username,
-        action_placeholder="joined your Workspace",
-        workspace_placeholder=f'"{organization.name}"',
-        call_to_action=(
-            "Click the link below to view your Organization:</p><br>"
-            f'<a href="{env.agenta.web_url}/w/{workspace.id}/p/{project.id}/settings?tab=workspace">View Organization</a>'
-        ),
-    )
 
     workspace_admins = await db_manager_ee.get_workspace_administrators(workspace)
+
     for workspace_admin in workspace_admins:
-        await email_service.send_email(
+        await emailing.send_email(
             from_email="account@hello.agenta.ai",
             to_email=workspace_admin.email,
             subject=f"New Member Joined {organization.name}",
-            html_content=html_content,
+            username=user.username,
+            action="joined your Workspace",
+            workspace=f'"{organization.name}"',
+            call_to_action=(
+                "Click the link below to view your Organization:</p><br>"
+                f'<a href="{env.agenta.web_url}/w/{workspace.id}/p/{project.id}/settings?tab=workspace">View Organization</a>'
+            ),
         )
 
     return True
@@ -280,7 +271,9 @@ class OrganizationDomainsService:
 
         Token expires after 48 hours and can be refreshed.
         """
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationDomainsDAO(session)
 
             # Block if a verified domain already exists anywhere
@@ -337,7 +330,9 @@ class OrganizationDomainsService:
         self, organization_id: str, domain_id: str, user_id: str
     ) -> OrganizationDomain:
         """Verify a domain via DNS check."""
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationDomainsDAO(session)
 
             domain = await dao.get_by_id(
@@ -403,7 +398,9 @@ class OrganizationDomainsService:
         Tokens are returned for unverified domains (within expiry period).
         Verified domains have token=None (cleared after verification).
         """
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationDomainsDAO(session)
             domains = await dao.list_by_organization(organization_id=organization_id)
 
@@ -430,7 +427,9 @@ class OrganizationDomainsService:
         Generates a new token and resets the 48-hour expiry window.
         For verified domains, this marks them as unverified for re-verification.
         """
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationDomainsDAO(session)
 
             domain = await dao.get_by_id(
@@ -470,7 +469,9 @@ class OrganizationDomainsService:
 
         Generates a new token and marks the domain as unverified.
         """
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationDomainsDAO(session)
 
             domain = await dao.get_by_id(
@@ -506,7 +507,9 @@ class OrganizationDomainsService:
         self, organization_id: str, domain_id: str, user_id: str
     ) -> bool:
         """Delete a domain."""
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationDomainsDAO(session)
 
             domain = await dao.get_by_id(
@@ -573,7 +576,9 @@ class OrganizationProvidersService:
         user_id: str,
     ) -> OrganizationProvider:
         """Create a new SSO provider."""
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationProvidersDAO(session)
 
             # Use the slug from payload (already validated to be lowercase letters and hyphens)
@@ -648,7 +653,9 @@ class OrganizationProvidersService:
         user_id: str,
     ) -> OrganizationProvider:
         """Update an SSO provider."""
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationProvidersDAO(session)
 
             provider = await dao.get_by_id(
@@ -735,7 +742,9 @@ class OrganizationProvidersService:
 
     async def list_providers(self, organization_id: str) -> List[OrganizationProvider]:
         """List all SSO providers for an organization."""
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationProvidersDAO(session)
             providers = await dao.list_by_organization(organization_id=organization_id)
 
@@ -748,7 +757,9 @@ class OrganizationProvidersService:
         self, organization_id: str, provider_id: str
     ) -> OrganizationProvider:
         """Get a single SSO provider by ID."""
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationProvidersDAO(session)
             provider = await dao.get_by_id(
                 provider_id=provider_id, organization_id=organization_id
@@ -761,7 +772,9 @@ class OrganizationProvidersService:
         self, organization_id: str, provider_id: str, user_id: str
     ) -> OrganizationProvider:
         """Test SSO provider connection and mark as valid if successful."""
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationProvidersDAO(session)
 
             provider = await dao.get_by_id(
@@ -806,7 +819,9 @@ class OrganizationProvidersService:
         self, organization_id: str, provider_id: str, user_id: str
     ) -> bool:
         """Delete an SSO provider."""
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationProvidersDAO(session)
 
             provider = await dao.get_by_id(

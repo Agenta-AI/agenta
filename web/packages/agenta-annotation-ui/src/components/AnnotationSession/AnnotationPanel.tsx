@@ -129,6 +129,14 @@ const AnnotationPanel = memo(function AnnotationPanel({
     const hasFilledMetrics = useAtomValue(
         annotationFormController.selectors.hasFilledMetrics(scenarioId),
     )
+    const hasPendingChanges = useAtomValue(
+        annotationFormController.selectors.hasPendingChanges(scenarioId),
+    )
+    // Before first completion: enable once at least one value is filled.
+    // After completion ("Update"): only enable when something actually changed,
+    // so revisiting a completed scenario doesn't show an enabled Update button
+    // with no edits.
+    const canSubmit = isCompleted ? hasPendingChanges : hasFilledMetrics
     const submitAnnotations = useSetAtom(annotationFormController.actions.submitAnnotations)
 
     const handleMarkComplete = useCallback(async () => {
@@ -335,7 +343,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
                         type="primary"
                         block
                         onClick={handleMarkComplete}
-                        disabled={isSubmitting || !hasFilledMetrics}
+                        disabled={isSubmitting || !canSubmit}
                         loading={isSubmitting}
                     >
                         {isCompleted ? "Update" : "Mark completed"}

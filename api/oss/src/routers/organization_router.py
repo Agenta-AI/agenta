@@ -30,21 +30,21 @@ def _role_description(role: str) -> str:
     """
     if not is_ee():
         return ""
-    from ee.src.core.entitlements.controls import get_role_description
+    from ee.src.core.access.controls import get_role_description
 
     return get_role_description("workspace", role) or ""
 
 
 if is_ee():
-    from ee.src.utils.permissions import check_action_access
-    from ee.src.models.shared_models import Permission
+    from ee.src.core.access.permissions.service import check_action_access
+    from ee.src.core.access.permissions.types import Permission
     from ee.src.services import db_manager_ee, workspace_manager
-    from ee.src.services.selectors import (
+    from ee.src.services.db_manager_ee import (
         get_user_org_and_workspace_id,
     )
     from ee.src.services.organization_service import notify_org_admin_invitation
 
-    from ee.src.utils.entitlements import (
+    from ee.src.core.access.entitlements.service import (
         check_entitlements,
         scope_from,
         Tracker,

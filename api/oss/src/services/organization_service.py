@@ -6,7 +6,8 @@ from fastapi import HTTPException
 
 from oss.src.utils.env import env
 from oss.src.models.db_models import UserDB
-from oss.src.services import db_manager, email_service
+from oss.src.services import db_manager
+from oss.src.utils import emailing
 from oss.src.models.api.workspace_models import InviteRequest, ResendInviteRequest
 
 
@@ -158,24 +159,16 @@ async def send_invitation_email(
     if not (env.smtp.enabled or env.sendgrid.enabled):
         return invite_link
 
-    html_template = email_service.read_email_template("./templates/send_email.html")
-    html_content = html_template.format(
-        username_placeholder=user.username,
-        action_placeholder="invited you to join",
-        workspace_placeholder="their organization",
+    await emailing.send_email(
+        to_email=email,
+        subject=f"{user.username} invited you to join their organization",
+        username=user.username,
+        action="invited you to join",
+        workspace="their organization",
         call_to_action=(
             "Click the link below to accept the invitation:</p><br>"
             f'<a href="{invite_link}">Accept Invitation</a>'
         ),
-    )
-
-    from_email = email_service.get_configured_from_email()
-
-    await email_service.send_email(
-        from_email=from_email,
-        to_email=email,
-        subject=f"{user.username} invited you to join their organization",
-        html_content=html_content,
     )
     return True
 

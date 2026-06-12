@@ -22,11 +22,11 @@ const MarkdownToggleButton = ({id}: MarkdownToggleButtonProps) => {
     }, [editor])
 
     return (
-        <Tooltip title={markdownView ? "Preview text" : "Preview markdown"}>
+        <Tooltip title={markdownView ? "Preview markdown" : "Preview text"}>
             <Button
                 type="text"
                 size="small"
-                icon={markdownView ? <TextAa size={14} /> : <MarkdownLogoIcon size={14} />}
+                icon={markdownView ? <MarkdownLogoIcon size={14} /> : <TextAa size={14} />}
                 onClick={onToggleMarkdown}
                 className={cn(flexLayouts.rowCenter, justifyClasses.center)}
             />

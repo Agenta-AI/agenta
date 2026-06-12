@@ -56,8 +56,11 @@ from oss.src.apis.fastapi.queries.utils import (
 )
 
 if is_ee():
-    from ee.src.models.shared_models import Permission
-    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
+    from ee.src.core.access.permissions.types import Permission
+    from ee.src.core.access.permissions.service import (
+        check_action_access,
+        FORBIDDEN_EXCEPTION,
+    )
 
 
 log = get_module_logger(__name__)
@@ -82,7 +85,11 @@ class QueriesRouter:
     # `QueriesService.commit_query_revision`, not from this router. See
     # core/events/utils.py module docstring for the read-vs-write split
     # rationale.
-    def __init__(self, *, queries_service: QueriesService):
+    def __init__(
+        self,
+        *,
+        queries_service: QueriesService,
+    ):
         self.queries_service = queries_service
         self.router = APIRouter()
 
