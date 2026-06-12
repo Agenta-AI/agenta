@@ -93,10 +93,16 @@ def upgrade() -> None:
         WHERE p.workspace_id = w.id AND p.organization_id IS NULL
         """
     )
+    # Works with 0, 1, or N orgs: prefer the legacy singleton (slug backfilled
+    # by f7a8b9c0d1e2, may be NULL on other orgs), else the oldest org. With
+    # 0 orgs this is a no-op and the fresh-replay delete below applies.
     op.execute(
         """
-        UPDATE projects SET organization_id =
-            (SELECT id FROM organizations ORDER BY created_at LIMIT 1)
+        UPDATE projects SET organization_id = (
+            SELECT id FROM organizations
+            ORDER BY (slug = 'oss-default') DESC NULLS LAST, created_at
+            LIMIT 1
+        )
         WHERE organization_id IS NULL
         """
     )
@@ -108,6 +114,18 @@ def upgrade() -> None:
             ORDER BY w.created_at LIMIT 1
         )
         WHERE p.workspace_id IS NULL
+        """
+    )
+
+    # Fresh replays: 911e6034d05e seeds a default project before any
+    # organization can exist (orgs are created by the app at signup, which
+    # never ran). Seed-only projects are recreated per organization now, so
+    # drop them; the user-less guard keeps real deployments failing loudly.
+    op.execute(
+        """
+        DELETE FROM projects
+        WHERE (organization_id IS NULL OR workspace_id IS NULL)
+          AND NOT EXISTS (SELECT 1 FROM users)
         """
     )
 

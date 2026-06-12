@@ -81,6 +81,18 @@ def upgrade() -> None:
         """
     )
 
+    # Fresh replays: the chain seeds a default project before any organization
+    # can exist (orgs are created by the app at signup, which never ran).
+    # Seed-only projects are recreated per organization, so drop them; the
+    # user-less guard keeps real deployments failing loudly.
+    op.execute(
+        """
+        DELETE FROM projects
+        WHERE (organization_id IS NULL OR workspace_id IS NULL)
+          AND NOT EXISTS (SELECT 1 FROM users)
+        """
+    )
+
     remaining = (
         op.get_bind()
         .execute(
