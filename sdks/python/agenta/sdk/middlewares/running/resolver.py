@@ -32,6 +32,19 @@ def _raise_bad_request(message: str) -> None:
     raise error
 
 
+def _has_reference_identity(ref: Any) -> bool:
+    if ref is None:
+        return False
+
+    if hasattr(ref, "model_dump"):
+        return bool(ref.model_dump(mode="json", exclude_none=True))
+
+    if isinstance(ref, dict):
+        return any(value is not None for value in ref.values())
+
+    return True
+
+
 def _validate_executable_reference_families(refs: Dict[str, Any]) -> None:
     families = {
         "workflow": (
@@ -54,7 +67,7 @@ def _validate_executable_reference_families(refs: Dict[str, Any]) -> None:
     populated = [
         family_name
         for family_name, family_keys in families.items()
-        if any(key in refs for key in family_keys)
+        if any(_has_reference_identity(refs.get(key)) for key in family_keys)
     ]
 
     if len(populated) > 1:
