@@ -55,6 +55,7 @@ from oss.src.core.git.dtos import (
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.git.types import (
+    InlineResolveInvalid,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     needs_default_variant_resolution,
@@ -661,11 +662,26 @@ class EnvironmentsService:
         environment_variant_ref: Reference,
         environment_revision_ref: Optional[Reference] = None,
     ) -> Optional[EnvironmentVariant]:
+        source_variant = await self.fetch_environment_variant(
+            project_id=project_id,
+            environment_variant_ref=environment_variant_ref,
+        )
+        if not source_variant:
+            return None
+
+        source_revision_id: Optional[UUID] = None
+        if environment_revision_ref is not None:
+            source_revision = await self.fetch_environment_revision(
+                project_id=project_id,
+                environment_revision_ref=environment_revision_ref,
+            )
+            if not source_revision:
+                return None
+            source_revision_id = source_revision.id
+
         _artifact_fork = ArtifactFork(
-            variant_id=environment_variant_ref.id,
-            revision_id=environment_revision_ref.id
-            if environment_revision_ref
-            else None,
+            variant_id=source_variant.id,
+            revision_id=source_revision_id,
             variant=environment_variant_fork,
         )
 
@@ -1276,7 +1292,9 @@ class EnvironmentsService:
 
         if environment_revision is not None:
             if not environment_revision.data:
-                return None
+                raise InlineResolveInvalid(
+                    "Inline environment_revision has no data to resolve."
+                )
             (
                 resolved_data,
                 resolution_info,

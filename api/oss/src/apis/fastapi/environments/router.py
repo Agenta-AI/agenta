@@ -839,6 +839,7 @@ class EnvironmentsRouter:
         return environment_revision_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def resolve_environment_revision_endpoint(
         self,
         request: Request,

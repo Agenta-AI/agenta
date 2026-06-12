@@ -23,6 +23,7 @@ from oss.src.core.shared.dtos import Windowing, Reference
 from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.git.types import (
+    InlineResolveInvalid,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     validate_retrieve_refs_consistent,
@@ -958,7 +959,9 @@ class EvaluatorsService:
 
         if evaluator_revision is not None:
             if not evaluator_revision.data:
-                return None
+                raise InlineResolveInvalid(
+                    "Inline evaluator_revision has no data to resolve."
+                )
             (
                 resolved_data,
                 resolution_info,

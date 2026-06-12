@@ -587,9 +587,26 @@ class QueriesService:
         query_variant_ref: Reference,
         query_revision_ref: Optional[Reference] = None,
     ) -> Optional[QueryVariant]:
+        source_variant = await self.fetch_query_variant(
+            project_id=project_id,
+            query_variant_ref=query_variant_ref,
+        )
+        if not source_variant:
+            return None
+
+        source_revision_id: Optional[UUID] = None
+        if query_revision_ref is not None:
+            source_revision = await self.fetch_query_revision(
+                project_id=project_id,
+                query_revision_ref=query_revision_ref,
+            )
+            if not source_revision:
+                return None
+            source_revision_id = source_revision.id
+
         _artifact_fork = ArtifactFork(
-            variant_id=query_variant_ref.id,
-            revision_id=query_revision_ref.id if query_revision_ref else None,
+            variant_id=source_variant.id,
+            revision_id=source_revision_id,
             variant=query_variant_fork,
         )
 

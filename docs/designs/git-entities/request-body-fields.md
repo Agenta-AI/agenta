@@ -33,7 +33,7 @@ Meta fields (`project_id`, `user_id`, `windowing`, `include_archived`,
 | `POST /<entities>/` | `<entity>: <Entity>Create` |
 | `PUT /<entities>/{id}` | `<entity>: <Entity>Edit` |
 | `POST /<entities>/query` | `<entity>: <Entity>Query` + `<entity>_refs: List[Reference]` |
-| `POST /<entities>/{id}/fork` *(all six entities)* | `<entity>: <Entity>Fork` |
+| `POST /<entities>/{id}/fork` *(not implemented — only `/variants/fork` is wired)* | `<entity>: <Entity>Fork` |
 
 ### Variant level
 
@@ -42,7 +42,7 @@ Meta fields (`project_id`, `user_id`, `windowing`, `include_archived`,
 | `POST /<entities>/variants/` | `<entity>_variant: <Entity>VariantCreate` |
 | `PUT /<entities>/variants/{id}` | `<entity>_variant: <Entity>VariantEdit` |
 | `POST /<entities>/variants/query` | `<entity>_variant: <Entity>VariantQuery` + `<entity>_refs: List[Reference]` + `<entity>_variant_refs: List[Reference]` |
-| `POST /<entities>/variants/fork` *(all six entities)* | `<entity>_variant: <Entity>VariantFork` + `<entity>_variant_ref: Reference` + `<entity>_revision_ref: Reference` |
+| `POST /<entities>/variants/fork` *(all six entities)* | `<entity>_variant: <Entity>VariantFork` + `<entity>_variant_ref: Reference` + `<entity>_revision_ref: Optional[Reference]` |
 
 ### Revision level
 
@@ -53,7 +53,7 @@ Meta fields (`project_id`, `user_id`, `windowing`, `include_archived`,
 | `POST /<entities>/revisions/query` | `<entity>_revision: <Entity>RevisionQuery` + `<entity>_refs: List[Reference]` + `<entity>_variant_refs: List[Reference]` + `<entity>_revision_refs: List[Reference]` |
 | `POST /<entities>/revisions/commit` | `<entity>_revision: <Entity>RevisionCommit` |
 | `POST /<entities>/revisions/log` | `<entity>_revisions: <Entity>RevisionsLog` |
-| `POST /<entities>/revisions/retrieve` | `<entity>_ref: Reference` + `<entity>_variant_ref: Reference` + `<entity>_revision_ref: Reference` + `environment_ref: Reference` + `environment_variant_ref: Reference` + `environment_revision_ref: Reference` + `key: str` + `resolve: bool` *(queries, testsets, environments drop the `environment_*` triple and `key`)* |
+| `POST /<entities>/revisions/retrieve` | `<entity>_ref: Reference` + `<entity>_variant_ref: Reference` + `<entity>_revision_ref: Reference` + `environment_ref: Reference` + `environment_variant_ref: Reference` + `environment_revision_ref: Reference` + `key: str` + `resolve: bool` *(queries/testsets drop `environment_*`, `key`, and `resolve`; environments drop `key` only)* |
 | `POST /<entities>/revisions/resolve` *(workflows, applications, evaluators, environments)* | `<entity>_ref: Reference` + `<entity>_variant_ref: Reference` + `<entity>_revision_ref: Reference` + `<entity>_revision: <Entity>Revision` + `max_depth: int` + `max_embeds: int` + `error_policy: ErrorPolicy` |
 | `POST /<entities>/revisions/deploy` *(workflows, applications, evaluators)* | `<entity>_ref: Reference` + `<entity>_variant_ref: Reference` + `<entity>_revision_ref: Reference` + `environment_ref: Reference` + `environment_variant_ref: Reference` + `environment_revision_ref: Reference` + `key: str` + `message: str` |
 

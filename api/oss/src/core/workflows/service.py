@@ -83,6 +83,7 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceStreamResponse,
 )
 from oss.src.core.git.types import (
+    InlineResolveInvalid,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     needs_default_variant_resolution,
@@ -966,9 +967,26 @@ class WorkflowsService:
         workflow_variant_ref: Reference,
         workflow_revision_ref: Optional[Reference] = None,
     ) -> Optional[WorkflowVariant]:
+        source_variant = await self.fetch_workflow_variant(
+            project_id=project_id,
+            workflow_variant_ref=workflow_variant_ref,
+        )
+        if not source_variant:
+            return None
+
+        source_revision_id: Optional[UUID] = None
+        if workflow_revision_ref is not None:
+            source_revision = await self.fetch_workflow_revision(
+                project_id=project_id,
+                workflow_revision_ref=workflow_revision_ref,
+            )
+            if not source_revision:
+                return None
+            source_revision_id = source_revision.id
+
         _artifact_fork = ArtifactFork(
-            variant_id=workflow_variant_ref.id,
-            revision_id=workflow_revision_ref.id if workflow_revision_ref else None,
+            variant_id=source_variant.id,
+            revision_id=source_revision_id,
             variant=workflow_variant_fork,
         )
 
@@ -1779,7 +1797,9 @@ class WorkflowsService:
         if workflow_revision is not None:
             # Inline mode: resolve the provided revision's data without fetching
             if not workflow_revision.data:
-                return None
+                raise InlineResolveInvalid(
+                    "Inline workflow_revision has no data to resolve."
+                )
             (
                 resolved_data,
                 resolution_info,

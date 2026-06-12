@@ -1069,7 +1069,10 @@ class ApplicationsRouter:
                 application_variant_ref.id
                 and application_variant_ref.id != application_variant_id
             ):
-                return ApplicationVariantResponse()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="application_variant_id does not match application_variant_ref.id.",
+                )
             if not application_variant_ref.id:
                 application_variant_ref = Reference(id=application_variant_id)
 

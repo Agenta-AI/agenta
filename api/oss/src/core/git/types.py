@@ -130,6 +130,16 @@ class InitialRevisionConflict(GitError):
     """
 
 
+class InlineResolveInvalid(GitError):
+    """Raised when an inline resolve payload carries no `data` to resolve.
+
+    Inline resolution passes the revision in the request body instead of
+    looking it up. A payload missing `data` is a malformed request, not a
+    missing revision, so the router maps it to HTTP 400 rather than letting
+    it serialize as an empty 200.
+    """
+
+
 class RetrieveRefsInconsistent(GitError):
     """Raised when redundant refs disagree with the resolved revision.
 

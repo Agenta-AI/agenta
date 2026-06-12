@@ -497,9 +497,26 @@ class TestsetsService:
         testset_variant_ref: Reference,
         testset_revision_ref: Optional[Reference] = None,
     ) -> Optional[TestsetVariant]:
+        source_variant = await self.fetch_testset_variant(
+            project_id=project_id,
+            testset_variant_ref=testset_variant_ref,
+        )
+        if not source_variant:
+            return None
+
+        source_revision_id: Optional[UUID] = None
+        if testset_revision_ref is not None:
+            source_revision = await self.fetch_testset_revision(
+                project_id=project_id,
+                testset_revision_ref=testset_revision_ref,
+            )
+            if not source_revision:
+                return None
+            source_revision_id = source_revision.id
+
         _artifact_fork = ArtifactFork(
-            variant_id=testset_variant_ref.id,
-            revision_id=testset_revision_ref.id if testset_revision_ref else None,
+            variant_id=source_variant.id,
+            revision_id=source_revision_id,
             variant=testset_variant_fork,
         )
 
