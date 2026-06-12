@@ -1,10 +1,6 @@
 import {memo, useMemo} from "react"
 
-import {
-    getWorkflowTypeColor,
-    workflowMolecule,
-    workflowVariantsListQueryStateAtomFamily,
-} from "@agenta/entities/workflow"
+import {getWorkflowTypeColor, workflowMolecule} from "@agenta/entities/workflow"
 import {Skeleton, Typography} from "antd"
 import type {TooltipPlacement} from "antd/es/tooltip"
 import clsx from "clsx"
@@ -477,17 +473,12 @@ export const VariantRevisionLabel = memo(
         const data = useAtomValue(dataAtom)
         const query = useAtomValue(queryAtom)
 
-        // Resolve the VARIANT's own name (then slug): SDK-created variants and
-        // revisions may carry no `name`, and the revision slug is an opaque hex.
-        const variantsAtom = useMemo(
-            () => workflowVariantsListQueryStateAtomFamily(data?.workflow_id ?? ""),
-            [data?.workflow_id],
+        // Resolve the VARIANT's own label (name, then slug): SDK-created
+        // variants and revisions may carry no `name`, and the revision slug
+        // is an opaque hex.
+        const variantLabel = useAtomValue(
+            useMemo(() => workflowMolecule.selectors.variantLabel(revisionId ?? ""), [revisionId]),
         )
-        const variantsState = useAtomValue(variantsAtom)
-        const resolvedVariantId = data?.workflow_variant_id ?? data?.variant_id ?? variantId
-        const variant = resolvedVariantId
-            ? (variantsState.data ?? []).find((v) => v.id === resolvedVariantId)
-            : undefined
 
         if (!variantId && !revisionId) {
             return <Text type="secondary">—</Text>
@@ -499,13 +490,7 @@ export const VariantRevisionLabel = memo(
 
         // Get variant name from the variant entity, workflow data, or fallback
         // Prefer `name` over `slug` — slug can be an opaque ID on older revisions
-        const variantName =
-            variant?.name ??
-            variant?.slug ??
-            data?.name ??
-            data?.slug ??
-            fallbackVariantName ??
-            null
+        const variantName = variantLabel ?? data?.name ?? data?.slug ?? fallbackVariantName ?? null
 
         // Get revision number from workflow data or fallback
         const revision = data?.version ?? fallbackRevision ?? null

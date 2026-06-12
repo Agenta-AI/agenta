@@ -5,7 +5,6 @@ import {extractSourceIdFromDraft, isLocalDraftId, isValidUUID} from "@agenta/ent
 import {
     workflowMolecule,
     workflowRevisionsByWorkflowListDataAtomFamily,
-    workflowVariantsListQueryStateAtomFamily,
 } from "@agenta/entities/workflow"
 import {
     evaluatorConfigsListDataAtom,
@@ -378,10 +377,12 @@ const NewEvaluationModalInner = ({
     // Variant display names live on the VARIANT (name, then slug): SDK-created
     // variants and revisions may carry no `name` at all, and UI-created
     // revisions are named after the variant.
-    const appVariantsState = useAtomValue(
+    const selectedSingleRevisionId =
+        selectedVariantRevisionIds.length === 1 ? selectedVariantRevisionIds[0] : ""
+    const selectedVariantLabel = useAtomValue(
         useMemo(
-            () => workflowVariantsListQueryStateAtomFamily(selectedAppId || ""),
-            [selectedAppId],
+            () => workflowMolecule.selectors.variantLabel(selectedSingleRevisionId),
+            [selectedSingleRevisionId],
         ),
     )
 
@@ -393,11 +394,9 @@ const NewEvaluationModalInner = ({
         }
         const revision = filteredVariants?.find((v) => selectedVariantRevisionIds.includes(v.id))
         if (!revision) return ""
-        const variantId = revision.workflow_variant_id ?? revision.variant_id
-        const variant = (appVariantsState.data ?? []).find((v) => v.id === variantId)
-        const label = variant?.name ?? variant?.slug ?? revision.name ?? "-"
+        const label = selectedVariantLabel ?? revision.name ?? "-"
         return `${label}-v${revision.version ?? 0}-${selectedTestsetName}`
-    }, [selectedVariantRevisionIds, selectedTestsetName, filteredVariants, appVariantsState.data])
+    }, [selectedVariantRevisionIds, selectedTestsetName, filteredVariants, selectedVariantLabel])
 
     // Auto-generate / update evaluation name intelligently to avoid loops
     const lastAutoNameRef = useRef<string>("")
