@@ -92,7 +92,11 @@ async def send_email(
     return True
 
 
-def add_contact(email: str, max_retries: int = 5, initial_delay: int = 1):
+def add_contact(
+    email: str,
+    max_retries: int = 5,
+    initial_delay: int = 1,
+):
     """
     Add a contact to the Loops audience, with retry and exponential backoff.
 
@@ -136,12 +140,16 @@ def add_contact(email: str, max_retries: int = 5, initial_delay: int = 1):
     raise ConnectionError("Max retries reached. Unable to connect to Loops API.")
 
 
-def remove_contact(email: str, max_retries: int = 5, initial_delay: int = 1):
+def remove_contact(
+    email: str,
+    max_retries: int = 5,
+    initial_delay: int = 1,
+) -> httpx.Response | None:
     """
     Remove a contact from the Loops audience, with retry and exponential backoff.
 
-    No-op (returns None) when Loops is disabled (no API key configured). A 404 from
-    Loops (contact already gone) is treated as success.
+    No-op (returns None) when Loops is disabled (no API key configured). Returns the
+    raw response for any non-429 status (including 404 if contact already gone).
 
     Args:
         email (str): Email address of the contact to be removed.
@@ -152,7 +160,7 @@ def remove_contact(email: str, max_retries: int = 5, initial_delay: int = 1):
         ConnectionError: If max retries reached and unable to connect to Loops API.
 
     Returns:
-        Optional[httpx.Response]: The Loops API response, or None when disabled.
+        httpx.Response | None: The Loops API response, or None when disabled.
     """
 
     if not env.loops.enabled:
