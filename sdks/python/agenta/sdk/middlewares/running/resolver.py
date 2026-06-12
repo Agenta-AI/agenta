@@ -26,6 +26,58 @@ _EMBEDS_ERROR_POLICY = "exception"
 _AG_EMBED_MARKER = "@ag.embed"
 
 
+def _raise_bad_request(message: str) -> None:
+    error = ValueError(message)
+    error.status_code = 400  # type: ignore[attr-defined]
+    raise error
+
+
+def _has_reference_identity(ref: Any) -> bool:
+    if ref is None:
+        return False
+
+    if hasattr(ref, "model_dump"):
+        return bool(ref.model_dump(mode="json", exclude_none=True))
+
+    if isinstance(ref, dict):
+        return any(value is not None for value in ref.values())
+
+    return True
+
+
+def _validate_executable_reference_families(refs: Dict[str, Any]) -> None:
+    families = {
+        "workflow": (
+            "workflow",
+            "workflow_variant",
+            "workflow_revision",
+        ),
+        "application": (
+            "application",
+            "application_variant",
+            "application_revision",
+        ),
+        "evaluator": (
+            "evaluator",
+            "evaluator_variant",
+            "evaluator_revision",
+        ),
+    }
+
+    populated = [
+        family_name
+        for family_name, family_keys in families.items()
+        if any(_has_reference_identity(refs.get(key)) for key in family_keys)
+    ]
+
+    if len(populated) > 1:
+        _raise_bad_request(
+            "Competing execution target references are not allowed. "
+            "Provide exactly one of workflow, application, or evaluator "
+            f"references; got {', '.join(populated)}."
+        )
+
+
 def _has_embed_markers(config: Any, _depth: int = 0) -> bool:
     """Check if a configuration contains any @ag.embed markers.
 
@@ -170,6 +222,8 @@ async def resolve_references_with_info(
     """
     if not request.references:
         return None, None, None
+
+    _validate_executable_reference_families(request.references)
 
     try:
         if not ag.async_api:

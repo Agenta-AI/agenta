@@ -240,6 +240,9 @@ export {
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    // Artifact (workflow-level container — entity display name)
+    workflowArtifactQueryAtomFamily,
+    primeWorkflowArtifactCacheImperative,
     // Commit / Archive
     commitWorkflowRevisionAtom,
     commitWorkflowRevision,
