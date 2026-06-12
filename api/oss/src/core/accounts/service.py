@@ -1700,7 +1700,7 @@ class PlatformAdminAccountsService:
         if is_ee():
             for org in owned_orgs:
                 try:
-                    await _ee_subscription_service.cancel_stripe_subscription(
+                    await _ee_subscription_service.cancel_subscription(
                         organization_id=str(org.id),
                     )
                 except Exception:  # noqa: BLE001 - never block deletion on billing

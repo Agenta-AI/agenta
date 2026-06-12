@@ -15,7 +15,7 @@ recommended.
   [decisions.md](decisions.md).
 - Backend built:
   - `delete_contact(email)` Loops helper in `api/oss/src/utils/emailing.py`.
-  - `SubscriptionsService.cancel_stripe_subscription(organization_id)` in
+  - `SubscriptionsService.cancel_subscription(organization_id)` in
     `api/ee/src/core/subscriptions/service.py`.
   - `count_organization_members(organization_id)` in `api/ee/src/services/db_manager_ee.py`.
   - `PlatformAdminAccountsService.delete_own_account(user_id)` plus
@@ -62,7 +62,7 @@ All accepted as recommended and built:
 
 ## Next steps / follow-ups
 
-1. Fold `cancel_stripe_subscription` into the existing `DELETE /organizations/{id}`
+1. Fold `cancel_subscription` into the existing `DELETE /organizations/{id}`
    handler so org deletion also stops billing (decision 6).
 2. Consider re-auth (recent login) before the destructive action, as hardening.
 3. If account volume grows, move the DB cascade to a TaskIQ job and return 202.

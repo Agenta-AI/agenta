@@ -47,7 +47,7 @@ In EE/cloud, a new signup gets a fresh organization, workspace, and project, and
 sole owner. See `api/ee/src/services/commoners.py` (`create_organization_for_signup`) and
 `api/ee/src/services/db_manager_ee.py` (`create_organization`, which inserts the
 `OrganizationMemberDB` row with role `owner`). A signup subscription is provisioned at
-`api/ee/src/core/subscriptions/service.py` (`provision_signup_subscription`).
+`api/ee/src/core/subscriptions/service.py` (`provision_subscription`).
 
 So in cloud the typical user owns exactly one org and is its only member. An org gets more
 members only through invitations. This is why "delete my account" maps cleanly to "delete

@@ -78,9 +78,9 @@ applications) reject it at the boundary.
 Exception registry
 ==================
 
-`InitialRevisionConflict`, `RevisionVersionConflict`, `VariantForkError`,
-`RetrieveRefsInsufficient`, and `RetrieveRefsInconsistent` are translated
-to HTTP responses by `@handle_git_exceptions()` in
+`InitialRevisionConflict`, `VariantForkError`, `RetrieveRefsInsufficient`,
+and `RetrieveRefsInconsistent` are translated to HTTP responses by
+`@handle_git_exceptions()` in
 `api/oss/src/apis/fastapi/git/exceptions.py`. Any new git-domain
 exception added here must also be registered there.
 
@@ -127,20 +127,6 @@ class InitialRevisionConflict(GitError):
     The `initial=True` guard in the DAO raises this exception when a
     revision already exists for the variant, so routers can map it to
     HTTP 409 via `@handle_git_exceptions()` without inspecting None.
-    """
-
-
-class RevisionVersionConflict(GitError):
-    """Raised when the version computed for a new revision already exists
-    on the variant.
-
-    Version assignment in the DAO is collision-free for rows it writes
-    (serialized per variant, strictly above every existing numeric
-    version), so this fires only when an out-of-band writer — a data
-    migration or manual DB operation — left a conflicting version behind.
-    Raised before the insert, so the commit rolls back instead of silently
-    storing a duplicate. Routers map it to HTTP 409 via
-    `@handle_git_exceptions()`.
     """
 
 

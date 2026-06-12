@@ -118,7 +118,6 @@ const mapWorkflowToRow = (w: Workflow): PromptsWorkflowRow => ({
     key: w.id,
     workflowId: w.id,
     name: w.name ?? w.slug ?? w.id,
-    slug: w.slug ?? null,
     appType: deriveAppType(w.flags),
     folderId: w.folder_id ?? null,
     updatedAt: w.updated_at ?? w.created_at ?? null,
@@ -133,7 +132,6 @@ export interface PromptsWorkflowRow {
     key: string
     workflowId: string
     name: string
-    slug: string | null
     appType: string
     folderId: string | null
     updatedAt: string | null

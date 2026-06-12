@@ -186,23 +186,6 @@ export function createRegistryColumns(
         },
         {
             type: "text",
-            key: "variantSlug",
-            title: "Slug",
-            width: 200,
-            render: (_value, record) => {
-                if (record.__isSkeleton) return <SkeletonLine width="50%" />
-                if (!record.variantSlug) return null
-                return (
-                    <div className="h-full flex items-center">
-                        <Typography.Text type="secondary" className="text-xs truncate block">
-                            {record.variantSlug}
-                        </Typography.Text>
-                    </div>
-                )
-            },
-        },
-        {
-            type: "text",
             key: "model",
             title: "Model",
             width: 200,
