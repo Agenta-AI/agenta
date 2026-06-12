@@ -126,9 +126,12 @@ function ChildPanelContent({
         <div data-testid={POPOVER_CASCADER_TEST_IDS.childPanel} style={panelStyle}>
             {/* Child panel header */}
             {multiSelect && (
-                <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-start justify-between">
-                    <div className="flex flex-col gap-0.5">
-                        <span className="text-[10px] font-medium truncate" title={parentLabel}>
+                <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span
+                            className="block truncate text-[10px] font-medium"
+                            title={parentLabel}
+                        >
                             {parentLabel}
                         </span>
                         {multiSelect && (
@@ -143,7 +146,7 @@ function ChildPanelContent({
                             <Button
                                 type="link"
                                 size="small"
-                                className="!h-auto !p-0 !text-[10px]"
+                                className="shrink-0 !h-auto !p-0 !text-[10px]"
                                 onClick={handleSelectAll}
                             >
                                 Select all
@@ -368,6 +371,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     panelMinWidth = 220,
     panelWidth,
     childPanelWidth,
+    defaultOpenChildPanel = false,
     maxHeight = 340,
     popupFooter,
     onCreateNew,
@@ -474,39 +478,55 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
         return `${selectionCount} selected`
     }, [selectionSummary, selectedChildIds, selectedChildId])
 
+    const resolvedPanelWidth = panelWidth ?? panelMinWidth
+    const resolvedChildWidth = childPanelWidth ?? resolvedPanelWidth
+    const isChildPanelVisible = selectedRootId !== null && totalLevels > 1
+
+    // Keep the total popover width stable when the child panel opens. While
+    // closed, the root panel occupies both configured panel widths.
     const panelStyle = useMemo<CSSProperties>(
-        () => (panelWidth != null ? {width: panelWidth} : {minWidth: panelMinWidth}),
-        [panelWidth, panelMinWidth],
+        () => ({
+            width: isChildPanelVisible
+                ? resolvedPanelWidth
+                : resolvedPanelWidth + (totalLevels > 1 ? resolvedChildWidth : 0),
+        }),
+        [isChildPanelVisible, resolvedPanelWidth, resolvedChildWidth, totalLevels],
     )
 
-    // The child panel falls back to the shared panelWidth when no dedicated
-    // childPanelWidth is provided.
-    const resolvedChildWidth = childPanelWidth ?? panelWidth
-
     const childPanelStyle = useMemo<CSSProperties>(
-        () =>
-            resolvedChildWidth != null
-                ? {width: resolvedChildWidth}
-                : {minWidth: panelMinWidth, maxWidth: panelMinWidth},
-        [resolvedChildWidth, panelMinWidth],
+        () => ({width: resolvedChildWidth}),
+        [resolvedChildWidth],
     )
 
     const childPanelOuterStyle = useMemo<CSSProperties>(
-        () =>
-            resolvedChildWidth != null ? {width: resolvedChildWidth} : {minWidth: panelMinWidth},
-        [resolvedChildWidth, panelMinWidth],
+        () => ({width: resolvedChildWidth}),
+        [resolvedChildWidth],
     )
 
-    // Maintain auto-selection to prevent pixel shifts when searching/filtering
+    // Keep a user-opened child panel aligned with the filtered root list. The
+    // initial/default opening behavior remains opt-in.
     useEffect(() => {
         if (!open || totalLevels <= 1) return
 
         // Wait until rootItems are loaded
         if (rootQuery.isPending && rootItems.length === 0) return
 
-        // On open/mount, if we have a parent ID pre-selected and no root ID is selected locally yet
-        if (!selectedRootId && selectedParentId) {
-            const matchingRoot = rootItems.find(
+        // If something is already selected locally, ensure it's still in the filtered view
+        if (selectedRootId) {
+            const stillExists = tabFilteredRootItems.some(
+                (item) => rootLevel.getId(item) === selectedRootId,
+            )
+            if (stillExists) return
+
+            setSelectedRootId(null)
+            setSelectedRootEntity(null)
+        }
+
+        if (!defaultOpenChildPanel) return
+
+        // Prefer the controlled parent selection when default opening is enabled.
+        if (selectedParentId) {
+            const matchingRoot = tabFilteredRootItems.find(
                 (item) => rootLevel.getId(item) === selectedParentId,
             )
             if (matchingRoot) {
@@ -517,15 +537,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
             }
         }
 
-        // If something is already selected locally, ensure it's still in the filtered view
-        if (selectedRootId) {
-            const stillExists = tabFilteredRootItems.some(
-                (item) => rootLevel.getId(item) === selectedRootId,
-            )
-            if (stillExists) return
-        }
-
-        // Auto-select the first available item in the filtered view (UI ONLY, don't trigger selection)
+        // Otherwise open the first available item without selecting a child.
         if (tabFilteredRootItems.length > 0) {
             const firstItem = tabFilteredRootItems[0]
             const id = rootLevel.getId(firstItem)
@@ -541,6 +553,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
         totalLevels,
         selectedRootId,
         selectedParentId,
+        defaultOpenChildPanel,
         tabFilteredRootItems,
         rootLevel,
         hierarchyLevels,

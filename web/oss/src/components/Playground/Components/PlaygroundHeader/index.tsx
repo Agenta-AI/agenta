@@ -522,6 +522,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                     childItemLabelMode="simple"
                                     panelWidth={320}
                                     childPanelWidth={180}
+                                    openChildOnHover
                                     showParentCheckboxes
                                     selectedChildrenByParent={selectedChildrenByParent}
                                     totalChildrenByParent={totalChildrenByParent}

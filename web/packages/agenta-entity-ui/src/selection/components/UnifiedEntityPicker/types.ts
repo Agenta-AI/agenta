@@ -618,6 +618,16 @@ export interface PopoverCascaderVariantProps<
     childPanelWidth?: number
 
     /**
+     * Opens a child panel automatically when the popover opens.
+     *
+     * When enabled, the currently selected parent is preferred; otherwise the
+     * first visible parent is opened. When disabled, the child panel opens only
+     * after the user hovers or clicks a parent.
+     * @default false
+     */
+    defaultOpenChildPanel?: boolean
+
+    /**
      * Maximum height of item lists (px)
      * @default 340
      */

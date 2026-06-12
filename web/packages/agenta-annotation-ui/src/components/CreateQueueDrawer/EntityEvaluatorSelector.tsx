@@ -37,6 +37,7 @@ export interface EntityEvaluatorSelectorProps {
     onDeselectRevision: (revisionId: string) => void
     onClearAll: () => void
     openVersionOnHover?: boolean
+    defaultOpenVersionPanel?: boolean
 }
 
 function getNestedValue(obj: unknown, ...keys: string[]): unknown {
@@ -140,7 +141,8 @@ export function EntityEvaluatorSelector({
     totalRevisionsByEvaluator,
     onDeselectRevision,
     onClearAll,
-    openVersionOnHover = false,
+    openVersionOnHover = true,
+    defaultOpenVersionPanel = false,
 }: EntityEvaluatorSelectorProps) {
     const renderRevisionLabel = useCallback((entity: unknown) => {
         const revision = entity as WorkflowRevisionLike
@@ -188,6 +190,7 @@ export function EntityEvaluatorSelector({
                 childPanelWidth={childPanelWidth}
                 disabled={disabled}
                 openChildOnHover={openVersionOnHover}
+                defaultOpenChildPanel={defaultOpenVersionPanel}
                 multiSelect
                 selectedChildIds={selectedRevisionIds}
                 selectionSummary
