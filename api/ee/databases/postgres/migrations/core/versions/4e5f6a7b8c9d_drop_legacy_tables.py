@@ -52,10 +52,22 @@ LEGACY_TABLES = (
     "ids_mapping",
 )
 
+# Enum types orphaned by table drops (DROP TABLE leaves the type behind):
+# app_type_enum/templatetype by the drops above, nodetype/treetype by the
+# earlier nodes drop.
+LEGACY_ENUMS = (
+    "app_type_enum",
+    "templatetype",
+    "nodetype",
+    "treetype",
+)
+
 
 def upgrade() -> None:
     for table in LEGACY_TABLES:
         op.execute(f'DROP TABLE IF EXISTS "{table}" CASCADE')
+    for enum in LEGACY_ENUMS:
+        op.execute(f'DROP TYPE IF EXISTS "{enum}"')
 
 
 def downgrade() -> None:
