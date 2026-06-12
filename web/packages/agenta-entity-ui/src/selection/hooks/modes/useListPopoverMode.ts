@@ -451,7 +451,8 @@ export function useListPopoverMode<TSelection = EntitySelectionResult>(
             !autoSelectLatest ||
             hasAutoSelectedLatestRef.current ||
             parentQuery.isPending ||
-            filteredParentItems.length === 0
+            filteredParentItems.length === 0 ||
+            selectedChildId
         ) {
             return
         }
@@ -463,7 +464,13 @@ export function useListPopoverMode<TSelection = EntitySelectionResult>(
 
         // Trigger auto-selection of this parent's first child
         setAutoSelectingParent({id: parentId, label: parentLabelStr})
-    }, [autoSelectLatest, parentQuery.isPending, filteredParentItems, parentLevelConfig])
+    }, [
+        autoSelectLatest,
+        parentQuery.isPending,
+        filteredParentItems,
+        parentLevelConfig,
+        selectedChildId,
+    ])
 
     // ========================================================================
     // RETURN
