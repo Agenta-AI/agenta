@@ -25,6 +25,8 @@ import {
 } from "../useEntitySelectionCore"
 import {useLevelData, filterItems, buildPathItem, type LevelQueryState} from "../utilities"
 
+import {resolveAutoSelectLatestChild} from "./autoSelectLatestChild"
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -570,13 +572,17 @@ export function useAutoSelectLatestChild<TSelection = EntitySelectionResult>({
 
     // Auto-select first enabled child when loaded
     useEffect(() => {
-        if (hasSelectedRef.current || query.isPending) return
+        if (hasSelectedRef.current) return
 
-        const firstChild = children.find(
-            (child) => !disabledChildIds?.has(childLevelConfig.getId(child)),
-        )
+        const decision = resolveAutoSelectLatestChild({
+            children,
+            query,
+            getId: childLevelConfig.getId,
+            disabledChildIds,
+        })
+        if (decision.status === "wait") return
 
-        if (firstChild) {
+        if (decision.status === "select") {
             hasSelectedRef.current = true
             const parentPathItem: SelectionPathItem = {
                 type: parentLevelConfig.type,
@@ -584,19 +590,14 @@ export function useAutoSelectLatestChild<TSelection = EntitySelectionResult>({
                 label: parentLabel,
             }
 
-            const childPathItem = buildPathItem(firstChild, childLevelConfig)
+            const childPathItem = buildPathItem(decision.child, childLevelConfig)
             const fullPath = [parentPathItem, childPathItem]
-            const selection = createSelection(fullPath, firstChild)
+            const selection = createSelection(fullPath, decision.child)
 
             onSelect?.(selection)
             onComplete()
             return
         }
-
-        // An empty snapshot can be emitted before a lazy query starts. Only
-        // finish without a selection once the adapter confirms the query
-        // settled, or when loaded children are all disabled.
-        if (!query.isError && !query.isFetched && children.length === 0) return
 
         hasSelectedRef.current = true
         onComplete()

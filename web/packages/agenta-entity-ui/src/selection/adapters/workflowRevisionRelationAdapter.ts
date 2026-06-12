@@ -755,6 +755,8 @@ export function createWorkflowRevisionAdapter(
             getId: (entity: unknown) => (entity as {id: string}).id,
             getLabel: (entity: unknown) => getWorkflowDisplayName(entity),
             getLabelNode: grandparentOverrides.getLabelNode ?? renderWorkflowLabelNode,
+            getDescription: grandparentOverrides.getDescription,
+            getSuffixNode: grandparentOverrides.getSuffixNode,
             getGroupKey: grandparentOverrides.getGroupKey ?? getWorkflowGroupKey,
             getGroupLabel: grandparentOverrides.getGroupLabel ?? getWorkflowGroupLabel,
             hasChildren: true,

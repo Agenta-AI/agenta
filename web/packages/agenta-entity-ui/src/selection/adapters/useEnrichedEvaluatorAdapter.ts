@@ -24,7 +24,6 @@ import {
     humanEvaluatorsListQueryAtom,
     workflowAppTypeAtomFamily,
     workflowsListDataAtom,
-    type EvaluatorWorkflowMeta,
 } from "@agenta/entities/workflow"
 import {atom, getDefaultStore, useAtomValue} from "jotai"
 
@@ -33,6 +32,7 @@ import {
     renderEvaluatorPickerNameNode,
     renderEvaluatorTypeTag,
 } from "./evaluatorLabelUtils"
+import {formatWorkflowMetaDescription} from "./evaluatorWorkflowMetaDescription"
 import {
     createWorkflowRevisionAdapter,
     type WorkflowRevisionSelectionResult,
@@ -119,37 +119,6 @@ export function useEnrichedEvaluatorBrowseAdapter() {
 // ============================================================================
 // EVALUATOR-ONLY ADAPTER (Evaluators only, colored tags, no human)
 // ============================================================================
-
-/**
- * Format an evaluator workflow's metadata as a one-line subtitle,
- * e.g. "12 versions · Jan 6, 2026". Returns undefined when nothing resolved.
- */
-function formatWorkflowMetaDescription(
-    meta: EvaluatorWorkflowMeta | undefined,
-): string | undefined {
-    if (!meta) return undefined
-
-    const parts: string[] = []
-
-    if (meta.versionCount != null && meta.versionCount > 0) {
-        parts.push(`${meta.versionCount} ${meta.versionCount === 1 ? "version" : "versions"}`)
-    }
-
-    if (meta.createdAt) {
-        const date = new Date(meta.createdAt)
-        if (!isNaN(date.getTime())) {
-            parts.push(
-                date.toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                }),
-            )
-        }
-    }
-
-    return parts.length > 0 ? parts.join(" · ") : undefined
-}
 
 /**
  * Hook that returns an adapter for the evaluator-only picker.
