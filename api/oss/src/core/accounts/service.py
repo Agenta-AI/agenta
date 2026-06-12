@@ -117,7 +117,7 @@ from supertokens_python.recipe.passwordless.asyncio import (
 )
 
 from oss.src.utils.env import env
-from oss.src.utils.emailing import delete_contact as _delete_loops_contact
+from oss.src.utils.emailing import remove_contact as _delete_loops_contact
 
 from oss.src.core.accounts.dtos import (
     AdminAccountCreateOptions,
@@ -1689,7 +1689,7 @@ class PlatformAdminAccountsService:
         # Refuse to delete a shared organization out from under its members.
         if is_ee():
             shared = [
-                org.name
+                (org.name or str(org.id))
                 for org in owned_orgs
                 if await _ee_count_organization_members(str(org.id)) > 1
             ]

@@ -136,7 +136,7 @@ def add_contact(email: str, max_retries: int = 5, initial_delay: int = 1):
     raise ConnectionError("Max retries reached. Unable to connect to Loops API.")
 
 
-def delete_contact(email: str, max_retries: int = 5, initial_delay: int = 1):
+def remove_contact(email: str, max_retries: int = 5, initial_delay: int = 1):
     """
     Remove a contact from the Loops audience, with retry and exponential backoff.
 

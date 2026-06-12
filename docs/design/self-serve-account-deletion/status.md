@@ -14,7 +14,7 @@ recommended.
 - Design, phased plan, and decisions written. See [plan.md](plan.md) and
   [decisions.md](decisions.md).
 - Backend built:
-  - `delete_contact(email)` Loops helper in `api/oss/src/utils/emailing.py`.
+  - `remove_contact(email)` Loops helper in `api/oss/src/utils/emailing.py`.
   - `SubscriptionsService.cancel_subscription(organization_id)` in
     `api/ee/src/core/subscriptions/service.py`.
   - `count_organization_members(organization_id)` in `api/ee/src/services/db_manager_ee.py`.

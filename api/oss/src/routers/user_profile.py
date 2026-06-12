@@ -1,9 +1,8 @@
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 
-from supertokens_python.recipe.session.asyncio import get_session
-
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.middlewares.auth import is_interactive_session
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.common import APIRouter
@@ -117,12 +116,7 @@ async def delete_user_account(request: Request):
             detail="Self-serve account deletion is not available on this deployment.",
         )
 
-    # `request.state.user_id` can be populated by an API key. Require a real
-    # interactive session, and reject when the request authenticated via an API
-    # key (so the resolved user_id is the session user, not the key owner).
-    credentials = getattr(request.state, "credentials", "") or ""
-    session = await get_session(request, session_required=False)
-    if session is None or credentials.startswith("ApiKey "):
+    if not await is_interactive_session(request):
         raise HTTPException(
             status_code=403,
             detail="Account deletion requires an interactive login session.",
@@ -131,7 +125,14 @@ async def delete_user_account(request: Request):
     try:
         await _accounts_service.delete_own_account(user_id=request.state.user_id)
     except AccountHasMembersError as exc:
-        raise HTTPException(status_code=409, detail=exc.message)
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": exc.code,
+                "message": exc.message,
+                "details": exc.details,
+            },
+        )
     except AdminUserNotFoundError as exc:
         raise HTTPException(status_code=404, detail=exc.message)
     except AccountAuthDeletionError as exc:

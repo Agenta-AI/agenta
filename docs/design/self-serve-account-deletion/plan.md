@@ -6,10 +6,10 @@ functions each step reuses.
 
 ## The design in one picture
 
-```
+```text
 Settings (EE only)
   └─ Danger zone: "Delete account"
-       └─ Modal: type your email to confirm ──► DELETE /accounts/me   (session auth)
+       └─ Modal: type your email to confirm ──► DELETE /profile   (session auth)
                                                       │
                                                       ▼
                                SelfServeAccountsService.delete_own_account(user_id)
@@ -29,18 +29,18 @@ Settings (EE only)
 
 ### New endpoint
 
-Add a session-authenticated route to the accounts domain. The accounts router today is
-admin-only; this is the first self-serve route on it.
+Add a session-authenticated route to the existing profile router.
 
-- Route: `DELETE /accounts/me` (or `POST /accounts/me/delete` if a body reads cleaner).
-- File: `api/oss/src/apis/fastapi/accounts/router.py`.
+- Route: `DELETE /profile`.
+- File: `api/oss/src/routers/user_profile.py`.
 - Auth: read `request.state.user_id` from the auth middleware. No id is taken from the
   client. The user can only delete themselves.
 - Gate: `is_ee()`. On OSS, return 404 or 405 so the route does not exist for singleton
-  installs. Mirror the existing `if not is_ee(): raise AdminNotImplementedError(...)`
-  pattern used by `delete_organization_membership`.
-- Decorate with `@intercept_exceptions()` and convert domain exceptions to HTTP at the
-  boundary, like the other handlers in this router.
+  installs.
+- Require an interactive session rather than only a resolved `user_id`, so API keys cannot
+  delete the owning account.
+- Convert domain exceptions to HTTP at the boundary, preserving structured details for the
+  shared-org 409 response.
 
 ### New service method
 
@@ -63,7 +63,7 @@ Add the orchestration to the accounts core service.
      `_db_delete_user_with_cascade(uid)`. This is the same code
      `PlatformAdminAccountsService.delete_user` already runs.
   6. Remove the Loops contact (EE only, best effort). Call the new
-     `emailing.delete_contact(email)`.
+     `emailing.remove_contact(email)`.
 - Return a typed DTO listing what was deleted. The existing `AdminDeletedEntities` shape
   is a fine model; define an account-deletion DTO in
   `api/oss/src/core/accounts/dtos.py` if the admin shape does not fit.
@@ -74,7 +74,7 @@ this way in the accounts service.
 ### Loops delete helper
 
 - File: `api/oss/src/utils/emailing.py`.
-- Add `delete_contact(email: str)` mirroring `add_contact`: no-op when `env.loops`
+- Add `remove_contact(email: str)` mirroring `add_contact`: no-op when `env.loops`
   disabled, POST to `https://app.loops.so/api/v1/contacts/delete` with `{"email": email}`,
   same retry and backoff. Confirm the endpoint against the Loops API docs.
 
@@ -125,7 +125,7 @@ Copy the typed-confirm modal from
 ### The mutation and sign-out
 
 - Add `deleteAccount()` to the profile service
-  (`web/oss/src/services/profile/`) calling `DELETE /accounts/me`.
+  (`web/oss/src/services/profile/`) calling `DELETE /profile`.
 - Use `useMutation`. On success: reset caches (`resetOrganizationData`,
   `resetProjectData`, profile reset), sign out of the SuperTokens session, and redirect to
   the auth page. On error, surface the message. The 409 shared-org case should show the
@@ -135,10 +135,10 @@ Copy the typed-confirm modal from
 
 Ship in slices so each is reviewable on its own.
 
-1. **Backend core.** `delete_contact` helper, Stripe cancel factor-out, the service
+1. **Backend core.** `remove_contact` helper, Stripe cancel factor-out, the service
    method with all guards and ordering, the domain exceptions. Unit and acceptance tests
    for the service. No endpoint yet.
-2. **Backend endpoint.** Wire `DELETE /accounts/me`, EE-gated, with exception mapping.
+2. **Backend endpoint.** Wire `DELETE /profile`, EE-gated, with exception mapping.
    Acceptance test that hits the route for a solo account and for the shared-org block.
 3. **Frontend.** The settings section, the typed-confirm modal, the mutation, and the
    sign-out flow.

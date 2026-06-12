@@ -30,7 +30,7 @@ user and their scope.
 
 The deletion shape for one user:
 
-```
+```text
 user
 ├── organizations they own        (RESTRICT — must delete these explicitly)
 │   ├── workspaces                 (CASCADE)
@@ -149,7 +149,7 @@ Add contact today: `add_contact(email)` in `api/oss/src/utils/emailing.py` (arou
 95). It POSTs to `https://app.loops.so/api/v1/contacts/create` with `{"email": email}`,
 with retry and backoff. Called on signup from `api/ee/src/services/commoners.py`.
 
-There is no delete yet. We add a `delete_contact(email)` that mirrors `add_contact`. The
+There is no delete yet. We add a `remove_contact(email)` that mirrors `add_contact`. The
 Loops delete endpoint is `POST https://app.loops.so/api/v1/contacts/delete` with body
 `{"email": email}`. Confirm the exact endpoint against the Loops API docs at
 implementation time.

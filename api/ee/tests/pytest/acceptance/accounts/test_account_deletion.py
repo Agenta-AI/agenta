@@ -131,6 +131,9 @@ class TestSelfServeAccountDeletion:
             timeout=BASE_TIMEOUT,
         )
         assert blocked.status_code == 409, blocked.text
+        payload = blocked.json()["detail"]
+        assert payload["code"] == "account_has_members"
+        assert payload["details"]["organizations"]
 
         # The owner is untouched after the blocked deletion.
         after = requests.get(

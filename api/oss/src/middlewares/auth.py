@@ -374,6 +374,13 @@ async def verify_access_token(
         raise UnauthorizedException() from exc
 
 
+async def is_interactive_session(request: Request) -> bool:
+    """True when the request is backed by a real session, not an API key."""
+    credentials = getattr(request.state, "credentials", "") or ""
+    session = await get_session(request, session_required=False)  # type: ignore
+    return session is not None and not credentials.startswith(_APIKEY_TOKEN_PREFIX)
+
+
 async def verify_bearer_token(
     request: Request,
     bearer_token: str,  # pylint: disable=unused-argument / NOT IMPLEMENTED YET
