@@ -7,6 +7,7 @@ import {
     fetchWorkflow,
     fetchWorkflowRevisionById,
     parseWorkflowKeyFromUri,
+    queryWorkflows,
     resolveOutputSchemaProperties,
     workflowMolecule,
     workflowsListQueryStateAtom,
@@ -302,6 +303,30 @@ export const evaluatorWorkflowQueryAtomFamily = atomFamily(
 )
 
 /**
+ * Self-contained query for the workflow ARTIFACT (the workflow-level
+ * container). The entity display name lives there; the revision's own
+ * `name` carries the variant name ("default").
+ */
+const workflowArtifactReferenceQueryAtomFamily = atomFamily(
+    ({projectId, id}: {projectId: string; id: string}) =>
+        atomWithQuery(() => ({
+            queryKey: ["evaluator-reference", "artifact", projectId, id],
+            queryFn: async () => {
+                const response = await queryWorkflows({
+                    projectId,
+                    workflowRefs: [{id}],
+                    includeArchived: true,
+                })
+                return response.workflows?.[0] ?? null
+            },
+            enabled: !!projectId && !!id,
+            staleTime: 5 * 60_000,
+            refetchOnWindowFocus: false,
+        })),
+    (a, b) => a.projectId === b.projectId && a.id === b.id,
+)
+
+/**
  * Resolves evaluator reference (name, slug, metrics) from the workflow
  * entity system. Uses a self-contained query that works in any Jotai
  * store — no dependency on shared projectIdAtom/sessionAtom.
@@ -332,11 +357,23 @@ export const evaluatorReferenceAtomFamily = atomFamily(
                 }
                 const workflow = query.data
                 if (workflow) {
+                    const artifactId = workflow.workflow_id ?? null
+                    const artifactName = artifactId
+                        ? (get(
+                              workflowArtifactReferenceQueryAtomFamily({projectId, id: artifactId}),
+                          ).data?.name ?? null)
+                        : null
                     return {
                         data: {
                             id: workflow.workflow_id ?? workflow.id ?? id,
                             slug: workflow.slug ?? slug ?? null,
-                            name: workflow.name ?? workflow.slug ?? slug ?? id ?? null,
+                            name:
+                                artifactName ??
+                                workflow.name ??
+                                workflow.slug ??
+                                slug ??
+                                id ??
+                                null,
                             workflowKey: parseWorkflowKeyFromUri(workflow.data?.uri ?? null),
                             metrics: extractMetricsFromWorkflow(workflow),
                         },

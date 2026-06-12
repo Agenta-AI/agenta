@@ -5,6 +5,7 @@ import {extractSourceIdFromDraft, isLocalDraftId, isValidUUID} from "@agenta/ent
 import {
     workflowMolecule,
     workflowRevisionsByWorkflowListDataAtomFamily,
+    workflowVariantsListQueryStateAtomFamily,
 } from "@agenta/entities/workflow"
 import {
     evaluatorConfigsListDataAtom,
@@ -374,16 +375,29 @@ const NewEvaluationModalInner = ({
         }
     }, [])
 
+    // Variant display names live on the VARIANT (name, then slug): SDK-created
+    // variants and revisions may carry no `name` at all, and UI-created
+    // revisions are named after the variant.
+    const appVariantsState = useAtomValue(
+        useMemo(
+            () => workflowVariantsListQueryStateAtomFamily(selectedAppId || ""),
+            [selectedAppId],
+        ),
+    )
+
     // Memoised base (deterministic) part of generated name (without random suffix)
     const generatedNameBase = useMemo(() => {
         if (!selectedVariantRevisionIds.length || !selectedTestsetName) return ""
         if (selectedVariantRevisionIds.length > 1) {
             return `${selectedVariantRevisionIds.length}-variants-${selectedTestsetName}`
         }
-        const variant = filteredVariants?.find((v) => selectedVariantRevisionIds.includes(v.id))
-        if (!variant) return ""
-        return `${variant.name || "-"}-v${variant.version ?? 0}-${selectedTestsetName}`
-    }, [selectedVariantRevisionIds, selectedTestsetName, filteredVariants])
+        const revision = filteredVariants?.find((v) => selectedVariantRevisionIds.includes(v.id))
+        if (!revision) return ""
+        const variantId = revision.workflow_variant_id ?? revision.variant_id
+        const variant = (appVariantsState.data ?? []).find((v) => v.id === variantId)
+        const label = variant?.name ?? variant?.slug ?? revision.name ?? "-"
+        return `${label}-v${revision.version ?? 0}-${selectedTestsetName}`
+    }, [selectedVariantRevisionIds, selectedTestsetName, filteredVariants, appVariantsState.data])
 
     // Auto-generate / update evaluation name intelligently to avoid loops
     const lastAutoNameRef = useRef<string>("")

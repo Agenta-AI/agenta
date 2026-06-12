@@ -1,12 +1,12 @@
 import {type FC, memo, useCallback, useMemo} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {workflowMolecule, workflowVariantsListQueryStateAtomFamily} from "@agenta/entities/workflow"
 import {createEvaluatorFromTemplate} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Input, Tabs, Tag, Typography} from "antd"
 import clsx from "clsx"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {openHumanEvaluatorDrawerAtom} from "@/oss/components/Evaluators/Drawers/HumanEvaluatorDrawer/store"
@@ -43,6 +43,39 @@ const SelectVariantSection = dynamic(() => import("./SelectVariantSection"), {
 const AdvancedSettings = dynamic(() => import("./AdvancedSettings"), {
     ssr: false,
 })
+
+interface SelectedRevisionLike {
+    workflow_variant_id?: string | null
+    variant_id?: string | null
+    name?: string | null
+    version?: number | null
+}
+
+/**
+ * Variant tag label. The display name lives on the VARIANT (fall back to its
+ * slug): SDK-created variants and revisions may carry no `name` at all, and
+ * UI-created revisions are named after the variant.
+ */
+const RevisionTagLabel = memo(
+    ({revision, workflowId}: {revision: SelectedRevisionLike; workflowId: string}) => {
+        const variantsState = useAtomValue(workflowVariantsListQueryStateAtomFamily(workflowId))
+        const variantId = revision.workflow_variant_id ?? revision.variant_id
+        const variant = (variantsState.data ?? []).find((v) => v.id === variantId)
+        const label = variant?.name ?? variant?.slug ?? revision.name ?? "-"
+        return <>{`${label} - v${revision.version ?? 0}`}</>
+    },
+)
+
+/**
+ * Evaluator tag label. The entity display name lives on the workflow artifact;
+ * the revision's own `name` carries the variant name ("default").
+ */
+const EvaluatorTagLabel = memo(
+    ({cfg}: {cfg: {id: string; name?: string | null; version?: number | null}}) => {
+        const artifactName = useAtomValue(workflowMolecule.selectors.artifactName(cfg.id))
+        return <>{`${artifactName ?? cfg.name ?? "-"} - v${cfg.version ?? 0}`}</>
+    },
+)
 
 const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     onSuccess,
@@ -115,12 +148,18 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     )
 
     const selectedVariants = useMemo(
-        () => selectedVariantRevisionIds.map((id) => workflowMolecule.get.data(id)).filter(Boolean),
+        () =>
+            selectedVariantRevisionIds
+                .map((id) => workflowMolecule.get.data(id))
+                .filter((w): w is NonNullable<typeof w> => Boolean(w)),
         [selectedVariantRevisionIds],
     )
 
     const selectedEvalConfig = useMemo(
-        () => selectedEvalConfigs.map((id) => workflowMolecule.get.data(id)).filter(Boolean),
+        () =>
+            selectedEvalConfigs
+                .map((id) => workflowMolecule.get.data(id))
+                .filter((w): w is NonNullable<typeof w> => Boolean(w)),
         [selectedEvalConfigs],
     )
 
@@ -178,7 +217,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                                     )
                                 }}
                             >
-                                {`${v.name || "-"} - v${v.version ?? 0}`}
+                                <RevisionTagLabel revision={v} workflowId={selectedAppId || ""} />
                             </Tag>
                         ))}
                     </TabLabel>
@@ -255,7 +294,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                                         )
                                     }}
                                 >
-                                    {`${cfg.name || "-"} - v${cfg.version ?? 0}`}
+                                    <EvaluatorTagLabel cfg={cfg} />
                                 </Tag>
                             )
                         })}
