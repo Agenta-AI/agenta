@@ -20,7 +20,6 @@ import {createEvaluatorColumns, type EvaluatorColumnActions} from "./assets/eval
 export interface EvaluatorsTableSelection {
     selectedRowKeys: Key[]
     selectedRecords: EvaluatorTableRow[]
-    clearSelection: () => void
 }
 
 interface EvaluatorsTableProps {
@@ -94,7 +93,6 @@ const EvaluatorsTable = ({
         ? renderPrimaryActions({
               selectedRowKeys: table.selectedRowKeys,
               selectedRecords: table.getSelectedRecords(),
-              clearSelection: table.clearSelection,
           })
         : primaryActions
 

@@ -1,4 +1,4 @@
-import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {
     createEvaluatorFromTemplate,
@@ -104,6 +104,9 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
         [isArchived],
     )
     const evalTableState = useAtomValue(tableState.paginatedStore.selectors.state(controllerParams))
+    const setSelectedKeys = useSetAtom(
+        tableState.paginatedStore.selectors.selection(controllerParams),
+    )
 
     useEffect(() => {
         if (isArchived) return
@@ -165,7 +168,6 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
     const [isDeleting, setIsDeleting] = useState(false)
     const [deleteTargetIds, setDeleteTargetIds] = useState<string[]>([])
     const [deleteTargetRevisionIds, setDeleteTargetRevisionIds] = useState<string[]>([])
-    const clearSelectionAfterArchiveRef = useRef<(() => void) | null>(null)
 
     const refetchAll = useCallback(() => {
         invalidateEvaluatorsListCache()
@@ -320,12 +322,22 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
                 if (!canDelete) return
             }
 
+            // Capture the row keys of the archived workflows before the cache
+            // invalidation removes them from the table data, so the selection
+            // can be pruned regardless of which flow (bulk button or row menu)
+            // triggered the archive.
+            const archivedRowKeys = new Set(
+                evalTableState.rows
+                    .filter((row) => deleteTargetIds.includes(row.workflowId))
+                    .map((row) => String(row.key)),
+            )
+
             await Promise.all(
                 deleteTargetIds.map((id) => workflowMolecule.lifecycle.archive(id, {projectId})),
             )
+            setSelectedKeys((prev) => prev.filter((key) => !archivedRowKeys.has(String(key))))
             await invalidateEvaluatorManagementQueries()
             refetchAll()
-            clearSelectionAfterArchiveRef.current?.()
 
             message.success(
                 deleteTargetIds.length === 1
@@ -340,9 +352,8 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
             setIsDeleteModalOpen(false)
             setDeleteTargetIds([])
             setDeleteTargetRevisionIds([])
-            clearSelectionAfterArchiveRef.current = null
         }
-    }, [activeTab, deleteTargetIds, refetchAll])
+    }, [activeTab, deleteTargetIds, evalTableState.rows, refetchAll, setSelectedKeys])
 
     const columnActions = useMemo(
         () =>
@@ -369,7 +380,6 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
                           if (!record.workflowId) return
                           setDeleteTargetIds([record.workflowId])
                           setDeleteTargetRevisionIds(record.revisionId ? [record.revisionId] : [])
-                          clearSelectionAfterArchiveRef.current = null
                           setIsDeleteModalOpen(true)
                       },
                   },
@@ -446,7 +456,7 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
     }, [isArchived, projectURL, router])
 
     const renderPrimaryActions = useCallback(
-        ({selectedRowKeys, selectedRecords, clearSelection}: EvaluatorsTableSelection) => {
+        ({selectedRowKeys, selectedRecords}: EvaluatorsTableSelection) => {
             if (isArchived) return undefined
 
             const handleBulkArchive = () => {
@@ -465,7 +475,6 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
                         .map((record) => record.revisionId)
                         .filter((revisionId): revisionId is string => Boolean(revisionId)),
                 )
-                clearSelectionAfterArchiveRef.current = clearSelection
                 setIsDeleteModalOpen(true)
             }
 
@@ -533,7 +542,6 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
                     setIsDeleteModalOpen(false)
                     setDeleteTargetIds([])
                     setDeleteTargetRevisionIds([])
-                    clearSelectionAfterArchiveRef.current = null
                 }}
                 onConfirm={handleConfirmDelete}
                 confirmLoading={isDeleting}
