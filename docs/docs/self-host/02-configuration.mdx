@@ -282,7 +282,7 @@ SendGrid is used only when SMTP is not fully configured.
 | Env var | env.py path | values.yaml path |
 |---|---|---|
 | `SENDGRID_API_KEY` | `sendgrid.api_key` | `sendgrid.apiKey` |
-| `SENDGRID_FROM_ADDRESS` | `sendgrid.from_address` | `sendgrid.fromAddress` |
+| `SENDGRID_FROM_EMAIL` | `sendgrid.from_email` | `sendgrid.fromEmail` |
 
 ## stripe
 
@@ -345,7 +345,7 @@ future major release.
 | `NEW_RELIC_LICENSE_KEY` | `NEWRELIC_LICENSE_KEY` |
 | `NRIA_LICENSE_KEY` | `NEWRELIC_LICENSE_KEY` |
 | `POSTHOG_HOST` | `POSTHOG_API_URL` |
-| `AGENTA_AUTHN_EMAIL_FROM` | `SMTP_FROM_EMAIL` (preferred) or `SENDGRID_FROM_ADDRESS` fallback |
-| `AGENTA_SEND_EMAIL_FROM_ADDRESS` | `SMTP_FROM_EMAIL` (preferred) or `SENDGRID_FROM_ADDRESS` fallback |
+| `AGENTA_AUTHN_EMAIL_FROM` | `SMTP_FROM_EMAIL` (preferred) or `SENDGRID_FROM_EMAIL` fallback |
+| `AGENTA_SEND_EMAIL_FROM_ADDRESS` | `SMTP_FROM_EMAIL` (preferred) or `SENDGRID_FROM_EMAIL` fallback |
 | `STRIPE_TARGET` | `STRIPE_WEBHOOK_TARGET` |
 | `SUPERTOKENS_CONNECTION_URI` | `SUPERTOKENS_URI_CORE` |

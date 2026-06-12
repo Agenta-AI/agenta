@@ -52,7 +52,7 @@ def _get_sender_email(from_email: str | None = None) -> str:
     if not sender and env.smtp.enabled:
         sender = env.smtp.from_email
     if not sender:
-        sender = env.sendgrid.from_address
+        sender = env.sendgrid.from_email
     if sender:
         return sender
 
@@ -60,7 +60,7 @@ def _get_sender_email(from_email: str | None = None) -> str:
         "Email delivery requires a sender email address. "
         "Set SMTP_FROM_EMAIL, AGENTA_AUTHN_EMAIL_FROM, or "
         "AGENTA_SEND_EMAIL_FROM_ADDRESS for SMTP delivery, or "
-        "SENDGRID_FROM_ADDRESS for SendGrid fallback."
+        "SENDGRID_FROM_EMAIL (or legacy SENDGRID_FROM_ADDRESS) for SendGrid fallback."
     )
 
 

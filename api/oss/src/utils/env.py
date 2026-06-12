@@ -1003,8 +1003,9 @@ class SendgridConfig(BaseModel):
     """SendGrid Email configuration"""
 
     api_key: str | None = os.getenv("SENDGRID_API_KEY")
-    from_address: str | None = (
-        os.getenv("SENDGRID_FROM_ADDRESS")
+    from_email: str | None = (
+        os.getenv("SENDGRID_FROM_EMAIL")
+        or os.getenv("SENDGRID_FROM_ADDRESS")
         or os.getenv("AGENTA_AUTHN_EMAIL_FROM")
         or os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS")
     )
@@ -1013,8 +1014,8 @@ class SendgridConfig(BaseModel):
 
     @property
     def enabled(self) -> bool:
-        """SendGrid enabled only if API key and from address are present"""
-        return bool(self.api_key and self.from_address)
+        """SendGrid enabled only if API key and sender email are present"""
+        return bool(self.api_key and self.from_email)
 
 
 # ---------------------------------------------------------------------------

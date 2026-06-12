@@ -52,7 +52,7 @@ def test_entrypoint_preserves_sendgrid_only_otp_config(tmp_path):
         REPO_ROOT,
         {
             "SENDGRID_API_KEY": "sg-key",
-            "SENDGRID_FROM_ADDRESS": "sendgrid@example.com",
+            "SENDGRID_FROM_EMAIL": "sendgrid@example.com",
         },
     )
 

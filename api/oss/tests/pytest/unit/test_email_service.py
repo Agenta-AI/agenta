@@ -18,7 +18,7 @@ def _disable_smtp(monkeypatch):
 
 def _disable_sendgrid(monkeypatch):
     monkeypatch.setattr(env.sendgrid, "api_key", None)
-    monkeypatch.setattr(env.sendgrid, "from_address", None)
+    monkeypatch.setattr(env.sendgrid, "from_email", None)
 
 
 def _enable_smtp(monkeypatch, *, use_tls=True, use_ssl=False, username="user"):
@@ -82,7 +82,7 @@ async def test_send_email_uses_smtp_with_starttls(monkeypatch):
 async def test_send_email_prefers_smtp_over_sendgrid(monkeypatch):
     _enable_smtp(monkeypatch, use_tls=False, use_ssl=False)
     monkeypatch.setattr(env.sendgrid, "api_key", "sg-key")
-    monkeypatch.setattr(env.sendgrid, "from_address", "sendgrid@example.com")
+    monkeypatch.setattr(env.sendgrid, "from_email", "sendgrid@example.com")
     load_sendgrid = Mock()
     monkeypatch.setattr(emailing, "_load_sendgrid", load_sendgrid)
     FakeSmtp.instances = []
@@ -153,7 +153,7 @@ def test_send_smtp_email_requires_username_and_password(
 async def test_send_email_falls_back_to_sendgrid(monkeypatch):
     _disable_smtp(monkeypatch)
     monkeypatch.setattr(env.sendgrid, "api_key", "sg-key")
-    monkeypatch.setattr(env.sendgrid, "from_address", "sendgrid@example.com")
+    monkeypatch.setattr(env.sendgrid, "from_email", "sendgrid@example.com")
     fake_sendgrid = Mock()
     monkeypatch.setattr(emailing, "_load_sendgrid", Mock(return_value=fake_sendgrid))
 
@@ -224,7 +224,7 @@ def test_incomplete_smtp_does_not_enable_email_otp(monkeypatch):
 def test_get_sender_email_prefers_smtp(monkeypatch):
     _enable_smtp(monkeypatch)
     monkeypatch.setattr(env.sendgrid, "api_key", "sg-key")
-    monkeypatch.setattr(env.sendgrid, "from_address", "sendgrid@example.com")
+    monkeypatch.setattr(env.sendgrid, "from_email", "sendgrid@example.com")
 
     assert emailing._get_sender_email() == "smtp@example.com"
 
@@ -239,7 +239,7 @@ def test_get_sender_email_raises_when_unset(monkeypatch):
             "Email delivery requires a sender email address\\. "
             "Set SMTP_FROM_EMAIL, AGENTA_AUTHN_EMAIL_FROM, or "
             "AGENTA_SEND_EMAIL_FROM_ADDRESS for SMTP delivery, or "
-            "SENDGRID_FROM_ADDRESS for SendGrid fallback\\."
+            "SENDGRID_FROM_EMAIL \\(or legacy SENDGRID_FROM_ADDRESS\\) for SendGrid fallback\\."
         ),
     ):
         emailing._get_sender_email()
