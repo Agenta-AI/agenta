@@ -12,7 +12,6 @@ export {
     VariantRevisionLabel,
 } from "./ReferenceLabels"
 export {VariantReferenceChip, TestsetReferenceChip, TestsetChipList} from "./ReferenceChips"
-export * from "./referenceColors"
 
 // Re-export types and atoms for advanced usage
 export type {
