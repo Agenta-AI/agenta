@@ -149,9 +149,9 @@ Add contact today: `add_contact(email)` in `api/oss/src/utils/emailing.py` (arou
 95). It POSTs to `https://app.loops.so/api/v1/contacts/create` with `{"email": email}`,
 with retry and backoff. Called on signup from `api/ee/src/services/commoners.py`.
 
-There is no delete yet. We add a `remove_contact(email)` that mirrors `add_contact`. The
-Loops delete endpoint is `POST https://app.loops.so/api/v1/contacts/delete` with body
-`{"email": email}`. Confirm the exact endpoint against the Loops API docs at
+There is no delete yet. We add an async `remove_contact(email)` that mirrors
+`add_contact`. The Loops delete endpoint is `POST https://app.loops.so/api/v1/contacts/delete`
+with body `{"email": email}`. Confirm the exact endpoint against the Loops API docs at
 implementation time.
 
 ## 8. Other integrations to check

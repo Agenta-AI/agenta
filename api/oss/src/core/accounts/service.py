@@ -1712,7 +1712,7 @@ class PlatformAdminAccountsService:
 
         # Remove the auth login first: the signup override is idempotent and
         # would otherwise recreate the account on the next sign-in.
-        await self._delete_supertokens_user(email)
+        await self._delete_supertokens_user(uid=user.uid, email=email)
 
         # Reuse the cascade delete (memberships + user + owned orgs).
         result = await self.delete_user(user_id=user_id)
@@ -1720,7 +1720,7 @@ class PlatformAdminAccountsService:
         # Drop them from the marketing email list. Best effort.
         if is_ee():
             try:
-                _delete_loops_contact(email)
+                await _delete_loops_contact(email)
             except Exception:  # noqa: BLE001 - best effort
                 log.error(
                     "[accounts] loops contact removal failed during account deletion",
@@ -1729,8 +1729,8 @@ class PlatformAdminAccountsService:
 
         return result
 
-    async def _delete_supertokens_user(self, email: str) -> None:
-        """Delete every SuperTokens login for an email, linked accounts included.
+    async def _delete_supertokens_user(self, *, uid: str | None, email: str) -> None:
+        """Delete the SuperTokens login for a user, linked accounts included.
 
         Raises AccountAuthDeletionError on failure so the DB user is left intact
         and the caller can retry, rather than ending up with a database row whose
@@ -1739,6 +1739,13 @@ class PlatformAdminAccountsService:
         from supertokens_python.asyncio import delete_user as _st_delete_user
 
         try:
+            if uid and uid != "0":
+                await _st_delete_user(
+                    user_id=uid,
+                    remove_all_linked_accounts=True,
+                )
+                return
+
             st_users = await _st_list_users_by_account_info(
                 tenant_id="public",
                 account_info=_StAccountInfoInput(email=email),

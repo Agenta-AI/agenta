@@ -55,14 +55,14 @@ Add the orchestration to the accounts core service.
      one member, raise a new domain exception (for example `AccountHasSharedOrgsError`)
      carrying the list of org names. The router maps it to 409.
   3. Cancel Stripe per owned org (EE only, best effort). See the billing factor-out below.
-  4. Delete the SuperTokens user (required). Use `UserDB.uid`; call
-     `delete_user(user_id=uid, remove_all_linked_accounts=True)` from
-     `supertokens_python.asyncio`. On failure, raise a domain exception and stop. The DB
-     user is still intact, so the operation is safely retryable.
+  4. Delete the SuperTokens user (required). Prefer `UserDB.uid` when present and not the
+     legacy sentinel `"0"`; otherwise fall back to lookup by email and delete every
+     linked login returned by SuperTokens. On failure, raise a domain exception and stop.
+     The DB user is still intact, so the operation is safely retryable.
   5. Reuse the existing cascade. Call `_ee_delete_user_memberships(uid)` then
      `_db_delete_user_with_cascade(uid)`. This is the same code
      `PlatformAdminAccountsService.delete_user` already runs.
-  6. Remove the Loops contact (EE only, best effort). Call the new
+  6. Remove the Loops contact (EE only, best effort). `await`
      `emailing.remove_contact(email)`.
 - Return a typed DTO listing what was deleted. The existing `AdminDeletedEntities` shape
   is a fine model; define an account-deletion DTO in
@@ -74,9 +74,10 @@ this way in the accounts service.
 ### Loops delete helper
 
 - File: `api/oss/src/utils/emailing.py`.
-- Add `remove_contact(email: str)` mirroring `add_contact`: no-op when `env.loops`
+- Add `async remove_contact(email: str)` mirroring `add_contact`: no-op when `env.loops`
   disabled, POST to `https://app.loops.so/api/v1/contacts/delete` with `{"email": email}`,
-  same retry and backoff. Confirm the endpoint against the Loops API docs.
+  same retry and backoff, but use `httpx.AsyncClient` and `asyncio.sleep` so account
+  deletion does not block the event loop. Confirm the endpoint against the Loops API docs.
 
 ### Stripe cancel factor-out
 
