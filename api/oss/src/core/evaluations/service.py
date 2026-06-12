@@ -22,6 +22,7 @@ from oss.src.core.evaluations.types import (
     EvaluationRunDataStep,
     EvaluationRunDataConcurrency,
     EvaluationRunData,
+    JsonSchemas,
     EvaluationRun,
     EvaluationRunCreate,
     EvaluationRunEdit,
@@ -1428,6 +1429,9 @@ class EvaluationsService:
         # Resolved metric keys per step (declared schema, else trace-inferred);
         # become the run's `mappings`. Rewrite only when something was inferred.
         metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
+        # Trace-inferred outputs schema per step, persisted onto the run step so
+        # the UI can type filter columns for schema-less evaluators.
+        inferred_schemas_by_step: Dict[str, Dict[str, Any]] = {}
         any_inferred = False
 
         for step in refreshable_steps:
@@ -1487,6 +1491,7 @@ class EvaluationsService:
 
                     if metrics_keys:
                         any_inferred = True
+                        inferred_schemas_by_step[step.key] = inferred_schema
 
                 # Record declared + inferred keys; skip [] (would wipe the
                 # step's existing mapping without replacing it).
@@ -1504,13 +1509,22 @@ class EvaluationsService:
 
         # Rewrite mappings only if a schema was inferred this pass; declared-only
         # runs already have correct mappings. Pass the full set (declared + inferred).
+        # A closed run can't be edited; skip the persist rather than abort the
+        # whole refresh (metric recompute/store below still needs to run).
         if any_inferred and metrics_keys_by_step and run and run.data:
-            await self._update_run_mappings_from_inferred_metrics(
-                project_id=project_id,
-                user_id=user_id,
-                run=run,
-                inferred_metrics_keys_by_step=metrics_keys_by_step,
-            )
+            try:
+                await self._update_run_mappings_from_inferred_metrics(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run=run,
+                    inferred_metrics_keys_by_step=metrics_keys_by_step,
+                    inferred_schemas_by_step=inferred_schemas_by_step,
+                )
+            except EvaluationClosedConflict:
+                log.info(
+                    "[METRICS] Skipping inferred-schema persistence for closed run",
+                    run_id=run.id,
+                )
 
         steps_specs: Dict[str, List[MetricSpec]] = dict()
 
@@ -1699,6 +1713,7 @@ class EvaluationsService:
         user_id: UUID,
         run: EvaluationRun,
         inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]],
+        inferred_schemas_by_step: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> None:
         existing_mappings = list(run.data.mappings or [])
         updated_mappings: List[EvaluationRunDataMapping] = []
@@ -1764,23 +1779,36 @@ class EvaluationsService:
                     )
                 )
 
-        if updated_mappings != existing_mappings:
-            run_data = EvaluationRunData(
-                steps=run.data.steps,
-                repeats=run.data.repeats,
-                mappings=updated_mappings,
+        existing_steps = list(run.data.steps or [])
+        updated_steps = existing_steps
+        if inferred_schemas_by_step:
+            updated_steps = []
+            for step in existing_steps:
+                inferred_outputs = inferred_schemas_by_step.get(step.key)
+                if inferred_outputs and (not step.schemas or not step.schemas.outputs):
+                    updated_steps.append(
+                        step.model_copy(
+                            update={"schemas": JsonSchemas(outputs=inferred_outputs)}
+                        )
+                    )
+                else:
+                    updated_steps.append(step)
+
+        if updated_mappings != existing_mappings or updated_steps != existing_steps:
+            run_data = run.data.model_copy(
+                update={"steps": updated_steps, "mappings": updated_mappings}
+            )
+            run_edit = EvaluationRunEdit(
+                **run.model_dump(
+                    include=set(EvaluationRunEdit.model_fields) - {"data"},
+                    exclude_none=True,
+                ),
+                data=run_data,
             )
             await self.edit_run(
                 project_id=project_id,
                 user_id=user_id,
-                run=EvaluationRunEdit(
-                    id=run.id,
-                    name=run.name,
-                    description=run.description,
-                    status=run.status,
-                    flags=run.flags,
-                    data=run_data,
-                ),
+                run=run_edit,
             )
 
     # - EVALUATION QUEUE -------------------------------------------------------
