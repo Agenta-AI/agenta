@@ -2150,48 +2150,23 @@ function relinkLoadableSessions(
         set(executionStateAtomFamily(newLoadableId), nextExecState)
         set(executionStateAtomFamily(oldLoadableId), createInitialExecutionState())
 
-        // Also migrate state stored on the loadable itself:
-        //  - executionResults: per-row output cells; leaving them behind makes
-        //    the just-committed revision look like it never ran.
-        //  - the testset connection (connectedSource*, hiddenTestcaseIds,
-        //    activeRowId): the connection is keyed by loadableId, so an anchor
-        //    commit would strand it on the old key. The playground then
-        //    silently drops to local mode — the TestsetDropdown shows
-        //    unsynced and the connection-gated unused-columns footer
-        //    disappears — and the URL snapshot re-encodes the rows as a
-        //    local testset, losing the server link entirely.
-        // `linkToRunnable` will overwrite linkedRunnable* immediately after
-        // this, so we don't touch those fields here.
-        const oldLoadableState = get(loadableStateAtomFamily(oldLoadableId))
-        const movesExecutionResults = Object.keys(oldLoadableState.executionResults).length > 0
-        const movesConnection = Boolean(oldLoadableState.connectedSourceId)
-        if (movesExecutionResults || movesConnection) {
-            const newLoadableState = get(loadableStateAtomFamily(newLoadableId))
-            set(loadableStateAtomFamily(newLoadableId), {
-                ...newLoadableState,
-                ...(movesExecutionResults
-                    ? {executionResults: oldLoadableState.executionResults}
-                    : {}),
-                ...(movesConnection
-                    ? {
-                          connectedSourceId: oldLoadableState.connectedSourceId,
-                          connectedSourceName: oldLoadableState.connectedSourceName,
-                          connectedSourceType: oldLoadableState.connectedSourceType,
-                          hiddenTestcaseIds: oldLoadableState.hiddenTestcaseIds,
-                          activeRowId: oldLoadableState.activeRowId,
-                      }
-                    : {}),
-            })
-            set(loadableStateAtomFamily(oldLoadableId), {
-                ...oldLoadableState,
-                executionResults: {},
-                connectedSourceId: null,
-                connectedSourceName: null,
-                connectedSourceType: null,
-                hiddenTestcaseIds: new Set<string>(),
-                activeRowId: null,
-            })
-        }
+        // The loadable ID is anchored to the primary revision, so an anchor
+        // commit must move the whole loadable context. Migrating only execution
+        // results drops connectedSourceId and makes the connected testset appear
+        // disconnected under the new revision.
+        const oldLoadableStateAtom = loadableStateAtomFamily(oldLoadableId)
+        const oldLoadableState = get(oldLoadableStateAtom)
+        set(loadableStateAtomFamily(newLoadableId), {
+            ...oldLoadableState,
+            linkedRunnableId: newEntityId,
+            hiddenTestcaseIds: new Set(oldLoadableState.hiddenTestcaseIds),
+            disabledOutputMappingRowIds: new Set(oldLoadableState.disabledOutputMappingRowIds),
+        })
+
+        // Evict the old family key so future lookups receive fresh default state.
+        // Reset the captured atom as well for any subscribers that still hold it.
+        loadableStateAtomFamily.remove(oldLoadableId)
+        set(oldLoadableStateAtom, get(loadableStateAtomFamily(oldLoadableId)))
     } else if (execRewrote) {
         set(executionStateAtomFamily(oldLoadableId), nextExecState)
     }
