@@ -1,37 +1,86 @@
 /**
- * Unit tests for `collectDownstreamReferencedColumns`.
+ * Unit tests for the entity input contract helpers.
  *
- * Regression (#4525): the primary app's strict row clean dropped a testcase
- * column an LLM-as-a-judge referenced only through its prompt template (e.g.
- * `{{guidelines.rubric}}`), because the protected-column collector looked only
- * at `<input>_key` settings. The evaluator then ran without `guidelines`.
+ * `collectDownstreamReferencedColumns` regression (#4525): the primary app's
+ * strict row clean dropped a testcase column an LLM-as-a-judge referenced only
+ * through its prompt template (e.g. `{{guidelines.rubric}}`), because the
+ * protected-column collector looked only at `<input>_key` settings. The
+ * evaluator then ran without `guidelines`.
  *
- * The config source (the workflow molecule) is mocked so the test stays a pure
- * function check. The template-variable extraction is the real implementation.
+ * `collectTestcaseServerColumns` regression (#4647): the strict row clean
+ * deleted a synced test set's columns the prompt didn't reference, emptying
+ * the "unused testcase columns" footer on Run. The server snapshot's columns
+ * are intentional data and must survive the clean.
+ *
+ * The atom sources (workflow + testcase molecules) are mocked so the tests
+ * stay pure function checks: each selector returns a token the fake getter
+ * resolves against fixtures. The template-variable extraction is the real
+ * implementation.
  */
 import {describe, expect, it, vi} from "vitest"
 
-// `configuration(entityId)` returns a token the fake getter resolves to a
-// config. This avoids standing up a jotai store with a hydrated workflow.
 vi.mock("@agenta/entities/workflow", () => ({
     workflowMolecule: {
         selectors: {
             configuration: (entityId: string) => ({__configFor: entityId}),
+            data: (entityId: string) => ({__dataFor: entityId}),
+            executionMode: (entityId: string) => ({__modeFor: entityId}),
+            inputPorts: (entityId: string) => ({__portsFor: entityId}),
+            requestPayload: (entityId: string) => ({__payloadFor: entityId}),
         },
     },
 }))
 
-import {collectDownstreamReferencedColumns} from "../../src/state/helpers/entityInputContract"
+// Keep the real module (other packages in the import graph use
+// `testcaseMolecule.atoms`); only `serverData` returns a token the fake
+// getter resolves against fixtures. `isSystemField` stays the real one.
+vi.mock("@agenta/entities/testcase", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@agenta/entities/testcase")>()
+    return {
+        ...actual,
+        testcaseMolecule: {
+            ...actual.testcaseMolecule,
+            selectors: {
+                ...actual.testcaseMolecule.selectors,
+                serverData: (rowId: string) => ({__serverDataFor: rowId}),
+            },
+        },
+    }
+})
+
+import {
+    collectDownstreamReferencedColumns,
+    collectTestcaseServerColumns,
+    reconcileRowDataForEntity,
+} from "../../src/state/helpers/entityInputContract"
 
 interface TestNode {
     depth: number
     entityId: string
 }
 
-function makeGet(configByEntity: Record<string, Record<string, unknown> | null>) {
+interface GetterFixtures {
+    serverDataByRow?: Record<string, {data?: Record<string, unknown> | null} | null>
+    entityById?: Record<string, unknown>
+    modeById?: Record<string, "chat" | "completion">
+    portsById?: Record<string, {key?: string}[]>
+    payloadById?: Record<string, unknown>
+}
+
+function makeGet(
+    configByEntity: Record<string, Record<string, unknown> | null>,
+    fixtures: GetterFixtures = {},
+) {
     return ((token: unknown) => {
-        const entityId = (token as {__configFor?: string} | null)?.__configFor
-        return entityId ? (configByEntity[entityId] ?? null) : null
+        const t = token as Record<string, string | undefined> | null
+        if (!t) return null
+        if (t.__configFor) return configByEntity[t.__configFor] ?? null
+        if (t.__serverDataFor) return fixtures.serverDataByRow?.[t.__serverDataFor] ?? null
+        if (t.__dataFor) return fixtures.entityById?.[t.__dataFor] ?? null
+        if (t.__modeFor) return fixtures.modeById?.[t.__modeFor]
+        if (t.__portsFor) return fixtures.portsById?.[t.__portsFor] ?? []
+        if (t.__payloadFor) return fixtures.payloadById?.[t.__payloadFor] ?? null
+        return null
     }) as Parameters<typeof collectDownstreamReferencedColumns>[0]
 }
 
@@ -158,5 +207,127 @@ describe("collectDownstreamReferencedColumns", () => {
         const columns = collectDownstreamReferencedColumns(get, nodes)
 
         expect(columns.size).toBe(0)
+    })
+})
+
+describe("collectTestcaseServerColumns", () => {
+    it("returns the connected test set's non-system columns", () => {
+        const get = makeGet(
+            {},
+            {
+                serverDataByRow: {
+                    tc1: {
+                        data: {
+                            country: "France",
+                            capital: "Paris",
+                            id: "tc1",
+                            testset_id: "ts1",
+                            created_at: "2026-06-01",
+                        },
+                    },
+                },
+            },
+        )
+
+        const columns = collectTestcaseServerColumns(get, "tc1")
+
+        expect([...columns].sort()).toEqual(["capital", "country"])
+    })
+
+    it("excludes chat transport keys so the chat-to-completion strip is preserved", () => {
+        const get = makeGet(
+            {},
+            {
+                serverDataByRow: {
+                    tc1: {data: {messages: [{role: "user", content: "hi"}], country: "France"}},
+                },
+            },
+        )
+
+        const columns = collectTestcaseServerColumns(get, "tc1")
+
+        expect(columns.has("messages")).toBe(false)
+        expect(columns.has("country")).toBe(true)
+    })
+
+    it("returns an empty set when the row has no server data (local row)", () => {
+        const get = makeGet({}, {serverDataByRow: {tc1: null}})
+
+        expect(collectTestcaseServerColumns(get, "tc1").size).toBe(0)
+    })
+
+    it("returns an empty set for a missing row id", () => {
+        const get = makeGet({})
+
+        expect(collectTestcaseServerColumns(get, undefined).size).toBe(0)
+        expect(collectTestcaseServerColumns(get, null).size).toBe(0)
+    })
+})
+
+describe("reconcileRowDataForEntity with protected server columns", () => {
+    const completionAppFixtures: GetterFixtures = {
+        entityById: {app: {flags: {}}},
+        modeById: {app: "completion" as const},
+        portsById: {app: [{key: "country"}]},
+    }
+
+    it("keeps protected server columns and still drops stale local keys", () => {
+        const get = makeGet(
+            {},
+            {
+                ...completionAppFixtures,
+                serverDataByRow: {tc1: {data: {country: "France", capital: "Paris"}}},
+            },
+        )
+        const serverColumns = collectTestcaseServerColumns(get, "tc1")
+
+        const result = reconcileRowDataForEntity(
+            get,
+            "app",
+            {
+                country: "France",
+                capital: "Paris",
+                // Stale local key from a previously selected chat app — not in
+                // the server snapshot, so it must still be cleaned (#4525).
+                messages: [{role: "user", content: "hi"}],
+            },
+            {protectedKeys: serverColumns},
+        )
+
+        expect(result.strategy).toBe("strict")
+        expect(result.dropped).toEqual(["messages"])
+        expect(result.data).toEqual({country: "France", capital: "Paris"})
+    })
+
+    it("drops unreferenced columns when the row has no server snapshot", () => {
+        const get = makeGet({}, completionAppFixtures)
+        const serverColumns = collectTestcaseServerColumns(get, "local-1")
+
+        const result = reconcileRowDataForEntity(
+            get,
+            "app",
+            {country: "France", capital: "Paris"},
+            {protectedKeys: serverColumns},
+        )
+
+        expect(result.dropped).toEqual(["capital"])
+    })
+
+    it("keeps messages for a chat app through allowedKeys, not protection", () => {
+        const get = makeGet(
+            {},
+            {
+                entityById: {app: {flags: {}}},
+                modeById: {app: "chat" as const},
+                portsById: {app: [{key: "country"}]},
+            },
+        )
+
+        const result = reconcileRowDataForEntity(get, "app", {
+            country: "France",
+            messages: [{role: "user", content: "hi"}],
+        })
+
+        expect(result.dropped).toEqual([])
     })
 })
