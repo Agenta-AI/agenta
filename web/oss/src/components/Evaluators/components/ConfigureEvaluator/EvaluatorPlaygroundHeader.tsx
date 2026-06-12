@@ -34,22 +34,20 @@ const EvaluatorPlaygroundHeader: React.FC = () => {
         useMemo(() => workflowMolecule.selectors.data(evaluatorEntityId), [evaluatorEntityId]),
     )
 
-    // Read the workflow-level name (not the revision name, which may be a variant name).
-    // The workflow entity is seeded by the evaluator list page. For direct URL navigation
-    // where the workflow entity may not be seeded, fall back to the revision's own name.
+    // The entity display name lives on the workflow artifact; the revision's
+    // own `name` carries the variant name ("default").
     const workflowId = evaluatorData?.workflow_id ?? evaluatorEntityId
-    const workflowName = useAtomValue(
-        useMemo(() => workflowMolecule.selectors.name(workflowId), [workflowId]),
+    const artifactName = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.artifactName(evaluatorEntityId),
+            [evaluatorEntityId],
+        ),
     )
     const workflowSlug = useAtomValue(
         useMemo(() => workflowMolecule.selectors.slug(workflowId), [workflowId]),
     )
     const evaluatorName =
-        workflowName?.trim() ||
-        workflowSlug?.trim() ||
-        evaluatorData?.name?.trim() ||
-        evaluatorData?.slug?.trim() ||
-        "Evaluator"
+        artifactName?.trim() || workflowSlug?.trim() || evaluatorData?.slug?.trim() || "Evaluator"
 
     return (
         <div className="flex items-center justify-between gap-4 px-2.5 py-2 bg-[var(--ag-rgba-000-02)] border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
