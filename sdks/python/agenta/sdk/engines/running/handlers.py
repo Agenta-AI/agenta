@@ -734,15 +734,17 @@ async def auto_custom_code_run_v0(
     """
     Custom code execution evaluator for running arbitrary code to evaluate outputs.
 
-    Supports two interface versions controlled by parameters["version"]:
-    - v1 (default/"1"): evaluate(app_params, inputs, output, correct_answer)
-    - v2 ("2"):         evaluate(inputs, outputs, trace)
+    Supports three interface versions controlled by parameters["version"]:
+    - v1 (default/"1"): evaluate(app_params, inputs, output, correct_answer) -> float
+    - v2 ("2"):         evaluate(inputs, outputs, trace) -> float
+    - v3 ("3"):         evaluate(inputs, outputs, trace) -> any JSON-serializable
+                        value; dict outputs become multiple metrics downstream
 
     Args:
         inputs: Testcase data / app inputs
         outputs: Output from the workflow execution
         parameters: Configuration for the evaluator with code to execute
-        trace: Full trace data with spans, metrics (v2 only)
+        trace: Full trace data with spans, metrics (v2+ only)
 
     Returns:
         Evaluation result with score from the custom code
@@ -789,9 +791,9 @@ async def auto_custom_code_run_v0(
             got=runtime,
         )
 
-    effective_version = declared_version if declared_version in {"1", "2"} else "1"
+    effective_version = declared_version if declared_version in {"1", "2", "3"} else "1"
 
-    def _run_v2() -> Any:
+    def _run_v2(version: str) -> Any:
         try:
             return execute_code_safely(
                 app_params={},
@@ -800,8 +802,8 @@ async def auto_custom_code_run_v0(
                 correct_answer=None,
                 code=code,
                 runtime=runtime,
-                templates=EVALUATOR_TEMPLATES.get("v1", {}),
-                version="2",
+                templates=EVALUATOR_TEMPLATES.get("v2" if version == "3" else "v1", {}),
+                version=version,
                 trace=trace,
             )
         except ErrorStatus:
@@ -843,15 +845,19 @@ async def auto_custom_code_run_v0(
                 stacktrace=traceback.format_exc(),
             ) from e
 
-    _outputs = _run_v2() if effective_version == "2" else _run_v1()
+    _outputs = (
+        _run_v2(effective_version) if effective_version in ("2", "3") else _run_v1()
+    )
+
+    # bool before (int, float): bool is an int subclass and would otherwise be
+    # normalized into a score.
+    if isinstance(_outputs, bool):
+        return {"success": _outputs}
 
     if isinstance(_outputs, (int, float)):
         return {"score": _outputs, "success": _outputs >= threshold}
 
-    if isinstance(_outputs, bool):
-        return {"success": _outputs}
-
-    if isinstance(_outputs, dict) or isinstance(_outputs, str):
+    if isinstance(_outputs, (dict, list, str)):
         return _outputs
 
     raise InvalidOutputsV0Error(expected=["dict", "str"], got=_outputs)
@@ -2815,11 +2821,14 @@ async def code_v0(
                    or ``"typescript"``.
         threshold: Score threshold for success when the code returns a number.
                    Defaults to 0.5.
+        version:   Evaluator interface version — ``"2"`` (default, float-only
+                   return) or ``"3"`` (any JSON-serializable return; dict
+                   outputs become multiple metrics downstream).
 
     Returns:
         ``{"score": float, "success": bool}``  when code returns a number.
         ``{"success": bool}``                  when code returns a bool.
-        The raw dict / str                     when code returns one of those.
+        The raw dict / list / str              when code returns one of those.
     """
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(
@@ -2842,6 +2851,9 @@ async def code_v0(
 
     threshold = float(parameters.get("threshold") or 0.5)
 
+    declared_version = str(parameters.get("version") or "").strip()
+    version = declared_version if declared_version in ("2", "3") else "2"
+
     if outputs is not None and not isinstance(outputs, (str, dict)):
         raise InvalidOutputsV0Error(expected=["dict", "str", "None"], got=outputs)
 
@@ -2853,8 +2865,8 @@ async def code_v0(
             correct_answer=None,
             code=code,
             runtime=runtime,
-            templates=EVALUATOR_TEMPLATES.get("v1", {}),
-            version="2",
+            templates=EVALUATOR_TEMPLATES.get("v2" if version == "3" else "v1", {}),
+            version=version,
             trace=trace,
         )
     except ErrorStatus:
@@ -2872,7 +2884,7 @@ async def code_v0(
         score = float(_result)
         return {"score": score, "success": score >= threshold}
 
-    if isinstance(_result, (dict, str)):
+    if isinstance(_result, (dict, list, str)):
         return _result
 
     raise InvalidOutputsV0Error(
