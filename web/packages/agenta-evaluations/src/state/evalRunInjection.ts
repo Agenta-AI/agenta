@@ -13,9 +13,10 @@
  * relocates the atoms that consume them. It exists only to establish the seam shape and to
  * keep the package free of any `@/oss` import.
  */
-import {atom, type Atom, type WritableAtom} from "jotai"
+import {atom, type Atom, type PrimitiveAtom, type WritableAtom} from "jotai"
 
 import type {AnnotationDto, AnnotationResponseDto} from "./evalRun/atoms/annotationTypes"
+import type {RunMetricDescriptor} from "./runsTable"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Injected shape: workspace members
@@ -223,15 +224,233 @@ export interface QueryWindowingPayload {
     rate?: number
 }
 
-/** Minimal online-evaluations API surface the eval-run atoms may consume. Empty today. */
-export type InjectedOnlineEvaluationsApi = Record<string, never>
+/**
+ * Online-evaluations API surface the relocated eval-run VIEW consumes. The run-list
+ * actions cell (relocated in WP-4h-4) calls `startSimpleEvaluation` / `stopSimpleEvaluation`
+ * against an evaluation id; the OSS service file (`@/oss/services/onlineEvaluations/api`)
+ * STAYS in OSS — nine onlineEvaluation-page files still use it — so the impls are injected
+ * here rather than relocated. `query.ts` consumes only the payload TYPES above (no runtime
+ * fn), so those are not part of this surface.
+ */
+export interface InjectedOnlineEvaluationsApi {
+    startSimpleEvaluation: (evaluationId: string) => Promise<unknown>
+    stopSimpleEvaluation: (evaluationId: string) => Promise<unknown>
+}
 
 /**
- * Injected online-evaluations API. Default `null`. The relocated `query.ts` consumes only
- * the payload TYPES above (no runtime fn), so this seam is currently unused — it exists to
- * keep the seam shape explicit and let the OSS layer wire a real surface later.
+ * Injected online-evaluations API. Default `null`. Populated by the OSS `-ui` layer from
+ * `@/oss/services/onlineEvaluations/api`.
  */
 export const injectedOnlineEvaluationsApiAtom = atom<InjectedOnlineEvaluationsApi | null>(null)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Injected shapes: run-list VIEW app-state seams (WP-4h-4)
+//
+// The relocated `RunsTable` view (`EvaluationRunsTablePOC` → `@agenta/evaluations-ui`)
+// reads a handful of OSS app-state / query / reference atoms. Each is exposed as a
+// primitive injection atom (or atom-family getter) with a safe default; the OSS `-ui`
+// layer populates them via `registerEvalRunInjections`, and the relocated view atoms read
+// the injected values reactively. Atom families/factories are injected as opaque getter
+// functions (the proven `injectedReferenceResolverAtom` pattern) — the package never sees
+// the OSS atom's internals, only the produced `Atom<T>`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Minimal app entry the run-list reads off the apps query. */
+export interface InjectedAppEntry {
+    id?: string | null
+    name?: string | null
+    slug?: string | null
+    [key: string]: unknown
+}
+
+/** Minimal apps-query envelope `context.ts`/`view.ts` read (`.data` is the app list). */
+export interface InjectedAppsQueryResult {
+    data: InjectedAppEntry[] | null | undefined
+    isLoading?: boolean
+    isPending?: boolean
+    isFetching?: boolean
+    error?: unknown
+}
+
+/** Injected `appsQueryAtom`. Default empty result. */
+export const injectedAppsQueryAtom = atom<InjectedAppsQueryResult>({data: []})
+
+/** Injected `routerAppIdAtom`. Default `null`. */
+export const injectedRouterAppIdAtom = atom<string | null>(null)
+
+/** Minimal URL-state shape `navigationActions.ts` reads (`projectURL`/`baseAppURL`/...). */
+export interface InjectedUrlState {
+    projectURL?: string
+    baseProjectURL?: string
+    baseAppURL?: string
+    appURL?: string
+    workspaceName?: string
+    [key: string]: unknown
+}
+
+/** Injected `urlAtom`. Default empty. */
+export const injectedUrlAtom = atom<InjectedUrlState>({})
+
+/** App identifiers `context.ts` reads (`.projectId`). */
+export interface InjectedAppIdentifiers {
+    projectId?: string | null
+    appId?: string | null
+}
+
+/** Injected `appIdentifiersAtom`. Default empty. */
+export const injectedAppIdentifiersAtom = atom<InjectedAppIdentifiers>({})
+
+/** Injected `routeLayerAtom` ("app" | "project" | other). Default `null`. */
+export const injectedRouteLayerAtom = atom<string | null>(null)
+
+/** Minimal saved-query shape `view.ts` reads off the queries response. */
+export interface InjectedSavedQuery {
+    id?: string | null
+    slug?: string | null
+    name?: string | null
+    meta?: {filtering?: unknown; filters?: unknown} | null
+}
+
+/**
+ * Minimal queries-query envelope `view.ts` reads. This is the TanStack-query result's
+ * `.data` (the `QueriesResponse`), whose `.data.queries` is the saved-query list — the view
+ * reads `loadableResult.data.data.queries`, i.e. (loadable→QueriesResponse).data.queries.
+ */
+export interface InjectedQueriesQueryResult {
+    data?: {queries?: InjectedSavedQuery[]} | null
+    isLoading?: boolean
+    isPending?: boolean
+    error?: unknown
+}
+
+/** Params the saved-queries family accepts (`{payload, enabled}`). */
+export interface InjectedQueriesQueryParams {
+    payload?: Record<string, unknown>
+    enabled?: boolean
+}
+
+/** `({payload, enabled}) => Atom<InjectedQueriesQueryResult>` — `atomFamily`-shaped getter. */
+export type InjectedQueriesQueryFamily = (
+    params: InjectedQueriesQueryParams,
+) => Atom<InjectedQueriesQueryResult>
+
+/** Injected `queriesQueryAtomFamily`. Default `null`. */
+export const injectedQueriesQueryFamilyAtom = atom<InjectedQueriesQueryFamily | null>(null)
+
+/** Minimal active-workflow shape the run-list filters read (`id`/`name`/`slug`). */
+export interface InjectedCurrentWorkflow {
+    id?: string | null
+    name?: string | null
+    slug?: string | null
+    [key: string]: unknown
+}
+
+/** Injected `currentWorkflowAtom` — the active workflow. Default `null`. */
+export const injectedCurrentWorkflowAtom = atom<InjectedCurrentWorkflow | null>(null)
+
+// Evaluator-metric blueprint factory (`getEvaluatorMetricBlueprintAtom(scopeId)`).
+// The OSS factory returns an `Atom` over an evaluator-metric-group blueprint list; the
+// run-list view groups columns by it. Mirrors `EvaluatorMetricGroupBlueprint` from
+// `@/oss/components/References/atoms/metricBlueprint`, re-typed against the package's
+// `RunMetricDescriptor`.
+export interface InjectedEvaluatorMetricGroupBlueprint {
+    id: string
+    label: string
+    referenceId?: string | null
+    projectId?: string | null
+    evaluatorId?: string | null
+    handles?: {
+        slug?: string | null
+        name?: string | null
+        id?: string | null
+        variantId?: string | null
+        variantSlug?: string | null
+        revisionId?: string | null
+        revisionSlug?: string | null
+        projectId?: string | null
+    } | null
+    columns: RunMetricDescriptor[]
+}
+
+/**
+ * `(scopeId) => WritableAtom<...>` — the blueprint factory. Writable: the columns hook both
+ * reads the blueprint and writes the recomputed group set back.
+ */
+export type InjectedMetricBlueprintFactory = (
+    scopeId: string | null | undefined,
+) => WritableAtom<
+    InjectedEvaluatorMetricGroupBlueprint[],
+    [
+        | InjectedEvaluatorMetricGroupBlueprint[]
+        | ((
+              prev: InjectedEvaluatorMetricGroupBlueprint[],
+          ) => InjectedEvaluatorMetricGroupBlueprint[]),
+    ],
+    void
+>
+
+/** Injected `getEvaluatorMetricBlueprintAtom`. Default `null`. */
+export const injectedMetricBlueprintFactoryAtom = atom<InjectedMetricBlueprintFactory | null>(null)
+
+/** `(descriptorId) => PrimitiveAtom<string | null>` — the resolved-metric-label atom family
+ * (writable; the run-metric cell writes the resolved label back). */
+export type InjectedResolvedMetricLabelsFamily = (
+    descriptorId: string,
+) => PrimitiveAtom<string | null>
+
+/** Injected `resolvedMetricLabelsAtomFamily`. Default `null`. */
+export const injectedResolvedMetricLabelsFamilyAtom =
+    atom<InjectedResolvedMetricLabelsFamily | null>(null)
+
+// Evaluator reference resolver (`evaluatorReferenceAtomFamily`).
+/** Evaluator-reference metric entry the view reads. */
+export interface InjectedEvaluatorReferenceMetric {
+    canonicalPath: string
+    label?: string | null
+    outputType?: string | null
+}
+
+/** Evaluator reference shape the view reads off the resolver. */
+export interface InjectedEvaluatorReference {
+    id?: string | null
+    slug?: string | null
+    name?: string | null
+    workflowKey?: string | null
+    metrics?: InjectedEvaluatorReferenceMetric[]
+}
+
+export type InjectedEvaluatorReferenceFamily = (params: {
+    projectId: string | null
+    slug?: string | null
+    id?: string | null
+}) => Atom<ReferenceQueryResult<InjectedEvaluatorReference>>
+
+/** Injected `evaluatorReferenceAtomFamily`. Default `null`. */
+export const injectedEvaluatorReferenceFamilyAtom = atom<InjectedEvaluatorReferenceFamily | null>(
+    null,
+)
+
+/** `(userId) => Atom<{username?: string | null} | null>` — workspace-member-by-id family. */
+export type InjectedWorkspaceMemberByIdFamily = (
+    userId: string | null | undefined,
+) => Atom<{username?: string | null; user?: {username?: string | null}} | null>
+
+/** Injected `workspaceMemberByIdFamily`. Default `null`. */
+export const injectedWorkspaceMemberByIdFamilyAtom = atom<InjectedWorkspaceMemberByIdFamily | null>(
+    null,
+)
+
+// Onboarding-widget seams (the run-list opens the SDK-eval create modal off a widget event).
+/** Injected `onboardingWidgetActivationAtom` (read). Default `null`. */
+export const injectedOnboardingWidgetActivationAtom = atom<string | null>(null)
+
+/** Injected `setOnboardingWidgetActivationAtom` write callback. Default no-op. */
+export const injectedSetOnboardingWidgetActivationAtom = atom<(value: string | null) => void>(
+    () => {},
+)
+
+/** Injected `recordWidgetEventAtom` write callback. Default no-op. */
+export const injectedRecordWidgetEventAtom = atom<(eventId: string) => void>(() => {})
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Registration write-atom
@@ -247,6 +466,21 @@ export interface EvalRunInjections {
     clearMetricSelection?: (() => void) | null
     annotationTransform?: InjectedAnnotationTransform | null
     onlineEvaluationsApi?: InjectedOnlineEvaluationsApi | null
+    // ── run-list VIEW seams (WP-4h-4) ──
+    appsQuery?: InjectedAppsQueryResult
+    routerAppId?: string | null
+    url?: InjectedUrlState
+    appIdentifiers?: InjectedAppIdentifiers
+    routeLayer?: string | null
+    queriesQueryFamily?: InjectedQueriesQueryFamily | null
+    currentWorkflow?: InjectedCurrentWorkflow | null
+    metricBlueprintFactory?: InjectedMetricBlueprintFactory | null
+    resolvedMetricLabelsFamily?: InjectedResolvedMetricLabelsFamily | null
+    evaluatorReferenceFamily?: InjectedEvaluatorReferenceFamily | null
+    workspaceMemberByIdFamily?: InjectedWorkspaceMemberByIdFamily | null
+    onboardingWidgetActivation?: string | null
+    setOnboardingWidgetActivation?: (value: string | null) => void
+    recordWidgetEvent?: (eventId: string) => void
 }
 
 /**
@@ -277,6 +511,48 @@ export const registerEvalRunInjections: WritableAtom<null, [EvalRunInjections], 
         }
         if (injections.onlineEvaluationsApi !== undefined) {
             set(injectedOnlineEvaluationsApiAtom, injections.onlineEvaluationsApi)
+        }
+        if (injections.appsQuery !== undefined) {
+            set(injectedAppsQueryAtom, injections.appsQuery)
+        }
+        if (injections.routerAppId !== undefined) {
+            set(injectedRouterAppIdAtom, injections.routerAppId)
+        }
+        if (injections.url !== undefined) {
+            set(injectedUrlAtom, injections.url)
+        }
+        if (injections.appIdentifiers !== undefined) {
+            set(injectedAppIdentifiersAtom, injections.appIdentifiers)
+        }
+        if (injections.routeLayer !== undefined) {
+            set(injectedRouteLayerAtom, injections.routeLayer)
+        }
+        if (injections.queriesQueryFamily !== undefined) {
+            set(injectedQueriesQueryFamilyAtom, injections.queriesQueryFamily)
+        }
+        if (injections.currentWorkflow !== undefined) {
+            set(injectedCurrentWorkflowAtom, injections.currentWorkflow)
+        }
+        if (injections.metricBlueprintFactory !== undefined) {
+            set(injectedMetricBlueprintFactoryAtom, injections.metricBlueprintFactory)
+        }
+        if (injections.resolvedMetricLabelsFamily !== undefined) {
+            set(injectedResolvedMetricLabelsFamilyAtom, injections.resolvedMetricLabelsFamily)
+        }
+        if (injections.evaluatorReferenceFamily !== undefined) {
+            set(injectedEvaluatorReferenceFamilyAtom, injections.evaluatorReferenceFamily)
+        }
+        if (injections.workspaceMemberByIdFamily !== undefined) {
+            set(injectedWorkspaceMemberByIdFamilyAtom, injections.workspaceMemberByIdFamily)
+        }
+        if (injections.onboardingWidgetActivation !== undefined) {
+            set(injectedOnboardingWidgetActivationAtom, injections.onboardingWidgetActivation)
+        }
+        if (injections.setOnboardingWidgetActivation !== undefined) {
+            set(injectedSetOnboardingWidgetActivationAtom, injections.setOnboardingWidgetActivation)
+        }
+        if (injections.recordWidgetEvent !== undefined) {
+            set(injectedRecordWidgetEventAtom, injections.recordWidgetEvent)
         }
     },
 )

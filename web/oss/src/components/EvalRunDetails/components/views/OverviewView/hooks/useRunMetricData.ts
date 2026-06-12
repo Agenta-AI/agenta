@@ -12,11 +12,11 @@ import {
     runTemporalMetricSeriesAtomFamily,
     TemporalMetricPoint,
 } from "@agenta/evaluations/state/evalRun"
+import {INVOCATION_METRIC_KEYS, INVOCATION_METRIC_LABELS} from "@agenta/evaluations/state/runsTable"
 import type {BasicStats} from "@agenta/shared/metrics"
 import {atom, useAtomValue} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {INVOCATION_METRIC_KEYS, INVOCATION_METRIC_LABELS} from "../constants"
 import {
     buildEvaluatorFallbackMetricsByStep,
     buildEvaluatorMetricEntries,

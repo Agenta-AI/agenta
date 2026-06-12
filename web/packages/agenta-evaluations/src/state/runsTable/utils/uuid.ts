@@ -12,3 +12,13 @@ export const isUuid = (id: string): boolean => {
 
     return fullUuidRegex.test(id) || uuidSegmentRegex.test(id)
 }
+
+/**
+ * Last `-`-delimited segment of an id (e.g. the short tail of a UUID). Inlined from
+ * `@/oss/lib/helpers/utils` (`getUniquePartOfId`) so the relocated run-list view stays free
+ * of any `@/oss` import; the OSS copy remains for its other (non-eval) consumers.
+ */
+export const getUniquePartOfId = (id: string): string => {
+    const parts = id.split("-")
+    return parts[parts.length - 1]
+}

@@ -97,3 +97,22 @@ export const METRIC_COLUMN_CONFIG: Record<EvaluationRunKind, RunMetricDescriptor
     custom: CUSTOM_METRICS,
     all: ALL_METRICS,
 }
+
+/**
+ * Canonical invocation-metric column keys + labels (cost / duration / tokens / errors).
+ * Relocated from `@/oss/.../OverviewView/constants` (WP-4h-4) so both the run-list columns
+ * and the (still-OSS) run-details overview read one source. The OSS file re-exports these.
+ */
+export const INVOCATION_METRIC_KEYS = [
+    "attributes.ag.metrics.costs.cumulative.total",
+    "attributes.ag.metrics.duration.cumulative",
+    "attributes.ag.metrics.tokens.cumulative.total",
+    "attributes.ag.metrics.errors.cumulative",
+] as const
+
+export const INVOCATION_METRIC_LABELS: Record<(typeof INVOCATION_METRIC_KEYS)[number], string> = {
+    "attributes.ag.metrics.costs.cumulative.total": "Cost",
+    "attributes.ag.metrics.duration.cumulative": "Duration",
+    "attributes.ag.metrics.tokens.cumulative.total": "Tokens",
+    "attributes.ag.metrics.errors.cumulative": "Errors",
+}

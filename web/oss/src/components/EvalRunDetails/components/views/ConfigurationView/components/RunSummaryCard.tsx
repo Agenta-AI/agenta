@@ -6,13 +6,13 @@ import {
     effectiveProjectIdAtom,
     evaluationRunQueryAtomFamily,
 } from "@agenta/evaluations/state/evalRun"
+import {invalidateEvaluationRunsTableAtom} from "@agenta/evaluations-ui"
 import {getAgentaSdkClient} from "@agenta/sdk"
 import {message} from "@agenta/ui/app-message"
 import {PencilSimple} from "@phosphor-icons/react"
 import {Button, Input, Skeleton, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import {CopyIconButton, middleTruncateId} from "@/oss/components/References/ReferenceTag"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"

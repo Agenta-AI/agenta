@@ -7,6 +7,7 @@ import {memo, useMemo} from "react"
 import {variantReferenceQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
 import {effectiveProjectIdAtom} from "@agenta/evaluations/state/evalRun"
 import {runTestsetRefsAtomFamily} from "@agenta/evaluations/state/evalRun"
+import type {ReferenceTone} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
 
 import {
@@ -18,7 +19,6 @@ import {
     VariantReferenceText as GenericVariantReferenceText,
     VariantRevisionLabel as GenericVariantRevisionLabel,
 } from "@/oss/components/References"
-import type {ReferenceTone} from "@/oss/components/References/referenceColors"
 
 import useRunIdentifiers from "../../hooks/useRunIdentifiers"
 import useRunScopedUrls from "../../hooks/useRunScopedUrls"

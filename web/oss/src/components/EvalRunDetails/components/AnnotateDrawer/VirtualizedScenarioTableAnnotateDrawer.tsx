@@ -20,6 +20,7 @@ import {
     scenarioStepsQueryFamily,
 } from "@agenta/evaluations/state/evalRun"
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {invalidateEvaluationRunsTableAtom} from "@agenta/evaluations-ui"
 import {uuidToSpanId} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
@@ -29,7 +30,6 @@ import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import {
     generateAnnotationPayloadData,
     generateNewAnnotationPayloadData,

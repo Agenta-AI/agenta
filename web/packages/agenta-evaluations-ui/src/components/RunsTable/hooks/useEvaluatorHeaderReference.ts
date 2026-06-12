@@ -1,0 +1,100 @@
+import {useMemo} from "react"
+
+import {
+    injectedEvaluatorReferenceFamilyAtom,
+    type InjectedEvaluatorReference,
+} from "@agenta/evaluations/state"
+import {getColumnViewportVisibilityAtom} from "@agenta/ui/table"
+import {atom, useAtomValue} from "jotai"
+import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
+
+import {evaluationRunsColumnVisibilityContextAtom} from "../atoms/view"
+
+type EvaluatorReference = InjectedEvaluatorReference
+
+const nullEvaluatorAtom = atom(null)
+const alwaysTrueAtom = atom(true)
+
+const evaluatorReferenceCache = new Map<string, EvaluatorReference | null>()
+
+export interface UseEvaluatorHeaderReferenceArgs {
+    evaluatorSlug?: string | null
+    evaluatorId?: string | null
+    columnKey?: string | null
+    enabled?: boolean
+    projectIdOverride?: string | null
+}
+
+export const useEvaluatorHeaderReference = ({
+    evaluatorSlug,
+    evaluatorId,
+    columnKey,
+    enabled = true,
+    projectIdOverride,
+}: UseEvaluatorHeaderReferenceArgs) => {
+    const columnContext = useAtomValueWithSchedule(evaluationRunsColumnVisibilityContextAtom, {
+        priority: LOW_PRIORITY,
+    })
+
+    const effectiveProjectId = projectIdOverride ?? columnContext.projectId ?? null
+
+    const viewportAtom = useMemo(() => {
+        if (!columnKey || !columnContext.scopeId) {
+            return alwaysTrueAtom
+        }
+        return getColumnViewportVisibilityAtom(columnContext.scopeId, columnKey)
+    }, [columnContext.scopeId, columnKey])
+
+    const isViewportVisible = useAtomValueWithSchedule(viewportAtom, {
+        priority: LOW_PRIORITY,
+    })
+
+    const evaluatorReferenceFamily = useAtomValue(injectedEvaluatorReferenceFamilyAtom)
+
+    const identityKey = useMemo(() => {
+        const projectPart = effectiveProjectId ?? "none"
+        const slugPart = evaluatorSlug ?? "none"
+        const idPart = evaluatorId ?? "none"
+        return `${projectPart}:${slugPart}:${idPart}`
+    }, [effectiveProjectId, evaluatorId, evaluatorSlug])
+
+    const evaluatorAtom = useMemo(() => {
+        if (
+            !enabled ||
+            !effectiveProjectId ||
+            !isViewportVisible ||
+            (!evaluatorSlug && !evaluatorId) ||
+            !evaluatorReferenceFamily
+        ) {
+            return nullEvaluatorAtom
+        }
+        return evaluatorReferenceFamily({
+            projectId: effectiveProjectId,
+            slug: evaluatorSlug ?? undefined,
+            id: evaluatorId ?? undefined,
+        })
+    }, [
+        enabled,
+        effectiveProjectId,
+        evaluatorId,
+        evaluatorSlug,
+        isViewportVisible,
+        evaluatorReferenceFamily,
+    ])
+
+    const evaluatorQueryResult = useAtomValueWithSchedule(evaluatorAtom, {priority: LOW_PRIORITY})
+
+    const evaluatorReference = useMemo(() => {
+        if (evaluatorQueryResult?.data) {
+            evaluatorReferenceCache.set(identityKey, evaluatorQueryResult.data)
+            return evaluatorQueryResult.data
+        }
+        return evaluatorReferenceCache.get(identityKey) ?? null
+    }, [identityKey, evaluatorQueryResult?.data])
+
+    return {
+        columnContext,
+        evaluatorReference,
+        isViewportVisible,
+    }
+}

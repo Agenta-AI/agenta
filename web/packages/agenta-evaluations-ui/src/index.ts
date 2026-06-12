@@ -48,3 +48,19 @@ export {
     useHostHook,
 } from "./host/hostRegistry"
 export type {EvalViewHost, HostHook} from "./host/hostRegistry"
+export {registerEvalViewFns, getEvalViewFns} from "./host/fnRegistry"
+export type {EvalViewFns, EvalViewUrlState, WaitForUrlOptions} from "./host/fnRegistry"
+
+// ── eval run-list view (relocated from OSS EvaluationRunsTablePOC — WP-4h-4) ────
+export {
+    EvaluationRunsTable,
+    EvaluationRunsTablePOC,
+    LatestEvaluationRunsTable,
+    EvaluationRunsTableStoreProvider,
+    EvaluationRunsCreateButton,
+    evaluationRunsTableContextSetterAtom,
+    evaluationRunsTableOverridesAtom,
+    evaluationRunsTypeFiltersAtom,
+    type EvaluationRunsTableOverrides,
+} from "./components/RunsTable"
+export {invalidateEvaluationRunsTableAtom} from "./components/RunsTable/atoms/tableStore"

@@ -1,3 +1,4 @@
+import {INVOCATION_METRIC_KEYS, INVOCATION_METRIC_LABELS} from "@agenta/evaluations/state/runsTable"
 import {format3Sig} from "@agenta/evaluations-ui"
 import type {BasicStats} from "@agenta/shared/metrics"
 import {getMetricValueWithAliases} from "@agenta/shared/metrics"
@@ -6,8 +7,6 @@ import {
     buildBooleanHistogram,
     isBooleanMetricStats,
 } from "@/oss/components/EvalRunDetails/utils/metricDistributions"
-
-import {INVOCATION_METRIC_KEYS, INVOCATION_METRIC_LABELS} from "../constants"
 
 export const toBooleanPercentage = (stats: BasicStats | undefined, scenarioCount?: number) => {
     if (!stats || !isBooleanMetricStats(stats)) return null

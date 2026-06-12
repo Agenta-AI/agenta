@@ -12,13 +12,13 @@ import {
 } from "@agenta/evaluations/state/evalRun"
 import {invalidatePreviewRunMetricStatsAtom} from "@agenta/evaluations/state/evalRun"
 import {invalidateScenarioStepsBatcherCache} from "@agenta/evaluations/state/evalRun"
+import {invalidateEvaluationRunsTableAtom} from "@agenta/evaluations-ui"
 import {uuidToSpanId} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
 import {Button, Card, Typography} from "antd"
 import {useSetAtom} from "jotai"
 
-import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
 import {getProjectValues} from "@/oss/state/project"
 

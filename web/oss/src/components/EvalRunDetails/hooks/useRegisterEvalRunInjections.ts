@@ -14,9 +14,9 @@ import {useEffect} from "react"
 
 import {registerEvalRunInjections, type InjectedReferenceResolver} from "@agenta/evaluations/state"
 import {clearMetricSelectionCache} from "@agenta/evaluations/state/runsTable"
+import {invalidateEvaluationRunsTableAtom} from "@agenta/evaluations-ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import {
     appReferenceAtomFamily,
     variantReferenceAtomFamily,
@@ -50,9 +50,9 @@ export const useRegisterEvalRunInjections = () => {
             runInvalidate: () => invalidateRunsTable(),
             clearMetricSelection: clearMetricSelectionCache,
             annotationTransform: transformApiData,
-            // query.ts consumes only TYPES from the online-evaluations API (no runtime fn),
-            // so an empty handle satisfies the seam.
-            onlineEvaluationsApi: {},
+            // The run-details view consumes no online-evaluations runtime fn (query.ts uses
+            // only the payload TYPES). The run-list host (`EvalRunsViewHost`) registers the
+            // real start/stop impls; leaving the key unset here keeps the seam intact.
         })
     }, [workspaceMembers, registerInjections, invalidateRunsTable])
 }

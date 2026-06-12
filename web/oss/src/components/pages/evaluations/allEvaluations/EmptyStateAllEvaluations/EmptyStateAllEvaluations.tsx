@@ -1,6 +1,7 @@
+import {EvaluationRunsCreateButton} from "@agenta/evaluations-ui"
+
 import EmptyState from "@/oss/components/EmptyState"
 import {EMPTY_STATE_VIDEOS} from "@/oss/components/EmptyState/videos"
-import EvaluationRunsCreateButton from "@/oss/components/EvaluationRunsTablePOC/components/EvaluationRunsCreateButton"
 
 const EmptyStateAllEvaluations = () => {
     return (
