@@ -53,7 +53,9 @@ const usePreviewVariantConfig = (
         const variantId = data?.workflow_variant_id
         if (!variantId) return null
         const match = (variantsState.data ?? []).find((v) => v.id === variantId)
-        return match?.name ?? null
+        // SDK-created variants may carry no name; the slug ("default") is
+        // still the right label.
+        return match?.name ?? match?.slug ?? null
     }, [data?.workflow_variant_id, variantsState.data])
 
     const config: VariantConfig | null =
