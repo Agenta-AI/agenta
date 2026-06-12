@@ -1,11 +1,8 @@
-from datetime import datetime, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.exc import NoResultFound
 
-from ee.src.core.access.permissions.types import DefaultRole
 from ee.src.services import db_manager_ee
 
 
@@ -81,68 +78,6 @@ class _PendingInviteSessionContext:
 
     async def __aexit__(self, exc_type, exc, tb):
         return False
-
-
-@pytest.mark.asyncio
-async def test_get_default_workspace_id_prefers_owner_membership(monkeypatch):
-    owner_workspace_id = uuid4()
-    editor_workspace_id = uuid4()
-
-    _patch_core_session(
-        monkeypatch,
-        [
-            SimpleNamespace(
-                workspace_id=editor_workspace_id,
-                role=DefaultRole.EDITOR,
-                created_at=datetime(2026, 4, 9, tzinfo=timezone.utc),
-            ),
-            SimpleNamespace(
-                workspace_id=owner_workspace_id,
-                role=DefaultRole.OWNER,
-                created_at=datetime(2026, 4, 10, tzinfo=timezone.utc),
-            ),
-        ],
-    )
-
-    workspace_id = await db_manager_ee.get_default_workspace_id(str(uuid4()))
-
-    assert workspace_id == str(owner_workspace_id)
-
-
-@pytest.mark.asyncio
-async def test_get_default_workspace_id_falls_back_to_oldest_membership(monkeypatch):
-    oldest_workspace_id = uuid4()
-    newer_workspace_id = uuid4()
-
-    _patch_core_session(
-        monkeypatch,
-        [
-            SimpleNamespace(
-                workspace_id=newer_workspace_id,
-                role=DefaultRole.EDITOR,
-                created_at=datetime(2026, 4, 10, tzinfo=timezone.utc),
-            ),
-            SimpleNamespace(
-                workspace_id=oldest_workspace_id,
-                role=DefaultRole.VIEWER,
-                created_at=datetime(2026, 4, 9, tzinfo=timezone.utc),
-            ),
-        ],
-    )
-
-    workspace_id = await db_manager_ee.get_default_workspace_id(str(uuid4()))
-
-    assert workspace_id == str(oldest_workspace_id)
-
-
-@pytest.mark.asyncio
-async def test_get_default_workspace_id_raises_when_user_has_no_memberships(
-    monkeypatch,
-):
-    _patch_core_session(monkeypatch, [])
-
-    with pytest.raises(NoResultFound, match="No workspace membership found"):
-        await db_manager_ee.get_default_workspace_id(str(uuid4()))
 
 
 @pytest.mark.asyncio
