@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException
 from sqlalchemy.future import select
 from sqlalchemy import delete, func, or_, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from supertokens_python.types import AccountInfo
 from sqlalchemy.orm import joinedload, load_only
@@ -345,45 +344,64 @@ async def get_user(user_uid: str) -> UserDB:
         return user
 
 
-async def get_oss_organization() -> Optional[OrganizationDB]:
-    """Get the single OSS organization if it exists."""
-    organizations_db = await get_organizations()
-    if organizations_db:
-        return organizations_db[0]
-    return None
-
-
-OSS_SINGLETON_ORG_SLUG = "oss-default"
-
-
-async def get_default_workspace_id_oss() -> str:
+async def get_default_workspace_id(user_id: str) -> str:
     """
-    Get the default workspace ID in OSS.
-
-    Picks the oldest workspace deterministically. Pre-multi-org deployments
-    have exactly one (the bootstrap workspace); on multi-org deployments this
-    is a fallback used only by callers that lack a user context, until the
-    membership-aware resolution replaces them.
+    Retrieve the default workspace ID for a user: the workspace they own,
+    falling back to their oldest membership.
     """
+
     engine = get_transactions_engine()
 
     async with engine.session() as session:
         result = await session.execute(
-            select(WorkspaceDB).order_by(WorkspaceDB.created_at.asc())
+            select(WorkspaceMemberDB)
+            .filter_by(user_id=uuid.UUID(user_id))
+            .options(  # type: ignore
+                load_only(
+                    WorkspaceMemberDB.workspace_id,
+                    WorkspaceMemberDB.role,
+                    WorkspaceMemberDB.created_at,
+                )
+            )
         )
-        workspaces = result.scalars().all()
+        memberships = list(result.scalars().all())
 
-    if not workspaces:
-        raise NoResultFound("No workspace exists.")
+        if not memberships:
+            raise NoResultFound(f"No workspace membership found for user {user_id}")
 
-    if len(workspaces) > 1:
-        log.warning(
-            "[scopes] multiple OSS workspaces found, using the oldest.",
-            workspace_count=len(workspaces),
-            chosen_workspace_id=str(workspaces[0].id),
+        memberships.sort(
+            key=lambda membership: (
+                membership.created_at or datetime.min.replace(tzinfo=timezone.utc),
+                str(membership.workspace_id),
+            )
         )
 
-    return str(workspaces[0].id)
+        owner_membership = next(
+            (membership for membership in memberships if membership.role == "owner"),
+            None,
+        )
+        if owner_membership is not None:
+            return str(owner_membership.workspace_id)
+
+        return str(memberships[0].workspace_id)
+
+
+async def get_user_workspaces(user_id: str) -> List[WorkspaceDB]:
+    """Retrieve all workspaces the user is a member of."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(WorkspaceDB)
+            .join(
+                WorkspaceMemberDB,
+                WorkspaceDB.id == WorkspaceMemberDB.workspace_id,
+            )
+            .filter(WorkspaceMemberDB.user_id == uuid.UUID(user_id))
+            .order_by(WorkspaceDB.created_at.asc())
+        )
+        return list(result.scalars().all())
 
 
 async def create_organization(
@@ -1869,48 +1887,10 @@ async def admin_create_organization(
     slug: Optional[str],
     owner_id: uuid.UUID,
 ) -> OrganizationDB:
-    """Create or reuse an organization (admin path).
-
-    On OSS every org collapses onto the deterministic singleton slug —
-    the caller's requested ``name``/``slug`` are ignored and the existing
-    singleton row is returned (creating it on first call). The unique
-    index on ``organizations.slug`` is the source of truth, so concurrent
-    callers are safe and no application lock is needed. Combined with the
-    delete guard in the accounts service, this makes the OSS singleton
-    invariant absolute: exactly one organization exists, and it cannot be
-    duplicated or removed.
-
-    On EE behavior is unchanged: a new row is inserted with the supplied
-    ``name``/``slug``.
-    """
+    """Create an organization with the supplied name/slug (admin path)."""
     engine = get_transactions_engine()
 
     async with engine.session() as session:
-        if not is_ee():
-            stmt = (
-                pg_insert(OrganizationDB)
-                .values(
-                    slug=OSS_SINGLETON_ORG_SLUG,
-                    name=name,
-                    flags={"is_demo": False},
-                    owner_id=owner_id,
-                    created_by_id=owner_id,
-                )
-                .on_conflict_do_nothing(index_elements=["slug"])
-            )
-            await session.execute(stmt)
-            await session.commit()
-
-            result = await session.execute(
-                select(OrganizationDB).filter_by(slug=OSS_SINGLETON_ORG_SLUG)
-            )
-            org_db = result.scalars().one()
-            log.info(
-                "[admin] organization ensured (oss singleton)",
-                organization_id=str(org_db.id),
-            )
-            return org_db
-
         org_db = OrganizationDB(
             name=name,
             slug=slug,

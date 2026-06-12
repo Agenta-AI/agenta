@@ -631,12 +631,9 @@ async def verify_bearer_token(
             organization_id = workspace.organization_id
 
         else:
-            if is_ee():
-                workspace_id = await db_manager_ee.get_default_workspace_id(
-                    user_id=user_id,
-                )
-            else:
-                workspace_id = await db_manager.get_default_workspace_id_oss()
+            workspace_id = await db_manager.get_default_workspace_id(
+                user_id=user_id,
+            )
 
             project_id = await db_manager.get_default_project_id_from_workspace(
                 workspace_id=workspace_id

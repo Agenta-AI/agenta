@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException
 
-from sqlalchemy import delete, update
+from sqlalchemy import delete, update, func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, load_only
@@ -18,6 +18,7 @@ from oss.src.dbs.postgres.shared.engine import (
 )
 from oss.src.services import db_manager
 from oss.src.services.db_manager import (  # noqa: F401 — moved OSS-ward, re-exported
+    get_default_workspace_id,
     add_user_to_organization,
     add_user_to_workspace,
     add_user_to_project,
@@ -138,56 +139,6 @@ async def count_organization_members(organization_id: str) -> int:
             )
         )
         return result.scalar() or 0
-
-
-async def get_default_workspace_id(user_id: str) -> str:
-    """
-    Retrieve the default workspace ID for a user.
-
-    Args:
-        user_id (str): The user id.
-
-    Returns:
-        str: The default workspace ID.
-    """
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(WorkspaceMemberDB)
-            .filter_by(user_id=uuid.UUID(user_id))
-            .options(  # type: ignore
-                load_only(
-                    WorkspaceMemberDB.workspace_id,
-                    WorkspaceMemberDB.role,
-                    WorkspaceMemberDB.created_at,
-                )
-            )
-        )
-        memberships = list(result.scalars().all())
-
-        if not memberships:
-            raise NoResultFound(f"No workspace membership found for user {user_id}")
-
-        owner_membership = next(
-            (
-                membership
-                for membership in memberships
-                if membership.role == RequiredRole.OWNER
-            ),
-            None,
-        )
-        if owner_membership is not None:
-            return str(owner_membership.workspace_id)
-
-        memberships.sort(
-            key=lambda membership: (
-                membership.created_at or datetime.min.replace(tzinfo=timezone.utc),
-                str(membership.workspace_id),
-            )
-        )
-        return str(memberships[0].workspace_id)
 
 
 async def get_organization_workspaces(organization_id: str):
