@@ -85,6 +85,7 @@ import {
 import {pruneDanglingConnections} from "../helpers/connectionGraph"
 import {
     collectDownstreamReferencedColumns,
+    collectTestcaseServerColumns,
     reconcileRowDataForEntity,
     resolveEntityInputContract,
 } from "../helpers/entityInputContract"
@@ -2225,8 +2226,15 @@ function pruneTestcaseRowsForEntity(get: Getter, set: Setter, entityId: string):
         const data = (row as {data?: Record<string, unknown>} | null)?.data
         if (!data || typeof data !== "object") continue
 
+        // Per-row: the synced test set's own columns are intentional data,
+        // not stale leftovers — keep them through the swap clean (#4647).
+        const serverColumns = collectTestcaseServerColumns(get, rowId)
+        const protectedKeys =
+            serverColumns.size > 0
+                ? new Set([...protectedColumns, ...serverColumns])
+                : protectedColumns
         const {dropped} = reconcileRowDataForEntity(get, entityId, data, {
-            protectedKeys: protectedColumns,
+            protectedKeys,
         })
         if (dropped.length === 0) continue
 

@@ -12,25 +12,23 @@ import {fetchEvaluatonIdsByResource} from "@/oss/services/evaluations/api"
 export const checkIfResourceValidForDeletion = async (
     data: Omit<Parameters<typeof fetchEvaluatonIdsByResource>[0], "appId">,
 ) => {
-    if (isDemo()) {
-        const response = await fetchEvaluatonIdsByResource(data)
-        if (response.data.length > 0) {
-            const name =
-                (data.resourceType === "testset"
-                    ? "Test set"
-                    : data.resourceType === "evaluator_config"
-                      ? "Evaluator"
-                      : "Variant") + (data.resourceIds.length > 1 ? "s" : "")
+    const response = await fetchEvaluatonIdsByResource(data)
+    if (response.data.length > 0) {
+        const name =
+            (data.resourceType === "testset"
+                ? "Test set"
+                : data.resourceType === "evaluator_config"
+                  ? "Evaluator"
+                  : "Variant") + (data.resourceIds.length > 1 ? "s" : "")
 
-            const suffix = response.data.length > 1 ? "s" : ""
-            AlertPopup({
-                title: `${name} is in use`,
-                message: `The ${name} is currently in used by ${response.data.length} evaluation${suffix}. Please delete the evaluation${suffix} first.`,
-                cancelText: null,
-                okText: "Ok",
-            })
-            return false
-        }
+        const suffix = response.data.length > 1 ? "s" : ""
+        AlertPopup({
+            title: `${name} is in use`,
+            message: `The ${name} is currently in used by ${response.data.length} evaluation${suffix}. Please delete the evaluation${suffix} first.`,
+            cancelText: null,
+            okText: "Ok",
+        })
+        return false
     }
     return true
 }
