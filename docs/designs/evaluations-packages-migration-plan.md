@@ -807,6 +807,47 @@ genuinely-shared subsystems stay in OSS behind seams.
 - **4h-5 — relocate `RunDetails`** (`EvalRunDetails`, 113 files) → `evaluations-ui`. Largest; behavioral QA.
   Reuses all 4 seam channels; the run-details OSS provider `useRegisterEvalRunInjections` (mounted at the
   run-details `Page.tsx`) extends to register the new seams + a host provider at the route shell.
+  **⏳ NOT YET EXECUTED — fully analyzed, atomic, resumable.** Two independent agents confirmed: the 113
+  files form a clean 10-layer DAG (no cycles), but leaf-first incremental moves generate ~40 barrel
+  re-points that immediately revert, whereas a **whole-tree move preserves all 184 intra-tree relative
+  imports for free** (destination mirrors source) — so the correct unit is ONE atomic slice (fix only the
+  ~42 external couplings + 5 absolute self-paths + 12 self-barrel imports + 4 reverse-deps + host
+  boundary). This is a single ~150-edit change that cannot bank partial progress; it exceeded a single
+  subagent budget twice (both reverted to green). **Complete file-by-file execution recipe** (deps to add,
+  exact coupling→channel map per file, the AppGlobalWrappers global-mount runtime-throw trap, the 6 route
+  pages + EE, Rules-of-Hooks early-return files) is in the WP-4h-5 agent reports — resume as a dedicated
+  pass. Baseline to resume from: HEAD with RunsTable done, oss tsc 454.
+
+#### 4h-5 execution recipe (banked — pure mechanical, no discovery left)
+1. **Deps** → `evaluations-ui/package.json`: `@agenta/sdk` (workspace), `fast-deep-equal ^3.1.3`,
+   `jotai-immer ^0.4.1`, `recharts ^2.13.0`; peerDep `next >=14.0.0`; then `pnpm install`.
+2. **Move:** `git mv EvalRunDetails/* → evaluations-ui/src/components/RunDetails/*` EXCEPT host-boundary
+   files `EvalResultsOnboarding.tsx`, `test.tsx`, `hooks/useRegisterEvalRunInjections.ts` (first two →
+   `oss/components/pages/evaluations/`, third folds into the new host). `git mv` sequentially (index.lock).
+3. **5 absolute self-paths → relative:** `Table.tsx`, `utils/chatMessages.ts`, `OverviewView/utils/metrics.ts`,
+   `OverviewView/components/{MetricComparisonCard,BaseRunMetricsSection}.tsx`.
+4. **12 self-barrel imports → relative** (files importing `@agenta/evaluations-ui` from within it):
+   `format3Sig`→`components/MetricDetails/MetricDetailsPopover`; `MetricDetailsPreviewPopover`→its path;
+   `invalidateEvaluationRunsTableAtom`→`components/RunsTable/atoms/tableStore`; `useEtlColumns`/`ScenarioFilterBar`
+   →`components/etl/*`. (Table, MetricCell, VirtualizedScenarioTableAnnotateDrawer, FocusDrawer,
+   PreviewEvalRunHeader, EvaluatorMetricsChart/index, EvaluatorMetricsSpiderChart, RunSummaryCard,
+   OverviewView/utils/metrics, MetricComparisonCard, ScenarioAnnotationPanel/index, export/columnResolvers.)
+5. **~42 couplings → channels** (re-point pkg-equiv: axios/getAgentaApiUrl→`@agenta/shared/api`,
+   dayjs→`@agenta/shared`, QueryWindowingPayload→`@agenta/evaluations/state`, projectIdAtom→`@agenta/shared/state`;
+   ~20 `useHostComponent`; ~11 `useHostHook`; ~7 fnRegistry incl. `getProjectValues`/`create|updateAnnotation`
+   [inject, OSS sigs differ]/`formatDate24`/annotation transforms; atom-channel `navigationRequestAtom`; MOVE
+   `virtualScenarioTableAnnotateDrawerAtom`→`RunDetails/state/`; const `EVALUATOR_CATEGORY_LABEL_MAP`→evaluations).
+   **Hoist host calls above early returns** in `InvocationTraceSummary`, `EvalDrawerDataSection`.
+6. **Host:** `oss/components/pages/evaluations/EvalRunDetailsViewHost.tsx` (mirror `EvalRunsViewHost.tsx`) →
+   register atom+fn seams + `<EvalViewHostProvider host={{components,hooks}}>`; re-point all **6 route pages**
+   (oss+ee × {results, single_model_test} × {project, app}).
+7. **GLOBAL-MOUNT TRAP (tsc-invisible runtime throw):** `AppGlobalWrappers/index.tsx` mounts
+   `EvalRunFocusDrawerPreview` (→`FocusDrawer`→`GenericDrawer` host slot) GLOBALLY — wrap it in an
+   `EvalViewHostProvider` too, or it throws at mount.
+8. **4 reverse-dep re-points → barrel:** `state/url/focusDrawer.ts`, `References/cells/QueryCells.tsx`,
+   `AppGlobalWrappers/index.tsx`, `AnnotateCollapseContent/index.tsx`. Delete vestigial
+   `export * from "@/oss/components/References"` in `OverviewView/components/index.ts`.
+9. **Gates:** evaluations-ui `check` green; oss tsc ≤454; eslint touched OSS files. One commit.
 - **4h-6 — repoint route shells** (the 6 pages) at `@agenta/evaluations-ui`; OSS keeps only
   route shells + the injection-seam provider. Delete the 3 emptied OSS dirs.
 - **Gate:** full behavioral QA across run-list (app overview), run-details (results +
