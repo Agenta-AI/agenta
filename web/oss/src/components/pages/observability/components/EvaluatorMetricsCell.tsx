@@ -5,6 +5,7 @@ import {useAtomValue} from "jotai"
 
 import LabelValuePill from "@/oss/components/CustomUIs/LabelValuePill"
 import useEvaluatorReference from "@/oss/components/References/hooks/useEvaluatorReference"
+import {booleanValueColorClass} from "@/oss/lib/helpers/colors"
 import {traceAnnotationInfoAtomFamily} from "@/oss/state/newObservability"
 import {useProjectData} from "@/oss/state/project"
 
@@ -39,12 +40,19 @@ const EvaluatorMetricsCell = memo(({invocationKey, evaluatorSlug}: Props) => {
             </div>
             <div className="flex items-center gap-2 max-w-[450px] overflow-x-auto [&::-webkit-scrollbar]:!w-0">
                 {Object.entries(metrics).map(([metricName, rawData]) => {
-                    const data = rawData as {average?: number}
+                    const data = rawData as {average?: number; latest?: boolean}
+                    const isBoolean = data.latest !== undefined
+                    const value = isBoolean ? (data.latest ? "True" : "False") : `μ ${data.average}`
                     return (
                         <LabelValuePill
                             key={metricName}
                             label={metricName}
-                            value={`μ ${data.average}`}
+                            value={value}
+                            valueClassName={
+                                isBoolean
+                                    ? booleanValueColorClass(data.latest as boolean)
+                                    : undefined
+                            }
                             className="!min-w-fit"
                         />
                     )
