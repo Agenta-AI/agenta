@@ -28,6 +28,16 @@ AltDeprecatedBase = declarative_base()
 # into the older partial shapes above.
 DroppedBase = declarative_base()
 
+# FK targets referenced by the frozen classes; the ORM resolves them from this
+# metadata at flush time (the live tables are mapped elsewhere).
+Table(
+    "projects", DroppedBase.metadata, Column("id", UUID(as_uuid=True), primary_key=True)
+)
+Table("users", DroppedBase.metadata, Column("id", UUID(as_uuid=True), primary_key=True))
+Table(
+    "folders", DroppedBase.metadata, Column("id", UUID(as_uuid=True), primary_key=True)
+)
+
 
 class ProjectScopedAppDB(DeprecatedBase):
     __tablename__ = "app_db"
