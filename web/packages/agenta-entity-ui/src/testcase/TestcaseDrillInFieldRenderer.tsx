@@ -11,7 +11,6 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 // import {InputNumber, Switch} from "antd"
 
 import {parseCodeString, toCodeString} from "./codeFormat"
-import {inferPrimitiveFromText} from "./TestcasePrimitiveValue.utils"
 
 function toDisplayString(value: unknown, viewMode?: ViewMode): string {
     if (viewMode === "yaml") return toCodeString(value, "yaml")
@@ -106,7 +105,7 @@ function MarkdownViewSync({active}: {active: boolean}) {
 
 function TextEditor({
     editorId,
-    value: _value,
+    value,
     displayValue,
     markdown,
     onChange,
@@ -119,12 +118,10 @@ function TextEditor({
     onChange: (value: unknown) => void
     readOnly?: boolean
 }) {
-    // Auto-infer native types from typed text so number / boolean values
-    // stop getting stored as strings. Anything that doesn't look exactly
-    // like a clean number or boolean literal stays a string — see
-    // inferPrimitiveFromText for the precise rules.
+    // The TextEditor always produces strings. Type switching (coercion to boolean/number)
+    // should only happen when editing raw JSON or YAML via CodeEditor.
     const handleChange = useCallback(
-        (next: string) => onChange(inferPrimitiveFromText(next)),
+        (next: string) => onChange(next),
         [onChange],
     )
 
