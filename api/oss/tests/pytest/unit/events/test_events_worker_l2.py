@@ -7,9 +7,10 @@ worker. They do not touch Redis or the database — `process_batch` is
 called directly with synthetic Redis-stream payloads, and the
 entitlements helpers are patched.
 
-Note: feature-gating (audit-log access) is intentionally NOT enforced
-at ingest; only the counter quota is. The audit flag lives at the
-query side (`POST /events/query`).
+Note: persisting events (the audit log) is EE-only — OSS runs this worker
+for webhook dispatch but does not write to the `events` table. Under EE,
+ingest is gated by the `Counter.EVENTS_INGESTED` quota here; the audit
+*query* flag (`Flag.AUDIT`) is enforced separately at `POST /events/query`.
 """
 
 import zlib
@@ -236,8 +237,13 @@ async def test_l2_per_org_delta_aggregates_across_projects():
 
 
 @pytest.mark.asyncio
-async def test_l2_skipped_on_oss():
-    """OSS (is_ee=False) → no Counter check, ingest proceeds."""
+async def test_l2_skipped_on_oss_and_not_persisted():
+    """OSS (is_ee=False) → no Counter check AND no ingest.
+
+    Persisting the `events` table is the (EE-gated) audit log, so OSS must not
+    write events. The batch is still returned in `allowed` so webhooks dispatch
+    normally — OSS gets webhooks without an audit trail.
+    """
     org_id = uuid4()
     proj_id = uuid4()
     payload = _make_event_message(organization_id=org_id, project_id=proj_id)
@@ -248,9 +254,13 @@ async def test_l2_skipped_on_oss():
     with patch("oss.src.tasks.asyncio.events.worker.is_ee", return_value=False):
         total, processed_ids, allowed = await worker.process_batch(batch)
 
-    assert total == 1
+    # Nothing persisted in OSS...
+    assert total == 0
+    worker.service.ingest.assert_not_called()
+    # ...but the batch is still allowed through for webhook dispatch, and the
+    # message is ACKed so it doesn't linger in the PEL.
     assert len(allowed) == 1
-    worker.service.ingest.assert_awaited_once()
+    assert len(processed_ids) == 1
 
 
 @pytest.mark.asyncio

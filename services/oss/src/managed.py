@@ -24,6 +24,7 @@ from agenta.sdk.engines.running.handlers import (
     json_multi_field_match_v0,
     llm_v0,
     match_v0,
+    mock_v0,
     config_v0,
 )
 
@@ -52,6 +53,10 @@ custom_code_app = _create_managed_service(
 custom_hook_app = _create_managed_service(
     hook_v0,
     uri="agenta:custom:hook:v0",
+)
+custom_mock_app = _create_managed_service(
+    mock_v0,
+    uri="agenta:custom:mock:v0",
 )
 builtin_match_app = _create_managed_service(
     match_v0,

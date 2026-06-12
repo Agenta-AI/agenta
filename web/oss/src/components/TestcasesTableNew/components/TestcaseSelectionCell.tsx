@@ -50,6 +50,7 @@ const TestcaseSelectionCell = memo(function TestcaseSelectionCell({
             className="flex items-center justify-center w-full h-full absolute inset-0"
             title={tooltipTitle}
             style={showDirtyIndicator ? {backgroundColor: "rgb(255 251 235)"} : undefined}
+            onClick={(e) => e.stopPropagation()}
         >
             <div className="relative">{originNode}</div>
         </div>

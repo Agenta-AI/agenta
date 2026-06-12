@@ -141,15 +141,12 @@ class TestAppManagerSync:
             f"Created app {test_app['app_id']} should be in the list"
         )
 
-    @pytest.mark.xfail(reason="TEMPORARY: Renaming applications is disabled in the API")
     def test_update_app(self, agenta_init, test_app):
         """Test updating an app via AppManager.update()."""
         new_slug = generate_unique_slug("updated")
 
         _result = AppManager.update(app_id=test_app["app_id"], app_slug=new_slug)
 
-        # update() may return None or the updated app
-        # The important thing is it doesn't raise an exception
         assert _result is None or hasattr(_result, "app_id")
 
     def test_delete_app(self, agenta_init):
@@ -240,13 +237,11 @@ class TestAppManagerAsync:
         assert_not_none(result, "alist() should return a response")
         assert isinstance(result, list), "alist() should return a list"
 
-    @pytest.mark.xfail(reason="TEMPORARY: Renaming applications is disabled in the API")
     async def test_aupdate_app(self, agenta_init, test_app):
         """Test updating an app via AppManager.aupdate()."""
         new_slug = generate_unique_slug("async-updated")
 
         _result = await AppManager.aupdate(app_id=test_app["app_id"], app_slug=new_slug)
-        # Update may return None or the updated app
         assert _result is None or hasattr(_result, "app_id")
 
     async def test_adelete_app(self, agenta_init):

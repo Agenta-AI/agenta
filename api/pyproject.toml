@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.101.1"
+version = "0.103.2"
 description = "Agenta API"
 requires-python = ">=3.11,<3.14"
 authors = [
@@ -11,12 +11,12 @@ dependencies = [
     "agenta",
     "fastapi>=0.136,<0.137",
     "pydantic[email]>=2,<3",
-    "uvicorn[standard]>=0.48,<0.49",
+    "uvicorn[standard]>=0.49,<0.50",
     "gunicorn>=26,<27",
     "httpx>=0.28,<0.29",
     "structlog>=25,<26",
     "python-dotenv>=1,<2",
-    "python-multipart>=0.0.30,<0.0.31",
+    "python-multipart>=0.0.31,<0.0.32",
     "cryptography>=48,<49",
     "sqlalchemy>=2,<3",
     "sqlalchemy-utils>=0.42,<0.43",
@@ -52,6 +52,10 @@ dev = [
     "pytest-mock>=3,<4",
     "pytest-html>=4,<5",
     "fakeredis>=2.34.1,<3",
+    # Starlette 1.2's TestClient prefers httpx2 and warns when only httpx is
+    # present. Runtime code stays on httpx (0.28); this test-only dep silences
+    # the deprecation without touching the runtime HTTP stack.
+    "httpx2>=2.3,<3",
 ]
 
 [tool.uv]

@@ -9,6 +9,8 @@ export interface EvaluationRunFlags {
     is_split?: boolean | undefined;
     has_queries?: boolean | undefined;
     has_testsets?: boolean | undefined;
+    has_traces?: boolean | undefined;
+    has_testcases?: boolean | undefined;
     has_evaluators?: boolean | undefined;
     has_custom?: boolean | undefined;
     has_human?: boolean | undefined;

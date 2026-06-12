@@ -16,6 +16,12 @@ export interface EvaluationRunsTableOverrides {
     evaluationKind: EvaluationRunKind
     includePreview: boolean
     scope?: TableScope
+    /**
+     * Over-fetch successive server pages until a full page of subject runs is
+     * collected. Set by fixed-size, non-paginating surfaces (the Overview
+     * summary) so the subject filter doesn't leave them falsely empty.
+     */
+    fillToLimit?: boolean
 }
 
 type TableScope = "app" | "project"
@@ -34,6 +40,7 @@ export interface EvaluationRunsTableContext {
     storageKey: string
     createSupported: boolean
     createEvaluationType: "auto" | "human" | "online" | "custom"
+    fillToLimit: boolean
 }
 
 export const defaultEvaluationRunsTableOverrides: EvaluationRunsTableOverrides = {
@@ -66,6 +73,7 @@ export const evaluationRunsTableContextAtom = atom<EvaluationRunsTableContext>((
 
     const evaluationKind = overrides.evaluationKind
     const includePreview = overrides.includePreview
+    const fillToLimit = overrides.fillToLimit ?? false
 
     const projectId =
         overrides.projectIdOverride ?? identifiers.projectId ?? fallbackProjectId ?? null
@@ -74,22 +82,27 @@ export const evaluationRunsTableContextAtom = atom<EvaluationRunsTableContext>((
     const scopedAppId = scope === "app" ? explicitAppId : null
     const effectiveAppIds = deriveAppIds(explicitAppId, scopedAppId, availableAppIds)
 
+    // Runs sourced from traces or testcases belong to Annotation Queues, not the
+    // evaluation tabs. Live evals are always query-sourced, so this exclusion is a
+    // no-op for them; for the rest it filters out queue-only runs.
+    const notDirectQueue = {has_testcases: false, has_traces: false}
+
     let derivedPreviewFlags: RunFlagsFilter | undefined
     switch (evaluationKind) {
         case "online":
             derivedPreviewFlags = {is_live: true}
             break
         case "auto":
-            derivedPreviewFlags = {has_auto: true}
+            derivedPreviewFlags = {has_auto: true, ...notDirectQueue}
             break
         case "human":
-            derivedPreviewFlags = {has_human: true, is_queue: false}
+            derivedPreviewFlags = {has_human: true, ...notDirectQueue}
             break
         case "custom":
-            derivedPreviewFlags = {has_custom: true}
+            derivedPreviewFlags = {has_custom: true, ...notDirectQueue}
             break
         default:
-            derivedPreviewFlags = {is_queue: false}
+            derivedPreviewFlags = {...notDirectQueue}
     }
 
     const isAutoOrHuman = evaluationKind === "auto" || evaluationKind === "human"
@@ -130,6 +143,7 @@ export const evaluationRunsTableContextAtom = atom<EvaluationRunsTableContext>((
         storageKey,
         createSupported,
         createEvaluationType,
+        fillToLimit,
     }
 
     return context
@@ -188,6 +202,7 @@ export const evaluationRunsMetaContextSliceAtom = selectAtom(
         includePreview: context.includePreview,
         evaluationKind: context.evaluationKind,
         derivedPreviewFlags: context.derivedPreviewFlags,
+        fillToLimit: context.fillToLimit,
     }),
     (a, b) =>
         a.projectId === b.projectId &&
@@ -196,6 +211,7 @@ export const evaluationRunsMetaContextSliceAtom = selectAtom(
         a.activeAppId === b.activeAppId &&
         a.includePreview === b.includePreview &&
         a.evaluationKind === b.evaluationKind &&
+        a.fillToLimit === b.fillToLimit &&
         arrayEquals(a.effectiveAppIds, b.effectiveAppIds) &&
         shallowEqualFlags(a.derivedPreviewFlags, b.derivedPreviewFlags),
 )

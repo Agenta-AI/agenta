@@ -551,10 +551,6 @@ const ListOfOrgs = ({
                                         payload?.session_identities ||
                                         payload?.sessionIdentities ||
                                         []
-                                    console.debug("[auth-upgrade] captured session identities", {
-                                        organizationId,
-                                        sessionIdentities,
-                                    })
                                     window.localStorage.setItem(
                                         "authUpgradeSessionIdentities",
                                         JSON.stringify(sessionIdentities),

@@ -11,8 +11,8 @@ from oss.src.services import db_manager, user_service
 
 
 if is_ee():
-    from ee.src.models.shared_models import Permission
-    from ee.src.utils.permissions import check_action_access
+    from ee.src.core.access.permissions.types import Permission
+    from ee.src.core.access.permissions.service import check_action_access
 
 
 router = APIRouter()

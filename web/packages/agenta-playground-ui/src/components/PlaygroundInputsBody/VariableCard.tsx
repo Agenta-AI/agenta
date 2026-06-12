@@ -451,7 +451,7 @@ export function VariableCard({
                                 fontFamily:
                                     "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
                             }}
-                            title="Not on testcase yet · saves when you fill this in and run or save."
+                            title="New prompt variable · commit the workflow to publish it."
                         >
                             draft
                         </Tag>

@@ -37,6 +37,15 @@ import QueueProgressCell from "./cells/QueueProgressCell"
 const kindColorMap: Record<string, string> = {
     traces: "blue",
     testcases: "green",
+    testsets: "purple",
+    queries: "orange",
+}
+
+const kindLabelMap: Record<string, string> = {
+    traces: "Traces",
+    testcases: "Test cases",
+    testsets: "Test set",
+    queries: "Queries",
 }
 
 const statusLabelMap: Record<string, string> = {
@@ -52,9 +61,8 @@ const statusLabelMap: Record<string, string> = {
 const ANNOTATION_QUEUES_DOCS_URL = "https://docs.agenta.ai"
 
 function formatQueueKind(kind: string | null | undefined) {
-    if (kind === "traces") return "Traces"
-    if (kind === "testcases") return "Test cases"
-    return ""
+    if (!kind) return ""
+    return kindLabelMap[kind] ?? ""
 }
 
 function resolveUserDisplayName(userId: string | null | undefined) {
@@ -291,7 +299,7 @@ const AnnotationQueuesView = ({
                     type: "text",
                     key: "name",
                     title: "Name",
-                    width: 220,
+                    width: 280,
                     columnVisibilityLocked: true,
                     render: (_value, record) => {
                         if (record.__isSkeleton) return null
@@ -315,7 +323,7 @@ const AnnotationQueuesView = ({
                         return (
                             <div className="h-full flex items-center">
                                 <Tag color={kindColorMap[kind] ?? "default"}>
-                                    {kind === "traces" ? "Traces" : "Test cases"}
+                                    {kindLabelMap[kind] ?? kind}
                                 </Tag>
                             </div>
                         )
@@ -325,7 +333,7 @@ const AnnotationQueuesView = ({
                     type: "text",
                     key: "reviewed",
                     title: "Reviewed",
-                    width: 160,
+                    width: 120,
                     render: (_value, record) => {
                         if (record.__isSkeleton) return null
                         return (
@@ -357,7 +365,7 @@ const AnnotationQueuesView = ({
                     type: "text",
                     key: "description",
                     title: "Description",
-                    width: 280,
+                    width: 200,
                     render: (_value, record) => {
                         if (record.__isSkeleton) return null
                         if (!record.description) {

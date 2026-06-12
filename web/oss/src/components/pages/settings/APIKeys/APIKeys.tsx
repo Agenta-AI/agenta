@@ -16,6 +16,12 @@ import {useOrgData} from "@/oss/state/org"
 import {Loading} from "./assets/constants"
 
 const {Text} = Typography
+const monospaceFontFamily = "ui-monospace, SFMono-Regular, Menlo, Consolas, Monaco, monospace"
+const monospaceKeyStyle = {
+    fontFamily: monospaceFontFamily,
+    letterSpacing: "0.08em",
+    fontVariantLigatures: "none",
+} as const
 
 const APIKeys: React.FC = () => {
     const [keys, setKeys] = useState<APIKey[]>([])
@@ -85,7 +91,7 @@ const APIKeys: React.FC = () => {
                 .then(({data}) => {
                     listKeys()
                     AlertPopup({
-                        width: 500,
+                        width: 650,
                         type: "success",
                         title: "API Key created",
                         message: (
@@ -94,16 +100,24 @@ const APIKeys: React.FC = () => {
                                     Make sure to copy your API Key now. You won’t be able to see it
                                     again!
                                 </div>
-                                <div className="mt-[0.5rem]">
-                                    <Text className="tracking-[0.08em]" strong type="secondary">
-                                        {data}{" "}
+                                <div className="mt-[0.5rem] flex items-center gap-2">
+                                    <span
+                                        style={{
+                                            ...monospaceKeyStyle,
+                                            color: token.colorTextSecondary,
+                                            fontWeight: 600,
+                                        }}
+                                    >
+                                        {data}
+                                    </span>
+                                    <span>
                                         <Tooltip title="Copy">
                                             <CopyOutlined
                                                 onClick={() => copyToClipboard(data)}
                                                 style={{color: token.colorPrimary}}
                                             />
                                         </Tooltip>
-                                    </Text>
+                                    </span>
                                 </div>
                             </div>
                         ),
@@ -135,9 +149,12 @@ const APIKeys: React.FC = () => {
                 key: "prefix",
                 width: 400,
                 render: (value: string) => (
-                    <Text className="tracking-[0.08em]" code>
+                    <span
+                        style={monospaceKeyStyle}
+                        className="inline-block rounded border border-[var(--ant-color-border)] bg-[var(--ant-color-fill-quaternary)] px-2 py-1 text-[inherit] leading-none"
+                    >
                         {value.padEnd(40, "*")}
-                    </Text>
+                    </span>
                 ),
             },
             {

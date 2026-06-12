@@ -214,7 +214,17 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
             placeholder={placeholder}
             disabled={disabled}
             state={disabled ? "readOnly" : state}
-            className={cn("relative", flexLayouts.column, gapClasses.xs, "rounded-md", className)}
+            // `agenta-chat-message-editor` is the styling hook used in globals.css
+            // to align the message text with the role label (see that file). The
+            // padding can't go through `editorClassName` because ChatMessageEditor
+            // renders the Editor with `noProvider`, where `className` is dropped.
+            className={cn(
+                "agenta-chat-message-editor relative",
+                flexLayouts.column,
+                gapClasses.xs,
+                "rounded-md",
+                className,
+            )}
             footer={footer}
             onFocusChange={onFocusChange}
             maxPasteChars={maxPasteChars}

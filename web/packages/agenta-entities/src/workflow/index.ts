@@ -95,6 +95,11 @@ export {
     isOnlineCapableEvaluator,
     hasFullPagePlaygroundUX,
     collectEvaluatorCandidates,
+    // Observability defaults
+    defaultTraceTypeForWorkflow,
+    type TraceTypeDefault,
+    type ObservabilityTab,
+    type WorkflowKindForTraceDefault,
     // Output schema utilities
     resolveInputSchema,
     resolveOutputSchema,
@@ -235,6 +240,9 @@ export {
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    // Artifact (workflow-level container — entity display name)
+    workflowArtifactQueryAtomFamily,
+    primeWorkflowArtifactCacheImperative,
     // Commit / Archive
     commitWorkflowRevisionAtom,
     commitWorkflowRevision,
@@ -284,6 +292,7 @@ export {
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
     fullPagePlaygroundEvaluatorsAtom,
+    nonHumanEvaluatorsAtom,
     // Templates
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,

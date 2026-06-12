@@ -18,9 +18,9 @@ from unittest.mock import patch
 
 import pytest
 
-from ee.src.core.entitlements.types import Period
+from ee.src.core.access.entitlements.types import Period
 from ee.src.core.meters.types import MeterPeriod
-from ee.src.utils.entitlements import period_from
+from ee.src.core.access.entitlements.service import period_from
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@ def test_period_yearly_sets_only_year():
     """YEARLY buckets the meter by year. Month/day must stay None so
     every row in the same year shares a `meter_id`."""
     fake_now = datetime(2026, 5, 18, 12, 0, 0, tzinfo=timezone.utc)
-    with patch("ee.src.utils.entitlements.datetime") as mock_dt:
+    with patch("ee.src.core.access.entitlements.service.datetime") as mock_dt:
         mock_dt.now.return_value = fake_now
         mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
         p = period_from(period=Period.YEARLY)
@@ -65,7 +65,7 @@ def test_period_yearly_sets_only_year():
 def test_period_monthly_sets_year_and_month_without_anchor():
     """MONTHLY without an anchor returns the calendar (year, month)."""
     fake_now = datetime(2026, 5, 18, 12, 0, 0, tzinfo=timezone.utc)
-    with patch("ee.src.utils.entitlements.datetime") as mock_dt:
+    with patch("ee.src.core.access.entitlements.service.datetime") as mock_dt:
         mock_dt.now.return_value = fake_now
         mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
         p = period_from(period=Period.MONTHLY)
@@ -78,7 +78,7 @@ def test_period_monthly_advances_when_day_meets_anchor():
     """MONTHLY with `anchor=N` and `now.day >= N` rolls into next month
     — Stripe-style anchor semantics. Day=18, anchor=15 advances to June."""
     fake_now = datetime(2026, 5, 18, 12, 0, 0, tzinfo=timezone.utc)
-    with patch("ee.src.utils.entitlements.datetime") as mock_dt:
+    with patch("ee.src.core.access.entitlements.service.datetime") as mock_dt:
         mock_dt.now.return_value = fake_now
         mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
         p = period_from(period=Period.MONTHLY, anchor=15)
@@ -90,7 +90,7 @@ def test_period_monthly_advances_when_day_meets_anchor():
 def test_period_monthly_stays_when_day_before_anchor():
     """MONTHLY with `now.day < anchor` stays in the current period."""
     fake_now = datetime(2026, 5, 10, 12, 0, 0, tzinfo=timezone.utc)
-    with patch("ee.src.utils.entitlements.datetime") as mock_dt:
+    with patch("ee.src.core.access.entitlements.service.datetime") as mock_dt:
         mock_dt.now.return_value = fake_now
         mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
         p = period_from(period=Period.MONTHLY, anchor=15)
@@ -102,7 +102,7 @@ def test_period_monthly_stays_when_day_before_anchor():
 def test_period_monthly_year_rollover_with_anchor():
     """Dec 20 + anchor=15 → next period is (2027, 1)."""
     fake_now = datetime(2026, 12, 20, 12, 0, 0, tzinfo=timezone.utc)
-    with patch("ee.src.utils.entitlements.datetime") as mock_dt:
+    with patch("ee.src.core.access.entitlements.service.datetime") as mock_dt:
         mock_dt.now.return_value = fake_now
         mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
         p = period_from(period=Period.MONTHLY, anchor=15)
@@ -118,7 +118,7 @@ def test_period_monthly_year_rollover_with_anchor():
 def test_period_daily_sets_full_calendar_date():
     """DAILY buckets the meter by full calendar day."""
     fake_now = datetime(2026, 5, 18, 12, 0, 0, tzinfo=timezone.utc)
-    with patch("ee.src.utils.entitlements.datetime") as mock_dt:
+    with patch("ee.src.core.access.entitlements.service.datetime") as mock_dt:
         mock_dt.now.return_value = fake_now
         mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
         p = period_from(period=Period.DAILY)
@@ -130,7 +130,7 @@ def test_period_daily_ignores_anchor():
     """DAILY is calendar-day-aligned; anchor only applies to MONTHLY.
     Same input with and without an anchor must produce the same bucket."""
     fake_now = datetime(2026, 5, 18, 12, 0, 0, tzinfo=timezone.utc)
-    with patch("ee.src.utils.entitlements.datetime") as mock_dt:
+    with patch("ee.src.core.access.entitlements.service.datetime") as mock_dt:
         mock_dt.now.return_value = fake_now
         mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
         p_without = period_from(period=Period.DAILY)

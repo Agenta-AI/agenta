@@ -1,6 +1,5 @@
 from copy import deepcopy
 from datetime import datetime
-from uuid import UUID
 
 import pytest
 
@@ -116,12 +115,10 @@ def test_parse_id_helpers_raise_on_invalid_values(fn, value):
 
 
 def test_parse_uuid_to_wire_ids():
-    trace_uuid = UUID(TRACE_UUID)
-    span_uuid = UUID(SPAN_UUID)
-
-    assert parse_trace_id_from_uuid(trace_uuid) == TRACE_HEX
+    # The DTO/domain layer holds trace/span ids as canonical hex strings, so
+    # these parsers take a str. UUID-style (dashed) input is accepted too,
+    # since str(UUID(...)) normalizes it.
     assert parse_trace_id_from_uuid(TRACE_UUID) == TRACE_HEX
-    assert parse_span_id_from_uuid(span_uuid) == SPAN_HEX
     assert parse_span_id_from_uuid(SPAN_UUID) == SPAN_HEX
 
 

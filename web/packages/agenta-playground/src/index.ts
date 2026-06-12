@@ -65,6 +65,8 @@ export {displayedEntityIdsAtom, playgroundInitializedAtom} from "./state"
 // Testset import mutation (consumed by OSS testset integration)
 export {loadTestsetNormalizedMutationAtom} from "./state"
 
+export {filterUnreferencedColumnsForSource} from "./state"
+
 // ============================================================================
 // ENTITY CONTEXT (Dependency Injection)
 // ============================================================================
@@ -80,7 +82,7 @@ export type {PlaygroundEntityProviders} from "./state"
 export type {PlaygroundTestResult, PlaygroundNode} from "./state"
 export type {ChatMessage, SimpleChatMessage, MessageTarget} from "./state"
 export type {ChainExecutionResult, ChainNodeInfo} from "./state"
-export type {OpenFromTraceResult} from "./state"
+export type {ConnectToTestsetPayload, OpenFromTraceResult} from "./state"
 
 // ============================================================================
 // TRACE REFERENCE RESOLUTION (shared with OSS trace drawer UI gate)

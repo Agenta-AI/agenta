@@ -1,7 +1,7 @@
 import {memo, useEffect, useMemo, useState} from "react"
 
 import {DownOutlined} from "@ant-design/icons"
-import {Button, Segmented, Typography} from "antd"
+import {Button, Segmented, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -13,7 +13,7 @@ import {toIdString} from "../utils"
 
 import {ReadOnlySkeleton} from "./CopyableFields"
 import PromptConfigCard from "./PromptConfigCard"
-import {SectionCard, SectionSkeleton} from "./SectionPrimitives"
+import {DefList, DefRow, SectionCard, SectionSkeleton} from "./SectionPrimitives"
 
 const {Text} = Typography
 const JsonEditor = dynamic(() => import("@agenta/ui/editor").then((module) => module.Editor), {
@@ -21,9 +21,20 @@ const JsonEditor = dynamic(() => import("@agenta/ui/editor").then((module) => mo
 })
 interface InvocationSectionProps {
     runId: string
+    /** V2 layout: render definition-list rows only (the shell owns the card). */
+    embedded?: boolean
+    /** Controlled Details/JSON view (V2 shell owns the segmented control). */
+    view?: "details" | "json"
+    /** Compare mode: per-row differs flags vs the base run. */
+    diff?: {app?: boolean; variant?: boolean} | null
 }
 
-const InvocationSection = ({runId}: InvocationSectionProps) => {
+const InvocationSection = ({
+    runId,
+    embedded = false,
+    view: controlledView,
+    diff,
+}: InvocationSectionProps) => {
     const invocationRefs = useAtomValue(useMemo(() => runInvocationRefsAtomFamily(runId), [runId]))
     const rawRefs = useMemo(
         () => invocationRefs?.rawRefs ?? ({} as Record<string, any>),
@@ -113,33 +124,108 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
 
     const [collapsed, setCollapsed] = useState(false)
 
+    const variantConfigJson = useMemo(
+        () => (variantConfig ? JSON.stringify(variantConfig, null, 2) : ""),
+        [variantConfig],
+    )
+
     // When the app/variant is deleted, the URL (openapi schema endpoint) won't be available.
     // In this case, we cannot render the component view and should default to JSON view.
     // We only know the schema is unavailable after loading completes.
     const hasSchemaAvailable = Boolean(variantConfig?.url)
     const schemaDefinitelyUnavailable =
         !isVariantLoading && !variantLoading && variantConfig && !variantConfig.url
-    const [view, setView] = useState<"details" | "json">("details")
+    const [internalView, setView] = useState<"details" | "json">("details")
+    const view = controlledView ?? internalView
 
     // Sync view state when we definitively know schema is unavailable (after loading completes)
     useEffect(() => {
-        if (schemaDefinitelyUnavailable && view === "details") {
+        if (schemaDefinitelyUnavailable && !controlledView && internalView === "details") {
             setView("json")
         }
-    }, [schemaDefinitelyUnavailable, view])
+    }, [schemaDefinitelyUnavailable, controlledView, internalView])
 
     if (!rawRefs || Object.keys(rawRefs).length === 0) return null
     if (isVariantLoading || variantLoading) {
         return <SectionSkeleton lines={4} />
     }
 
+    if (embedded) {
+        const jsonBlock = variantConfig ? (
+            <div className="rounded-md border border-solid border-[var(--ag-c-E4E7EC)] bg-[var(--ag-c-F8FAFC)]">
+                <JsonEditor
+                    initialValue={variantConfigJson}
+                    language="json"
+                    codeOnly
+                    showToolbar={false}
+                    disabled
+                    enableResize={false}
+                    boundWidth
+                    dimensions={{width: "100%", height: 320}}
+                />
+            </div>
+        ) : (
+            <Text type="secondary">Variant configuration unavailable.</Text>
+        )
+
+        return (
+            <div className="flex flex-col gap-3">
+                <DefList>
+                    <DefRow label="Application" differs={diff?.app}>
+                        <ApplicationReferenceLabel runId={runId} applicationId={applicationId} />
+                    </DefRow>
+                    <DefRow label="Variant" differs={diff?.variant}>
+                        {variantId || revisionId ? (
+                            <VariantRevisionLabel
+                                variantId={variantId}
+                                revisionId={revisionId}
+                                applicationId={applicationId}
+                                runId={runId}
+                                fallbackVariantName={variantLabel}
+                                fallbackRevision={variantVersion}
+                            />
+                        ) : variantLabel ? (
+                            <span className="text-sm text-[var(--ag-c-475467)]">
+                                {variantLabel}
+                            </span>
+                        ) : (
+                            <Text type="secondary">—</Text>
+                        )}
+                    </DefRow>
+                    <DefRow label="Type">
+                        <Tag className="!m-0">
+                            {hasSchemaAvailable ? "Workflow" : "Custom workflow"}
+                        </Tag>
+                        {!hasSchemaAvailable ? (
+                            <Text type="secondary" className="text-[12.5px]">
+                                No playground schema — snapshot available as JSON
+                            </Text>
+                        ) : null}
+                    </DefRow>
+                </DefList>
+                {view === "json" || !hasSchemaAvailable ? (
+                    jsonBlock
+                ) : (
+                    <VariantConfigurationBlock
+                        isLoading={isVariantLoading || variantLoading}
+                        hasVariantConfig={Boolean(variantConfig)}
+                        promptVariantKey={promptVariantKey}
+                        variantParameters={variantConfig?.params}
+                        variantDisplayId={variantDisplayId}
+                        variantName={variantName}
+                        variantSlug={variantSlug}
+                        variantResolved={variantResolved}
+                        variantVersion={variantVersion}
+                        hasParamsSnapshot={hasParamsSnapshot}
+                    />
+                )}
+            </div>
+        )
+    }
+
     const headerContent = (
         <div className="flex flex-wrap items-center gap-2">
-            <ApplicationReferenceLabel
-                runId={runId}
-                applicationId={applicationId}
-                toneOverride={null}
-            />
+            <ApplicationReferenceLabel runId={runId} applicationId={applicationId} />
             {variantId || revisionId ? (
                 <VariantRevisionLabel
                     variantId={variantId}
@@ -148,7 +234,6 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
                     runId={runId}
                     fallbackVariantName={variantLabel}
                     fallbackRevision={variantVersion}
-                    toneOverride={null}
                 />
             ) : variantLabel ? (
                 <span className="text-sm text-[var(--ag-c-475467)]">{variantLabel}</span>
@@ -185,7 +270,7 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
                 view === "json" && variantConfig ? (
                     <div className="rounded-md border border-solid border-[var(--ag-c-E4E7EC)] bg-[var(--ag-c-F8FAFC)]">
                         <JsonEditor
-                            initialValue={JSON.stringify(variantConfig, null, 2)}
+                            initialValue={variantConfigJson}
                             language="json"
                             codeOnly
                             showToolbar={false}
@@ -197,7 +282,6 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
                     </div>
                 ) : (
                     <VariantConfigurationBlock
-                        title={null}
                         isLoading={isVariantLoading || variantLoading}
                         hasVariantConfig={Boolean(variantConfig)}
                         promptVariantKey={promptVariantKey}
@@ -227,7 +311,6 @@ const VariantConfigurationBlock = memo(
         variantResolved,
         variantVersion,
         hasParamsSnapshot,
-        title,
     }: {
         isLoading: boolean
         hasVariantConfig: boolean
@@ -249,15 +332,12 @@ const VariantConfigurationBlock = memo(
         }
 
         return (
-            <div className="flex flex-col gap-2">
-                {title ? <div>{title}</div> : null}
-                <PromptConfigCard
-                    className="flex flex-col gap-3"
-                    variantId={promptVariantKey ?? undefined}
-                    parameters={variantParameters}
-                    hasSnapshot={hasParamsSnapshot}
-                />
-            </div>
+            <PromptConfigCard
+                className="flex flex-col gap-3"
+                variantId={promptVariantKey ?? undefined}
+                parameters={variantParameters}
+                hasSnapshot={hasParamsSnapshot}
+            />
         )
     },
 )

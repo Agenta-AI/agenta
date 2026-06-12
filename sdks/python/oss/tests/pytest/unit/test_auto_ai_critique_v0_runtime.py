@@ -44,7 +44,23 @@ def _noop_aws_credentials(_provider_settings):
 
 
 @pytest.fixture
-def mocked_llm_call():
+def initialized_sdk():
+    """Initialize the SDK so the litellm callback isn't configured pre-init.
+
+    The handlers lazily configure litellm on first use, which calls
+    ``litellm_handler()`` — and that emits a ``RuntimeWarning`` when ``ag.tracing``
+    is unset. ``ag.init()`` runs offline (no network) and sets ``ag.tracing``,
+    keeping these tests warning-free. Scoped to the LLM-touching tests via
+    ``mocked_llm_call`` rather than applied autouse.
+    """
+    import agenta as ag
+
+    ag.init()
+    yield
+
+
+@pytest.fixture
+def mocked_llm_call(initialized_sdk):
     """Mock the LLM call boundary without touching the network."""
 
     captured: dict = {}
