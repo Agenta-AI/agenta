@@ -64,3 +64,23 @@ export {
     type EvaluationRunsTableOverrides,
 } from "./components/RunsTable"
 export {invalidateEvaluationRunsTableAtom} from "./components/RunsTable/atoms/tableStore"
+
+// ── eval run-details view (relocated from OSS EvalRunDetails — WP-4h-5) ─────────
+export {default as EvalRunDetailsPage} from "./components/RunDetails/components/Page"
+export {default as EvalRunFocusDrawerMount} from "./components/RunDetails/components/EvalRunFocusDrawerMount"
+// Annotation field renderer (consumed by the OSS AnnotateDrawer collapse content).
+export {AnnotationFieldRenderer} from "./components/RunDetails/components/views/SingleScenarioViewerPOC/ScenarioAnnotationPanel/AnnotationInputs"
+// Config-view windowing/sampling formatters (consumed by the OSS QueryCells reference cell).
+export {
+    formatSamplingRate,
+    formatWindowRange,
+} from "./components/RunDetails/components/views/ConfigurationView/utils"
+// Focus-drawer URL-sync atoms (consumed by the OSS focus-drawer URL state module).
+export {
+    openFocusDrawerAtom,
+    focusDrawerAtom,
+    resetFocusDrawerAtom,
+    setFocusDrawerTargetAtom,
+} from "./components/RunDetails/state/focusDrawerAtom"
+// Global annotate-drawer state atom (relocated here; consumed by the run-details view).
+export {virtualScenarioTableAnnotateDrawerAtom} from "./components/RunDetails/state/virtualScenarioTableAnnotateDrawer"

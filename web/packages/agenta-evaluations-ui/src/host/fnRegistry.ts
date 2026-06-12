@@ -15,6 +15,10 @@
  *
  * @packageDocumentation
  */
+/* eslint-disable @typescript-eslint/no-explicit-any -- relocated annotation transform/service
+   seams own heavily-`any` OSS payload shapes; the names are the contract (see §11.4). */
+
+import type {ComponentType} from "react"
 
 /** URL-readiness options the OSS `waitForValidURL` accepts. */
 export interface WaitForUrlOptions {
@@ -68,6 +72,36 @@ export interface EvalViewFns {
      * renders. Loosely typed at the seam — the OSS impl owns `Filter`.
      */
     fromFilteringPayload: (payload?: unknown) => unknown[]
+
+    // ── RunDetails view seams (WP-4h-5) ──
+    /** `@/oss/lib/helpers/dateTimeHelper` `formatDate24`. */
+    formatDate24: (value: string | number | Date | null | undefined) => string
+    /** `@/oss/services/annotations/api` `createAnnotation` (loose OSS payload shape). */
+    createAnnotation: (payload: any) => Promise<any>
+    /** `@/oss/services/annotations/api` `updateAnnotation` (loose OSS payload shape). */
+    updateAnnotation: (payload: any) => Promise<any>
+    /** `@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms` `transformMetadata`. */
+    transformMetadata: (args: {data: any}) => any
+    /** transforms `generateAnnotationPayloadData`. */
+    generateAnnotationPayloadData: (args: any) => any
+    /** transforms `generateNewAnnotationPayloadData`. */
+    generateNewAnnotationPayloadData: (args: any) => any
+    /** transforms `getInitialMetricsFromAnnotations`. */
+    getInitialMetricsFromAnnotations: (args: any) => any
+    /**
+     * `@/oss/components/EditorViews/SimpleSharedEditor` — supplied as a component value so the
+     * non-React `renderChatMessages` builder can instantiate it. The `simple` editor branch is
+     * not exercised by the current RunDetails callers (all pass `view: "table"`), but the seam
+     * keeps the builder self-contained.
+     */
+    SimpleSharedEditor: ComponentType<any>
+    /**
+     * `@/oss/components/pages/evaluations/onlineEvaluation/constants` `EVALUATOR_CATEGORY_LABEL_MAP`
+     * — a `{slug.toLowerCase(): label}` map derived from the OSS legacy evaluator tags. Supplied
+     * as a value so the config view can build its evaluator-type lookup without importing the
+     * OSS legacy chain (`getEvaluatorTags`).
+     */
+    evaluatorCategoryLabelMap: Record<string, string>
 }
 
 const noopWarn = (name: string) => {
@@ -107,6 +141,41 @@ const defaults: EvalViewFns = {
         noopWarn("fromFilteringPayload")
         return []
     },
+    formatDate24: (value) => {
+        noopWarn("formatDate24")
+        if (value === null || value === undefined) return ""
+        try {
+            return new Date(value).toISOString()
+        } catch {
+            return String(value)
+        }
+    },
+    createAnnotation: async () => {
+        noopWarn("createAnnotation")
+        return null
+    },
+    updateAnnotation: async () => {
+        noopWarn("updateAnnotation")
+        return null
+    },
+    transformMetadata: ({data}) => {
+        noopWarn("transformMetadata")
+        return data
+    },
+    generateAnnotationPayloadData: (args) => {
+        noopWarn("generateAnnotationPayloadData")
+        return args
+    },
+    generateNewAnnotationPayloadData: (args) => {
+        noopWarn("generateNewAnnotationPayloadData")
+        return args
+    },
+    getInitialMetricsFromAnnotations: () => {
+        noopWarn("getInitialMetricsFromAnnotations")
+        return {}
+    },
+    SimpleSharedEditor: () => null,
+    evaluatorCategoryLabelMap: {},
 }
 
 let registered: EvalViewFns = {...defaults}

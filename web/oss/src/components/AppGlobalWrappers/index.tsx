@@ -33,7 +33,15 @@ const TraceDrawer = dynamic(
 )
 
 const EvalRunFocusDrawerPreview = dynamic(
-    () => import("@/oss/components/EvalRunDetails/components/EvalRunFocusDrawerMount"),
+    () => import("@agenta/evaluations-ui").then((m) => m.EvalRunFocusDrawerMount),
+    {ssr: false},
+)
+
+// The focus-drawer mount lives inside `@agenta/evaluations-ui` and consumes the eval-view
+// host (GenericDrawer slot + atom/fn seams). It mounts GLOBALLY here, outside the eval route
+// shell, so it needs its own host boundary or it throws at mount (`useHostComponent`).
+const EvalRunDetailsViewHost = dynamic(
+    () => import("@/oss/components/pages/evaluations/EvalRunDetailsViewHost"),
     {ssr: false},
 )
 
@@ -204,7 +212,9 @@ const AppGlobalWrappers = () => {
         <EntityModalsProvider>
             <NavigationCommandListener />
             <TraceDrawer />
-            <EvalRunFocusDrawerPreview />
+            <EvalRunDetailsViewHost>
+                <EvalRunFocusDrawerPreview />
+            </EvalRunDetailsViewHost>
             <DeleteAppModalWrapper />
             <EditAppModalWrapper />
             <WorkflowRevisionDrawerWrapper />

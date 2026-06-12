@@ -440,6 +440,29 @@ export const injectedWorkspaceMemberByIdFamilyAtom = atom<InjectedWorkspaceMembe
     null,
 )
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Injected shape: navigation-request atom (RunDetails focus-drawer URL sync — WP-4h-5)
+//
+// The relocated focus-drawer URL sync (`RunDetails/state/urlFocusDrawer.ts`) imperatively
+// READS the OSS `navigationRequestAtom` (`@/oss/state/appState`) to detect a pending
+// query-patch navigation before resetting drawer state. Rather than relocate the OSS
+// navigation atom (owned by the app-state layer + consumed by `AppGlobalWrappers`), the OSS
+// host injects the atom REFERENCE here; the package reads it via
+// `store.get(injectedNavigationRequestAtom)` then `store.get(thatAtom)`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Minimal navigation-command shape the focus-drawer sync inspects (`type`/`patch`). */
+export interface InjectedNavigationCommand {
+    type: string
+    patch?: Record<string, unknown>
+    [key: string]: unknown
+}
+
+/** Injected OSS `navigationRequestAtom` reference. Default `null` (no pending nav read). */
+export const injectedNavigationRequestAtom = atom<Atom<InjectedNavigationCommand | null> | null>(
+    null,
+)
+
 // Onboarding-widget seams (the run-list opens the SDK-eval create modal off a widget event).
 /** Injected `onboardingWidgetActivationAtom` (read). Default `null`. */
 export const injectedOnboardingWidgetActivationAtom = atom<string | null>(null)
@@ -481,6 +504,8 @@ export interface EvalRunInjections {
     onboardingWidgetActivation?: string | null
     setOnboardingWidgetActivation?: (value: string | null) => void
     recordWidgetEvent?: (eventId: string) => void
+    // ── RunDetails view seam (WP-4h-5) ──
+    navigationRequest?: Atom<InjectedNavigationCommand | null> | null
 }
 
 /**
@@ -553,6 +578,9 @@ export const registerEvalRunInjections: WritableAtom<null, [EvalRunInjections], 
         }
         if (injections.recordWidgetEvent !== undefined) {
             set(injectedRecordWidgetEventAtom, injections.recordWidgetEvent)
+        }
+        if (injections.navigationRequest !== undefined) {
+            set(injectedNavigationRequestAtom, injections.navigationRequest)
         }
     },
 )

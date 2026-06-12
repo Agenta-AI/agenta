@@ -1,6 +1,6 @@
 import {memo} from "react"
 
-import {AnnotationFieldRenderer} from "@/oss/components/EvalRunDetails/components/views/SingleScenarioViewerPOC/ScenarioAnnotationPanel/AnnotationInputs"
+import {AnnotationFieldRenderer} from "@agenta/evaluations-ui"
 
 import {AnnotateCollapseContentProps} from "../types"
 
