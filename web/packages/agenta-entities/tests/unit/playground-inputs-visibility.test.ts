@@ -12,9 +12,12 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {splitInputsVisibility} from "../../../agenta-playground/src/state/execution/visibility"
+import {
+    filterUnreferencedColumnsForSource,
+    splitInputsVisibility,
+} from "../../../agenta-playground/src/state/execution/visibility"
 
-describe("splitInputsVisibility — referenced vs draft vs unreferenced", () => {
+describe("splitInputsVisibility — referenced vs unreferenced", () => {
     describe("referenced + testcase intersection", () => {
         it("returns inputs in referencedKeys order with their testcase values", () => {
             const result = splitInputsVisibility({
@@ -43,8 +46,8 @@ describe("splitInputsVisibility — referenced vs draft vs unreferenced", () => 
         })
     })
 
-    describe("draft variables (referenced but absent from testcase)", () => {
-        it("annotates referenced names missing from testcase as isDraft: true", () => {
+    describe("referenced variables absent from testcase", () => {
+        it("keeps referenced names missing from testcase as plain inputs", () => {
             const result = splitInputsVisibility({
                 referencedKeys: ["country", "iso_code"],
                 testcaseData: {country: "Vanuatu"},
@@ -52,19 +55,32 @@ describe("splitInputsVisibility — referenced vs draft vs unreferenced", () => 
 
             expect(result.inputs).toEqual([
                 {name: "country", value: "Vanuatu"},
-                {name: "iso_code", value: undefined, isDraft: true},
+                {name: "iso_code", value: undefined},
             ])
         })
 
-        it("keeps draft order with referenced order (no reshuffling)", () => {
+        it("keeps missing input order with referenced order (no reshuffling)", () => {
             const result = splitInputsVisibility({
                 referencedKeys: ["a", "b", "c"],
                 testcaseData: {b: 2},
             })
             expect(result.inputs.map((i) => `${i.name}:${i.isDraft ?? false}`)).toEqual([
-                "a:true",
+                "a:false",
                 "b:false",
-                "c:true",
+                "c:false",
+            ])
+        })
+
+        it("marks only keys supplied by the uncommitted workflow delta as draft", () => {
+            const result = splitInputsVisibility({
+                referencedKeys: ["committed", "newVariable"],
+                draftKeys: ["newVariable"],
+                testcaseData: {newVariable: "typed"},
+            })
+
+            expect(result.inputs).toEqual([
+                {name: "committed", value: undefined},
+                {name: "newVariable", value: "typed", isDraft: true},
             ])
         })
 
@@ -78,15 +94,24 @@ describe("splitInputsVisibility — referenced vs draft vs unreferenced", () => 
         })
 
         it("treats a key present with `undefined` as NOT draft (it's authored)", () => {
-            // Distinction matters: a testcase row that explicitly carries
-            // the key (even as undefined) is "authored, just empty". The
-            // draft state is for keys MISSING from the row entirely.
             const result = splitInputsVisibility({
                 referencedKeys: ["x"],
                 testcaseData: {x: undefined},
             })
             expect(result.inputs[0]).toEqual({name: "x", value: undefined})
             expect(result.inputs[0].isDraft).toBeUndefined()
+        })
+
+        it("treats a key present with empty containers as NOT draft", () => {
+            const result = splitInputsVisibility({
+                referencedKeys: ["geo", "items"],
+                testcaseData: {geo: {}, items: []},
+            })
+            expect(result.inputs).toEqual([
+                {name: "geo", value: {}},
+                {name: "items", value: []},
+            ])
+            expect(result.inputs.every((i) => !i.isDraft)).toBe(true)
         })
     })
 
@@ -121,6 +146,26 @@ describe("splitInputsVisibility — referenced vs draft vs unreferenced", () => 
             })
             expect(result.unreferencedColumns).toEqual([])
         })
+
+        it("hides unreferenced columns for local unsynced playground rows", () => {
+            const result = splitInputsVisibility({
+                referencedKeys: [],
+                testcaseData: {removedPromptVariable: "draft text"},
+            })
+
+            expect(filterUnreferencedColumnsForSource(result.unreferencedColumns, null)).toEqual([])
+        })
+
+        it("keeps unreferenced columns visible for connected testset rows", () => {
+            const result = splitInputsVisibility({
+                referencedKeys: ["prompt"],
+                testcaseData: {prompt: "hello", expected: "world"},
+            })
+
+            expect(
+                filterUnreferencedColumnsForSource(result.unreferencedColumns, "testset-rev-1"),
+            ).toEqual([{name: "expected", value: "world"}])
+        })
     })
 
     describe("edge cases", () => {
@@ -143,14 +188,14 @@ describe("splitInputsVisibility — referenced vs draft vs unreferenced", () => 
             ])
         })
 
-        it("non-empty referenced + empty testcase → all referenced are drafts", () => {
+        it("non-empty referenced + empty testcase → all referenced are plain missing inputs", () => {
             const result = splitInputsVisibility({
                 referencedKeys: ["x", "y"],
                 testcaseData: {},
             })
             expect(result.inputs).toEqual([
-                {name: "x", value: undefined, isDraft: true},
-                {name: "y", value: undefined, isDraft: true},
+                {name: "x", value: undefined},
+                {name: "y", value: undefined},
             ])
             expect(result.unreferencedColumns).toEqual([])
         })

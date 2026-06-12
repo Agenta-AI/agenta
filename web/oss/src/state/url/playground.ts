@@ -1,6 +1,7 @@
 // Import workflow to ensure the snapshot adapter is registered
 import "@agenta/entities/workflow"
 
+import {loadableController} from "@agenta/entities/loadable"
 import {
     workflowMolecule,
     workflowRevisionsByWorkflowListDataAtomFamily,
@@ -930,6 +931,12 @@ playgroundSyncAtom.onMount = (set) => {
 
         if (isPlaygroundRoute) {
             if (appChanged) {
+                // The testcase row store is global (shared across loadables),
+                // so the previous app's draft rows would otherwise appear in
+                // the new app's playground. Reset it before clearing the
+                // selection; the new app's linkToRunnable seeds a fresh empty
+                // row once the store is empty.
+                store.set(loadableController.actions.resetRowsForAppSwitch)
                 store.set(playgroundController.actions.setEntityIds, [])
                 currentSelected = []
             }
@@ -1129,7 +1136,12 @@ playgroundSyncAtom.onMount = (set) => {
     // draft state is still persisted to localStorage as a fallback.
     // Uses playgroundSnapshotController.createSnapshot for entity-type-agnostic
     // snapshot building (works for workflow, ephemeral workflow, etc.)
-    const DRAFT_SNAPSHOT_KEY = "agenta:playground-draft-snapshot"
+    // Scope the key to the current app so that draft state from one app never
+    // bleeds into another app's session (cross-app contamination fix).
+    const getDraftSnapshotKey = () => {
+        const appId = store.get(routerAppIdAtom) as string | null
+        return `agenta:playground-draft-snapshot${appId ? `:${appId}` : ""}`
+    }
 
     let persistDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -1137,7 +1149,7 @@ playgroundSyncAtom.onMount = (set) => {
         try {
             const entityIds = store.get(playgroundController.selectors.entityIds())
             if (entityIds.length === 0) {
-                localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
+                localStorage.removeItem(getDraftSnapshotKey())
                 return
             }
 
@@ -1156,14 +1168,14 @@ playgroundSyncAtom.onMount = (set) => {
 
                 if (hasDraftChanges) {
                     localStorage.setItem(
-                        DRAFT_SNAPSHOT_KEY,
+                        getDraftSnapshotKey(),
                         JSON.stringify({
                             snapshot: result.snapshot,
                             timestamp: Date.now(),
                         }),
                     )
                 } else {
-                    localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
+                    localStorage.removeItem(getDraftSnapshotKey())
                 }
             }
         } catch (err) {
@@ -1226,12 +1238,12 @@ playgroundSyncAtom.onMount = (set) => {
         // Read the persisted full snapshot from localStorage
         let persistedSnapshot: PlaygroundSnapshot | null = null
         try {
-            const raw = localStorage.getItem(DRAFT_SNAPSHOT_KEY)
+            const raw = localStorage.getItem(getDraftSnapshotKey())
             if (raw) {
                 const parsed = JSON.parse(raw)
                 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
                 if (parsed?.timestamp && Date.now() - parsed.timestamp > SEVEN_DAYS_MS) {
-                    localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
+                    localStorage.removeItem(getDraftSnapshotKey())
                 } else if (parsed?.snapshot) {
                     persistedSnapshot = parsed.snapshot as PlaygroundSnapshot
                 }

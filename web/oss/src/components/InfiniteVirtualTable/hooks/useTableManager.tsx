@@ -26,27 +26,18 @@ import useTableExport from "./useTableExport"
 /** Stable no-op atom used when no external search atom is provided (hooks can't be conditional) */
 const dummySearchAtom = atom("")
 
+const INTERACTIVE_SELECTOR =
+    "button, a, input, textarea, select, [role='button'], [role='menuitem'], [role='checkbox'], " +
+    ".ant-btn, .ant-checkbox, .ant-checkbox-input, .ant-checkbox-inner, .ant-checkbox-wrapper, " +
+    ".ant-select, .ant-dropdown-trigger, .ant-table-selection-column, .ag-table-actions-cell"
+
 /**
- * Helper to detect if a click event should be ignored for row navigation
- * Returns true if the click was on an interactive element (button, link, dropdown, etc.)
+ * Returns true when the click originated from an interactive element (button, link,
+ * dropdown, checkbox, etc.) and should not bubble up to the row navigation handler.
  */
 export const shouldIgnoreRowClick = (event: MouseEvent<HTMLElement>): boolean => {
-    const target = event.target as HTMLElement
-
-    // Check if clicking on interactive elements
-    if (
-        target.closest("button") ||
-        target.closest("a") ||
-        target.closest(".ant-dropdown-trigger") ||
-        target.closest(".ant-checkbox-wrapper") ||
-        target.closest(".ant-select") ||
-        target.closest("input") ||
-        target.closest("textarea")
-    ) {
-        return true
-    }
-
-    return false
+    const target = event.target as HTMLElement | null
+    return Boolean(target?.closest(INTERACTIVE_SELECTOR))
 }
 
 /** Configuration for built-in search. When provided, the hook manages search state internally. */

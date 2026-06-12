@@ -63,27 +63,51 @@ _COMPUTE_CHUNK = sa.text("""
         COALESCE((r.flags ->> 'has_human')::boolean, false)     AS has_human,
         EXISTS (
             SELECT 1
-            FROM jsonb_array_elements(COALESCE(r.data::jsonb -> 'steps', '[]'::jsonb)) AS step
+            FROM jsonb_array_elements(
+                CASE
+                    WHEN jsonb_typeof(r.data::jsonb -> 'steps') = 'array'
+                    THEN r.data::jsonb -> 'steps'
+                    ELSE '[]'::jsonb
+                END
+            ) AS step
             WHERE step ->> 'type' = 'input'
               AND COALESCE(step -> 'references', '{}'::jsonb) = '{}'::jsonb
               AND lower(COALESCE(step ->> 'key', '')) IN ('traces', 'query-direct')
         )                                                       AS has_traces,
         EXISTS (
             SELECT 1
-            FROM jsonb_array_elements(COALESCE(r.data::jsonb -> 'steps', '[]'::jsonb)) AS step
+            FROM jsonb_array_elements(
+                CASE
+                    WHEN jsonb_typeof(r.data::jsonb -> 'steps') = 'array'
+                    THEN r.data::jsonb -> 'steps'
+                    ELSE '[]'::jsonb
+                END
+            ) AS step
             WHERE step ->> 'type' = 'input'
               AND COALESCE(step -> 'references', '{}'::jsonb) = '{}'::jsonb
               AND lower(COALESCE(step ->> 'key', '')) IN ('testcases', 'testset-direct')
         )                                                       AS has_testcases,
         EXISTS (
             SELECT 1
-            FROM jsonb_array_elements(COALESCE(r.data::jsonb -> 'steps', '[]'::jsonb)) AS step
+            FROM jsonb_array_elements(
+                CASE
+                    WHEN jsonb_typeof(r.data::jsonb -> 'steps') = 'array'
+                    THEN r.data::jsonb -> 'steps'
+                    ELSE '[]'::jsonb
+                END
+            ) AS step
             WHERE step ->> 'type' = 'input'
               AND COALESCE(step -> 'references', '{}'::jsonb) ? 'query_revision'
         )                                                       AS has_queries,
         EXISTS (
             SELECT 1
-            FROM jsonb_array_elements(COALESCE(r.data::jsonb -> 'steps', '[]'::jsonb)) AS step
+            FROM jsonb_array_elements(
+                CASE
+                    WHEN jsonb_typeof(r.data::jsonb -> 'steps') = 'array'
+                    THEN r.data::jsonb -> 'steps'
+                    ELSE '[]'::jsonb
+                END
+            ) AS step
             WHERE step ->> 'type' = 'input'
               AND COALESCE(step -> 'references', '{}'::jsonb) ? 'testset_revision'
         )                                                       AS has_testsets,
