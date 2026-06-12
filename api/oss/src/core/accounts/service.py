@@ -39,7 +39,6 @@ from oss.src.services.db_manager import (
     admin_delete_accounts_batch as _db_delete_accounts_batch,
     admin_delete_user_with_cascade as _db_delete_user_with_cascade,
     admin_transfer_org_ownership_batch as _db_transfer_org_ownership_batch,
-    OSS_SINGLETON_ORG_SLUG,
 )
 from oss.src.core.environments.defaults import (
     create_default_environments as _create_default_environments,
@@ -933,43 +932,12 @@ class PlatformAdminAccountsService:
             for user_id in user_ids:
                 owned = await _db_get_orgs_owned_by_user(user_id)
                 for org in owned:
-                    # On OSS the singleton org is shared across every user;
-                    # cascading-delete it because some user happens to own
-                    # it would tear down the whole tenant.
-                    if not is_ee() and org.slug == OSS_SINGLETON_ORG_SLUG:
-                        continue
                     if org.id not in org_ids:
                         org_ids.append(org.id)
-
-        # Even when callers pass explicit organization_ids, the OSS
-        # singleton must never be in the delete set.
-        if not is_ee() and org_ids:
-            kept_org_ids: List[UUID] = []
-            for oid in org_ids:
-                org = await _db_get_org_by_id(oid)
-                if org and org.slug == OSS_SINGLETON_ORG_SLUG:
-                    continue
-                kept_org_ids.append(oid)
-            org_ids = kept_org_ids
 
         # Collect workspace and project IDs
         workspace_ids: List[UUID] = [UUID(wid) for wid in (target.workspace_ids or [])]
         project_ids: List[UUID] = [UUID(pid) for pid in (target.project_ids or [])]
-
-        # On OSS, the singleton workspace under the singleton org is
-        # untouchable for the same reason as the org itself: deleting it
-        # would orphan in-flight bootstraps. Filter any such workspace
-        # IDs out of the delete set.
-        if not is_ee() and workspace_ids:
-            kept_ws_ids: List[UUID] = []
-            for wid in workspace_ids:
-                ws = await _db_get_workspace_by_id(wid)
-                if ws is not None:
-                    org = await _db_get_org_by_id(ws.organization_id)
-                    if org and org.slug == OSS_SINGLETON_ORG_SLUG:
-                        continue
-                kept_ws_ids.append(wid)
-            workspace_ids = kept_ws_ids
 
         if dry_run:
             # Report what would be deleted without writing
@@ -1504,16 +1472,6 @@ class PlatformAdminAccountsService:
         if not org:
             raise AdminOrganizationNotFoundError(organization_id)
 
-        # On OSS the deterministic singleton org is structurally required
-        # by the bootstrap path; deleting it leaves any in-flight
-        # workspace/project insert with a dangling FK and breaks
-        # subsequent first-user signups until the row is recreated.
-        # Refuse the delete rather than allow a partial nuke.
-        if not is_ee() and org.slug == OSS_SINGLETON_ORG_SLUG:
-            raise AdminValidationError(
-                "The OSS singleton organization cannot be deleted."
-            )
-
         await _db_delete_organization(oid)
         deleted = AdminDeletedEntities(
             organizations=[AdminDeletedEntity(id=organization_id)]
@@ -1542,16 +1500,6 @@ class PlatformAdminAccountsService:
         ws = await _db_get_workspace_by_id(wid)
         if not ws:
             raise AdminWorkspaceNotFoundError(workspace_id)
-
-        # On OSS the workspace under the singleton org is itself a
-        # singleton; deleting it would orphan in-flight projects and
-        # break the bootstrap. Refuse rather than allow a partial nuke.
-        if not is_ee():
-            org = await _db_get_org_by_id(ws.organization_id)
-            if org and org.slug == OSS_SINGLETON_ORG_SLUG:
-                raise AdminValidationError(
-                    "The OSS singleton workspace cannot be deleted."
-                )
 
         await _db_delete_workspace(wid)
         deleted = AdminDeletedEntities(workspaces=[AdminDeletedEntity(id=workspace_id)])
