@@ -71,6 +71,8 @@ export {
     workflowLatestRevisionQueryAtomFamily,
     // Artifact (workflow-level container — entity display name)
     workflowArtifactQueryAtomFamily,
+    workflowArtifactScopedQueryAtomFamily,
+    workflowVariantsScopedQueryAtomFamily,
     primeWorkflowArtifactCacheImperative,
 } from "./store"
 
