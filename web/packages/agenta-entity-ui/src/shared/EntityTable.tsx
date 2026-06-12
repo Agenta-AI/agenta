@@ -496,16 +496,6 @@ export function EntityTable<
         appendColumns,
     ])
 
-    // Loading state
-    if (isLoading && rows.length === 0) {
-        return <TableLoadingState rows={loadingRows} />
-    }
-
-    // Empty state
-    if (!isLoading && rows.length === 0) {
-        return <TableEmptyState message={emptyMessage} />
-    }
-
     // Default type chip wiring. Reuses existing data accessors so chips appear
     // for every consumer (eg. testset preview modal in edit mode) without each
     // caller having to opt in. Pass `typeChips={null}` to disable.
@@ -527,6 +517,16 @@ export function EntityTable<
             getRowValue: defaultGetRowValue,
         }
     }, [typeChips, defaultGetRowValue])
+
+    // Loading state
+    if (isLoading && rows.length === 0) {
+        return <TableLoadingState rows={loadingRows} />
+    }
+
+    // Empty state
+    if (!isLoading && rows.length === 0) {
+        return <TableEmptyState message={emptyMessage} />
+    }
 
     return (
         <div className="h-full">

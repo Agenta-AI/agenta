@@ -8,9 +8,10 @@ interface LabelValuePillProps {
     label: string
     value: string
     className?: string
+    valueClassName?: string
 }
 
-const LabelValuePill = ({label, value, className}: LabelValuePillProps) => {
+const LabelValuePill = ({label, value, className, valueClassName}: LabelValuePillProps) => {
     return (
         <div
             className={clsx(
@@ -27,7 +28,7 @@ const LabelValuePill = ({label, value, className}: LabelValuePillProps) => {
             )}
         >
             <div>{label}</div>
-            <div>{getStringOrJson(value)}</div>
+            <div className={valueClassName}>{getStringOrJson(value)}</div>
         </div>
     )
 }
