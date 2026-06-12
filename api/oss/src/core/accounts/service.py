@@ -1366,8 +1366,6 @@ class PlatformAdminAccountsService:
         *,
         dto: AdminSimpleAccountsOrganizationsMembershipsCreate,
     ) -> AdminAccountsResponse:
-        if not is_ee():
-            raise AdminNotImplementedError("organization_memberships")
         options = dto.options or AdminAccountCreateOptions()
         graph_dto = AdminAccountsCreate(
             options=options,
@@ -1402,8 +1400,6 @@ class PlatformAdminAccountsService:
         *,
         dto: AdminSimpleAccountsWorkspacesMembershipsCreate,
     ) -> AdminAccountsResponse:
-        if not is_ee():
-            raise AdminNotImplementedError("workspace_memberships")
         options = dto.options or AdminAccountCreateOptions()
         graph_dto = AdminAccountsCreate(
             options=options,
@@ -1428,8 +1424,6 @@ class PlatformAdminAccountsService:
         *,
         dto: AdminSimpleAccountsProjectsMembershipsCreate,
     ) -> AdminAccountsResponse:
-        if not is_ee():
-            raise AdminNotImplementedError("project_memberships")
         options = dto.options or AdminAccountCreateOptions()
         graph_dto = AdminAccountsCreate(
             options=options,
