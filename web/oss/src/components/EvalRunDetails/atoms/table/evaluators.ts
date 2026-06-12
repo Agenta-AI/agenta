@@ -3,7 +3,7 @@ import {
     fetchWorkflowRevisionById,
     extractEvaluatorRef,
     deduplicateRefs,
-    queryWorkflows,
+    workflowArtifactScopedQueryAtomFamily,
     toEvaluatorDefinitionFromWorkflow,
     toEvaluatorDefinitionFromRaw,
     type EvaluatorDefinition,
@@ -48,31 +48,6 @@ const evaluatorRevisionQueryAtomFamily = atomFamily(
                         return null
                     }
                 }
-            },
-            enabled: !!projectId && !!id,
-            staleTime: 5 * 60_000,
-            refetchOnWindowFocus: false,
-        })),
-    (a, b) => a.projectId === b.projectId && a.id === b.id,
-)
-
-/**
- * Self-contained query for the workflow ARTIFACT (the workflow-level
- * container). The entity display name lives there; the revision's own `name`
- * carries the variant name ("default"). Defined locally (like the revision
- * query above) so it runs in the evaluations scoped store.
- */
-const evaluatorArtifactQueryAtomFamily = atomFamily(
-    ({projectId, id}: {projectId: string; id: string}) =>
-        atomWithQuery(() => ({
-            queryKey: ["eval-run", "evaluator-artifact", projectId, id],
-            queryFn: async () => {
-                const response = await queryWorkflows({
-                    projectId,
-                    workflowRefs: [{id}],
-                    includeArchived: true,
-                })
-                return response.workflows?.[0] ?? null
             },
             enabled: !!projectId && !!id,
             staleTime: 5 * 60_000,
@@ -171,7 +146,7 @@ export const evaluationEvaluatorsByRunQueryAtomFamily = atomFamily((runId: strin
                 const artifactId = ref.artifactId ?? workflow.workflow_id ?? null
                 if (artifactId) {
                     const artifactName = get(
-                        evaluatorArtifactQueryAtomFamily({projectId, id: artifactId}),
+                        workflowArtifactScopedQueryAtomFamily({projectId, workflowId: artifactId}),
                     ).data?.name
                     if (artifactName) definition.name = artifactName
                 }

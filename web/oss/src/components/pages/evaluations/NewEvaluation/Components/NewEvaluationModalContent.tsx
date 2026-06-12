@@ -1,6 +1,6 @@
 import {type FC, memo, useCallback, useMemo} from "react"
 
-import {workflowMolecule, workflowVariantsListQueryStateAtomFamily} from "@agenta/entities/workflow"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {createEvaluatorFromTemplate} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {CloseCircleOutlined} from "@ant-design/icons"
@@ -45,8 +45,7 @@ const AdvancedSettings = dynamic(() => import("./AdvancedSettings"), {
 })
 
 interface SelectedRevisionLike {
-    workflow_variant_id?: string | null
-    variant_id?: string | null
+    id?: string | null
     name?: string | null
     version?: number | null
 }
@@ -56,15 +55,11 @@ interface SelectedRevisionLike {
  * slug): SDK-created variants and revisions may carry no `name` at all, and
  * UI-created revisions are named after the variant.
  */
-const RevisionTagLabel = memo(
-    ({revision, workflowId}: {revision: SelectedRevisionLike; workflowId: string}) => {
-        const variantsState = useAtomValue(workflowVariantsListQueryStateAtomFamily(workflowId))
-        const variantId = revision.workflow_variant_id ?? revision.variant_id
-        const variant = (variantsState.data ?? []).find((v) => v.id === variantId)
-        const label = variant?.name ?? variant?.slug ?? revision.name ?? "-"
-        return <>{`${label} - v${revision.version ?? 0}`}</>
-    },
-)
+const RevisionTagLabel = memo(({revision}: {revision: SelectedRevisionLike}) => {
+    const variantLabel = useAtomValue(workflowMolecule.selectors.variantLabel(revision.id ?? ""))
+    const label = variantLabel ?? revision.name ?? "-"
+    return <>{`${label} - v${revision.version ?? 0}`}</>
+})
 
 /**
  * Evaluator tag label. The entity display name lives on the workflow artifact;
@@ -217,7 +212,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                                     )
                                 }}
                             >
-                                <RevisionTagLabel revision={v} workflowId={selectedAppId || ""} />
+                                <RevisionTagLabel revision={v} />
                             </Tag>
                         ))}
                     </TabLabel>
