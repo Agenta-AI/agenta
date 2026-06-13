@@ -241,7 +241,7 @@ const EvaluationRunsTableActive = ({
         setKindParam("custom", {shallow: true})
         setSelectedCreateType("custom")
         setIsCreateModalOpen(true)
-        setOnboardingWidgetActivation(null)
+        setOnboardingWidgetActivation?.(null)
     }, [
         onboardingWidgetActivation,
         setIsCreateModalOpen,
@@ -253,7 +253,7 @@ const EvaluationRunsTableActive = ({
     useEffect(() => {
         if (!isCreateModalOpen) return
         if (selectedCreateType !== "custom") return
-        recordWidgetEvent("sdk_evaluation_modal_opened")
+        recordWidgetEvent?.("sdk_evaluation_modal_opened")
     }, [isCreateModalOpen, recordWidgetEvent, selectedCreateType])
 
     // Responsive: use settings dropdown on narrow screens (< lg breakpoint)

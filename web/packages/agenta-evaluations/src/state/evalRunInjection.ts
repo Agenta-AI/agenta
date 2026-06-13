@@ -467,13 +467,17 @@ export const injectedNavigationRequestAtom = atom<Atom<InjectedNavigationCommand
 /** Injected `onboardingWidgetActivationAtom` (read). Default `null`. */
 export const injectedOnboardingWidgetActivationAtom = atom<string | null>(null)
 
-/** Injected `setOnboardingWidgetActivationAtom` write callback. Default no-op. */
-export const injectedSetOnboardingWidgetActivationAtom = atom<(value: string | null) => void>(
-    () => {},
-)
+/**
+ * Injected `setOnboardingWidgetActivationAtom` write callback. Default `null` (consumers
+ * call it optionally). Must be `null`-initialized, NOT `atom(() => {})` — jotai reads a
+ * bare function arg as a derived-atom READ fn, yielding a non-writable atom.
+ */
+export const injectedSetOnboardingWidgetActivationAtom = atom<
+    ((value: string | null) => void) | null
+>(null)
 
-/** Injected `recordWidgetEventAtom` write callback. Default no-op. */
-export const injectedRecordWidgetEventAtom = atom<(eventId: string) => void>(() => {})
+/** Injected `recordWidgetEventAtom` write callback. Default `null` (see note above). */
+export const injectedRecordWidgetEventAtom = atom<((eventId: string) => void) | null>(null)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Registration write-atom
