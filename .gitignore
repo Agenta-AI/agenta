@@ -74,6 +74,7 @@ services/ee/tests/results/
 !services/.dockerignore
 !.env.example
 !web/.prettierignore
+!web/.syncpackrc
 
 # Temporary SDK copies created by run.sh --local
 api/sdks
