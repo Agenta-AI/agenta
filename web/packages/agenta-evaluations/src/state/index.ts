@@ -30,13 +30,6 @@ export * from "./listColumns"
 export * from "./metricSchema"
 
 /**
- * Generic paginated run-list store for evaluation runs. Source-agnostic, keyed
- * by `{projectId}` + filter atoms (status / kind / search). Renders every
- * matching run — no queue-specific display filter.
- */
-export * from "./runList"
-
-/**
  * Eval-run injection seam. Primitive injection atoms + the `registerEvalRunInjections`
  * write-atom the OSS `-ui` layer populates so the eval-run runtime atoms (relocated in
  * WP-4e-2) stay free of any `@/oss` dependency. ADDITIVE — unused until 4e-2.
