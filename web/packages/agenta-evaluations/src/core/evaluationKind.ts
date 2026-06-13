@@ -146,31 +146,3 @@ export const normalizeEvaluationKindString = (
             return null
     }
 }
-
-/**
- * Get the evaluation kind for a run, with fallback to meta.evaluation_kind.
- * This function first tries to derive the kind from run.data.steps,
- * and only falls back to meta.evaluation_kind if derivation returns "auto"
- * and meta has a valid kind value.
- *
- * @deprecated Prefer using `deriveEvaluationKind` directly. This function
- * exists only for backward compatibility during migration.
- */
-export const getEvaluationKindWithFallback = (
-    run: EvaluationRunForKindDetection & {
-        meta?: {evaluation_kind?: string | null; evaluationKind?: string | null}
-    },
-): EvaluationRunKind => {
-    const derivedKind = deriveEvaluationKind(run)
-
-    // If we derived a specific kind (not auto), use it
-    if (derivedKind !== "auto") {
-        return derivedKind
-    }
-
-    // Fallback to meta.evaluation_kind only if derivation returned "auto"
-    const metaKind = run?.meta?.evaluation_kind ?? run?.meta?.evaluationKind ?? null
-    const normalizedMetaKind = normalizeEvaluationKindString(metaKind)
-
-    return normalizedMetaKind ?? "auto"
-}

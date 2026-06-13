@@ -24,7 +24,6 @@ export {
     isCustomEvaluation,
     deriveEvaluationKind,
     normalizeEvaluationKindString,
-    getEvaluationKindWithFallback,
     type BuildRunConfigInput,
     type BuildRunConfigResult,
     type RevisionSchemaContext,

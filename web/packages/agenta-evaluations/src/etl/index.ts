@@ -63,7 +63,6 @@ export {
 export {
     buildMoleculeBackedFetchers,
     MOLECULE_BACKED_HYDRATE_FETCHERS,
-    CACHE_AWARE_HYDRATE_FETCHERS, // @deprecated alias
     cacheAwareFetchTestcases,
     type EntityCacheStats,
     type ChunkCacheStats,

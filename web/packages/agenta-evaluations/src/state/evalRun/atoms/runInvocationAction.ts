@@ -49,8 +49,6 @@ export const triggerRunInvocationAtom = atom(
         const {scenarioId, runId, stepKey} = params
         const store = getDefaultStore()
 
-        console.log("[runInvocationAction] Starting invocation", {scenarioId, runId, stepKey})
-
         // Mark as running
         set(
             runningInvocationsAtom,

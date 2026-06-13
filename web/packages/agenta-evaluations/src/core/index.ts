@@ -15,7 +15,6 @@ export {
     isCustomEvaluation,
     deriveEvaluationKind,
     normalizeEvaluationKindString,
-    getEvaluationKindWithFallback,
 } from "./evaluationKind"
 export type {
     EvaluationRunKind,

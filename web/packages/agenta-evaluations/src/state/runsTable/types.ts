@@ -1,6 +1,7 @@
 import type {SnakeToCamelCaseKeys} from "@agenta/shared/types"
 import type {InfiniteTableRowBase, WindowingState} from "@agenta/ui/table"
 
+import type {EvaluationRunKind as CoreEvaluationRunKind} from "../../core/evaluationKind"
 import type {EvaluationRun} from "../../hooks"
 
 /**
@@ -17,7 +18,8 @@ export type LegacyAutoEvaluation = Record<string, unknown>
 export type PreviewEvaluationRun = SnakeToCamelCaseKeys<EvaluationRun>
 
 export type EvaluationRunSource = "preview" | "legacy"
-export type EvaluationRunKind = "auto" | "human" | "online" | "custom" | "all"
+// The run-list filter kind = the core run kinds plus the "all" sentinel the table filter uses.
+export type EvaluationRunKind = CoreEvaluationRunKind | "all"
 export type ConcreteEvaluationRunKind = Exclude<EvaluationRunKind, "all">
 
 export interface PreviewRunColumnMeta {

@@ -134,11 +134,5 @@ export function buildMoleculeBackedFetchers(
  */
 export const MOLECULE_BACKED_HYDRATE_FETCHERS: HydrateFetchers = buildMoleculeBackedFetchers()
 
-/**
- * @deprecated Use `MOLECULE_BACKED_HYDRATE_FETCHERS` instead. Kept for one
- * release as an alias so PoC scripts don't break.
- */
-export const CACHE_AWARE_HYDRATE_FETCHERS = MOLECULE_BACKED_HYDRATE_FETCHERS
-
 // Backward-compat re-export — the old single-fn API still exists.
 export {prefetchTestcasesByIds as cacheAwareFetchTestcases}

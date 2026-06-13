@@ -1,6 +1,6 @@
 import {queryEvaluationRunsList} from "@agenta/entities/evaluationRun"
 
-import {snakeToCamelCaseKeys} from "../casing"
+import {snakeToCamelCaseKeys} from "../../../state/evalRun/utils/casing"
 import type {QueryWindowingPayload, RunFlagsFilter} from "../previewTypes"
 
 export interface PreviewRunsRequestParams {
