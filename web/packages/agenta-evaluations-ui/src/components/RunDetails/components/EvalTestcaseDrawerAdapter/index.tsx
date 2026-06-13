@@ -151,7 +151,17 @@ const EvalTestcaseDrawerAdapter = () => {
 
     const inputValue = useMemo(() => {
         if (sourceTestcaseId && testcaseData) {
-            return testcaseData as Record<string, unknown>
+            // The testcase entity nests the user columns under `data` (alongside id,
+            // created_at, testset_id, …). The editor addresses values by bare column
+            // key (valueKey, e.g. "country"), so unwrap to the inner data record —
+            // otherwise every input renders empty. The embedded-steps fallback below
+            // already returns a flat record, so both branches share the same shape.
+            const entity = testcaseData as Record<string, unknown>
+            const inner = entity.data
+            if (inner && typeof inner === "object" && !Array.isArray(inner)) {
+                return inner as Record<string, unknown>
+            }
+            return entity
         }
 
         return extractEmbeddedInputValue(stepsQuery.data?.steps ?? [], inputColumns)
