@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- relocated eval-run parity data layer (WP-4e-2b); reads dynamic backend-shaped payloads, logic unchanged */
-import {axios} from "@agenta/shared/api"
+import {queryEvaluationResults} from "@agenta/entities/evaluationRun"
 import {projectIdAtom} from "@agenta/shared/state"
 import {createBatchFetcher, type BatchFetcher} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
@@ -66,28 +66,20 @@ export const scenarioStepsBatcherFamily = atomFamily(({runId}: {runId?: string |
                         return empty
                     }
 
-                    const response = await axios.post<{results?: any[]; steps?: any[]}>(
-                        `/evaluations/results/query?project_id=${projectId}`,
-                        {
-                            result: {
-                                run_id: effectiveRunId,
-                                run_ids: [effectiveRunId],
-                                scenario_ids: validScenarioIds,
-                            },
-                            windowing: {},
-                        },
-                    )
-
-                    const rawSteps = Array.isArray(response.data?.results)
-                        ? response.data?.results
-                        : Array.isArray(response.data?.steps)
-                          ? response.data?.steps
-                          : []
+                    // Route through the canonical typed/zod results fetcher instead of a
+                    // raw axios re-implementation of POST /evaluations/results/query. The
+                    // atomWithQuery shell below still owns caching + live polling — only the
+                    // network call is unified onto the entities API.
+                    const rawSteps = await queryEvaluationResults({
+                        projectId,
+                        runId: effectiveRunId,
+                        scenarioIds: validScenarioIds,
+                    })
 
                     const grouped: Record<string, ScenarioStepsBatchResult> = Object.create(null)
 
                     for (const rawStep of rawSteps) {
-                        const camel = snakeToCamelCaseKeys(rawStep) as IStepResponse
+                        const camel = snakeToCamelCaseKeys(rawStep) as unknown as IStepResponse
                         const scenarioId = (camel as any).scenarioId as string | undefined
                         if (!scenarioId) continue
                         const bucket = (grouped[scenarioId] ||= {
