@@ -1860,7 +1860,7 @@ class WorkflowsService:
             # Inline mode: resolve the provided revision's data without fetching
             if not workflow_revision.data:
                 raise InlineResolveInvalid(
-                    "Inline workflow_revision has no data to resolve."
+                    field_name="workflow_revision",
                 )
             (
                 resolved_data,

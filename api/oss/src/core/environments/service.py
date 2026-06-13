@@ -1294,7 +1294,7 @@ class EnvironmentsService:
         if environment_revision is not None:
             if not environment_revision.data:
                 raise InlineResolveInvalid(
-                    "Inline environment_revision has no data to resolve."
+                    field_name="environment_revision",
                 )
             (
                 resolved_data,

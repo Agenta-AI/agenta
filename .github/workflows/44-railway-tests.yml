@@ -645,9 +645,39 @@ jobs:
         # devDeps (e.g. vitest) aren't pulled by a dependency-only filter.
         run: pnpm install --no-frozen-lockfile
 
-      - name: Install Playwright browsers
+      # Same split+cache+retry pattern as the bootstrap job above: cache the
+      # browser binary, install only chromium's apt deps, and guard the binary
+      # download with a per-attempt timeout (Node is pinned to 22 to dodge the
+      # 1.59-on-Node-24 extraction hang).
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright system dependencies
         working-directory: web/tests
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Install Playwright browser
+        working-directory: web/tests
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::playwright install chromium (attempt ${attempt}/3)"
+            if timeout 180 pnpm exec playwright install chromium; then
+              echo "::endgroup::"
+              echo "browser install succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "attempt ${attempt} stalled or failed; retrying after 5s..."
+            sleep 5
+          done
+          echo "playwright browser install failed after 3 attempts" >&2
+          exit 1
 
       - name: Run web tests
         working-directory: web/tests

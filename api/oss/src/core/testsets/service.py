@@ -509,6 +509,7 @@ class TestsetsService:
         if testset_revision_ref is not None:
             source_revision = await self.fetch_testset_revision(
                 project_id=project_id,
+                testset_variant_ref=testset_variant_ref,
                 testset_revision_ref=testset_revision_ref,
             )
             if not source_revision:

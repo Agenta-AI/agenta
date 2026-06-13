@@ -960,7 +960,7 @@ class EvaluatorsService:
         if evaluator_revision is not None:
             if not evaluator_revision.data:
                 raise InlineResolveInvalid(
-                    "Inline evaluator_revision has no data to resolve."
+                    field_name="evaluator_revision",
                 )
             (
                 resolved_data,
