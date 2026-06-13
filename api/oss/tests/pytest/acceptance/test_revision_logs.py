@@ -191,7 +191,7 @@ class TestRevisionLogs:
                         "environment_id": environment["id"],
                         "environment_variant_id": variant["id"],
                         "slug": f"env-log-r{version}-{uuid4().hex[:6]}",
-                        "data": {"references": {}, "version": version},
+                        "data": {"references": {}},
                     }
                 },
             )

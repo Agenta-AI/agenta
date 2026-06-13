@@ -6,6 +6,7 @@ from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.git.types import (
+    VariantForkError,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     needs_default_variant_resolution,
@@ -502,7 +503,7 @@ class TestsetsService:
             testset_variant_ref=testset_variant_ref,
         )
         if not source_variant:
-            return None
+            raise VariantForkError("Fork source variant could not be resolved.")
 
         source_revision_id: Optional[UUID] = None
         if testset_revision_ref is not None:
@@ -511,7 +512,7 @@ class TestsetsService:
                 testset_revision_ref=testset_revision_ref,
             )
             if not source_revision:
-                return None
+                raise VariantForkError("Fork source revision could not be resolved.")
             source_revision_id = source_revision.id
 
         _artifact_fork = ArtifactFork(

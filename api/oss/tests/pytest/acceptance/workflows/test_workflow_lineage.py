@@ -3,6 +3,20 @@ from uuid import uuid4
 import pytest
 
 
+def _log_count(authed_api, *, workflow_revision_id):
+    response = authed_api(
+        "POST",
+        "/workflows/revisions/log",
+        json={
+            "workflow_revisions": {
+                "workflow_revision_id": workflow_revision_id,
+            },
+        },
+    )
+    assert response.status_code == 200
+    return response.json()["count"]
+
+
 @pytest.fixture(scope="class")
 def mock_data(authed_api):
     # ARRANGE --------------------------------------------------------------
@@ -295,60 +309,42 @@ class TestWorkflowRevisionsLineage:
         # ----------------------------------------------------------------------
 
     def test_full_fork_workflow_variant(self, authed_api, mock_data):
+        # Pinning to the latest revision should fork the full lineage.
         # ACT ------------------------------------------------------------------
         workflow_variant_id = mock_data["workflow_variants"][0]["id"]
 
         workflow_variant_slug = uuid4()
-        workflow_revision_slug = uuid4()
 
         response = authed_api(
             "POST",
             "/workflows/variants/fork",
             json={
-                "workflow": {
-                    "workflow_variant_id": workflow_variant_id,
-                    # "depth": 1,
-                    "workflow_variant": {
-                        "slug": f"workflow-variant-{workflow_variant_slug}-fork",
-                        "name": f"Workflow Variant {workflow_variant_slug}",
-                        "description": "Workflow Variant Description",
-                        "flags": {
-                            "is_custom": False,
-                            "is_evaluator": False,
-                            "is_feedback": False,
-                        },
-                        "tags": {
-                            "tag1": "value1",
-                            "tag2": "value2",
-                            "tag3": "value3",
-                        },
-                        "meta": {
-                            "meta1": "value1",
-                            "meta2": "value2",
-                            "meta3": "value3",
-                        },
+                "workflow_variant_ref": {
+                    "id": workflow_variant_id,
+                },
+                "workflow_variant": {
+                    "slug": f"workflow-variant-{workflow_variant_slug}-fork",
+                    "name": f"Workflow Variant {workflow_variant_slug}",
+                    "description": "Workflow Variant Description",
+                    "flags": {
+                        "is_custom": False,
+                        "is_evaluator": False,
+                        "is_feedback": False,
                     },
-                    "workflow_revision": {
-                        "slug": f"workflow-revision-{workflow_revision_slug}-fork",
-                        "name": f"Workflow Revision {workflow_revision_slug}",
-                        "description": "Workflow Revision Description",
-                        "flags": {
-                            "is_custom": False,
-                            "is_evaluator": False,
-                            "is_feedback": False,
-                        },
-                        "tags": {
-                            "tag1": "value1",
-                            "tag2": "value2",
-                            "tag3": "value3",
-                        },
-                        "meta": {
-                            "meta1": "value1",
-                            "meta2": "value2",
-                            "meta3": "value3",
-                        },
+                    "tags": {
+                        "tag1": "value1",
+                        "tag2": "value2",
+                        "tag3": "value3",
                     },
-                }
+                    "meta": {
+                        "meta1": "value1",
+                        "meta2": "value2",
+                        "meta3": "value3",
+                    },
+                },
+                "workflow_revision_ref": {
+                    "id": mock_data["workflow_revisions"][-1]["id"],
+                },
             },
         )
         # ----------------------------------------------------------------------
@@ -359,6 +355,12 @@ class TestWorkflowRevisionsLineage:
         assert response_data["count"] == 1
 
         workflow_variant = response_data["workflow_variant"]
+
+        # The fork's lineage must match the source lineage up to the pinned tip.
+        expected = _log_count(
+            authed_api,
+            workflow_revision_id=mock_data["workflow_revisions"][-1]["id"],
+        )
 
         response = authed_api(
             "POST",
@@ -372,64 +374,46 @@ class TestWorkflowRevisionsLineage:
 
         assert response.status_code == 200
         response_data = response.json()
-        assert response_data["count"] == 4
+        assert response_data["count"] == expected
         # ----------------------------------------------------------------------
 
     def test_shallow_fork_workflow_variant(self, authed_api, mock_data):
+        # Pinning to an earlier revision should fork only the lineage up to that revision.
         # ACT ------------------------------------------------------------------
         workflow_variant_id = mock_data["workflow_variants"][0]["id"]
 
         workflow_variant_slug = uuid4()
-        workflow_revision_slug = uuid4()
 
         response = authed_api(
             "POST",
             "/workflows/variants/fork",
             json={
-                "workflow": {
-                    "workflow_variant_id": workflow_variant_id,
-                    "depth": 1,
-                    "workflow_variant": {
-                        "slug": f"workflow-variant-{workflow_variant_slug}-fork",
-                        "name": f"Workflow Variant {workflow_variant_slug}",
-                        "description": "Workflow Variant Description",
-                        "flags": {
-                            "is_custom": False,
-                            "is_evaluator": False,
-                            "is_feedback": False,
-                        },
-                        "tags": {
-                            "tag1": "value1",
-                            "tag2": "value2",
-                            "tag3": "value3",
-                        },
-                        "meta": {
-                            "meta1": "value1",
-                            "meta2": "value2",
-                            "meta3": "value3",
-                        },
+                "workflow_variant_ref": {
+                    "id": workflow_variant_id,
+                },
+                "workflow_variant": {
+                    "slug": f"workflow-variant-{workflow_variant_slug}-fork",
+                    "name": f"Workflow Variant {workflow_variant_slug}",
+                    "description": "Workflow Variant Description",
+                    "flags": {
+                        "is_custom": False,
+                        "is_evaluator": False,
+                        "is_feedback": False,
                     },
-                    "workflow_revision": {
-                        "slug": f"workflow-revision-{workflow_revision_slug}-fork",
-                        "name": f"Workflow Revision {workflow_revision_slug}",
-                        "description": "Workflow Revision Description",
-                        "flags": {
-                            "is_custom": False,
-                            "is_evaluator": False,
-                            "is_feedback": False,
-                        },
-                        "tags": {
-                            "tag1": "value1",
-                            "tag2": "value2",
-                            "tag3": "value3",
-                        },
-                        "meta": {
-                            "meta1": "value1",
-                            "meta2": "value2",
-                            "meta3": "value3",
-                        },
+                    "tags": {
+                        "tag1": "value1",
+                        "tag2": "value2",
+                        "tag3": "value3",
                     },
-                }
+                    "meta": {
+                        "meta1": "value1",
+                        "meta2": "value2",
+                        "meta3": "value3",
+                    },
+                },
+                "workflow_revision_ref": {
+                    "id": mock_data["workflow_revisions"][1]["id"],
+                },
             },
         )
         # ----------------------------------------------------------------------
@@ -440,6 +424,12 @@ class TestWorkflowRevisionsLineage:
         assert response_data["count"] == 1
 
         workflow_variant = response_data["workflow_variant"]
+
+        # Pinning an earlier revision forks only the lineage up to that revision.
+        expected = _log_count(
+            authed_api,
+            workflow_revision_id=mock_data["workflow_revisions"][1]["id"],
+        )
 
         response = authed_api(
             "POST",
@@ -453,7 +443,7 @@ class TestWorkflowRevisionsLineage:
 
         assert response.status_code == 200
         response_data = response.json()
-        assert response_data["count"] == 2
+        assert response_data["count"] == expected
         # ----------------------------------------------------------------------
 
     def test_fork_workflow_variant_without_revision(self, authed_api, mock_data):
@@ -468,13 +458,13 @@ class TestWorkflowRevisionsLineage:
             "POST",
             "/workflows/variants/fork",
             json={
-                "workflow": {
-                    "workflow_variant_id": workflow_variant_id,
-                    "workflow_variant": {
-                        "slug": f"workflow-variant-{workflow_variant_slug}-norev-fork",
-                        "name": f"Workflow Variant {workflow_variant_slug}",
-                    },
-                }
+                "workflow_variant_ref": {
+                    "id": workflow_variant_id,
+                },
+                "workflow_variant": {
+                    "slug": f"workflow-variant-{workflow_variant_slug}-norev-fork",
+                    "name": f"Workflow Variant {workflow_variant_slug}",
+                },
             },
         )
         # ----------------------------------------------------------------------
@@ -503,29 +493,25 @@ class TestWorkflowRevisionsLineage:
         # ----------------------------------------------------------------------
 
     def test_fork_workflow_variant_missing_variant_payload(self, authed_api, mock_data):
-        # Forking without a 'workflow_variant' block must return a structured 400,
-        # not HTTP 200 with count=0.
+        # The request model requires 'workflow_variant', so FastAPI rejects the
+        # payload before the route handler runs.
         # ACT ------------------------------------------------------------------
         workflow_variant_id = mock_data["workflow_variants"][0]["id"]
 
         response = authed_api(
             "POST",
             "/workflows/variants/fork",
-            json={
-                "workflow": {
-                    "workflow_variant_id": workflow_variant_id,
-                }
-            },
+            json={"workflow_variant_ref": {"id": workflow_variant_id}},
         )
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 400
-        assert "variant" in response.json()["detail"].lower()
+        assert response.status_code == 422
         # ----------------------------------------------------------------------
 
     def test_fork_workflow_variant_missing_source_ref(self, authed_api, mock_data):
-        # Forking without any source reference must return 400.
+        # The request model requires 'workflow_variant_ref', so FastAPI rejects
+        # the payload before the route handler runs.
         # ACT ------------------------------------------------------------------
         workflow_variant_slug = uuid4()
 
@@ -533,24 +519,20 @@ class TestWorkflowRevisionsLineage:
             "POST",
             "/workflows/variants/fork",
             json={
-                "workflow": {
-                    "workflow_variant": {
-                        "slug": f"workflow-variant-{workflow_variant_slug}-nosrc-fork",
-                        "name": f"Workflow Variant {workflow_variant_slug}",
-                    },
-                }
+                "workflow_variant": {
+                    "slug": f"workflow-variant-{workflow_variant_slug}-nosrc-fork",
+                    "name": f"Workflow Variant {workflow_variant_slug}",
+                },
             },
         )
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 400
-        detail = response.json()["detail"].lower()
-        assert "variant_id" in detail or "revision_id" in detail
+        assert response.status_code == 422
         # ----------------------------------------------------------------------
 
     def test_fork_workflow_variant_unknown_source(self, authed_api, mock_data):
-        # Forking from a variant_id that does not resolve must return 400.
+        # Unknown source variants should fail as a fork-domain error.
         # ACT ------------------------------------------------------------------
         bogus_variant_id = str(uuid4())
 
@@ -560,18 +542,18 @@ class TestWorkflowRevisionsLineage:
             "POST",
             "/workflows/variants/fork",
             json={
-                "workflow": {
-                    "workflow_variant_id": bogus_variant_id,
-                    "workflow_variant": {
-                        "slug": f"workflow-variant-{workflow_variant_slug}-bogus-fork",
-                        "name": f"Workflow Variant {workflow_variant_slug}",
-                    },
-                }
+                "workflow_variant_ref": {
+                    "id": bogus_variant_id,
+                },
+                "workflow_variant": {
+                    "slug": f"workflow-variant-{workflow_variant_slug}-bogus-fork",
+                    "name": f"Workflow Variant {workflow_variant_slug}",
+                },
             },
         )
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 400
-        assert "revision" in response.json()["detail"].lower()
+        assert "variant" in response.json()["detail"].lower()
         # ----------------------------------------------------------------------

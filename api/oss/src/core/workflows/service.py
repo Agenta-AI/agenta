@@ -34,6 +34,7 @@ from oss.src.core.git.dtos import (
     VariantCreate,
     VariantEdit,
     VariantQuery,
+    VariantFork,
     #
     RevisionCreate,
     RevisionEdit,
@@ -84,6 +85,7 @@ from oss.src.core.workflows.dtos import (
 )
 from oss.src.core.git.types import (
     InlineResolveInvalid,
+    VariantForkError,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     needs_default_variant_resolution,
@@ -1027,7 +1029,7 @@ class WorkflowsService:
             workflow_variant_ref=workflow_variant_ref,
         )
         if not source_variant:
-            return None
+            raise VariantForkError("Fork source variant could not be resolved.")
 
         source_revision_id: Optional[UUID] = None
         if workflow_revision_ref is not None:
@@ -1037,13 +1039,17 @@ class WorkflowsService:
                 workflow_revision_ref=workflow_revision_ref,
             )
             if not source_revision:
-                return None
+                raise VariantForkError("Fork source revision could not be resolved.")
             source_revision_id = source_revision.id
+
+        _variant_fork = VariantFork(
+            **workflow_variant_fork.model_dump(mode="json"),
+        )
 
         _artifact_fork = ArtifactFork(
             variant_id=source_variant.id,
             revision_id=source_revision_id,
-            variant=workflow_variant_fork,
+            variant=_variant_fork,
         )
 
         variant = await self.workflows_dao.fork_variant(
