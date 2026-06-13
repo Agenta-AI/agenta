@@ -203,11 +203,14 @@ async def test_send_email_noops_without_sender_when_no_provider_is_configured(
     _disable_smtp(monkeypatch)
     _disable_sendgrid(monkeypatch)
 
-    assert await email_service.send_email(
+    assert await emailing.send_email(
         to_email="to@example.com",
         subject="Subject",
-        html_content="<p>Hello</p>",
-        from_email=None,
+        from_email="caller@example.com",
+        username="Caller",
+        action="sent you a message",
+        workspace="their workspace",
+        call_to_action="<p>Hello</p>",
     )
 
 
