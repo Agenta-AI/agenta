@@ -105,15 +105,16 @@ embed tokens, so they have no Resolve endpoint at all.
 
 `EnvironmentRevisionQueryRequest` carries `references: List[Reference]`
 in addition to the standard `environment_refs` / `environment_variant_refs` /
-`environment_revision_refs`. This lets callers scope environment revisions by
-the entities they reference — useful when querying which environment
-revisions point at a given application variant.
+`environment_revision_refs`. In the current OSS implementation, this adapter
+scopes environment revisions by the application ids referenced in
+`data.references` and keeps only revisions where that application's deployed
+revision changed.
 
 **Why only environments?** Environment revisions carry a `data.references`
-map that links environments to application (and workflow/evaluator) variants.
-Filtering environment revisions by the application they point at is a natural
-join; the inverse (filtering application revisions by which environment
-deploys them) is not currently implemented but could follow the same pattern.
+map, and the current web UX needs an application-centric history view over
+that data. The broader cross-entity story (for example workflow/evaluator
+reference filtering or the inverse "which environments deploy this app?"
+query) is not implemented yet and should not be inferred from this adapter.
 
 ---
 

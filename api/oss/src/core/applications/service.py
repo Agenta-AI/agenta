@@ -1,5 +1,8 @@
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from uuid import UUID, uuid4
+
+if TYPE_CHECKING:
+    from oss.src.core.embeds.service import EmbedsService
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.events.utils import publish_revision_event
@@ -24,6 +27,7 @@ from oss.src.core.shared.dtos import Windowing, Reference
 from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.git.types import (
+    InlineResolveInvalid,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     validate_retrieve_refs_consistent,
@@ -75,7 +79,7 @@ class ApplicationsService:
         self,
         workflows_service: WorkflowsService,
     ):
-        self.embeds_service = None  # Will be set later
+        self.embeds_service: Optional["EmbedsService"] = None  # Will be set later
         self.workflows_service = workflows_service
 
     # applications -------------------------------------------------------------
@@ -901,7 +905,7 @@ class ApplicationsService:
         #
         application_revisions_log: ApplicationRevisionsLog,
         #
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> List[ApplicationRevision]:
         workflow_revisions_log = WorkflowRevisionsLog(
             **application_revisions_log.model_dump(
@@ -959,7 +963,9 @@ class ApplicationsService:
 
         if application_revision is not None:
             if not application_revision.data:
-                return None
+                raise InlineResolveInvalid(
+                    field_name="application_revision",
+                )
             (
                 resolved_data,
                 resolution_info,

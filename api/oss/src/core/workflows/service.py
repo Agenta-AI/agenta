@@ -1033,6 +1033,7 @@ class WorkflowsService:
         if workflow_revision_ref is not None:
             source_revision = await self.fetch_workflow_revision(
                 project_id=project_id,
+                workflow_variant_ref=workflow_variant_ref,
                 workflow_revision_ref=workflow_revision_ref,
             )
             if not source_revision:
@@ -1603,7 +1604,7 @@ class WorkflowsService:
         #
         workflow_revisions_log: WorkflowRevisionsLog,
         #
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> List[WorkflowRevision]:
         _revisions_log = RevisionsLog(
             **workflow_revisions_log.model_dump(mode="json"),

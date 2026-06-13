@@ -598,6 +598,7 @@ class QueriesService:
         if query_revision_ref is not None:
             source_revision = await self.fetch_query_revision(
                 project_id=project_id,
+                query_variant_ref=query_variant_ref,
                 query_revision_ref=query_revision_ref,
             )
             if not source_revision:
@@ -1010,7 +1011,7 @@ class QueriesService:
         #
         query_revisions_log: QueryRevisionsLog,
         #
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> List[QueryRevision]:
         _revisions_log = RevisionsLog(
             **query_revisions_log.model_dump(mode="json"),

@@ -1240,7 +1240,7 @@ class EnvironmentsService:
         #
         environment_revisions_log: EnvironmentRevisionsLog,
         #
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> List[EnvironmentRevision]:
         revisions = await self.environments_dao.log_revisions(
             project_id=project_id,

@@ -417,7 +417,7 @@ class EvaluationsService:
         *,
         project_id: UUID,
         run_id: UUID,
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> Optional[EvaluationQueue]:
         queues = await self.query_queues(
             project_id=project_id,

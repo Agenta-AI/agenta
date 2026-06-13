@@ -937,7 +937,7 @@ class SharedManager:
             method="POST",
             endpoint="/applications/revisions/log",
             json={
-                "application_revisions_log": {
+                "application_revisions": {
                     "application_id": variant.get("application_id")
                     or variant.get("artifact_id"),
                     "application_variant_id": variant.get("application_variant_id")
@@ -980,7 +980,7 @@ class SharedManager:
             method="POST",
             endpoint="/applications/revisions/log",
             json={
-                "application_revisions_log": {
+                "application_revisions": {
                     "application_id": variant.get("application_id")
                     or variant.get("artifact_id"),
                     "application_variant_id": variant.get("application_variant_id")

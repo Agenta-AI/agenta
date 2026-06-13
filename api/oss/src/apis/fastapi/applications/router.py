@@ -1770,15 +1770,18 @@ class ApplicationsRouter:
             return ApplicationRevisionResolveResponse()
 
         application_revision, resolution_info = result
+        retrieval_info = None
+        if application_revision_resolve_request.application_revision is None:
+            retrieval_info = build_retrieval_info(
+                revision=application_revision,
+                entity_type="application",
+            )
 
         return ApplicationRevisionResolveResponse(
             count=1,
             application_revision=application_revision,
             resolution_info=resolution_info,
-            retrieval_info=build_retrieval_info(
-                revision=application_revision,
-                entity_type="application",
-            ),
+            retrieval_info=retrieval_info,
         )
 
 

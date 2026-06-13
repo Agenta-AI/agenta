@@ -269,7 +269,7 @@ class TestRevisionLogs:
         )
 
         assert response.status_code == 200, response.text
-        assert response.json()["count"] == 2
+        assert response.json()["count"] == 3
 
     def test_testsets_revision_log_accepts_current_wrapper(self, authed_api):
         testset, variant = _create_testset_variant(authed_api)

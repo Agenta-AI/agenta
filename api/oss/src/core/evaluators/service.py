@@ -901,7 +901,7 @@ class EvaluatorsService:
         #
         evaluator_revisions_log: EvaluatorRevisionsLog,
         #
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> List[EvaluatorRevision]:
         workflow_revisions_log = WorkflowRevisionsLog(
             **evaluator_revisions_log.model_dump(

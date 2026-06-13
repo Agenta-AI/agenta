@@ -891,15 +891,18 @@ class EnvironmentsRouter:
             embeds_resolved=resolution_info.embeds_resolved,
             errors=resolution_info.errors,
         )
+        retrieval_info = None
+        if environment_revision_resolve_request.environment_revision is None:
+            retrieval_info = build_retrieval_info(
+                revision=environment_revision,
+                entity_type="environment",
+            )
 
         environment_revision_resolve_response = EnvironmentRevisionResolveResponse(
             count=1 if environment_revision else 0,
             environment_revision=environment_revision,
             resolution_info=resolution_info,
-            retrieval_info=build_retrieval_info(
-                revision=environment_revision,
-                entity_type="environment",
-            ),
+            retrieval_info=retrieval_info,
         )
 
         return environment_revision_resolve_response

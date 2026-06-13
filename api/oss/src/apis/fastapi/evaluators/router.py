@@ -1091,7 +1091,10 @@ class EvaluatorsRouter:
                 evaluator_variant_ref.id
                 and evaluator_variant_ref.id != evaluator_variant_id
             ):
-                return EvaluatorVariantResponse()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Evaluator variant ID in path does not match evaluator_variant_ref.id in request body.",
+                )
             if not evaluator_variant_ref.id:
                 evaluator_variant_ref = Reference(id=evaluator_variant_id)
 
@@ -1770,15 +1773,18 @@ class EvaluatorsRouter:
             return EvaluatorRevisionResolveResponse()
 
         evaluator_revision, resolution_info = result
+        retrieval_info = None
+        if evaluator_revision_resolve_request.evaluator_revision is None:
+            retrieval_info = build_retrieval_info(
+                revision=evaluator_revision,
+                entity_type="evaluator",
+            )
 
         return EvaluatorRevisionResolveResponse(
             count=1,
             evaluator_revision=evaluator_revision,
             resolution_info=resolution_info,
-            retrieval_info=build_retrieval_info(
-                revision=evaluator_revision,
-                entity_type="evaluator",
-            ),
+            retrieval_info=retrieval_info,
         )
 
 
@@ -2144,7 +2150,7 @@ class SimpleEvaluatorsRouter:
         self,
         request: Request,
         *,
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> EvaluatorTemplatesResponse:
         """List the legacy built-in evaluator templates.
 

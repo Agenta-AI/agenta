@@ -133,11 +133,21 @@ class InitialRevisionConflict(GitError):
 class InlineResolveInvalid(GitError):
     """Raised when an inline resolve payload carries no `data` to resolve.
 
-    Inline resolution passes the revision in the request body instead of
-    looking it up. A payload missing `data` is a malformed request, not a
-    missing revision, so the router maps it to HTTP 400 rather than letting
-    it serialize as an empty 200.
+    Carries the offending request field so routers can return a specific
+    client-facing 400 instead of collapsing the failure into a generic
+    "invalid inline resolve payload" message.
     """
+
+    def __init__(
+        self,
+        *,
+        field_name: str,
+        message: Optional[str] = None,
+    ):
+        self.field_name = field_name
+        super().__init__(
+            message or f"Inline resolve payload `{field_name}` must include `data`."
+        )
 
 
 class RetrieveRefsInconsistent(GitError):

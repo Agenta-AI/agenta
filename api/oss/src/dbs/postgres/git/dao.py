@@ -1690,7 +1690,7 @@ class GitDAO(GitDAOInterface):
         #
         revisions_log: RevisionsLog,
         #
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> List[Revision]:
         # If only artifact_id is provided, fetch the default variant first
         variant_id = revisions_log.variant_id

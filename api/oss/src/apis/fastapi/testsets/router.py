@@ -1403,7 +1403,7 @@ class TestsetsRouter:
             )
 
         testset_revision_commit_request = TestsetRevisionCommitRequest(
-            testset_revision_commit=TestsetRevisionCommit(
+            testset_revision=TestsetRevisionCommit(
                 testset_id=base_revision.testset_id,
                 testset_variant_id=base_revision.testset_variant_id,
                 testset_revision_id=testset_revision_id,
