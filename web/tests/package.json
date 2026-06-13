@@ -13,7 +13,7 @@
         "test:smoke": "tsx playwright/scripts/run-tests.ts --coverage smoke"
     },
     "devDependencies": {
-        "@playwright/test": "^1.57.0",
+        "@playwright/test": "^1.60.0",
         "@types/node": "^20.8.10",
         "dotenv": "^16.5.0",
         "tsx": "^4.21.0",
