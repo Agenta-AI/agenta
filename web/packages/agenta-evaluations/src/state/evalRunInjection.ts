@@ -516,71 +516,98 @@ export interface EvalRunInjections {
 export const registerEvalRunInjections: WritableAtom<null, [EvalRunInjections], void> = atom(
     null,
     (_get, set, injections: EvalRunInjections) => {
+        // NOTE: many injected seams hold FUNCTION values (atomFamilies, transforms,
+        // callbacks). jotai's primitive `set(atom, value)` treats a function value as an
+        // updater `(prev) => next` and INVOKES it — e.g. `set(x, transformApiData)` would
+        // call `transformApiData(prev)`. So every value is wrapped in `() => value`, which
+        // jotai calls and whose return is stored verbatim. Harmless for non-function values.
         if (injections.workspaceMembers !== undefined) {
-            set(injectedWorkspaceMembersAtom, injections.workspaceMembers)
+            const v = injections.workspaceMembers
+            set(injectedWorkspaceMembersAtom, () => v)
         }
         if (injections.testcaseQueryFamily !== undefined) {
-            set(injectedTestcaseQueryFamilyAtom, injections.testcaseQueryFamily)
+            const v = injections.testcaseQueryFamily
+            set(injectedTestcaseQueryFamilyAtom, () => v)
         }
         if (injections.referenceResolver !== undefined) {
-            set(injectedReferenceResolverAtom, injections.referenceResolver)
+            const v = injections.referenceResolver
+            set(injectedReferenceResolverAtom, () => v)
         }
         if (injections.runInvalidate !== undefined) {
-            set(injectedRunInvalidateAtom, injections.runInvalidate)
+            const v = injections.runInvalidate
+            set(injectedRunInvalidateAtom, () => v)
         }
         if (injections.clearMetricSelection !== undefined) {
-            set(injectedClearMetricSelectionAtom, injections.clearMetricSelection)
+            const v = injections.clearMetricSelection
+            set(injectedClearMetricSelectionAtom, () => v)
         }
         if (injections.annotationTransform !== undefined) {
-            set(injectedAnnotationTransformAtom, injections.annotationTransform)
+            const v = injections.annotationTransform
+            set(injectedAnnotationTransformAtom, () => v)
         }
         if (injections.onlineEvaluationsApi !== undefined) {
-            set(injectedOnlineEvaluationsApiAtom, injections.onlineEvaluationsApi)
+            const v = injections.onlineEvaluationsApi
+            set(injectedOnlineEvaluationsApiAtom, () => v)
         }
         if (injections.appsQuery !== undefined) {
-            set(injectedAppsQueryAtom, injections.appsQuery)
+            const v = injections.appsQuery
+            set(injectedAppsQueryAtom, () => v)
         }
         if (injections.routerAppId !== undefined) {
-            set(injectedRouterAppIdAtom, injections.routerAppId)
+            const v = injections.routerAppId
+            set(injectedRouterAppIdAtom, () => v)
         }
         if (injections.url !== undefined) {
-            set(injectedUrlAtom, injections.url)
+            const v = injections.url
+            set(injectedUrlAtom, () => v)
         }
         if (injections.appIdentifiers !== undefined) {
-            set(injectedAppIdentifiersAtom, injections.appIdentifiers)
+            const v = injections.appIdentifiers
+            set(injectedAppIdentifiersAtom, () => v)
         }
         if (injections.routeLayer !== undefined) {
-            set(injectedRouteLayerAtom, injections.routeLayer)
+            const v = injections.routeLayer
+            set(injectedRouteLayerAtom, () => v)
         }
         if (injections.queriesQueryFamily !== undefined) {
-            set(injectedQueriesQueryFamilyAtom, injections.queriesQueryFamily)
+            const v = injections.queriesQueryFamily
+            set(injectedQueriesQueryFamilyAtom, () => v)
         }
         if (injections.currentWorkflow !== undefined) {
-            set(injectedCurrentWorkflowAtom, injections.currentWorkflow)
+            const v = injections.currentWorkflow
+            set(injectedCurrentWorkflowAtom, () => v)
         }
         if (injections.metricBlueprintFactory !== undefined) {
-            set(injectedMetricBlueprintFactoryAtom, injections.metricBlueprintFactory)
+            const v = injections.metricBlueprintFactory
+            set(injectedMetricBlueprintFactoryAtom, () => v)
         }
         if (injections.resolvedMetricLabelsFamily !== undefined) {
-            set(injectedResolvedMetricLabelsFamilyAtom, injections.resolvedMetricLabelsFamily)
+            const v = injections.resolvedMetricLabelsFamily
+            set(injectedResolvedMetricLabelsFamilyAtom, () => v)
         }
         if (injections.evaluatorReferenceFamily !== undefined) {
-            set(injectedEvaluatorReferenceFamilyAtom, injections.evaluatorReferenceFamily)
+            const v = injections.evaluatorReferenceFamily
+            set(injectedEvaluatorReferenceFamilyAtom, () => v)
         }
         if (injections.workspaceMemberByIdFamily !== undefined) {
-            set(injectedWorkspaceMemberByIdFamilyAtom, injections.workspaceMemberByIdFamily)
+            const v = injections.workspaceMemberByIdFamily
+            set(injectedWorkspaceMemberByIdFamilyAtom, () => v)
         }
         if (injections.onboardingWidgetActivation !== undefined) {
-            set(injectedOnboardingWidgetActivationAtom, injections.onboardingWidgetActivation)
+            const v = injections.onboardingWidgetActivation
+            set(injectedOnboardingWidgetActivationAtom, () => v)
         }
         if (injections.setOnboardingWidgetActivation !== undefined) {
-            set(injectedSetOnboardingWidgetActivationAtom, injections.setOnboardingWidgetActivation)
+            const v = injections.setOnboardingWidgetActivation
+            set(injectedSetOnboardingWidgetActivationAtom, () => v)
         }
         if (injections.recordWidgetEvent !== undefined) {
-            set(injectedRecordWidgetEventAtom, injections.recordWidgetEvent)
+            const v = injections.recordWidgetEvent
+            set(injectedRecordWidgetEventAtom, () => v)
         }
         if (injections.navigationRequest !== undefined) {
-            set(injectedNavigationRequestAtom, injections.navigationRequest)
+            const v = injections.navigationRequest
+            set(injectedNavigationRequestAtom, () => v)
         }
     },
 )
