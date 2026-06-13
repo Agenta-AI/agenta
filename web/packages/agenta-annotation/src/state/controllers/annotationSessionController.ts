@@ -1432,22 +1432,36 @@ function setColumnPathValue(data: Record<string, unknown>, columnPath: string, v
     cursor[parts[parts.length - 1]] = value
 }
 
-function collectColumnPathValues(
+/**
+ * Walk a row's data tree depth-first, invoking `visit(columnKey, value)` for
+ * every leaf. Top-level system fields are skipped; nested plain objects are
+ * recursed (arrays count as leaf values). Shared traversal behind
+ * `collectColumnPathValues` (path+value) and `collectDataColumnKeys` (keys).
+ */
+function walkLeafColumns(
     data: Record<string, unknown>,
-    values: {path: string; value: unknown}[],
+    visit: (columnKey: string, value: unknown) => void,
     parentKey?: string,
-) {
+): void {
     for (const [key, value] of Object.entries(data)) {
         if (!parentKey && SYSTEM_FIELDS.has(key)) continue
 
         const columnKey = parentKey ? `${parentKey}.${key}` : key
         if (value && typeof value === "object" && !Array.isArray(value)) {
-            collectColumnPathValues(value as Record<string, unknown>, values, columnKey)
+            walkLeafColumns(value as Record<string, unknown>, visit, columnKey)
             continue
         }
 
-        values.push({path: columnKey, value})
+        visit(columnKey, value)
     }
+}
+
+function collectColumnPathValues(
+    data: Record<string, unknown>,
+    values: {path: string; value: unknown}[],
+    parentKey?: string,
+) {
+    walkLeafColumns(data, (path, value) => values.push({path, value}), parentKey)
 }
 
 function remapRowsToExistingLeafColumns<T extends {data: Record<string, unknown>}>(
@@ -1484,17 +1498,7 @@ function collectDataColumnKeys(
     columns: Set<string>,
     parentKey?: string,
 ) {
-    for (const [key, value] of Object.entries(data)) {
-        if (!parentKey && SYSTEM_FIELDS.has(key)) continue
-
-        const columnKey = parentKey ? `${parentKey}.${key}` : key
-        if (value && typeof value === "object" && !Array.isArray(value)) {
-            collectDataColumnKeys(value as Record<string, unknown>, columns, columnKey)
-            continue
-        }
-
-        columns.add(columnKey)
-    }
+    walkLeafColumns(data, (columnKey) => columns.add(columnKey), parentKey)
 }
 
 function resolveTraceOutputColumnName(params: {

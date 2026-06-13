@@ -765,17 +765,33 @@ export interface AddToTestsetCommitRow {
  * row's is omitted entirely, so re-saving with nothing new produces an empty
  * delta (no new revision, no needless testcase-id churn).
  */
-export function buildAddToTestsetOperations(params: {
-    rows: AddToTestsetCommitRow[]
-    baseRows: BaseRevisionTestcaseRow[]
-}): TestsetRevisionDelta {
+/** Index built from a base revision's rows: by id, by dedup id, and id→data. */
+interface BaseRowIndex {
+    baseRowIds: Set<string>
+    baseRowIdByDedup: Map<string, string>
+    baseDataById: Map<string, Record<string, unknown> | null | undefined>
+}
+
+/**
+ * Index a base revision's rows by id and by `testcase_dedup_id`.
+ *
+ * `guardAmbiguous`: when a dedup id appears on more than one base row
+ * (historical corruption), drop it from the dedup index so rows that can only
+ * be matched by it fall through to `add` rather than overwriting an arbitrary
+ * unrelated row — and warn. When false, last-writer-wins (the legacy sync-path
+ * behavior). The FE can contain this corruption but not repair it; the durable
+ * fix is backend.
+ */
+function indexBaseRows(
+    baseRows: BaseRevisionTestcaseRow[],
+    opts: {guardAmbiguous: boolean; label?: string},
+): BaseRowIndex {
     const baseRowIds = new Set<string>()
     const baseRowIdByDedup = new Map<string, string>()
     const baseDataById = new Map<string, Record<string, unknown> | null | undefined>()
-    // Dedup ids that appear on more than one base row (historical corruption).
     const ambiguousDedups = new Set<string>()
 
-    for (const row of params.baseRows) {
+    for (const row of baseRows) {
         if (row.id) {
             baseRowIds.add(row.id)
             baseDataById.set(row.id, row.data)
@@ -783,10 +799,9 @@ export function buildAddToTestsetOperations(params: {
 
         const dedupId = getTestcaseDedupId(row.data)
         if (row.id && dedupId) {
-            if (baseRowIdByDedup.has(dedupId)) {
-                // dedup -> row is no longer 1:1 for this id. Letting the last
-                // writer win would replace an *arbitrary* row, silently
-                // corrupting an unrelated testcase. Mark it ambiguous instead.
+            if (opts.guardAmbiguous && baseRowIdByDedup.has(dedupId)) {
+                // dedup -> row is no longer 1:1 for this id; mark ambiguous
+                // instead of letting the last writer silently corrupt a row.
                 ambiguousDedups.add(dedupId)
             } else {
                 baseRowIdByDedup.set(dedupId, row.id)
@@ -794,20 +809,28 @@ export function buildAddToTestsetOperations(params: {
         }
     }
 
-    // Drop ambiguous dedups from the fallback index: rows that can only be
-    // matched by such a dedup fall through to `add` rather than overwriting the
-    // wrong row. This is the documented "duplicate/missing dedup" corruption
-    // case that the FE can contain but not repair (the durable fix is backend).
-    if (ambiguousDedups.size > 0) {
+    if (opts.guardAmbiguous && ambiguousDedups.size > 0) {
         for (const dedupId of ambiguousDedups) {
             baseRowIdByDedup.delete(dedupId)
         }
         console.warn(
-            `[buildAddToTestsetOperations] target revision has ${ambiguousDedups.size} ` +
+            `[${opts.label ?? "indexBaseRows"}] target revision has ${ambiguousDedups.size} ` +
                 `duplicate testcase_dedup_id(s); those rows can't be matched by dedup and ` +
                 `will be added instead of replaced.`,
         )
     }
+
+    return {baseRowIds, baseRowIdByDedup, baseDataById}
+}
+
+export function buildAddToTestsetOperations(params: {
+    rows: AddToTestsetCommitRow[]
+    baseRows: BaseRevisionTestcaseRow[]
+}): TestsetRevisionDelta {
+    const {baseRowIds, baseRowIdByDedup, baseDataById} = indexBaseRows(params.baseRows, {
+        guardAmbiguous: true,
+        label: "buildAddToTestsetOperations",
+    })
 
     const replace: {id: string; data: Record<string, unknown>}[] = []
     const add: {data: Record<string, unknown>}[] = []
@@ -850,19 +873,11 @@ export function remapTargetRowsToBaseRevision(params: {
     target: TestsetSyncTarget
     baseRows: BaseRevisionTestcaseRow[]
 }) {
-    const baseRowIds = new Set<string>()
-    const baseRowIdByDedup = new Map<string, string>()
-
-    for (const row of params.baseRows) {
-        if (row.id) {
-            baseRowIds.add(row.id)
-        }
-
-        const dedupId = getTestcaseDedupId(row.data)
-        if (row.id && dedupId) {
-            baseRowIdByDedup.set(dedupId, row.id)
-        }
-    }
+    // NOTE: guardAmbiguous:false preserves the legacy last-writer-wins behavior
+    // of the sync path (unlike buildAddToTestsetOperations, which guards). A
+    // duplicate dedup id here still maps to an arbitrary row — a latent gap, but
+    // changing it is a behavior change in the AGE-3761-sensitive write-back path.
+    const {baseRowIds, baseRowIdByDedup} = indexBaseRows(params.baseRows, {guardAmbiguous: false})
 
     const mappedRows: TestsetSyncRow[] = []
     let droppedRowCount = 0
