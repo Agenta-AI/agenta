@@ -41,15 +41,15 @@ A new env var `AGENTA_DEFAULT_PLAN` (added to `env.agenta.default_plan`) control
 
 The org creation flow is refactored into two clear entry points with distinct subscription policies:
 
-**`create_organization_for_signup(...)`** — called during user signup (`create_accounts()`). Delegates subscription provisioning to `provision_signup_subscription()` on `SubscriptionsService`, which is the single decision point:
-- Stripe enabled (cloud): calls `start_reverse_trial()` — existing cloud behavior
+**`create_organization_for_signup(...)`** — called during user signup (`create_accounts()`). Delegates subscription provisioning to `provision_subscription()` on `SubscriptionsService`, which is the single decision point:
+- Stripe enabled (cloud): calls `start_reverse_trial()` if trial is configured, otherwise calls `start_plan(get_free_plan())` — existing cloud behavior
 - Stripe disabled (self-hosted): calls `start_plan(get_default_plan())` — enterprise plan
 
 **`create_organization_for_user(...)`** — called from `POST /organizations/` for explicit org creation by existing users. Always uses `start_plan(get_default_plan())`. No trial logic, regardless of Stripe. This preserves existing cloud behavior where manual org creation gets the hobby plan (no trial).
 
-The old `start_free_plan()` is removed. `start_plan(plan)` is the single generic method for creating a local subscription row with any plan. `start_reverse_trial()` now fails fast if Stripe is disabled (guard at the top) instead of silently falling back to hobby.
+The old `start_free_plan()` is removed. `start_plan(plan)` is the single generic method for creating a local subscription row with any plan. Calls to `start_reverse_trial()` are guarded by `env.stripe.enabled` in `provision_subscription()`, ensuring `start_reverse_trial()` is never invoked when Stripe is disabled.
 
-The `use_reverse_trial` boolean flag that was threaded through `create_accounts()` → `create_organization_with_subscription()` is removed entirely — the decision is now made inside `provision_signup_subscription()` based on `env.stripe.enabled`.
+The `use_reverse_trial` boolean flag that was threaded through `create_accounts()` → `create_organization_with_subscription()` is removed entirely — the decision is now made inside `provision_subscription()` based on `env.stripe.enabled`.
 
 ### 4. Frontend changes
 

@@ -140,11 +140,17 @@ export const buildEvaluatorMetricEntries = (
                 })
             }
 
+            // Match by id OR slug (same as EvaluatorMetricsChart): refs may
+            // carry the revision id while definitions are keyed by artifact id.
+            const definition = evaluatorDefinitions?.find?.(
+                (def) =>
+                    (evaluatorRef?.id && def.id === evaluatorRef.id) ||
+                    (evaluatorRef?.slug && def.slug === evaluatorRef.slug),
+            )
+
             return {
                 stepKey,
-                label:
-                    evaluatorDefinitions?.find?.((def) => def.id === evaluatorRef?.id)?.name ??
-                    label,
+                label: definition?.name ?? label,
                 evaluatorRef,
                 metrics: Array.from(unique.values()),
             }

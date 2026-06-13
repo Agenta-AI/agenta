@@ -50,7 +50,12 @@ from oss.src.models.db_models import (
     APIKeyDB,
     InvitationDB,
     OrganizationDB,
+    AppDB,
+    AppVariantDB,
+    AppVariantRevisionsDB,
+    AppEnvironmentRevisionDB,
 )
+from oss.src.dbs.postgres.webhooks.dbes import WebhookSubscriptionDBE
 from oss.src.core.testcases.dtos import Testcase
 from oss.src.core.testsets.dtos import (
     TestsetRevisionData,
@@ -1998,6 +2003,43 @@ async def admin_delete_api_key(key_id: uuid.UUID) -> None:
         await session.commit()
 
 
+async def _admin_detach_user_references(
+    session: AsyncSession,
+    user_ids: List[uuid.UUID],
+) -> None:
+    """Clear references to users from rows that survive the account cascade.
+
+    A user leaves traces in organizations they do not own (an accepted
+    invitation, audit columns on variants/revisions they edited, webhook
+    subscriptions they created). Those organizations are not deleted with the
+    user, so the rows survive and their NO ACTION foreign keys block
+    `DELETE FROM users`.
+    """
+    if not user_ids:
+        return
+
+    await session.execute(
+        delete(InvitationDB).where(InvitationDB.user_id.in_(user_ids))
+    )
+    # created_by_id is NOT NULL, so the rows cannot be detached.
+    await session.execute(
+        delete(WebhookSubscriptionDBE).where(
+            WebhookSubscriptionDBE.created_by_id.in_(user_ids)
+        )
+    )
+    for model in (
+        AppDB,
+        AppVariantDB,
+        AppVariantRevisionsDB,
+        AppEnvironmentRevisionDB,
+    ):
+        await session.execute(
+            update(model)
+            .where(model.modified_by_id.in_(user_ids))
+            .values(modified_by_id=None)
+        )
+
+
 async def admin_delete_accounts_batch(
     *,
     org_ids: List[uuid.UUID],
@@ -2017,6 +2059,7 @@ async def admin_delete_accounts_batch(
             await session.execute(
                 delete(OrganizationDB).where(OrganizationDB.id == org_id)
             )
+        await _admin_detach_user_references(session, user_ids)
         for uid in user_ids:
             await session.execute(delete(UserDB).where(UserDB.id == uid))
         await session.commit()
