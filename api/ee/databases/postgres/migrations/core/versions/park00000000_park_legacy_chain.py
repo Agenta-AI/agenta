@@ -7,7 +7,7 @@ this point on live in the post-alignment chains (`alembic_version_oss`, and
 for EE also `alembic_version_ee`). See
 docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md.
 
-Revision ID: a1167e5b0001
+Revision ID: park00000000
 Revises: 5a6b7c8d9e0f
 Create Date: 2026-06-12 00:00:06.000000
 
@@ -16,7 +16,7 @@ Create Date: 2026-06-12 00:00:06.000000
 from typing import Sequence, Union
 
 # revision identifiers, used by Alembic.
-revision: str = "a1167e5b0001"
+revision: str = "park00000000"
 down_revision: Union[str, None] = "5a6b7c8d9e0f"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

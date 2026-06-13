@@ -14,7 +14,7 @@ from oss.src.utils.env import env
 logger = logging.getLogger("alembic.env")
 
 # The legacy chain must be parked at the align revision before this chain runs.
-ALIGN_REVISION = "a00000000000"
+ALIGN_REVISION = "park00000000"
 VERSION_TABLE = "alembic_version_oss"
 
 _HERE = Path(__file__).parent
