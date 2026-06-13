@@ -10,8 +10,8 @@ import {EditorProvider, SET_MARKDOWN_VIEW, useLexicalComposerContext} from "@age
 import {SharedEditor} from "@agenta/ui/shared-editor"
 // import {InputNumber, Switch} from "antd"
 
+import {coerceTextEdit, inferLogicalType} from "../view-types"
 import {parseCodeString, toCodeString} from "./codeFormat"
-import {inferPrimitiveFromText} from "./TestcasePrimitiveValue.utils"
 
 function toDisplayString(value: unknown, viewMode?: ViewMode): string {
     if (viewMode === "yaml") return toCodeString(value, "yaml")
@@ -106,7 +106,7 @@ function MarkdownViewSync({active}: {active: boolean}) {
 
 function TextEditor({
     editorId,
-    value: _value,
+    value,
     displayValue,
     markdown,
     onChange,
@@ -124,8 +124,8 @@ function TextEditor({
     // like a clean number or boolean literal stays a string — see
     // inferPrimitiveFromText for the precise rules.
     const handleChange = useCallback(
-        (next: string) => onChange(inferPrimitiveFromText(next)),
-        [onChange],
+        (next: string) => onChange(coerceTextEdit(next, inferLogicalType(value))),
+        [value, onChange],
     )
 
     return (
