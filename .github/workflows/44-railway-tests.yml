@@ -286,7 +286,7 @@ jobs:
         if: steps.auth_bootstrap.outputs.enabled == 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Install pnpm
         if: steps.auth_bootstrap.outputs.enabled == 'true'
@@ -321,11 +321,10 @@ jobs:
         working-directory: web/tests
         run: pnpm exec playwright install-deps chromium
 
-      # Browser binaries. Root cause of the original ~6h hang: Playwright 1.59's
-      # zip extraction deadlocks on Node 24 (reproduced locally: Node 22/23
-      # extract in ~16s, Node 24 hangs indefinitely). The job is pinned to Node
-      # 22 (LTS) above, which fixes it. The cache makes this a no-op on a hit,
-      # and the retry + per-attempt timeout guard against any transient stall.
+      # Browser binaries. An earlier ~6h hang came from Playwright 1.59's zip
+      # extraction deadlocking on Node 24; that's fixed in 1.60+. The cache
+      # makes this a no-op on a hit, and the retry + per-attempt timeout guard
+      # against any transient stall.
       - name: Install Playwright browser
         if: steps.auth_bootstrap.outputs.enabled == 'true'
         working-directory: web/tests
@@ -632,7 +631,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -645,9 +644,38 @@ jobs:
         # devDeps (e.g. vitest) aren't pulled by a dependency-only filter.
         run: pnpm install --no-frozen-lockfile
 
-      - name: Install Playwright browsers
+      # Same split+cache+retry pattern as the bootstrap job above: cache the
+      # browser binary, install only chromium's apt deps, and guard the binary
+      # download with a per-attempt timeout.
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright system dependencies
         working-directory: web/tests
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Install Playwright browser
+        working-directory: web/tests
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::playwright install chromium (attempt ${attempt}/3)"
+            if timeout 180 pnpm exec playwright install chromium; then
+              echo "::endgroup::"
+              echo "browser install succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "attempt ${attempt} stalled or failed; retrying after 5s..."
+            sleep 5
+          done
+          echo "playwright browser install failed after 3 attempts" >&2
+          exit 1
 
       - name: Run web tests
         working-directory: web/tests

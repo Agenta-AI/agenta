@@ -17,6 +17,7 @@ export type { QueryRevisionRetrieveRequest } from "./QueryRevisionRetrieveReques
 export type { QueryRevisionsLogRequest } from "./QueryRevisionsLogRequest.js";
 export type { QueryVariantCreateRequest } from "./QueryVariantCreateRequest.js";
 export type { QueryVariantEditRequest } from "./QueryVariantEditRequest.js";
+export type { QueryVariantForkRequest } from "./QueryVariantForkRequest.js";
 export type { QueryVariantQueryRequest } from "./QueryVariantQueryRequest.js";
 export type { SimpleQueryCreateRequest } from "./SimpleQueryCreateRequest.js";
 export type { SimpleQueryEditRequest } from "./SimpleQueryEditRequest.js";

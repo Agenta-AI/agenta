@@ -30,7 +30,6 @@ from ..types.workflow_catalog_type_response import WorkflowCatalogTypeResponse
 from ..types.workflow_catalog_types_response import WorkflowCatalogTypesResponse
 from ..types.workflow_create import WorkflowCreate
 from ..types.workflow_edit import WorkflowEdit
-from ..types.workflow_fork import WorkflowFork
 from ..types.workflow_response import WorkflowResponse
 from ..types.workflow_revision_commit import WorkflowRevisionCommit
 from ..types.workflow_revision_create import WorkflowRevisionCreate
@@ -42,6 +41,7 @@ from ..types.workflow_revisions_log import WorkflowRevisionsLog
 from ..types.workflow_revisions_response import WorkflowRevisionsResponse
 from ..types.workflow_variant_create import WorkflowVariantCreate
 from ..types.workflow_variant_edit import WorkflowVariantEdit
+from ..types.workflow_variant_fork import WorkflowVariantFork
 from ..types.workflow_variant_response import WorkflowVariantResponse
 from ..types.workflow_variants_response import WorkflowVariantsResponse
 from ..types.workflows_response import WorkflowsResponse
@@ -1018,12 +1018,18 @@ class RawWorkflowsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def fork_workflow_variant(self, *, workflow: WorkflowFork, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[WorkflowVariantResponse]:
+    def fork_workflow_variant(self, *, workflow_variant: WorkflowVariantFork, workflow_variant_ref: Reference, workflow_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[WorkflowVariantResponse]:
         """
         Parameters
         ----------
-        workflow : WorkflowFork
-            Fork payload. Identify the source by `workflow_id` and `workflow_variant_id` (or equivalent slugs), supply a new `workflow_variant.slug` for the forked branch.
+        workflow_variant : WorkflowVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        workflow_variant_ref : Reference
+            Source variant to fork from.
+        
+        workflow_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1036,7 +1042,9 @@ class RawWorkflowsClient:
         _response = self._client_wrapper.httpx_client.request(
             "workflows/variants/fork",method="POST",
             json={
-                "workflow": convert_and_respect_annotation_metadata(object_=workflow, annotation=WorkflowFork, direction="write"),
+                "workflow_variant": convert_and_respect_annotation_metadata(object_=workflow_variant, annotation=WorkflowVariantFork, direction="write"),
+                "workflow_variant_ref": convert_and_respect_annotation_metadata(object_=workflow_variant_ref, annotation=Reference, direction="write"),
+                "workflow_revision_ref": convert_and_respect_annotation_metadata(object_=workflow_revision_ref, annotation=typing.Optional[Reference], direction="write"),
             }
             ,
             headers={"content-type": "application/json", }
@@ -1578,11 +1586,11 @@ class RawWorkflowsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def log_workflow_revisions(self, *, workflow: WorkflowRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[WorkflowRevisionsResponse]:
+    def log_workflow_revisions(self, *, workflow_revisions: WorkflowRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[WorkflowRevisionsResponse]:
         """
         Parameters
         ----------
-        workflow : WorkflowRevisionsLog
+        workflow_revisions : WorkflowRevisionsLog
             Log query. Supply `workflow_id`, `workflow_variant_id`, or `workflow_revision_id` to scope the log, and an optional `depth`.
         
         request_options : typing.Optional[RequestOptions]
@@ -1596,7 +1604,7 @@ class RawWorkflowsClient:
         _response = self._client_wrapper.httpx_client.request(
             "workflows/revisions/log",method="POST",
             json={
-                "workflow": convert_and_respect_annotation_metadata(object_=workflow, annotation=WorkflowRevisionsLog, direction="write"),
+                "workflow_revisions": convert_and_respect_annotation_metadata(object_=workflow_revisions, annotation=WorkflowRevisionsLog, direction="write"),
             }
             ,
             headers={"content-type": "application/json", }
@@ -2953,12 +2961,18 @@ class AsyncRawWorkflowsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def fork_workflow_variant(self, *, workflow: WorkflowFork, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[WorkflowVariantResponse]:
+    async def fork_workflow_variant(self, *, workflow_variant: WorkflowVariantFork, workflow_variant_ref: Reference, workflow_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[WorkflowVariantResponse]:
         """
         Parameters
         ----------
-        workflow : WorkflowFork
-            Fork payload. Identify the source by `workflow_id` and `workflow_variant_id` (or equivalent slugs), supply a new `workflow_variant.slug` for the forked branch.
+        workflow_variant : WorkflowVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        workflow_variant_ref : Reference
+            Source variant to fork from.
+        
+        workflow_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2971,7 +2985,9 @@ class AsyncRawWorkflowsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "workflows/variants/fork",method="POST",
             json={
-                "workflow": convert_and_respect_annotation_metadata(object_=workflow, annotation=WorkflowFork, direction="write"),
+                "workflow_variant": convert_and_respect_annotation_metadata(object_=workflow_variant, annotation=WorkflowVariantFork, direction="write"),
+                "workflow_variant_ref": convert_and_respect_annotation_metadata(object_=workflow_variant_ref, annotation=Reference, direction="write"),
+                "workflow_revision_ref": convert_and_respect_annotation_metadata(object_=workflow_revision_ref, annotation=typing.Optional[Reference], direction="write"),
             }
             ,
             headers={"content-type": "application/json", }
@@ -3513,11 +3529,11 @@ class AsyncRawWorkflowsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def log_workflow_revisions(self, *, workflow: WorkflowRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[WorkflowRevisionsResponse]:
+    async def log_workflow_revisions(self, *, workflow_revisions: WorkflowRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[WorkflowRevisionsResponse]:
         """
         Parameters
         ----------
-        workflow : WorkflowRevisionsLog
+        workflow_revisions : WorkflowRevisionsLog
             Log query. Supply `workflow_id`, `workflow_variant_id`, or `workflow_revision_id` to scope the log, and an optional `depth`.
         
         request_options : typing.Optional[RequestOptions]
@@ -3531,7 +3547,7 @@ class AsyncRawWorkflowsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "workflows/revisions/log",method="POST",
             json={
-                "workflow": convert_and_respect_annotation_metadata(object_=workflow, annotation=WorkflowRevisionsLog, direction="write"),
+                "workflow_revisions": convert_and_respect_annotation_metadata(object_=workflow_revisions, annotation=WorkflowRevisionsLog, direction="write"),
             }
             ,
             headers={"content-type": "application/json", }

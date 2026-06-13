@@ -32,7 +32,7 @@ from ..types.evaluation_result_query import EvaluationResultQuery
 from ..types.evaluation_result_response import EvaluationResultResponse
 from ..types.evaluation_results_response import EvaluationResultsResponse
 from ..types.evaluation_run_create import EvaluationRunCreate
-from ..types.evaluation_run_data_step import EvaluationRunDataStep
+from ..types.evaluation_run_data_step_input import EvaluationRunDataStepInput
 from ..types.evaluation_run_edit import EvaluationRunEdit
 from ..types.evaluation_run_id_response import EvaluationRunIdResponse
 from ..types.evaluation_run_ids_response import EvaluationRunIdsResponse
@@ -56,6 +56,7 @@ from ..types.simple_evaluation_response import SimpleEvaluationResponse
 from ..types.simple_evaluations_response import SimpleEvaluationsResponse
 from ..types.simple_queue_create import SimpleQueueCreate
 from ..types.simple_queue_id_response import SimpleQueueIdResponse
+from ..types.simple_queue_ids_response import SimpleQueueIdsResponse
 from ..types.simple_queue_query import SimpleQueueQuery
 from ..types.simple_queue_response import SimpleQueueResponse
 from ..types.simple_queue_scenarios_query import SimpleQueueScenariosQuery
@@ -942,7 +943,7 @@ class RawEvaluationsClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "evaluations/results/",method="POST",
+            "evaluations/results/",method="PATCH",
             json={
                 "results": convert_and_respect_annotation_metadata(object_=results, annotation=typing.Sequence[EvaluationResultCreate], direction="write"),
             }
@@ -1213,7 +1214,7 @@ class RawEvaluationsClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "evaluations/metrics/",method="POST",
+            "evaluations/metrics/",method="PATCH",
             json={
                 "metrics": convert_and_respect_annotation_metadata(object_=metrics, annotation=typing.Sequence[EvaluationMetricsCreate], direction="write"),
             }
@@ -2534,13 +2535,13 @@ class RawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def add_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStep], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationRunResponse]:
+    def add_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStepInput], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EvaluationRunResponse]:
         """
         Parameters
         ----------
         evaluation_id : str
         
-        steps : typing.Sequence[EvaluationRunDataStep]
+        steps : typing.Sequence[EvaluationRunDataStepInput]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2553,7 +2554,7 @@ class RawEvaluationsClient:
         _response = self._client_wrapper.httpx_client.request(
             f"simple/evaluations/{jsonable_encoder(evaluation_id)}/steps/add",method="POST",
             json={
-                "steps": convert_and_respect_annotation_metadata(object_=steps, annotation=typing.Sequence[EvaluationRunDataStep], direction="write"),
+                "steps": convert_and_respect_annotation_metadata(object_=steps, annotation=typing.Sequence[EvaluationRunDataStepInput], direction="write"),
             }
             ,
             headers={"content-type": "application/json", }
@@ -2728,6 +2729,53 @@ class RawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    def delete_simple_queues(self, *, queue_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SimpleQueueIdsResponse]:
+        """
+        Parameters
+        ----------
+        queue_ids : typing.Sequence[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[SimpleQueueIdsResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "simple/queues/",method="DELETE",
+            json={
+                "queue_ids": queue_ids,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    SimpleQueueIdsResponse,
+                    parse_obj_as(
+                        type_ =SimpleQueueIdsResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     def query_simple_queues(self, *, queue: typing.Optional[SimpleQueueQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SimpleQueuesResponse]:
         """
         Parameters
@@ -2801,6 +2849,46 @@ class RawEvaluationsClient:
                     SimpleQueueResponse,
                     parse_obj_as(
                         type_ =SimpleQueueResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def delete_simple_queue(self, queue_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SimpleQueueIdResponse]:
+        """
+        Parameters
+        ----------
+        queue_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[SimpleQueueIdResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"simple/queues/{jsonable_encoder(queue_id)}",method="DELETE",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    SimpleQueueIdResponse,
+                    parse_obj_as(
+                        type_ =SimpleQueueIdResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -3847,7 +3935,7 @@ class AsyncRawEvaluationsClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "evaluations/results/",method="POST",
+            "evaluations/results/",method="PATCH",
             json={
                 "results": convert_and_respect_annotation_metadata(object_=results, annotation=typing.Sequence[EvaluationResultCreate], direction="write"),
             }
@@ -4118,7 +4206,7 @@ class AsyncRawEvaluationsClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "evaluations/metrics/",method="POST",
+            "evaluations/metrics/",method="PATCH",
             json={
                 "metrics": convert_and_respect_annotation_metadata(object_=metrics, annotation=typing.Sequence[EvaluationMetricsCreate], direction="write"),
             }
@@ -5439,13 +5527,13 @@ class AsyncRawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def add_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStep], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationRunResponse]:
+    async def add_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStepInput], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EvaluationRunResponse]:
         """
         Parameters
         ----------
         evaluation_id : str
         
-        steps : typing.Sequence[EvaluationRunDataStep]
+        steps : typing.Sequence[EvaluationRunDataStepInput]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -5458,7 +5546,7 @@ class AsyncRawEvaluationsClient:
         _response = await self._client_wrapper.httpx_client.request(
             f"simple/evaluations/{jsonable_encoder(evaluation_id)}/steps/add",method="POST",
             json={
-                "steps": convert_and_respect_annotation_metadata(object_=steps, annotation=typing.Sequence[EvaluationRunDataStep], direction="write"),
+                "steps": convert_and_respect_annotation_metadata(object_=steps, annotation=typing.Sequence[EvaluationRunDataStepInput], direction="write"),
             }
             ,
             headers={"content-type": "application/json", }
@@ -5633,6 +5721,53 @@ class AsyncRawEvaluationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    async def delete_simple_queues(self, *, queue_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SimpleQueueIdsResponse]:
+        """
+        Parameters
+        ----------
+        queue_ids : typing.Sequence[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[SimpleQueueIdsResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "simple/queues/",method="DELETE",
+            json={
+                "queue_ids": queue_ids,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    SimpleQueueIdsResponse,
+                    parse_obj_as(
+                        type_ =SimpleQueueIdsResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     async def query_simple_queues(self, *, queue: typing.Optional[SimpleQueueQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SimpleQueuesResponse]:
         """
         Parameters
@@ -5706,6 +5841,46 @@ class AsyncRawEvaluationsClient:
                     SimpleQueueResponse,
                     parse_obj_as(
                         type_ =SimpleQueueResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def delete_simple_queue(self, queue_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SimpleQueueIdResponse]:
+        """
+        Parameters
+        ----------
+        queue_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[SimpleQueueIdResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"simple/queues/{jsonable_encoder(queue_id)}",method="DELETE",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    SimpleQueueIdResponse,
+                    parse_obj_as(
+                        type_ =SimpleQueueIdResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
