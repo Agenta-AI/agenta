@@ -18,5 +18,5 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface AddStepsRequest {
     evaluation_id: string;
-    steps: AgentaApi.EvaluationRunDataStep[];
+    steps: AgentaApi.EvaluationRunDataStepInput[];
 }
