@@ -80,7 +80,14 @@ export const evaluationRunsTableContextAtom = atom<EvaluationRunsTableContext>((
 
     const explicitAppId = overrides.appId ?? null
     const scopedAppId = scope === "app" ? explicitAppId : null
-    const effectiveAppIds = deriveAppIds(explicitAppId, scopedAppId, availableAppIds)
+    // Only an APP-scoped view filters runs by app (the "subject" filter: show the runs
+    // that evaluated THIS app, hide ones where it's merely a grader). A PROJECT-scoped
+    // view ("All Evals") must list every run, so it passes no app ids. Deriving
+    // all-project-app-ids here wrongly activated the per-app subject filter on the project
+    // view and dropped runs whose evaluated subject isn't a registered application (e.g. an
+    // evaluator being evaluated, like llm-as-a-judge).
+    const effectiveAppIds =
+        scope === "app" ? deriveAppIds(explicitAppId, scopedAppId, availableAppIds) : []
 
     // Runs sourced from traces or testcases belong to Annotation Queues, not the
     // evaluation tabs. Live evals are always query-sourced, so this exclusion is a
