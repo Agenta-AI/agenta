@@ -4,7 +4,7 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .evaluator_revision import EvaluatorRevision
+from .evaluator_revision_output import EvaluatorRevisionOutput
 
 
 class EvaluatorRevisionsResponse(UniversalBaseModel):
@@ -16,7 +16,7 @@ class EvaluatorRevisionsResponse(UniversalBaseModel):
     Number of revisions in `evaluator_revisions`.
     """
     
-    evaluator_revisions: typing.Optional[typing.List[EvaluatorRevision]] = pydantic.Field(default=None)
+    evaluator_revisions: typing.Optional[typing.List[EvaluatorRevisionOutput]] = pydantic.Field(default=None)
     """
     Matching evaluator revisions.
     """

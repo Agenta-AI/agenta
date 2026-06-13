@@ -3,10 +3,12 @@
 import type * as AgentaApi from "../index.js";
 
 export interface EvaluationScenarioEdit {
-    flags?: (Record<string, AgentaApi.LabelJsonInput | null> | null) | undefined;
+    flags?: (AgentaApi.EvaluationRunFlags | null) | undefined;
     tags?: (Record<string, AgentaApi.LabelJsonInput | null> | null) | undefined;
     meta?: (Record<string, AgentaApi.FullJsonInput | null> | null) | undefined;
     id?: (string | null) | undefined;
     version?: string | undefined;
     status?: (AgentaApi.EvaluationStatus | null) | undefined;
+    interval?: (number | null) | undefined;
+    timestamp?: (string | null) | undefined;
 }
