@@ -52,8 +52,18 @@ const MESSAGES_VIEW_OPTIONS: FieldViewModeOption[] = [
     {value: "yaml", label: "YAML"},
 ]
 
-const getTestcaseViewOptions = ({dataType}: {dataType: DataType}): FieldViewModeOption[] =>
-    dataType === "messages" ? MESSAGES_VIEW_OPTIONS : TESTCASE_VIEW_OPTIONS
+// JSON/YAML only — for number and boolean fields
+const CODE_ONLY_VIEW_OPTIONS: FieldViewModeOption[] = [
+    {value: "json", label: "JSON"},
+    {value: "yaml", label: "YAML"},
+]
+
+const getTestcaseViewOptions = ({dataType}: {dataType: DataType}): FieldViewModeOption[] => {
+    if (dataType === "messages") return MESSAGES_VIEW_OPTIONS
+    if (dataType === "number" || dataType === "boolean") return CODE_ONLY_VIEW_OPTIONS
+    return TESTCASE_VIEW_OPTIONS // strings, null → Text/Markdown/JSON/YAML
+}
+
 const renderTestcaseTypeChip = (value: unknown) => <TypeChip value={value} />
 
 function FullPayloadCodeEditor({

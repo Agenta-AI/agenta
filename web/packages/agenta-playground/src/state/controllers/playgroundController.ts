@@ -85,6 +85,7 @@ import {
 import {pruneDanglingConnections} from "../helpers/connectionGraph"
 import {
     collectDownstreamReferencedColumns,
+    collectTestcaseServerColumns,
     reconcileRowDataForEntity,
     resolveEntityInputContract,
 } from "../helpers/entityInputContract"
@@ -2149,24 +2150,23 @@ function relinkLoadableSessions(
         set(executionStateAtomFamily(newLoadableId), nextExecState)
         set(executionStateAtomFamily(oldLoadableId), createInitialExecutionState())
 
-        // Also migrate row-level execution results stored on the loadable
-        // state itself. These render the per-row output cells; leaving them
-        // behind makes the just-committed revision look like it never ran.
-        // `linkToRunnable` will overwrite linkedRunnable* immediately after
-        // this, so we don't touch those fields here — only the
-        // execution-output map needs to move.
-        const oldLoadableState = get(loadableStateAtomFamily(oldLoadableId))
-        if (Object.keys(oldLoadableState.executionResults).length > 0) {
-            const newLoadableState = get(loadableStateAtomFamily(newLoadableId))
-            set(loadableStateAtomFamily(newLoadableId), {
-                ...newLoadableState,
-                executionResults: oldLoadableState.executionResults,
-            })
-            set(loadableStateAtomFamily(oldLoadableId), {
-                ...oldLoadableState,
-                executionResults: {},
-            })
-        }
+        // The loadable ID is anchored to the primary revision, so an anchor
+        // commit must move the whole loadable context. Migrating only execution
+        // results drops connectedSourceId and makes the connected testset appear
+        // disconnected under the new revision.
+        const oldLoadableStateAtom = loadableStateAtomFamily(oldLoadableId)
+        const oldLoadableState = get(oldLoadableStateAtom)
+        set(loadableStateAtomFamily(newLoadableId), {
+            ...oldLoadableState,
+            linkedRunnableId: newEntityId,
+            hiddenTestcaseIds: new Set(oldLoadableState.hiddenTestcaseIds),
+            disabledOutputMappingRowIds: new Set(oldLoadableState.disabledOutputMappingRowIds),
+        })
+
+        // Evict the old family key so future lookups receive fresh default state.
+        // Reset the captured atom as well for any subscribers that still hold it.
+        loadableStateAtomFamily.remove(oldLoadableId)
+        set(oldLoadableStateAtom, get(loadableStateAtomFamily(oldLoadableId)))
     } else if (execRewrote) {
         set(executionStateAtomFamily(oldLoadableId), nextExecState)
     }
@@ -2226,8 +2226,15 @@ function pruneTestcaseRowsForEntity(get: Getter, set: Setter, entityId: string):
         const data = (row as {data?: Record<string, unknown>} | null)?.data
         if (!data || typeof data !== "object") continue
 
+        // Per-row: the synced test set's own columns are intentional data,
+        // not stale leftovers — keep them through the swap clean (#4647).
+        const serverColumns = collectTestcaseServerColumns(get, rowId)
+        const protectedKeys =
+            serverColumns.size > 0
+                ? new Set([...protectedColumns, ...serverColumns])
+                : protectedColumns
         const {dropped} = reconcileRowDataForEntity(get, entityId, data, {
-            protectedKeys: protectedColumns,
+            protectedKeys,
         })
         if (dropped.length === 0) continue
 

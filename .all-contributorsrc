@@ -614,6 +614,16 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "Shunmuka",
+      "name": "Shunmuka Valsa",
+      "avatar_url": "https://avatars.githubusercontent.com/u/137101604?v=4",
+      "profile": "https://github.com/Shunmuka",
+      "contributions": [
+        "code",
+        "platform"
+      ]
     }
   ],
   "contributorsPerLine": 7,

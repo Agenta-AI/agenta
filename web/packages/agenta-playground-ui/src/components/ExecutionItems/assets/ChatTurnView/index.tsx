@@ -12,7 +12,6 @@ import {
 import {LoadingOutlined} from "@ant-design/icons"
 import {Popover, Tag} from "antd"
 import clsx from "clsx"
-import {atom} from "jotai"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {TurnMessageAdapter} from "@agenta/playground-ui/adapters"
@@ -21,6 +20,7 @@ import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {useExecutionCell} from "../../../../hooks/useExecutionCell"
 import {EvaluatorFieldGrid} from "../../../shared/EvaluatorFieldGrid"
 import {extractDisplayEntries} from "../../../shared/EvaluatorFieldGrid/utils"
+import {usePlaygroundNodeLabels} from "../ExecutionRow/shared"
 import {ClickRunPlaceholder} from "../ResultPlaceholder"
 import TypingIndicator from "../TypingIndicator"
 
@@ -316,22 +316,7 @@ const ChatTurnView = ({
         | null
     const isChain = (nodes?.length ?? 0) > 1
 
-    const nodeNamesAtom = useMemo(
-        () =>
-            atom((get) => {
-                if (!nodes) return {} as Record<string, string>
-                const names: Record<string, string> = {}
-                for (const node of nodes) {
-                    const data = get(workflowMolecule.selectors.data(node.entityId))
-                    if (data?.name) {
-                        names[node.id] = data.name
-                    }
-                }
-                return names
-            }),
-        [nodes],
-    )
-    const nodeNames = useAtomValue(nodeNamesAtom)
+    const {nodeNames} = usePlaygroundNodeLabels(nodes)
 
     const downstreamNodes = useMemo(() => {
         if (!isChain || !nodes) return []

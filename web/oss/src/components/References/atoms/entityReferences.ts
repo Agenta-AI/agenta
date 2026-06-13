@@ -7,6 +7,7 @@ import {
     fetchWorkflow,
     fetchWorkflowRevisionById,
     parseWorkflowKeyFromUri,
+    workflowArtifactScopedQueryAtomFamily,
     resolveOutputSchemaProperties,
     workflowMolecule,
     workflowsListQueryStateAtom,
@@ -332,11 +333,26 @@ export const evaluatorReferenceAtomFamily = atomFamily(
                 }
                 const workflow = query.data
                 if (workflow) {
+                    const artifactId = workflow.workflow_id ?? null
+                    const artifactName = artifactId
+                        ? (get(
+                              workflowArtifactScopedQueryAtomFamily({
+                                  projectId,
+                                  workflowId: artifactId,
+                              }),
+                          ).data?.name ?? null)
+                        : null
                     return {
                         data: {
                             id: workflow.workflow_id ?? workflow.id ?? id,
                             slug: workflow.slug ?? slug ?? null,
-                            name: workflow.name ?? workflow.slug ?? slug ?? id ?? null,
+                            name:
+                                artifactName ??
+                                workflow.name ??
+                                workflow.slug ??
+                                slug ??
+                                id ??
+                                null,
                             workflowKey: parseWorkflowKeyFromUri(workflow.data?.uri ?? null),
                             metrics: extractMetricsFromWorkflow(workflow),
                         },

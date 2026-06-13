@@ -18,10 +18,10 @@ Make self-hosted EE work out of the box: enterprise entitlements, no billing UI,
 - Add `get_default_plan()` in `subscriptions/types.py` using `env` object (no local imports)
 - Remove `start_free_plan()`, replace with generic `start_plan(plan)`
 - Remove `use_reverse_trial` flag from `create_accounts()` and org creation functions
-- Add `provision_signup_subscription()` to `SubscriptionsService` — single decision point: Stripe enabled → reverse trial, Stripe disabled → default plan
+- Add `provision_subscription()` to `SubscriptionsService` — single decision point: Stripe enabled → reverse trial, Stripe disabled → default plan
 - Add `start_reverse_trial()` Stripe guard — fails fast if Stripe is disabled instead of silently falling back to hobby
 - Refactor org creation into two entry points:
-  - `create_organization_for_signup(...)` — signup path, uses `provision_signup_subscription()`
+  - `create_organization_for_signup(...)` — signup path, uses `provision_subscription()`
   - `create_organization_for_user(...)` — explicit creation path (`POST /organizations/`), uses `start_plan(get_default_plan())`
 - Make `check_entitlements()` treat undefined counters/gauges as unlimited instead of raising exceptions
 - Fix `extend_app_schema()` to use `env.agenta.api_url` instead of hardcoded `cloud.agenta.ai` (module-level import)

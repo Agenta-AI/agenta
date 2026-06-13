@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useMemo} from "react"
 
 import {
+    detectDataType,
+    type DataType,
     JsonEditorWithLocalState,
     MessagesField,
     type CoreFieldRendererProps,
@@ -10,8 +12,8 @@ import {EditorProvider, SET_MARKDOWN_VIEW, useLexicalComposerContext} from "@age
 import {SharedEditor} from "@agenta/ui/shared-editor"
 // import {InputNumber, Switch} from "antd"
 
-import {coerceTextEdit, inferLogicalType} from "../view-types"
 import {parseCodeString, toCodeString} from "./codeFormat"
+import {inferPrimitiveFromText} from "./TestcasePrimitiveValue.utils"
 
 function toDisplayString(value: unknown, viewMode?: ViewMode): string {
     if (viewMode === "yaml") return toCodeString(value, "yaml")
@@ -31,6 +33,8 @@ function CodeEditor({
     viewMode,
     onChange,
     readOnly,
+    lockedType,
+    onLockType,
 }: {
     editorId: string
     value: unknown
@@ -38,13 +42,25 @@ function CodeEditor({
     viewMode?: ViewMode
     onChange: (value: unknown) => void
     readOnly?: boolean
+    lockedType?: DataType
+    onLockType?: (type: DataType) => void
 }) {
     if (viewMode !== "yaml") {
         return (
             <JsonEditorWithLocalState
                 editorKey={editorId}
                 initialValue={displayValue}
-                onValidChange={(nextValue) => onChange(parseCodeEditorValue(nextValue, value))}
+                onValidChange={(nextRaw) => {
+                    const parsed = parseCodeEditorValue(nextRaw, value)
+                    onChange(parsed)
+                    // Dynamic type casting: if the parsed type changed, update metadata
+                    if (onLockType) {
+                        const newType = detectDataType(parsed, "native")
+                        if (newType !== lockedType) {
+                            onLockType(newType)
+                        }
+                    }
+                }}
                 readOnly={readOnly}
             />
         )
@@ -63,11 +79,16 @@ function CodeEditor({
                 id={editorId}
                 initialValue={displayValue}
                 value={displayValue}
-                handleChange={
-                    readOnly
-                        ? undefined
-                        : (nextValue) => onChange(parseCodeEditorValue(nextValue, value, viewMode))
-                }
+                handleChange={(nextValue) => {
+                    const parsed = parseCodeEditorValue(nextValue, value, viewMode)
+                    onChange(parsed)
+                    if (onLockType) {
+                        const newType = detectDataType(parsed, "native")
+                        if (newType !== lockedType) {
+                            onLockType(newType)
+                        }
+                    }
+                }}
                 editorType="border"
                 className="min-h-[60px] overflow-hidden"
                 disableDebounce
@@ -106,11 +127,12 @@ function MarkdownViewSync({active}: {active: boolean}) {
 
 function TextEditor({
     editorId,
-    value,
+    value: _value,
     displayValue,
     markdown,
     onChange,
     readOnly,
+    lockedType,
 }: {
     editorId: string
     value: unknown
@@ -118,14 +140,30 @@ function TextEditor({
     markdown?: boolean
     onChange: (value: unknown) => void
     readOnly?: boolean
+    lockedType?: DataType
 }) {
     // Auto-infer native types from typed text so number / boolean values
     // stop getting stored as strings. Anything that doesn't look exactly
     // like a clean number or boolean literal stays a string — see
     // inferPrimitiveFromText for the precise rules.
     const handleChange = useCallback(
-        (next: string) => onChange(coerceTextEdit(next, inferLogicalType(value))),
-        [value, onChange],
+        (next: string) => {
+            const inferred = inferPrimitiveFromText(next)
+            if (lockedType) {
+                const inferredType =
+                    typeof inferred === "boolean"
+                        ? "boolean"
+                        : typeof inferred === "number"
+                          ? "number"
+                          : "string"
+                // Reject if type doesn't match — do NOT call onChange
+                if (inferredType !== lockedType) {
+                    return
+                }
+            }
+            onChange(inferred)
+        },
+        [onChange, lockedType],
     )
 
     return (
@@ -173,6 +211,8 @@ export function TestcaseDrillInFieldRenderer({
     dataType,
     isRawMode,
     viewMode,
+    lockedType,
+    onLockType,
 }: CoreFieldRendererProps) {
     const displayValue = useMemo(() => toDisplayString(value, viewMode), [value, viewMode])
     const editorId = `testcase-field-${fullPathKey}`
@@ -200,6 +240,8 @@ export function TestcaseDrillInFieldRenderer({
                 viewMode={viewMode}
                 onChange={onChange}
                 readOnly={!editable}
+                lockedType={lockedType}
+                onLockType={onLockType}
             />
         )
     }
@@ -250,6 +292,7 @@ export function TestcaseDrillInFieldRenderer({
                 markdown
                 onChange={onChange}
                 readOnly={!editable}
+                lockedType={lockedType}
             />
         )
     }
@@ -262,6 +305,7 @@ export function TestcaseDrillInFieldRenderer({
                 displayValue={displayValue}
                 onChange={onChange}
                 readOnly={!editable}
+                lockedType={lockedType}
             />
         )
     }
@@ -276,6 +320,8 @@ export function TestcaseDrillInFieldRenderer({
                 viewMode={viewMode}
                 onChange={onChange}
                 readOnly={!editable}
+                lockedType={lockedType}
+                onLockType={onLockType}
             />
         )
     }
@@ -287,6 +333,7 @@ export function TestcaseDrillInFieldRenderer({
             displayValue={displayValue}
             onChange={onChange}
             readOnly={!editable}
+            lockedType={lockedType}
         />
     )
 }
