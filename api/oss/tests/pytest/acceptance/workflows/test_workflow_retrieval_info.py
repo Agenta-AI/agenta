@@ -196,7 +196,7 @@ def env_backed_fixture(authed_api):
         "POST",
         "/environments/revisions/commit",
         json={
-            "environment_revision_commit": {
+            "environment_revision": {
                 "slug": f"{env_slug}-r0",
                 "environment_id": env_id,
                 "environment_variant_id": env_variant_id,
@@ -212,7 +212,7 @@ def env_backed_fixture(authed_api):
         "POST",
         "/environments/revisions/commit",
         json={
-            "environment_revision_commit": {
+            "environment_revision": {
                 "slug": f"{env_slug}-r1",
                 "environment_id": env_id,
                 "environment_variant_id": env_variant_id,

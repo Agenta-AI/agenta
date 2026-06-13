@@ -5,10 +5,10 @@ import type * as AgentaApi from "../../../../index.js";
 /**
  * @example
  *     {
- *         evaluator_revision_commit: {}
+ *         evaluator_revision: {}
  *     }
  */
 export interface EvaluatorRevisionCommitRequest {
     /** Commit payload carrying the `evaluator_variant_id`, optional commit `message`, and the revision `data`. */
-    evaluator_revision_commit: AgentaApi.EvaluatorRevisionCommit;
+    evaluator_revision: AgentaApi.EvaluatorRevisionCommit;
 }

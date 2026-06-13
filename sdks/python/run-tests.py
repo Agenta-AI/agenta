@@ -145,6 +145,25 @@ def _write_empty_results(results_dir: str) -> None:
     "--scope",
     help="Scope [...]",
 )
+@click.option(
+    "--time-profile",
+    is_flag=True,
+    help="Show pytest's slowest test durations summary.",
+)
+@click.option(
+    "--time-profile-limit",
+    type=int,
+    default=25,
+    show_default=True,
+    help="Number of slowest tests to include in the timing summary.",
+)
+@click.option(
+    "--time-profile-min",
+    type=float,
+    default=0.0,
+    show_default=True,
+    help="Only show tests slower than this many seconds in the timing summary.",
+)
 @click.argument(
     "pytest_args",
     nargs=-1,
@@ -164,6 +183,9 @@ def run_tests(
     speed: Optional[str] = None,
     cost: Optional[str] = None,
     scope: Optional[str] = None,
+    time_profile: bool = False,
+    time_profile_limit: int = 25,
+    time_profile_min: float = 0.0,
     pytest_args: Optional[tuple] = None,
 ):
     """
@@ -243,6 +265,10 @@ def run_tests(
         cmd.append(f"--junit-xml={results_dir}/junit.xml")
     if not _has_pytest_option(pytest_args, "--html"):
         cmd.append(f"--html={results_dir}/report.html")
+    if time_profile and not _has_pytest_option(pytest_args, "--durations"):
+        cmd.append(f"--durations={time_profile_limit}")
+    if time_profile and not _has_pytest_option(pytest_args, "--durations-min"):
+        cmd.append(f"--durations-min={time_profile_min}")
 
     if pytest_args:
         flags_only = [a for a in pytest_args if a.startswith("-")]

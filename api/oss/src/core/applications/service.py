@@ -1,5 +1,8 @@
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from uuid import UUID, uuid4
+
+if TYPE_CHECKING:
+    from oss.src.core.embeds.service import EmbedsService
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.events.utils import publish_revision_event
@@ -7,7 +10,7 @@ from oss.src.core.workflows.dtos import (
     WorkflowCreate,
     WorkflowEdit,
     WorkflowQuery,
-    WorkflowFork,
+    WorkflowVariantFork,
     #
     WorkflowVariantCreate,
     WorkflowVariantEdit,
@@ -24,6 +27,7 @@ from oss.src.core.shared.dtos import Windowing, Reference
 from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.git.types import (
+    InlineResolveInvalid,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     validate_retrieve_refs_consistent,
@@ -47,7 +51,7 @@ from oss.src.core.applications.dtos import (
     ApplicationRevisionsLog,
     ApplicationCreate,
     ApplicationEdit,
-    ApplicationFork,
+    ApplicationVariantFork,
     #
     ApplicationVariant,
     ApplicationVariantCreate,
@@ -75,7 +79,7 @@ class ApplicationsService:
         self,
         workflows_service: WorkflowsService,
     ):
-        self.embeds_service = None  # Will be set later
+        self.embeds_service: Optional["EmbedsService"] = None  # Will be set later
         self.workflows_service = workflows_service
 
     # applications -------------------------------------------------------------
@@ -485,19 +489,21 @@ class ApplicationsService:
         project_id: UUID,
         user_id: UUID,
         #
-        application_fork: ApplicationFork,
+        application_variant_fork: ApplicationVariantFork,
+        application_variant_ref: Reference,
+        application_revision_ref: Optional[Reference] = None,
     ) -> Optional[ApplicationVariant]:
-        workflow_fork = WorkflowFork(
-            **application_fork.model_dump(
-                mode="json",
-            )
+        workflow_variant_fork = WorkflowVariantFork(
+            **application_variant_fork.model_dump(mode="json"),
         )
 
         workflow_variant = await self.workflows_service.fork_workflow_variant(
             project_id=project_id,
             user_id=user_id,
             #
-            workflow_fork=workflow_fork,
+            workflow_variant_fork=workflow_variant_fork,
+            workflow_variant_ref=application_variant_ref,
+            workflow_revision_ref=application_revision_ref,
         )
 
         if not workflow_variant:
@@ -899,7 +905,7 @@ class ApplicationsService:
         #
         application_revisions_log: ApplicationRevisionsLog,
         #
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> List[ApplicationRevision]:
         workflow_revisions_log = WorkflowRevisionsLog(
             **application_revisions_log.model_dump(
@@ -938,6 +944,8 @@ class ApplicationsService:
         application_variant_ref: Optional[Reference] = None,
         application_revision_ref: Optional[Reference] = None,
         #
+        application_revision: Optional["ApplicationRevision"] = None,
+        #
         max_depth: int = 10,
         max_embeds: int = 100,
         error_policy: str = "exception",
@@ -947,24 +955,31 @@ class ApplicationsService:
         """
         Fetch and resolve an application revision with embedded references.
 
-        Applications are workflows with is_application=True. This method
-        delegates to WorkflowsService.resolve_workflow_revision and converts
-        the result to Application types for backward compatibility.
-
-        Args:
-            project_id: Project scope
-            user_id: User performing resolution
-            application_ref: Application reference
-            application_variant_ref: Variant reference
-            application_revision_ref: Revision reference
-            max_depth: Maximum nesting depth for embeds
-            max_embeds: Maximum total embeds allowed
-            error_policy: How to handle errors (exception, placeholder, keep)
-            include_archived: Include archived entities
-
-        Returns:
-            Tuple of (ApplicationRevision with resolved configuration, ResolutionInfo metadata)
+        When `application_revision` is provided, resolves its data inline without
+        fetching from DB. Only `data` is used; id and metadata are ignored.
         """
+        if not self.embeds_service:
+            raise RuntimeError("EmbedsService not initialized")
+
+        if application_revision is not None:
+            if not application_revision.data:
+                raise InlineResolveInvalid(
+                    field_name="application_revision",
+                )
+            (
+                resolved_data,
+                resolution_info,
+            ) = await self.embeds_service.resolve_configuration(
+                project_id=project_id,
+                configuration=application_revision.data.model_dump(mode="json"),
+                max_depth=max_depth,
+                max_embeds=max_embeds,
+                error_policy=ErrorPolicy(error_policy),
+                include_archived=include_archived,
+            )
+            application_revision.data = ApplicationRevisionData(**resolved_data)
+            return (application_revision, resolution_info)
+
         # Fetch the application revision
         revision = await self.fetch_application_revision(
             project_id=project_id,
@@ -980,9 +995,6 @@ class ApplicationsService:
             return None
 
         # Use embeds service for resolution
-        if not self.embeds_service:
-            raise RuntimeError("EmbedsService not initialized")
-
         (
             revision_data,
             resolution_info,
@@ -995,7 +1007,6 @@ class ApplicationsService:
             include_archived=include_archived,
         )
 
-        # Update revision with resolved configuration
         revision.data = ApplicationRevisionData(**revision_data)
 
         return (revision, resolution_info)

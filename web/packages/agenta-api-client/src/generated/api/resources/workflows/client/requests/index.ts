@@ -23,7 +23,6 @@ export type { UnarchiveWorkflowRevisionRequest } from "./UnarchiveWorkflowRevisi
 export type { UnarchiveWorkflowVariantRequest } from "./UnarchiveWorkflowVariantRequest.js";
 export type { WorkflowCreateRequest } from "./WorkflowCreateRequest.js";
 export type { WorkflowEditRequest } from "./WorkflowEditRequest.js";
-export type { WorkflowForkRequest } from "./WorkflowForkRequest.js";
 export type { WorkflowRevisionCommitRequest } from "./WorkflowRevisionCommitRequest.js";
 export type { WorkflowRevisionCreateRequest } from "./WorkflowRevisionCreateRequest.js";
 export type { WorkflowRevisionDeployRequest } from "./WorkflowRevisionDeployRequest.js";
@@ -33,3 +32,4 @@ export type { WorkflowRevisionRetrieveRequest } from "./WorkflowRevisionRetrieve
 export type { WorkflowRevisionsLogRequest } from "./WorkflowRevisionsLogRequest.js";
 export type { WorkflowVariantCreateRequest } from "./WorkflowVariantCreateRequest.js";
 export type { WorkflowVariantEditRequest } from "./WorkflowVariantEditRequest.js";
+export type { WorkflowVariantForkRequest } from "./WorkflowVariantForkRequest.js";
