@@ -252,7 +252,8 @@ def test_parse_spans_into_response_returns_span_list_for_span_focus():
 def test_ingest_accepts_scalar_duration_cumulative():
     # Canonical scalar shape in attributes — the ingest pipeline accepts it without
     # error. When start_time and end_time are present the computed wall-clock duration
-    # takes precedence (1_700_000_001 - 1_700_000_000 = 1s = 1000ms).
+    # takes precedence. start_time/end_time are Unix seconds (matching the existing
+    # test fixture convention); Δ = 1_700_000_001 - 1_700_000_000 = 1s = 1000ms.
     span = OTelSpan(
         trace_id=TRACE_HEX,
         span_id=SPAN_HEX,
