@@ -29,7 +29,7 @@
         "jotai-immer": "^0.4.1",
         "jotai-scheduler": "^0.0.5",
         "lucide-react": "^0.479.0",
-        "recharts": "^2.13.0",
+        "recharts": "^3.1.0",
         "usehooks-ts": "^3.1.1"
     },
     "peerDependencies": {

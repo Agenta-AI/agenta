@@ -211,7 +211,7 @@ const EvaluatorTemporalMetricsChart = ({
                         <Tooltip
                             cursor={{stroke: "rgba(99, 102, 241, 0.35)", strokeWidth: 1}}
                             labelFormatter={(value) => formatTimestamp(Number(value))}
-                            formatter={(value: any, dataKey: string) => {
+                            formatter={(value: any, dataKey: any) => {
                                 if (typeof value !== "number") return value
                                 const label = seriesLabelMap.get(dataKey) ?? dataKey
                                 return [value.toFixed(isBoolean ? 1 : 3), label]

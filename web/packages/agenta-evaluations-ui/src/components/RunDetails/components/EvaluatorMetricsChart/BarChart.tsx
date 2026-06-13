@@ -8,7 +8,6 @@ import {
     BarChart as RechartsBarChart,
     ResponsiveContainer,
     Tooltip,
-    TooltipProps,
     XAxis,
     YAxis,
 } from "recharts"
@@ -101,7 +100,7 @@ const BarChart = ({
                     tickLine={false}
                     allowDataOverflow={false}
                     interval={xAxisInterval ?? 0}
-                    tick={({x, y, payload}) => (
+                    tick={({x, y, payload}: any) => (
                         <foreignObject
                             x={x - xAxisTickWidth / 2}
                             y={y - 2}
@@ -144,9 +143,9 @@ const BarChart = ({
                 {tooltipLabel ? (
                     <Tooltip
                         cursor={false}
-                        content={({active, payload, label}: TooltipProps<number, string>) => {
+                        content={({active, payload, label}: any) => {
                             if (!active || !payload?.length) return null
-                            const rows = payload.filter((p) => p?.value != null)
+                            const rows = payload.filter((p: any) => p?.value != null)
                             if (!rows.length) return null
                             return (
                                 <div
@@ -168,7 +167,7 @@ const BarChart = ({
                                     >
                                         {label}
                                     </div>
-                                    {rows.map((entry, idx) => {
+                                    {rows.map((entry: any, idx: number) => {
                                         const rawRow = entry?.payload as ChartDatum
                                         const barColor =
                                             (colorKey && typeof rawRow?.[colorKey] === "string"

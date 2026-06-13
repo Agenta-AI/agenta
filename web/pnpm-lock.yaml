@@ -1199,8 +1199,8 @@ importers:
         specifier: '>=18.0.0'
         version: 19.2.6(react@19.2.6)
       recharts:
-        specifier: ^2.13.0
-        version: 2.15.4(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: ^3.1.0
+        version: 3.8.1(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react-is@18.3.1)(react@19.2.6)(redux@5.0.1)
       usehooks-ts:
         specifier: ^3.1.1
         version: 3.1.1(react@19.2.6)
