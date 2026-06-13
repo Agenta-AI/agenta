@@ -249,7 +249,7 @@ def test_parse_spans_into_response_returns_span_list_for_span_focus():
     assert len(response[0].span_id) == 16
 
 
-def test_parse_spans_from_request_accepts_scalar_duration_cumulative_through_ingest():
+def test_ingest_accepts_scalar_duration_cumulative():
     # Canonical scalar shape in attributes — the ingest pipeline accepts it without
     # error. When start_time and end_time are present the computed wall-clock duration
     # takes precedence (1_700_000_001 - 1_700_000_000 = 1s = 1000ms).
@@ -275,10 +275,10 @@ def test_parse_spans_from_request_accepts_scalar_duration_cumulative_through_ing
     # The computed duration (1000ms from timestamps) overwrites the pre-set value;
     # the key contract is that the result is a plain scalar, not a dict.
     assert isinstance(metrics["duration"]["cumulative"], (int, float))
-    assert metrics["duration"]["cumulative"] == 1000.0
+    assert metrics["duration"]["cumulative"] == pytest.approx(1000.0)
 
 
-def test_parse_spans_from_request_normalizes_legacy_dict_duration_cumulative_to_scalar():
+def test_ingest_normalizes_legacy_dict_duration_cumulative_to_scalar():
     # Legacy dict shape written by older ingestion code or replayed from query output.
     # _coerce_scalar_metric_value inside initialize_ag_attributes must collapse it.
     # No start_time / end_time so the computed-duration override path is skipped;
@@ -302,7 +302,8 @@ def test_parse_spans_from_request_normalizes_legacy_dict_duration_cumulative_to_
     metrics = parsed[0].attributes["ag"]["metrics"]
     # Legacy {"total": v} dict is collapsed to the canonical scalar by
     # _coerce_scalar_metric_value inside initialize_ag_attributes.
-    assert metrics["duration"]["cumulative"] == 1922.653
+    assert isinstance(metrics["duration"]["cumulative"], (int, float))
+    assert metrics["duration"]["cumulative"] == pytest.approx(1922.653)
 
 
 def test_parse_spans_into_response_trace_mode_returns_empty_dict_on_error():
