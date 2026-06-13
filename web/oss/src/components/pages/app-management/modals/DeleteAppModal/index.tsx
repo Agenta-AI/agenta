@@ -25,44 +25,62 @@ const DeleteAppModal = (props = {}) => {
     const setLoading = useSetAtom(setDeleteAppModalLoadingAtom)
     const {mutate: mutateApps} = useAppsData()
     const {baseAppURL} = useURL()
+    const appCount = appDetails.length
 
     const handleDeleteOk = useCallback(async () => {
-        if (!appDetails) return
+        if (!appCount) return
 
         setLoading(true)
         try {
             const {projectId} = getProjectValues()
-            await workflowMolecule.lifecycle.archive(appDetails.id, {projectId})
+            await Promise.all(
+                appDetails.map((app) => workflowMolecule.lifecycle.archive(app.id, {projectId})),
+            )
             await mutateApps?.()
             await invalidateAppManagementWorkflowQueries()
             await onArchived?.(appDetails)
-            message.success("App archived")
+            message.success(appCount === 1 ? "App archived" : `${appCount} apps archived`)
             closeModal()
-            if (router.pathname.includes("/apps/")) {
-                await router.push(baseAppURL)
+            if (
+                router.pathname.includes("/apps/[app_id]") &&
+                appDetails.some((app) => app.id === router.query.app_id)
+            ) {
+                router.push(baseAppURL)
             }
         } catch (error) {
-            console.error("Failed to archive app:", error)
+            console.error(error)
+            message.error(appCount === 1 ? "Failed to archive app" : "Failed to archive apps")
         } finally {
             setLoading(false)
         }
-    }, [appDetails, setLoading, mutateApps, onArchived, closeModal, router, baseAppURL])
+    }, [appCount, appDetails, setLoading, mutateApps, onArchived, closeModal, router, baseAppURL])
 
     return (
         <Modal
-            title="Archive prompt?"
-            confirmLoading={confirmLoading}
-            okText="Archive"
-            okButtonProps={{disabled: !appDetails}}
+            {...props}
+            title={appCount === 1 ? "Archive app" : "Archive apps"}
+            open={open}
+            onOk={handleDeleteOk}
             onCancel={closeModal}
             cancelText="Cancel"
-            onOk={handleDeleteOk}
-            destroyOnHidden
             centered
-            {...props}
-            open={open}
+            okText={appCount === 1 ? "Archive app" : "Archive apps"}
+            okButtonProps={{disabled: !appCount, danger: true}}
+            confirmLoading={confirmLoading}
+            destroyOnHidden
         >
-            <p>{appDetails?.name} will move to archived prompts.</p>
+            {appCount === 1 ? (
+                <p>{appDetails[0]?.name} will move to archived apps.</p>
+            ) : (
+                <div className="flex flex-col gap-2">
+                    <p className="m-0">The selected apps will move to archived apps:</p>
+                    <ul className="m-0 pl-5">
+                        {appDetails.map((app) => (
+                            <li key={app.id}>{app.name}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
         </Modal>
     )
 }

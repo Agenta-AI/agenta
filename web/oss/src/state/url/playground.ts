@@ -1,6 +1,7 @@
 // Import workflow to ensure the snapshot adapter is registered
 import "@agenta/entities/workflow"
 
+import {loadableController} from "@agenta/entities/loadable"
 import {
     workflowMolecule,
     workflowRevisionsByWorkflowListDataAtomFamily,
@@ -930,6 +931,12 @@ playgroundSyncAtom.onMount = (set) => {
 
         if (isPlaygroundRoute) {
             if (appChanged) {
+                // The testcase row store is global (shared across loadables),
+                // so the previous app's draft rows would otherwise appear in
+                // the new app's playground. Reset it before clearing the
+                // selection; the new app's linkToRunnable seeds a fresh empty
+                // row once the store is empty.
+                store.set(loadableController.actions.resetRowsForAppSwitch)
                 store.set(playgroundController.actions.setEntityIds, [])
                 currentSelected = []
             }

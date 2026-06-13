@@ -227,7 +227,11 @@ def _send_sendgrid_email_sync(
     return True
 
 
-def add_contact(email: str, max_retries: int = 5, initial_delay: int = 1):
+def add_contact(
+    email: str,
+    max_retries: int = 5,
+    initial_delay: int = 1,
+):
     """
     Add a contact to the Loops audience, with retry and exponential backoff.
 
@@ -267,5 +271,55 @@ def add_contact(email: str, max_retries: int = 5, initial_delay: int = 1):
             delay *= 2
         else:
             return response
+
+    raise ConnectionError("Max retries reached. Unable to connect to Loops API.")
+
+
+async def remove_contact(
+    email: str,
+    max_retries: int = 5,
+    initial_delay: int = 1,
+) -> httpx.Response | None:
+    """
+    Remove a contact from the Loops audience, with retry and exponential backoff.
+
+    No-op (returns None) when Loops is disabled (no API key configured). Returns the
+    raw response for any non-429 status (including 404 if contact already gone).
+
+    Args:
+        email (str): Email address of the contact to be removed.
+        max_retries (int): Maximum number of retries in case of rate limiting.
+        initial_delay (int): Initial delay in seconds before retrying.
+
+    Raises:
+        ConnectionError: If max retries reached and unable to connect to Loops API.
+
+    Returns:
+        httpx.Response | None: The Loops API response, or None when disabled.
+    """
+
+    if not env.loops.enabled:
+        log.info(f"[LOOPS] Disabled - would delete contact {email}")
+        return None
+
+    url = "https://app.loops.so/api/v1/contacts/delete"
+    headers = {"Authorization": f"Bearer {env.loops.api_key}"}
+    data = {"email": email}
+
+    retries = 0
+    delay = initial_delay
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        while retries < max_retries:
+            response = await client.post(url, json=data, headers=headers)
+
+            # 429 indicates rate limiting; back off and retry.
+            if response.status_code == 429:
+                log.warning(f"[LOOPS] Rate limit hit. Retrying in {delay} seconds...")
+                await asyncio.sleep(delay)
+                retries += 1
+                delay *= 2
+            else:
+                return response
 
     raise ConnectionError("Max retries reached. Unable to connect to Loops API.")

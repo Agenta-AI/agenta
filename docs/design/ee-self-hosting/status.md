@@ -14,7 +14,7 @@
   - No other cloud/self-hosted behavioral differences — everything else is already env-var gated
 - Wrote `rfc-0.md`, `rfc-1.md`, `plan.md`, `doc-0.md`, `doc-1.md`
 - Implemented PR 1 (RFC-0):
-  - Backend: new `SELF_HOSTED_ENTERPRISE` plan, `get_default_plan()` via `env` object, refactored org creation into `create_organization_for_signup()` / `create_organization_for_user()`, added `provision_signup_subscription()` as single decision point, removed `start_free_plan()` and `use_reverse_trial` flag, graceful handling of undefined quotas in entitlements, OpenAPI schema fix
+  - Backend: new `SELF_HOSTED_ENTERPRISE` plan, `get_default_plan()` via `env` object, refactored org creation into `create_organization_for_signup()` / `create_organization_for_user()`, added `provision_subscription()` as single decision point, removed `start_free_plan()` and `use_reverse_trial` flag, graceful handling of undefined quotas in entitlements, OpenAPI schema fix
   - Backend follow-up: fixed `/billing/subscription` for self-hosted non-Stripe plans so it returns locally computed subscription status instead of 404 when `subscription_id` is absent
   - Frontend: `isBillingEnabled()` helper, billing UI gating (tab, sidebar banners, upgrade prompts), entitlement recognition for `self_hosted_enterprise` plan
   - Config: `env.agenta.default_plan` for `AGENTA_DEFAULT_PLAN`, `NEXT_PUBLIC_AGENTA_BILLING_ENABLED` derived in `entrypoint.sh`
