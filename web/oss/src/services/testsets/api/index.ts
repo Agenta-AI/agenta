@@ -303,7 +303,7 @@ export async function commitTestsetRevision(
     const response = await axios.post(
         `${getAgentaApiUrl()}/testsets/revisions/commit?project_id=${projectId}`,
         {
-            testset_revision_commit: {
+            testset_revision: {
                 testset_id: testsetId,
                 message: message || "Updated testcases",
                 data: {
@@ -374,7 +374,7 @@ export async function patchTestsetRevision(
     const response = await axios.post(
         `${getAgentaApiUrl()}/testsets/revisions/commit?project_id=${projectId}`,
         {
-            testset_revision_commit: {
+            testset_revision: {
                 testset_id: testsetId,
                 revision_id: baseRevisionId,
                 message: message || null,
