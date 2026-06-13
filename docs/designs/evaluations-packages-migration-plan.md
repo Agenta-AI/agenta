@@ -844,6 +844,15 @@ genuinely-shared subsystems stay in OSS behind seams.
 7. **GLOBAL-MOUNT TRAP (tsc-invisible runtime throw):** `AppGlobalWrappers/index.tsx` mounts
    `EvalRunFocusDrawerPreview` (→`FocusDrawer`→`GenericDrawer` host slot) GLOBALLY — wrap it in an
    `EvalViewHostProvider` too, or it throws at mount.
+   **RESOLVED + then DE-GLOBALIZED (`4081b1518f`):** the global mount made eval seam-registration run
+   on every page, so three seam bugs (referenceColors `e52578ce79`; jotai function-as-updater
+   `901195beb6`; read-only `atom(()=>{})` onboarding atoms `7eb5fc6c3d`) crashed non-eval pages
+   (e.g. testsets) instead of being contained to eval pages. The focus drawer is only opened from
+   run-details (the scenario table sets `focusScenarioId`), so the mount moved into the run-details
+   page tree (`EvalRunDetailsTestPage`, already host-wrapped) and was removed from `AppGlobalWrappers`.
+   Non-eval pages now load zero eval-view machinery. **Lesson:** don't mount a package view's host in
+   the app-global layer — mount it only on the surfaces that render that view, or an eval bug becomes
+   an everywhere bug.
 8. **4 reverse-dep re-points → barrel:** `state/url/focusDrawer.ts`, `References/cells/QueryCells.tsx`,
    `AppGlobalWrappers/index.tsx`, `AnnotateCollapseContent/index.tsx`. Delete vestigial
    `export * from "@/oss/components/References"` in `OverviewView/components/index.ts`.
