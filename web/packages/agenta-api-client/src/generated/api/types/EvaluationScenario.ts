@@ -3,7 +3,7 @@
 import type * as AgentaApi from "../index.js";
 
 export interface EvaluationScenario {
-    flags?: (Record<string, AgentaApi.LabelJsonOutput | null> | null) | undefined;
+    flags?: (AgentaApi.EvaluationRunFlags | null) | undefined;
     tags?: (Record<string, AgentaApi.LabelJsonOutput | null> | null) | undefined;
     meta?: (Record<string, AgentaApi.FullJsonOutput | null> | null) | undefined;
     created_at?: (string | null) | undefined;

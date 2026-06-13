@@ -11,12 +11,14 @@ from ..types.environment_response import EnvironmentResponse
 from ..types.environment_revision_commit import EnvironmentRevisionCommit
 from ..types.environment_revision_create import EnvironmentRevisionCreate
 from ..types.environment_revision_edit import EnvironmentRevisionEdit
+from ..types.environment_revision_input import EnvironmentRevisionInput
 from ..types.environment_revision_resolve_response import EnvironmentRevisionResolveResponse
 from ..types.environment_revision_response import EnvironmentRevisionResponse
 from ..types.environment_revisions_log import EnvironmentRevisionsLog
 from ..types.environment_revisions_response import EnvironmentRevisionsResponse
 from ..types.environment_variant_create import EnvironmentVariantCreate
 from ..types.environment_variant_edit import EnvironmentVariantEdit
+from ..types.environment_variant_fork import EnvironmentVariantFork
 from ..types.environment_variant_response import EnvironmentVariantResponse
 from ..types.environment_variants_response import EnvironmentVariantsResponse
 from ..types.environments_response import EnvironmentsResponse
@@ -450,6 +452,48 @@ class EnvironmentsClient:
         _response = self._raw_client.query_environment_variants(environment_id=environment_id, environment_ids=environment_ids, environment_slug=environment_slug, environment_slugs=environment_slugs, environment_variant_id=environment_variant_id, environment_variant_ids=environment_variant_ids, environment_variant_slug=environment_variant_slug, environment_variant_slugs=environment_variant_slugs, name=name, description=description, tags=tags, meta=meta, include_archived=include_archived, next=next, newest=newest, oldest=oldest, limit=limit, order=order, request_options=request_options)
         return _response.data
     
+    def fork_environment_variant(self, *, environment_variant: EnvironmentVariantFork, environment_variant_ref: Reference, environment_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EnvironmentVariantResponse:
+        """
+        Fork an existing environment variant into a new variant.
+        
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `environment_revision_ref` is provided). Provide
+        `slug` and `name` in the fork body to identify the new variant.
+        
+        Parameters
+        ----------
+        environment_variant : EnvironmentVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        environment_variant_ref : Reference
+            Source variant to fork from.
+        
+        environment_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EnvironmentVariantResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi, EnvironmentVariantFork, Reference
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.environments.fork_environment_variant(
+            environment_variant=EnvironmentVariantFork(),
+            environment_variant_ref=Reference(),
+        )
+        """
+        _response = self._raw_client.fork_environment_variant(environment_variant=environment_variant, environment_variant_ref=environment_variant_ref, environment_revision_ref=environment_revision_ref, request_options=request_options)
+        return _response.data
+    
     def retrieve_environment_revision(self, *, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EnvironmentRevisionResponse:
         """
         Parameters
@@ -700,11 +744,11 @@ class EnvironmentsClient:
         _response = self._raw_client.query_environment_revisions(environment_id=environment_id, environment_ids=environment_ids, environment_slug=environment_slug, environment_slugs=environment_slugs, environment_variant_id=environment_variant_id, environment_variant_ids=environment_variant_ids, environment_variant_slug=environment_variant_slug, environment_variant_slugs=environment_variant_slugs, environment_revision_id=environment_revision_id, environment_revision_ids=environment_revision_ids, environment_revision_slug=environment_revision_slug, environment_revision_slugs=environment_revision_slugs, environment_revision_version=environment_revision_version, environment_revision_versions=environment_revision_versions, name=name, description=description, tags=tags, meta=meta, include_archived=include_archived, next=next, newest=newest, oldest=oldest, limit=limit, order=order, request_options=request_options)
         return _response.data
     
-    def commit_environment_revision(self, *, environment_revision_commit: EnvironmentRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> EnvironmentRevisionResponse:
+    def commit_environment_revision(self, *, environment_revision: EnvironmentRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> EnvironmentRevisionResponse:
         """
         Parameters
         ----------
-        environment_revision_commit : EnvironmentRevisionCommit
+        environment_revision : EnvironmentRevisionCommit
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -722,17 +766,17 @@ class EnvironmentsClient:
             api_key="YOUR_API_KEY",
         )
         client.environments.commit_environment_revision(
-            environment_revision_commit=EnvironmentRevisionCommit(),
+            environment_revision=EnvironmentRevisionCommit(),
         )
         """
-        _response = self._raw_client.commit_environment_revision(environment_revision_commit=environment_revision_commit, request_options=request_options)
+        _response = self._raw_client.commit_environment_revision(environment_revision=environment_revision, request_options=request_options)
         return _response.data
     
-    def log_environment_revisions(self, *, environment: EnvironmentRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> EnvironmentRevisionsResponse:
+    def log_environment_revisions(self, *, environment_revisions: EnvironmentRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> EnvironmentRevisionsResponse:
         """
         Parameters
         ----------
-        environment : EnvironmentRevisionsLog
+        environment_revisions : EnvironmentRevisionsLog
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -750,13 +794,13 @@ class EnvironmentsClient:
             api_key="YOUR_API_KEY",
         )
         client.environments.log_environment_revisions(
-            environment=EnvironmentRevisionsLog(),
+            environment_revisions=EnvironmentRevisionsLog(),
         )
         """
-        _response = self._raw_client.log_environment_revisions(environment=environment, request_options=request_options)
+        _response = self._raw_client.log_environment_revisions(environment_revisions=environment_revisions, request_options=request_options)
         return _response.data
     
-    def resolve_environment_revision(self, *, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EnvironmentRevisionResolveResponse:
+    def resolve_environment_revision(self, *, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, environment_revision: typing.Optional[EnvironmentRevisionInput] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EnvironmentRevisionResolveResponse:
         """
         Resolve embedded references in an environment revision configuration.
         
@@ -772,6 +816,9 @@ class EnvironmentsClient:
         environment_variant_ref : typing.Optional[Reference]
         
         environment_revision_ref : typing.Optional[Reference]
+        
+        environment_revision : typing.Optional[EnvironmentRevisionInput]
+            Resolve the references embedded in this revision payload directly, without fetching it first. Only `data` is used; id and metadata are ignored.
         
         max_depth : typing.Optional[int]
         
@@ -796,7 +843,7 @@ class EnvironmentsClient:
         )
         client.environments.resolve_environment_revision()
         """
-        _response = self._raw_client.resolve_environment_revision(environment_ref=environment_ref, environment_variant_ref=environment_variant_ref, environment_revision_ref=environment_revision_ref, max_depth=max_depth, max_embeds=max_embeds, error_policy=error_policy, request_options=request_options)
+        _response = self._raw_client.resolve_environment_revision(environment_ref=environment_ref, environment_variant_ref=environment_variant_ref, environment_revision_ref=environment_revision_ref, environment_revision=environment_revision, max_depth=max_depth, max_embeds=max_embeds, error_policy=error_policy, request_options=request_options)
         return _response.data
     
     def create_simple_environment(self, *, environment: SimpleEnvironmentCreate, environment_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> SimpleEnvironmentResponse:
@@ -1542,6 +1589,56 @@ class AsyncEnvironmentsClient:
         _response = await self._raw_client.query_environment_variants(environment_id=environment_id, environment_ids=environment_ids, environment_slug=environment_slug, environment_slugs=environment_slugs, environment_variant_id=environment_variant_id, environment_variant_ids=environment_variant_ids, environment_variant_slug=environment_variant_slug, environment_variant_slugs=environment_variant_slugs, name=name, description=description, tags=tags, meta=meta, include_archived=include_archived, next=next, newest=newest, oldest=oldest, limit=limit, order=order, request_options=request_options)
         return _response.data
     
+    async def fork_environment_variant(self, *, environment_variant: EnvironmentVariantFork, environment_variant_ref: Reference, environment_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EnvironmentVariantResponse:
+        """
+        Fork an existing environment variant into a new variant.
+        
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `environment_revision_ref` is provided). Provide
+        `slug` and `name` in the fork body to identify the new variant.
+        
+        Parameters
+        ----------
+        environment_variant : EnvironmentVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        environment_variant_ref : Reference
+            Source variant to fork from.
+        
+        environment_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        EnvironmentVariantResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi, EnvironmentVariantFork, Reference
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.environments.fork_environment_variant(
+                environment_variant=EnvironmentVariantFork(),
+                environment_variant_ref=Reference(),
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.fork_environment_variant(environment_variant=environment_variant, environment_variant_ref=environment_variant_ref, environment_revision_ref=environment_revision_ref, request_options=request_options)
+        return _response.data
+    
     async def retrieve_environment_revision(self, *, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EnvironmentRevisionResponse:
         """
         Parameters
@@ -1848,11 +1945,11 @@ class AsyncEnvironmentsClient:
         _response = await self._raw_client.query_environment_revisions(environment_id=environment_id, environment_ids=environment_ids, environment_slug=environment_slug, environment_slugs=environment_slugs, environment_variant_id=environment_variant_id, environment_variant_ids=environment_variant_ids, environment_variant_slug=environment_variant_slug, environment_variant_slugs=environment_variant_slugs, environment_revision_id=environment_revision_id, environment_revision_ids=environment_revision_ids, environment_revision_slug=environment_revision_slug, environment_revision_slugs=environment_revision_slugs, environment_revision_version=environment_revision_version, environment_revision_versions=environment_revision_versions, name=name, description=description, tags=tags, meta=meta, include_archived=include_archived, next=next, newest=newest, oldest=oldest, limit=limit, order=order, request_options=request_options)
         return _response.data
     
-    async def commit_environment_revision(self, *, environment_revision_commit: EnvironmentRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> EnvironmentRevisionResponse:
+    async def commit_environment_revision(self, *, environment_revision: EnvironmentRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> EnvironmentRevisionResponse:
         """
         Parameters
         ----------
-        environment_revision_commit : EnvironmentRevisionCommit
+        environment_revision : EnvironmentRevisionCommit
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1875,20 +1972,20 @@ class AsyncEnvironmentsClient:
         
         async def main() -> None:
             await client.environments.commit_environment_revision(
-                environment_revision_commit=EnvironmentRevisionCommit(),
+                environment_revision=EnvironmentRevisionCommit(),
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.commit_environment_revision(environment_revision_commit=environment_revision_commit, request_options=request_options)
+        _response = await self._raw_client.commit_environment_revision(environment_revision=environment_revision, request_options=request_options)
         return _response.data
     
-    async def log_environment_revisions(self, *, environment: EnvironmentRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> EnvironmentRevisionsResponse:
+    async def log_environment_revisions(self, *, environment_revisions: EnvironmentRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> EnvironmentRevisionsResponse:
         """
         Parameters
         ----------
-        environment : EnvironmentRevisionsLog
+        environment_revisions : EnvironmentRevisionsLog
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1911,16 +2008,16 @@ class AsyncEnvironmentsClient:
         
         async def main() -> None:
             await client.environments.log_environment_revisions(
-                environment=EnvironmentRevisionsLog(),
+                environment_revisions=EnvironmentRevisionsLog(),
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.log_environment_revisions(environment=environment, request_options=request_options)
+        _response = await self._raw_client.log_environment_revisions(environment_revisions=environment_revisions, request_options=request_options)
         return _response.data
     
-    async def resolve_environment_revision(self, *, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EnvironmentRevisionResolveResponse:
+    async def resolve_environment_revision(self, *, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, environment_revision: typing.Optional[EnvironmentRevisionInput] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EnvironmentRevisionResolveResponse:
         """
         Resolve embedded references in an environment revision configuration.
         
@@ -1936,6 +2033,9 @@ class AsyncEnvironmentsClient:
         environment_variant_ref : typing.Optional[Reference]
         
         environment_revision_ref : typing.Optional[Reference]
+        
+        environment_revision : typing.Optional[EnvironmentRevisionInput]
+            Resolve the references embedded in this revision payload directly, without fetching it first. Only `data` is used; id and metadata are ignored.
         
         max_depth : typing.Optional[int]
         
@@ -1968,7 +2068,7 @@ class AsyncEnvironmentsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.resolve_environment_revision(environment_ref=environment_ref, environment_variant_ref=environment_variant_ref, environment_revision_ref=environment_revision_ref, max_depth=max_depth, max_embeds=max_embeds, error_policy=error_policy, request_options=request_options)
+        _response = await self._raw_client.resolve_environment_revision(environment_ref=environment_ref, environment_variant_ref=environment_variant_ref, environment_revision_ref=environment_revision_ref, environment_revision=environment_revision, max_depth=max_depth, max_embeds=max_embeds, error_policy=error_policy, request_options=request_options)
         return _response.data
     
     async def create_simple_environment(self, *, environment: SimpleEnvironmentCreate, environment_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> SimpleEnvironmentResponse:

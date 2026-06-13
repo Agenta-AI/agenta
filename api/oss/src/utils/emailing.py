@@ -1,5 +1,8 @@
 import asyncio
+import smtplib
+import ssl
 import time
+from email.message import EmailMessage
 
 import httpx
 
@@ -42,6 +45,25 @@ def _render_email_template(
     )
 
 
+def _get_sender_email(from_email: str | None = None) -> str:
+    """Resolve sender address, preferring explicit value, then SMTP, then SendGrid."""
+
+    sender = from_email
+    if not sender and env.smtp.enabled:
+        sender = env.smtp.from_email
+    if not sender:
+        sender = env.sendgrid.from_email
+    if sender:
+        return sender
+
+    raise ValueError(
+        "Email delivery requires a sender email address. "
+        "Set SMTP_FROM_EMAIL, AGENTA_AUTHN_EMAIL_FROM, or "
+        "AGENTA_SEND_EMAIL_FROM_ADDRESS for SMTP delivery, or "
+        "SENDGRID_FROM_EMAIL (or legacy SENDGRID_FROM_ADDRESS) for SendGrid fallback."
+    )
+
+
 async def send_email(
     *,
     to_email: str,
@@ -55,24 +77,16 @@ async def send_email(
     from_email: str = None,
 ) -> bool:
     """
-    Render the shared email template and send it via SendGrid.
+    Render the shared email template and send it via SMTP or SendGrid.
 
-    No-op (returns True) when SendGrid is unavailable (disabled or failed to
-    load). Callers that need to short-circuit on a disabled mailer before doing
-    other work should still gate on `env.sendgrid.enabled` themselves.
+    Prefers SMTP when configured, otherwise falls back to SendGrid. No-op
+    (returns True) when neither mailer is configured. Callers that need to
+    short-circuit on a disabled mailer before doing other work should still gate
+    on configuration themselves.
 
     Returns True if the email was sent (or skipped because mailing is disabled),
     raises on a send failure or missing sender address.
     """
-
-    sendgrid = _load_sendgrid()
-    if sendgrid is None:
-        log.info(f"[SENDGRID] Email disabled - would send '{subject}' to {to_email}")
-        return True
-
-    sender = from_email or env.sendgrid.from_address
-    if not sender:
-        raise ValueError("Sendgrid requires a sender email address to work.")
 
     html_content = _render_email_template(
         username=username,
@@ -81,15 +95,135 @@ async def send_email(
         call_to_action=call_to_action,
     )
 
+    sender = _get_sender_email(from_email)
+
+    if env.smtp.enabled:
+        return await _send_smtp_email(
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            from_email=sender,
+        )
+
+    if env.sendgrid.enabled:
+        return await _send_sendgrid_email(
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            from_email=sender,
+        )
+
+    log.info(f"[EMAIL] Disabled - would send '{subject}' to {to_email}")
+    return True
+
+
+async def _send_smtp_email(
+    *,
+    to_email: str,
+    subject: str,
+    html_content: str,
+    from_email: str,
+) -> bool:
+    try:
+        return await asyncio.to_thread(
+            _send_smtp_email_sync,
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            from_email=from_email,
+        )
+    except Exception:
+        log.exception("Failed to send SMTP email")
+        raise
+
+
+def _send_smtp_email_sync(
+    *,
+    to_email: str,
+    subject: str,
+    html_content: str,
+    from_email: str,
+) -> bool:
+    username = env.smtp.username
+    password = env.smtp.password
+    if bool(username) != bool(password):
+        raise RuntimeError(
+            "SMTP_USERNAME and SMTP_PASSWORD must be configured together"
+        )
+
+    message = EmailMessage()
+    message["From"] = from_email
+    message["To"] = to_email
+    message["Subject"] = subject
+    message.set_content(html_content, subtype="html")
+
+    context = ssl.create_default_context()
+
+    if env.smtp.use_ssl:
+        with smtplib.SMTP_SSL(
+            env.smtp.host,
+            env.smtp.port,
+            context=context,
+            timeout=env.smtp.timeout,
+        ) as smtp:
+            if username and password:
+                smtp.login(username, password)
+            smtp.send_message(message)
+    else:
+        with smtplib.SMTP(
+            env.smtp.host,
+            env.smtp.port,
+            timeout=env.smtp.timeout,
+        ) as smtp:
+            if env.smtp.use_tls:
+                smtp.starttls(context=context)
+            if username and password:
+                smtp.login(username, password)
+            smtp.send_message(message)
+
+    return True
+
+
+async def _send_sendgrid_email(
+    *,
+    to_email: str,
+    subject: str,
+    html_content: str,
+    from_email: str,
+) -> bool:
+    try:
+        return await asyncio.to_thread(
+            _send_sendgrid_email_sync,
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            from_email=from_email,
+        )
+    except Exception:
+        log.exception("Failed to send SendGrid email")
+        raise
+
+
+def _send_sendgrid_email_sync(
+    *,
+    to_email: str,
+    subject: str,
+    html_content: str,
+    from_email: str,
+) -> bool:
+    sendgrid = _load_sendgrid()
+    if sendgrid is None:
+        log.info(f"[SENDGRID] Disabled - would send '{subject}' to {to_email}")
+        return True
+
     message = Mail(
-        from_email=sender,
+        from_email=from_email,
         to_emails=to_email,
         subject=subject,
         html_content=html_content,
     )
 
     sendgrid.send(message)
-
     return True
 
 

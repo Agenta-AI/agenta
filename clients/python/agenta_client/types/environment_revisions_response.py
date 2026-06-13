@@ -4,12 +4,12 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .environment_revision import EnvironmentRevision
+from .environment_revision_output import EnvironmentRevisionOutput
 
 
 class EnvironmentRevisionsResponse(UniversalBaseModel):
     count: typing.Optional[int] = None
-    environment_revisions: typing.Optional[typing.List[EnvironmentRevision]] = None
+    environment_revisions: typing.Optional[typing.List[EnvironmentRevisionOutput]] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

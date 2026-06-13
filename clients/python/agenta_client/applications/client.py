@@ -12,12 +12,12 @@ from ..types.application_catalog_templates_response import ApplicationCatalogTem
 from ..types.application_catalog_types_response import ApplicationCatalogTypesResponse
 from ..types.application_create import ApplicationCreate
 from ..types.application_edit import ApplicationEdit
-from ..types.application_fork import ApplicationFork
 from ..types.application_query import ApplicationQuery
 from ..types.application_response import ApplicationResponse
 from ..types.application_revision_commit import ApplicationRevisionCommit
 from ..types.application_revision_create import ApplicationRevisionCreate
 from ..types.application_revision_edit import ApplicationRevisionEdit
+from ..types.application_revision_input import ApplicationRevisionInput
 from ..types.application_revision_query import ApplicationRevisionQuery
 from ..types.application_revision_resolve_response import ApplicationRevisionResolveResponse
 from ..types.application_revision_response import ApplicationRevisionResponse
@@ -25,6 +25,7 @@ from ..types.application_revisions_log import ApplicationRevisionsLog
 from ..types.application_revisions_response import ApplicationRevisionsResponse
 from ..types.application_variant_create import ApplicationVariantCreate
 from ..types.application_variant_edit import ApplicationVariantEdit
+from ..types.application_variant_fork import ApplicationVariantFork
 from ..types.application_variant_response import ApplicationVariantResponse
 from ..types.application_variants_response import ApplicationVariantsResponse
 from ..types.applications_response import ApplicationsResponse
@@ -695,7 +696,7 @@ class ApplicationsClient:
         _response = self._raw_client.query_application_variants(application_id=application_id, application_ids=application_ids, application_slug=application_slug, application_slugs=application_slugs, application_variant_id=application_variant_id, application_variant_ids=application_variant_ids, application_variant_slug=application_variant_slug, application_variant_slugs=application_variant_slugs, name=name, description=description, flags=flags, tags=tags, meta=meta, include_archived=include_archived, next=next, newest=newest, oldest=oldest, limit=limit, order=order, request_options=request_options)
         return _response.data
     
-    def fork_application_variant(self, *, application: ApplicationFork, application_variant_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> ApplicationVariantResponse:
+    def fork_application_variant(self, *, application_variant: ApplicationVariantFork, application_variant_ref: Reference, application_variant_id: typing.Optional[str] = None, application_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ApplicationVariantResponse:
         """
         Fork an existing variant into a new variant on the same application.
         
@@ -710,10 +711,16 @@ class ApplicationsClient:
         
         Parameters
         ----------
-        application : ApplicationFork
-            Fork payload. Must include the source `application_variant_id` (or `application_revision_id`) plus a `variant` object describing the new branch and a `revision` object for the new tip commit.
+        application_variant : ApplicationVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        application_variant_ref : Reference
+            Source variant to fork from.
         
         application_variant_id : typing.Optional[str]
+        
+        application_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -725,16 +732,17 @@ class ApplicationsClient:
         
         Examples
         --------
-        from agenta import AgentaApi, ApplicationFork
+        from agenta import AgentaApi, ApplicationVariantFork, Reference
         
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
         client.applications.fork_application_variant(
-            application=ApplicationFork(),
+            application_variant=ApplicationVariantFork(),
+            application_variant_ref=Reference(),
         )
         """
-        _response = self._raw_client.fork_application_variant(application=application, application_variant_id=application_variant_id, request_options=request_options)
+        _response = self._raw_client.fork_application_variant(application_variant=application_variant, application_variant_ref=application_variant_ref, application_variant_id=application_variant_id, application_revision_ref=application_revision_ref, request_options=request_options)
         return _response.data
     
     def retrieve_application_revision(self, *, application_ref: typing.Optional[Reference] = OMIT, application_variant_ref: typing.Optional[Reference] = OMIT, application_revision_ref: typing.Optional[Reference] = OMIT, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, key: typing.Optional[str] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionResponse:
@@ -1021,7 +1029,7 @@ class ApplicationsClient:
         _response = self._raw_client.unarchive_application_revision(application_revision_id, request_options=request_options)
         return _response.data
     
-    def query_application_revisions(self, *, application_revision: typing.Optional[ApplicationRevisionQuery] = OMIT, application_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionsResponse:
+    def query_application_revisions(self, *, application_revision: typing.Optional[ApplicationRevisionQuery] = OMIT, application_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionsResponse:
         """
         Query revisions across one or more applications or variants.
         
@@ -1029,8 +1037,6 @@ class ApplicationsClient:
         query, or filter on commit metadata (`author`, `date`, `message`) via
         the `application_revision` object. For the ordered history of a
         single variant, `POST /applications/revisions/log` is more direct.
-        Set `resolve: true` to inline embedded references in each revision's
-        `data`.
         
         Parameters
         ----------
@@ -1052,9 +1058,6 @@ class ApplicationsClient:
         windowing : typing.Optional[Windowing]
             Cursor pagination and time-range controls.
         
-        resolve : typing.Optional[bool]
-            When `true`, resolve embedded references in each returned revision's `data` (for example, snippet references). Defaults to `false`.
-        
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
         
@@ -1072,10 +1075,10 @@ class ApplicationsClient:
         )
         client.applications.query_application_revisions()
         """
-        _response = self._raw_client.query_application_revisions(application_revision=application_revision, application_refs=application_refs, application_variant_refs=application_variant_refs, application_revision_refs=application_revision_refs, include_archived=include_archived, windowing=windowing, resolve=resolve, request_options=request_options)
+        _response = self._raw_client.query_application_revisions(application_revision=application_revision, application_refs=application_refs, application_variant_refs=application_variant_refs, application_revision_refs=application_revision_refs, include_archived=include_archived, windowing=windowing, request_options=request_options)
         return _response.data
     
-    def commit_application_revision(self, *, application_revision_commit: ApplicationRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionResponse:
+    def commit_application_revision(self, *, application_revision: ApplicationRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionResponse:
         """
         Commit a new revision on a variant.
         
@@ -1086,7 +1089,7 @@ class ApplicationsClient:
         
         Parameters
         ----------
-        application_revision_commit : ApplicationRevisionCommit
+        application_revision : ApplicationRevisionCommit
             Commit payload. Must include `application_variant_id` and `data`. `message` is a human-readable commit message. `slug` is optional; if omitted, the server generates one.
         
         request_options : typing.Optional[RequestOptions]
@@ -1105,13 +1108,13 @@ class ApplicationsClient:
             api_key="YOUR_API_KEY",
         )
         client.applications.commit_application_revision(
-            application_revision_commit=ApplicationRevisionCommit(),
+            application_revision=ApplicationRevisionCommit(),
         )
         """
-        _response = self._raw_client.commit_application_revision(application_revision_commit=application_revision_commit, request_options=request_options)
+        _response = self._raw_client.commit_application_revision(application_revision=application_revision, request_options=request_options)
         return _response.data
     
-    def log_application_revisions(self, *, application: ApplicationRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionsResponse:
+    def log_application_revisions(self, *, application_revisions: ApplicationRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionsResponse:
         """
         Return the ordered revision log for a variant.
         
@@ -1122,7 +1125,7 @@ class ApplicationsClient:
         
         Parameters
         ----------
-        application : ApplicationRevisionsLog
+        application_revisions : ApplicationRevisionsLog
             Filter for the log. Typically set `application_variant_id` to list the revision history of a single variant; optionally set `application_revision_id` + `depth` to walk back a bounded number of commits from a specific revision.
         
         request_options : typing.Optional[RequestOptions]
@@ -1141,13 +1144,13 @@ class ApplicationsClient:
             api_key="YOUR_API_KEY",
         )
         client.applications.log_application_revisions(
-            application=ApplicationRevisionsLog(),
+            application_revisions=ApplicationRevisionsLog(),
         )
         """
-        _response = self._raw_client.log_application_revisions(application=application, request_options=request_options)
+        _response = self._raw_client.log_application_revisions(application_revisions=application_revisions, request_options=request_options)
         return _response.data
     
-    def resolve_application_revision(self, *, application_ref: typing.Optional[Reference] = OMIT, application_variant_ref: typing.Optional[Reference] = OMIT, application_revision_ref: typing.Optional[Reference] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionResolveResponse:
+    def resolve_application_revision(self, *, application_ref: typing.Optional[Reference] = OMIT, application_variant_ref: typing.Optional[Reference] = OMIT, application_revision_ref: typing.Optional[Reference] = OMIT, application_revision: typing.Optional[ApplicationRevisionInput] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionResolveResponse:
         """
         Fetch a revision with embedded references inlined.
         
@@ -1167,6 +1170,9 @@ class ApplicationsClient:
         
         application_revision_ref : typing.Optional[Reference]
             Revision reference; resolves that exact revision.
+        
+        application_revision : typing.Optional[ApplicationRevisionInput]
+            Resolve the references embedded in this revision payload directly, without fetching it first. Only `data` is used; id and metadata are ignored.
         
         max_depth : typing.Optional[int]
             Maximum nesting depth for embedded references. Protects against runaway recursion. Defaults to `10`.
@@ -1194,7 +1200,7 @@ class ApplicationsClient:
         )
         client.applications.resolve_application_revision()
         """
-        _response = self._raw_client.resolve_application_revision(application_ref=application_ref, application_variant_ref=application_variant_ref, application_revision_ref=application_revision_ref, max_depth=max_depth, max_embeds=max_embeds, error_policy=error_policy, request_options=request_options)
+        _response = self._raw_client.resolve_application_revision(application_ref=application_ref, application_variant_ref=application_variant_ref, application_revision_ref=application_revision_ref, application_revision=application_revision, max_depth=max_depth, max_embeds=max_embeds, error_policy=error_policy, request_options=request_options)
         return _response.data
     
     def create_simple_application(self, *, application: SimpleApplicationCreate, application_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> SimpleApplicationResponse:
@@ -2212,7 +2218,7 @@ class AsyncApplicationsClient:
         _response = await self._raw_client.query_application_variants(application_id=application_id, application_ids=application_ids, application_slug=application_slug, application_slugs=application_slugs, application_variant_id=application_variant_id, application_variant_ids=application_variant_ids, application_variant_slug=application_variant_slug, application_variant_slugs=application_variant_slugs, name=name, description=description, flags=flags, tags=tags, meta=meta, include_archived=include_archived, next=next, newest=newest, oldest=oldest, limit=limit, order=order, request_options=request_options)
         return _response.data
     
-    async def fork_application_variant(self, *, application: ApplicationFork, application_variant_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> ApplicationVariantResponse:
+    async def fork_application_variant(self, *, application_variant: ApplicationVariantFork, application_variant_ref: Reference, application_variant_id: typing.Optional[str] = None, application_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ApplicationVariantResponse:
         """
         Fork an existing variant into a new variant on the same application.
         
@@ -2227,10 +2233,16 @@ class AsyncApplicationsClient:
         
         Parameters
         ----------
-        application : ApplicationFork
-            Fork payload. Must include the source `application_variant_id` (or `application_revision_id`) plus a `variant` object describing the new branch and a `revision` object for the new tip commit.
+        application_variant : ApplicationVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        application_variant_ref : Reference
+            Source variant to fork from.
         
         application_variant_id : typing.Optional[str]
+        
+        application_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2244,7 +2256,7 @@ class AsyncApplicationsClient:
         --------
         import asyncio
         
-        from agenta import ApplicationFork, AsyncAgentaApi
+        from agenta import ApplicationVariantFork, AsyncAgentaApi, Reference
         
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
@@ -2253,13 +2265,14 @@ class AsyncApplicationsClient:
         
         async def main() -> None:
             await client.applications.fork_application_variant(
-                application=ApplicationFork(),
+                application_variant=ApplicationVariantFork(),
+                application_variant_ref=Reference(),
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.fork_application_variant(application=application, application_variant_id=application_variant_id, request_options=request_options)
+        _response = await self._raw_client.fork_application_variant(application_variant=application_variant, application_variant_ref=application_variant_ref, application_variant_id=application_variant_id, application_revision_ref=application_revision_ref, request_options=request_options)
         return _response.data
     
     async def retrieve_application_revision(self, *, application_ref: typing.Optional[Reference] = OMIT, application_variant_ref: typing.Optional[Reference] = OMIT, application_revision_ref: typing.Optional[Reference] = OMIT, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, key: typing.Optional[str] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionResponse:
@@ -2602,7 +2615,7 @@ class AsyncApplicationsClient:
         _response = await self._raw_client.unarchive_application_revision(application_revision_id, request_options=request_options)
         return _response.data
     
-    async def query_application_revisions(self, *, application_revision: typing.Optional[ApplicationRevisionQuery] = OMIT, application_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionsResponse:
+    async def query_application_revisions(self, *, application_revision: typing.Optional[ApplicationRevisionQuery] = OMIT, application_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionsResponse:
         """
         Query revisions across one or more applications or variants.
         
@@ -2610,8 +2623,6 @@ class AsyncApplicationsClient:
         query, or filter on commit metadata (`author`, `date`, `message`) via
         the `application_revision` object. For the ordered history of a
         single variant, `POST /applications/revisions/log` is more direct.
-        Set `resolve: true` to inline embedded references in each revision's
-        `data`.
         
         Parameters
         ----------
@@ -2632,9 +2643,6 @@ class AsyncApplicationsClient:
         
         windowing : typing.Optional[Windowing]
             Cursor pagination and time-range controls.
-        
-        resolve : typing.Optional[bool]
-            When `true`, resolve embedded references in each returned revision's `data` (for example, snippet references). Defaults to `false`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2661,10 +2669,10 @@ class AsyncApplicationsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.query_application_revisions(application_revision=application_revision, application_refs=application_refs, application_variant_refs=application_variant_refs, application_revision_refs=application_revision_refs, include_archived=include_archived, windowing=windowing, resolve=resolve, request_options=request_options)
+        _response = await self._raw_client.query_application_revisions(application_revision=application_revision, application_refs=application_refs, application_variant_refs=application_variant_refs, application_revision_refs=application_revision_refs, include_archived=include_archived, windowing=windowing, request_options=request_options)
         return _response.data
     
-    async def commit_application_revision(self, *, application_revision_commit: ApplicationRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionResponse:
+    async def commit_application_revision(self, *, application_revision: ApplicationRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionResponse:
         """
         Commit a new revision on a variant.
         
@@ -2675,7 +2683,7 @@ class AsyncApplicationsClient:
         
         Parameters
         ----------
-        application_revision_commit : ApplicationRevisionCommit
+        application_revision : ApplicationRevisionCommit
             Commit payload. Must include `application_variant_id` and `data`. `message` is a human-readable commit message. `slug` is optional; if omitted, the server generates one.
         
         request_options : typing.Optional[RequestOptions]
@@ -2699,16 +2707,16 @@ class AsyncApplicationsClient:
         
         async def main() -> None:
             await client.applications.commit_application_revision(
-                application_revision_commit=ApplicationRevisionCommit(),
+                application_revision=ApplicationRevisionCommit(),
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.commit_application_revision(application_revision_commit=application_revision_commit, request_options=request_options)
+        _response = await self._raw_client.commit_application_revision(application_revision=application_revision, request_options=request_options)
         return _response.data
     
-    async def log_application_revisions(self, *, application: ApplicationRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionsResponse:
+    async def log_application_revisions(self, *, application_revisions: ApplicationRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionsResponse:
         """
         Return the ordered revision log for a variant.
         
@@ -2719,7 +2727,7 @@ class AsyncApplicationsClient:
         
         Parameters
         ----------
-        application : ApplicationRevisionsLog
+        application_revisions : ApplicationRevisionsLog
             Filter for the log. Typically set `application_variant_id` to list the revision history of a single variant; optionally set `application_revision_id` + `depth` to walk back a bounded number of commits from a specific revision.
         
         request_options : typing.Optional[RequestOptions]
@@ -2743,16 +2751,16 @@ class AsyncApplicationsClient:
         
         async def main() -> None:
             await client.applications.log_application_revisions(
-                application=ApplicationRevisionsLog(),
+                application_revisions=ApplicationRevisionsLog(),
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.log_application_revisions(application=application, request_options=request_options)
+        _response = await self._raw_client.log_application_revisions(application_revisions=application_revisions, request_options=request_options)
         return _response.data
     
-    async def resolve_application_revision(self, *, application_ref: typing.Optional[Reference] = OMIT, application_variant_ref: typing.Optional[Reference] = OMIT, application_revision_ref: typing.Optional[Reference] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionResolveResponse:
+    async def resolve_application_revision(self, *, application_ref: typing.Optional[Reference] = OMIT, application_variant_ref: typing.Optional[Reference] = OMIT, application_revision_ref: typing.Optional[Reference] = OMIT, application_revision: typing.Optional[ApplicationRevisionInput] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ApplicationRevisionResolveResponse:
         """
         Fetch a revision with embedded references inlined.
         
@@ -2772,6 +2780,9 @@ class AsyncApplicationsClient:
         
         application_revision_ref : typing.Optional[Reference]
             Revision reference; resolves that exact revision.
+        
+        application_revision : typing.Optional[ApplicationRevisionInput]
+            Resolve the references embedded in this revision payload directly, without fetching it first. Only `data` is used; id and metadata are ignored.
         
         max_depth : typing.Optional[int]
             Maximum nesting depth for embedded references. Protects against runaway recursion. Defaults to `10`.
@@ -2807,7 +2818,7 @@ class AsyncApplicationsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.resolve_application_revision(application_ref=application_ref, application_variant_ref=application_variant_ref, application_revision_ref=application_revision_ref, max_depth=max_depth, max_embeds=max_embeds, error_policy=error_policy, request_options=request_options)
+        _response = await self._raw_client.resolve_application_revision(application_ref=application_ref, application_variant_ref=application_variant_ref, application_revision_ref=application_revision_ref, application_revision=application_revision, max_depth=max_depth, max_embeds=max_embeds, error_policy=error_policy, request_options=request_options)
         return _response.data
     
     async def create_simple_application(self, *, application: SimpleApplicationCreate, application_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> SimpleApplicationResponse:

@@ -155,7 +155,7 @@ async def generate_user_password_reset_link(user_id: str, admin_user_id: str):
         email=user.email,
     )
 
-    if not env.sendgrid.api_key:
+    if not (env.smtp.enabled or env.sendgrid.enabled):
         return password_reset_link
 
     await emailing.send_email(

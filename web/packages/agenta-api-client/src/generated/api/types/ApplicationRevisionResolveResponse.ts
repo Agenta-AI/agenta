@@ -9,7 +9,7 @@ export interface ApplicationRevisionResolveResponse {
     /** `1` when a revision was resolved, `0` otherwise. */
     count?: number | undefined;
     /** The revision with embedded references inlined into `data`. */
-    application_revision?: (AgentaApi.ApplicationRevision | null) | undefined;
+    application_revision?: (AgentaApi.ApplicationRevisionOutput | null) | undefined;
     /** Diagnostic info about which references were resolved. */
     resolution_info?: (AgentaApi.ResolutionInfo | null) | undefined;
     /** References (artifact / variant / revision) actually used to retrieve this revision. */

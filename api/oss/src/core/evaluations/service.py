@@ -18,7 +18,7 @@ from oss.src.core.evaluations.types import (
     EvaluationRunDataMappingColumn,
     EvaluationRunDataMappingStep,
     EvaluationRunDataMapping,
-    EvaluationRunDataStepInput,
+    EvaluationRunDataStepInputKey,
     EvaluationRunDataStep,
     EvaluationRunDataConcurrency,
     EvaluationRunData,
@@ -418,7 +418,7 @@ class EvaluationsService:
         *,
         project_id: UUID,
         run_id: UUID,
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> Optional[EvaluationQueue]:
         queues = await self.query_queues(
             project_id=project_id,
@@ -3815,7 +3815,7 @@ class SimpleEvaluationsService:
                     references=application_references[step_key],
                     inputs=[
                         # IMPLICIT FLAG: all_inputs=True
-                        EvaluationRunDataStepInput(key="__all_inputs__"),
+                        EvaluationRunDataStepInputKey(key="__all_inputs__"),
                     ],
                 )
                 for step_key in application_invocation_steps_keys
@@ -3831,7 +3831,7 @@ class SimpleEvaluationsService:
                         [
                             *(
                                 [
-                                    EvaluationRunDataStepInput(
+                                    EvaluationRunDataStepInputKey(
                                         key="__all_invocations__"
                                     ),
                                 ]
@@ -3840,7 +3840,7 @@ class SimpleEvaluationsService:
                             ),
                             *(
                                 [
-                                    EvaluationRunDataStepInput(key="__all_inputs__"),
+                                    EvaluationRunDataStepInputKey(key="__all_inputs__"),
                                 ]
                                 if (query_input_steps_keys or testset_input_steps_keys)
                                 else []
@@ -4895,8 +4895,8 @@ class SimpleQueuesService:
             step_key = "evaluator-" + evaluator_revision.slug
             annotation_step_keys.append(step_key)
 
-            step_inputs: List[EvaluationRunDataStepInput] = [
-                EvaluationRunDataStepInput(key="__all_inputs__")
+            step_inputs: List[EvaluationRunDataStepInputKey] = [
+                EvaluationRunDataStepInputKey(key="__all_inputs__")
             ]
 
             annotation_steps.append(

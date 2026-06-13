@@ -16,6 +16,7 @@ from oss.src.core.applications.dtos import (
     ApplicationEdit,
     ApplicationQuery,
     ApplicationFork,
+    ApplicationVariantFork,
     ApplicationRevisionsLog,
     #
     ApplicationVariant,
@@ -157,6 +158,19 @@ class ApplicationForkRequest(BaseModel):
     )
 
 
+class ApplicationVariantForkRequest(BaseModel):
+    application_variant: ApplicationVariantFork = Field(
+        description="Config for the new variant (slug, name, description, flags).",
+    )
+    application_variant_ref: Reference = Field(
+        description="Source variant to fork from.",
+    )
+    application_revision_ref: Optional[Reference] = Field(
+        default=None,
+        description="Pin the fork to this revision; defaults to the source variant's head.",
+    )
+
+
 class ApplicationRevisionsLogRequest(BaseModel):
     """Request body for `POST /applications/revisions/log`.
 
@@ -164,7 +178,7 @@ class ApplicationRevisionsLogRequest(BaseModel):
     Each entry carries commit metadata and the full revision record.
     """
 
-    application: ApplicationRevisionsLog = Field(
+    application_revisions: ApplicationRevisionsLog = Field(
         description=(
             "Filter for the log. Typically set `application_variant_id` to list "
             "the revision history of a single variant; optionally set "
@@ -332,14 +346,6 @@ class ApplicationRevisionQueryRequest(BaseModel):
         default=None,
         description="Cursor pagination and time-range controls.",
     )
-    resolve: Optional[bool] = Field(
-        default=None,
-        description=(
-            "When `true`, resolve embedded references in each returned "
-            "revision's `data` (for example, snippet references). "
-            "Defaults to `false`."
-        ),
-    )
 
 
 class ApplicationRevisionCommitRequest(BaseModel):
@@ -350,7 +356,7 @@ class ApplicationRevisionCommitRequest(BaseModel):
     See [Versioning](/reference/api-guide/versioning#committing-a-revision).
     """
 
-    application_revision_commit: ApplicationRevisionCommit = Field(
+    application_revision: ApplicationRevisionCommit = Field(
         description=(
             "Commit payload. Must include `application_variant_id` and `data`. "
             "`message` is a human-readable commit message. `slug` is optional; "
@@ -646,6 +652,14 @@ class ApplicationRevisionResolveRequest(BaseModel):
     application_revision_ref: Optional[Reference] = Field(
         default=None,
         description="Revision reference; resolves that exact revision.",
+    )
+    #
+    application_revision: Optional[ApplicationRevision] = Field(
+        default=None,
+        description=(
+            "Resolve the references embedded in this revision payload directly, "
+            "without fetching it first. Only `data` is used; id and metadata are ignored."
+        ),
     )
     #
     max_depth: Optional[int] = Field(

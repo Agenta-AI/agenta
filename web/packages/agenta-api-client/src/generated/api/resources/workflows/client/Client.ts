@@ -1551,25 +1551,26 @@ export class WorkflowsClient {
     }
 
     /**
-     * @param {AgentaApi.WorkflowForkRequest} request
+     * @param {AgentaApi.WorkflowVariantForkRequest} request
      * @param {WorkflowsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
      *     await client.workflows.forkWorkflowVariant({
-     *         workflow: {}
+     *         workflow_variant: {},
+     *         workflow_variant_ref: {}
      *     })
      */
     public forkWorkflowVariant(
-        request: AgentaApi.WorkflowForkRequest,
+        request: AgentaApi.WorkflowVariantForkRequest,
         requestOptions?: WorkflowsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.WorkflowVariantResponse> {
         return core.HttpResponsePromise.fromPromise(this.__forkWorkflowVariant(request, requestOptions));
     }
 
     private async __forkWorkflowVariant(
-        request: AgentaApi.WorkflowForkRequest,
+        request: AgentaApi.WorkflowVariantForkRequest,
         requestOptions?: WorkflowsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.WorkflowVariantResponse>> {
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
@@ -2339,7 +2340,7 @@ export class WorkflowsClient {
      *
      * @example
      *     await client.workflows.logWorkflowRevisions({
-     *         workflow: {}
+     *         workflow_revisions: {}
      *     })
      */
     public logWorkflowRevisions(

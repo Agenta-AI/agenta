@@ -34,6 +34,7 @@ from oss.src.core.git.dtos import (
     VariantCreate,
     VariantEdit,
     VariantQuery,
+    VariantFork,
     #
     RevisionCreate,
     RevisionEdit,
@@ -55,7 +56,7 @@ from oss.src.core.workflows.dtos import (
     WorkflowCreate,
     WorkflowEdit,
     WorkflowQuery,
-    WorkflowFork,
+    WorkflowVariantFork,
     WorkflowRevisionsLog,
     #
     WorkflowVariant,
@@ -83,6 +84,8 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceStreamResponse,
 )
 from oss.src.core.git.types import (
+    InlineResolveInvalid,
+    VariantForkError,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     needs_default_variant_resolution,
@@ -1017,10 +1020,36 @@ class WorkflowsService:
         project_id: UUID,
         user_id: UUID,
         #
-        workflow_fork: WorkflowFork,
+        workflow_variant_fork: WorkflowVariantFork,
+        workflow_variant_ref: Reference,
+        workflow_revision_ref: Optional[Reference] = None,
     ) -> Optional[WorkflowVariant]:
+        source_variant = await self.fetch_workflow_variant(
+            project_id=project_id,
+            workflow_variant_ref=workflow_variant_ref,
+        )
+        if not source_variant:
+            raise VariantForkError("Fork source variant could not be resolved.")
+
+        source_revision_id: Optional[UUID] = None
+        if workflow_revision_ref is not None:
+            source_revision = await self.fetch_workflow_revision(
+                project_id=project_id,
+                workflow_variant_ref=workflow_variant_ref,
+                workflow_revision_ref=workflow_revision_ref,
+            )
+            if not source_revision:
+                raise VariantForkError("Fork source revision could not be resolved.")
+            source_revision_id = source_revision.id
+
+        _variant_fork = VariantFork(
+            **workflow_variant_fork.model_dump(mode="json"),
+        )
+
         _artifact_fork = ArtifactFork(
-            **workflow_fork.model_dump(mode="json"),
+            variant_id=source_variant.id,
+            revision_id=source_revision_id,
+            variant=_variant_fork,
         )
 
         variant = await self.workflows_dao.fork_variant(
@@ -1581,7 +1610,7 @@ class WorkflowsService:
         #
         workflow_revisions_log: WorkflowRevisionsLog,
         #
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> List[WorkflowRevision]:
         _revisions_log = RevisionsLog(
             **workflow_revisions_log.model_dump(mode="json"),
@@ -1830,7 +1859,9 @@ class WorkflowsService:
         if workflow_revision is not None:
             # Inline mode: resolve the provided revision's data without fetching
             if not workflow_revision.data:
-                return None
+                raise InlineResolveInvalid(
+                    field_name="workflow_revision",
+                )
             (
                 resolved_data,
                 resolution_info,
