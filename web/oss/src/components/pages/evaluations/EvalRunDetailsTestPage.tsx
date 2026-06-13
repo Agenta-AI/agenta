@@ -1,6 +1,9 @@
 import {useMemo} from "react"
 
-import {EvalRunDetailsPage as EvalRunPreviewPage} from "@agenta/evaluations-ui"
+import {
+    EvalRunDetailsPage as EvalRunPreviewPage,
+    EvalRunFocusDrawerMount,
+} from "@agenta/evaluations-ui"
 import {useRouter} from "next/router"
 
 import EvalResultsOnboarding from "./EvalResultsOnboarding"
@@ -41,6 +44,10 @@ const EvalRunTestPage = ({type = "auto"}: {type?: EvalRunKind}) => {
                     projectId={projectId}
                 />
             </div>
+            {/* Scenario focus drawer — opened by the run-details scenario table via the
+                focusScenarioId URL param. Mounted here (inside the host) rather than globally
+                in AppGlobalWrappers, so eval-view machinery no longer loads on every page. */}
+            <EvalRunFocusDrawerMount />
         </EvalRunDetailsViewHost>
     )
 }
