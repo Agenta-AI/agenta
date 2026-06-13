@@ -278,7 +278,8 @@
       "additionalProperties": false,
       "properties": {
         "apiKey":      { "type": "string", "description": "SENDGRID_API_KEY via Secret." },
-        "fromEmail":   { "type": "string", "description": "SENDGRID_FROM_EMAIL." }
+        "fromAddress": { "type": "string", "description": "Deprecated alias for sendgrid.fromEmail (SENDGRID_FROM_ADDRESS)." },
+        "fromEmail":   { "type": "string", "description": "Preferred SendGrid sender address (SENDGRID_FROM_ADDRESS)." }
       }
     },
     "alembic": {

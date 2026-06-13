@@ -131,8 +131,11 @@ Removing this layer in a future release:
   {{- $_ := set $sendgrid "fromEmail" $legacyEmail.fromEmail -}}
 {{- end -}}
 {{- if hasKey $legacyEmail "fromAddress" -}}
+  {{- $_ := set $sendgrid "fromEmail" $legacyEmail.fromAddress -}}
+{{- end -}}
+{{- if hasKey $sendgrid "fromAddress" -}}
   {{- if not (hasKey $sendgrid "fromEmail") -}}
-    {{- $_ := set $sendgrid "fromEmail" $legacyEmail.fromAddress -}}
+    {{- $_ := set $sendgrid "fromEmail" $sendgrid.fromAddress -}}
   {{- end -}}
 {{- end -}}
 {{- if $sendgrid -}}

@@ -196,6 +196,21 @@ async def test_send_email_noops_when_no_provider_is_configured(monkeypatch):
     )
 
 
+@pytest.mark.asyncio
+async def test_send_email_noops_without_sender_when_no_provider_is_configured(
+    monkeypatch,
+):
+    _disable_smtp(monkeypatch)
+    _disable_sendgrid(monkeypatch)
+
+    assert await email_service.send_email(
+        to_email="to@example.com",
+        subject="Subject",
+        html_content="<p>Hello</p>",
+        from_email=None,
+    )
+
+
 def test_auth_email_method_uses_strict_smtp_detection(monkeypatch):
     monkeypatch.setattr(env.agenta.access, "email_disabled", False)
     _disable_sendgrid(monkeypatch)

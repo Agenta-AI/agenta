@@ -57,6 +57,24 @@ def test_entrypoint_preserves_sendgrid_only_otp_config(tmp_path):
     )
 
     assert 'NEXT_PUBLIC_AGENTA_SENDGRID_ENABLED: "true"' in env_js
+    assert 'NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED: "true"' in env_js
+    assert 'NEXT_PUBLIC_AGENTA_AUTHN_EMAIL: "otp"' in env_js
+    assert 'NEXT_PUBLIC_AGENTA_AUTH_EMAIL_ENABLED: "true"' in env_js
+
+
+def test_entrypoint_enables_email_delivery_for_smtp_only_config(tmp_path):
+    env_js = _run_entrypoint(
+        tmp_path,
+        REPO_ROOT,
+        {
+            "SMTP_HOST": "host.docker.internal",
+            "SMTP_PORT": "1025",
+            "SMTP_FROM_EMAIL": "dev@example.com",
+        },
+    )
+
+    assert 'NEXT_PUBLIC_AGENTA_SENDGRID_ENABLED: "false"' in env_js
+    assert 'NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED: "true"' in env_js
     assert 'NEXT_PUBLIC_AGENTA_AUTHN_EMAIL: "otp"' in env_js
     assert 'NEXT_PUBLIC_AGENTA_AUTH_EMAIL_ENABLED: "true"' in env_js
 
