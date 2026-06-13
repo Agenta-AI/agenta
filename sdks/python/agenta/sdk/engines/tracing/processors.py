@@ -19,6 +19,13 @@ from agenta.sdk.models.tracing import BaseModel
 log = get_module_logger(__name__)
 
 
+def _as_otel_id(value) -> int:
+    # Link ids arrive as bare hex (live spans) or as dashed UUIDs (recovered from
+    # stored result cells on the re-run/process path). Both encode the same
+    # integer, so strip dashes before parsing base-16.
+    return int(str(value).replace("-", ""), 16)
+
+
 class TraceProcessor(SpanProcessor):
     def __init__(
         self,
@@ -125,8 +132,8 @@ class TraceProcessor(SpanProcessor):
 
                     span.add_link(
                         context=SpanContext(
-                            trace_id=int(str(link.get("trace_id")), 16),
-                            span_id=int(str(link.get("span_id")), 16),
+                            trace_id=_as_otel_id(link.get("trace_id")),
+                            span_id=_as_otel_id(link.get("span_id")),
                             is_remote=True,
                         ),
                         attributes=dict(
