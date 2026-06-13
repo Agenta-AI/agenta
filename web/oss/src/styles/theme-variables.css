@@ -488,9 +488,12 @@
 }
 
 /* Run-comparison row tints. Light = the pale pastel per palette hue (unchanged);
-   dark = a low-alpha wash of the same hue so compare rows stay distinguishable
-   without rendering as bright light bands. Keep in sync with RUN_COMPARISON_PALETTE
-   (atoms/compare.ts). */
+   dark = the same hue washed over the container bg. The dark wash MUST be opaque: it
+   backs sticky/fixed columns, and a translucent tint there lets cells scrolling
+   underneath bleed through (sticky column goes see-through on horizontal scroll).
+   `color-mix` composites the 14% hue over the live container token — the identical
+   wash the old `rgba(hue, 0.14)` produced over the standard cell bg, but fully opaque.
+   Keep in sync with RUN_COMPARISON_PALETTE (atoms/compare.ts). */
 :root {
     --ag-cmp-tint-0: #eff6ff;
     --ag-cmp-tint-1: #fff7ed;
@@ -499,11 +502,11 @@
     --ag-cmp-tint-4: #fdf2f8;
 }
 .dark {
-    --ag-cmp-tint-0: rgba(59, 130, 246, 0.14);
-    --ag-cmp-tint-1: rgba(249, 115, 22, 0.14);
-    --ag-cmp-tint-2: rgba(139, 92, 246, 0.14);
-    --ag-cmp-tint-3: rgba(16, 185, 129, 0.14);
-    --ag-cmp-tint-4: rgba(236, 72, 153, 0.14);
+    --ag-cmp-tint-0: color-mix(in srgb, #3b82f6 14%, var(--ag-colorBgContainer));
+    --ag-cmp-tint-1: color-mix(in srgb, #f97316 14%, var(--ag-colorBgContainer));
+    --ag-cmp-tint-2: color-mix(in srgb, #8b5cf6 14%, var(--ag-colorBgContainer));
+    --ag-cmp-tint-3: color-mix(in srgb, #10b981 14%, var(--ag-colorBgContainer));
+    --ag-cmp-tint-4: color-mix(in srgb, #ec4899 14%, var(--ag-colorBgContainer));
 }
 
 /* Arbitrary rgba() Tailwind classes the hex codemod couldn't reach (it only
