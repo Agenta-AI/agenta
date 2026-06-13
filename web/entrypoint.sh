@@ -45,6 +45,9 @@ fi
 
 if [ "${AGENTA_SMTP_ENABLED}" = "true" ] || [ "${AGENTA_SENDGRID_ENABLED}" = "true" ]; then
   export AGENTA_EMAIL_DELIVERY_ENABLED="true"
+  # Frontend currently gates invitations on NEXT_PUBLIC_AGENTA_SENDGRID_ENABLED.
+  # Treat this flag as "email delivery enabled" so SMTP-only deployments work.
+  export AGENTA_SENDGRID_ENABLED="true"
 else
   export AGENTA_EMAIL_DELIVERY_ENABLED="false"
 fi
