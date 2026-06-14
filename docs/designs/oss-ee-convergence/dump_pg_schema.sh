@@ -165,12 +165,13 @@ dump() {
     # Post-split there can be up to three version tables: the parked legacy
     # chain (alembic_version), the shared chain (alembic_version_oss), and the
     # EE-only chain (alembic_version_ee). Print whichever exist.
-    local vt
+    local vt VT
     for vt in alembic_version alembic_version_oss alembic_version_ee; do
+        VT=$(printf '%s' "$vt" | tr '[:lower:]' '[:upper:]')
         if [[ "$(run "SELECT to_regclass('public.${vt}') IS NOT NULL")" == "t" ]]; then
-            run "SELECT '${vt^^} ' || version_num FROM ${vt} ORDER BY 1"
+            run "SELECT '${VT} ' || version_num FROM ${vt} ORDER BY 1"
         else
-            echo "${vt^^} (absent)"
+            echo "${VT} (absent)"
         fi
     done
     echo
