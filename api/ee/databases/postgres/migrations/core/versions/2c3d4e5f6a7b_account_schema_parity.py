@@ -6,7 +6,7 @@ projects.organization_id / workspace_id become NOT NULL with the workspace FK
 cascading.
 
 Revision ID: 2c3d4e5f6a7b
-Revises: a2b3c4d5e6f8
+Revises: b3c4d5e6f7a9
 Create Date: 2026-06-12 00:00:00.000000
 
 """
@@ -18,7 +18,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "2c3d4e5f6a7b"
-down_revision: Union[str, None] = "a2b3c4d5e6f8"
+down_revision: Union[str, None] = "b3c4d5e6f7a9"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
