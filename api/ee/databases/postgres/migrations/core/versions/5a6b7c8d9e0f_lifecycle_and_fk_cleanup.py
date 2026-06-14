@@ -201,6 +201,8 @@ def upgrade() -> None:
            )
         """
     )
+    _drop_fks_on_column("webhook_deliveries", "project_id")
+    _drop_fks_on_column("webhook_deliveries", "subscription_id")
     op.create_foreign_key(
         "webhook_deliveries_project_id_fkey",
         "webhook_deliveries",
@@ -235,6 +237,8 @@ def upgrade() -> None:
           )
         """
     )
+    _drop_fks_on_column("secrets", "project_id")
+    _drop_fks_on_column("secrets", "organization_id")
     op.create_foreign_key(
         "secrets_project_id_fkey",
         "secrets",
@@ -280,6 +284,7 @@ def upgrade() -> None:
         )
         """
     )
+    _drop_fks_on_column("subscriptions", "organization_id")
     op.create_foreign_key(
         "subscriptions_organization_id_fkey",
         "subscriptions",
