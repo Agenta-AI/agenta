@@ -15,7 +15,7 @@ logger = logging.getLogger("alembic.env")
 
 # The legacy tracing chain must be parked at the align revision before this runs.
 ALIGN_REVISION = "park00000000"
-VERSION_TABLE = "alembic_version_tracing_ee"
+VERSION_TABLE = "alembic_version_ee"
 
 _HERE = Path(__file__).parent
 
@@ -24,7 +24,7 @@ _HERE = Path(__file__).parent
 alembic_cfg = Config(str(_HERE / "alembic.ini"))
 alembic_cfg.set_main_option("script_location", str(_HERE))
 
-logger.info("migrations: alembic_version_tracing_ee chain")
+logger.info("migrations: alembic_version_ee chain")
 
 
 async def _fetch_value(query: str):
@@ -63,7 +63,7 @@ async def _is_first_run() -> bool:
 
 
 def run_alembic_migration():
-    """Run the alembic_version_tracing_ee chain to head (legacy tracing chain must be parked at align)."""
+    """Run the alembic_version_ee chain to head (legacy tracing chain must be parked at align)."""
 
     try:
         asyncio.run(_assert_legacy_parked())
@@ -73,7 +73,7 @@ def run_alembic_migration():
             command.upgrade(alembic_cfg, "head")
             click.echo(
                 click.style(
-                    "\nalembic_version_tracing_ee chain migrations applied.",
+                    "\nalembic_version_ee chain migrations applied.",
                     fg="green",
                 ),
                 color=True,
@@ -81,7 +81,7 @@ def run_alembic_migration():
         else:
             click.echo(
                 click.style(
-                    "\nalembic_version_tracing_ee chain: auto-migrations disabled, skipping.",
+                    "\nalembic_version_ee chain: auto-migrations disabled, skipping.",
                     fg="yellow",
                 ),
                 color=True,
@@ -89,7 +89,7 @@ def run_alembic_migration():
     except Exception as e:
         click.echo(
             click.style(
-                f"\nAn ERROR occurred while applying alembic_version_tracing_ee chain migrations:"
+                f"\nAn ERROR occurred while applying alembic_version_ee chain migrations:"
                 f" {traceback.format_exc()}",
                 fg="red",
             ),

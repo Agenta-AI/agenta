@@ -1,6 +1,6 @@
 """root of the post-alignment shared (oss) tracing chain
 
-Runs in both editions, tracked in alembic_version_tracing_oss. Requires the
+Runs in both editions, tracked in alembic_version_oss. Requires the
 legacy tracing chain to be parked at the align revision (the runner asserts
 this). Mirrors the core shared chain root (`oss000000000`).
 

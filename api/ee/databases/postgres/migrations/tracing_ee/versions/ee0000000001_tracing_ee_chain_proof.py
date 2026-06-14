@@ -1,7 +1,7 @@
 """prove the EE-only tracing chain advances independently of the other chains
 
 Intentionally a no-op: its only observable effect is
-alembic_version_tracing_ee moving from the root to this revision in EE only.
+alembic_version_ee moving from the root to this revision in EE only.
 Mirrors the core EE-only chain proof (`ee0000000001`).
 
 Revision ID: ee0000000001

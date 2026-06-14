@@ -20,7 +20,7 @@ target_metadata = Base.metadata
 
 # Post-alignment EE-only tracing chain: tracked in its own version table,
 # independent of the parked legacy tracing chain and the shared tracing chain.
-VERSION_TABLE = "alembic_version_tracing_ee"
+VERSION_TABLE = "alembic_version_ee"
 
 
 def run_migrations_offline() -> None:

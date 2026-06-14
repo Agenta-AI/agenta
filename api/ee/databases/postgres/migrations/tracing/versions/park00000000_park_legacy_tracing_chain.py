@@ -4,7 +4,7 @@ Final revision of the legacy tracing chain. Both editions' legacy tracing
 chains end at this same revision id, so a tracing database migrated by either
 edition parks its `alembic_version` at an id the other edition can resolve.
 All tracing migrations from this point on live in the post-alignment chains
-(`alembic_version_tracing_oss`, and for EE also `alembic_version_tracing_ee`).
+(`alembic_version_oss`, and for EE also `alembic_version_ee`).
 Mirrors the core chain park (`park00000000`). See
 docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md.
 

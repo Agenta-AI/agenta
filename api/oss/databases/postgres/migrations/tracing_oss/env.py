@@ -20,7 +20,7 @@ target_metadata = Base.metadata
 
 # Post-alignment tracing chain: tracked in its own version table, independent
 # of the parked legacy tracing chain (alembic_version).
-VERSION_TABLE = "alembic_version_tracing_oss"
+VERSION_TABLE = "alembic_version_oss"
 
 
 def run_migrations_offline() -> None:

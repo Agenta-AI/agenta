@@ -1,7 +1,7 @@
 """prove the shared tracing chain advances independently of the parked legacy chain
 
 Intentionally a no-op: its only observable effect is
-alembic_version_tracing_oss moving from the root to this revision in both
+alembic_version_oss moving from the root to this revision in both
 editions. Mirrors the core shared chain proof (`oss000000001`).
 
 Revision ID: oss000000001
