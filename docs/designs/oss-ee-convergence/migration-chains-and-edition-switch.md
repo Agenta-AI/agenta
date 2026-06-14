@@ -13,16 +13,19 @@ and for supporting in-place OSS→EE switches. Companion docs:
 OSS:  oss history ──► align ─╫ parked        s0 ─► s1 ─► … ─► sN      (never exists)
 EE:   ee history ──►  align ─╫ parked        s0 ─► s1 ─► … ─► sN      e0 ─► e1 ─► … ─► eM
                        ▲                      ▲ new root,              ▲ new root,
-   align = a00000000000, SAME id in both      oss/…/core_oss/          ee/…/core_ee/
+   align = park00000000, SAME id in both      oss/…/core_oss/          ee/…/core_ee/
    editions (different down_revision);        runs in BOTH editions    EE only
    this is what makes adoption resolve
 ```
 
 - The legacy chains are immutable history. Each gains one final empty revision
-  (`a00000000000`) and parks forever.
+  (`park00000000`) and parks forever.
 - The shared chain lives once, under `oss/` (`core_oss/`), tracked in
-  `alembic_version_oss`. EE images ship the `oss/` tree, so EE runs it from
-  there — no copies, no drift.
+  `alembic_version_oss`, rooted at `oss000000000`. EE images ship the `oss/`
+  tree, so EE runs it from there — no copies, no drift.
+- The EE-only chain is rooted at `ee0000000000`; adoption lands at `ee0000000002`.
+- Revision ids use readable 12-char prefixes (`park…`, `oss…`, `ee…`); alembic
+  ids are arbitrary strings, not hex, so the prefix is free to encode the chain.
 - The EE-only chain (`ee/…/core_ee/`, `alembic_version_ee`) holds every future
   EE-only change, however many times EE diverges. It never perturbs shared ids,
   so the editions never re-fork.

@@ -29,17 +29,59 @@ Merge order: #4669 and #4674 any time; then #4671 → #4673 → #4675 → #4676 
 #4680 → #4683; #4684 any time (GitHub bases are set to the parent branch, so
 each shows only its own diff; retarget to main as parents merge).
 
-Schema-state checkpoints for dump/diff testing, per edition:
-- after #4676: cleanup done; heads OSS `a00000000000`-1 = `4f5a6b7c8d9e`,
-  EE `5a6b7c8d9e0f`; tracing `a4b5c6d7e8f9`; single version table.
-- after #4680: legacy parked at `a00000000000` (both editions, same id);
-  alembic_version_oss at `o00000000001`; EE also alembic_version_ee at
-  `e00000000001`.
-- after #4680 (incl. proofs): alembic_version_oss at `o00000000002` (both
-  editions); alembic_version_ee at `e00000000002` (EE only).
-- after #4683: alembic_version_ee at `e00000000003`; OSS→EE switch path live
+Schema-state checkpoints for dump/diff testing, per edition (ids updated for the
+v0.103.5 merge + the readable-id rename — see "v0.103.5 reconciliation" below):
+- after #4676: cleanup done; heads OSS `4f5a6b7c8d9e`, EE `5a6b7c8d9e0f`;
+  tracing `a4b5c6d7e8f9`; single version table.
+- after #4680: legacy parked at `park00000000` (both editions, same id);
+  alembic_version_oss at `oss000000000`; EE also alembic_version_ee at
+  `ee0000000000`.
+- after #4680 (incl. proofs): alembic_version_oss at `oss000000001` (both
+  editions); alembic_version_ee at `ee0000000001` (EE only).
+- after #4683: alembic_version_ee at `ee0000000002`; OSS→EE switch path live
   (EE runner against an OSS-origin DB creates EE schema + backfills; second
   run must be a byte-identical dump).
+
+## v0.103.5 reconciliation (merge propagated up the whole stack)
+
+`release/v0.103.5` was merged into the stack base and propagated through every
+branch (parents merged down into children; independent lanes merged v0.103.5
+directly). What it changed and how it was reconciled:
+
+- **New upstream migration `b3c4d5e6f7a9`** (`repair_workflow_revision_versions`,
+  plus its data migration) in both core chains, forking from `a2b3c4d5e6f8` — the same
+  parent as our membership/parity roots, i.e. a second alembic head. Fix: the
+  chain roots re-point onto it, so order is
+  `a2b3c4d5e6f8 → b3c4d5e6f7a9 → 0a1b2c3d4e5f` (OSS) and
+  `… → b3c4d5e6f7a9 → 2c3d4e5f6a7b` (EE). One head per chain restored.
+- **`_admin_detach_user_references` / `admin_delete_accounts_batch`** (new in
+  v0.103.5, `oss db_manager`) reference `AppDB/AppVariantDB/
+  AppVariantRevisionsDB/AppEnvironmentRevisionDB`. PR 5 drops those tables, so
+  in PR 5 the App-table NULL-out loop and its imports are removed (no rows/FKs
+  once the tables are gone); kept everywhere earlier in the stack where the
+  tables still exist.
+- **`db_manager_ee` import/symbol churn:** v0.103.5 re-added `func` and
+  `count_organizations_by_owner`/`count_organization_members` to EE; the stack
+  had moved some OSS-ward. Net result per branch: keep `func`, keep
+  `count_organization_members`, drop the duplicate `count_organizations_by_owner`
+  / `get_default_workspace_id` definitions the PRs already re-export from OSS
+  (F811). Caught by ruff, not by git (silent auto-merge import loss).
+- **`accounts/errors.py`:** keep v0.103.5's `AccountHasMembersError` /
+  `AccountAuthDeletionError`; `OssMultiOrgNotSupportedError` stays deleted from
+  PR 2 onward.
+- **`env.py`** (track F): v0.103.5's `SmtpConfig` + parsing helpers coexist with
+  `POSTGRES_DB_PREFIX`; no conflict.
+
+**Readable revision-id rename** (alembic ids are arbitrary 12-char strings, not
+hex — verified against alembic 1.18.4): the post-alignment ids were renamed for
+legibility, roots ending in 0 like the park point:
+`a00000000000→park00000000`, `o00000000001/2→oss000000000/1`,
+`e00000000001/2/3→ee0000000000/1/2`. `ALIGN_REVISION` updated in both
+`core_oss`/`core_ee` utils.
+
+Still stale, regenerate before re-validating: the committed schema dumps
+(`oss_core.txt`, `ee_core.txt`, diffs) predate v0.103.5's `workflow_revisions`
+repair — re-run `dump_pg_schema.sh` after replaying the chains.
 
 ## Per-PR worklog — all complete
 
