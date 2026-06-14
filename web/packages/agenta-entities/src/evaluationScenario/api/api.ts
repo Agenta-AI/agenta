@@ -4,6 +4,8 @@
  * Endpoints: `POST /evaluations/scenarios/query`, `PATCH /evaluations/scenarios/`.
  */
 
+import type {AgentaApi} from "@agentaai/api-client"
+
 // Reuse the shared evaluations Fern client (same /evaluations/* resource as runs).
 import {getEvaluationsClient, projectScopedRequest} from "../../evaluationRun/api/client"
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
@@ -52,7 +54,7 @@ export async function setEvaluationScenarioStatuses({
 
     const client = await getEvaluationsClient()
     const data = await client.editScenarios(
-        {scenarios: scenarios as never},
+        {scenarios: scenarios as unknown as AgentaApi.EvaluationScenarioEdit[]},
         projectScopedRequest(projectId),
     )
 

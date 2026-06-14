@@ -11,6 +11,8 @@
  * ETL depend on, and act as an independent drift check against the backend.
  */
 
+import type {AgentaApi} from "@agentaai/api-client"
+
 // See testcase/api/api.ts for rationale — the shared barrel pulls in CSS deps.
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
@@ -82,7 +84,7 @@ export async function editEvaluationRun({
 
     const client = await getEvaluationsClient()
     const data = await client.editRun(
-        {run_id: runId, run: run as never},
+        {run_id: runId, run: run as unknown as AgentaApi.EvaluationRunEdit},
         projectScopedRequest(projectId),
     )
 
@@ -204,7 +206,9 @@ export async function queryEvaluationRunsList({
     if (appId) queryParams.app_id = appId
 
     const client = await getEvaluationsClient()
-    const data = (await client.queryRuns(body as never, {queryParams})) as {
+    const data = (await client.queryRuns(body as unknown as AgentaApi.EvaluationRunQueryRequest, {
+        queryParams,
+    })) as {
         windowing?: Record<string, unknown> | null
     }
 
@@ -302,7 +306,7 @@ export async function setEvaluationResults({
 
     const client = await getEvaluationsClient()
     const data = await client.setResults(
-        {results: results as never},
+        {results: results as unknown as AgentaApi.EvaluationResultsSetRequest["results"]},
         projectScopedRequest(projectId),
     )
 
@@ -381,7 +385,10 @@ export async function queryEvaluationMetricsBatch({
     if (timestamps !== undefined) metrics.timestamps = timestamps
 
     const client = await getEvaluationsClient()
-    const data = await client.queryMetrics({metrics} as never, projectScopedRequest(projectId))
+    const data = await client.queryMetrics(
+        {metrics} as unknown as AgentaApi.EvaluationMetricsQueryRequest,
+        projectScopedRequest(projectId),
+    )
 
     const validated = safeParseWithLogging(
         evaluationMetricsResponseSchema,
