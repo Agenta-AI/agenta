@@ -509,7 +509,14 @@ const playgroundTests = () => {
                     })
                     .click()
                 await expect(loadDialog.getByText("Germany", {exact: true})).toBeVisible()
-                await loadDialog.locator(".ant-table-thead").getByRole("checkbox").check()
+                for (const {country} of rows) {
+                    await loadDialog
+                        .locator(".ant-table-row")
+                        .filter({hasText: country})
+                        .first()
+                        .getByRole("checkbox")
+                        .check()
+                }
                 await loadDialog.getByRole("button", {name: "Load Selected", exact: true}).click()
                 await expect(loadDialog).toBeHidden()
                 await expect(
@@ -529,7 +536,9 @@ const playgroundTests = () => {
                             role: Role.USER,
                         },
                     ])
-                    await expect(page.getByRole("button", {name: "Commit"})).toBeEnabled()
+                    await expect(
+                        page.locator("button.ant-btn-primary").filter({hasText: "Commit"}).first(),
+                    ).toBeEnabled()
                     await saveVariant("version")
                 },
             )

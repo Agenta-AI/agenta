@@ -347,7 +347,10 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 }
 
                 // 1. Click on the save button
-                const commitButton = page.getByRole("button", {name: "Commit"})
+                const commitButton = page
+                    .locator("button.ant-btn-primary")
+                    .filter({hasText: "Commit"})
+                    .first()
                 const isCommitButtonDisabled = await commitButton.isDisabled()
 
                 if (!isCommitButtonDisabled) {

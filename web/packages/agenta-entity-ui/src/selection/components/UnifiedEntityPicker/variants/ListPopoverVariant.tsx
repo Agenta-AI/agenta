@@ -251,6 +251,7 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
             {/* Auto-select handler (invisible component) */}
             {autoSelectingParent && (
                 <AutoSelectHandler
+                    key={autoSelectingParent.id}
                     parentId={autoSelectingParent.id}
                     parentLabel={autoSelectingParent.label}
                     parentLevelConfig={parentLevelConfig}
