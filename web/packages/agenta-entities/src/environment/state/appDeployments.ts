@@ -80,21 +80,25 @@ function extractAppDeployment(env: Environment, appId: string): AppDeploymentInf
 /**
  * Resolve the "last modified" date shown for a deployment.
  *
- * Prefers the deployed revision's own date, then falls back to the environment record's
- * timestamp only when no revision date is available.
+ * Uses the deployed revision's own timestamp.
  *
- * On the revision side, `created_at` is preferred over `updated_at`: a revision is an
- * immutable commit whose `created_at` is the commit/deploy moment, and the backend leaves
- * `updated_at` NULL on commit. On the fallback side, the environment's
- * `updated_at`/`created_at` track the environment artifact and do not change when a new
- * revision is deployed, so they are a misleading "last modified" and used only as a last
- * resort.
+ * `created_at` is preferred over `updated_at`: a revision is an immutable commit whose
+ * `created_at` is the commit/deploy moment, and the backend leaves `updated_at` NULL on
+ * commit.
+ *
+ * Environment-level timestamps (`env.updated_at` / `env.created_at`) are intentionally
+ * NOT used as a fallback: they track the environment artifact itself and do NOT change
+ * when a new revision is deployed, so all environments share the same project-creation
+ * date — making them an actively misleading "last modified" value.
+ *
+ * When `revision` is null (revision entity not yet loaded), `null` is returned so the
+ * UI can display a neutral placeholder ("-") until the revision query resolves.
  */
 export function resolveDeploymentLastModified(
     revision: Pick<Workflow, "created_at" | "updated_at"> | null | undefined,
-    env: Pick<Environment, "updated_at" | "created_at">,
+    _env: Pick<Environment, "updated_at" | "created_at">,
 ): string | null {
-    return revision?.created_at ?? revision?.updated_at ?? env.updated_at ?? env.created_at ?? null
+    return revision?.created_at ?? revision?.updated_at ?? null
 }
 
 /**
@@ -139,8 +143,9 @@ function toAppEnvironmentDeployment(
         deployedVariantId: dep?.applicationVariant?.id ?? null,
         deployedRevisionId: dep?.applicationRevision?.id ?? null,
         revision,
-        // "Last modified" reflects the deployed revision's commit date, not the environment
-        // record's own timestamp (see resolveDeploymentLastModified for the rationale).
+        // "Last modified" is the deployed revision's commit date.
+        // Returns null while the revision entity is loading; the UI shows "-" until it resolves.
+        // See resolveDeploymentLastModified for full rationale.
         updatedAt: resolveDeploymentLastModified(revisionData, env),
     }
 }
