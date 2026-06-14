@@ -1,10 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {humanizeEvaluatorName, humanizeMetricPath} from "@agenta/evaluations/core"
-import {
-    injectedMetricBlueprintFactoryAtom,
-    type InjectedEvaluatorMetricGroupBlueprint,
-} from "@agenta/evaluations/state"
 import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import type {EvaluationRunsColumnExportMetadata} from "@agenta/evaluations/state/runsTable"
 import type {RunMetricDescriptor} from "@agenta/evaluations/state/runsTable"
@@ -33,6 +29,10 @@ import type {ColumnsType} from "antd/es/table"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useHostComponent} from "../../../../host/hostRegistry"
+import {
+    injectedMetricBlueprintFactoryAtom,
+    type InjectedEvaluatorMetricGroupBlueprint,
+} from "../../../../host/runViewInjection"
 import RunActionsCell from "../../components/cells/ActionsCell"
 import {PreviewCreatedCell} from "../../components/cells/CreatedCells"
 import PreviewKindCell from "../../components/cells/KindCell"

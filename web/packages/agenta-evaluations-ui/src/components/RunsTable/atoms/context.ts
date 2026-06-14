@@ -1,14 +1,15 @@
 import type {RunFlagsFilter} from "@agenta/evaluations/hooks"
-import {
-    injectedAppsQueryAtom,
-    injectedAppIdentifiersAtom,
-    injectedRouteLayerAtom,
-} from "@agenta/evaluations/state"
 import type {EvaluationRunKind} from "@agenta/evaluations/state/runsTable"
 import {deriveAppIds} from "@agenta/evaluations/state/runsTable"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {selectAtom} from "jotai/utils"
+
+import {
+    injectedAppsQueryAtom,
+    injectedAppIdentifiersAtom,
+    injectedRouteLayerAtom,
+} from "../../../host/runViewInjection"
 
 export interface EvaluationRunsTableOverrides {
     appId: string | null

@@ -1,6 +1,9 @@
 import type {PropsWithChildren} from "react"
 import {useEffect, useMemo} from "react"
 
+import type {PrimitiveAtom} from "jotai"
+import {Provider, createStore, useStore} from "jotai"
+
 import {
     injectedAppsQueryAtom,
     injectedRouterAppIdAtom,
@@ -14,10 +17,7 @@ import {
     injectedEvaluatorReferenceFamilyAtom,
     injectedWorkspaceMemberByIdFamilyAtom,
     injectedOnlineEvaluationsApiAtom,
-} from "@agenta/evaluations/state"
-import type {PrimitiveAtom} from "jotai"
-import {Provider, createStore, useStore} from "jotai"
-
+} from "../../../host/runViewInjection"
 import {
     type EvaluationRunsTableOverrides,
     defaultEvaluationRunsTableOverrides,

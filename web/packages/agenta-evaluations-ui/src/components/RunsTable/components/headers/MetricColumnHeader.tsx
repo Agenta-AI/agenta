@@ -1,7 +1,6 @@
 import {useMemo} from "react"
 
 import {humanizeMetricPath} from "@agenta/evaluations/core"
-import {injectedResolvedMetricLabelsFamilyAtom} from "@agenta/evaluations/state"
 import {useRunMetricSelection} from "@agenta/evaluations/state/runsTable"
 import type {RunMetricDescriptor} from "@agenta/evaluations/state/runsTable"
 import {canonicalizeMetricKey} from "@agenta/shared/metrics"
@@ -9,6 +8,7 @@ import {Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
 import {useAtomValueWithSchedule, LOW_PRIORITY} from "jotai-scheduler"
 
+import {injectedResolvedMetricLabelsFamilyAtom} from "../../../../host/runViewInjection"
 import {useEvaluatorHeaderReference} from "../../hooks/useEvaluatorHeaderReference"
 
 const OUTPUT_METRIC_PATH_PREFIX = /^attributes\.ag\.data\.outputs\.?/i

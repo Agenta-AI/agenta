@@ -51,6 +51,9 @@ export type {EvalViewHost, HostHook} from "./host/hostRegistry"
 export {registerEvalViewFns, getEvalViewFns} from "./host/fnRegistry"
 export type {EvalViewFns, EvalViewUrlState, WaitForUrlOptions} from "./host/fnRegistry"
 
+// ── run-view injection seams (atom channel — relocated from @agenta/evaluations/state) ──
+export * from "./host/runViewInjection"
+
 // ── eval run-list view (relocated from OSS EvaluationRunsTablePOC — WP-4h-4) ────
 export {
     EvaluationRunsTable,

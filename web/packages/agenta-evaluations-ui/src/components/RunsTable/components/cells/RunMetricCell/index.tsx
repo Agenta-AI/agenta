@@ -1,7 +1,6 @@
 import {memo, useEffect, useMemo, useRef, type ReactNode} from "react"
 
 import {humanizeMetricPath} from "@agenta/evaluations/core"
-import {injectedResolvedMetricLabelsFamilyAtom} from "@agenta/evaluations/state"
 import {
     createEvaluatorOutputTypesKey,
     getOutputTypesMap,
@@ -18,6 +17,7 @@ import {Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
 import {useSetAtomWithSchedule, LOW_PRIORITY} from "jotai-scheduler"
 
+import {injectedResolvedMetricLabelsFamilyAtom} from "../../../../../host/runViewInjection"
 import {
     buildFrequencyEntries,
     formatEvaluatorMetricValue,

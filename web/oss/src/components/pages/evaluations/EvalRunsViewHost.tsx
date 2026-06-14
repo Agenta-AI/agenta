@@ -18,18 +18,16 @@
 
 import {memo, useEffect, useMemo, type ReactNode} from "react"
 
-import {
-    registerEvalRunInjections,
-    type InjectedReferenceResolver,
-    type InjectedUrlState,
-} from "@agenta/evaluations/state"
+import {registerEvalRunInjections, type InjectedReferenceResolver} from "@agenta/evaluations/state"
 import {clearMetricSelectionCache} from "@agenta/evaluations/state/runsTable"
 import {
     EvalViewHostProvider,
     invalidateEvaluationRunsTableAtom,
     registerEvalViewFns,
+    registerRunViewInjections,
     type EvalViewHost,
     type EvalViewUrlState,
+    type InjectedUrlState,
 } from "@agenta/evaluations-ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -110,6 +108,7 @@ registerEvalViewFns({
 /** Registers the run-list atom seams from their real OSS sources (reactive where needed). */
 const useRegisterEvalRunsViewInjections = () => {
     const register = useSetAtom(registerEvalRunInjections)
+    const registerView = useSetAtom(registerRunViewInjections)
     const workspaceMembers = useAtomValue(workspaceMembersAtom)
     const apps = useAtomValue(appsQueryAtom)
     const routerAppId = useAtomValue(routerAppIdAtom)
@@ -123,14 +122,16 @@ const useRegisterEvalRunsViewInjections = () => {
     const invalidateRunsTable = useSetAtom(invalidateEvaluationRunsTableAtom)
 
     useEffect(() => {
+        // shared eval-run seams (headless @agenta/evaluations)
         register({
-            // shared eval-run seams (same as run-details)
             workspaceMembers,
             referenceResolver,
             clearMetricSelection: clearMetricSelectionCache,
             runInvalidate: () => invalidateRunsTable(),
+        })
+        // run-view seams (relocated to @agenta/evaluations-ui)
+        registerView({
             onlineEvaluationsApi: {startSimpleEvaluation, stopSimpleEvaluation},
-            // run-list view seams
             appsQuery: apps,
             routerAppId,
             url: url as unknown as InjectedUrlState,
@@ -148,6 +149,7 @@ const useRegisterEvalRunsViewInjections = () => {
         })
     }, [
         register,
+        registerView,
         workspaceMembers,
         apps,
         routerAppId,

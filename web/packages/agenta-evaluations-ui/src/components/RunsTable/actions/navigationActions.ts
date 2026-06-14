@@ -1,5 +1,3 @@
-import {injectedUrlAtom, injectedRouterAppIdAtom} from "@agenta/evaluations/state"
-import type {InjectedUrlState} from "@agenta/evaluations/state"
 import type {EvaluationRunKind, EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import {resolveRowAppId} from "@agenta/evaluations/state/runsTable"
 import {message} from "@agenta/ui/app-message"
@@ -7,6 +5,8 @@ import {getDefaultStore} from "jotai"
 import Router from "next/router"
 
 import {getEvalViewFns} from "../../../host/fnRegistry"
+import type {InjectedUrlState} from "../../../host/runViewInjection"
+import {injectedUrlAtom, injectedRouterAppIdAtom} from "../../../host/runViewInjection"
 
 const store = getDefaultStore()
 

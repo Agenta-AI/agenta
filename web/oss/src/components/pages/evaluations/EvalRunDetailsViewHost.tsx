@@ -22,17 +22,15 @@
 
 import {memo, useEffect, useMemo, type ReactNode} from "react"
 
-import {
-    registerEvalRunInjections,
-    type InjectedNavigationCommand,
-    type InjectedReferenceResolver,
-} from "@agenta/evaluations/state"
+import {registerEvalRunInjections, type InjectedReferenceResolver} from "@agenta/evaluations/state"
 import {clearMetricSelectionCache} from "@agenta/evaluations/state/runsTable"
 import {
     EvalViewHostProvider,
     invalidateEvaluationRunsTableAtom,
     registerEvalViewFns,
+    registerRunViewInjections,
     type EvalViewHost,
+    type InjectedNavigationCommand,
 } from "@agenta/evaluations-ui"
 import {type Atom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -130,10 +128,12 @@ registerEvalViewFns({
 /** Registers the run-details atom seams from their real OSS sources (reactive where needed). */
 const useRegisterEvalRunDetailsInjections = () => {
     const register = useSetAtom(registerEvalRunInjections)
+    const registerView = useSetAtom(registerRunViewInjections)
     const workspaceMembers = useAtomValue(workspaceMembersAtom)
     const invalidateRunsTable = useSetAtom(invalidateEvaluationRunsTableAtom)
 
     useEffect(() => {
+        // shared eval-run seams (headless @agenta/evaluations)
         register({
             workspaceMembers,
             testcaseQueryFamily: testcaseQueryAtomFamily,
@@ -141,12 +141,15 @@ const useRegisterEvalRunDetailsInjections = () => {
             runInvalidate: () => invalidateRunsTable(),
             clearMetricSelection: clearMetricSelectionCache,
             annotationTransform: transformApiData,
+        })
+        // run-view seams (relocated to @agenta/evaluations-ui)
+        registerView({
             // The OSS navigation atom, injected by reference; the focus-drawer URL sync reads
             // it imperatively via `store.get`.
             navigationRequest:
                 navigationRequestAtom as unknown as Atom<InjectedNavigationCommand | null>,
         })
-    }, [register, workspaceMembers, invalidateRunsTable])
+    }, [register, registerView, workspaceMembers, invalidateRunsTable])
 }
 
 /** Wraps the relocated run-details view, supplying every OSS seam it depends on. */

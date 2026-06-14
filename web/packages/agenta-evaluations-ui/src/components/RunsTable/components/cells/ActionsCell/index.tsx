@@ -2,7 +2,6 @@
 import {memo, useMemo, useState, useCallback} from "react"
 
 import {EvaluationStatus} from "@agenta/entities/evaluationRun"
-import {injectedOnlineEvaluationsApiAtom} from "@agenta/evaluations/state"
 import {
     useRunRowDetails,
     useRunRowSummary,
@@ -29,6 +28,7 @@ import {Button, Dropdown, MenuProps, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 
 import {getEvalViewFns} from "../../../../../host/fnRegistry"
+import {injectedOnlineEvaluationsApiAtom} from "../../../../../host/runViewInjection"
 
 const CELL_CLASS =
     "flex h-full w-full min-w-0 items-center justify-center px-2 [&_.ant-btn]:h-8 [&_.ant-btn]:w-8"

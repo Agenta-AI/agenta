@@ -1,6 +1,5 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
-import {injectedOnlineEvaluationsApiAtom} from "@agenta/evaluations/state"
 import {
     compareRunIdsAtom,
     compareRunIdsWriteAtom,
@@ -20,6 +19,7 @@ import {Button, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
+import {injectedOnlineEvaluationsApiAtom} from "../../../host/runViewInjection"
 import ScenarioFilterBar from "../../etl/ScenarioFilterBar"
 
 import CompareRunsMenu from "./CompareRunsMenu"

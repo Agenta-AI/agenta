@@ -3,11 +3,6 @@ import type {Key} from "react"
 
 import {evaluatorsListQueryAtom, workflowVariantsQueryAtomFamily} from "@agenta/entities/workflow"
 import {RunFlagsFilter} from "@agenta/evaluations/hooks"
-import {
-    injectedAppsQueryAtom,
-    injectedMetricBlueprintFactoryAtom,
-    injectedQueriesQueryFamilyAtom,
-} from "@agenta/evaluations/state"
 import type {
     ConcreteEvaluationRunKind,
     EvaluationRunKind,
@@ -22,6 +17,11 @@ import {atom} from "jotai"
 import {atomWithStorage, loadable, selectAtom} from "jotai/utils"
 
 import {getEvalViewFns} from "../../../host/fnRegistry"
+import {
+    injectedAppsQueryAtom,
+    injectedMetricBlueprintFactoryAtom,
+    injectedQueriesQueryFamilyAtom,
+} from "../../../host/runViewInjection"
 
 import {
     evaluationRunsTableContextAtom,

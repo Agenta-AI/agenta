@@ -1,9 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- relocated export reference resolvers; probe dynamic run/reference shapes; typing is a separate task, see §11.4 */
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {
-    injectedReferenceResolverAtom,
-    injectedEvaluatorReferenceFamilyAtom,
-} from "@agenta/evaluations/state"
+import {injectedReferenceResolverAtom} from "@agenta/evaluations/state"
 import {evaluationQueryRevisionAtomFamily} from "@agenta/evaluations/state/evalRun"
 import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import type {ReferenceColumnDescriptor} from "@agenta/evaluations/state/runsTable"
@@ -11,6 +8,7 @@ import {getUniquePartOfId, isUuid} from "@agenta/evaluations/state/runsTable"
 import {useStore} from "jotai"
 
 import {getEvalViewFns} from "../../../../../host/fnRegistry"
+import {injectedEvaluatorReferenceFamilyAtom} from "../../../../../host/runViewInjection"
 
 import {
     formatVariantRevisionLabel,

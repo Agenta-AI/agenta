@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- relocated eval run-details view; OSS-owned loose payload shapes (see §11.4) */
+import {getDefaultStore} from "jotai"
+import Router from "next/router"
+
 import {
     injectedNavigationRequestAtom,
     type InjectedNavigationCommand,
-} from "@agenta/evaluations/state"
-import {getDefaultStore} from "jotai"
-import Router from "next/router"
+} from "../../../host/runViewInjection"
 
 import {
     applyFocusDrawerStateAtom,

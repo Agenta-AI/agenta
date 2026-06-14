@@ -3,11 +3,6 @@ import type {Key, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {clearPreviewRunsCache} from "@agenta/evaluations/hooks"
-import {
-    injectedOnboardingWidgetActivationAtom,
-    injectedRecordWidgetEventAtom,
-    injectedSetOnboardingWidgetActivationAtom,
-} from "@agenta/evaluations/state"
 import {activePreviewProjectIdAtom} from "@agenta/evaluations/state/evalRun"
 import {clearAllMetricStatsCaches} from "@agenta/evaluations/state/evalRun"
 import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
@@ -35,6 +30,11 @@ import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import {useRouter} from "next/router"
 
 import {useHostComponent, useHostHook} from "../../../../host/hostRegistry"
+import {
+    injectedOnboardingWidgetActivationAtom,
+    injectedRecordWidgetEventAtom,
+    injectedSetOnboardingWidgetActivationAtom,
+} from "../../../../host/runViewInjection"
 import {
     evaluationRunsDeleteContextAtom,
     evaluationRunsTableFetchEnabledAtom,

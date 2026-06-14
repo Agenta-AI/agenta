@@ -1,10 +1,10 @@
-import {injectedEvaluatorReferenceFamilyAtom} from "@agenta/evaluations/state"
 import {previewRunMetricStatsSelectorFamily} from "@agenta/evaluations/state/evalRun"
 import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import type {RunMetricDescriptor} from "@agenta/evaluations/state/runsTable"
 import type {BasicStats} from "@agenta/shared/metrics"
 import {useStore} from "jotai"
 
+import {injectedEvaluatorReferenceFamilyAtom} from "../../../../../host/runViewInjection"
 import {
     formatEvaluatorMetricValue,
     formatInvocationMetricValue,

@@ -1,13 +1,13 @@
 import {useMemo} from "react"
 
-import {
-    injectedEvaluatorReferenceFamilyAtom,
-    type InjectedEvaluatorReference,
-} from "@agenta/evaluations/state"
 import {getColumnViewportVisibilityAtom} from "@agenta/ui/table"
 import {atom, useAtomValue} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
+import {
+    injectedEvaluatorReferenceFamilyAtom,
+    type InjectedEvaluatorReference,
+} from "../../../host/runViewInjection"
 import {evaluationRunsColumnVisibilityContextAtom} from "../atoms/view"
 
 type EvaluatorReference = InjectedEvaluatorReference

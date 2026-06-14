@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- relocated run-name/creator export
  * resolver; reads dynamic preview-run/legacy shapes by best-effort field probing. Typing
  * is a separate task, see §11.4. */
-import {injectedWorkspaceMemberByIdFamilyAtom} from "@agenta/evaluations/state"
 import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import {useStore} from "jotai"
 
+import {injectedWorkspaceMemberByIdFamilyAtom} from "../../../../../host/runViewInjection"
 import {resolveRunNameForExport} from "../../../hooks/useEvaluationRunsColumns"
 
 import {getRecordIdentifiers, logExportAction, normalizeString} from "./helpers"

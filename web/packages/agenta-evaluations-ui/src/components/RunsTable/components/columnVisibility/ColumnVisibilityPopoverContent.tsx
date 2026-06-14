@@ -1,11 +1,6 @@
 import {useCallback, useMemo} from "react"
 
 import {humanizeMetricPath} from "@agenta/evaluations/core"
-import {
-    injectedMetricBlueprintFactoryAtom,
-    injectedResolvedMetricLabelsFamilyAtom,
-    type InjectedEvaluatorMetricGroupBlueprint,
-} from "@agenta/evaluations/state"
 import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
 import type {RunMetricDescriptor} from "@agenta/evaluations/state/runsTable"
 import {
@@ -18,6 +13,11 @@ import {Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
+import {
+    injectedMetricBlueprintFactoryAtom,
+    injectedResolvedMetricLabelsFamilyAtom,
+    type InjectedEvaluatorMetricGroupBlueprint,
+} from "../../../../host/runViewInjection"
 import {evaluationRunsColumnVisibilityContextAtom} from "../../atoms/view"
 import MetricGroupHeader from "../headers/MetricGroupHeader"
 

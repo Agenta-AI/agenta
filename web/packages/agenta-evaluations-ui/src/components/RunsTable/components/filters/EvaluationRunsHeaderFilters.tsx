@@ -1,7 +1,6 @@
 import {MouseEvent, useMemo, useState, useCallback, type CSSProperties} from "react"
 
 import {testsetsListQueryAtomFamily} from "@agenta/entities/testset"
-import {injectedCurrentWorkflowAtom} from "@agenta/evaluations/state"
 import type {ConcreteEvaluationRunKind} from "@agenta/evaluations/state/runsTable"
 import {STATUS_OPTIONS, EVALUATION_KIND_LABELS} from "@agenta/evaluations/state/runsTable"
 import {buildTestsetOptions} from "@agenta/evaluations/state/runsTable"
@@ -11,6 +10,7 @@ import {Input, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import {injectedCurrentWorkflowAtom} from "../../../../host/runViewInjection"
 import {
     evaluationRunsFilterOptionsAtom,
     evaluationRunsFiltersSummaryAtom,
