@@ -178,3 +178,53 @@ class DeprecatedProjectDB(DeprecatedBase):
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+
+
+class DeprecatedWorkspaceMemberDB(DeprecatedBase):
+    """Frozen workspace_members schema at revision 1c2d3e4f5a6b: no audit/
+    soft-delete columns. Same reason as DeprecatedWorkspaceDB."""
+
+    __tablename__ = "workspace_members"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id"))
+    role = Column(String)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class DeprecatedProjectMemberDB(DeprecatedBase):
+    """Frozen project_members schema at revision 1c2d3e4f5a6b: no audit/
+    soft-delete columns. Same reason as DeprecatedWorkspaceDB."""
+
+    __tablename__ = "project_members"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"))
+    role = Column(String)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )

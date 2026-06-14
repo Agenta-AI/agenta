@@ -7,10 +7,8 @@ from sqlalchemy import delete, Connection, insert, func
 from ee.src.models.extended.deprecated_models import (
     DeprecatedWorkspaceDB as WorkspaceDB,
     DeprecatedProjectDB as ProjectDB,
-)
-from ee.src.models.db_models import (
-    WorkspaceMemberDB,
-    ProjectMemberDB,
+    DeprecatedWorkspaceMemberDB as WorkspaceMemberDB,
+    DeprecatedProjectMemberDB as ProjectMemberDB,
 )
 
 BATCH_SIZE = 200
