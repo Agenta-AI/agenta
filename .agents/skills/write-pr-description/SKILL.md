@@ -39,6 +39,9 @@ Use this shape unless the change is truly trivial:
 
 ## Tests / notes
 <short bullet list or prose: what you verified, anything reviewers should watch for>
+
+## What to QA
+<only for user-visible changes: short steps for the manual tester, see section 7>
 ```
 
 Adapt the headings if the situation calls for it (e.g. a pure feature PR might use "What this adds" instead of "What was broken"). The order stays the same: the obeservation (symptom or user-visible change first or intent), then the changes, then verification and validation.
@@ -102,7 +105,26 @@ Keep this section short and concrete. Useful contents:
 
 Skip the section entirely if there is nothing real to say. A blank "Tests" heading is worse than no heading.
 
-## 7. Reviewer's first-30-seconds test
+## 7. What to QA section
+
+If the change is user-visible and a teammate will test it manually, add a "What to QA" section. Write it for a tester who knows the product and has context: skip the basics, point at the right screens, and state the expected result of every check.
+
+- One line per check: where to go, what to do, what they should see.
+- Name the exact pages and flows. "Test the feature" is not a check.
+- Include the regression to watch for: the thing this change is most likely to have broken.
+- If a check needs setup (a seeded project, an older record, a feature flag), say so in the same line.
+- Use simple, clear language. Same prose rules as section 5.
+
+Example:
+
+> ## What to QA
+> - Create a new automatic evaluator, name it, save. The table shows your name with a v1 tag, not "default".
+> - Edit it and commit a config change. The name stays, the version bumps to v2.
+> - Regression: run a new evaluation. The variant chips still say "default", not the app name.
+
+Skip the section when nothing is user-visible (pure refactor, CI, docs). A reviewer-only change needs the Tests section, not this one.
+
+## 8. Reviewer's first-30-seconds test
 
 Before you finalize, read your own draft and ask:
 
@@ -113,7 +135,7 @@ Before you finalize, read your own draft and ask:
 
 If any answer is no, edit before you push.
 
-## 8. Worked example
+## 9. Worked example
 
 A bad first draft:
 
@@ -147,6 +169,10 @@ After:
 ## Tests
 - Added a unit test in parseToolsFromTrace.test.ts covering both shapes.
 - Opened a real OpenInference trace from the staging project and confirmed the tools panel renders.
+
+## What to QA
+- Open an OpenInference trace in the playground (the staging project has them). The tools panel lists the tools.
+- Regression: open a trace from the OpenAI SDK. The tools panel still renders as before.
 ```
 
 The second version is cleaner and tells the reviewer everything they need to start reading the diff.

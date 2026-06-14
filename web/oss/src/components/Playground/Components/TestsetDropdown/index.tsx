@@ -100,6 +100,10 @@ export function TestsetDropdown() {
         ),
     ) as {id: string | null; name: string | null} | null
 
+    const connectedTestset = useAtomValue(
+        useMemo(() => playgroundController.selectors.connectedTestset(), []),
+    )
+
     const mode = useAtomValue(
         useMemo(
             () =>
@@ -149,6 +153,7 @@ export function TestsetDropdown() {
     // ── Derived state ──────────────────────────────────────────────────────
     const isConnected = mode === "connected"
     const revisionId = connectedSource?.id ?? null
+    const testsetId = connectedTestset?.id ?? null
     const testsetName = connectedSource?.name ?? null
     const buttonLabel = isConnected && testsetName ? testsetName : "Test set"
 
@@ -600,6 +605,7 @@ export function TestsetDropdown() {
                 <TestsetSelectionModal
                     open
                     loadableId={loadableId}
+                    connectedTestsetId={testsetId ?? undefined}
                     connectedRevisionId={revisionId ?? undefined}
                     mode="load"
                     selectionMode={isChatPlayground ? "single" : "multiple"}
@@ -619,6 +625,7 @@ export function TestsetDropdown() {
                 <TestsetSelectionModal
                     open
                     loadableId={loadableId}
+                    connectedTestsetId={testsetId ?? undefined}
                     connectedRevisionId={revisionId ?? undefined}
                     mode="edit"
                     selectionMode={isChatPlayground ? "single" : "multiple"}

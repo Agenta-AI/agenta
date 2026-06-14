@@ -122,7 +122,7 @@ const EvaluatorNameTag = memo(function EvaluatorNameTag({
     fallbackSlug: string | null
 }) {
     const lookupId = evaluatorRevisionId ?? evaluatorId ?? ""
-    const name = useAtomValue(workflowMolecule.selectors.name(lookupId))
+    const name = useAtomValue(workflowMolecule.selectors.artifactName(lookupId))
     const slug = useAtomValue(workflowMolecule.selectors.slug(lookupId))
     const fallbackId = evaluatorId ?? lookupId
 
@@ -140,7 +140,7 @@ const EvaluatorNameSpan = memo(function EvaluatorNameSpan({
     fallbackSlug: string | null
 }) {
     const lookupId = evaluatorRevisionId ?? evaluatorId ?? ""
-    const name = useAtomValue(workflowMolecule.selectors.name(lookupId))
+    const name = useAtomValue(workflowMolecule.selectors.artifactName(lookupId))
     const slug = useAtomValue(workflowMolecule.selectors.slug(lookupId))
     const fallbackId = evaluatorId ?? lookupId
 

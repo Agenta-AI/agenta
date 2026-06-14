@@ -96,9 +96,6 @@ const TestsetsTable = ({
     const tableState = getTestsetTableState(tableMode)
     const isArchivedView = tableMode === "archived"
 
-    // Refresh trigger for the table
-    const setRefreshTrigger = useSetAtom(tableState.paginatedStore.refreshAtom)
-
     // Modal state
     const [isCreateTestsetModalOpen, setIsCreateTestsetModalOpen] = useState(false)
     const [testsetCreationMode, setTestsetCreationMode] = useState<TestsetCreationMode>("create")
@@ -124,10 +121,10 @@ const TestsetsTable = ({
         isArchivedView,
     ])
 
-    // Refresh table data
+    // Refresh active and archived table stores after archival.
     const mutate = useCallback(() => {
-        setRefreshTrigger()
-    }, [setRefreshTrigger])
+        invalidateTestsetManagementQueries()
+    }, [])
 
     // Track expanded rows and their loaded children
     const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([])
@@ -579,6 +576,21 @@ const TestsetsTable = ({
     const archiveButton = useMemo(() => {
         if (!isManageMode || isArchivedView) return undefined
 
+        if (table.selectedRowKeys.length > 0) {
+            return (
+                <Button
+                    danger
+                    icon={<ArchiveIcon size={14} />}
+                    onClick={() => {
+                        setSelectedTestsetToDelete(table.getSelectedRecords())
+                        setIsDeleteTestsetModalOpen(true)
+                    }}
+                >
+                    Archive
+                </Button>
+            )
+        }
+
         return (
             <Button
                 type="text"
@@ -588,7 +600,7 @@ const TestsetsTable = ({
                 Archived
             </Button>
         )
-    }, [isArchivedView, isManageMode, projectURL, router])
+    }, [isArchivedView, isManageMode, projectURL, router, table])
 
     const primaryActions = useMemo(() => {
         if (!isManageMode || isArchivedView) return undefined
@@ -684,7 +696,13 @@ const TestsetsTable = ({
                 fixed: true,
             }
         }
-        return table.rowSelection
+        return {
+            ...table.rowSelection,
+            getCheckboxProps: (record: TestsetTableRow) => ({
+                ...table.rowSelection.getCheckboxProps?.(record),
+                disabled: Boolean(record.__isSkeleton || (record as any).__isRevision),
+            }),
+        }
     }, [isSelectMode, selectedRowKey, table.rowSelection, handleRowClick])
 
     return (
@@ -733,7 +751,6 @@ const TestsetsTable = ({
                     open={isDeleteTestsetModalOpen}
                     onCancel={() => {
                         setIsDeleteTestsetModalOpen(false)
-                        table.clearSelection()
                     }}
                     onAfterDelete={({
                         testsets: deletedTestsets,
@@ -742,6 +759,7 @@ const TestsetsTable = ({
                         testsets: TestsetTableRow[]
                         revisions: TestsetTableRow[]
                     }) => {
+                        table.clearSelection()
                         setChildrenCache((prev) => {
                             const newCache = new Map(prev)
 

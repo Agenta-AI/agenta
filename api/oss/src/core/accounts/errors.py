@@ -108,6 +108,28 @@ class AdminNotImplementedError(AdminError):
         )
 
 
+class AccountHasMembersError(AdminError):
+    def __init__(self, organization_names: list[str]):
+        joined = ", ".join(organization_names)
+        super().__init__(
+            code="account_has_members",
+            message=(
+                "Your account owns organizations with other members: "
+                f"{joined}. Remove the other members or contact support before "
+                "deleting your account."
+            ),
+            details={"organizations": organization_names},
+        )
+
+
+class AccountAuthDeletionError(AdminError):
+    def __init__(self, message: str = "Could not remove the account login."):
+        super().__init__(
+            code="account_auth_deletion_failed",
+            message=message,
+        )
+
+
 class OssMultiOrgNotSupportedError(AdminError):
     def __init__(
         self,

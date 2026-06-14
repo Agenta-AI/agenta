@@ -29,10 +29,11 @@ def evaluate(
 
 ### Return value
 
-The function should return one of:
+The function can return one of:
 
-- **`float`** (0.0 to 1.0) — a score where 0.0 is worst and 1.0 is best
-- **`bool`** — `True` maps to 1.0, `False` to 0.0
+- **`dict`** — a dictionary of metrics, such as `{"score": 0.8, "success": True}` or `{"relevance": 0.9, "tone": 0.4, "reason": "missed the greeting"}`. Each key becomes a separate metric in the evaluation results. Values must be JSON-serializable. Nested dictionaries are flattened into dotted metric names.
+- **`float`** (0.0 to 1.0) — a single score where 0.0 is worst and 1.0 is best. Agenta normalizes it to `{"score": <value>, "success": <value >= threshold>}`.
+- **`bool`** — normalized to `{"success": <value>}`.
 
 ## Examples
 
@@ -45,10 +46,32 @@ def evaluate(
     inputs: Dict[str, Any],
     outputs: Any,
     trace: Dict[str, Any],
-) -> float:
-    if outputs == inputs.get("correct_answer"):
-        return 1.0
-    return 0.0
+) -> dict:
+    success = outputs == inputs.get("correct_answer")
+    return {
+        "score": 1.0 if success else 0.0,
+        "success": success,
+    }
+```
+
+### Multiple metrics
+
+Return a dict to report several metrics from one evaluator. Each key shows up as its own column in the results:
+
+```python
+from typing import Dict, Any
+
+def evaluate(
+    inputs: Dict[str, Any],
+    outputs: Any,
+    trace: Dict[str, Any],
+) -> dict:
+    text = outputs if isinstance(outputs, str) else str(outputs)
+    return {
+        "length_ok": len(text) <= 280,
+        "mentions_brand": "Agenta" in text,
+        "word_count": float(len(text.split())),
+    }
 ```
 
 ### Latency check
@@ -162,7 +185,8 @@ The same interface is available in JavaScript and TypeScript:
 **JavaScript:**
 ```javascript
 function evaluate(inputs, outputs, trace) {
-  return outputs === inputs.correct_answer ? 1.0 : 0.0
+  const success = outputs === inputs.correct_answer
+  return {score: success ? 1.0 : 0.0, success: success}
 }
 ```
 
@@ -172,21 +196,30 @@ function evaluate(
   inputs: Record<string, any>,
   outputs: any,
   trace: Record<string, any>
-): number {
-  return outputs === inputs.correct_answer ? 1.0 : 0.0
+): {score: number; success: boolean} {
+  const success = outputs === inputs.correct_answer
+  return {score: success ? 1.0 : 0.0, success: success}
 }
 ```
 
-## Legacy interface (v1)
+## Legacy interfaces
 
 :::info
-Existing evaluators created before this update use the legacy 4-parameter interface:
+Existing evaluators keep working unchanged. There are two older interfaces:
+
+The original 4-parameter interface:
 
 ```python
 def evaluate(app_params, inputs, output, correct_answer) -> float:
 ```
 
-These continue to work unchanged.
+And the float-only 3-parameter interface:
 
-If you want to migrate an existing evaluator to the new interface, update the function signature to `(inputs, outputs, trace)` and access ground truth directly from `inputs` instead of the `correct_answer` parameter.
+```python
+def evaluate(inputs, outputs, trace) -> float:
+```
+
+Evaluators created with either interface continue to return a single score. Dict returns are only supported for evaluators created after this update.
+
+To migrate an old evaluator, create a new code evaluator and copy your logic over. Use the `(inputs, outputs, trace)` signature, read ground truth directly from `inputs`, and return a dict of metrics.
 :::

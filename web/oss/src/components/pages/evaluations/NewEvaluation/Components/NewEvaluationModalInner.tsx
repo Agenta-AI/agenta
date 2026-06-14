@@ -377,16 +377,29 @@ const NewEvaluationModalInner = ({
         }
     }, [])
 
+    // Variant display names live on the VARIANT (name, then slug): SDK-created
+    // variants and revisions may carry no `name` at all, and UI-created
+    // revisions are named after the variant.
+    const selectedSingleRevisionId =
+        selectedVariantRevisionIds.length === 1 ? selectedVariantRevisionIds[0] : ""
+    const selectedVariantLabel = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.variantLabel(selectedSingleRevisionId),
+            [selectedSingleRevisionId],
+        ),
+    )
+
     // Memoised base (deterministic) part of generated name (without random suffix)
     const generatedNameBase = useMemo(() => {
         if (!selectedVariantRevisionIds.length || !selectedTestsetName) return ""
         if (selectedVariantRevisionIds.length > 1) {
             return `${selectedVariantRevisionIds.length}-variants-${selectedTestsetName}`
         }
-        const variant = filteredVariants?.find((v) => selectedVariantRevisionIds.includes(v.id))
-        if (!variant) return ""
-        return `${variant.name || "-"}-v${variant.version ?? 0}-${selectedTestsetName}`
-    }, [selectedVariantRevisionIds, selectedTestsetName, filteredVariants])
+        const revision = filteredVariants?.find((v) => selectedVariantRevisionIds.includes(v.id))
+        if (!revision) return ""
+        const label = selectedVariantLabel ?? revision.name ?? "-"
+        return `${label}-v${revision.version ?? 0}-${selectedTestsetName}`
+    }, [selectedVariantRevisionIds, selectedTestsetName, filteredVariants, selectedVariantLabel])
 
     // Auto-generate / update evaluation name intelligently to avoid loops
     const lastAutoNameRef = useRef<string>("")

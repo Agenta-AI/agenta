@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- relocated eval-run parity data layer (WP-4e-2b); reads dynamic backend-shaped payloads, logic unchanged */
+import {extractMetrics} from "@agenta/entities/workflow"
 import {canonicalizeMetricKey} from "@agenta/shared/metrics"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
@@ -330,6 +331,24 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
             ? runData.camelRun.data.mappings
             : []
 
+        // Per-step metric definitions derived from the outputs schema the
+        // backend inferred from traces and stored on the run step. This is the
+        // type source for schema-less evaluators, whose immutable revision
+        // carries no schema. Keyed by step key.
+        const stepSchemaMetricsByStepKey = new Map<string, ReturnType<typeof extractMetrics>>()
+        const runSteps = Array.isArray(runData.camelRun?.data?.steps)
+            ? runData.camelRun.data.steps
+            : []
+        for (const step of runSteps) {
+            const outputs = (step as {schemas?: {outputs?: unknown}})?.schemas?.outputs
+            const stepKey = (step as {key?: string})?.key
+            if (!outputs || !stepKey) continue
+            stepSchemaMetricsByStepKey.set(
+                stepKey,
+                extractMetrics({id: stepKey, slug: stepKey, data: {schemas: {outputs}}}),
+            )
+        }
+
         const counters: Record<"input" | "invocation" | "annotation", number> = {
             input: 0,
             invocation: 0,
@@ -507,13 +526,22 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
             // canonical-key-only match misses and `metricType` falls back
             // to "string", mis-typing the column (e.g. a boolean output).
             const metricKey = column.metricKey || column.valueKey
-            const metricDefinition = evaluator?.metrics.find(
-                (metric) =>
-                    metric.name === metricKey ||
-                    metric.path === metricKey ||
-                    metric.name === column.valueKey ||
-                    metric.path === column.valueKey,
-            )
+            const matchMetric = (metrics: ReturnType<typeof extractMetrics> | undefined) =>
+                metrics?.find(
+                    (metric) =>
+                        metric.name === metricKey ||
+                        metric.path === metricKey ||
+                        metric.name === column.valueKey ||
+                        metric.path === column.valueKey,
+                )
+            // Schema-declared evaluator metrics first; else fall back to the
+            // outputs schema the backend inferred from traces and stored on the
+            // run step — the only type source for schema-less evaluators, whose
+            // immutable revision carries no schema. "string" is the cold-start
+            // fallback before any type is known.
+            const metricDefinition =
+                matchMetric(evaluator?.metrics) ??
+                matchMetric(stepSchemaMetricsByStepKey.get(column.stepKey ?? ""))
             const metricType =
                 metricDefinition?.metricType || column.metricType || METRIC_TYPE_FALLBACK
             const evaluatorLabel = evaluator?.name || column.evaluatorSlug || "Annotations"

@@ -27,6 +27,7 @@ from ..types.query_revisions_log import QueryRevisionsLog
 from ..types.query_revisions_response import QueryRevisionsResponse
 from ..types.query_variant_create import QueryVariantCreate
 from ..types.query_variant_edit import QueryVariantEdit
+from ..types.query_variant_fork import QueryVariantFork
 from ..types.query_variant_query import QueryVariantQuery
 from ..types.query_variant_response import QueryVariantResponse
 from ..types.query_variants_response import QueryVariantsResponse
@@ -610,6 +611,68 @@ class RawQueriesClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    def fork_query_variant(self, *, query_variant: QueryVariantFork, query_variant_ref: Reference, query_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[QueryVariantResponse]:
+        """
+        Fork an existing query variant into a new variant.
+        
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `query_revision_ref` is provided). Provide `slug`
+        and `name` in the fork body to identify the new variant.
+        
+        Parameters
+        ----------
+        query_variant : QueryVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        query_variant_ref : Reference
+            Source variant to fork from.
+        
+        query_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[QueryVariantResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "queries/variants/fork",method="POST",
+            json={
+                "query_variant": convert_and_respect_annotation_metadata(object_=query_variant, annotation=QueryVariantFork, direction="write"),
+                "query_variant_ref": convert_and_respect_annotation_metadata(object_=query_variant_ref, annotation=Reference, direction="write"),
+                "query_revision_ref": convert_and_respect_annotation_metadata(object_=query_revision_ref, annotation=typing.Optional[Reference], direction="write"),
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    QueryVariantResponse,
+                    parse_obj_as(
+                        type_ =QueryVariantResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     def retrieve_query_revision(self, *, query_ref: typing.Optional[Reference] = OMIT, query_variant_ref: typing.Optional[Reference] = OMIT, query_revision_ref: typing.Optional[Reference] = OMIT, include_trace_ids: typing.Optional[bool] = OMIT, include_traces: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[QueryRevisionResponse]:
         """
         Parameters
@@ -953,11 +1016,11 @@ class RawQueriesClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def commit_query_revision(self, *, query_revision_commit: QueryRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[QueryRevisionResponse]:
+    def commit_query_revision(self, *, query_revision: QueryRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[QueryRevisionResponse]:
         """
         Parameters
         ----------
-        query_revision_commit : QueryRevisionCommit
+        query_revision : QueryRevisionCommit
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -970,7 +1033,7 @@ class RawQueriesClient:
         _response = self._client_wrapper.httpx_client.request(
             "queries/revisions/commit",method="POST",
             json={
-                "query_revision_commit": convert_and_respect_annotation_metadata(object_=query_revision_commit, annotation=QueryRevisionCommit, direction="write"),
+                "query_revision": convert_and_respect_annotation_metadata(object_=query_revision, annotation=QueryRevisionCommit, direction="write"),
             }
             ,
             headers={"content-type": "application/json", }
@@ -1891,6 +1954,68 @@ class AsyncRawQueriesClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    async def fork_query_variant(self, *, query_variant: QueryVariantFork, query_variant_ref: Reference, query_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[QueryVariantResponse]:
+        """
+        Fork an existing query variant into a new variant.
+        
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `query_revision_ref` is provided). Provide `slug`
+        and `name` in the fork body to identify the new variant.
+        
+        Parameters
+        ----------
+        query_variant : QueryVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        query_variant_ref : Reference
+            Source variant to fork from.
+        
+        query_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[QueryVariantResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "queries/variants/fork",method="POST",
+            json={
+                "query_variant": convert_and_respect_annotation_metadata(object_=query_variant, annotation=QueryVariantFork, direction="write"),
+                "query_variant_ref": convert_and_respect_annotation_metadata(object_=query_variant_ref, annotation=Reference, direction="write"),
+                "query_revision_ref": convert_and_respect_annotation_metadata(object_=query_revision_ref, annotation=typing.Optional[Reference], direction="write"),
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    QueryVariantResponse,
+                    parse_obj_as(
+                        type_ =QueryVariantResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     async def retrieve_query_revision(self, *, query_ref: typing.Optional[Reference] = OMIT, query_variant_ref: typing.Optional[Reference] = OMIT, query_revision_ref: typing.Optional[Reference] = OMIT, include_trace_ids: typing.Optional[bool] = OMIT, include_traces: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[QueryRevisionResponse]:
         """
         Parameters
@@ -2234,11 +2359,11 @@ class AsyncRawQueriesClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def commit_query_revision(self, *, query_revision_commit: QueryRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[QueryRevisionResponse]:
+    async def commit_query_revision(self, *, query_revision: QueryRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[QueryRevisionResponse]:
         """
         Parameters
         ----------
-        query_revision_commit : QueryRevisionCommit
+        query_revision : QueryRevisionCommit
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2251,7 +2376,7 @@ class AsyncRawQueriesClient:
         _response = await self._client_wrapper.httpx_client.request(
             "queries/revisions/commit",method="POST",
             json={
-                "query_revision_commit": convert_and_respect_annotation_metadata(object_=query_revision_commit, annotation=QueryRevisionCommit, direction="write"),
+                "query_revision": convert_and_respect_annotation_metadata(object_=query_revision, annotation=QueryRevisionCommit, direction="write"),
             }
             ,
             headers={"content-type": "application/json", }

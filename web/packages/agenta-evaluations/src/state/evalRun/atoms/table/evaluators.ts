@@ -4,6 +4,7 @@ import {
     fetchWorkflowRevisionById,
     extractEvaluatorRef,
     deduplicateRefs,
+    workflowArtifactScopedQueryAtomFamily,
     toEvaluatorDefinitionFromWorkflow,
     toEvaluatorDefinitionFromRaw,
     type EvaluatorDefinition,
@@ -167,6 +168,15 @@ export const evaluationEvaluatorsByRunQueryAtomFamily = atomFamily((runId: strin
                 const lookupId = ref.artifactId ?? ref.revisionId ?? refId
                 if (lookupId && definition.id !== lookupId) {
                     definition.id = lookupId
+                }
+                // The entity display name lives on the workflow artifact; the
+                // revision's own `name` carries the variant name ("default").
+                const artifactId = ref.artifactId ?? workflow.workflow_id ?? null
+                if (artifactId) {
+                    const artifactName = get(
+                        workflowArtifactScopedQueryAtomFamily({projectId, workflowId: artifactId}),
+                    ).data?.name
+                    if (artifactName) definition.name = artifactName
                 }
                 definitions.push(definition)
             } else if (!anyPending) {

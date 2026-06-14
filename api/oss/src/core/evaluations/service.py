@@ -18,10 +18,11 @@ from oss.src.core.evaluations.types import (
     EvaluationRunDataMappingColumn,
     EvaluationRunDataMappingStep,
     EvaluationRunDataMapping,
-    EvaluationRunDataStepInput,
+    EvaluationRunDataStepInputKey,
     EvaluationRunDataStep,
     EvaluationRunDataConcurrency,
     EvaluationRunData,
+    JsonSchemas,
     EvaluationRun,
     EvaluationRunCreate,
     EvaluationRunEdit,
@@ -417,7 +418,7 @@ class EvaluationsService:
         *,
         project_id: UUID,
         run_id: UUID,
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> Optional[EvaluationQueue]:
         queues = await self.query_queues(
             project_id=project_id,
@@ -1428,6 +1429,9 @@ class EvaluationsService:
         # Resolved metric keys per step (declared schema, else trace-inferred);
         # become the run's `mappings`. Rewrite only when something was inferred.
         metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
+        # Trace-inferred outputs schema per step, persisted onto the run step so
+        # the UI can type filter columns for schema-less evaluators.
+        inferred_schemas_by_step: Dict[str, Dict[str, Any]] = {}
         any_inferred = False
 
         for step in refreshable_steps:
@@ -1487,6 +1491,7 @@ class EvaluationsService:
 
                     if metrics_keys:
                         any_inferred = True
+                        inferred_schemas_by_step[step.key] = inferred_schema
 
                 # Record declared + inferred keys; skip [] (would wipe the
                 # step's existing mapping without replacing it).
@@ -1504,13 +1509,22 @@ class EvaluationsService:
 
         # Rewrite mappings only if a schema was inferred this pass; declared-only
         # runs already have correct mappings. Pass the full set (declared + inferred).
+        # A closed run can't be edited; skip the persist rather than abort the
+        # whole refresh (metric recompute/store below still needs to run).
         if any_inferred and metrics_keys_by_step and run and run.data:
-            await self._update_run_mappings_from_inferred_metrics(
-                project_id=project_id,
-                user_id=user_id,
-                run=run,
-                inferred_metrics_keys_by_step=metrics_keys_by_step,
-            )
+            try:
+                await self._update_run_mappings_from_inferred_metrics(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run=run,
+                    inferred_metrics_keys_by_step=metrics_keys_by_step,
+                    inferred_schemas_by_step=inferred_schemas_by_step,
+                )
+            except EvaluationClosedConflict:
+                log.info(
+                    "[METRICS] Skipping inferred-schema persistence for closed run",
+                    run_id=run.id,
+                )
 
         steps_specs: Dict[str, List[MetricSpec]] = dict()
 
@@ -1699,6 +1713,7 @@ class EvaluationsService:
         user_id: UUID,
         run: EvaluationRun,
         inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]],
+        inferred_schemas_by_step: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> None:
         existing_mappings = list(run.data.mappings or [])
         updated_mappings: List[EvaluationRunDataMapping] = []
@@ -1764,23 +1779,36 @@ class EvaluationsService:
                     )
                 )
 
-        if updated_mappings != existing_mappings:
-            run_data = EvaluationRunData(
-                steps=run.data.steps,
-                repeats=run.data.repeats,
-                mappings=updated_mappings,
+        existing_steps = list(run.data.steps or [])
+        updated_steps = existing_steps
+        if inferred_schemas_by_step:
+            updated_steps = []
+            for step in existing_steps:
+                inferred_outputs = inferred_schemas_by_step.get(step.key)
+                if inferred_outputs and (not step.schemas or not step.schemas.outputs):
+                    updated_steps.append(
+                        step.model_copy(
+                            update={"schemas": JsonSchemas(outputs=inferred_outputs)}
+                        )
+                    )
+                else:
+                    updated_steps.append(step)
+
+        if updated_mappings != existing_mappings or updated_steps != existing_steps:
+            run_data = run.data.model_copy(
+                update={"steps": updated_steps, "mappings": updated_mappings}
+            )
+            run_edit = EvaluationRunEdit(
+                **run.model_dump(
+                    include=set(EvaluationRunEdit.model_fields) - {"data"},
+                    exclude_none=True,
+                ),
+                data=run_data,
             )
             await self.edit_run(
                 project_id=project_id,
                 user_id=user_id,
-                run=EvaluationRunEdit(
-                    id=run.id,
-                    name=run.name,
-                    description=run.description,
-                    status=run.status,
-                    flags=run.flags,
-                    data=run_data,
-                ),
+                run=run_edit,
             )
 
     # - EVALUATION QUEUE -------------------------------------------------------
@@ -2923,6 +2951,36 @@ class SimpleEvaluationsService:
             ),
         )
 
+        # Mirror the re-activation at the scenario level so per-scenario status indicators
+        # also reflect the reprocess. edit_scenarios is a full PUT, so every persisted field
+        # is carried over and only status/is_active flip; the engine writes each scenario's
+        # terminal status back as it finishes.
+        scenarios = await self.evaluations_service.query_scenarios(
+            project_id=project_id,
+            scenario=EvaluationScenarioQuery(run_id=run_id, ids=scenario_ids),
+            windowing=Windowing(limit=10_000),
+        )
+        if scenarios:
+            await self.evaluations_service.edit_scenarios(
+                project_id=project_id,
+                user_id=user_id,
+                scenarios=[
+                    EvaluationScenarioEdit(
+                        id=scenario.id,
+                        flags=(
+                            scenario.flags.model_copy(update={"is_active": True})
+                            if scenario.flags
+                            else EvaluationRunFlags(is_active=True)
+                        ),
+                        status=EvaluationStatus.RUNNING,
+                        interval=scenario.interval,
+                        timestamp=scenario.timestamp,
+                        meta=scenario.meta,
+                    )
+                    for scenario in scenarios
+                ],
+            )
+
         await self.evaluations_task_runner.process_rerun(
             project_id=project_id,
             user_id=user_id,
@@ -3757,7 +3815,7 @@ class SimpleEvaluationsService:
                     references=application_references[step_key],
                     inputs=[
                         # IMPLICIT FLAG: all_inputs=True
-                        EvaluationRunDataStepInput(key="__all_inputs__"),
+                        EvaluationRunDataStepInputKey(key="__all_inputs__"),
                     ],
                 )
                 for step_key in application_invocation_steps_keys
@@ -3773,7 +3831,7 @@ class SimpleEvaluationsService:
                         [
                             *(
                                 [
-                                    EvaluationRunDataStepInput(
+                                    EvaluationRunDataStepInputKey(
                                         key="__all_invocations__"
                                     ),
                                 ]
@@ -3782,7 +3840,7 @@ class SimpleEvaluationsService:
                             ),
                             *(
                                 [
-                                    EvaluationRunDataStepInput(key="__all_inputs__"),
+                                    EvaluationRunDataStepInputKey(key="__all_inputs__"),
                                 ]
                                 if (query_input_steps_keys or testset_input_steps_keys)
                                 else []
@@ -4837,8 +4895,8 @@ class SimpleQueuesService:
             step_key = "evaluator-" + evaluator_revision.slug
             annotation_step_keys.append(step_key)
 
-            step_inputs: List[EvaluationRunDataStepInput] = [
-                EvaluationRunDataStepInput(key="__all_inputs__")
+            step_inputs: List[EvaluationRunDataStepInputKey] = [
+                EvaluationRunDataStepInputKey(key="__all_inputs__")
             ]
 
             annotation_steps.append(

@@ -55,7 +55,7 @@ export interface CreateEvaluationRunArgs {
 const toRunCreate = (run: RunConfig): AgentaApi.EvaluationRunCreate => ({
     name: run.name,
     meta: run.meta as AgentaApi.EvaluationRunCreate["meta"],
-    data: run.data as unknown as AgentaApi.EvaluationRunData,
+    data: run.data as unknown as AgentaApi.EvaluationRunCreate["data"],
 })
 
 export interface CreateEvaluationRunResult {
