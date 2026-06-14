@@ -6,6 +6,10 @@ and for supporting in-place OSS→EE switches. Companion docs:
 
 ## Layout
 
+This shows the **core** database. The **tracing** database has the same shape in
+its own DB — legacy parked at `park00000000`, then `tracing_oss`
+(`alembic_version_tracing_oss`) and `tracing_ee` (`alembic_version_tracing_ee`).
+
 ```
                 LEGACY (frozen)                      POST-ALIGNMENT
         version table: alembic_version       alembic_version_oss      alembic_version_ee
@@ -29,9 +33,20 @@ EE:   ee history ──►  align ─╫ parked        s0 ─► s1 ─► … �
 - The EE-only chain (`ee/…/core_ee/`, `alembic_version_ee`) holds every future
   EE-only change, however many times EE diverges. It never perturbs shared ids,
   so the editions never re-fork.
-- Runner order (asserted, not assumed): legacy chain → must be parked at align
-  → shared chain → (EE only) ee chain → tracing. New chains derive their
-  alembic config from `__file__`; there is no env var to misconfigure.
+- Runner order (asserted, not assumed): legacy core → must be parked at align
+  → shared core chain → (EE only) ee core chain → legacy tracing → must be
+  parked at align → shared tracing chain → (EE only) ee tracing chain. New
+  chains derive their alembic config from `__file__`; there is no env var to
+  misconfigure.
+- **Tracing gets the identical split**, in its own database: the legacy tracing
+  chain parks at `park00000000`, then `tracing_oss`
+  (`alembic_version_tracing_oss`, rooted at `oss000000000`, runs in both
+  editions) and `tracing_ee` (`alembic_version_tracing_ee`, rooted at
+  `ee0000000000`, EE only). The ids reuse the core scheme (`park…`/`oss…`/`ee…`):
+  the tracing database has its own version tables, so there is no collision with
+  the core chains. Tracing has no edition-divergent tables today, so `tracing_ee`
+  is root + proof only (no adoption migration — no EE-only tracing schema to
+  create on a switch).
 
 ## Rules
 
