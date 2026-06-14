@@ -85,8 +85,10 @@ disappears entirely.
 **How:**
 
 - `db_manager.create_organization()`: drop the `not is_ee()` ON CONFLICT branch;
-  generate unique slugs (keep `oss-default` as the legacy slug of the bootstrap org,
-  no special meaning afterwards).
+  derive the slug from the org name via the existing EE helper (slugify, then
+  append a numeric suffix on collision, retrying until the unique `slug` index
+  accepts it) rather than reusing a fixed singleton slug. Keep `oss-default` as the
+  legacy slug of the bootstrap org, with no special meaning afterwards.
 - Move the org-creation orchestration (`create_organization_for_user`,
   `can_create_organization` from `api/ee/src/services/commoners.py`) into OSS shared
   code; EE wraps it to add subscription/trial setup. This follows the established
@@ -257,9 +259,10 @@ is runtime gating via `isEE()` (`web/oss/src/lib/helpers/isEE.ts`, reads
 ## Schema parity plan (two steps)
 
 Goal-B follow-through on the dumps above: after both steps, the OSS core schema is
-**identical** to the EE core schema minus exactly four EE-only tables (`meters` +
-`meters_type` enum, `subscriptions`, `organization_domains`,
-`organization_providers`); the membership tables become shared (change 1); tracing
+**identical** to the EE core schema minus five EE-only schema objects: the
+`meters_type` enum and four tables (`meters`, `subscriptions`,
+`organization_domains`, `organization_providers`); the membership tables become
+shared (change 1); tracing
 is already identical. The OSS and EE alembic chains are independent — each edition's
 runner migrates only its own chain — so every fix below is a plain migration in the
 chain whose DB carries the drift; nothing needs cross-chain guards.
