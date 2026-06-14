@@ -1,11 +1,11 @@
 ---
-title: Switch a Self-Hosted Deployment from OSS to EE
+title: Switch a Self-Hosted Deployment from OSS to EE (v0.104.0)
 sidebar_label: OSS → EE
-description: 'How to switch an existing self-hosted Agenta OSS deployment to EE in place, keeping all your data: stop the stack, point EE at your existing databases, and start it again. The EE migration creates the extra tables and backfills the EE-only data on first run.'
+description: 'How to switch an existing self-hosted Agenta OSS deployment to EE in place on v0.104.0, keeping all your data: stop the stack, point EE at your existing databases, and start it again. The EE migration creates the extra tables and backfills the EE-only data on first run.'
 ---
 
 :::info When you need this guide
-You run a self-hosted **OSS** Agenta deployment and want to move to **EE** without losing data. EE reuses the same core schema as OSS and adds a few tables of its own. Switching keeps your organizations, members, projects, and traces; the first EE start creates the extra tables and backfills the EE-only data.
+You run a self-hosted **OSS** Agenta deployment on **v0.104.0** or later and want to move to **EE** without losing data. EE reuses the same core schema as OSS and adds a few tables of its own. Switching keeps your organizations, members, projects, and traces; the first EE start creates the extra tables and backfills the EE-only data.
 :::
 
 ## How the switch works
