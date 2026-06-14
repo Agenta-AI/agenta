@@ -335,8 +335,11 @@ async def get_user(user_uid: str) -> UserDB:
         # 1. Check if user_uid is found in the UserDB.uid column.
         # 2. If not found, check if user_uid is found in the UserDB.id column.
         conditions = [UserDB.uid == user_uid]
-        if is_ee():
+        try:
             conditions.append(UserDB.id == uuid.UUID(user_uid))
+        except ValueError:
+            # user_uid is a SuperTokens uid, not a UUID — match on uid only.
+            pass
 
         result = await session.execute(select(UserDB).where(or_(*conditions)))
         user = result.scalars().first()
