@@ -40,11 +40,17 @@ import {
     type CreateAnnotationPayload,
 } from "@agenta/entities/annotation"
 import {
+    editEvaluationRun,
     evaluationRunMolecule,
     queryEvaluationResults,
+    queryEvaluationRuns,
     type EvaluationResult,
     type EvaluationRunDataStep,
 } from "@agenta/entities/evaluationRun"
+import {
+    queryEvaluationScenarios,
+    setEvaluationScenarioStatuses,
+} from "@agenta/entities/evaluationScenario"
 import {
     invalidateScenarioProgressCache,
     invalidateSimpleQueueCache,
@@ -105,15 +111,7 @@ function isEmptyMetrics(fields: Record<string, {value: unknown}>): boolean {
 }
 
 async function patchScenarioStatus(projectId: string, scenarioId: string, status: string) {
-    await axios.patch(
-        `${getAgentaApiUrl()}/evaluations/scenarios/`,
-        {
-            scenarios: [{id: scenarioId, status}],
-        },
-        {
-            params: {project_id: projectId},
-        },
-    )
+    await setEvaluationScenarioStatuses({projectId, scenarios: [{id: scenarioId, status}]})
 }
 
 const TERMINAL_SCENARIO_STATUSES = new Set([
@@ -192,6 +190,10 @@ async function upsertStepResultWithAnnotation({
 
     // The setter upserts on the natural key (run_id, scenario_id, step_key,
     // repeat_idx), so a single POST handles both create and edit — no `id` needed.
+    // NOTE: kept on raw axios (not the entities setEvaluationResults wrapper)
+    // because this call also sends span_id, which the wrapper's typed input
+    // deliberately omits (no backend column); migrating would drop span_id and
+    // cascade an annotationSpanId param removal through the submit-entry flow.
     await axios.post(
         `${apiUrl}/evaluations/results/`,
         {
@@ -331,39 +333,23 @@ async function upsertAnnotationMetrics({
  * Check if all scenarios in a run are complete, and if so update the run status.
  */
 async function checkAndUpdateRunStatus(projectId: string, runId: string) {
-    const apiUrl = getAgentaApiUrl()
-
     try {
-        const scenariosResponse = await axios.post(
-            `${apiUrl}/evaluations/scenarios/query`,
-            {
-                scenario: {run_ids: [runId]},
-                windowing: {limit: 1000},
-            },
-            {params: {project_id: projectId}},
-        )
-
-        const scenarios = scenariosResponse.data?.scenarios ?? []
+        const scenarios = await queryEvaluationScenarios({projectId, runId})
         if (scenarios.length === 0) return
 
         const newRunStatus = getTerminalParentStatus(scenarios)
         if (!newRunStatus) return
 
         // Fetch existing run data to preserve all fields
-        const runResponse = await axios.post(
-            `${apiUrl}/evaluations/runs/query`,
-            {run: {ids: [runId]}},
-            {params: {project_id: projectId}},
-        )
-
-        const existingRun = runResponse.data?.runs?.[0]
+        const runResponse = await queryEvaluationRuns({projectId, ids: [runId]})
+        const existingRun = runResponse.runs?.[0]
         if (!existingRun) return
 
-        await axios.patch(
-            `${apiUrl}/evaluations/runs/${runId}`,
-            {run: {...existingRun, id: runId, status: newRunStatus}},
-            {params: {project_id: projectId}},
-        )
+        await editEvaluationRun({
+            projectId,
+            runId,
+            run: {...existingRun, id: runId, status: newRunStatus},
+        })
     } catch (error) {
         console.warn("[annotationForm] checkAndUpdateRunStatus failed:", error)
     }
