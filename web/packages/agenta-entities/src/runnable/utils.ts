@@ -1120,6 +1120,29 @@ export function buildEvaluatorExecutionInputs(ctx: EvaluatorInputContext): Recor
 }
 
 /**
+ * Resolve a `{key}_key` setting value from the settings object.
+ *
+ * `nestEvaluatorConfiguration` moves `correct_answer_key` and `threshold` into
+ * `advanced_config` for LLM evaluators so the UI can group them under an
+ * "Advanced Configuration" section. At execution time the nested config is
+ * passed as `settings`, so we must look in both the top level AND inside
+ * `advanced_config` to find these mappings.
+ */
+function resolveKeySettingValue(
+    settings: Record<string, unknown>,
+    keySettingName: string,
+): string | undefined {
+    const topLevel = settings[keySettingName]
+    if (typeof topLevel === "string" && topLevel) return topLevel
+
+    const advancedConfig = settings.advanced_config as Record<string, unknown> | undefined
+    const nested = advancedConfig?.[keySettingName]
+    if (typeof nested === "string" && nested) return nested
+
+    return undefined
+}
+
+/**
  * Schema-driven input construction.
  * Iterates schema properties and resolves each input from settings, upstream output, or testcase data.
  */
@@ -1136,8 +1159,10 @@ function buildFromSchema(ctx: {
     for (const key of Object.keys(schemaProperties)) {
         // 1. Check for a corresponding _key setting that maps to a testcase column
         //    e.g., input "correct_answer" ← setting "correct_answer_key" → testcase column
+        //    The setting may live at the top level or inside advanced_config (LLM evaluators
+        //    have it nested there after nestEvaluatorConfiguration).
         const keySettingName = `${key}_key`
-        const keySettingValue = settings[keySettingName]
+        const keySettingValue = resolveKeySettingValue(settings, keySettingName)
 
         if (typeof keySettingValue === "string" && keySettingValue) {
             const columnName = keySettingValue.startsWith("testcase.")
@@ -1198,7 +1223,9 @@ function buildLegacy(ctx: {
 }): Record<string, unknown> {
     const {testcaseData, upstreamOutput, settings} = ctx
 
-    const correctAnswerKey = settings.correct_answer_key
+    // Look in both top-level and advanced_config — nestEvaluatorConfiguration
+    // moves correct_answer_key into advanced_config for LLM evaluators.
+    const correctAnswerKey = resolveKeySettingValue(settings, "correct_answer_key")
     const groundTruthKey =
         typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
             ? correctAnswerKey.split(".")[1]
@@ -1278,9 +1305,11 @@ export function validateEvaluatorInputs(ctx: EvaluatorInputContext): EvaluatorIn
             continue
         }
 
-        // Check for a corresponding _key setting that maps to a testcase column
+        // Check for a corresponding _key setting that maps to a testcase column.
+        // Also look inside advanced_config — nestEvaluatorConfiguration moves
+        // correct_answer_key there for LLM evaluators.
         const keySettingName = `${key}_key`
-        const keySettingValue = settings[keySettingName]
+        const keySettingValue = resolveKeySettingValue(settings, keySettingName)
 
         if (typeof keySettingValue === "string" && keySettingValue) {
             // Setting exists — check if the mapped column exists in testcase data
