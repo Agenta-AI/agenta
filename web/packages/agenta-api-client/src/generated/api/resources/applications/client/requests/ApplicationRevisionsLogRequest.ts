@@ -5,10 +5,10 @@ import type * as AgentaApi from "../../../../index.js";
 /**
  * @example
  *     {
- *         application: {}
+ *         application_revisions: {}
  *     }
  */
 export interface ApplicationRevisionsLogRequest {
     /** Filter for the log. Typically set `application_variant_id` to list the revision history of a single variant; optionally set `application_revision_id` + `depth` to walk back a bounded number of commits from a specific revision. */
-    application: AgentaApi.ApplicationRevisionsLog;
+    application_revisions: AgentaApi.ApplicationRevisionsLog;
 }

@@ -21,6 +21,7 @@ import {
     fetchWorkflowsBatch,
     workflowMolecule,
     onEvaluatorMutation,
+    primeWorkflowArtifactCacheImperative,
 } from "@agenta/entities/workflow"
 import {queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -224,6 +225,10 @@ async function ensureEvaluatorWorkflowCache({
     for (const w of workflows) {
         workflowMolecule.set.seedEntity(w.id, w)
     }
+
+    // Prime the artifact cache so name cells resolve the entity display name
+    // (from the artifact, not the revision) without extra requests.
+    primeWorkflowArtifactCacheImperative(workflows)
 
     // Fetch latest revision for each workflow to classify by category.
     // Workflow-level flags only have is_evaluator — type-specific flags

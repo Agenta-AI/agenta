@@ -9,6 +9,7 @@ import {useAtomValue} from "jotai"
 
 import CustomAntdTag from "@/oss/components/CustomUIs/CustomAntdTag"
 import EvaluatorDetailsPopover from "@/oss/components/SharedDrawers/TraceDrawer/components/EvaluatorDetailsPopover"
+import {booleanValueColorClass} from "@/oss/lib/helpers/colors"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {groupAnnotationsByReferenceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
@@ -27,6 +28,7 @@ type AnnotationCategory = "metric" | "note" | "extra"
 interface AnnotationChipEntry {
     annotations: {value: any; user: string}[]
     average?: number
+    latest?: boolean
     category: AnnotationCategory
 }
 
@@ -62,6 +64,7 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                 metricsBucket[metricName] = {
                     annotations: (metricValue.annotations || []) as {value: any; user: string}[],
                     average: metricValue.average,
+                    latest: metricValue.latest,
                     category: "metric",
                 }
             }
@@ -128,6 +131,9 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
 
     const getSummaryValue = (metric: AnnotationChipEntry) => {
         if (metric.category === "metric") {
+            if (metric.latest !== undefined) {
+                return metric.latest ? "True" : "False"
+            }
             if (metric.average !== undefined) {
                 return `μ ${metric.average}`
             }
@@ -175,13 +181,29 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
 
                         {filteredMetrics.map(([key, metric]) => {
                             const summaryValue = getSummaryValue(metric)
+                            const booleanColorClass =
+                                metric.latest !== undefined
+                                    ? booleanValueColorClass(metric.latest)
+                                    : undefined
                             const popoverTitle =
-                                metric.category === "metric" && metric.average !== undefined ? (
+                                metric.category === "metric" &&
+                                (metric.average !== undefined || metric.latest !== undefined) ? (
                                     <div className="flex items-center justify-between">
                                         <Space className="truncate overflow-hidden">
-                                            <Typography.Text>Total mean:</Typography.Text>
+                                            <Typography.Text>
+                                                {metric.latest !== undefined
+                                                    ? "Value:"
+                                                    : "Total mean:"}
+                                            </Typography.Text>
                                             <CustomAntdTag
-                                                value={`μ ${metric.average}`}
+                                                value={
+                                                    metric.latest !== undefined
+                                                        ? metric.latest
+                                                            ? "True"
+                                                            : "False"
+                                                        : `μ ${metric.average}`
+                                                }
+                                                className={booleanColorClass}
                                                 bordered={false}
                                             />
                                         </Space>
@@ -261,8 +283,13 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                             </Typography.Text>
                                             {summaryValue ? (
                                                 <Typography.Text
-                                                    type="secondary"
-                                                    className="truncate overflow-hidden text-ellipsis"
+                                                    type={
+                                                        booleanColorClass ? undefined : "secondary"
+                                                    }
+                                                    className={clsx(
+                                                        "truncate overflow-hidden text-ellipsis",
+                                                        booleanColorClass,
+                                                    )}
                                                 >
                                                     {summaryValue}
                                                 </Typography.Text>

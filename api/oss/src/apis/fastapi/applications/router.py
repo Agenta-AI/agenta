@@ -31,14 +31,13 @@ from oss.src.core.applications.dtos import (
     ApplicationCatalogTemplate,
     ApplicationCatalogPreset,
     ApplicationRevisionCommit,
-    ApplicationRevisionData,
 )
 
 from oss.src.apis.fastapi.applications.models import (
     ApplicationCreateRequest,
     ApplicationEditRequest,
     ApplicationQueryRequest,
-    ApplicationForkRequest,
+    ApplicationVariantForkRequest,
     ApplicationRevisionsLogRequest,
     ApplicationResponse,
     ApplicationsResponse,
@@ -1041,7 +1040,7 @@ class ApplicationsRouter:
         *,
         application_variant_id: Optional[UUID] = None,
         #
-        application_variant_fork_request: ApplicationForkRequest,
+        application_variant_fork_request: ApplicationVariantForkRequest,
     ) -> ApplicationVariantResponse:
         """Fork an existing variant into a new variant on the same application.
 
@@ -1062,23 +1061,28 @@ class ApplicationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        fork_request = application_variant_fork_request.application
-
+        application_variant_ref = (
+            application_variant_fork_request.application_variant_ref
+        )
         if application_variant_id:
             if (
-                fork_request.application_variant_id
-                and fork_request.application_variant_id != application_variant_id
+                application_variant_ref.id
+                and application_variant_ref.id != application_variant_id
             ):
-                return ApplicationVariantResponse()
-
-            if not fork_request.application_variant_id:
-                fork_request.application_variant_id = application_variant_id
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="application_variant_id does not match application_variant_ref.id.",
+                )
+            if not application_variant_ref.id:
+                application_variant_ref = Reference(id=application_variant_id)
 
         application_variant = await self.applications_service.fork_application_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            application_fork=fork_request,
+            application_variant_fork=application_variant_fork_request.application_variant,
+            application_variant_ref=application_variant_ref,
+            application_revision_ref=application_variant_fork_request.application_revision_ref,
         )
 
         application_variant_response = ApplicationVariantResponse(
@@ -1603,8 +1607,6 @@ class ApplicationsRouter:
         query, or filter on commit metadata (`author`, `date`, `message`) via
         the `application_revision` object. For the ordered history of a
         single variant, `POST /applications/revisions/log` is more direct.
-        Set `resolve: true` to inline embedded references in each revision's
-        `data`.
         """
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1627,23 +1629,6 @@ class ApplicationsRouter:
             #
             windowing=application_revision_query_request.windowing,
         )
-
-        # Optionally resolve embeds for all revisions if requested
-        if application_revisions and application_revision_query_request.resolve:
-            embeds_service = self.applications_service.embeds_service
-
-            for revision in application_revisions:
-                if revision and revision.data:
-                    try:
-                        resolved_config, _ = await embeds_service.resolve_configuration(
-                            project_id=UUID(request.state.project_id),
-                            configuration=revision.data.model_dump(),
-                        )
-                        revision.data = ApplicationRevisionData(**resolved_config)
-                    except Exception as e:
-                        log.error(
-                            f"Failed to resolve embeds for revision {revision.id}: {e}"
-                        )
 
         response = ApplicationRevisionsResponse(
             count=len(application_revisions),
@@ -1686,7 +1671,7 @@ class ApplicationsRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            application_revision_commit=application_revision_commit_request.application_revision_commit,
+            application_revision_commit=application_revision_commit_request.application_revision,
         )
 
         response = ApplicationRevisionResponse(
@@ -1720,12 +1705,10 @@ class ApplicationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        application_revisions = (
-            await self.applications_service.log_application_revisions(
-                project_id=UUID(request.state.project_id),
-                #
-                application_revisions_log=application_revisions_log_request.application,
-            )
+        application_revisions = await self.applications_service.log_application_revisions(
+            project_id=UUID(request.state.project_id),
+            #
+            application_revisions_log=application_revisions_log_request.application_revisions,
         )
 
         revisions_response = ApplicationRevisionsResponse(
@@ -1774,6 +1757,8 @@ class ApplicationsRouter:
             application_variant_ref=application_revision_resolve_request.application_variant_ref,
             application_revision_ref=application_revision_resolve_request.application_revision_ref,
             #
+            application_revision=application_revision_resolve_request.application_revision,
+            #
             max_depth=application_revision_resolve_request.max_depth or 10,
             max_embeds=application_revision_resolve_request.max_embeds or 100,
             error_policy=application_revision_resolve_request.error_policy.value
@@ -1785,15 +1770,18 @@ class ApplicationsRouter:
             return ApplicationRevisionResolveResponse()
 
         application_revision, resolution_info = result
+        retrieval_info = None
+        if application_revision_resolve_request.application_revision is None:
+            retrieval_info = build_retrieval_info(
+                revision=application_revision,
+                entity_type="application",
+            )
 
         return ApplicationRevisionResolveResponse(
             count=1,
             application_revision=application_revision,
             resolution_info=resolution_info,
-            retrieval_info=build_retrieval_info(
-                revision=application_revision,
-                entity_type="application",
-            ),
+            retrieval_info=retrieval_info,
         )
 
 

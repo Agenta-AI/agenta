@@ -8,10 +8,15 @@ Tests cover:
 """
 
 import pytest
+import agenta as ag
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
-from agenta.sdk.middlewares.running.resolver import _has_embed_markers
+from agenta.sdk.middlewares.running.resolver import (
+    _has_embed_markers,
+    _validate_executable_reference_families,
+    resolve_references_with_info,
+)
 
 
 class TestHasEmbedMarkers:
@@ -418,6 +423,50 @@ class TestResolverMiddlewareEmbedGate:
             assert TracingContext.get().selector is None
         finally:
             TracingContext.reset(token)
+
+
+class TestResolverReferenceValidation:
+    @pytest.mark.asyncio
+    async def test_rejects_competing_application_and_evaluator_refs(self):
+        from agenta.sdk.models.workflows import WorkflowInvokeRequest
+
+        request = WorkflowInvokeRequest(
+            references={
+                "application": {"slug": "my-app"},
+                "evaluator": {"slug": "my-eval"},
+            },
+        )
+
+        with pytest.raises(ValueError, match="Competing execution target references"):
+            await resolve_references_with_info(
+                request=request,
+                credentials="test-creds",
+            )
+
+    @pytest.mark.asyncio
+    async def test_ignores_empty_reference_objects(self):
+        from agenta.sdk.models.workflows import WorkflowInvokeRequest
+
+        request = WorkflowInvokeRequest(
+            references={
+                "application": {},
+                "evaluator": {"slug": "my-eval"},
+            },
+        )
+
+        with patch.object(ag, "async_api", None):
+            assert await resolve_references_with_info(
+                request=request,
+                credentials="test-creds",
+            ) == (None, None, None)
+
+    def test_ignores_none_reference_values(self):
+        _validate_executable_reference_families(
+            {
+                "application": None,
+                "evaluator": {"slug": "my-eval"},
+            },
+        )
 
 
 class TestResolverMiddlewareTracingParameters:

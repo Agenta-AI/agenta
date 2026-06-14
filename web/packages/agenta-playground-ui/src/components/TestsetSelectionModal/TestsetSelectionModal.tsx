@@ -39,6 +39,7 @@ const MODAL_SIZES = {
 
 export function TestsetSelectionModal({
     loadableId,
+    connectedTestsetId,
     connectedRevisionId,
     mode,
     onConfirm,
@@ -76,6 +77,7 @@ export function TestsetSelectionModal({
         >
             <TestsetSelectionModalContent
                 loadableId={loadableId}
+                connectedTestsetId={connectedTestsetId}
                 connectedRevisionId={connectedRevisionId}
                 mode={mode}
                 onConfirm={onConfirm}

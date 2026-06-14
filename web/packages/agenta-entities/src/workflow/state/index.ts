@@ -69,6 +69,11 @@ export {
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    // Artifact (workflow-level container — entity display name)
+    workflowArtifactQueryAtomFamily,
+    workflowArtifactScopedQueryAtomFamily,
+    workflowVariantsScopedQueryAtomFamily,
+    primeWorkflowArtifactCacheImperative,
 } from "./store"
 
 // Union atoms (app + evaluator combined)

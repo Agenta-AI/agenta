@@ -4,7 +4,7 @@ from uuid import getnode
 from json import loads
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 _TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
@@ -75,6 +75,48 @@ def _comma_set(name: str, *legacy_names: str) -> set:
 def _comma_set_optional(name: str, *legacy_names: str) -> set | None:
     s = _comma_set(name, *legacy_names)
     return s or None
+
+
+def _parse_optional_int_env(name: str) -> int | None:
+    raw = os.getenv(name)
+    if raw is None:
+        return None
+
+    value = raw.strip()
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError as e:
+        raise ValueError(f"{name} must be a valid integer, got {raw!r}") from e
+
+
+def _parse_optional_port_env(name: str) -> int | None:
+    port = _parse_optional_int_env(name)
+    if port is not None and not 1 <= port <= 65535:
+        raise ValueError(f"{name} must be between 1 and 65535, got {port}")
+    return port
+
+
+def _parse_optional_positive_int_env(name: str) -> int | None:
+    value = _parse_optional_int_env(name)
+
+    if value is not None and value <= 0:
+        raise ValueError(f"{name} must be greater than 0, got {value}")
+
+    return value
+
+
+def _parse_bool_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+
+    value = raw.strip()
+    if not value:
+        return default
+
+    return value.lower() in _TRUTHY
 
 
 # ---------------------------------------------------------------------------
@@ -922,16 +964,48 @@ class RedisConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# sendgrid
+# email delivery
 # ---------------------------------------------------------------------------
+
+
+class SmtpConfig(BaseModel):
+    """SMTP Email configuration"""
+
+    host: str | None = os.getenv("SMTP_HOST")
+    port: int | None = _parse_optional_port_env("SMTP_PORT")
+    username: str | None = os.getenv("SMTP_USERNAME")
+    password: str | None = os.getenv("SMTP_PASSWORD")
+    from_email: str | None = (
+        os.getenv("SMTP_FROM_EMAIL")
+        or os.getenv("AGENTA_AUTHN_EMAIL_FROM")
+        or os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS")
+    )
+    use_tls: bool = _parse_bool_env("SMTP_USE_TLS", default=True)
+    use_ssl: bool = _parse_bool_env("SMTP_USE_SSL", default=False)
+    timeout: int | None = _parse_optional_positive_int_env("SMTP_TIMEOUT")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def _validate_security(self) -> "SmtpConfig":
+        if self.use_tls and self.use_ssl:
+            raise ValueError("SMTP_USE_TLS and SMTP_USE_SSL cannot both be true")
+
+        return self
+
+    @property
+    def enabled(self) -> bool:
+        """SMTP enabled only if host, port, and sender are present"""
+        return bool(self.host and self.port is not None and self.from_email)
 
 
 class SendgridConfig(BaseModel):
     """SendGrid Email configuration"""
 
     api_key: str | None = os.getenv("SENDGRID_API_KEY")
-    from_address: str | None = (
-        os.getenv("SENDGRID_FROM_ADDRESS")
+    from_email: str | None = (
+        os.getenv("SENDGRID_FROM_EMAIL")
+        or os.getenv("SENDGRID_FROM_ADDRESS")
         or os.getenv("AGENTA_AUTHN_EMAIL_FROM")
         or os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS")
     )
@@ -940,8 +1014,8 @@ class SendgridConfig(BaseModel):
 
     @property
     def enabled(self) -> bool:
-        """SendGrid enabled only if API key and from address are present"""
-        return bool(self.api_key and self.from_address)
+        """SendGrid enabled only if API key and sender email are present"""
+        return bool(self.api_key and self.from_email)
 
 
 # ---------------------------------------------------------------------------
@@ -1037,15 +1111,7 @@ class AuthFacade(BaseModel):
         if env.agenta.access.email_disabled:
             return ""
 
-        sendgrid_enabled = bool(
-            os.getenv("SENDGRID_API_KEY")
-            and (
-                os.getenv("SENDGRID_FROM_ADDRESS")
-                or os.getenv("AGENTA_AUTHN_EMAIL_FROM")
-                or os.getenv("AGENTA_SEND_EMAIL_FROM_ADDRESS")
-            )
-        )
-        return "otp" if sendgrid_enabled else "password"
+        return "otp" if env.smtp.enabled or env.sendgrid.enabled else "password"
 
     @property
     def email_enabled(self) -> bool:
@@ -1100,6 +1166,7 @@ class EnvironSettings(BaseModel):
     postgres: PostgresConfig = PostgresConfig()
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()
+    smtp: SmtpConfig = SmtpConfig()
     sendgrid: SendgridConfig = SendgridConfig()
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()

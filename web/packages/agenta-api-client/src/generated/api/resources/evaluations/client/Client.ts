@@ -1449,7 +1449,7 @@ export class EvaluationsClient {
                     environments.AgentaApiEnvironment.Default,
                 "evaluations/results/",
             ),
-            method: "POST",
+            method: "PATCH",
             headers: _headers,
             contentType: "application/json",
             queryParameters: requestOptions?.queryParams,
@@ -1482,7 +1482,7 @@ export class EvaluationsClient {
             }
         }
 
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/evaluations/results/");
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "PATCH", "/evaluations/results/");
     }
 
     /**
@@ -1884,7 +1884,7 @@ export class EvaluationsClient {
                     environments.AgentaApiEnvironment.Default,
                 "evaluations/metrics/",
             ),
-            method: "POST",
+            method: "PATCH",
             headers: _headers,
             contentType: "application/json",
             queryParameters: requestOptions?.queryParams,
@@ -1917,7 +1917,7 @@ export class EvaluationsClient {
             }
         }
 
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/evaluations/metrics/");
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "PATCH", "/evaluations/metrics/");
     }
 
     /**
@@ -4328,6 +4328,77 @@ export class EvaluationsClient {
     }
 
     /**
+     * @param {AgentaApi.SimpleQueueIdsRequest} request
+     * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.evaluations.deleteSimpleQueues({
+     *         queue_ids: ["queue_ids"]
+     *     })
+     */
+    public deleteSimpleQueues(
+        request: AgentaApi.SimpleQueueIdsRequest,
+        requestOptions?: EvaluationsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.SimpleQueueIdsResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__deleteSimpleQueues(request, requestOptions));
+    }
+
+    private async __deleteSimpleQueues(
+        request: AgentaApi.SimpleQueueIdsRequest,
+        requestOptions?: EvaluationsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.SimpleQueueIdsResponse>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "simple/queues/",
+            ),
+            method: "DELETE",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: request,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.SimpleQueueIdsResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "DELETE", "/simple/queues/");
+    }
+
+    /**
      * @param {AgentaApi.SimpleQueueQueryRequest} request
      * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -4463,6 +4534,75 @@ export class EvaluationsClient {
         }
 
         return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/simple/queues/{queue_id}");
+    }
+
+    /**
+     * @param {AgentaApi.DeleteSimpleQueueRequest} request
+     * @param {EvaluationsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.evaluations.deleteSimpleQueue({
+     *         queue_id: "queue_id"
+     *     })
+     */
+    public deleteSimpleQueue(
+        request: AgentaApi.DeleteSimpleQueueRequest,
+        requestOptions?: EvaluationsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.SimpleQueueIdResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__deleteSimpleQueue(request, requestOptions));
+    }
+
+    private async __deleteSimpleQueue(
+        request: AgentaApi.DeleteSimpleQueueRequest,
+        requestOptions?: EvaluationsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.SimpleQueueIdResponse>> {
+        const { queue_id: queueId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `simple/queues/${core.url.encodePathParam(queueId)}`,
+            ),
+            method: "DELETE",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.SimpleQueueIdResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "DELETE", "/simple/queues/{queue_id}");
     }
 
     /**

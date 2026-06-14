@@ -32,9 +32,9 @@
         "jotai-tanstack-query": ">=0.9.0"
     },
     "devDependencies": {
-        "@types/node": "^20.8.10",
+        "@types/node": "^20.19.20",
         "@vitest/coverage-v8": "^4.1.4",
-        "typescript": "5.8.3",
+        "typescript": "^5.9.3",
         "vitest": "^4.1.4"
     }
 }

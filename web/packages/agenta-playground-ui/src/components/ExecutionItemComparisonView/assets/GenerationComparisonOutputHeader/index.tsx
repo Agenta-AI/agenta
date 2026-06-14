@@ -16,6 +16,11 @@ const GenerationComparisonOutputHeader: React.FC<GenerationComparisonOutputHeade
     entityId,
 }) => {
     const data = useAtomValue(useMemo(() => workflowMolecule.selectors.data(entityId), [entityId]))
+    // Comparison columns are labeled by VARIANT. The revision's own `name`
+    // is only a fallback for drafts the variants list does not know yet.
+    const variantLabel = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.variantLabel(entityId), [entityId]),
+    )
 
     const version = data?.version as number | undefined
     const label = isLocalDraftId(entityId) ? formatLocalDraftLabel(null) : getVersionLabel(version)
@@ -27,7 +32,7 @@ const GenerationComparisonOutputHeader: React.FC<GenerationComparisonOutputHeade
                 className,
             )}
         >
-            <Typography>{data?.name ?? null}</Typography>
+            <Typography>{variantLabel ?? data?.name ?? null}</Typography>
             <Tag color="default" variant="filled" className="bg-[var(--ag-rgba-051729-06)]">
                 {label}
             </Tag>

@@ -16,6 +16,9 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
+# Bound the stream so consumed entries are trimmed; without this it grows unbounded.
+MAXLEN_STREAMS_EVENTS = 100_000
+
 
 def _orjson_default(obj):
     if AsyncpgUUID is not None and isinstance(obj, AsyncpgUUID):
@@ -83,6 +86,8 @@ async def publish_event(
         await redis.xadd(
             name="streams:events",
             fields={"data": event_bytes},
+            maxlen=MAXLEN_STREAMS_EVENTS,
+            approximate=True,
         )
         return True
     except Exception as e:

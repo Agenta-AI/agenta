@@ -4,7 +4,7 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .evaluator_revision import EvaluatorRevision
+from .evaluator_revision_output import EvaluatorRevisionOutput
 from .resolution_info import ResolutionInfo
 from .retrieval_info import RetrievalInfo
 
@@ -18,7 +18,7 @@ class EvaluatorRevisionResolveResponse(UniversalBaseModel):
     1 when a revision was resolved, 0 otherwise.
     """
     
-    evaluator_revision: typing.Optional[EvaluatorRevision] = pydantic.Field(default=None)
+    evaluator_revision: typing.Optional[EvaluatorRevisionOutput] = pydantic.Field(default=None)
     """
     The resolved revision.
     """

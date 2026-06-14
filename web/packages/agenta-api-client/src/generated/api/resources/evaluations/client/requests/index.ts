@@ -8,10 +8,10 @@ export type { DeleteResultRequest } from "./DeleteResultRequest.js";
 export type { DeleteRunRequest } from "./DeleteRunRequest.js";
 export type { DeleteScenarioRequest } from "./DeleteScenarioRequest.js";
 export type { DeleteSimpleEvaluationRequest } from "./DeleteSimpleEvaluationRequest.js";
+export type { DeleteSimpleQueueRequest } from "./DeleteSimpleQueueRequest.js";
 export type { EvaluationMetricsIdsRequest } from "./EvaluationMetricsIdsRequest.js";
 export type { EvaluationMetricsQueryRequest } from "./EvaluationMetricsQueryRequest.js";
 export type { EvaluationMetricsRefreshRequest } from "./EvaluationMetricsRefreshRequest.js";
-export type { EvaluationMetricsSetRequest } from "./EvaluationMetricsSetRequest.js";
 export type { EvaluationQueueEditRequest } from "./EvaluationQueueEditRequest.js";
 export type { EvaluationQueueIdsRequest } from "./EvaluationQueueIdsRequest.js";
 export type { EvaluationQueueQueryRequest } from "./EvaluationQueueQueryRequest.js";
@@ -20,7 +20,6 @@ export type { EvaluationQueuesCreateRequest } from "./EvaluationQueuesCreateRequ
 export type { EvaluationQueuesEditRequest } from "./EvaluationQueuesEditRequest.js";
 export type { EvaluationResultIdsRequest } from "./EvaluationResultIdsRequest.js";
 export type { EvaluationResultQueryRequest } from "./EvaluationResultQueryRequest.js";
-export type { EvaluationResultsSetRequest } from "./EvaluationResultsSetRequest.js";
 export type { EvaluationRunEditRequest } from "./EvaluationRunEditRequest.js";
 export type { EvaluationRunQueryRequest } from "./EvaluationRunQueryRequest.js";
 export type { EvaluationRunsCreateRequest } from "./EvaluationRunsCreateRequest.js";
@@ -52,6 +51,7 @@ export type { SimpleEvaluationCreateRequest } from "./SimpleEvaluationCreateRequ
 export type { SimpleEvaluationEditRequest } from "./SimpleEvaluationEditRequest.js";
 export type { SimpleEvaluationQueryRequest } from "./SimpleEvaluationQueryRequest.js";
 export type { SimpleQueueCreateRequest } from "./SimpleQueueCreateRequest.js";
+export type { SimpleQueueIdsRequest } from "./SimpleQueueIdsRequest.js";
 export type { SimpleQueueQueryRequest } from "./SimpleQueueQueryRequest.js";
 export type { SimpleQueueScenariosQueryRequest } from "./SimpleQueueScenariosQueryRequest.js";
 export type { SimpleQueueTestcasesCreateRequest } from "./SimpleQueueTestcasesCreateRequest.js";

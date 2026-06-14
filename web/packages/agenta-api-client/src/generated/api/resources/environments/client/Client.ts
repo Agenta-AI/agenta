@@ -981,6 +981,84 @@ export class EnvironmentsClient {
     }
 
     /**
+     * Fork an existing environment variant into a new variant.
+     *
+     * The new variant starts from the source variant's head revision (or a
+     * pinned revision if `environment_revision_ref` is provided). Provide
+     * `slug` and `name` in the fork body to identify the new variant.
+     *
+     * @param {AgentaApi.EnvironmentVariantForkRequest} request
+     * @param {EnvironmentsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.environments.forkEnvironmentVariant({
+     *         environment_variant: {},
+     *         environment_variant_ref: {}
+     *     })
+     */
+    public forkEnvironmentVariant(
+        request: AgentaApi.EnvironmentVariantForkRequest,
+        requestOptions?: EnvironmentsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.EnvironmentVariantResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__forkEnvironmentVariant(request, requestOptions));
+    }
+
+    private async __forkEnvironmentVariant(
+        request: AgentaApi.EnvironmentVariantForkRequest,
+        requestOptions?: EnvironmentsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.EnvironmentVariantResponse>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "environments/variants/fork",
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: request,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.EnvironmentVariantResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/environments/variants/fork");
+    }
+
+    /**
      * @param {AgentaApi.EnvironmentRevisionRetrieveRequest} request
      * @param {EnvironmentsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -1580,7 +1658,7 @@ export class EnvironmentsClient {
      *
      * @example
      *     await client.environments.commitEnvironmentRevision({
-     *         environment_revision_commit: {}
+     *         environment_revision: {}
      *     })
      */
     public commitEnvironmentRevision(
@@ -1659,7 +1737,7 @@ export class EnvironmentsClient {
      *
      * @example
      *     await client.environments.logEnvironmentRevisions({
-     *         environment: {}
+     *         environment_revisions: {}
      *     })
      */
     public logEnvironmentRevisions(

@@ -8,6 +8,7 @@ import {
     Link,
     Receipt,
     Sparkle,
+    User,
     UsersThree,
     Wrench,
 } from "@phosphor-icons/react"
@@ -48,6 +49,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
     // Audit Log is an EE feature. Within EE the tab is gated by `view_events`;
     // the page content is gated separately by the `Flag.AUDIT` entitlement.
     const canShowAuditLog = isEE() && canViewEvents
+    const canShowAccount = isEE()
     const activeTab = useMemo(() => {
         const requestedTab = tab ?? settingsTab ?? "workspace"
 
@@ -56,7 +58,8 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
             (requestedTab === "billing" && !canShowUsageBilling) ||
             (requestedTab === "tools" && !canShowTools) ||
             (requestedTab === "apiKeys" && !canViewApiKeys) ||
-            (requestedTab === "auditLog" && !canShowAuditLog)
+            (requestedTab === "auditLog" && !canShowAuditLog) ||
+            (requestedTab === "account" && !canShowAccount)
         ) {
             return "workspace"
         }
@@ -68,6 +71,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
         canShowTools,
         canViewApiKeys,
         canShowAuditLog,
+        canShowAccount,
         settingsTab,
         tab,
     ])
@@ -138,6 +142,14 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                 icon: <Receipt size={16} className="mt-0.5" />,
             })
         }
+        if (canShowAccount) {
+            list.push({
+                key: "account",
+                title: "Account",
+                icon: <User size={16} className="mt-0.5" />,
+                divider: true,
+            })
+        }
         return list
     }, [
         canShowUsageBilling,
@@ -146,6 +158,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
         canShowTools,
         canViewApiKeys,
         canShowAuditLog,
+        canShowAccount,
         isOwner,
     ])
 
