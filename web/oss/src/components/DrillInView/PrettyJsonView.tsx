@@ -13,6 +13,8 @@ import {
     DEFAULT_ROLE_COLOR_CLASS,
 } from "@agenta/ui/cell-renderers"
 
+import {booleanValueColorClass} from "@/oss/lib/helpers/colors"
+
 /**
  * "Pretty JSON" view.
  *
@@ -484,9 +486,7 @@ const ScalarValue = ({value}: {value: unknown}) => {
     }
     if (typeof value === "boolean") {
         return (
-            <span
-                className={`font-mono text-[12.5px] ${value ? "text-green-7 dark:text-[var(--ant-green-7)]" : "text-orange-6"}`}
-            >
+            <span className={`font-mono text-[12.5px] ${booleanValueColorClass(value)}`}>
                 {String(value)}
             </span>
         )

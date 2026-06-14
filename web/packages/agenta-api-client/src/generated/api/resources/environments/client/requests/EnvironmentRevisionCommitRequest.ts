@@ -5,9 +5,9 @@ import type * as AgentaApi from "../../../../index.js";
 /**
  * @example
  *     {
- *         environment_revision_commit: {}
+ *         environment_revision: {}
  *     }
  */
 export interface EnvironmentRevisionCommitRequest {
-    environment_revision_commit: AgentaApi.EnvironmentRevisionCommit;
+    environment_revision: AgentaApi.EnvironmentRevisionCommit;
 }

@@ -13,7 +13,7 @@
  *   This hook does NOT auto-select - it only manages the selected testset/revision.
  */
 
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 // Clean entity imports from main package
 import {revision, testcase, testset} from "@agenta/entities"
@@ -85,6 +85,10 @@ export function useTestsetSelection(
     // Selection draft actions
     const initSelectionDraft = useSetAtom(testcase.actions.initSelectionDraft)
 
+    useEffect(() => {
+        setRevisionContext(selectedRevisionId)
+    }, [selectedRevisionId, setRevisionContext])
+
     // Handle selection change (both revision and testset)
     // Note: This does NOT auto-select testcases. For edit mode, selection is
     // pre-initialized by TestsetDropdown before opening the modal.
@@ -93,15 +97,13 @@ export function useTestsetSelection(
         (revisionId: string | null, testsetId: string | null) => {
             setSelectedRevisionId(revisionId)
             setSelectedTestsetId(testsetId)
-            // Set revision context using molecule action
-            setRevisionContext(revisionId)
 
             // Initialize selection draft with preselected testcases
             if (revisionId) {
                 initSelectionDraft(revisionId, preselectedIds)
             }
         },
-        [setRevisionContext, initSelectionDraft, preselectedIds],
+        [initSelectionDraft, preselectedIds],
     )
 
     return {

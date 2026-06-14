@@ -5,10 +5,10 @@ import type * as AgentaApi from "../../../../index.js";
 /**
  * @example
  *     {
- *         application_revision_commit: {}
+ *         application_revision: {}
  *     }
  */
 export interface ApplicationRevisionCommitRequest {
     /** Commit payload. Must include `application_variant_id` and `data`. `message` is a human-readable commit message. `slug` is optional; if omitted, the server generates one. */
-    application_revision_commit: AgentaApi.ApplicationRevisionCommit;
+    application_revision: AgentaApi.ApplicationRevisionCommit;
 }

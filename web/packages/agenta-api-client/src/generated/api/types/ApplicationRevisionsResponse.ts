@@ -9,5 +9,5 @@ export interface ApplicationRevisionsResponse {
     /** Number of revisions in this page. */
     count?: number | undefined;
     /** Application revisions matching the query or log. */
-    application_revisions?: AgentaApi.ApplicationRevision[] | undefined;
+    application_revisions?: AgentaApi.ApplicationRevisionOutput[] | undefined;
 }

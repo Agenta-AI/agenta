@@ -107,6 +107,31 @@ def test_build_evaluator_data_json_multi_field_match_no_fields():
 
 
 # ---------------------------------------------------------------------------
+# schemas.outputs — auto_custom_code_run (version-driven)
+# ---------------------------------------------------------------------------
+
+
+def test_build_evaluator_data_custom_code_v3_has_no_outputs_schema():
+    # v3 returns arbitrary JSON; metrics are inferred from traces
+    data = _data("auto_custom_code_run", code="def evaluate(): pass", version="3")
+    assert data.schemas.outputs is None
+
+
+def test_build_evaluator_data_custom_code_v2_keeps_pinned_outputs_schema():
+    data = _data("auto_custom_code_run", code="def evaluate(): pass", version="2")
+    outputs = data.schemas.outputs
+    assert "score" in outputs["properties"]
+    assert "success" in outputs["properties"]
+
+
+def test_build_evaluator_data_custom_code_no_version_keeps_pinned_outputs_schema():
+    data = _data("auto_custom_code_run", code="def evaluate(): pass")
+    outputs = data.schemas.outputs
+    assert "score" in outputs["properties"]
+    assert "success" in outputs["properties"]
+
+
+# ---------------------------------------------------------------------------
 # url — auto_webhook_test
 # ---------------------------------------------------------------------------
 

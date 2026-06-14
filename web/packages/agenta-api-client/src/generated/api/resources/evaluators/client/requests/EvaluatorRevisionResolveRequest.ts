@@ -13,6 +13,8 @@ export interface EvaluatorRevisionResolveRequest {
     evaluator_variant_ref?: AgentaApi.Reference | null;
     /** Resolve this specific revision. */
     evaluator_revision_ref?: AgentaApi.Reference | null;
+    /** Resolve the references embedded in this revision payload directly, without fetching it first. Only `data` is used; id and metadata are ignored. */
+    evaluator_revision?: AgentaApi.EvaluatorRevisionInput | null;
     /** Maximum recursion depth when following embedded references. Defaults to 10. */
     max_depth?: number | null;
     /** Maximum number of embeds to resolve. Defaults to 100. */

@@ -48,7 +48,7 @@ async def test_commit_environment_revision_rejects_missing_data_and_delta(monkey
         await router.commit_environment_revision(
             _DummyRequest(),
             environment_revision_commit_request=EnvironmentRevisionCommitRequest(
-                environment_revision_commit=EnvironmentRevisionCommit(
+                environment_revision=EnvironmentRevisionCommit(
                     slug="env-slug",
                     environment_id=uuid4(),
                 )
@@ -78,7 +78,7 @@ async def test_commit_environment_revision_rejects_data_and_delta_together(monke
         await router.commit_environment_revision(
             _DummyRequest(),
             environment_revision_commit_request=EnvironmentRevisionCommitRequest(
-                environment_revision_commit=EnvironmentRevisionCommit(
+                environment_revision=EnvironmentRevisionCommit(
                     slug="env-slug",
                     environment_id=uuid4(),
                     data=EnvironmentRevisionData(),
@@ -111,7 +111,7 @@ async def test_commit_environment_revision_accepts_delta_only(monkeypatch):
     response = await router.commit_environment_revision(
         _DummyRequest(),
         environment_revision_commit_request=EnvironmentRevisionCommitRequest(
-            environment_revision_commit=EnvironmentRevisionCommit(
+            environment_revision=EnvironmentRevisionCommit(
                 slug="env-slug",
                 environment_id=uuid4(),
                 delta=EnvironmentRevisionDelta(),

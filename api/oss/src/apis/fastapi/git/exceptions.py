@@ -20,6 +20,7 @@ from fastapi import HTTPException
 
 from oss.src.core.git.types import (
     InitialRevisionConflict,
+    InlineResolveInvalid,
     RetrieveRefsInconsistent,
     RetrieveRefsInsufficient,
     VariantForkError,
@@ -55,6 +56,14 @@ class RetrieveRefsInconsistentException(HTTPException):
         super().__init__(status_code=400, detail=message)
 
 
+class InlineResolveInvalidException(HTTPException):
+    def __init__(
+        self,
+        message: str = "Inline resolve payload has no data to resolve.",
+    ):
+        super().__init__(status_code=400, detail=message)
+
+
 def handle_git_exceptions():
     def decorator(func):
         @wraps(func)
@@ -69,6 +78,8 @@ def handle_git_exceptions():
                 raise RetrieveRefsInsufficientException(message=e.message) from e
             except RetrieveRefsInconsistent as e:
                 raise RetrieveRefsInconsistentException(message=e.message) from e
+            except InlineResolveInvalid as e:
+                raise InlineResolveInvalidException(message=e.message) from e
 
         return wrapper
 

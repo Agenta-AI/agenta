@@ -2,6 +2,7 @@ import {memo, useMemo} from "react"
 
 import {getWorkflowTypeColor, workflowMolecule} from "@agenta/entities/workflow"
 import {Skeleton, Typography} from "antd"
+import type {TooltipPlacement} from "antd/es/tooltip"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -33,6 +34,7 @@ export const TestsetTag = memo(
         toneOverride,
         showIconOverride,
         openExternally = false,
+        hovercardPlacement,
     }: {
         testsetId: string
         revisionId?: string | null
@@ -41,6 +43,7 @@ export const TestsetTag = memo(
         toneOverride?: ReferenceTone | null
         showIconOverride?: boolean
         openExternally?: boolean
+        hovercardPlacement?: TooltipPlacement
     }) => {
         const queryAtom = useMemo(
             () => previewTestsetReferenceAtomFamily({projectId, testsetId}),
@@ -70,13 +73,7 @@ export const TestsetTag = memo(
         const ref = query.data
         // If we have an ID but no name, or query errored, the testset was likely deleted
         const isDeleted = Boolean(query.isError || (ref?.id && !ref?.name))
-        const baseName = ref?.name ?? ref?.id ?? testsetId
-        // Append version to label if available
-        const label = isDeleted
-            ? "Deleted"
-            : revisionVersion != null
-              ? `${baseName} v${revisionVersion}`
-              : baseName
+        const label = isDeleted ? "Deleted" : (ref?.name ?? ref?.id ?? testsetId)
         // Don't show link for deleted testsets
         // Use revision ID for URL if available, then try latest revision, finally fall back to testset ID
         // For old evaluations without revision info, we use testset ID which the page should handle
@@ -87,12 +84,21 @@ export const TestsetTag = memo(
             <ReferenceTag
                 label={label}
                 href={href ?? undefined}
-                tooltip={isDeleted ? `Testset ${testsetId} was deleted` : label}
+                tooltip={isDeleted ? `Testset ${testsetId} was deleted` : undefined}
                 copyValue={testsetId}
                 className="max-w-[220px] w-fit"
                 tone={toneOverride === null ? undefined : (toneOverride ?? "testset")}
+                entityKind="testset"
+                identifiers={{
+                    name: label,
+                    id: testsetId,
+                    version: revisionVersion,
+                    revisionId: revisionId ?? null,
+                }}
+                deleted={isDeleted}
                 showIcon={showIconOverride ?? true}
                 openExternally={openExternally}
+                hovercardPlacement={hovercardPlacement}
             />
         )
     },
@@ -112,6 +118,7 @@ export const EnvironmentReferenceLabel = memo(
         href: explicitHref,
         openExternally = false,
         label: customLabel,
+        hovercardPlacement,
     }: {
         environmentId?: string | null
         environmentSlug?: string | null
@@ -121,6 +128,7 @@ export const EnvironmentReferenceLabel = memo(
         href?: string | null
         openExternally?: boolean
         label?: string
+        hovercardPlacement?: TooltipPlacement
     }) => {
         const queryAtom = useMemo(
             () =>
@@ -188,7 +196,14 @@ export const EnvironmentReferenceLabel = memo(
                 copyValue={resolvedSlug ?? ref?.id ?? environmentId ?? undefined}
                 className="max-w-[220px] w-fit"
                 tone="environment"
+                identifiers={{
+                    name: label,
+                    slug: resolvedSlug,
+                    id: ref?.id ?? environmentId ?? null,
+                }}
+                deleted={isDeleted}
                 openExternally={openExternally}
+                hovercardPlacement={hovercardPlacement}
             />
         )
     },
@@ -209,6 +224,7 @@ export const TestsetTagList = memo(
         toneOverride,
         showIconOverride,
         openExternally = false,
+        hovercardPlacement,
     }: {
         ids: string[]
         revisionMap?: Map<string, string | null>
@@ -218,6 +234,7 @@ export const TestsetTagList = memo(
         toneOverride?: ReferenceTone | null
         showIconOverride?: boolean
         openExternally?: boolean
+        hovercardPlacement?: TooltipPlacement
     }) => {
         if (!ids.length) {
             return <Text type="secondary">—</Text>
@@ -235,6 +252,7 @@ export const TestsetTagList = memo(
                         toneOverride={toneOverride}
                         showIconOverride={showIconOverride}
                         openExternally={openExternally}
+                        hovercardPlacement={hovercardPlacement}
                     />
                 ))}
             </div>
@@ -256,6 +274,7 @@ export const ApplicationReferenceLabel = memo(
         label: customLabel,
         toneOverride,
         showIconOverride,
+        hovercardPlacement,
     }: {
         applicationId: string | null
         projectId: string | null
@@ -265,6 +284,7 @@ export const ApplicationReferenceLabel = memo(
         label?: string
         toneOverride?: ReferenceTone | null
         showIconOverride?: boolean
+        hovercardPlacement?: TooltipPlacement
     }) => {
         const queryAtom = useMemo(
             () => appReferenceAtomFamily({projectId, appId: applicationId}),
@@ -301,12 +321,20 @@ export const ApplicationReferenceLabel = memo(
             <ReferenceTag
                 label={label}
                 href={href ?? undefined}
-                tooltip={isDeleted ? `Application ${applicationId} was deleted` : label}
+                tooltip={isDeleted ? `Application ${applicationId} was deleted` : undefined}
                 copyValue={applicationId ?? undefined}
                 className="max-w-[220px] w-fit"
                 tone={toneOverride === null ? undefined : (toneOverride ?? "app")}
+                entityKind="app"
+                identifiers={{
+                    name: label,
+                    slug: ref?.slug ?? null,
+                    id: applicationId,
+                }}
+                deleted={isDeleted}
                 showIcon={showIconOverride ?? true}
                 openExternally={openExternally}
+                hovercardPlacement={hovercardPlacement}
             />
         )
     },
@@ -322,13 +350,15 @@ export const VariantReferenceLabel = memo(
         revisionId,
         projectId: _projectId,
         fallbackLabel,
-        showVersionPill = false,
+        // Version now renders inside the chip whenever it resolves; kept for API compat.
+        showVersionPill: _showVersionPill = false,
         explicitVersion,
         href: explicitHref,
         openExternally = false,
         label: customLabel,
         toneOverride,
         showIconOverride,
+        hovercardPlacement,
     }: {
         revisionId?: string | null
         projectId: string | null
@@ -340,6 +370,7 @@ export const VariantReferenceLabel = memo(
         label?: string
         toneOverride?: ReferenceTone | null
         showIconOverride?: boolean
+        hovercardPlacement?: TooltipPlacement
     }) => {
         const dataAtom = useMemo(
             () => workflowMolecule.selectors.data(revisionId ?? ""),
@@ -380,23 +411,26 @@ export const VariantReferenceLabel = memo(
         const href = isDeleted ? null : explicitHref
 
         return (
-            <div className="flex items-center gap-2">
-                <ReferenceTag
-                    label={label}
-                    href={href ?? undefined}
-                    tooltip={isDeleted ? `Variant ${revisionId} was deleted` : label}
-                    copyValue={revisionId ?? undefined}
-                    className="max-w-[220px]"
-                    tone={toneOverride === null ? undefined : (toneOverride ?? "variant")}
-                    showIcon={showIconOverride ?? true}
-                    openExternally={openExternally}
-                />
-                {showVersionPill && resolvedVersion ? (
-                    <span className="rounded-md bg-[var(--ag-c-F2F4F7)] px-2 py-0.5 text-xs font-medium text-[var(--ag-c-344054)]">
-                        v{resolvedVersion}
-                    </span>
-                ) : null}
-            </div>
+            <ReferenceTag
+                label={label}
+                href={href ?? undefined}
+                tooltip={isDeleted ? `Variant ${revisionId} was deleted` : undefined}
+                copyValue={revisionId ?? undefined}
+                className="max-w-[220px]"
+                tone={toneOverride === null ? undefined : (toneOverride ?? "variant")}
+                entityKind="variant"
+                identifiers={{
+                    name: label,
+                    slug: data?.slug ?? null,
+                    id: data?.workflow_variant_id ?? data?.variant_id ?? null,
+                    version: resolvedVersion,
+                    revisionId: revisionId,
+                }}
+                deleted={isDeleted}
+                showIcon={showIconOverride ?? true}
+                openExternally={openExternally}
+                hovercardPlacement={hovercardPlacement}
+            />
         )
     },
 )
@@ -416,6 +450,7 @@ export const VariantRevisionLabel = memo(
         href: explicitHref,
         toneOverride,
         showIconOverride,
+        hovercardPlacement,
     }: {
         variantId?: string | null
         revisionId?: string | null
@@ -425,6 +460,7 @@ export const VariantRevisionLabel = memo(
         href?: string | null
         toneOverride?: ReferenceTone | null
         showIconOverride?: boolean
+        hovercardPlacement?: TooltipPlacement
     }) => {
         const dataAtom = useMemo(
             () => workflowMolecule.selectors.data(revisionId ?? ""),
@@ -437,6 +473,13 @@ export const VariantRevisionLabel = memo(
         const data = useAtomValue(dataAtom)
         const query = useAtomValue(queryAtom)
 
+        // Resolve the VARIANT's own label (name, then slug): SDK-created
+        // variants and revisions may carry no `name`, and the revision slug
+        // is an opaque hex.
+        const variantLabel = useAtomValue(
+            useMemo(() => workflowMolecule.selectors.variantLabel(revisionId ?? ""), [revisionId]),
+        )
+
         if (!variantId && !revisionId) {
             return <Text type="secondary">—</Text>
         }
@@ -445,9 +488,9 @@ export const VariantRevisionLabel = memo(
             return <Skeleton.Input active size="small" style={{width: 140}} />
         }
 
-        // Get variant name from workflow data or fallback
+        // Get variant name from the variant entity, workflow data, or fallback
         // Prefer `name` over `slug` — slug can be an opaque ID on older revisions
-        const variantName = data?.name ?? data?.slug ?? fallbackVariantName ?? null
+        const variantName = variantLabel ?? data?.name ?? data?.slug ?? fallbackVariantName ?? null
 
         // Get revision number from workflow data or fallback
         const revision = data?.version ?? fallbackRevision ?? null
@@ -459,12 +502,8 @@ export const VariantRevisionLabel = memo(
         const hasResolvedData = data?.name || data?.slug || data?.version != null
         const isDeleted = !hasFallbackData && (Boolean(query.isError) || !hasResolvedData)
 
-        // Build combined label: "variantName v{revision}"
-        const label = isDeleted
-            ? "Deleted"
-            : revision != null
-              ? `${variantName ?? "variant"} v${revision}`
-              : (variantName ?? revisionId ?? variantId ?? "Unknown")
+        // Version renders as a pill inside the chip; the label is just the name.
+        const label = isDeleted ? "Deleted" : (variantName ?? revisionId ?? variantId ?? "Unknown")
 
         const href = isDeleted ? null : explicitHref
 
@@ -472,11 +511,21 @@ export const VariantRevisionLabel = memo(
             <ReferenceTag
                 label={label}
                 href={href ?? undefined}
-                tooltip={isDeleted ? `Variant ${revisionId ?? variantId} was deleted` : label}
+                tooltip={isDeleted ? `Variant ${revisionId ?? variantId} was deleted` : undefined}
                 copyValue={revisionId ?? variantId ?? undefined}
                 className="max-w-[220px]"
                 tone={toneOverride === null ? undefined : (toneOverride ?? "variant")}
+                entityKind="variant"
+                identifiers={{
+                    name: label,
+                    slug: data?.slug ?? null,
+                    id: variantId ?? data?.workflow_variant_id ?? data?.variant_id ?? null,
+                    version: isDeleted ? null : revision,
+                    revisionId: revisionId,
+                }}
+                deleted={isDeleted}
                 showIcon={showIconOverride ?? true}
+                hovercardPlacement={hovercardPlacement}
             />
         )
     },
@@ -541,6 +590,7 @@ export const EvaluatorReferenceLabel = memo(
         label: customLabel,
         toneOverride,
         className,
+        hovercardPlacement,
     }: {
         evaluatorId?: string | null
         evaluatorSlug?: string | null
@@ -550,6 +600,7 @@ export const EvaluatorReferenceLabel = memo(
         label?: string
         toneOverride?: ReferenceTone | null
         className?: string
+        hovercardPlacement?: TooltipPlacement
     }) => {
         const queryAtom = useMemo(
             () => evaluatorReferenceAtomFamily({projectId, slug: evaluatorSlug, id: evaluatorId}),
@@ -602,13 +653,21 @@ export const EvaluatorReferenceLabel = memo(
             <ReferenceTag
                 label={label}
                 href={href ?? undefined}
-                tooltip={isDeleted ? `Evaluator ${displayId} was deleted` : label}
+                tooltip={isDeleted ? `Evaluator ${displayId} was deleted` : undefined}
                 copyValue={displayId}
                 className={clsx("max-w-[220px] w-fit", className)}
                 tone={toneOverride === null ? undefined : (toneOverride ?? "evaluator")}
+                entityKind="evaluator"
+                identifiers={{
+                    name: label,
+                    slug: ref?.slug ?? evaluatorSlug ?? null,
+                    id: ref?.id ?? evaluatorId ?? null,
+                }}
+                deleted={isDeleted}
                 openExternally={openExternally}
                 style={workflowTypeStyle}
                 iconColor={workflowTypeColor?.text}
+                hovercardPlacement={hovercardPlacement}
             />
         )
     },
@@ -626,6 +685,7 @@ export const QueryReferenceLabel = memo(
         href: explicitHref,
         openExternally = false,
         label: customLabel,
+        hovercardPlacement,
     }: {
         queryId?: string | null
         querySlug?: string | null
@@ -633,6 +693,7 @@ export const QueryReferenceLabel = memo(
         href?: string | null
         openExternally?: boolean
         label?: string
+        hovercardPlacement?: TooltipPlacement
     }) => {
         const queryAtom = useMemo(
             () => queryReferenceAtomFamily({projectId, queryId, querySlug}),
@@ -665,11 +726,18 @@ export const QueryReferenceLabel = memo(
             <ReferenceTag
                 label={label}
                 href={href ?? undefined}
-                tooltip={isDeleted ? `Query ${displayId} was deleted` : label}
+                tooltip={isDeleted ? `Query ${displayId} was deleted` : undefined}
                 copyValue={displayId}
                 className="max-w-[220px]"
                 tone="query"
+                identifiers={{
+                    name: label,
+                    slug: ref?.slug ?? querySlug ?? null,
+                    id: ref?.id ?? queryId ?? null,
+                }}
+                deleted={isDeleted}
                 openExternally={openExternally}
+                hovercardPlacement={hovercardPlacement}
             />
         )
     },

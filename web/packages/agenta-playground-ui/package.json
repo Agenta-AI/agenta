@@ -48,15 +48,15 @@
         "antd": ">=5.0.0",
         "jotai": ">=2.0.0",
         "jotai-family": ">=0.1.0",
-        "next": "15.5.18",
+        "next": ">=15.5.0 <16",
         "react": ">=18.0.0",
         "react-dom": ">=18.0.0"
     },
     "devDependencies": {
-        "@types/node": "^20.8.10",
+        "@types/node": "^20.19.20",
         "@types/react": "^19.0.10",
-        "@types/react-dom": "^19.0.0",
+        "@types/react-dom": "^19.0.4",
         "jotai-family": "^1.0.1",
-        "typescript": "5.8.3"
+        "typescript": "^5.9.3"
     }
 }

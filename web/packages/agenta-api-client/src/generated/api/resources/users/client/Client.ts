@@ -77,6 +77,63 @@ export class UsersClient {
     }
 
     /**
+     * Self-serve deletion of the caller's own account (EE only).
+     *
+     * Requires an interactive SuperTokens session. API keys and service tokens are
+     * rejected: this is an irreversible destructive action, so a leaked or embedded
+     * integration key must not be enough to delete the owning account.
+     *
+     * @param {UsersClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @example
+     *     await client.users.deleteUserAccount()
+     */
+    public deleteUserAccount(requestOptions?: UsersClient.RequestOptions): core.HttpResponsePromise<unknown> {
+        return core.HttpResponsePromise.fromPromise(this.__deleteUserAccount(requestOptions));
+    }
+
+    private async __deleteUserAccount(
+        requestOptions?: UsersClient.RequestOptions,
+    ): Promise<core.WithRawResponse<unknown>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "profile",
+            ),
+            method: "DELETE",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            throw new errors.AgentaApiError({
+                statusCode: _response.error.statusCode,
+                body: _response.error.body,
+                rawResponse: _response.rawResponse,
+            });
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "DELETE", "/profile");
+    }
+
+    /**
      * @param {AgentaApi.UserUpdate} request
      * @param {UsersClient.RequestOptions} requestOptions - Request-specific configuration.
      *

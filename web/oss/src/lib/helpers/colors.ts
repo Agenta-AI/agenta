@@ -71,6 +71,13 @@ export const fadeColor = (hex: string, opacity: number) => {
     return `rgba(${r}, ${g}, ${b}, ${opacity})`
 }
 
+/**
+ * Tailwind classes for a boolean value, kept identical to the pretty JSON view
+ * (PrettyJsonView) so True/False read the same wherever they appear.
+ */
+export const booleanValueColorClass = (value: boolean): string =>
+    value ? "text-green-7 dark:text-[var(--ant-green-7)]" : "text-orange-6"
+
 export const getTagColors = () => [...tagColors]
 
 export const getRandomColors = () => colorPairs.map((color) => color.textColor)

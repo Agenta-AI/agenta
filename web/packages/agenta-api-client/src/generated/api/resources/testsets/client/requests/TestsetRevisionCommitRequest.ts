@@ -5,12 +5,12 @@ import type * as AgentaApi from "../../../../index.js";
 /**
  * @example
  *     {
- *         testset_revision_commit: {}
+ *         testset_revision: {}
  *     }
  */
 export interface TestsetRevisionCommitRequest {
     /** New revision to commit. Pass either `data` (full replacement of the testcase list) or `delta` (add/remove/replace operations against the base revision) — not both. */
-    testset_revision_commit: AgentaApi.TestsetRevisionCommit;
+    testset_revision: AgentaApi.TestsetRevisionCommit;
     /** Include full testcase objects in the response. */
     include_testcases?: boolean | null;
 }
