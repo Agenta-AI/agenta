@@ -227,14 +227,16 @@ const ListOfOrgs = ({
             items.push({type: "divider", key: "organizations-divider"})
         }
 
-        items.push({
-            key: "create-organization",
-            label: (
-                <div className="flex items-center gap-2">
-                    <span className="text-gray-900">+ New organization</span>
-                </div>
-            ),
-        })
+        if (organizationSelectionEnabled) {
+            items.push({
+                key: "create-organization",
+                label: (
+                    <div className="flex items-center gap-2">
+                        <span className="text-gray-900">+ New organization</span>
+                    </div>
+                ),
+            })
+        }
         items.push({type: "divider", key: "organizations-actions-divider"})
 
         items.push({
