@@ -4,9 +4,9 @@ import click
 from sqlalchemy.future import select
 from sqlalchemy import delete, Connection, insert, func
 
-from oss.src.models.db_models import (
-    WorkspaceDB,
-    ProjectDB,
+from ee.src.models.extended.deprecated_models import (
+    DeprecatedWorkspaceDB as WorkspaceDB,
+    DeprecatedProjectDB as ProjectDB,
 )
 from ee.src.models.db_models import (
     WorkspaceMemberDB,

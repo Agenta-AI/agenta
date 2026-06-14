@@ -125,3 +125,56 @@ class OldInvitationDB(DeprecatedBase):
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+
+
+class DeprecatedWorkspaceDB(DeprecatedBase):
+    """Frozen workspaces schema at revision 1c2d3e4f5a6b: no audit/soft-delete
+    columns (deleted_at, created_by_id, ...) — those are added by a later
+    migration, so the live model must not drive this data migration."""
+
+    __tablename__ = "workspaces"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    name = Column(String)
+    type = Column(String)
+    description = Column(String)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"))
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class DeprecatedProjectDB(DeprecatedBase):
+    """Frozen projects schema at revision 1c2d3e4f5a6b: no audit/soft-delete
+    columns. Same reason as DeprecatedWorkspaceDB."""
+
+    __tablename__ = "projects"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    project_name = Column(String, nullable=False)
+    is_default = Column(Boolean, default=False)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"))
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id"))
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
