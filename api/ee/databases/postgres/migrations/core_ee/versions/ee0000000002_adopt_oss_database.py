@@ -112,7 +112,7 @@ def upgrade() -> None:
             token varchar,
             flags jsonb,
             tags jsonb,
-            meta json,
+            meta jsonb,
             {LIFECYCLE}
         )
         """
@@ -143,7 +143,7 @@ def upgrade() -> None:
             secret_id uuid NOT NULL REFERENCES secrets(id) ON DELETE CASCADE,
             flags jsonb,
             tags jsonb,
-            meta json,
+            meta jsonb,
             {LIFECYCLE},
             CONSTRAINT uq_organization_providers_org_slug
                 UNIQUE (organization_id, slug)
