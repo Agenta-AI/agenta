@@ -14,15 +14,13 @@ import {isTerminalStatus} from "./compare"
 import {createMetricProcessor} from "./metricProcessor"
 import {
     buildGroupedMetrics,
-    buildRunLevelMetricData,
     extractMetricValueFromData,
     type ScenarioMetricData,
-    type RunLevelMetricData,
 } from "./metricsCompute"
 import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "./run"
 import {evaluationRunQueryAtomFamily} from "./table/run"
 
-export type {ScenarioMetricData, RunLevelMetricData} from "./metricsCompute"
+export type {ScenarioMetricData} from "./metricsCompute"
 
 const metricBatcherCache = new Map<string, BatchFetcher<string, ScenarioMetricData | null>>()
 
@@ -327,45 +325,6 @@ export const scenarioMetricMetaAtomFamily = atomFamily(
             (a, b) =>
                 a.isLoading === b.isLoading && a.isFetching === b.isFetching && a.error === b.error,
         ),
-)
-
-export const runLevelMetricQueryAtomFamily = atomFamily(({runId}: {runId?: string | null} = {}) =>
-    atomWithQuery<RunLevelMetricData | null>((get) => {
-        const effectiveRunId = resolveEffectiveRunId(get, runId)
-        const projectId = resolveProjectId(get)
-
-        return {
-            queryKey: ["preview", "run-level-metrics", projectId, effectiveRunId],
-            enabled: Boolean(projectId && effectiveRunId),
-            staleTime: 30_000,
-            gcTime: 5 * 60 * 1000,
-            refetchOnWindowFocus: false,
-            refetchOnReconnect: false,
-            queryFn: async () => {
-                if (!projectId || !effectiveRunId) return null
-
-                const response = await axios.post(
-                    `/evaluations/metrics/query`,
-                    {
-                        metrics: {
-                            run_ids: [effectiveRunId],
-                            scenario_ids: false,
-                            timestamps: false,
-                        },
-                    },
-                    {params: {project_id: projectId}},
-                )
-
-                const entries = Array.isArray(response.data?.metrics) ? response.data.metrics : []
-
-                if (!entries.length) {
-                    return {metrics: [], raw: {}, flat: {}}
-                }
-
-                return buildRunLevelMetricData(entries)
-            },
-        }
-    }),
 )
 
 /**
