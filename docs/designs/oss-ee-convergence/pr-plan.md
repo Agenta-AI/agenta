@@ -15,8 +15,8 @@ task state (context gets compacted between operations).
 | 4 | B (on 2) | `feat/oss-singleton-sweep` | Step 4: singleton-assumption sweep + web gate relaxation (change 5) | [#4675](https://github.com/Agenta-AI/agenta/pull/4675) |
 | 5 | B (on 4) | `chore/drop-legacy-tables` | Step 5: drop 20 legacy tables + dead model cleanup (parity step 2) | [#4676](https://github.com/Agenta-AI/agenta/pull/4676) |
 | 6 | E (parallel) | `docs/oss-multi-org-docs` | Final phase: product docs (MDX) + migration page + AGENTS.md GitButler notes | [#4677](https://github.com/Agenta-AI/agenta/pull/4677) |
-| 7 | B (on 5) | `feat/migration-chain-split` | Phase 2: align revision `a00000000000` parks both legacy chains; new chains `core_oss` (alembic_version_oss) + `core_ee` (alembic_version_ee); runner order + asserts | [#4680](https://github.com/Agenta-AI/agenta/pull/4680) |
-| 8 | B (on 7) | `feat/oss-to-ee-adoption` | Adoption revision `e00000000003`: create-if-missing EE schema + subscriptions/USERS backfill; no-op on EE-origin DBs | [#4683](https://github.com/Agenta-AI/agenta/pull/4683) |
+| 7 | B (on 5) | `feat/migration-chain-split` | Phase 2: align revision `park00000000` parks both legacy chains; new chains `core_oss` (alembic_version_oss) + `core_ee` (alembic_version_ee); runner order + asserts | [#4680](https://github.com/Agenta-AI/agenta/pull/4680) |
+| 8 | B (on 7) | `feat/oss-to-ee-adoption` | Adoption revision `ee0000000002`: create-if-missing EE schema + subscriptions/USERS backfill; no-op on EE-origin DBs | [#4683](https://github.com/Agenta-AI/agenta/pull/4683) |
 | 9 | F (parallel) | `feat/postgres-db-prefix` | `POSTGRES_DB_PREFIX` resolution (URIs > prefix > license default) | [#4684](https://github.com/Agenta-AI/agenta/pull/4684) |
 
 Rationale: 1→2→4 each build on the previous (schema → creation path → sweep of
@@ -77,7 +77,8 @@ hex — verified against alembic 1.18.4): the post-alignment ids were renamed fo
 legibility, roots ending in 0 like the park point:
 `a00000000000→park00000000`, `o00000000001/2→oss000000000/1`,
 `e00000000001/2/3→ee0000000000/1/2`. `ALIGN_REVISION` updated in both
-`core_oss`/`core_ee` utils.
+`core_oss`/`core_ee` utils. Applies to every chain — core and tracing, both
+editions — so a single scheme is stamped across all version tables.
 
 Still stale, regenerate before re-validating: the committed schema dumps
 (`oss_core.txt`, `ee_core.txt`, diffs) predate v0.103.5's `workflow_revisions`
@@ -220,11 +221,11 @@ Follow-up stacked PR (on #4676) — alignment + split:
 
 - [x] Align revisions, new chain roots, version tables, runner updates,
       design doc — PR [#4680](https://github.com/Agenta-AI/agenta/pull/4680)
-      `feat/migration-chain-split`, stacked on #4676. Align id `a00000000000`;
+      `feat/migration-chain-split`, stacked on #4676. Align id `park00000000`;
       chains `core_oss` (alembic_version_oss) and `core_ee`
       (alembic_version_ee); new chain configs derive from `__file__` (no path
       env var).
-- [x] Dummy proof migrations: `o00000000002` (oss chain) and `e00000000002`
+- [x] Dummy proof migrations: `oss000000001` (oss chain) and `ee0000000001`
       (ee chain), folded into #4680 per review (#4681/#4682 closed).
       Cleanup/test/dump-script work landed as b365720 on #4676 (lifecycle +
       FK migrations `4f5a6b7c8d9e`/`5a6b7c8d9e0f`/`a4b5c6d7e8f9`, model
@@ -236,7 +237,7 @@ Follow-up PR — OSS→EE switch:
 
 - [x] Adoption migration in the ee chain
       ([#4683](https://github.com/Agenta-AI/agenta/pull/4683), revision
-      `e00000000003`, stacked on #4682): create-if-missing EE-only enum +
+      `ee0000000002`, stacked on #4682): create-if-missing EE-only enum +
       tables in canonical post-cleanup shapes; backfill subscriptions
       (configured free plan via get_free_plan(), anchor = adoption day) and
       the USERS gauge per org (USERS only, per review); no-op on EE-origin
