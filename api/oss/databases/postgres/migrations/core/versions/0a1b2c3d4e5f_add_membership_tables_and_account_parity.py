@@ -93,6 +93,27 @@ def upgrade() -> None:
         WHERE p.workspace_id = w.id AND p.organization_id IS NULL
         """
     )
+    # 911e6034d05e seeds an empty default project before any org exists. On a
+    # populated DB the app already created a real default project per workspace
+    # at signup, so adopting the seed would leave two is_default projects in one
+    # workspace. Drop the unscoped seed when a real (scoped) default already
+    # exists and the seed carries no data; the org keeps exactly one default.
+    op.execute(
+        """
+        DELETE FROM projects seed
+        WHERE seed.organization_id IS NULL
+          AND seed.is_default
+          AND EXISTS (
+              SELECT 1 FROM projects p
+              WHERE p.id <> seed.id
+                AND p.is_default
+                AND p.organization_id IS NOT NULL
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM workflow_artifacts wa WHERE wa.project_id = seed.id
+          )
+        """
+    )
     # Works with 0, 1, or N orgs: prefer the legacy singleton (slug backfilled
     # by f7a8b9c0d1e2, may be NULL on other orgs), else the oldest org. With
     # 0 orgs this is a no-op and the fresh-replay delete below applies.
