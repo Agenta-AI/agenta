@@ -42,6 +42,27 @@ If so, use the `but` CLI instead of raw `git branch`/`git commit`:
   set `--base` to the parent branch so each PR shows only its own diff.
 - To update an already-committed file, `but absorb <path>` amends it into the right
   commit; force-push with `but push <branch> -f`.
+- To commit to a specific branch in a stack, stage the files to it first
+  (`but rub <path> <branch>`), then `but commit <branch> --only`. `but commit`
+  alone sweeps ALL uncommitted changes into that branch.
+
+### Hard-won gotchas (don't relearn these)
+
+- **GitButler series need linear history.** A stack of branches connected by
+  `git merge` commits (e.g. branches synced by merging a release in) can collapse
+  to a single series (the tip) when unapplied/re-applied — the intermediate
+  branches stop being addressable and you can't `but commit` to them. Prefer
+  GitButler's own stacking over merging branches into each other.
+- **Don't sync a behind lane with `unapply` → `git branch -f origin/<b>` →
+  `apply`.** Pointing a series at a merge-based origin ref flattens the stack.
+  There is no clean "fast-forward this series to its own remote" in the CLI when
+  origin is merge-based and ahead.
+- **`but pull` rebases applied branches on the TARGET (main), not on each
+  branch's own upstream.** It will not advance a series to `origin/<that-branch>`.
+- **Recovery: `but oplog list` then `but oplog restore <sha>`** rewinds the whole
+  workspace (including uncommitted changes) to any prior snapshot — this is how
+  you undo a botched unapply/apply and get a collapsed stack's series back. Take
+  a `but oplog snapshot -m "..."` before risky operations.
 
 ## Before committing
 
