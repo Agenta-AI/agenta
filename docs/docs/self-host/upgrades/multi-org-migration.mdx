@@ -1,16 +1,16 @@
 ---
-title: Migrate to Multi-Organization OSS
-sidebar_label: single-org → multi-org (OSS)
-description: 'What changes for self-hosted open source deployments when Agenta OSS becomes multi-organization: open signup replaces invite-only, membership rows are backfilled, and the access env vars are now enforced. Covers what to set before upgrading.'
+title: Migrate to Multi-Organization OSS (v0.104.0)
+sidebar_label: pre-v0.104.0 → v0.104.0 (multi-org OSS)
+description: 'What changes for self-hosted OSS deployments upgrading to v0.104.0, when Agenta becomes multi-organization: open signup replaces invite-only, membership rows are backfilled, and the access env vars are now enforced. Covers what to set before upgrading.'
 ---
 
 :::info When you need this guide
-You're on this page if you run a self-hosted **open source** Agenta instance created before the multi-organization release. That release removes the single-organization limit from OSS: every allowed user gets their own organization on signup, organizations can be created, renamed, transferred, and deleted from the UI, and the `AGENTA_ACCESS_*` variables are enforced the same way as in Enterprise. Enterprise deployments are unaffected; their behavior already worked this way.
+You're on this page if you run a self-hosted **OSS** Agenta instance on a version before **v0.104.0**. v0.104.0 removes the single-organization limit from OSS: every allowed user gets their own organization on signup, organizations can be created, renamed, transferred, and deleted from the UI, and the `AGENTA_ACCESS_*` variables are enforced the same way as in EE. EE deployments are unaffected; their behavior already worked this way.
 :::
 
 ## The one thing to do before upgrading
 
-**Your instance flips from invite-only to open signup.** Before this release, only the first user could sign up freely; everyone else needed an invitation to your single organization. After it, anyone who can reach your instance can sign up and gets their own organization.
+**Your instance flips from invite-only to open signup.** Before v0.104.0, only the first user could sign up freely; everyone else needed an invitation to your single organization. After v0.104.0, anyone who can reach your instance can sign up and gets their own organization.
 
 If your instance is reachable beyond a trusted network, set access controls in your environment file **before** upgrading:
 
@@ -38,7 +38,7 @@ The schema migrations run as part of the normal [upgrade process](/self-host/upg
 - Users in your organization see an organization switcher and a "New organization" entry in the sidebar. Whether new organizations can actually be created depends on `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS`.
 - Organization owners can rename, transfer, and delete organizations from the sidebar.
 - Inviting users works as before. Accepted invitations now create explicit membership records.
-- Role-based access control, SSO, and domain verification remain Enterprise features. OSS roles stay coarse (owner and member).
+- Role-based access control, SSO, and domain verification remain EE features. OSS roles stay coarse (owner and member).
 
 ## Rollback
 
