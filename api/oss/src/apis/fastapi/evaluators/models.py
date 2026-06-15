@@ -13,6 +13,7 @@ from oss.src.core.evaluators.dtos import (
     EvaluatorEdit,
     EvaluatorQuery,
     EvaluatorFork,
+    EvaluatorVariantFork,
     EvaluatorRevisionsLog,
     #
     EvaluatorVariant,
@@ -170,28 +171,23 @@ class EvaluatorVariantQueryRequest(BaseModel):
     )
 
 
-class EvaluatorVariantForkRequest(BaseModel):  # TODO: FIX ME
-    """Legacy fork payload. Use `EvaluatorForkRequest` for new code."""
-
-    source_evaluator_variant_ref: Reference = Field(
-        description="Variant to fork from.",
+class EvaluatorVariantForkRequest(BaseModel):
+    evaluator_variant: EvaluatorVariantFork = Field(
+        description="Config for the new variant (slug, name, description, flags).",
     )
-    target_evaluator_ref: Reference = Field(
-        description="Evaluator that will receive the new variant.",
+    evaluator_variant_ref: Reference = Field(
+        description="Source variant to fork from.",
     )
-    slug: Optional[str] = Field(default=None, description="Slug for the new variant.")
-    name: Optional[str] = Field(
-        default=None, description="Display name for the new variant."
-    )
-    description: Optional[str] = Field(
-        default=None, description="Optional description."
+    evaluator_revision_ref: Optional[Reference] = Field(
+        default=None,
+        description="Pin the fork to this revision; defaults to the source variant's head.",
     )
 
 
 class EvaluatorRevisionsLogRequest(BaseModel):
     """Body for listing the revision log of an evaluator variant."""
 
-    evaluator: EvaluatorRevisionsLog = Field(
+    evaluator_revisions: EvaluatorRevisionsLog = Field(
         description="Log request scoped to an evaluator / variant / revision by id, slug, or version.",
     )
 
@@ -269,16 +265,12 @@ class EvaluatorRevisionQueryRequest(BaseModel):
         default=None,
         description="Cursor-based pagination controls.",
     )
-    resolve: Optional[bool] = Field(
-        default=None,
-        description="When true, resolve embedded references on each returned revision's `data`.",
-    )
 
 
 class EvaluatorRevisionCommitRequest(BaseModel):
     """Body for committing a new revision on a variant."""
 
-    evaluator_revision_commit: EvaluatorRevisionCommit = Field(
+    evaluator_revision: EvaluatorRevisionCommit = Field(
         description="Commit payload carrying the `evaluator_variant_id`, optional commit `message`, and the revision `data`.",
     )
 
@@ -499,6 +491,14 @@ class EvaluatorRevisionResolveRequest(BaseModel):
     evaluator_revision_ref: Optional[Reference] = Field(
         default=None,
         description="Resolve this specific revision.",
+    )
+    #
+    evaluator_revision: Optional[EvaluatorRevision] = Field(
+        default=None,
+        description=(
+            "Resolve the references embedded in this revision payload directly, "
+            "without fetching it first. Only `data` is used; id and metadata are ignored."
+        ),
     )
     #
     max_depth: Optional[int] = Field(

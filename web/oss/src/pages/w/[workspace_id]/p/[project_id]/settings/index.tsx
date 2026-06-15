@@ -43,6 +43,11 @@ const Organization = dynamic(() => import("@/oss/components/pages/settings/Organ
     ssr: false,
 })
 
+const DeleteAccount = dynamic(
+    () => import("@/oss/components/pages/settings/Account/DeleteAccount"),
+    {ssr: false},
+)
+
 const Automations = dynamic(
     () => import("@/oss/components/pages/settings/Automations/Automations"),
     {
@@ -67,12 +72,14 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const billingEnabled = isBillingEnabled()
     const canShowTools = isToolsEnabled()
     const canShowAuditLog = isEE() && canViewEvents
+    const canShowAccount = isEE()
     const resolvedTab =
         (tab === "organization" && !canShowOrganization) ||
         (tab === "billing" && !canShowBilling) ||
         (tab === "tools" && !canShowTools) ||
         (tab === "apiKeys" && !canViewApiKeys) ||
-        (tab === "auditLog" && !canShowAuditLog)
+        (tab === "auditLog" && !canShowAuditLog) ||
+        (tab === "account" && !canShowAccount)
             ? "workspace"
             : tab
     const {project} = useProjectData()
@@ -123,6 +130,8 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                             return "Automations"
                         case "auditLog":
                             return "Audit Log"
+                        case "account":
+                            return "Account"
                         case "billing":
                             return billingEnabled ? "Usage & Billing" : "Usage"
                         default:
@@ -184,6 +193,8 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                 }
             case "projects":
                 return {content: <ProjectsSettings />, title: "Projects"}
+            case "account":
+                return {content: <DeleteAccount />, title: "Account"}
             default:
                 return {
                     content: <WorkspaceManage />,

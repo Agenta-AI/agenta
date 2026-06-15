@@ -25,6 +25,7 @@ export type { TestsetRevisionRetrieveRequest } from "./TestsetRevisionRetrieveRe
 export type { TestsetRevisionsLogRequest } from "./TestsetRevisionsLogRequest.js";
 export type { TestsetVariantCreateRequest } from "./TestsetVariantCreateRequest.js";
 export type { TestsetVariantEditRequest } from "./TestsetVariantEditRequest.js";
+export type { TestsetVariantForkRequest } from "./TestsetVariantForkRequest.js";
 export type { TestsetVariantQueryRequest } from "./TestsetVariantQueryRequest.js";
 export type { UnarchiveSimpleTestsetRequest } from "./UnarchiveSimpleTestsetRequest.js";
 export type { UnarchiveTestsetRequest } from "./UnarchiveTestsetRequest.js";

@@ -119,19 +119,32 @@ export const groupAnnotationsByReferenceId = (
             const allNumbers = values.every((v) => typeof v.value === "number")
             const allBooleans = values.every((v) => typeof v.value === "boolean")
 
-            if (allNumbers || allBooleans) {
-                // Handle both numbers and booleans the same way
-                const total = values.reduce(
-                    (sum, v) => sum + (typeof v.value === "boolean" ? (v.value ? 1 : 0) : v.value),
-                    0,
-                )
+            if (allBooleans) {
+                if (values.length === 1) {
+                    // A single boolean feedback is shown as True/False (color-coded by
+                    // the UI). Averaging one boolean would only produce a meaningless
+                    // "mean 0/1".
+                    result[evaluatorSlot][metricName] = {
+                        latest: values[0].value as boolean,
+                        annotations: values,
+                    }
+                } else {
+                    // Multiple boolean feedbacks fall back to the share that are true.
+                    const total = values.reduce((sum, v) => sum + (v.value ? 1 : 0), 0)
+                    result[evaluatorSlot][metricName] = {
+                        average: parseFloat((total / values.length).toFixed(2)),
+                        annotations: values,
+                    }
+                }
+            } else if (allNumbers) {
+                const total = values.reduce((sum, v) => sum + (v.value as number), 0)
                 const average = total / values.length
                 result[evaluatorSlot][metricName] = {
                     average: parseFloat(average.toFixed(2)),
                     annotations: values,
                 }
             } else {
-                // mixed or unsupported types — skip or log
+                // mixed or unsupported types — skip
                 continue
             }
         }

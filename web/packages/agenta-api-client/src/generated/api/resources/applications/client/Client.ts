@@ -1444,25 +1444,26 @@ export class ApplicationsClient {
      * invalid (for example, the source variant or revision cannot be
      * located in this application's lineage).
      *
-     * @param {AgentaApi.ApplicationForkRequest} request
+     * @param {AgentaApi.ApplicationVariantForkRequest} request
      * @param {ApplicationsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
      *     await client.applications.forkApplicationVariant({
-     *         application: {}
+     *         application_variant: {},
+     *         application_variant_ref: {}
      *     })
      */
     public forkApplicationVariant(
-        request: AgentaApi.ApplicationForkRequest,
+        request: AgentaApi.ApplicationVariantForkRequest,
         requestOptions?: ApplicationsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.ApplicationVariantResponse> {
         return core.HttpResponsePromise.fromPromise(this.__forkApplicationVariant(request, requestOptions));
     }
 
     private async __forkApplicationVariant(
-        request: AgentaApi.ApplicationForkRequest,
+        request: AgentaApi.ApplicationVariantForkRequest,
         requestOptions?: ApplicationsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.ApplicationVariantResponse>> {
         const { application_variant_id: applicationVariantId, ..._body } = request;
@@ -2108,8 +2109,6 @@ export class ApplicationsClient {
      * query, or filter on commit metadata (`author`, `date`, `message`) via
      * the `application_revision` object. For the ordered history of a
      * single variant, `POST /applications/revisions/log` is more direct.
-     * Set `resolve: true` to inline embedded references in each revision's
-     * `data`.
      *
      * @param {AgentaApi.ApplicationRevisionQueryRequest} request
      * @param {ApplicationsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2202,7 +2201,7 @@ export class ApplicationsClient {
      *
      * @example
      *     await client.applications.commitApplicationRevision({
-     *         application_revision_commit: {}
+     *         application_revision: {}
      *     })
      */
     public commitApplicationRevision(
@@ -2288,7 +2287,7 @@ export class ApplicationsClient {
      *
      * @example
      *     await client.applications.logApplicationRevisions({
-     *         application: {}
+     *         application_revisions: {}
      *     })
      */
     public logApplicationRevisions(

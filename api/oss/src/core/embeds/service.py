@@ -46,7 +46,7 @@ class EmbedsService:
         max_depth: int = 10,
         max_embeds: int = 100,
         error_policy: ErrorPolicy = ErrorPolicy.EXCEPTION,
-        include_archived: bool = True,
+        include_archived: Optional[bool] = True,
     ) -> tuple[Dict[str, Any], ResolutionInfo]:
         """
         Resolve embedded references in a configuration.

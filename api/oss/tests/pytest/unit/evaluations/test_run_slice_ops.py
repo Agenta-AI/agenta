@@ -31,6 +31,7 @@ from oss.src.core.evaluations.runtime.types import Dispatch, TopologyDecision
 from oss.src.core.evaluations.types import (
     EvaluationResult,
     EvaluationResultCreate,
+    EvaluationRunFlags,
     EvaluationRun,
     EvaluationRunData,
     EvaluationRunDataStep,
@@ -117,11 +118,24 @@ def _simple_service(*, worker=None, evaluations_service=None):
 @pytest.mark.asyncio
 async def test_dispatch_run_slice_dispatches_to_runner():
     project_id, user_id, run_id, scenario_id = uuid4(), uuid4(), uuid4(), uuid4()
-    run = SimpleNamespace(id=run_id, flags=SimpleNamespace())
+    run = SimpleNamespace(
+        id=run_id,
+        name="run",
+        description="run description",
+        flags=EvaluationRunFlags(),
+        tags={},
+        meta={},
+        data={},
+    )
     worker = SimpleNamespace(
         process_rerun=SimpleNamespace(kiq=AsyncMock()),
     )
-    evaluations_service = SimpleNamespace(fetch_run=AsyncMock(return_value=run))
+    evaluations_service = SimpleNamespace(
+        fetch_run=AsyncMock(return_value=run),
+        edit_run=AsyncMock(),
+        query_scenarios=AsyncMock(return_value=[]),
+        edit_scenarios=AsyncMock(),
+    )
     service = _simple_service(worker=worker, evaluations_service=evaluations_service)
 
     ok = await service.dispatch_run_slice(
@@ -142,6 +156,9 @@ async def test_dispatch_run_slice_dispatches_to_runner():
         step_keys=["evaluator-auto"],
         overwrite=True,
     )
+    evaluations_service.edit_run.assert_awaited_once()
+    evaluations_service.query_scenarios.assert_awaited_once()
+    evaluations_service.edit_scenarios.assert_not_awaited()
 
 
 @pytest.mark.asyncio

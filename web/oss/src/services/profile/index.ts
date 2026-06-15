@@ -56,3 +56,14 @@ export const changePassword = async (payload: {
         body: JSON.stringify(payload),
     })
 }
+
+/**
+ * Permanently delete the current user's account (EE only). Removes the user
+ * from the database (with the organizations they own), the auth provider,
+ * Stripe, and the marketing email list. Irreversible.
+ */
+export const deleteAccount = async (): Promise<void> => {
+    const base = getBaseUrl()
+    const url = new URL("api/profile", base)
+    await fetchJson(url, {method: "DELETE"})
+}

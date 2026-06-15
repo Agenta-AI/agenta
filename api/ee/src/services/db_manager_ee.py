@@ -132,6 +132,27 @@ async def count_organizations_by_owner(owner_id: str) -> int:
         return result.scalar() or 0
 
 
+async def count_organization_members(organization_id: str) -> int:
+    """
+    Count the number of members in an organization.
+
+    Args:
+        organization_id (str): The ID of the organization.
+
+    Returns:
+        int: The count of members in the organization.
+    """
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(func.count(OrganizationMemberDB.id)).where(
+                OrganizationMemberDB.organization_id == uuid.UUID(organization_id)
+            )
+        )
+        return result.scalar() or 0
+
+
 async def get_default_workspace_id(user_id: str) -> str:
     """
     Retrieve the default workspace ID for a user.

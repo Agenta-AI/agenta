@@ -18,6 +18,7 @@ from oss.src.core.workflows.dtos import (
     WorkflowEdit,
     WorkflowQuery,
     WorkflowFork,
+    WorkflowVariantFork,
     WorkflowRevisionsLog,
     #
     WorkflowVariant,
@@ -90,6 +91,19 @@ class WorkflowForkRequest(BaseModel):
             "Fork payload. Identify the source by `workflow_id` and `workflow_variant_id` "
             "(or equivalent slugs), supply a new `workflow_variant.slug` for the forked branch."
         ),
+    )
+
+
+class WorkflowVariantForkRequest(BaseModel):
+    workflow_variant: WorkflowVariantFork = Field(
+        description="Config for the new variant (slug, name, description, flags).",
+    )
+    workflow_variant_ref: Reference = Field(
+        description="Source variant to fork from.",
+    )
+    workflow_revision_ref: Optional[Reference] = Field(
+        default=None,
+        description="Pin the fork to this revision; defaults to the source variant's head.",
     )
 
 
@@ -361,7 +375,7 @@ class WorkflowRevisionDeployRequest(BaseModel):
 
 
 class WorkflowRevisionsLogRequest(BaseModel):
-    workflow: WorkflowRevisionsLog = Field(
+    workflow_revisions: WorkflowRevisionsLog = Field(
         description=(
             "Log query. Supply `workflow_id`, `workflow_variant_id`, or "
             "`workflow_revision_id` to scope the log, and an optional `depth`."

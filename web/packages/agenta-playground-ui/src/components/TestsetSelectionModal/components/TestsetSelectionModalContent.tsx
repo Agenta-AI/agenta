@@ -16,6 +16,7 @@ import {LoadModeContent} from "./LoadModeContent"
 
 export function TestsetSelectionModalContent({
     loadableId,
+    connectedTestsetId,
     connectedRevisionId,
     mode,
     onConfirm,
@@ -31,6 +32,7 @@ export function TestsetSelectionModalContent({
     return (
         <LoadModeContent
             loadableId={loadableId}
+            connectedTestsetId={connectedTestsetId}
             connectedRevisionId={connectedRevisionId}
             mode={mode}
             onConfirm={onConfirm}
