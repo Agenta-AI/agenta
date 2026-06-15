@@ -1,7 +1,7 @@
 import {memo, ReactNode, useMemo} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
-import {workflowLatestRevisionIdAtomFamily} from "@agenta/entities/workflow"
+import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
 import {Button, Popover, Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -39,7 +39,7 @@ const EvaluatorDetailsPopover = ({
     children,
 }: EvaluatorDetailsPopoverProps) => {
     const {buildEvaluatorTarget} = useEvaluatorNavigation()
-    const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(evaluator?.id || ""))
+    const latestRevisionId = useAtomValue(workflowLatestRevisionQueryAtomFamily(evaluator?.id || "")).data?.id ?? null
 
     const evaluatorName = evaluator?.name || fallbackLabel
     const evaluatorId =
