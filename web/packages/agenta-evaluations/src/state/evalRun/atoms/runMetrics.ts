@@ -9,22 +9,9 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import {deriveEvaluationKind} from "../../../core"
 import {previewEvalTypeAtom} from "../state/evalType"
 
-import {
-    clearBootstrapAttempt,
-    createMetricProcessor,
-    type MetricProcessor,
-    type MetricScope,
-} from "./metricProcessor"
+import {clearBootstrapAttempt, createMetricProcessor, type MetricScope} from "./metricProcessor"
 import {effectiveProjectIdAtom} from "./run"
 import {evaluationRunQueryAtomFamily} from "./table/run"
-
-// NOTE (latent runtime bug, typed as-is per WP-4e-2a): `metricProcessor` is referenced at
-// the run-level-gap branch below but no such binding exists in that scope — the processor
-// created inside `processMetrics` is named `processor` and is out of scope there. At runtime
-// this throws a ReferenceError whenever `shouldMarkRunLevelGap` is true. We declare it
-// (emits no JS) so the type-check is faithful WITHOUT changing the runtime behavior. Do not
-// "fix" by wiring up a real processor — that would change behavior. See QA flag.
-declare const metricProcessor: MetricProcessor
 
 type RunLevelStatsMap = Record<string, BasicStats>
 
@@ -877,11 +864,12 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                         }, null as any)
                     }
 
-                    const shouldMarkRunLevelGap =
-                        !runLevelEntry && fetchedMetrics.some((entry: any) => !entry?.scenario_id)
-                    if (shouldMarkRunLevelGap) {
-                        metricProcessor.markRunLevelGap("missing-run-level-entry")
-                    }
+                    // NOTE: a previous run-level-gap marker lived here, but it referenced a
+                    // processor that is out of scope at this point (the real one is local to
+                    // `processMetrics`, which already flushed above). It threw a ReferenceError
+                    // whenever a run-level gap existed and, even working, would have pushed a
+                    // flag onto a processor that is never flushed — a no-op. The legitimate
+                    // gap-marking happens inside `processMetrics` (on the flushed processor).
 
                     const combinedFlat: Record<string, any> = {}
                     const runLevelKeys = new Set<string>()
