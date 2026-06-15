@@ -4,27 +4,16 @@
  * Eval-specific ETL adapters. See docs/designs/eval-etl-engine.md for
  * the design.
  *
- * Currently exposed:
- *   - makeRealScenarioSource: minimal real Source that hits
- *     /evaluations/scenarios/query directly. Used by the PoC; will
- *     eventually be replaced by makeSource(scenariosPaginatedStore)
- *     once Phase 1-2 of the architecture RFC lands.
- *
  * @packageDocumentation
  */
 
-export type {RealEvaluationScenario, RealScenarioSourceParams} from "./realScenarioSource"
-export {makeRealScenarioSource} from "./realScenarioSource"
-
-// Hydrate transform — joins each scenario chunk to its correlated entities
-// (results, metrics, testcases, traces) via injected HydrateFetchers.
+// Hydrate transform shapes — the row/scenario/fetcher contracts shared by
+// the column resolver and the cell-level materializer.
 export type {
     HydratableScenario,
     HydratedScenarioRow,
-    HydrateScenariosTransformParams,
     HydrateFetchers,
 } from "./hydrateScenariosTransform"
-export {makeHydrateScenariosTransform, DEFAULT_HYDRATE_FETCHERS} from "./hydrateScenariosTransform"
 
 // Column resolver — declarative, driven by run.data.steps[].type and the
 // run's column mappings. Groups columns by source (testset / application /
@@ -58,37 +47,14 @@ export {
     groupRunColumns,
 } from "./resolveMappings"
 
-// Molecule-backed cache-aware fetchers — all 4 entity types go through
-// the entity layer (TanStack cache read, bulk-fetch misses, write-back).
-export {
-    buildMoleculeBackedFetchers,
-    MOLECULE_BACKED_HYDRATE_FETCHERS,
-    cacheAwareFetchTestcases,
-    type EntityCacheStats,
-    type ChunkCacheStats,
-    type BuildMoleculeFetchersOptions,
-} from "./cacheAwareFetchers"
-
 // Cache diagnostics — inspect the TanStack cache + atom family sizes
 export {
     DEFAULT_DIAGNOSTIC_PREFIXES,
     inspectCache,
-    inspectMemory,
     clearCacheByPrefix,
     type CacheDiagnostics,
     type CacheSliceStats,
-    type MemorySnapshot,
 } from "./cacheDiagnostics"
-// Atom family registry — direct access for tests / advanced consumers
-export {
-    inspectAtomFamilies,
-    clearAllAtomFamilies,
-    instrumentedAtomFamily,
-    type AtomFamilyStats,
-    type InstrumentedAtomFamily,
-    type InstrumentedAtomFamilyOptions,
-} from "@agenta/entities/shared"
-
 // Post-hydrate predicate filter — value-equality against resolved UI columns.
 // Per eval-filtering.md §D2: this is the v1 frontend transform over already-
 // loaded metric data. v2 server-side filter swaps the source's `filtering`

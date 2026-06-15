@@ -16,7 +16,6 @@
  * @packageDocumentation
  */
 
-import {inspectAtomFamilies, type AtomFamilyStats} from "@agenta/entities/shared"
 import {getDefaultStore} from "jotai/vanilla"
 import {queryClientAtom} from "jotai-tanstack-query"
 
@@ -111,35 +110,6 @@ export function inspectCache(opts: {prefixes?: readonly string[]} = {}): CacheDi
         totalEntries: slices.reduce((a, s) => a + s.entries, 0),
         totalApproxBytes: slices.reduce((a, s) => a + s.approxBytes, 0),
         slices,
-    }
-}
-
-/**
- * Combined memory snapshot — TanStack cache + atom family sizes + heap.
- *
- * Useful as a one-liner in observability surfaces; produces a complete
- * "how much is the entity layer holding right now" answer.
- */
-export interface MemorySnapshot {
-    /** TanStack cache, per-prefix. */
-    cache: CacheDiagnostics
-    /** Active params per instrumented atom family. */
-    atomFamilies: AtomFamilyStats[]
-    /** Total params across every instrumented family — quick proxy for "atoms alive". */
-    totalAtomFamilyEntries: number
-    /** process.memoryUsage().heapUsed at snapshot time. */
-    heapUsedBytes: number
-}
-
-export function inspectMemory(opts: {prefixes?: readonly string[]} = {}): MemorySnapshot {
-    const cache = inspectCache(opts)
-    const atomFamilies = inspectAtomFamilies()
-    const totalAtomFamilyEntries = atomFamilies.reduce((a, f) => a + f.size, 0)
-    return {
-        cache,
-        atomFamilies,
-        totalAtomFamilyEntries,
-        heapUsedBytes: typeof process !== "undefined" ? process.memoryUsage().heapUsed : 0,
     }
 }
 
