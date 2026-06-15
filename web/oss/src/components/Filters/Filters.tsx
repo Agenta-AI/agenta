@@ -833,14 +833,24 @@ const Filters: React.FC<Props> = ({
         setIsFilterOpen(false)
     }
 
-    // Apply is a no-op when the draft already matches the applied filter (see the
-    // isEqual guard above). In the always-visible inline editor we also disable the
-    // button so it reads as "nothing to apply"; the popover keeps Apply enabled as
-    // its primary close affordance.
+    // Whether the draft differs from the applied filter. `mapFilterData` (props →
+    // internal) is NOT a clean inverse of `sanitizeFilterItems` (it injects
+    // `key: ""`, labels, toUI-transformed values…), so comparing the sanitized
+    // draft against the raw `filterData` always reads "changed". Instead, run both
+    // sides through the same `map → explode → sanitize` pipeline so the
+    // normalization cancels out and an untouched draft compares equal.
+    const appliedBaseline = useMemo(
+        () =>
+            sanitizeFilterItems(explodeAnnotationAnyEvaluatorRows(mapFilterData(filterData ?? []))),
+        [filterData, columns],
+    )
     const isDraftUnchanged = isEqual(
         sanitizeFilterItems(explodeAnnotationAnyEvaluatorRows(filter)),
-        filterData,
+        appliedBaseline,
     )
+    // Inline editor (Query Registry drawer): disable Apply when there is nothing to
+    // apply, so a clean draft can't spuriously fire onApplyFilter and dirty the
+    // parent. The popover keeps Apply enabled as its primary close affordance.
     const isApplyDisabled = hasInvalidRows || (inline && isDraftUnchanged)
 
     const getWithinPopover = (trigger: HTMLElement | null) =>
