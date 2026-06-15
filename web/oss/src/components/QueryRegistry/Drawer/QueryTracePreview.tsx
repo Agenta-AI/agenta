@@ -11,7 +11,12 @@ import type {ColumnsType} from "antd/es/table"
 import {useStore} from "jotai"
 
 import {getObservabilityColumns} from "@/oss/components/pages/observability/assets/getObservabilityColumns"
+import {attachAnnotationsToTraces} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
+import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transformer"
+import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import {queryAllAnnotations} from "@/oss/services/annotations/api"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
+import {getOrgValues} from "@/oss/state/org"
 
 export interface QueryTracePreviewProps {
     projectId?: string | null
@@ -33,46 +38,110 @@ export interface QueryTracePreviewProps {
  */
 type PreviewRow = TraceSpanNode & {key: Key; [extra: string]: unknown}
 
-// Stable empty array so the observability columns memo never re-creates and the
-// drawer preview never shows the evaluator-metrics column group.
-const NO_EVALUATORS: string[] = []
+interface TreeNode {
+    invocationIds?: {trace_id?: string; span_id?: string} | null
+    aggregatedEvaluatorMetrics?: Record<string, unknown> | null
+    children?: TreeNode[] | null
+}
+
+/**
+ * Walk the trace tree for the `{trace_id, span_id}` pairs that key annotation
+ * lookups. Mirrors `collectInvocationLinks` in
+ * `state/newObservability/atoms/queries.ts`.
+ */
+const collectInvocationLinks = (nodes: TreeNode[]) => {
+    const links: {trace_id: string; span_id: string}[] = []
+    const seen = new Set<string>()
+    const visit = (node?: TreeNode) => {
+        if (!node) return
+        const ids = node.invocationIds
+        if (ids?.trace_id && ids?.span_id) {
+            const key = `${ids.trace_id}:${ids.span_id}`
+            if (!seen.has(key)) {
+                seen.add(key)
+                links.push({trace_id: ids.trace_id, span_id: ids.span_id})
+            }
+        }
+        node.children?.forEach(visit)
+    }
+    nodes.forEach(visit)
+    return links
+}
+
+/**
+ * Gather evaluator slugs from each node's `aggregatedEvaluatorMetrics` so
+ * `getObservabilityColumns` renders the matching annotation columns. Mirrors
+ * `collectEvaluatorSlugsFromTraces` in `ObservabilityTable`.
+ */
+const collectEvaluatorSlugs = (nodes: TreeNode[]) => {
+    const slugs = new Set<string>()
+    const visit = (node?: TreeNode) => {
+        if (!node) return
+        const metrics = node.aggregatedEvaluatorMetrics
+        if (metrics && typeof metrics === "object") {
+            Object.keys(metrics).forEach((slug) => slug && slugs.add(slug))
+        }
+        node.children?.forEach(visit)
+    }
+    nodes.forEach(visit)
+    return Array.from(slugs)
+}
 
 /**
  * Read-only preview of the traces matching a query's filter, rendered with the
  * exact observability table (columns + InfiniteVirtualTable shell) so it stays
- * visually identical to the Observability page. Fetches a single page via the
- * query entity's `queryMatchingTraces`; this is a peek, not a paginated browser.
+ * visually identical to the Observability page — including the annotation
+ * (evaluator-metrics) columns, which are loaded by fetching annotations for the
+ * matching traces and merging them with the same `attachAnnotationsToTraces`
+ * helper observability uses. Fetches a single page; this is a peek, not a browser.
  */
 const QueryTracePreview = ({projectId, filtering, limit = 50}: QueryTracePreviewProps) => {
     const store = useStore()
-    const columns = useMemo(
-        () =>
-            getObservabilityColumns({
-                evaluatorSlugs: NO_EVALUATORS,
-            }) as unknown as ColumnsType<PreviewRow>,
-        [],
-    )
 
     const [traces, setTraces] = useState<PreviewRow[]>([])
+    const [evaluatorSlugs, setEvaluatorSlugs] = useState<string[]>([])
     const [status, setStatus] = useState<"loading" | "done" | "error">("loading")
+
+    const columns = useMemo(
+        () => getObservabilityColumns({evaluatorSlugs}) as unknown as ColumnsType<PreviewRow>,
+        [evaluatorSlugs],
+    )
 
     useEffect(() => {
         if (!projectId) return
         let cancelled = false
         setStatus("loading")
-        queryMatchingTraces({projectId, filtering, limit})
-            .then((result) => {
+        ;(async () => {
+            try {
+                const rawTraces = await queryMatchingTraces({projectId, filtering, limit})
+                const links = collectInvocationLinks(rawTraces as unknown as TreeNode[])
+                let annotations: AnnotationDto[] = []
+                if (links.length) {
+                    const {selectedOrg} = getOrgValues()
+                    const members = selectedOrg?.default_workspace?.members || []
+                    const res = await queryAllAnnotations({annotation: {links}})
+                    annotations =
+                        res.annotations?.map((a) =>
+                            transformApiData<AnnotationDto>({data: a, members}),
+                        ) ?? []
+                }
+                // Same merge observability uses — attaches `annotations` and
+                // `aggregatedEvaluatorMetrics` onto each matching node.
+                const enriched = attachAnnotationsToTraces(
+                    rawTraces as never[],
+                    annotations,
+                ) as unknown as PreviewRow[]
                 if (cancelled) return
-                // Entity TraceSpanNode is structurally the OSS node the observability
-                // columns render against; the cast bridges the two package types.
-                setTraces(result as unknown as PreviewRow[])
+                setTraces(enriched)
+                setEvaluatorSlugs(collectEvaluatorSlugs(enriched as unknown as TreeNode[]))
                 setStatus("done")
-            })
-            .catch(() => {
+            } catch {
                 if (cancelled) return
                 setTraces([])
+                setEvaluatorSlugs([])
                 setStatus("error")
-            })
+            }
+        })()
         return () => {
             cancelled = true
         }
