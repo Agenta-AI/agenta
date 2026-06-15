@@ -12,6 +12,8 @@ from oss.src.core.environments.dtos import (
     EnvironmentCreate,
     EnvironmentEdit,
     EnvironmentQuery,
+    EnvironmentFork,
+    EnvironmentVariantFork,
     EnvironmentRevisionsLog,
     #
     EnvironmentVariant,
@@ -44,6 +46,25 @@ class EnvironmentCreateRequest(BaseModel):
 
 class EnvironmentEditRequest(BaseModel):
     environment: EnvironmentEdit
+
+
+class EnvironmentForkRequest(BaseModel):
+    environment: EnvironmentFork = Field(
+        description="Fork specification. Supply the source variant and optional revision to fork from, plus slug/name for the new variant.",
+    )
+
+
+class EnvironmentVariantForkRequest(BaseModel):
+    environment_variant: EnvironmentVariantFork = Field(
+        description="Config for the new variant (slug, name, description, flags).",
+    )
+    environment_variant_ref: Reference = Field(
+        description="Source variant to fork from.",
+    )
+    environment_revision_ref: Optional[Reference] = Field(
+        default=None,
+        description="Pin the fork to this revision; defaults to the source variant's head.",
+    )
 
 
 class EnvironmentQueryRequest(BaseModel):
@@ -116,16 +137,15 @@ class EnvironmentRevisionQueryRequest(BaseModel):
     environment_variant_refs: Optional[List[Reference]] = None
     environment_revision_refs: Optional[List[Reference]] = None
     #
-    application_refs: Optional[List[Reference]] = None
+    references: Optional[List[Reference]] = None
     #
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
-    resolve: Optional[bool] = None  # Optionally resolve embeds on query
 
 
 class EnvironmentRevisionCommitRequest(BaseModel):
-    environment_revision_commit: EnvironmentRevisionCommit
+    environment_revision: EnvironmentRevisionCommit
 
 
 class EnvironmentRevisionRetrieveRequest(BaseModel):
@@ -162,7 +182,7 @@ class EnvironmentRevisionRetrieveRequest(BaseModel):
 
 
 class EnvironmentRevisionsLogRequest(BaseModel):
-    environment: EnvironmentRevisionsLog
+    environment_revisions: EnvironmentRevisionsLog
 
 
 class EnvironmentRevisionResponse(BaseModel):
@@ -215,6 +235,14 @@ class EnvironmentRevisionResolveRequest(BaseModel):
     environment_ref: Optional[Reference] = None
     environment_variant_ref: Optional[Reference] = None
     environment_revision_ref: Optional[Reference] = None
+    #
+    environment_revision: Optional[EnvironmentRevision] = Field(
+        default=None,
+        description=(
+            "Resolve the references embedded in this revision payload directly, "
+            "without fetching it first. Only `data` is used; id and metadata are ignored."
+        ),
+    )
     #
     max_depth: Optional[int] = 10
     max_embeds: Optional[int] = 100

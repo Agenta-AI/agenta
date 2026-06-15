@@ -8,6 +8,7 @@ from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.git.types import (
+    VariantForkError,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     needs_default_variant_resolution,
@@ -51,7 +52,7 @@ from oss.src.core.queries.dtos import (
     QueryCreate,
     QueryEdit,
     QueryQuery,
-    QueryFork,
+    QueryVariantFork,
     #
     QueryVariant,
     QueryVariantCreate,
@@ -583,10 +584,32 @@ class QueriesService:
         project_id: UUID,
         user_id: UUID,
         #
-        query_fork: QueryFork,
+        query_variant_fork: QueryVariantFork,
+        query_variant_ref: Reference,
+        query_revision_ref: Optional[Reference] = None,
     ) -> Optional[QueryVariant]:
+        source_variant = await self.fetch_query_variant(
+            project_id=project_id,
+            query_variant_ref=query_variant_ref,
+        )
+        if not source_variant:
+            raise VariantForkError("Fork source variant could not be resolved.")
+
+        source_revision_id: Optional[UUID] = None
+        if query_revision_ref is not None:
+            source_revision = await self.fetch_query_revision(
+                project_id=project_id,
+                query_variant_ref=query_variant_ref,
+                query_revision_ref=query_revision_ref,
+            )
+            if not source_revision:
+                raise VariantForkError("Fork source revision could not be resolved.")
+            source_revision_id = source_revision.id
+
         _artifact_fork = ArtifactFork(
-            **query_fork.model_dump(mode="json"),
+            variant_id=source_variant.id,
+            revision_id=source_revision_id,
+            variant=query_variant_fork,
         )
 
         variant = await self.queries_dao.fork_variant(
@@ -989,7 +1012,7 @@ class QueriesService:
         #
         query_revisions_log: QueryRevisionsLog,
         #
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> List[QueryRevision]:
         _revisions_log = RevisionsLog(
             **query_revisions_log.model_dump(mode="json"),

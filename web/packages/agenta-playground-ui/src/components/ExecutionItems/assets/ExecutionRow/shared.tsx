@@ -1,7 +1,7 @@
 import React, {useCallback, useMemo} from "react"
 
 import type {PlaygroundNode} from "@agenta/entities/runnable"
-import {evaluatorNameByRevisionAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {DropdownButton} from "@agenta/ui/components"
 import type {DropdownButtonOption} from "@agenta/ui/components"
 import {RunButton} from "@agenta/ui/components/presentational"
@@ -16,14 +16,22 @@ export const usePlaygroundNodeLabels = (nodes: PlaygroundNode[] | null) => {
                 if (!nodes) return {} as Record<string, string>
                 const names: Record<string, string> = {}
                 for (const node of nodes) {
-                    // Evaluator revisions are often named after their variant
-                    // ("default") — prefer the parent evaluator workflow's name.
-                    // Resolves to null for non-evaluator (app) revisions.
-                    const evaluatorName = get(evaluatorNameByRevisionAtomFamily(node.entityId))
                     const data = get(workflowMolecule.selectors.data(node.entityId))
-                    const name = evaluatorName ?? data?.name
-                    if (name) {
-                        names[node.id] = name
+                    // Evaluators don't use variants: label them by the entity
+                    // (artifact) name. The revision's own `name` carries the
+                    // variant name ("default"). App nodes keep the revision
+                    // name, which is the variant label in comparison views.
+                    if (data?.flags?.is_evaluator) {
+                        const artifactName = get(
+                            workflowMolecule.selectors.artifactName(node.entityId),
+                        )
+                        if (artifactName) {
+                            names[node.id] = artifactName
+                            continue
+                        }
+                    }
+                    if (data?.name) {
+                        names[node.id] = data.name
                     }
                 }
                 return names

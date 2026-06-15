@@ -27,7 +27,7 @@ def testset_fixture(authed_api):
         "POST",
         "/testsets/revisions/commit",
         json={
-            "testset_revision_commit": {
+            "testset_revision": {
                 "slug": f"{slug}-v0",
                 "testset_id": tid,
                 "testset_variant_id": vid,
@@ -42,7 +42,7 @@ def testset_fixture(authed_api):
         "POST",
         "/testsets/revisions/commit",
         json={
-            "testset_revision_commit": {
+            "testset_revision": {
                 "slug": f"{slug}-v1",
                 "testset_id": tid,
                 "testset_variant_id": vid,

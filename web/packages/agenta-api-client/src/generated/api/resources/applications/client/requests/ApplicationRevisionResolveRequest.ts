@@ -13,6 +13,8 @@ export interface ApplicationRevisionResolveRequest {
     application_variant_ref?: AgentaApi.Reference | null;
     /** Revision reference; resolves that exact revision. */
     application_revision_ref?: AgentaApi.Reference | null;
+    /** Resolve the references embedded in this revision payload directly, without fetching it first. Only `data` is used; id and metadata are ignored. */
+    application_revision?: AgentaApi.ApplicationRevisionInput | null;
     /** Maximum nesting depth for embedded references. Protects against runaway recursion. Defaults to `10`. */
     max_depth?: number | null;
     /** Maximum total number of embedded references to follow. Defaults to `100`. */

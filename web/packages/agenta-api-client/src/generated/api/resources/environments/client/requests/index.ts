@@ -12,6 +12,7 @@ export type { EnvironmentRevisionRetrieveRequest } from "./EnvironmentRevisionRe
 export type { EnvironmentRevisionsLogRequest } from "./EnvironmentRevisionsLogRequest.js";
 export type { EnvironmentVariantCreateRequest } from "./EnvironmentVariantCreateRequest.js";
 export type { EnvironmentVariantEditRequest } from "./EnvironmentVariantEditRequest.js";
+export type { EnvironmentVariantForkRequest } from "./EnvironmentVariantForkRequest.js";
 export type { FetchEnvironmentRequest } from "./FetchEnvironmentRequest.js";
 export type { FetchEnvironmentRevisionRequest } from "./FetchEnvironmentRevisionRequest.js";
 export type { FetchEnvironmentVariantRequest } from "./FetchEnvironmentVariantRequest.js";

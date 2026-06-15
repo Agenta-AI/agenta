@@ -47,6 +47,36 @@ class UsersClient:
         _response = self._raw_client.fetch_user_profile(request_options=request_options)
         return _response.data
     
+    def delete_user_account(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Self-serve deletion of the caller's own account (EE only).
+        
+        Requires an interactive SuperTokens session. API keys and service tokens are
+        rejected: this is an irreversible destructive action, so a leaked or embedded
+        integration key must not be enough to delete the owning account.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Any
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.users.delete_user_account()
+        """
+        _response = self._raw_client.delete_user_account(request_options=request_options)
+        return _response.data
+    
     def update_user_username(self, *, username: typing.Optional[str] = OMIT, email: typing.Optional[str] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
         """
         Parameters
@@ -149,6 +179,44 @@ class AsyncUsersClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.fetch_user_profile(request_options=request_options)
+        return _response.data
+    
+    async def delete_user_account(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Self-serve deletion of the caller's own account (EE only).
+        
+        Requires an interactive SuperTokens session. API keys and service tokens are
+        rejected: this is an irreversible destructive action, so a leaked or embedded
+        integration key must not be enough to delete the owning account.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Any
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.users.delete_user_account()
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.delete_user_account(request_options=request_options)
         return _response.data
     
     async def update_user_username(self, *, username: typing.Optional[str] = OMIT, email: typing.Optional[str] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:

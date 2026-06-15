@@ -6,6 +6,7 @@ from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.git.types import (
+    VariantForkError,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     needs_default_variant_resolution,
@@ -17,6 +18,7 @@ from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
     ArtifactQuery,
+    ArtifactFork,
     RetrievalInfo,
     #
     VariantCreate,
@@ -33,6 +35,7 @@ from oss.src.core.testsets.dtos import (
     TestsetEdit,
     TestsetQuery,
     TestsetRevisionsLog,
+    TestsetVariantFork,
     #
     TestsetVariant,
     TestsetVariantCreate,
@@ -484,6 +487,54 @@ class TestsetsService:
         )
 
         return testset_variant
+
+    async def fork_testset_variant(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        testset_variant_fork: TestsetVariantFork,
+        testset_variant_ref: Reference,
+        testset_revision_ref: Optional[Reference] = None,
+    ) -> Optional[TestsetVariant]:
+        source_variant = await self.fetch_testset_variant(
+            project_id=project_id,
+            testset_variant_ref=testset_variant_ref,
+        )
+        if not source_variant:
+            raise VariantForkError("Fork source variant could not be resolved.")
+
+        source_revision_id: Optional[UUID] = None
+        if testset_revision_ref is not None:
+            source_revision = await self.fetch_testset_revision(
+                project_id=project_id,
+                testset_variant_ref=testset_variant_ref,
+                testset_revision_ref=testset_revision_ref,
+            )
+            if not source_revision:
+                raise VariantForkError("Fork source revision could not be resolved.")
+            source_revision_id = source_revision.id
+
+        _artifact_fork = ArtifactFork(
+            variant_id=source_variant.id,
+            revision_id=source_revision_id,
+            variant=testset_variant_fork,
+        )
+
+        variant = await self.testsets_dao.fork_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            artifact_fork=_artifact_fork,
+        )
+
+        if not variant:
+            return None
+
+        return TestsetVariant(
+            **variant.model_dump(mode="json"),
+        )
 
     async def archive_testset_variant(
         self,
@@ -1034,7 +1085,7 @@ class TestsetsService:
         testset_revisions_log: TestsetRevisionsLog,
         #
         include_testcases: Optional[bool] = None,
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> List[TestsetRevision]:
         revisions = await self.testsets_dao.log_revisions(
             project_id=project_id,

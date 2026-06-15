@@ -24,7 +24,7 @@ import React from "react"
 
 import {ChevronRight} from "lucide-react"
 
-import {bgColors, cn, flexLayouts, gapClasses, justifyClasses, textColors} from "../../utils/styles"
+import {cn, flexLayouts, gapClasses, justifyClasses, textColors} from "../../utils/styles"
 
 // ============================================================================
 // TYPES
@@ -152,10 +152,10 @@ export function ListItem({
         }
     }
 
-    // Build class names for different states based on design tokens
-    // Default: no bg, textColors.secondary (colorTextSecondary)
-    // Hover: bgColors.subtle, textColors.primary (colorText)
-    // Selected: bgColors.subtle, textColors.primary, border-r-2 border-primary
+    // Hover/selected use overlay tokens (--ag-rgba-051729-*: dark-alpha in light mode,
+    // white-alpha in dark mode) rather than bgColors.subtle (bg-zinc-1). In dark mode
+    // zinc-1 maps to the elevated surface color (== popover/drawer bg), so a row inside a
+    // popover got no visible hover/selected highlight. Overlays stay visible on any surface.
     const baseClasses = cn(
         flexLayouts.rowCenter,
         justifyClasses.between,
@@ -166,15 +166,14 @@ export function ListItem({
         ? "opacity-50 cursor-not-allowed"
         : isSelected
           ? cn(
-                bgColors.subtle,
                 "cursor-pointer",
-                bgColors.hoverState,
+                "bg-[var(--ag-rgba-051729-06)] hover:bg-[var(--ag-rgba-051729-08)]",
                 textColors.primary,
                 "border-r-2 border-primary",
             )
           : isHovered
-            ? cn(bgColors.subtle, "cursor-pointer", textColors.primary)
-            : cn("cursor-pointer", bgColors.hoverSubtle, textColors.iconHover)
+            ? cn("cursor-pointer", "bg-[var(--ag-rgba-051729-06)]", textColors.primary)
+            : cn("cursor-pointer", "hover:bg-[var(--ag-rgba-051729-04)]", textColors.iconHover)
 
     return (
         <div

@@ -164,7 +164,6 @@ function ChildPanelContent({
                         className="my-4"
                     />
                 ) : multiSelect ? (
-                    // Multi-select: checkboxes
                     filteredItems.map((item) => {
                         const itemId = childLevelConfig.getId(item)
                         const label = childLevelConfig.getLabel(item)
@@ -197,7 +196,6 @@ function ChildPanelContent({
                         )
                     })
                 ) : (
-                    // Single-select: click items
                     filteredItems.map((item) => {
                         const itemId = childLevelConfig.getId(item)
                         const label = childLevelConfig.getLabel(item)
