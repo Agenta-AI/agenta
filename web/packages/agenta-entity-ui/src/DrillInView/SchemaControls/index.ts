@@ -26,6 +26,9 @@ export type {TextInputControlProps} from "./TextInputControl"
 export {EnumSelectControl} from "./EnumSelectControl"
 export type {EnumSelectControlProps} from "./EnumSelectControl"
 
+export {HookCodeConfigControl} from "./HookCodeConfigControl"
+export type {HookCodeConfigControlProps} from "./HookCodeConfigControl"
+
 // ============================================================================
 // CONTROLS WITH CONTEXT INJECTION
 // ============================================================================
