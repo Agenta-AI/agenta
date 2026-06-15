@@ -85,56 +85,6 @@ async def check_existing_organization_invitation(organization_id: str, email: st
     return None, role
 
 
-async def check_valid_invitation(project_id: str, email: str, token: str):
-    """
-    Check if a project invitation is valid for a given user and token.
-
-    Args:
-        project_id (str): The ID of the project for which the invitation is being checked.
-        email (str): The email address of whom the invitation is being verified.
-        token (str): The invitation token to be validated.
-
-    Returns:
-        InvitationDB or None: Returns the invitation object if it's valid and not expired.
-                              Returns None if the invitation is not found or has expired.
-    """
-
-    invitation = await db_manager.get_project_invitation_by_token_and_email(
-        project_id, token, email
-    )
-    if invitation is not None and invitation.expiration_date > datetime.now(
-        timezone.utc
-    ):
-        return invitation
-
-    return None
-
-
-async def check_valid_organization_invitation(
-    organization_id: str,
-    email: str,
-    token: str,
-):
-    """
-    Check if an organization invitation is valid, regardless of the project
-    that held the invitation row.
-    """
-
-    invitation = (
-        await db_manager.get_project_invitation_by_organization_token_and_email(
-            organization_id=organization_id, token=token, email=email
-        )
-    )
-    if (
-        invitation is not None
-        and not invitation.used
-        and invitation.expiration_date > datetime.now(timezone.utc)
-    ):
-        return invitation
-
-    return None
-
-
 async def send_invitation_email(
     email: str,
     token: str,
