@@ -9,6 +9,7 @@ import {useAtomValue} from "jotai"
 
 import {
     commitModalEntityNameAtom,
+    commitModalOriginalEntityNameAtom,
     commitModalEntityAtom,
     commitModalActionLabelAtom,
 } from "../state"
@@ -22,6 +23,7 @@ import {
 export function EntityCommitTitle() {
     const entity = useAtomValue(commitModalEntityAtom)
     const entityName = useAtomValue(commitModalEntityNameAtom)
+    const originalEntityName = useAtomValue(commitModalOriginalEntityNameAtom)
     const actionLabel = useAtomValue(commitModalActionLabelAtom)
 
     if (!entity) {
@@ -32,9 +34,11 @@ export function EntityCommitTitle() {
         )
     }
 
+    const displayName = actionLabel === "Commit" ? originalEntityName : entityName
+
     return (
         <span>
-            {actionLabel} <span className="font-semibold">{entityName || "Changes"}</span>
+            {actionLabel} <span className="font-semibold">{displayName || "Changes"}</span>
         </span>
     )
 }

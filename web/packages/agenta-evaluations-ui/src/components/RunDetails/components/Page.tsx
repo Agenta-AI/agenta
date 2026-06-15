@@ -61,6 +61,7 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
             auto: {label: "Auto Evals", kind: "auto"},
             human: {label: "Human Evals", kind: "human"},
             online: {label: "Live Evals", kind: "online"},
+            sdk: {label: "SDK Evals", kind: "custom"},
         }
         const config = typeMap[evaluationType] ?? {label: "Evaluations", kind: "auto"}
         return {

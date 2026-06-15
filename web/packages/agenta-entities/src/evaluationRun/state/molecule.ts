@@ -69,43 +69,29 @@ const runBatchFetcher = createBatchFetcher<RunKey, EvaluationRun | null>({
     serializeKey: ({projectId, runId}) => `${projectId}:${runId}`,
     batchFn: async (keys, serializedKeys) => {
         const results = new Map<string, EvaluationRun | null>()
+        serializedKeys.forEach((key) => results.set(key, null))
 
-        // Group by projectId
-        const byProject = new Map<string, {runIds: string[]; keys: string[]}>()
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = keys[0]?.projectId
+        if (!projectId) return results
+        if (keys.some((key) => key.projectId !== projectId)) {
+            throw new Error("runBatchFetcher: requests span multiple projects")
+        }
+
+        const runIds = [...new Set(keys.map((key) => key.runId).filter(Boolean))]
+        if (runIds.length === 0) return results
+
+        const response = await queryEvaluationRuns({projectId, ids: runIds})
+
+        // Index response by run ID
+        const runsById = new Map<string, EvaluationRun>()
+        for (const run of response.runs) {
+            runsById.set(run.id, run)
+        }
+
         keys.forEach((key, idx) => {
-            if (!key.projectId || !key.runId) {
-                results.set(serializedKeys[idx], null)
-                return
-            }
-            const existing = byProject.get(key.projectId)
-            if (existing) {
-                existing.runIds.push(key.runId)
-                existing.keys.push(serializedKeys[idx])
-            } else {
-                byProject.set(key.projectId, {
-                    runIds: [key.runId],
-                    keys: [serializedKeys[idx]],
-                })
-            }
+            results.set(serializedKeys[idx], runsById.get(key.runId) ?? null)
         })
-
-        // Fetch all projects in parallel
-        await Promise.all(
-            Array.from(byProject.entries()).map(async ([projectId, {runIds, keys: batchKeys}]) => {
-                const response = await queryEvaluationRuns({projectId, ids: runIds})
-
-                // Index response by run ID
-                const runsById = new Map<string, EvaluationRun>()
-                for (const run of response.runs) {
-                    runsById.set(run.id, run)
-                }
-
-                // Map results back to serialized keys
-                for (let i = 0; i < runIds.length; i++) {
-                    results.set(batchKeys[i], runsById.get(runIds[i]) ?? null)
-                }
-            }),
-        )
 
         return results
     },

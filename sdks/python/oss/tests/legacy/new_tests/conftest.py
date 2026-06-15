@@ -853,15 +853,13 @@ async def reset_llm_keys(client: AsyncClient, headers: dict):
     if is_mocked:
         return mock_data.get("credentials", None), mock_data.get("project_id", None)
 
-    response = await client.get("vault/v1/secrets/", headers=headers)
+    response = await client.get("secrets/", headers=headers)
     response.raise_for_status()
 
     response_data = response.json()
 
     for secret in response_data:
-        delete_response = await client.delete(
-            f"vault/v1/secrets/{secret.get('id', '')}"
-        )
+        delete_response = await client.delete(f"secrets/{secret.get('id', '')}")
         delete_response.raise_for_status()
 
 
@@ -872,7 +870,7 @@ async def set_valid_llm_keys(client: AsyncClient, headers: dict):
 
     for api_key_name in list(API_KEYS_MAPPING.keys()):
         response = await client.post(
-            "vault/v1/secrets/",
+            "secrets/",
             json={
                 "header": {"name": API_KEYS_MAPPING[api_key_name], "description": ""},
                 "secret": {
@@ -893,7 +891,7 @@ async def set_invalid_llm_keys(client: AsyncClient, headers: dict):
     if is_mocked:
         return
 
-    response = await client.get("vault/v1/secrets/", headers=headers)
+    response = await client.get("secrets/", headers=headers)
     response.raise_for_status()
 
     response_data = response.json()
@@ -901,7 +899,7 @@ async def set_invalid_llm_keys(client: AsyncClient, headers: dict):
     for secret in response_data:
         provider_name = secret.get("secret", {}).get("data", {}).get("provider")
         response = await client.put(
-            f"vault/v1/secrets/{secret.get('id', '')}",
+            f"secrets/{secret.get('id', '')}",
             json={
                 "header": {"name": provider_name, "description": ""},
                 "secret": {

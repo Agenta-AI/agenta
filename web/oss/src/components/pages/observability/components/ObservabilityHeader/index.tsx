@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SimpleQueue} from "@agenta/entities/simpleQueue"
 import {exportMatchingTraces} from "@agenta/entities/trace/etl"
+import {invalidateEvaluatorsListCache} from "@agenta/entities/workflow"
 import {message, modal} from "@agenta/ui/app-message"
 import {ArrowsClockwiseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Tooltip, Typography} from "antd"
@@ -514,6 +515,7 @@ const ObservabilityHeader = ({
             await onRefresh?.()
         } else {
             await Promise.all([fetchAnnotations(), fetchTraces()])
+            invalidateEvaluatorsListCache()
         }
         setInternalRefreshTrigger((prev) => prev + 1)
     }
