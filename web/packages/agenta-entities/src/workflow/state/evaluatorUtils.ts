@@ -38,6 +38,7 @@ import {
     workflowProjectIdAtom,
     workflowLocalServerDataAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    workflowEntityAtomFamily,
     invalidateWorkflowsListCache,
     type WorkflowListRef,
     toWorkflowListRef,
@@ -252,11 +253,74 @@ export const evaluatorKeyMapAtom = atom<Map<string, string>>((get) => {
     return map
 })
 
+// ============================================================================
+// EVALUATOR WORKFLOW META MAP
+// ============================================================================
+
+/**
+ * Display metadata for an evaluator workflow row in selection UIs.
+ */
+export interface EvaluatorWorkflowMeta {
+    /**
+     * Number of revisions, derived from the latest revision's version number.
+     * Revisions are sequential and v0 is excluded from pickers, so the latest
+     * version number equals the revision count — no full-list fetch needed.
+     */
+    versionCount: number | null
+    /** Workflow-level creation timestamp. */
+    createdAt: string | null
+    /** Workflow-level last-modified timestamp. */
+    updatedAt?: string | null
+}
+
+/**
+ * Derived atom: workflowId → display metadata (version count + timestamps).
+ *
+ * Reads the same batched + cached latest-revision queries as `evaluatorKeyMapAtom`,
+ * so subscribing to this atom adds no extra requests.
+ */
+export const evaluatorWorkflowMetaMapAtom = atom<Map<string, EvaluatorWorkflowMeta>>((get) => {
+    const evaluators = get(nonArchivedEvaluatorsAtom)
+    const map = new Map<string, EvaluatorWorkflowMeta>()
+
+    for (const evaluator of evaluators) {
+        if (!evaluator.id) continue
+
+        const revision = get(workflowLatestRevisionQueryAtomFamily(evaluator.id)).data
+
+        map.set(evaluator.id, {
+            versionCount: revision?.version ?? null,
+            createdAt: evaluator.created_at ?? null,
+            updatedAt: evaluator.updated_at ?? null,
+        })
+    }
+
+    return map
+})
+
+/**
+ * Derived atom family: revisionId → parent evaluator workflow's display name.
+ *
+ * Evaluator revisions are frequently named after their variant (e.g. "default"),
+ * so displaying the revision's own `name` is misleading. This resolves the
+ * revision's `workflow_id` against the evaluator list and returns the parent
+ * workflow's name instead. Returns `null` when the revision's parent isn't an
+ * evaluator (e.g. app revisions) so callers can fall back to the revision name.
+ */
+export const evaluatorNameByRevisionAtomFamily = atomFamily((revisionId: string) =>
+    atom<string | null>((get) => {
+        const revision = get(workflowEntityAtomFamily(revisionId))
+        const workflowId = revision?.workflow_id
+        if (!workflowId) return null
+        const evaluator = get(evaluatorsListDataAtom).find((w) => w.id === workflowId)
+        return evaluator?.name?.trim() || null
+    }),
+)
+
 /**
  * Per-evaluator output-metric schema, keyed for the observability annotation/feedback
  * filter. `properties` is the raw `{ metricKey: jsonSchema }` record from the latest
- * revision's output schema — the same shape `deriveFeedbackValueType` expects, so the
- * filter keeps inspecting each metric's JSON schema (incl. array `items.type`).
+ * revision's output schema.
  */
 export interface EvaluatorFeedbackSchema {
     slug: string | null
@@ -266,14 +330,6 @@ export interface EvaluatorFeedbackSchema {
 
 /**
  * Derived atom: every non-archived evaluator paired with its output-metric properties.
- *
- * Mirrors `evaluatorKeyMapAtom` — iterate the evaluator list, resolve each latest revision
- * (batched + cached by `workflowLatestRevisionQueryAtomFamily`), then derive. The workflow
- * LIST response carries no `data`, so the output schema must come from the revision.
- *
- * Reuses `resolveOutputSchemaProperties`, which unwraps the envelope shape that auto-created
- * feedback evaluators store, so inferred feedback metrics (e.g. `score`, `comment`) surface
- * here just like UI-created ones.
  */
 export const evaluatorFeedbackSchemasAtom = atom<EvaluatorFeedbackSchema[]>((get) => {
     const evaluators = get(nonArchivedEvaluatorsAtom)
@@ -286,8 +342,6 @@ export const evaluatorFeedbackSchemasAtom = atom<EvaluatorFeedbackSchema[]>((get
         if (!revision) continue
 
         result.push({
-            // Artifact-level name/slug (revision.name is the variant name — see
-            // workflow name semantics); revision.data carries the output schema.
             slug: evaluator.slug ?? null,
             name: evaluator.name ?? null,
             properties: resolveOutputSchemaProperties(revision.data) ?? {},

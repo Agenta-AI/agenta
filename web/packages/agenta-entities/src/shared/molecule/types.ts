@@ -691,6 +691,8 @@ export interface ListQueryState<T> {
     isPending: boolean
     isError: boolean
     error: Error | null
+    /** Whether the backing query has completed at least once. */
+    isFetched?: boolean
 }
 
 /**
