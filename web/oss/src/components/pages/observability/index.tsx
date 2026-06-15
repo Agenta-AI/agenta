@@ -1,15 +1,15 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {
+    onboardingWidgetActivationAtom,
+    recordWidgetEventAtom,
+    setOnboardingWidgetActivationAtom,
+} from "@agenta/onboarding/state"
 import {PageLayout} from "@agenta/ui"
 import {Chats, TreeStructure} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {
-    onboardingWidgetActivationAtom,
-    recordWidgetEventAtom,
-    setOnboardingWidgetActivationAtom,
-} from "@/oss/lib/onboarding"
 import {useQueryParamState} from "@/oss/state/appState"
 import {observabilityTabAtom} from "@/oss/state/newObservability/atoms/controls"
 import {currentWorkflowContextAtom} from "@/oss/state/workflow"

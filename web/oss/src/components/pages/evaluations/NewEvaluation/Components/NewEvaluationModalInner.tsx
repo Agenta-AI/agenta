@@ -17,6 +17,7 @@ import {
     invalidateWorkflowsListCache,
     invalidateEvaluatorsListCache,
 } from "@agenta/entities/workflow"
+import {activeTourIdAtom} from "@agenta/onboarding/state"
 import {message} from "@agenta/ui/app-message"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -32,7 +33,7 @@ import useURL from "@/oss/hooks/useURL"
 import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import {redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
 import usePreviewEvaluations from "@/oss/lib/hooks/usePreviewEvaluations"
-import {activeTourIdAtom, currentStepStateAtom} from "@/oss/lib/onboarding"
+import {currentStepStateAtom} from "@/oss/lib/onboarding"
 import {createEvaluation} from "@/oss/services/evaluations/api"
 import {useAppsData} from "@/oss/state/app/hooks"
 import {appIdentifiersAtom} from "@/oss/state/appState"

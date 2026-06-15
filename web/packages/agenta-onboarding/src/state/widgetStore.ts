@@ -1,8 +1,8 @@
 import {atom} from "jotai"
-import {atomFamily, atomWithStorage} from "jotai/utils"
+import {atomWithStorage} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
-import {onboardingStorageUserIdAtom} from "../atoms"
-
+import {onboardingStorageUserIdAtom} from "./atoms"
 import type {OnboardingWidgetConfig, OnboardingWidgetItem, OnboardingWidgetStatus} from "./types"
 
 const STORAGE_KEYS = {
@@ -85,42 +85,16 @@ export const hasSeenCloseTooltipAtom = atom(
     },
 )
 
-export const openWidgetAtom = atom(null, async (get, set) => {
-    let userId = get(onboardingStorageUserIdAtom)
-
-    if (!userId && typeof window !== "undefined") {
-        try {
-            const mod = await import("supertokens-auth-react/recipe/session")
-            const Session = mod.default
-
-            try {
-                userId = await Session.getUserId()
-            } catch {
-                // ignore user id lookup failures
-            }
-
-            if (!userId) {
-                try {
-                    const payload = await Session.getAccessTokenPayloadSecurely()
-                    userId =
-                        typeof payload?.user_id === "string"
-                            ? payload.user_id
-                            : typeof payload?.sub === "string"
-                              ? payload.sub
-                              : null
-                } catch {
-                    // ignore payload lookup failures
-                }
-            }
-
-            if (typeof userId === "string" && userId) {
-                set(onboardingStorageUserIdAtom, userId)
-            }
-        } catch {
-            // ignore user id lookup failures
-        }
-    }
-
+/**
+ * Open the onboarding widget for the current user.
+ *
+ * userId is resolved purely from onboardingStorageUserIdAtom, which the app sets reactively
+ * on session establishment (useSession / usePostAuthRedirect). The previous supertokens
+ * dynamic-import fallback was removed so this package carries no app-auth dependency; if the
+ * userId is not yet populated this is a no-op (the app guarantees it is set post-session).
+ */
+export const openWidgetAtom = atom(null, (get, set) => {
+    const userId = get(onboardingStorageUserIdAtom)
     if (!userId) return
 
     set(onboardingWidgetUIStateAtom, {isOpen: true, isMinimized: false})

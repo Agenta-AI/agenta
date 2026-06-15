@@ -2,19 +2,10 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {useNextStep} from "@agentaai/nextstepjs"
-import {CaretDown, CaretUp, RocketLaunch, X} from "@phosphor-icons/react"
-import {Button, Collapse, message, Typography} from "antd"
-import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
-import {useRouter} from "next/router"
-
-import {openDeploymentsDrawerAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentDrawerStore"
-import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
-import {useSession} from "@/oss/hooks/useSession"
-import useURL from "@/oss/hooks/useURL"
 import {
     activeTourIdAtom,
+    computedExpandedSectionsAtom,
+    firstIncompleteSectionIdAtom,
     hasSeenCloseTooltipAtom,
     isNewUserAtom,
     onboardingWidgetCompletionAtom,
@@ -26,14 +17,21 @@ import {
     setOnboardingWidgetActivationAtom,
     setOnboardingWidgetConfigAtom,
     setWidgetSectionExpandedAtom,
-    tourRegistry,
-    type OnboardingWidgetItem,
-} from "@/oss/lib/onboarding"
-import {
-    computedExpandedSectionsAtom,
-    firstIncompleteSectionIdAtom,
     setWidgetSectionManuallyCollapsedAtom,
-} from "@/oss/lib/onboarding/widget"
+    type OnboardingWidgetItem,
+} from "@agenta/onboarding/state"
+import {useNextStep} from "@agentaai/nextstepjs"
+import {CaretDown, CaretUp, RocketLaunch, X} from "@phosphor-icons/react"
+import {Button, Collapse, message, Typography} from "antd"
+import clsx from "clsx"
+import {useAtomValue, useSetAtom} from "jotai"
+import {useRouter} from "next/router"
+
+import {openDeploymentsDrawerAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentDrawerStore"
+import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
+import {useSession} from "@/oss/hooks/useSession"
+import useURL from "@/oss/hooks/useURL"
+import {tourRegistry} from "@/oss/lib/onboarding"
 import {traceCountAtom, tracesQueryAtom} from "@/oss/state/newObservability/atoms/queries"
 
 import {ANNOTATE_TRACES_TOUR_ID, registerAnnotateTracesTour} from "../tours/annotateTracesTour"

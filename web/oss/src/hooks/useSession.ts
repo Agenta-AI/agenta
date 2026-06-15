@@ -1,12 +1,12 @@
 import {useEffect} from "react"
 
+import {onboardingStorageUserIdAtom} from "@agenta/onboarding/state"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import Session, {signOut} from "supertokens-auth-react/recipe/session"
 import {useSessionContext} from "supertokens-auth-react/recipe/session"
 
-import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import {resetOrganizationData} from "@/oss/state/org"
 import {resetProfileData} from "@/oss/state/profile"
 import {resetProjectData} from "@/oss/state/project"

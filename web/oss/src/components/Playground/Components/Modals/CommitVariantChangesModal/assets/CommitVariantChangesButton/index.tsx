@@ -1,12 +1,11 @@
 import {cloneElement, isValidElement, useCallback, useState} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {recordWidgetEventAtom} from "@agenta/onboarding/state"
 import {FloppyDiskBack, Plus} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
-
-import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 
 import {CommitVariantChangesButtonProps} from "../types"
 const CommitVariantChangesModal = dynamic(() => import("../.."), {ssr: false})

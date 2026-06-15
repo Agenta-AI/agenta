@@ -23,13 +23,13 @@ import {
     TreeSelectPopupContent,
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
+import {recordWidgetEventAtom} from "@agenta/onboarding/state"
 import {playgroundController} from "@agenta/playground"
 import {DownOutlined} from "@ant-design/icons"
 import {Plus} from "@phosphor-icons/react"
 import {Button, Popover, Space} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {selectedAppIdAtom} from "@/oss/state/app"
 
 import RevisionChildTitle from "./components/RevisionChildTitle"

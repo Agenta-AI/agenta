@@ -1,12 +1,11 @@
 import {memo, useEffect, useRef, useState} from "react"
 
+import {recordWidgetEventAtom} from "@agenta/onboarding/state"
 import {CommitMessageInput} from "@agenta/ui"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Modal, Typography} from "antd"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
-
-import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 
 const {Text} = Typography
 const DiffView = dynamic(() => import("@agenta/ui/editor").then((module) => module.DiffView), {

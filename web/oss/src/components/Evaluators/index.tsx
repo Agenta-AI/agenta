@@ -6,6 +6,10 @@ import {
     invalidateEvaluatorsListCache,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {
+    onboardingWidgetActivationAtom,
+    setOnboardingWidgetActivationAtom,
+} from "@agenta/onboarding/state"
 import {workflowRevisionDrawerNavigationIdsAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {PageLayout} from "@agenta/ui"
@@ -20,10 +24,6 @@ import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
-import {
-    onboardingWidgetActivationAtom,
-    setOnboardingWidgetActivationAtom,
-} from "@/oss/lib/onboarding"
 import {appIdentifiersAtom, useQueryParamState} from "@/oss/state/appState"
 import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
 import {getProjectValues} from "@/oss/state/project"

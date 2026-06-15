@@ -1,10 +1,9 @@
 import {memo} from "react"
 
+import type {OnboardingWidgetItem} from "@agenta/onboarding/state"
 import {ArrowRight, CheckCircle, CircleDashed} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-
-import type {OnboardingWidgetItem} from "@/oss/lib/onboarding"
 
 const {Text} = Typography
 

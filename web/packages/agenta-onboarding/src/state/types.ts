@@ -1,3 +1,12 @@
+/**
+ * Pure-state types for the onboarding state/event layer.
+ *
+ * Tour-runtime types (OnboardingStep/OnboardingTour/InternalTour) and CurrentStepState depend
+ * on @agentaai/nextstepjs and intentionally stay in the app
+ * (web/oss/src/lib/onboarding/types.ts) alongside the registry, card, and provider. This
+ * package carries only the framework-free widget/event state.
+ */
+
 export interface OnboardingWidgetItem {
     id: string
     title: string

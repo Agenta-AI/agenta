@@ -1,10 +1,8 @@
-import {useCallback, useMemo} from "react"
+import {useMemo} from "react"
 
 import {executionItemController} from "@agenta/playground"
 import ControlsBar from "@agenta/playground-ui/chat-controls"
-import {useAtomValue, useSetAtom} from "jotai"
-
-import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
+import {useAtomValue} from "jotai"
 
 interface Props {
     logicalId: string
@@ -15,7 +13,11 @@ interface Props {
 }
 
 /**
- * OSS LastTurnFooterControls — reads isAnyRunning from atom and injects onboarding tracking.
+ * OSS LastTurnFooterControls — reads isAnyRunning from atom.
+ *
+ * Onboarding tracking is no longer injected here: ControlsBar (@agenta/playground-ui)
+ * fires the "playground_ran_prompt" event itself, importing recordWidgetEvent from
+ * @agenta/onboarding/state directly.
  */
 const LastTurnFooterControls: React.FC<Props> = ({
     logicalId,
@@ -28,18 +30,12 @@ const LastTurnFooterControls: React.FC<Props> = ({
         useMemo(() => executionItemController.selectors.isAnyRunningForRow(logicalId), [logicalId]),
     ) as boolean
 
-    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
-    const onTrackRun = useCallback(() => {
-        recordWidgetEvent("playground_ran_prompt")
-    }, [recordWidgetEvent])
-
     return (
         <ControlsBar
             isRunning={isAnyRunning}
             onRun={onRun}
             onCancel={onCancelAll}
             onAddMessage={onAddMessage}
-            onTrackRun={onTrackRun}
             className={className ?? "p-3 pl-0"}
         />
     )

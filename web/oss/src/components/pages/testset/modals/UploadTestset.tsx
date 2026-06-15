@@ -1,3 +1,4 @@
+import {recordWidgetEventAtom} from "@agenta/onboarding/state"
 import {UploadOutlined} from "@ant-design/icons"
 import {ArrowLeft, FileCode, FileCsv, Trash} from "@phosphor-icons/react"
 import {Button, Collapse, Form, Input, Typography, Upload, theme} from "antd"
@@ -7,7 +8,6 @@ import {useRouter} from "next/router"
 import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/tableStore"
 import {useTestsetFileUpload} from "@/oss/hooks/useTestsetFileUpload"
 import useURL from "@/oss/hooks/useURL"
-import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {invalidateTestsetsListCache} from "@/oss/state/entities/testset"
 
 const {Text} = Typography

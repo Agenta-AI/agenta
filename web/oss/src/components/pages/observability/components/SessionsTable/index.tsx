@@ -1,13 +1,13 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {isNewUserAtom} from "@agenta/onboarding/state"
+import {onboardingStorageUserIdAtom} from "@agenta/onboarding/state"
 import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
 import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {SessionDrawer} from "@/oss/components/SharedDrawers/SessionDrawer"
-import {isNewUserAtom} from "@/oss/lib/onboarding"
-import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import {SESSIONS_PAGE_SIZE} from "@/oss/state/newObservability"
 import {hasReceivedSessionsAtom} from "@/oss/state/newObservability/atoms/controls"
 import {useSessions} from "@/oss/state/newObservability/hooks/useSessions"

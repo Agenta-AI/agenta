@@ -1,5 +1,6 @@
 import {memo} from "react"
 
+import {setOnboardingWidgetActivationAtom} from "@agenta/onboarding/state"
 import {BranchesOutlined, StopOutlined} from "@ant-design/icons"
 import {Typography} from "antd"
 import {useSetAtom} from "jotai"
@@ -9,7 +10,6 @@ import EmptyState from "@/oss/components/EmptyState"
 import {EMPTY_STATE_VIDEOS} from "@/oss/components/EmptyState/videos"
 import EmptyComponent from "@/oss/components/Placeholders/EmptyComponent"
 import useURL from "@/oss/hooks/useURL"
-import {setOnboardingWidgetActivationAtom} from "@/oss/lib/onboarding"
 
 interface EmptyObservabilityProps {
     showOnboarding?: boolean

@@ -6,6 +6,7 @@ import {
     updateHumanEvaluatorAtom,
     type HumanEvaluatorMetric,
 } from "@agenta/entities/workflow"
+import {recordWidgetEventAtom} from "@agenta/onboarding/state"
 import {message} from "@agenta/ui/app-message"
 import {Plus} from "@phosphor-icons/react"
 import {Alert, Button, Form, Input, Typography} from "antd"
@@ -14,7 +15,6 @@ import {useSetAtom} from "jotai"
 import {useDebounceValue} from "usehooks-ts"
 
 import {isSlugInputValid} from "@/oss/lib/helpers/utils"
-import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {EvaluatorPreviewDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
 import {AnnotateDrawerSteps} from "../enum"

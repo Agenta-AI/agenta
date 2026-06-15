@@ -1,3 +1,4 @@
+import {recordWidgetEventAtom} from "@agenta/onboarding/state"
 import {getDefaultStore} from "jotai"
 
 import {newEvaluationActivePanelAtom} from "@/oss/components/pages/evaluations/NewEvaluation/state/panel"
@@ -5,7 +6,7 @@ import {
     selectedEvalConfigsAtom,
     selectedTestsetIdAtom,
 } from "@/oss/components/pages/evaluations/NewEvaluation/state/selection"
-import {recordWidgetEventAtom, tourRegistry} from "@/oss/lib/onboarding"
+import {tourRegistry} from "@/oss/lib/onboarding"
 import type {OnboardingTour} from "@/oss/lib/onboarding"
 
 /**

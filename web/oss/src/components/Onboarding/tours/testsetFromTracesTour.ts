@@ -1,8 +1,9 @@
+import {recordWidgetEventAtom} from "@agenta/onboarding/state"
 import {getDefaultStore} from "jotai"
 
 import {cascaderValueAtom} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/atoms/cascaderState"
 import {onTestsetSelectAtom} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/atoms/drawerState"
-import {recordWidgetEventAtom, tourRegistry} from "@/oss/lib/onboarding"
+import {tourRegistry} from "@/oss/lib/onboarding"
 import type {OnboardingTour} from "@/oss/lib/onboarding"
 import {selectedRowKeysAtom} from "@/oss/state/newObservability/atoms/controls"
 import {tracesAtom} from "@/oss/state/newObservability/atoms/queries"

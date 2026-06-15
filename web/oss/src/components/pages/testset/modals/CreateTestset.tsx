@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {recordWidgetEventAtom} from "@agenta/onboarding/state"
 import {message} from "@agenta/ui/app-message"
 import {CloseOutlined, FileOutlined, InfoCircleOutlined, InboxOutlined} from "@ant-design/icons"
 import {Code, Table} from "@phosphor-icons/react"
@@ -12,7 +13,6 @@ import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/t
 import useURL from "@/oss/hooks/useURL"
 import {globalErrorHandler} from "@/oss/lib/helpers/errorHandler"
 import {isValidCSVFile, isValidJSONFile} from "@/oss/lib/helpers/fileManipulations"
-import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {GenericObject, JSSTheme} from "@/oss/lib/Types"
 import {uploadTestsetPreview} from "@/oss/services/testsets/api"
 import {invalidateTestsetsListCache} from "@/oss/state/entities/testset"

@@ -2,6 +2,10 @@
 
 import {useEffect} from "react"
 
+import {
+    onboardingWidgetActivationAtom,
+    setOnboardingWidgetActivationAtom,
+} from "@agenta/onboarding/state"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useOnboardingTour} from "@/oss/components/Onboarding"
@@ -14,10 +18,6 @@ import {
     FIRST_EVALUATION_TOUR_ID,
     registerFirstEvaluationTour,
 } from "@/oss/components/Onboarding/tours/firstEvaluationTour"
-import {
-    onboardingWidgetActivationAtom,
-    setOnboardingWidgetActivationAtom,
-} from "@/oss/lib/onboarding"
 
 registerExplorePlaygroundTour()
 registerDeployPromptTour()

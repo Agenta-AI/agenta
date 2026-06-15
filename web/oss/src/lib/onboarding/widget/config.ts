@@ -1,4 +1,4 @@
-import type {OnboardingWidgetConfig} from "./types"
+import type {OnboardingWidgetConfig} from "@agenta/onboarding/state"
 
 export const defaultWidgetConfig: OnboardingWidgetConfig = {
     sections: [

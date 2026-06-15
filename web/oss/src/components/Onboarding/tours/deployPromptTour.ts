@@ -1,6 +1,7 @@
+import {recordWidgetEventAtom} from "@agenta/onboarding/state"
 import {getDefaultStore} from "jotai"
 
-import {recordWidgetEventAtom, tourRegistry} from "@/oss/lib/onboarding"
+import {tourRegistry} from "@/oss/lib/onboarding"
 import type {OnboardingTour} from "@/oss/lib/onboarding"
 
 import {waitForSelectorVisible} from "./firstEvaluationTour"

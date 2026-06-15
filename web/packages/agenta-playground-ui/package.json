@@ -34,6 +34,7 @@
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
         "@agenta/entity-ui": "workspace:../agenta-entity-ui",
+        "@agenta/onboarding": "workspace:../agenta-onboarding",
         "@agenta/playground": "workspace:../agenta-playground",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",

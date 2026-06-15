@@ -1,6 +1,10 @@
 import {useCallback, useEffect, useState} from "react"
 
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
+import {
+    onboardingWidgetActivationAtom,
+    setOnboardingWidgetActivationAtom,
+} from "@agenta/onboarding/state"
 import {PageLayout} from "@agenta/ui"
 import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -9,10 +13,6 @@ import dynamic from "next/dynamic"
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import {welcomeCardsDismissedAtom} from "@/oss/components/pages/app-management/components/WelcomeCardsSection/assets/store/welcomeCards"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
-import {
-    onboardingWidgetActivationAtom,
-    setOnboardingWidgetActivationAtom,
-} from "@/oss/lib/onboarding"
 import {StyleProps} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app"
 

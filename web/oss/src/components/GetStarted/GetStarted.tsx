@@ -1,5 +1,6 @@
 import {useCallback, useMemo} from "react"
 
+import {setOnboardingWidgetActivationAtom} from "@agenta/onboarding/state"
 import {ArrowLeft, Code, Rocket, Sparkle, TreeView} from "@phosphor-icons/react"
 import {Typography, Card, Button} from "antd"
 import {useSetAtom} from "jotai"
@@ -7,7 +8,6 @@ import {useRouter} from "next/router"
 
 import {SetupTracingModalContent} from "@/oss/components/pages/app-management/modals/SetupTracingModal"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-import {setOnboardingWidgetActivationAtom} from "@/oss/lib/onboarding"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 import {RunEvaluationView} from "./views/RunEvaluationView"

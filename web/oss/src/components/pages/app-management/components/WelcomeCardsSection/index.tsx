@@ -1,12 +1,12 @@
 import {useCallback, useMemo} from "react"
 
+import {onboardingWidgetStatusAtom} from "@agenta/onboarding/state"
 import {XIcon} from "@phosphor-icons/react"
 import {Button, Typography, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
-import {onboardingWidgetStatusAtom} from "@/oss/lib/onboarding"
 import {ProjectsResponse} from "@/oss/services/project/types"
 import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"

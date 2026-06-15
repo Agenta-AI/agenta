@@ -1,13 +1,13 @@
 import {type Key, type ReactNode, useCallback, useEffect, useMemo, useState} from "react"
 
+import {isNewUserAtom} from "@agenta/onboarding/state"
+import {onboardingStorageUserIdAtom} from "@agenta/onboarding/state"
 import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
 import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
 import {setTraceDrawerActiveSpanAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import {isNewUserAtom} from "@/oss/lib/onboarding"
-import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
 import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"

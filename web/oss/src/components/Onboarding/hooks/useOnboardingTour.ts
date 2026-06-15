@@ -1,10 +1,11 @@
 import {useCallback, useEffect} from "react"
 
+import {activeTourIdAtom, isNewUserAtom, seenToursAtom} from "@agenta/onboarding/state"
 import {useNextStep} from "@agentaai/nextstepjs"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {TriggerTourOptions} from "@/oss/lib/onboarding"
-import {activeTourIdAtom, isNewUserAtom, seenToursAtom, tourRegistry} from "@/oss/lib/onboarding"
+import {tourRegistry} from "@/oss/lib/onboarding"
 
 import {useTourReducer} from "./useTourReducer"
 

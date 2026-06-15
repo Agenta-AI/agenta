@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo} from "react"
 
 import {publishMutationAtom} from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {recordWidgetEventAtom} from "@agenta/onboarding/state"
 import {message} from "@agenta/ui/app-message"
 import {Rocket} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -9,7 +10,6 @@ import dynamic from "next/dynamic"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 
 import {
     deploySelectedEnvAtom,

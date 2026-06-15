@@ -1,7 +1,7 @@
+import type {OnboardingWidgetItem} from "@agenta/onboarding/state"
 import {getDefaultStore} from "jotai"
 
 import {posthogAtom} from "@/oss/lib/helpers/analytics/store/atoms"
-import type {OnboardingWidgetItem} from "@/oss/lib/onboarding"
 
 interface WidgetAnalyticsPayload {
     taskId?: string

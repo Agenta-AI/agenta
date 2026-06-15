@@ -2,13 +2,13 @@
 import type {Key} from "react"
 
 import {defaultTraceTypeForWorkflow} from "@agenta/entities/workflow"
+import {onboardingStorageUserIdAtom} from "@agenta/onboarding/state"
 import dayjs from "dayjs"
 import {atom} from "jotai"
 import {atomFamily, atomWithStorage} from "jotai/utils"
 
 import type {SortResult} from "@/oss/components/Filters/Sort"
 import type {TestsetTraceData} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/assets/types"
-import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import type {Filter} from "@/oss/lib/Types"
 import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 

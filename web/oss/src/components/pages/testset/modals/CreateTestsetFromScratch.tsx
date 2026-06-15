@@ -1,5 +1,6 @@
 import {useMemo, useState} from "react"
 
+import {recordWidgetEventAtom} from "@agenta/onboarding/state"
 import {message} from "@agenta/ui/app-message"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Input, Typography} from "antd"
@@ -8,7 +9,6 @@ import {useRouter} from "next/router"
 
 import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/tableStore"
 import useURL from "@/oss/hooks/useURL"
-import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {KeyValuePair, TestsetCreationMode} from "@/oss/lib/Types"
 import {cloneTestset, renameTestset} from "@/oss/services/testsets/api"
 import {invalidateTestsetsListCache, type TestsetTableRow} from "@/oss/state/entities/testset"

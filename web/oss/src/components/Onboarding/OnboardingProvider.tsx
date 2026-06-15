@@ -2,6 +2,7 @@
 
 import {useCallback, useEffect, useState} from "react"
 
+import {activeTourIdAtom, markTourSeenAtom, recordWidgetEventAtom} from "@agenta/onboarding/state"
 import {NextStep, NextStepProvider} from "@agentaai/nextstepjs"
 import {useSetAtom} from "jotai"
 
@@ -10,12 +11,7 @@ import {DEPLOY_PROMPT_TOUR_ID} from "@/oss/components/Onboarding/tours/deployPro
 import {EXPLORE_PLAYGROUND_TOUR_ID} from "@/oss/components/Onboarding/tours/explorePlaygroundTour"
 import {FIRST_EVALUATION_TOUR_ID} from "@/oss/components/Onboarding/tours/firstEvaluationTour"
 import {TESTSET_FROM_TRACES_TOUR_ID} from "@/oss/components/Onboarding/tours/testsetFromTracesTour"
-import {
-    tourRegistry,
-    activeTourIdAtom,
-    markTourSeenAtom,
-    recordWidgetEventAtom,
-} from "@/oss/lib/onboarding"
+import {tourRegistry} from "@/oss/lib/onboarding"
 import type {InternalTour} from "@/oss/lib/onboarding/types"
 
 import OnboardingCard from "./OnboardingCard"

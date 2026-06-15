@@ -1,9 +1,8 @@
 import {memo, useMemo} from "react"
 
+import type {OnboardingWidgetItem, OnboardingWidgetSection} from "@agenta/onboarding/state"
 import {CaretDown, CaretUp, Desktop, Flask, NotePencil, TreeView} from "@phosphor-icons/react"
 import {Collapse, Progress, Typography} from "antd"
-
-import type {OnboardingWidgetItem, OnboardingWidgetSection} from "@/oss/lib/onboarding"
 
 import WidgetSectionItem from "./WidgetSectionItem"
 

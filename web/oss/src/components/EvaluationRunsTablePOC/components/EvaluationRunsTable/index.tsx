@@ -1,6 +1,11 @@
 import type {Key, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {
+    onboardingWidgetActivationAtom,
+    recordWidgetEventAtom,
+    setOnboardingWidgetActivationAtom,
+} from "@agenta/onboarding/state"
 import {useQueryClient} from "@tanstack/react-query"
 import {Grid} from "antd"
 import type {TableProps} from "antd/es/table"
@@ -27,11 +32,6 @@ import EmptyStateOnlineEvaluation from "@/oss/components/pages/evaluations/onlin
 import EmptyStateSdkEvaluation from "@/oss/components/pages/evaluations/sdkEvaluation/EmptyStateSdkEvaluation"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
-import {
-    onboardingWidgetActivationAtom,
-    recordWidgetEventAtom,
-    setOnboardingWidgetActivationAtom,
-} from "@/oss/lib/onboarding"
 import {useQueryParamState} from "@/oss/state/appState"
 
 import {

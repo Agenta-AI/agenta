@@ -1,6 +1,10 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {testsetMolecule} from "@agenta/entities/testset"
+import {
+    onboardingWidgetActivationAtom,
+    setOnboardingWidgetActivationAtom,
+} from "@agenta/onboarding/state"
 import {message} from "@agenta/ui/app-message"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArchiveIcon, CaretDown, DownloadSimple} from "@phosphor-icons/react"
@@ -18,10 +22,6 @@ import {
 import TestsetsHeaderFilters from "@/oss/components/TestsetsTable/components/TestsetsHeaderFilters"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import useURL from "@/oss/hooks/useURL"
-import {
-    onboardingWidgetActivationAtom,
-    setOnboardingWidgetActivationAtom,
-} from "@/oss/lib/onboarding"
 import type {TestsetCreationMode} from "@/oss/lib/Types"
 import {downloadTestset, downloadRevision, type ExportFileType} from "@/oss/services/testsets/api"
 import {
