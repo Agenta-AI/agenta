@@ -826,10 +826,14 @@ export const workflowLatestRevisionQueryAtomFamily = atomFamily((workflowId: str
 /**
  * Derived atom family for the latest revision ID of a workflow.
  *
- * Tries to resolve the revision ID from already-cached data first
- * (revisions-by-workflow query), falling back to the dedicated latest
- * revision query only if no cached data is available.
- *`
+ * Priority order:
+ * 1. Dedicated latest-revision query — always correct; skips v0 auto-created
+ *    revisions via `selectMostRecentWorkflowRevision`.
+ * 2. Revisions-by-workflow refs (e.g. primed by the revisions table) — used
+ *    only as a fast-path when the dedicated query has no data yet. Refs are
+ *    sorted descending by recency and v0 is excluded to match the dedicated
+ *    query's semantics.
+ *
  * This avoids duplicating full revision data in memory — the molecule's
  * `workflowQueryAtomFamily(revisionId)` is the single source of truth
  * for revision content.
@@ -838,17 +842,29 @@ export const workflowLatestRevisionIdAtomFamily = atomFamily((workflowId: string
     atom<string | null>((get) => {
         if (!workflowId) return null
 
-        // Try revisions-by-workflow cache first (already fetched by the table)
+        // Prefer the dedicated latest-revision query — it correctly skips v0
+        // auto-created revisions via selectMostRecentWorkflowRevision.
+        const query = get(workflowLatestRevisionQueryAtomFamily(workflowId))
+        if (query.data?.id) return query.data.id
+
+        // Fall back to the revisions-by-workflow cache (e.g. primed by the
+        // revisions table). The raw refs are NOT guaranteed to be ordered, so
+        // sort descending by recency and skip v0 before picking the first.
         const revisionsQuery = get(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
         const refs = revisionsQuery.data?.refs
         if (refs && refs.length > 0) {
-            // Refs are sorted by recency — first is latest
-            return refs[0].id ?? null
+            const sorted = [...refs]
+                .filter((r) => (r.version ?? 0) !== 0)
+                .sort((a, b) => {
+                    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+                    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+                    if (bTime !== aTime) return bTime - aTime
+                    return (b.version ?? 0) - (a.version ?? 0)
+                })
+            return sorted[0]?.id ?? null
         }
 
-        // Fallback to the dedicated latest revision query
-        const query = get(workflowLatestRevisionQueryAtomFamily(workflowId))
-        return query.data?.id ?? null
+        return null
     }),
 )
 
