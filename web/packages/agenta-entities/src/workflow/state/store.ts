@@ -1785,13 +1785,6 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
             serverParams = syncPromptInputKeysInParameters(serverParams) as typeof serverParams
         }
 
-        // No parameters on entity side — check for other data changes
-        if (!entityParams) {
-            if (!entityData.data) return false
-            const dataKeys = Object.keys(entityData.data as Record<string, unknown>)
-            return dataKeys.length > 0
-        }
-
         // Recursively sort object keys for consistent comparison
         // This handles json_schema property order differences
         const sortObjectKeys = (obj: unknown): unknown => {
@@ -1830,9 +1823,18 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
             return sortObjectKeys(normalized)
         }
 
-        // Deep compare normalized parameters using fast-deep-equal
-        const normalizedEntity = normalizeForComparison(entityParams)
-        const normalizedServer = normalizeForComparison(serverParams)
+        // Compare the whole data object (so code/hook fields register as dirty),
+        // keeping parameters normalized to avoid false positives.
+        const normalizeData = (
+            data: Record<string, unknown> | null | undefined,
+            normalizedParams: unknown,
+        ): unknown => {
+            const base = (data ?? {}) as Record<string, unknown>
+            return sortObjectKeys({...base, parameters: normalizeForComparison(normalizedParams)})
+        }
+
+        const normalizedEntity = normalizeData(entityData.data, entityParams)
+        const normalizedServer = normalizeData(serverData.data, serverParams)
         const isDirty = !isEqual(normalizedEntity, normalizedServer)
 
         return isDirty

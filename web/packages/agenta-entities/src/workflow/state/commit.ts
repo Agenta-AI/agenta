@@ -278,9 +278,14 @@ export const commitWorkflowRevisionAtom = atom(
                 variantId: variantId ?? undefined,
                 name: entity.name ?? undefined,
                 message: _commitMessage ?? undefined,
+                // All WorkflowData fields (backend forbids extras), with
+                // parameters/schemas prepared.
                 data: {
                     uri: entity.data.uri,
                     url: entity.data.url,
+                    headers: entity.data.headers,
+                    script: entity.data.script,
+                    runtime: entity.data.runtime,
                     parameters: prepareCommitParameters(entity, flatParams),
                     schemas: prepareCommitSchemas(entity, flatSchemas),
                 },
@@ -451,7 +456,7 @@ export const createWorkflowVariantAtom = atom(
                 },
             })
 
-            // 4. Commit actual data revision (v1) with full parameters
+            // 4. Commit actual data revision (v1) with full data
             const newRevision = await commitWorkflowRevisionApi(projectId, {
                 workflowId,
                 variantId: newVariant.id,
@@ -460,6 +465,9 @@ export const createWorkflowVariantAtom = atom(
                 data: {
                     uri: entity.data.uri,
                     url: entity.data.url,
+                    headers: entity.data.headers,
+                    script: entity.data.script,
+                    runtime: entity.data.runtime,
                     parameters: prepareCommitParameters(entity, flatParams),
                     schemas: prepareCommitSchemas(entity, flatSchemas),
                 },

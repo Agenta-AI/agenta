@@ -20,6 +20,7 @@ import {
     getSchemaAtPath as getSchemaAtPathUtil,
 } from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import type {Workflow} from "@agenta/entities/workflow"
 import type {DataPath} from "@agenta/shared/utils"
 import {getOptionsFromSchema, getValueAtPath, setValueAtPath} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
@@ -287,13 +288,79 @@ function memoAtom<T>(factory: (id: string) => Atom<T>): (id: string) => Atom<T> 
 // DEFAULT ADAPTER (workflowMolecule — direct molecule access)
 // ============================================================================
 
+// `data` fields living beside `parameters` (code/hook config).
+const SIBLING_DATA_FIELDS = ["url", "headers", "script", "runtime"] as const
+type SiblingDataField = (typeof SIBLING_DATA_FIELDS)[number]
+
+function isSiblingDataField(key: unknown): key is SiblingDataField {
+    return typeof key === "string" && (SIBLING_DATA_FIELDS as readonly string[]).includes(key)
+}
+
+// url/headers for custom:hook, script/runtime for custom:code (uri = provider:kind:key:version).
+function allowedSiblingFields(uri: unknown): readonly SiblingDataField[] {
+    if (typeof uri !== "string") return []
+    const [, kind, key] = uri.split(":")
+    if (kind !== "custom") return []
+    if (key === "hook") return ["url", "headers"]
+    if (key === "code") return ["script", "runtime"]
+    return []
+}
+
+// Adapter data: `parameters` + uri-allowed sibling fields hoisted as sections.
+function mergeSiblingFields(
+    config: Record<string, unknown> | null,
+    full: {data?: Record<string, unknown> | null} | null,
+): Record<string, unknown> | null {
+    const fullData = (full?.data ?? null) as Record<string, unknown> | null
+    const allowed = allowedSiblingFields(fullData?.uri)
+    const siblings: Record<string, unknown> = {}
+    if (fullData) {
+        for (const field of allowed) {
+            const value = fullData[field]
+            siblings[field] = value ?? (field === "headers" ? {} : "")
+        }
+    }
+    if (!config && Object.keys(siblings).length === 0) return null
+    return {parameters: (config ?? {}) as Record<string, unknown>, ...siblings}
+}
+
+/** Root path key is a sibling data field (top-level only). */
+function pathTargetsSibling(path: DataPath): boolean {
+    return path.length > 0 && isSiblingDataField(path[0])
+}
+
+// Renderable if there are parameters OR any sibling group (hook/code/schemas),
+// so sibling-only workflows aren't hidden as "No configuration needed".
+function hasRenderableConfigSections(data: unknown): boolean {
+    if (!data || typeof data !== "object") return false
+    const record = data as Record<string, unknown>
+    if (hasParameters(record)) return true
+    return SIBLING_GROUP_KEYS.some((group) => record[group] !== undefined)
+}
+
+// Tagged `{__siblingData}` payloads route to the raw draft action (merges
+// `data`, keeps `parameters`); everything else is a parameter write.
+const configUpdateRouterAtom = atom(
+    null,
+    (_get, set, id: string, changes: Record<string, unknown>) => {
+        const siblingData = (changes as {__siblingData?: Record<string, unknown>}).__siblingData
+        if (siblingData) {
+            set(workflowMolecule.actions.update, id, {data: siblingData} as Partial<Workflow>)
+            return
+        }
+        set(workflowMolecule.actions.updateConfiguration, id, changes)
+    },
+)
+
 /**
  * Build adapter backed by workflowMolecule.
  *
  * Data mapping:
- * - workflowMolecule.selectors.configuration(id) → adapter's `parameters` (for UI display)
- * - workflowMolecule.actions.updateConfiguration → adapter's reducers.update
- * - workflowMolecule.selectors.parametersSchema(id) → adapter's agConfigSchema
+ * - workflowMolecule.selectors.configuration(id) → `parameters` fields (UI display)
+ * - sibling `data.*` fields (script/runtime/url/headers) surfaced alongside,
+ *   read from the full resolved data and written via the raw draft action
+ * - workflowMolecule.actions.updateConfiguration → parameter writes
+ * - workflowMolecule.selectors.parametersSchema(id) → agConfigSchema
  */
 function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
     return {
@@ -301,15 +368,15 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
             data: memoAtom((id: string) =>
                 atom((get) => {
                     const config = get(workflowMolecule.selectors.configuration(id))
-                    if (!config) return null
-                    return {parameters: config as Record<string, unknown>}
+                    const full = get(workflowMolecule.selectors.resolvedData(id))
+                    return mergeSiblingFields(config as Record<string, unknown> | null, full)
                 }),
             ),
             serverData: memoAtom((id: string) =>
                 atom((get) => {
                     const config = get(workflowMolecule.selectors.serverConfiguration(id))
-                    if (!config) return null
-                    return {parameters: config as Record<string, unknown>}
+                    const full = get(workflowMolecule.selectors.data(id))
+                    return mergeSiblingFields(config as Record<string, unknown> | null, full)
                 }),
             ),
             draft: (id: string) => workflowMolecule.atoms.draft(id),
@@ -335,7 +402,7 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
             ),
         },
         reducers: {
-            update: workflowMolecule.actions.updateConfiguration as WritableAtom<
+            update: configUpdateRouterAtom as WritableAtom<
                 unknown,
                 [id: string, changes: Record<string, unknown>],
                 void
@@ -343,36 +410,56 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
             discard: workflowMolecule.actions.discard,
         },
         drillIn: {
+            // Flatten parameter keys + sibling fields to one level (each its own section).
             getRootData: (data: unknown) => {
                 const d = data as {parameters?: Record<string, unknown>} | null
-                const rootData =
-                    d?.parameters && Object.keys(d.parameters).length > 0 ? d.parameters : d
-                return rootData
+                if (!d) return {}
+                const {parameters, ...siblings} = d
+                return {...(parameters ?? {}), ...siblings}
             },
             getRootItems: (data: unknown) => {
                 const d = data as {parameters?: Record<string, unknown>} | null
+                const items: {key: string; name: string; value: unknown}[] = []
                 const params = d?.parameters
-                if (!params || typeof params !== "object") return []
-                return Object.entries(params).map(([key, value]) => ({
-                    key,
-                    name: key,
-                    value,
-                }))
+                if (params && typeof params === "object") {
+                    for (const [key, value] of Object.entries(params)) {
+                        items.push({key, name: key, value})
+                    }
+                }
+                for (const field of SIBLING_DATA_FIELDS) {
+                    if (d && field in d) {
+                        items.push({key: field, name: field, value: d[field as keyof typeof d]})
+                    }
+                }
+                return items
             },
             getValueAtPath: (data: unknown, path: DataPath) => {
                 const d = data as {parameters?: Record<string, unknown>} | null
-                if (!d?.parameters) return undefined
+                if (!d) return undefined
+                if (pathTargetsSibling(path)) return getValueAtPath(d, path)
+                if (!d.parameters) return undefined
                 return getValueAtPath(d.parameters, path)
             },
             getChangesFromPath: (data: unknown, path: DataPath, value: unknown) => {
                 const d = data as {parameters?: Record<string, unknown>} | null
+                if (pathTargetsSibling(path)) {
+                    const next = {...(d ?? {})}
+                    setValueAtPath(next, path, value)
+                    return next
+                }
                 const params = {...(d?.parameters ?? {})}
                 setValueAtPath(params, path, value)
                 return params
             },
-            getChangesFromRoot: (_entity: unknown, rootData: unknown, _path: DataPath) => {
-                // rootData is the updated parameters object
-                return rootData as Record<string, unknown>
+            // rootData is flattened: sibling edits emit a tagged payload, params emit param keys.
+            getChangesFromRoot: (_entity: unknown, rootData: unknown, path: DataPath) => {
+                const root = {...(rootData as Record<string, unknown>)}
+                if (pathTargetsSibling(path)) {
+                    const field = path[0] as SiblingDataField
+                    return {__siblingData: {[field]: root[field]}} as Record<string, unknown>
+                }
+                for (const field of SIBLING_DATA_FIELDS) delete root[field]
+                return root
             },
         },
         selectors: {
@@ -385,6 +472,22 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
     }
 }
 
+// Synthetic schemas to pick a control for sibling fields (absent from the params schema).
+const SIBLING_FIELD_SCHEMA: Record<SiblingDataField, EntitySchemaProperty> = {
+    url: {type: "string", title: "URL", "x-parameter": "text"},
+    headers: {type: "object", title: "Headers", additionalProperties: {type: "string"}},
+    script: {type: "string", title: "Code", "x-parameter": "code"},
+    runtime: {type: "string", title: "Runtime", enum: ["python", "typescript", "javascript"]},
+} as Record<SiblingDataField, EntitySchemaProperty>
+
+function siblingSchemaAtPath(path: (string | number)[]): PathSchema | null {
+    const field = path[0]
+    if (!isSiblingDataField(field)) return null
+    const root = SIBLING_FIELD_SCHEMA[field]
+    if (path.length === 1) return root
+    return getSchemaAtPathUtil(root, path.slice(1)) ?? null
+}
+
 /** Wrap schemaAtPath to work with the adapter's (id, path) → atom interface */
 const moleculeSchemaAtPathCache = new Map<string, Atom<unknown>>()
 function moleculeSchemaAtPath(params: {id: string; path: (string | number)[]}): Atom<unknown> {
@@ -392,6 +495,9 @@ function moleculeSchemaAtPath(params: {id: string; path: (string | number)[]}): 
     let cached = moleculeSchemaAtPathCache.get(key)
     if (!cached) {
         cached = atom((get) => {
+            if (pathTargetsSibling(params.path as DataPath)) {
+                return siblingSchemaAtPath(params.path)
+            }
             const schema = get(workflowMolecule.selectors.parametersSchema(params.id))
             if (!isEntitySchema(schema)) return null
             const resolved = getSchemaAtPathUtil(schema, params.path) ?? null
@@ -495,6 +601,18 @@ function PlaygroundConfigSection({
     }, [useServerData, data, serverData])
 
     const parameters = (activeData?.parameters ?? {}) as Record<string, unknown>
+
+    // Sibling data fields (script/runtime/url/headers) surfaced as sections.
+    const siblingFields = useMemo(() => {
+        const out: Record<string, unknown> = {}
+        const d = activeData as Record<string, unknown> | null
+        if (d) {
+            for (const field of SIBLING_DATA_FIELDS) {
+                if (field in d) out[field] = d[field]
+            }
+        }
+        return out
+    }, [activeData])
 
     // ========== ADAPTER ==========
     // Build adapter with schema support, swapping data source for useServerData
@@ -1322,14 +1440,17 @@ function PlaygroundConfigSection({
                 return null
             }
 
-            // Simple scalar fields and arrays rendered inline by SchemaPropertyRenderer
-            // don't need collapsible section headers — only plain objects do.
-            const fieldValue = parameters[fieldKey]
+            // Sibling fields always get a section header, even when scalar.
+            const isSibling = isSiblingDataField(fieldKey)
+
+            // Scalar/array params render inline (no header); only objects get one.
+            const fieldValue = isSibling ? siblingFields[fieldKey] : parameters[fieldKey]
             if (
-                fieldValue === null ||
-                fieldValue === undefined ||
-                typeof fieldValue !== "object" ||
-                Array.isArray(fieldValue)
+                !isSibling &&
+                (fieldValue === null ||
+                    fieldValue === undefined ||
+                    typeof fieldValue !== "object" ||
+                    Array.isArray(fieldValue))
             ) {
                 return null
             }
@@ -1475,13 +1596,17 @@ function PlaygroundConfigSection({
                 return null
             }
 
-            // Simple scalar fields and inline arrays render directly without HeightCollapse wrapper
+            // Sibling fields get the collapsible body wrapper even when scalar.
+            const isSibling = isSiblingDataField(fieldKey)
+
+            // Scalar/array params render directly, without HeightCollapse.
             const fieldValue = parameters[fieldKey]
             if (
-                fieldValue === null ||
-                fieldValue === undefined ||
-                typeof fieldValue !== "object" ||
-                Array.isArray(fieldValue)
+                !isSibling &&
+                (fieldValue === null ||
+                    fieldValue === undefined ||
+                    typeof fieldValue !== "object" ||
+                    Array.isArray(fieldValue))
             ) {
                 return <div className="px-4 py-1.5">{props.defaultRender()}</div>
             }
