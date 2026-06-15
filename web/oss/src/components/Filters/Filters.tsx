@@ -770,7 +770,7 @@ const Filters: React.FC<Props> = ({
         return {isValid: true}
     })
 
-    const isApplyDisabled = rowValidations.some(({isValid}) => !isValid)
+    const hasInvalidRows = rowValidations.some(({isValid}) => !isValid)
 
     const nonPermanentFilterCount = useMemo(
         () => filter.filter((f) => !f.isPermanent).length,
@@ -832,6 +832,16 @@ const Filters: React.FC<Props> = ({
         setActiveFieldDropdown(null)
         setIsFilterOpen(false)
     }
+
+    // Apply is a no-op when the draft already matches the applied filter (see the
+    // isEqual guard above). In the always-visible inline editor we also disable the
+    // button so it reads as "nothing to apply"; the popover keeps Apply enabled as
+    // its primary close affordance.
+    const isDraftUnchanged = isEqual(
+        sanitizeFilterItems(explodeAnnotationAnyEvaluatorRows(filter)),
+        filterData,
+    )
+    const isApplyDisabled = hasInvalidRows || (inline && isDraftUnchanged)
 
     const getWithinPopover = (trigger: HTMLElement | null) =>
         (trigger && (trigger.closest(".ant-popover") as HTMLElement)) || document.body
