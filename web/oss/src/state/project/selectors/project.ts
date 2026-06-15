@@ -1,5 +1,4 @@
 import {logAtom, projectIdAtom} from "@agenta/shared/state"
-import type {User} from "@agenta/shared/types"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -9,7 +8,6 @@ import {fetchAllProjects} from "@/oss/services/project"
 import {ProjectsResponse} from "@/oss/services/project/types"
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {selectedOrgAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
-import {profileQueryAtom} from "@/oss/state/profile"
 import {sessionExistsAtom} from "@/oss/state/session"
 import {jwtReadyAtom} from "@/oss/state/session/jwt"
 
@@ -97,7 +95,6 @@ export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
     const workspaceId = get(selectedOrgIdAtom)
     const snapshot = get(appStateSnapshotAtom)
     const jwtReady = Boolean((get(jwtReadyAtom) as any)?.data)
-    const hasProfileId = Boolean((get(profileQueryAtom)?.data as User | null)?.id)
     const isAcceptRoute = snapshot.pathname.startsWith("/workspaces/accept")
     return {
         queryKey: ["projects", workspaceId || ""],
@@ -107,11 +104,12 @@ export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: false,
-        // Gate on a usable JWT, not just the session cookie: on reload SuperTokens
-        // reports a session before the access token is readable, which would fire
-        // /projects/ unauthenticated and 401.
-        enabled:
-            get(sessionExistsAtom) && jwtReady && hasProfileId && !isAcceptRoute && !!workspaceId,
+        // Gate on a usable JWT, not just the session cookie. On reload (or with a
+        // stale sessionExistsAtom) SuperTokens reports a session before the access
+        // token is readable; firing /projects/ then 401s. jwtReady resolves in
+        // parallel with /profile/, so this does not reintroduce the sequential
+        // profile-wait that 2ede5faa10 removed to fix the demo-banner cold-load race.
+        enabled: get(sessionExistsAtom) && jwtReady && !isAcceptRoute && !!workspaceId,
     }
 })
 
