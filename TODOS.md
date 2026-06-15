@@ -33,8 +33,15 @@
 - **Context:** The reference data exists, flattened, in the evaluations domain under `QUERY_REFERENCE_KEY = "query_revision"` (`api/oss/src/dbs/postgres/evaluations/utils.py`). Eval runs store `data.steps[].references["query_revision"]`. There is currently NO reverse-lookup endpoint and archive does not block in-use queries (`api/oss/src/core/queries/service.py:844` `archive_query_revision` has no reference check). Verified during the eng review of branch `claude/intelligent-bassi-ca4cc0`.
 - **Depends on / blocked by:** None. Independent of the FE registry; the FE swaps the generic confirm for enumeration when this lands.
 
-### Backend: simple-queries list should return `variant_id` and `revision_id`
-- **What:** `query_simple_queries` (`api/oss/src/core/queries/service.py:~1505`) builds each `SimpleQuery` without `variant_id` / `revision_id` (only id/slug/timestamps/name/data). Populate both, like the create/retrieve responses do.
-- **Why:** The Query Registry's revision-history expand needs `variant_id` to lazy-load a query's revisions (`queries/revisions/query` with `query_variant_refs`). Without it, every row is non-expandable and the expand column renders empty, so the feature was removed from v1.
-- **Context:** The FE already has the pieces (`queryQueryRevisions` in `@agenta/entities/query`, and a deleted `QueryRevisionList` component — easy to restore). Once the list returns `variant_id`, re-add the `expandable` config to `QueryRegistryTable` and the row's `variantId` will drive it. Verified on branch `claude/intelligent-bassi-ca4cc0`.
-- **Depends on / blocked by:** None. Backend-only change unblocks the FE feature.
+### (RESOLVED) Revision-history expand — no backend change needed
+- **What:** The Query Registry's version-history expand is implemented. Each query
+  (artifact) row expands to its earlier revisions, lazy-loaded on first expand.
+- **Resolution:** Revisions are queried by the **artifact ref** (`query_refs: [{id: queryId}]`),
+  not the variant ref — `QueryRevisionQueryRequest` accepts `query_refs`, and the
+  service maps `artifact_refs=query_refs`. Simple queries are single-variant, so this
+  returns the full version history. The earlier assumption that the list must return
+  `variant_id` was wrong; the list already returns the artifact `id` (= queryId), which
+  is all the expand needs.
+- **Nice-to-have (not blocking):** the simple-queries list could still surface
+  `revision_id` so the head row shows its version badge without a fetch, but the expand
+  works without it.

@@ -5,11 +5,19 @@ import {
     ArrowCounterClockwise,
     CopySimple,
     Eye,
+    MinusCircle,
     PencilSimple,
+    PlusCircle,
 } from "@phosphor-icons/react"
-import {Popover, Tag, Typography} from "antd"
+import {Popover, Spin, Tag, Typography} from "antd"
 
 import type {QueryRegistryRow} from "../../store/queryRegistryStore"
+
+/** Controlled expand state for the version-history rows (mirrors the registry table). */
+export interface QueryExpandState {
+    expandedRowKeys: string[]
+    handleExpand: (expanded: boolean, rowKey: string) => void
+}
 
 const {Text} = Typography
 
@@ -115,6 +123,10 @@ export interface QueryColumnActions {
  * Archived tab only restores (editing an archived query is meaningless — it would
  * commit a revision on a soft-deleted artifact).
  */
+/** Revision-history (child) and loader rows carry no per-row actions. */
+const isRevisionRow = (record: QueryRegistryRow) =>
+    Boolean(record.__isRevisionChild || record.__isRevisionLoader)
+
 function buildActionItems(actions: QueryColumnActions, isArchived: boolean) {
     if (isArchived) {
         return [
@@ -122,6 +134,7 @@ function buildActionItems(actions: QueryColumnActions, isArchived: boolean) {
                 key: "restore",
                 label: "Restore",
                 icon: <ArrowCounterClockwise size={16} />,
+                hidden: isRevisionRow,
                 onClick: (record: QueryRegistryRow) => actions.handleRestore?.(record),
             },
         ]
@@ -131,26 +144,30 @@ function buildActionItems(actions: QueryColumnActions, isArchived: boolean) {
             key: "open",
             label: "Open details",
             icon: <Eye size={16} />,
+            hidden: isRevisionRow,
             onClick: (record: QueryRegistryRow) => actions.handleOpen?.(record),
         },
         {
             key: "edit",
             label: "Edit",
             icon: <PencilSimple size={16} />,
+            hidden: isRevisionRow,
             onClick: (record: QueryRegistryRow) => actions.handleEdit?.(record),
         },
         {
             key: "duplicate",
             label: "Duplicate",
             icon: <CopySimple size={16} />,
+            hidden: isRevisionRow,
             onClick: (record: QueryRegistryRow) => actions.handleDuplicate?.(record),
         },
-        {type: "divider" as const},
+        {type: "divider" as const, hidden: isRevisionRow},
         {
             key: "archive",
             label: "Archive",
             icon: <ArchiveIcon size={14} />,
             danger: true,
+            hidden: isRevisionRow,
             onClick: (record: QueryRegistryRow) => actions.handleArchive?.(record),
         },
     ]
@@ -160,6 +177,7 @@ export function createQueryRegistryColumns(
     actions: QueryColumnActions,
     labels?: FieldLabelMap,
     isArchived = false,
+    expandState?: QueryExpandState,
 ) {
     return createStandardColumns<QueryRegistryRow>([
         {
@@ -171,8 +189,46 @@ export function createQueryRegistryColumns(
             columnVisibilityLocked: true,
             render: (_value, record) => {
                 if (record.__isSkeleton) return <SkeletonLine width="70%" />
+                if (record.__isRevisionLoader) {
+                    return (
+                        <div className="flex h-full items-center gap-2 pl-7">
+                            <Spin size="small" />
+                            <Text type="secondary" className="text-xs">
+                                Loading versions…
+                            </Text>
+                        </div>
+                    )
+                }
+                // Revision (child) row: indent to align under the parent, show the
+                // version badge instead of an expand toggle.
+                if (record.__isRevisionChild) {
+                    return (
+                        <div className="flex h-full items-center gap-2 pl-7">
+                            <Text className="text-xs">{record.name}</Text>
+                            {record.version ? (
+                                <Tag className="m-0 text-xs">v{record.version}</Tag>
+                            ) : null}
+                        </div>
+                    )
+                }
+                // Head (parent) row: custom expand toggle + name (mirrors the
+                // workflow registry table, which hides antd's default caret).
+                const isExpanded = expandState?.expandedRowKeys.includes(record.key) ?? false
                 return (
-                    <div className="flex h-full items-center">
+                    <div className="flex h-full items-center gap-2">
+                        {expandState ? (
+                            <button
+                                type="button"
+                                className="flex items-center text-[var(--ant-color-text-secondary)]"
+                                aria-label={isExpanded ? "Hide versions" : "Show versions"}
+                                onClick={(event) => {
+                                    event.stopPropagation()
+                                    expandState.handleExpand(!isExpanded, record.key)
+                                }}
+                            >
+                                {isExpanded ? <MinusCircle size={16} /> : <PlusCircle size={16} />}
+                            </button>
+                        ) : null}
                         <Text className="text-xs font-medium">{record.name}</Text>
                     </div>
                 )
@@ -185,6 +241,7 @@ export function createQueryRegistryColumns(
             width: 260,
             render: (_value, record) => {
                 if (record.__isSkeleton) return <SkeletonLine width="40%" />
+                if (record.__isRevisionLoader) return null
                 const conditions = flattenConditions(record.filtering)
                 if (conditions.length === 0) {
                     return (
@@ -235,6 +292,7 @@ export function createQueryRegistryColumns(
             width: 160,
             render: (_value, record) => {
                 if (record.__isSkeleton) return <SkeletonLine width="50%" />
+                if (record.__isRevisionLoader) return null
                 return (
                     <div className="flex h-full items-center">
                         <Text className="text-xs">{formatDateCell(record.createdAt)}</Text>
@@ -249,6 +307,7 @@ export function createQueryRegistryColumns(
             width: 180,
             render: (_value, record) => {
                 if (record.__isSkeleton) return <SkeletonLine width="50%" />
+                if (record.__isRevisionLoader) return null
                 if (!record.createdById) {
                     return (
                         <div className="flex h-full items-center">

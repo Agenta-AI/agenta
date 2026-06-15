@@ -117,23 +117,26 @@ export interface QueryRevisionSummary {
     message: string | null
 }
 
-export interface QueryRevisionsByVariantParams {
+export interface QueryRevisionsByQueryParams {
     projectId: string
-    variantId: string
+    queryId: string
 }
 
 /**
- * List the revision history of one query variant (newest first), for the
- * registry's lazy expand-on-click. Returns a flat summary per revision.
+ * List the revision history of one query artifact (newest first), for the
+ * registry's lazy expand-on-click. Queries by the artifact ref (`query_refs`) —
+ * simple queries are single-variant, so this is the full version history and
+ * needs no variant id (which the list endpoint doesn't return). Flat per-revision
+ * summary.
  */
 export async function queryQueryRevisions({
     projectId,
-    variantId,
-}: QueryRevisionsByVariantParams): Promise<QueryRevisionSummary[]> {
+    queryId,
+}: QueryRevisionsByQueryParams): Promise<QueryRevisionSummary[]> {
     const client = getAgentaSdkClient({host: getAgentaApiUrl()})
     const response = await client.queries.queryQueryRevisions(
         {
-            query_variant_refs: [{id: variantId}],
+            query_refs: [{id: queryId}],
             windowing: {limit: 100, order: "descending"},
         },
         {queryParams: {project_id: projectId}},

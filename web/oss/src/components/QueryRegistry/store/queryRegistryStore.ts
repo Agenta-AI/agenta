@@ -39,6 +39,14 @@ export interface QueryRegistryRow {
     windowing: unknown
     createdAt: string | null
     createdById: string | null
+    /** Revision version label, shown as a badge on expanded history rows. */
+    version?: string | null
+    /** True for a lazily-loaded revision (child) row in the version-history expand. */
+    __isRevisionChild?: boolean
+    /** Placeholder row shown while a query's revisions are being fetched. */
+    __isRevisionLoader?: boolean
+    /** Injected revision-history rows (antd tree children). */
+    children?: QueryRegistryRow[]
     [k: string]: unknown
 }
 

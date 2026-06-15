@@ -9,7 +9,7 @@ export {
     type QueryMatchingTracesParams,
     queryQueryRevisions,
     type QueryRevisionSummary,
-    type QueryRevisionsByVariantParams,
+    type QueryRevisionsByQueryParams,
 } from "./api"
 export {
     createSimpleQuery,
