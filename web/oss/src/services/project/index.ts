@@ -1,5 +1,5 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {fetchJson, getBaseUrl} from "@/oss/lib/api/assets/fetchClient"
+import {fetchJson, getAuthToken, getBaseUrl} from "@/oss/lib/api/assets/fetchClient"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 
 import {ProjectsResponse} from "./types"
@@ -12,6 +12,9 @@ import {ProjectsResponse} from "./types"
 //  - delete: DELETE data from server
 
 export const fetchAllProjects = async (): Promise<ProjectsResponse[]> => {
+    const token = await getAuthToken()
+    if (!token) return []
+
     const base = getBaseUrl()
     const url = new URL("api/projects", base)
 
@@ -19,6 +22,7 @@ export const fetchAllProjects = async (): Promise<ProjectsResponse[]> => {
         const data = await fetchJson(url)
         return Array.isArray(data) ? data : []
     } catch (error) {
+        if ((error as any)?.status === 401) return []
         console.error("Failed to fetch projects", error)
         return []
     }

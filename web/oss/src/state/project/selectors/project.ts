@@ -1,4 +1,5 @@
 import {logAtom, projectIdAtom} from "@agenta/shared/state"
+import type {User} from "@agenta/shared/types"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -8,7 +9,9 @@ import {fetchAllProjects} from "@/oss/services/project"
 import {ProjectsResponse} from "@/oss/services/project/types"
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {selectedOrgAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
+import {profileQueryAtom} from "@/oss/state/profile"
 import {sessionExistsAtom} from "@/oss/state/session"
+import {jwtReadyAtom} from "@/oss/state/session/jwt"
 
 // Re-export the shared projectIdAtom so all OSS code uses the same atom as entity packages
 export {projectIdAtom}
@@ -93,6 +96,7 @@ export const clearLastUsedProjectId = (workspaceId: string | null) => {
 export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
     const workspaceId = get(selectedOrgIdAtom)
     const snapshot = get(appStateSnapshotAtom)
+    const jwtReady = Boolean((get(jwtReadyAtom) as any)?.data)
     const isAcceptRoute = snapshot.pathname.startsWith("/workspaces/accept")
     return {
         queryKey: ["projects", workspaceId || ""],
@@ -102,14 +106,15 @@ export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: false,
-        // sessionExistsAtom is the actual auth gate. Don't also gate on
-        // profile.data.id — fetchAllProjects() uses session cookies, not
-        // user.id, and the profile gate forced /projects/ to wait for
-        // /profile/ to complete (sequential), producing a visible window
-        // where project?.is_demo is unknown and the demo-workspace banner
-        // can't render on cold reload. Letting both queries fire in
-        // parallel under the same session gate closes that window.
-        enabled: get(sessionExistsAtom) && !isAcceptRoute && !!workspaceId,
+        // Gate on a usable JWT, not just the session cookie: on reload SuperTokens
+        // reports a session before the access token is readable, which would fire
+        // /projects/ unauthenticated and 401.
+        enabled:
+            get(sessionExistsAtom) &&
+            jwtReady &&
+            !!(get(profileQueryAtom)?.data as User)?.id &&
+            !isAcceptRoute &&
+            !!workspaceId,
     }
 })
 

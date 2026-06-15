@@ -91,6 +91,48 @@ export const persistInviteToStorage = (invite: InvitePayload | null) => {
     }
 }
 
+const INVITE_URL_PARAMS = [
+    "token",
+    "email",
+    "organization_id",
+    "workspace_id",
+    "project_id",
+    "survey",
+]
+
+/**
+ * Fully forget a pending invite: clear the atom, storage, and the invite query
+ * params from the URL. Stripping the URL params matters — `syncAuthStateFromUrl`
+ * re-seeds storage from the URL, so clearing storage alone would let the invite
+ * resurrect and bounce the user back to /workspaces/accept.
+ */
+export const clearInvite = () => {
+    const store = getDefaultStore()
+    store.set(activeInviteAtom, null)
+    persistInviteToStorage(null)
+
+    if (!isBrowser) return
+    try {
+        const url = new URL(window.location.href)
+        let changed = false
+        INVITE_URL_PARAMS.forEach((param) => {
+            if (url.searchParams.has(param)) {
+                url.searchParams.delete(param)
+                changed = true
+            }
+        })
+        if (changed) {
+            window.history.replaceState(
+                window.history.state,
+                "",
+                `${url.pathname}${url.search}${url.hash}`,
+            )
+        }
+    } catch (error) {
+        console.error("Failed to clear invite params from URL:", error)
+    }
+}
+
 export const isCurrentAcceptRouteForInvite = (appState: any, invite: InvitePayload) => {
     if (!appState.pathname?.startsWith("/workspaces/accept")) return false
     const tokenParam = appState.query?.token

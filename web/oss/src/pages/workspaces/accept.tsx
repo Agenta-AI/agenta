@@ -15,13 +15,14 @@ import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {useProjectData} from "@/oss/state/project"
 import {jwtReadyAtom} from "@/oss/state/session/jwt"
+import {clearInvite} from "@/oss/state/url/auth"
 import {buildPostLoginPath} from "@/oss/state/url/postLoginRedirect"
 import {activeInviteAtom} from "@/oss/state/url/test"
 
 const processedTokens = new Set<string>()
 
 const Accept: FC = () => {
-    const [invite, , removeInvite] = useLocalStorage<any>("invite", {})
+    const [invite] = useLocalStorage<any>("invite", {})
     const inviteFromState = useAtomValue(activeInviteAtom)
     const {refetch: refetchOrganization, loading: _loadingOrgs} = useOrgData()
     const {refetch: refetchProject, isLoading: _loadingProjects} = useProjectData()
@@ -94,8 +95,7 @@ const Accept: FC = () => {
 
                     const targetWorkspace = workspaceId || organizationId
                     cacheWorkspaceOrgPair(targetWorkspace, organizationId)
-                    store.set(activeInviteAtom, null)
-                    removeInvite()
+                    clearInvite()
                     if (isSurvey) {
                         const redirect = encodeURIComponent(`/w/${targetWorkspace}`)
                         const targetPath = isEE()
@@ -118,47 +118,47 @@ const Accept: FC = () => {
                         await router.replace("/w")
                     }
                 } catch (error: any) {
-                    if (error?.response?.status === 409) {
-                        message.error("You're already a member of this workspace")
+                    const status = error?.response?.status
+                    const detailObj = error?.response?.data?.detail
+                    const code = typeof detailObj === "object" ? detailObj?.error : undefined
+
+                    // INVITE_ALREADY_ACCEPTED (409): OSS consumes the invite at
+                    // signup, so a re-accept by this same user is success, not failure.
+                    if (status === 409 || code === "INVITE_ALREADY_ACCEPTED") {
+                        message.success("Joined workspace!")
                         const targetWorkspace = workspaceId || organizationId
                         cacheWorkspaceOrgPair(targetWorkspace, organizationId)
-                        store.set(activeInviteAtom, null)
-                        removeInvite()
+                        clearInvite()
 
-                        console.log("Redirect to", {
-                            targetWorkspace,
-                            projectId,
-                            route: `/w/${encodeURIComponent(targetWorkspace)}/p/${encodeURIComponent(projectId)}/apps`,
-                        })
                         const nextPath = buildPostLoginPath({
                             workspaceId: targetWorkspace,
                             projectId,
                         })
                         await router.replace(nextPath)
                     } else {
-                        // Show error state instead of staying stuck on loading
+                        // Genuine failure (not found / expired): show the error card.
                         const detailRaw =
-                            (error?.response?.data?.detail as string | undefined) ||
+                            (typeof detailObj === "object" ? detailObj?.message : detailObj) ||
                             (error?.message as string | undefined) ||
                             "Failed to accept invite"
                         const errorMessage = normalizeInviteError(detailRaw)
 
                         console.error("[invite] accept failed", error)
-                        store.set(activeInviteAtom, null)
-                        removeInvite()
+                        clearInvite()
                         setError(errorMessage)
                     }
                 }
             } catch (error: any) {
                 // Treat idempotent scenarios (already a member / already accepted) as success
+                const detailObj = error?.response?.data?.detail
+                const code = typeof detailObj === "object" ? detailObj?.error : undefined
                 const alreadyMember =
                     error?.response?.status === 409 ||
-                    /already a member/i.test(error?.response?.data?.detail || "") ||
-                    /already a member/i.test(error?.message || "") ||
-                    /already accepted/i.test(error?.response?.data?.detail || "")
+                    code === "INVITE_ALREADY_ACCEPTED" ||
+                    /already a member/i.test(error?.message || "")
 
                 const detailRaw =
-                    (error?.response?.data?.detail as string | undefined) ||
+                    (typeof detailObj === "object" ? detailObj?.message : detailObj) ||
                     (error?.message as string | undefined) ||
                     "Failed to accept invite"
                 const detailMessage = normalizeInviteError(
@@ -174,8 +174,7 @@ const Accept: FC = () => {
                     message.error(detailMessage)
                 }
 
-                store.set(activeInviteAtom, null)
-                removeInvite()
+                clearInvite()
                 if (isSurvey) {
                     const redirect = encodeURIComponent(`/w/${workspaceId || organizationId || ""}`)
                     const targetPath = isEE()
@@ -202,12 +201,18 @@ const Accept: FC = () => {
 
     if (error) {
         const handleSignInDifferentAccount = async () => {
+            clearInvite()
             try {
                 await signOut()
             } catch {
                 // ignore sign out errors
             }
             router.replace("/auth")
+        }
+
+        const handleGoBack = () => {
+            clearInvite()
+            router.replace("/w")
         }
 
         return (
@@ -220,9 +225,7 @@ const Accept: FC = () => {
                         {error}
                     </Typography.Paragraph>
                     <div className="flex gap-3 justify-center flex-wrap">
-                        <Button onClick={() => router.replace("/w")}>
-                            Go back to your workspaces
-                        </Button>
+                        <Button onClick={handleGoBack}>Go back to your workspaces</Button>
                         <Button type="primary" onClick={handleSignInDifferentAccount}>
                             Sign in with a different account
                         </Button>

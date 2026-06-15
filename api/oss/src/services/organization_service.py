@@ -11,6 +11,24 @@ from oss.src.utils import emailing
 from oss.src.models.api.workspace_models import InviteRequest, ResendInviteRequest
 
 
+class InviteNotFoundError(Exception):
+    """No invitation matches the org + email + token."""
+
+    code = "INVITE_NOT_FOUND"
+
+
+class InviteExpiredError(Exception):
+    """An invitation exists but has passed its expiration date and was never used."""
+
+    code = "INVITE_EXPIRED"
+
+
+class InviteAlreadyAcceptedError(Exception):
+    """An invitation exists but has already been consumed (e.g. at signup)."""
+
+    code = "INVITE_ALREADY_ACCEPTED"
+
+
 def generate_invitation_token(token_length: int = 16):
     token = secrets.token_urlsafe(token_length)
     return token
@@ -359,26 +377,28 @@ async def accept_organization_invitation(
         HTTPException: If there is an error retrieving the workspace.
     """
 
-    try:
-        user_exists = await db_manager.get_user_with_email(email=email)
-        if user_exists is None:
-            raise HTTPException(status_code=400, detail="User does not exist")
+    user_exists = await db_manager.get_user_with_email(email=email)
+    if user_exists is None:
+        raise HTTPException(status_code=400, detail="User does not exist")
 
-        invitation = await check_valid_organization_invitation(
-            organization_id=organization_id,
-            email=email,
-            token=token,
+    invitation = (
+        await db_manager.get_project_invitation_by_organization_token_and_email(
+            organization_id=organization_id, email=email, token=token
         )
-        if invitation is not None:
-            await db_manager.update_invitation(
-                str(invitation.id), values_to_update={"used": True}
-            )
-            return True
+    )
 
-        else:
-            # Existing invitation is expired
-            raise HTTPException(
-                status_code=400, detail="Invitation has expired or does not exist"
-            )
-    except Exception as e:
-        raise e
+    if invitation is None:
+        raise InviteNotFoundError()
+
+    # OSS consumes the invitation at signup, so the most common "failure" here is
+    # an invitation this same user already accepted. Treat that as idempotent.
+    if invitation.used:
+        raise InviteAlreadyAcceptedError()
+
+    if invitation.expiration_date <= datetime.now(timezone.utc):
+        raise InviteExpiredError()
+
+    await db_manager.update_invitation(
+        str(invitation.id), values_to_update={"used": True}
+    )
+    return True
