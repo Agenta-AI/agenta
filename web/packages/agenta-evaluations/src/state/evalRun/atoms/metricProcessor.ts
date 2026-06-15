@@ -402,19 +402,6 @@ export const createMetricProcessor = ({
     }: MetricProcessorFlushOptions = {}): Promise<MetricProcessorFlushResult> => {
         const {pending, scenarioIds, runLevelFlags, scenarioGaps} = getPendingActions()
 
-        // console.debug("[MetricProcessor] flush called", {
-        //     triggerRefresh,
-        //     pendingCount: pending.length,
-        //     scenarioIdsCount: scenarioIds.length,
-        //     scenarioIds,
-        //     runLevelFlagsCount: runLevelFlags.length,
-        //     scenarioGapsCount: scenarioGaps.length,
-        //     scenarioGaps,
-        //     projectId,
-        //     runId,
-        //     source,
-        // })
-
         if (!pending.length && !runLevelFlags.length && !scenarioGaps.length) {
             metricProcessorDebug.debug("flush: nothing to do, returning empty result")
             return makeEmptyFlushResult()

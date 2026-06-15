@@ -320,7 +320,6 @@ export function useAnnotationState({
     const baselineKey = useMemo(() => JSON.stringify(baseline), [baseline])
     useEffect(() => {
         if (prevBaselineRef.current && prevBaselineRef.current !== baselineKey) {
-            console.log("[useAnnotationState] Baseline changed, clearing matching edits")
             // Baseline changed - clear edits that match the new baseline
             // This happens after a successful save when annotations are refetched
             setMetricEdits((currentEdits) => {
@@ -349,7 +348,6 @@ export function useAnnotationState({
                     }
                 }
 
-                console.log("[useAnnotationState] Remaining edits after cleanup:", remainingEdits)
                 return hasRemainingEdits ? remainingEdits : {}
             })
         }

@@ -274,7 +274,6 @@ const resolveEvaluatorReferenceValue = (
         descriptor.sampleStepType ??
         null
     const evaluatorId = slotValue?.id ?? null
-    console.log("slot", {slot})
     const {projectId} = getRecordIdentifiers(record, defaultProjectId)
     if (!projectId || (!slugCandidate && !evaluatorId)) {
         logExportAction("evaluator reference missing identifiers", {

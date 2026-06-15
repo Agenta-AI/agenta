@@ -508,7 +508,6 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
         const results = new Map<string, any[]>()
 
         for (const [, entry] of groups) {
-            // console.log("entry.needsTemporal", entry.needsTemporal)
             const batchRunIds = Array.from(entry.runIds)
 
             const runLevelResult = await queryEvaluationMetricsBatch({

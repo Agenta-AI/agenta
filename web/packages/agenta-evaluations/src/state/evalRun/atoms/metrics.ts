@@ -357,12 +357,6 @@ export const triggerMetricsRefresh = async ({
             },
             {params: {project_id: projectId}},
         )
-        console.log("[metrics] Metrics refresh triggered", {
-            projectId,
-            runId,
-            scenarioId,
-            levels: scenarioId ? "scenario + run" : "run only",
-        })
     } catch (error) {
         console.warn("[metrics] Metrics refresh failed:", error)
     }
