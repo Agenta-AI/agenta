@@ -1,7 +1,7 @@
-import type {EvaluationStatus} from "@agenta/entities/simpleQueue"
+import type {SimpleQueueStatus} from "@agenta/entities/simpleQueue"
 import {Select} from "antd"
 
-const STATUS_OPTIONS: {value: EvaluationStatus | ""; label: string}[] = [
+const STATUS_OPTIONS: {value: SimpleQueueStatus | ""; label: string}[] = [
     {value: "", label: "All status"},
     {value: "pending", label: "Pending"},
     {value: "queued", label: "Queued"},
@@ -13,8 +13,8 @@ const STATUS_OPTIONS: {value: EvaluationStatus | ""; label: string}[] = [
 ]
 
 interface AnnotationStatusFilterSelectProps {
-    value: EvaluationStatus | null
-    onChange: (value: EvaluationStatus | null) => void
+    value: SimpleQueueStatus | null
+    onChange: (value: SimpleQueueStatus | null) => void
     className?: string
     size?: "small" | "middle" | "large"
     popupMatchSelectWidth?: boolean | number
@@ -31,7 +31,7 @@ const AnnotationStatusFilterSelect = ({
         <Select
             value={value ?? ""}
             onChange={(nextValue) =>
-                onChange(nextValue === "" ? null : (nextValue as EvaluationStatus))
+                onChange(nextValue === "" ? null : (nextValue as SimpleQueueStatus))
             }
             options={STATUS_OPTIONS}
             className={className}

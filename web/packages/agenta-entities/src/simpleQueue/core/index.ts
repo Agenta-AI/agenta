@@ -10,7 +10,7 @@ export {
     simpleQueueKindSchema,
     type SimpleQueueKind,
     evaluationStatusSchema,
-    type EvaluationStatus,
+    type SimpleQueueStatus,
     // Sub-schemas
     simpleQueueSettingsSchema,
     type SimpleQueueSettings,

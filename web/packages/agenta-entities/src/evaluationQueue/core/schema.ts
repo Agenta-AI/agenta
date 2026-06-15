@@ -12,7 +12,7 @@ import {z} from "zod"
 import {timestampFieldsSchema, auditFieldsSchema} from "../../shared"
 
 // Re-export shared evaluation status from simpleQueue
-export {evaluationStatusSchema, type EvaluationStatus} from "../../simpleQueue/core/schema"
+export {evaluationStatusSchema, type SimpleQueueStatus} from "../../simpleQueue/core/schema"
 
 // ============================================================================
 // SUB-SCHEMAS

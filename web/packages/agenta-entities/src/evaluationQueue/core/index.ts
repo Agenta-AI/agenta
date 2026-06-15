@@ -8,7 +8,7 @@
 export {
     // Re-exported shared enum
     evaluationStatusSchema,
-    type EvaluationStatus,
+    type SimpleQueueStatus,
     // Sub-schemas
     evaluationQueueFlagsSchema,
     type EvaluationQueueFlags,

@@ -17,7 +17,7 @@ import {
     OUTPUT_KEYS,
 } from "@agenta/annotation"
 import type {AnnotationColumnDef, ScenarioListColumnDef, SessionView} from "@agenta/annotation"
-import type {EvaluationStatus} from "@agenta/entities/simpleQueue"
+import type {SimpleQueueStatus} from "@agenta/entities/simpleQueue"
 import {
     traceEntityAtomFamily,
     traceRootSpanAtomFamily,
@@ -1466,7 +1466,7 @@ const ScenarioListView = memo(function ScenarioListView({
     )
 
     const [searchTerm, setSearchTerm] = useState("")
-    const [statusFilter, setStatusFilter] = useState<EvaluationStatus | null>(null)
+    const [statusFilter, setStatusFilter] = useState<SimpleQueueStatus | null>(null)
 
     const handleAddToTestset = useCallback(() => {
         if (selectedScenarioIds.length > 0) {

@@ -23,8 +23,12 @@ export const simpleQueueKindSchema = z.enum(["queries", "testsets", "traces", "t
 export type SimpleQueueKind = z.infer<typeof simpleQueueKindSchema>
 
 /**
- * Evaluation status enum (shared with EvaluationRun/Scenario).
- * Maps to backend `EvaluationStatus` enum.
+ * SimpleQueue scenario/queue status enum.
+ *
+ * NOTE: This is the simpleQueue-specific status (7 values: pending/queued/running/
+ * success/failure/errors/cancelled). It is NOT the canonical run/scenario status
+ * `EvaluationStatus` enum exported from `@agenta/entities/evaluationRun` — that one
+ * has a different, larger set of members. Keep the two distinct.
  */
 export const evaluationStatusSchema = z.enum([
     "pending",
@@ -35,7 +39,7 @@ export const evaluationStatusSchema = z.enum([
     "errors",
     "cancelled",
 ])
-export type EvaluationStatus = z.infer<typeof evaluationStatusSchema>
+export type SimpleQueueStatus = z.infer<typeof evaluationStatusSchema>
 
 // ============================================================================
 // SUB-SCHEMAS
