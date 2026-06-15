@@ -65,8 +65,7 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
         isAuthRoute:
             pathname.includes("/auth") ||
             pathname.includes("/post-signup") ||
-            pathname.includes("/get-started") ||
-            pathname.includes("/workspaces"),
+            pathname.includes("/get-started"),
         isAppRoute: routeLayer === "app",
         isPlayground: pathname.includes("/playground"),
         isHumanEval,

@@ -97,6 +97,7 @@ export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
     const workspaceId = get(selectedOrgIdAtom)
     const snapshot = get(appStateSnapshotAtom)
     const jwtReady = Boolean((get(jwtReadyAtom) as any)?.data)
+    const hasProfileId = Boolean((get(profileQueryAtom)?.data as User | null)?.id)
     const isAcceptRoute = snapshot.pathname.startsWith("/workspaces/accept")
     return {
         queryKey: ["projects", workspaceId || ""],
@@ -110,11 +111,7 @@ export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
         // reports a session before the access token is readable, which would fire
         // /projects/ unauthenticated and 401.
         enabled:
-            get(sessionExistsAtom) &&
-            jwtReady &&
-            !!(get(profileQueryAtom)?.data as User)?.id &&
-            !isAcceptRoute &&
-            !!workspaceId,
+            get(sessionExistsAtom) && jwtReady && hasProfileId && !isAcceptRoute && !!workspaceId,
     }
 })
 

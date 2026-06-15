@@ -33,4 +33,7 @@ export const jwtReadyAtom = atomWithQuery<boolean>((get) => ({
     experimental_prefetchInRender: true,
     // JWT rarely changes; cache for a while to avoid extra lookups
     staleTime: 1000 * 60 * 10,
+    // Keep polling while not ready so a late-arriving token flips this to true
+    // instead of leaving downstream gates stuck on a cached false.
+    refetchInterval: (query: any) => (query.state.data ? false : 1000),
 }))

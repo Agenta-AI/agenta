@@ -397,7 +397,8 @@ async def accept_workspace_invitation(
     if invitation.expiration_date <= datetime.now(timezone.utc):
         raise InviteExpiredError()
 
-    assert invitation.role is not None, "Invitation does not have any workspace role"
+    if invitation.role is None:
+        raise ValueError("Invitation does not have any workspace role")
 
     await db_manager_ee.add_user_to_workspace_and_org(
         organization, workspace, user, project_id, invitation.role

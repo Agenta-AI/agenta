@@ -2,7 +2,7 @@ import {useEffect, useRef, useState, type FC} from "react"
 
 import {message} from "@agenta/ui/app-message"
 import {Button, Card, Typography} from "antd"
-import {getDefaultStore, useAtomValue} from "jotai"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
 import {useLocalStorage} from "usehooks-ts"
@@ -10,12 +10,11 @@ import {useLocalStorage} from "usehooks-ts"
 import ContentSpinner from "@/oss/components/Spinner/ContentSpinner"
 import {normalizeInviteError} from "@/oss/lib/helpers/authMessages"
 import {isEE} from "@/oss/lib/helpers/isEE"
+import {getJWT} from "@/oss/services/api"
 import {acceptWorkspaceInvite} from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {useProjectData} from "@/oss/state/project"
-import {sessionExistsAtom} from "@/oss/state/session"
-import {jwtReadyAtom} from "@/oss/state/session/jwt"
 import {clearInvite, persistInviteToStorage} from "@/oss/state/url/auth"
 import {buildPostLoginPath} from "@/oss/state/url/postLoginRedirect"
 import {activeInviteAtom} from "@/oss/state/url/test"
@@ -62,11 +61,14 @@ const Accept: FC = () => {
         if (!accept.current) {
             accept.current = true
             processedTokens.add(token)
-            const store = getDefaultStore()
 
-            // No session means an unauthenticated user pasted the invite link.
-            // Stash the invite and send them to /auth (with redirect back) to sign in/up.
-            if (!store.get(sessionExistsAtom)) {
+            // Source of truth is a real access token, not sessionExistsAtom (which
+            // can read stale-true and render an authed UI without a usable token).
+            // No token => unauthenticated: send to /auth with the invite params at
+            // top level (matching the emailed invite link) so the invite screen
+            // renders with the email pre-filled.
+            const accessToken = await getJWT()
+            if (!accessToken) {
                 accept.current = false
                 processedTokens.delete(token)
                 persistInviteToStorage({
@@ -77,31 +79,16 @@ const Accept: FC = () => {
                     project_id: projectId,
                     survey: isSurvey ? "true" : undefined,
                 })
-                const redirectToPath = encodeURIComponent(router.asPath)
-                await router.replace(`/auth?redirectToPath=${redirectToPath}`)
+                const query: Record<string, string> = {token, organization_id: organizationId}
+                if (email) query.email = email
+                if (workspaceId) query.workspace_id = workspaceId
+                if (projectId) query.project_id = projectId
+                if (isSurvey) query.survey = "true"
+                await router.replace({pathname: "/auth", query})
                 return
             }
 
             try {
-                // Don't wait on the JWT forever; fall through after a timeout.
-                await new Promise<void>((resolve) => {
-                    let unsub: () => void = () => {}
-                    const timer = setTimeout(() => {
-                        unsub()
-                        resolve()
-                    }, 10000)
-                    const check = () => {
-                        const ready = (store.get(jwtReadyAtom) as any)?.data ?? false
-                        if (ready) {
-                            clearTimeout(timer)
-                            unsub()
-                            resolve()
-                        }
-                    }
-                    unsub = store.sub(jwtReadyAtom, check)
-                    check()
-                })
-
                 try {
                     await acceptWorkspaceInvite(
                         {
@@ -146,11 +133,15 @@ const Accept: FC = () => {
                 } catch (error: any) {
                     const status = error?.response?.status
                     const detailObj = error?.response?.data?.detail
-                    const code = typeof detailObj === "object" ? detailObj?.error : undefined
+                    const isObj = detailObj && typeof detailObj === "object"
+                    const code = isObj ? detailObj.error : undefined
 
-                    // INVITE_ALREADY_ACCEPTED (409): OSS consumes the invite at
-                    // signup, so a re-accept by this same user is success, not failure.
-                    if (status === 409 || code === "INVITE_ALREADY_ACCEPTED") {
+                    // INVITE_ALREADY_ACCEPTED: OSS consumes the invite at signup, so a
+                    // re-accept by this same user is success. Key on the typed code;
+                    // fall back to bare 409 only when the code is missing.
+                    const alreadyAccepted =
+                        code === "INVITE_ALREADY_ACCEPTED" || (code === undefined && status === 409)
+                    if (alreadyAccepted) {
                         message.success("Joined workspace!")
                         const targetWorkspace = workspaceId || organizationId
                         cacheWorkspaceOrgPair(targetWorkspace, organizationId)
@@ -164,7 +155,7 @@ const Accept: FC = () => {
                     } else {
                         // Genuine failure (not found / expired): show the error card.
                         const detailRaw =
-                            (typeof detailObj === "object" ? detailObj?.message : detailObj) ||
+                            (isObj ? detailObj.message : detailObj) ||
                             (error?.message as string | undefined) ||
                             "Failed to accept invite"
                         const errorMessage = normalizeInviteError(detailRaw)
@@ -177,14 +168,15 @@ const Accept: FC = () => {
             } catch (error: any) {
                 // Treat idempotent scenarios (already a member / already accepted) as success
                 const detailObj = error?.response?.data?.detail
-                const code = typeof detailObj === "object" ? detailObj?.error : undefined
+                const isObj = detailObj && typeof detailObj === "object"
+                const code = isObj ? detailObj.error : undefined
                 const alreadyMember =
-                    error?.response?.status === 409 ||
                     code === "INVITE_ALREADY_ACCEPTED" ||
+                    (code === undefined && error?.response?.status === 409) ||
                     /already a member/i.test(error?.message || "")
 
                 const detailRaw =
-                    (typeof detailObj === "object" ? detailObj?.message : detailObj) ||
+                    (isObj ? detailObj.message : detailObj) ||
                     (error?.message as string | undefined) ||
                     "Failed to accept invite"
                 const detailMessage = normalizeInviteError(
