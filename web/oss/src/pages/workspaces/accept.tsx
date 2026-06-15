@@ -142,7 +142,7 @@ const Accept: FC = () => {
                     const alreadyAccepted =
                         code === "INVITE_ALREADY_ACCEPTED" || (code === undefined && status === 409)
                     if (alreadyAccepted) {
-                        message.success("Joined workspace!")
+                        message.success("Already joined!")
                         const targetWorkspace = workspaceId || organizationId
                         cacheWorkspaceOrgPair(targetWorkspace, organizationId)
                         clearInvite()
@@ -185,7 +185,7 @@ const Accept: FC = () => {
                 )
 
                 if (alreadyMember) {
-                    message.info("You are already a member of this workspace")
+                    message.info("Already joined!")
                     cacheWorkspaceOrgPair(workspaceId || organizationId, organizationId)
                 } else {
                     console.error("[invite] accept failed", error)
