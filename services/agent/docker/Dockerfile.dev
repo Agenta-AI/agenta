@@ -1,0 +1,28 @@
+# Pi harness sidecar (WP-2), dev image.
+#
+# Runs the TypeScript Pi wrapper as an HTTP server. The Python agent service calls
+# it in-network. Source is bind-mounted in dev so `tsx watch` hot-reloads; node_modules
+# stays baked into the image. Build context is services/agent.
+
+FROM node:24-slim
+
+WORKDIR /app
+
+RUN corepack enable
+
+# Install deps as a cached layer (manifest + lockfile only).
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# Fallback copy for non-mounted runs; in dev these are bind-mounted over.
+COPY tsconfig.json ./
+COPY src ./src
+
+ENV NODE_ENV=development \
+    PORT=8765
+
+EXPOSE 8765
+
+# Call the local tsx binary directly to avoid pnpm/corepack HOME writes when the
+# container runs as a non-root host uid.
+CMD ["node_modules/.bin/tsx", "watch", "src/server.ts"]

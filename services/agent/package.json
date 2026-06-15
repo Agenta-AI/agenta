@@ -1,0 +1,27 @@
+{
+  "name": "agenta-agent-pi-wrapper",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.30.0",
+  "description": "WP-2: thin TypeScript wrapper that drives the Pi agent harness for one run. Reads a JSON request on stdin, returns a JSON result on stdout.",
+  "scripts": {
+    "run:cli": "tsx src/cli.ts",
+    "serve": "tsx src/server.ts",
+    "serve:watch": "tsx watch src/server.ts",
+    "login": "pi"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "0.79.4",
+    "@opentelemetry/api": "1.9.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "0.54.0",
+    "@opentelemetry/resources": "1.28.0",
+    "@opentelemetry/sdk-trace-base": "1.28.0",
+    "@opentelemetry/sdk-trace-node": "1.28.0",
+    "@opentelemetry/semantic-conventions": "1.28.0"
+  },
+  "devDependencies": {
+    "tsx": "4.19.2",
+    "@types/node": "22.10.2"
+  }
+}

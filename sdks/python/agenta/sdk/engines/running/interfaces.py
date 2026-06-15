@@ -524,6 +524,42 @@ chat_v0_interface = WorkflowRevisionData(
     ),
 )
 
+agent_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:agent:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                "model": scalar(
+                    jtype="string",
+                    default="gpt-5.5",
+                    description="Model the agent runs on.",
+                ),
+                "agents_md": scalar(
+                    jtype="string",
+                    default=(
+                        "You are a friendly hello-world agent running on the "
+                        "Agenta agent service.\n\n- Greet the user warmly.\n- "
+                        "Answer the user's message in one or two short sentences."
+                    ),
+                    description="The agent's instructions (AGENTS.md).",
+                ),
+            },
+            additional_properties=True,
+        ),
+        inputs=llm_inputs_schema(
+            include_messages=True,
+        ),
+        outputs={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            **semantic_field(
+                x_ag_type_ref="message",
+                jtype="object",
+                description="Final assistant message returned by the agent.",
+            ),
+        },
+    ),
+)
+
 completion_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:completion:v0",
     schemas=dict(  # type: ignore

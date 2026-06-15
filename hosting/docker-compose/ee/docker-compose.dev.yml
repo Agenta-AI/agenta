@@ -394,6 +394,8 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+            # Agent workflow (WP-2): reach the Pi harness sidecar in-network.
+            AGENTA_AGENT_PI_URL: http://agent-pi:8765
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -408,6 +410,40 @@ services:
             - "traefik.http.routers.services.middlewares=services-strip"
             - "traefik.http.services.services.loadbalancer.server.port=8080"
             - "traefik.http.routers.services.service=services"
+        # === LIFECYCLE ============================================ #
+        restart: always
+
+    agent-pi:
+        # === IMAGE ================================================ #
+        # Pi harness sidecar for the agent workflow (WP-2). The services container
+        # calls it in-network at http://agent-pi:8765 (AGENTA_AGENT_PI_URL).
+        build:
+            context: ../../../services/agent
+            dockerfile: docker/Dockerfile.dev
+        # === EXECUTION ============================================ #
+        # No file watcher (the box's inotify limit is shared across stacks). Copy the
+        # read-only mounted Pi login into a writable path so OAuth refresh stays
+        # in-container.
+        command: >
+            sh -c "mkdir -p /pi-agent && cp -a /pi-agent-ro/. /pi-agent/ 2>/dev/null || true;
+            exec node_modules/.bin/tsx src/server.ts"
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            PORT: "8765"
+            PI_CODING_AGENT_DIR: /pi-agent
+            # Tracing export fallback (used when a request carries no usable OTLP
+            # credential). Must be reachable from this container.
+            AGENTA_HOST: ${AGENTA_HOST:-http://144.76.237.122:8280}
+            AGENTA_API_KEY: ${AGENTA_API_KEY:-}
+        # === STORAGE ============================================== #
+        volumes:
+            - ../../../services/agent/src:/app/src
+            - ${HOME}/.pi/agent:/pi-agent-ro:ro
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
         # === LIFECYCLE ============================================ #
         restart: always
 
