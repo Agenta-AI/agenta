@@ -4,7 +4,10 @@ import {atomFamily} from "jotai/utils"
 import {deriveEvaluationKind, type EvaluationRunKind} from "../../../core"
 import {evaluationRunQueryAtomFamily} from "../atoms/table/run"
 
-export type PreviewEvaluationType = "auto" | "human" | "online" | null
+// Derived from the canonical EvaluationRunKind (single source of truth in core).
+// The run-details preview surface only distinguishes auto/human/online (never the
+// "custom"/SDK kind), so it excludes that member; nullable while the run is unloaded.
+export type PreviewEvaluationType = Exclude<EvaluationRunKind, "custom"> | null
 
 /**
  * Base atom for storing the evaluation type.
