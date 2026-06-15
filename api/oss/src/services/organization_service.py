@@ -29,6 +29,16 @@ class InviteAlreadyAcceptedError(Exception):
     code = "INVITE_ALREADY_ACCEPTED"
 
 
+class InviteEmailMismatchError(Exception):
+    """The signed-in user's email does not match the invitation's email."""
+
+    code = "INVITE_EMAIL_MISMATCH"
+
+    def __init__(self, invited_email: str):
+        self.invited_email = invited_email
+        super().__init__(f"Invitation is addressed to {invited_email}.")
+
+
 def generate_invitation_token(token_length: int = 16):
     token = secrets.token_urlsafe(token_length)
     return token
@@ -311,6 +321,7 @@ async def accept_organization_invitation(
     token: str,
     organization_id: str,
     email: str,
+    session_email: str,
 ) -> bool:
     """
     Accept an invitation to a workspace.
@@ -318,7 +329,8 @@ async def accept_organization_invitation(
     Args:
         token (str): The invitation token.
         organization_id (str): The ID of the organization that the workspace belongs to.
-        user_uid (str): The user uid.
+        email (str): The email the invitation is addressed to (from the link).
+        session_email (str): The signed-in user's email (the actor).
 
     Returns:
         bool: True if the user was successfully added to the workspace, False otherwise
@@ -339,6 +351,12 @@ async def accept_organization_invitation(
 
     if invitation is None:
         raise InviteNotFoundError()
+
+    # The signed-in user must be the invitee. Reject before any state check so a
+    # different logged-in user (e.g. the org owner) can't consume someone else's
+    # invite or get a misleading "already joined".
+    if (invitation.email or "").lower() != (session_email or "").lower():
+        raise InviteEmailMismatchError(invited_email=invitation.email)
 
     # OSS consumes the invitation at signup, so the most common "failure" here is
     # an invitation this same user already accepted. Treat that as idempotent.

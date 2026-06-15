@@ -30,6 +30,7 @@ from oss.src.services.organization_service import (
     InviteNotFoundError,
     InviteExpiredError,
     InviteAlreadyAcceptedError,
+    InviteEmailMismatchError,
 )
 from ee.src.services.organization_service import send_invitation_email
 from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
@@ -378,18 +379,25 @@ async def accept_workspace_invitation(
         HTTPException: If there is an error retrieving the workspace.
     """
 
+    # Resolve the invite by token alone so we can compare its addressee against
+    # the signed-in user before any membership check. Looking up by user.email
+    # would hide a wrong-account attempt behind a "not found".
+    invitation = await db_manager.get_project_invitation_by_token(project_id, token)
+
+    if invitation is None:
+        raise InviteNotFoundError()
+
+    # The signed-in user must be the invitee. Reject before the already-member
+    # short-circuit so the org owner using someone else's link doesn't get a
+    # misleading "already joined".
+    if (invitation.email or "").lower() != (user.email or "").lower():
+        raise InviteEmailMismatchError(invited_email=invitation.email)
+
     # Already a member: idempotent success regardless of invitation state.
     if await db_manager_ee.check_user_in_workspace_with_email(
         user.email, str(workspace.id)
     ):
         raise InviteAlreadyAcceptedError()
-
-    invitation = await db_manager.get_project_invitation_by_token_and_email(
-        project_id, token, user.email
-    )
-
-    if invitation is None:
-        raise InviteNotFoundError()
 
     if invitation.used:
         raise InviteAlreadyAcceptedError()

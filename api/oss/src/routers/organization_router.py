@@ -18,6 +18,7 @@ from oss.src.services.organization_service import (
     InviteNotFoundError,
     InviteExpiredError,
     InviteAlreadyAcceptedError,
+    InviteEmailMismatchError,
 )
 from oss.src.models.api.workspace_models import (
     InviteRequest,
@@ -418,11 +419,20 @@ async def accept_organization_invitation(
                 token=payload.token,
                 organization_id=organization_id,
                 email=payload.email,
+                session_email=request.state.user_email,
             )
     except InviteNotFoundError as e:
         raise HTTPException(
             status_code=400,
             detail={"error": e.code, "message": "Invitation does not exist."},
+        ) from e
+    except InviteEmailMismatchError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": e.code,
+                "message": "Invitation is addressed to a different user.",
+            },
         ) from e
     except InviteExpiredError as e:
         raise HTTPException(

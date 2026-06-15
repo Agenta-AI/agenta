@@ -8,7 +8,7 @@ import {signOut} from "supertokens-auth-react/recipe/session"
 import {useLocalStorage} from "usehooks-ts"
 
 import ContentSpinner from "@/oss/components/Spinner/ContentSpinner"
-import {normalizeInviteError} from "@/oss/lib/helpers/authMessages"
+import {inviteErrorMessageFromCode} from "@/oss/lib/helpers/authMessages"
 import {isEE} from "@/oss/lib/helpers/isEE"
 import {getJWT} from "@/oss/services/api"
 import {acceptWorkspaceInvite} from "@/oss/services/workspace/api"
@@ -101,7 +101,7 @@ const Accept: FC = () => {
                         true,
                     )
 
-                    message.success("Joined workspace!")
+                    message.success("You joined a new workspace!")
 
                     await refetchOrganization()
                     await refetchProject()
@@ -142,7 +142,7 @@ const Accept: FC = () => {
                     const alreadyAccepted =
                         code === "INVITE_ALREADY_ACCEPTED" || (code === undefined && status === 409)
                     if (alreadyAccepted) {
-                        message.success("Already joined!")
+                        message.success("You already joined this workspace.")
                         const targetWorkspace = workspaceId || organizationId
                         cacheWorkspaceOrgPair(targetWorkspace, organizationId)
                         clearInvite()
@@ -153,12 +153,12 @@ const Accept: FC = () => {
                         })
                         await router.replace(nextPath)
                     } else {
-                        // Genuine failure (not found / expired): show the error card.
+                        // Genuine failure (mismatch / not found / expired): show the error card.
                         const detailRaw =
                             (isObj ? detailObj.message : detailObj) ||
                             (error?.message as string | undefined) ||
                             "Failed to accept invite"
-                        const errorMessage = normalizeInviteError(detailRaw)
+                        const errorMessage = inviteErrorMessageFromCode(code, detailRaw)
 
                         console.error("[invite] accept failed", error)
                         clearInvite()
@@ -179,13 +179,10 @@ const Accept: FC = () => {
                     (isObj ? detailObj.message : detailObj) ||
                     (error?.message as string | undefined) ||
                     "Failed to accept invite"
-                const detailMessage = normalizeInviteError(
-                    detailRaw,
-                    "We couldn't finish joining this workspace, but you may already be a member.",
-                )
+                const detailMessage = inviteErrorMessageFromCode(code, detailRaw)
 
                 if (alreadyMember) {
-                    message.info("Already joined!")
+                    message.info("You already joined this workspace.")
                     cacheWorkspaceOrgPair(workspaceId || organizationId, organizationId)
                 } else {
                     console.error("[invite] accept failed", error)
