@@ -6,6 +6,15 @@ and returns a structured assessment — a technical-skills match, an
 experience match, and an overall hire/no-hire recommendation, each with a
 short reason, plus the list of missing must-have requirements.
 
+## Walkthrough video
+
+[![Watch the CV screening walkthrough](https://img.youtube.com/vi/zZJfqkc608M/hqdefault.jpg)](https://www.youtube.com/watch?v=zZJfqkc608M)
+
+The video walks through the full loop end to end: a recruiter flags a bad
+screening, an AI engineer fixes the prompt in the playground, evaluates it,
+and deploys. See [Close the loop](#6-close-the-loop-from-feedback-to-a-deployed-fix)
+below for the written version.
+
 The split between Agenta and the application code follows the pattern we
 recommend for production:
 
