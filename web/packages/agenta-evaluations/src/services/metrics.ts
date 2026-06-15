@@ -25,6 +25,8 @@ export interface UpsertScenarioMetricDataParams {
     scenarioId: string
     /** Metric data to store (stepKey -> metricKey -> metricData) */
     data: Record<string, Record<string, unknown>>
+    /** Optional explicit project id; defaults to the active project from the store. */
+    projectId?: string
 }
 
 /**
@@ -37,8 +39,9 @@ export const upsertScenarioMetricData = async ({
     runId,
     scenarioId,
     data,
+    projectId: projectIdParam,
 }: UpsertScenarioMetricDataParams): Promise<unknown> => {
-    const projectId = getDefaultStore().get(projectIdAtom)
+    const projectId = projectIdParam ?? getDefaultStore().get(projectIdAtom)
     if (!projectId) return null
 
     // First, query existing metrics for this scenario

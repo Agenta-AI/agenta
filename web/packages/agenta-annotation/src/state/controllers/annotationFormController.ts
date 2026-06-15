@@ -59,6 +59,7 @@ import {
 } from "@agenta/entities/simpleQueue"
 import {fetchPreviewTrace, type TraceSpan} from "@agenta/entities/trace"
 import {type Workflow} from "@agenta/entities/workflow"
+import {upsertScenarioMetricData} from "@agenta/evaluations/services"
 import {
     computeBaseline,
     resolveEvaluators,
@@ -270,10 +271,8 @@ async function upsertAnnotationMetrics({
     outputs: Record<string, unknown>
     stepKey: string
 }) {
-    const apiUrl = getAgentaApiUrl()
-
-    // Build metric data for each output key
-    const metricsForStep: Record<string, unknown> = {}
+    // Build metric data for each output key (annotation-specific shaping).
+    const metricsForStep: Record<string, Record<string, unknown>> = {}
     for (const [metricName, value] of Object.entries(outputs)) {
         if (value === null || value === undefined) continue
         const metricData = buildMetricDataFromValue(value)
@@ -283,50 +282,14 @@ async function upsertAnnotationMetrics({
 
     if (Object.keys(metricsForStep).length === 0) return
 
-    const data = {[stepKey]: metricsForStep}
-
-    // Query existing metrics for this scenario
-    let existingMetric: {id?: string; data?: Record<string, unknown>; status?: string} | null = null
-    try {
-        const queryResponse = await axios.post(
-            `${apiUrl}/evaluations/metrics/query`,
-            {
-                metrics: {run_ids: [runId], scenario_ids: [scenarioId]},
-                windowing: {},
-            },
-            {params: {project_id: projectId}},
-        )
-        const existingMetrics = Array.isArray(queryResponse?.data?.metrics)
-            ? queryResponse.data.metrics
-            : []
-        existingMetric =
-            existingMetrics.find(
-                (m: Record<string, unknown>) => (m?.scenario_id || m?.scenarioId) === scenarioId,
-            ) ?? null
-    } catch {
-        // Ignore query errors
-    }
-
-    // Merge with existing data
-    const mergedData = {...(existingMetric?.data || {}), ...data}
-
-    // The setter upserts on the natural key (run_id, scenario_id), so a single
-    // POST handles both create and edit — no `id` needed. The existence query
-    // above is still required: it supplies the data to merge into.
-    await axios.post(
-        `${apiUrl}/evaluations/metrics/`,
-        {
-            metrics: [
-                {
-                    run_id: runId,
-                    scenario_id: scenarioId,
-                    data: mergedData,
-                    status: existingMetric?.status || "success",
-                },
-            ],
-        },
-        {params: {project_id: projectId}},
-    )
+    // Persistence (query existing → merge → upsert on natural key) is shared with
+    // the eval run-details annotate flow.
+    await upsertScenarioMetricData({
+        projectId,
+        runId,
+        scenarioId,
+        data: {[stepKey]: metricsForStep},
+    })
 }
 
 /**
