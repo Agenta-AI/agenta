@@ -1,0 +1,287 @@
+import {useCallback, useEffect, useMemo, useState} from "react"
+
+import {
+    countMatchingTraces,
+    createSimpleQuery,
+    editSimpleQuery,
+    invalidateQueryCache,
+    type SimpleQueryCreate,
+    type SimpleQueryEdit,
+} from "@agenta/entities/query"
+import {projectIdAtom} from "@agenta/shared/state"
+import {message} from "@agenta/ui/app-message"
+import {Button, Form, Input, Typography} from "antd"
+import {useAtom, useAtomValue} from "jotai"
+
+import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
+import {
+    fromFilteringPayload,
+    parseSamplingRate,
+    toFilteringPayload,
+    toWindowingPayload,
+} from "@/oss/components/pages/evaluations/onlineEvaluation/assets/helpers"
+import QueryEditor from "@/oss/components/pages/evaluations/onlineEvaluation/components/QueryEditor"
+import getFilterColumns from "@/oss/components/pages/observability/assets/getFilterColumns"
+import type {Filter} from "@/oss/lib/Types"
+import type {
+    QueryFilteringPayload,
+    QueryRevisionDataPayload,
+} from "@/oss/services/onlineEvaluations/api"
+
+import {queryRegistryActiveRowAtom} from "../store/queryRegistryFilterAtoms"
+import {invalidateQueryRegistryStore} from "../store/queryRegistryStore"
+
+import QueryTracePreview from "./QueryTracePreview"
+
+const {Text} = Typography
+
+type MatchState =
+    | {status: "idle"}
+    | {status: "loading"}
+    | {status: "done"; count: number}
+    | {status: "error"}
+
+const MATCH_DEBOUNCE_MS = 400
+
+/**
+ * Manage drawer for a single query. Reuses the shared QueryEditor (filter +
+ * sampling) inside its own Form context, hydrating from the SimpleQuery row the
+ * registry already loaded (no re-fetch). Edit commits a new head revision;
+ * create makes a new query. A live debounced match-count (D3) executes the
+ * in-progress filter against the trace store so an empty filter is caught at
+ * edit time.
+ */
+const QueryRegistryDrawer = () => {
+    const projectId = useAtomValue(projectIdAtom)
+    const [activeRow, setActiveRow] = useAtom(queryRegistryActiveRowAtom)
+    const [form] = Form.useForm()
+    const filterColumns = useMemo(() => getFilterColumns(), [])
+    const [filters, setFilters] = useState<Filter[]>([])
+    const [saving, setSaving] = useState(false)
+    const [matchState, setMatchState] = useState<MatchState>({status: "idle"})
+    const [showPreview, setShowPreview] = useState(false)
+    // Snapshot of the editable state when the drawer opened — used to disable Save
+    // until the user actually changes something.
+    const [initialSnapshot, setInitialSnapshot] = useState<{
+        name: string
+        filteringKey: string
+        rate: number
+    } | null>(null)
+
+    const watchedName = Form.useWatch("name", form)
+    const watchedRate = Form.useWatch("sampling_rate", form)
+
+    const open = activeRow !== null
+    const isCreate = !activeRow?.queryId
+
+    // Stable filtering payload for the preview — recomputed only when the filter
+    // conditions change, so the preview table doesn't refetch on every render.
+    const previewFiltering = useMemo(() => toFilteringPayload(filters), [filters])
+    const filteringKey = useMemo(() => JSON.stringify(previewFiltering ?? null), [previewFiltering])
+
+    // Create: enabled once a name is typed. Edit: enabled only when name, filter,
+    // or sampling rate differ from what was loaded.
+    const isDirty = isCreate
+        ? Boolean((watchedName ?? "").trim())
+        : initialSnapshot !== null &&
+          ((watchedName ?? "") !== initialSnapshot.name ||
+              filteringKey !== initialSnapshot.filteringKey ||
+              Number(watchedRate) !== initialSnapshot.rate)
+
+    useEffect(() => {
+        if (!open || !activeRow) return
+        const hydratedFilters = fromFilteringPayload(
+            (activeRow.filtering ?? null) as QueryFilteringPayload | null,
+        )
+        setFilters(hydratedFilters)
+        const rawRate = (activeRow.windowing as {rate?: number} | null)?.rate
+        const rate = typeof rawRate === "number" ? Math.round(rawRate * 100) : 100
+        form.setFieldsValue({name: activeRow.name, sampling_rate: rate, historical: false})
+        // Capture the baseline through the same toFilteringPayload path the dirty
+        // check uses, so a clean round-trip never reads as dirty.
+        setInitialSnapshot({
+            name: activeRow.name ?? "",
+            filteringKey: JSON.stringify(toFilteringPayload(hydratedFilters) ?? null),
+            rate,
+        })
+    }, [open, activeRow, form])
+
+    // D3: live debounced match-count. Executes the in-progress filter against the
+    // trace store so a filter that matches nothing is caught at edit time. Cancels
+    // the in-flight request on every keystroke via AbortController.
+    useEffect(() => {
+        if (!open || !projectId) {
+            setMatchState({status: "idle"})
+            return
+        }
+        // No conditions = no filter (would count every trace), so show nothing
+        // until the user actually builds a filter.
+        const filtering = toFilteringPayload(filters)
+        if (!filtering) {
+            setMatchState({status: "idle"})
+            return
+        }
+        const controller = new AbortController()
+        setMatchState({status: "loading"})
+        const timer = setTimeout(() => {
+            countMatchingTraces({projectId, filtering, abortSignal: controller.signal})
+                .then((count) => setMatchState({status: "done", count: count ?? 0}))
+                .catch(() => {
+                    if (controller.signal.aborted) return
+                    setMatchState({status: "error"})
+                })
+        }, MATCH_DEBOUNCE_MS)
+        return () => {
+            clearTimeout(timer)
+            controller.abort()
+        }
+    }, [open, projectId, filters])
+
+    const close = useCallback(() => {
+        setActiveRow(null)
+        setFilters([])
+        setMatchState({status: "idle"})
+        setShowPreview(false)
+        setInitialSnapshot(null)
+        form.resetFields()
+    }, [setActiveRow, form])
+
+    let matchLabel: string | null = null
+    let matchIsEmpty = false
+    if (matchState.status === "loading") {
+        matchLabel = "Matching…"
+    } else if (matchState.status === "error") {
+        matchLabel = "Couldn't check matches"
+    } else if (matchState.status === "done") {
+        matchIsEmpty = matchState.count === 0
+        matchLabel = matchIsEmpty
+            ? "0 traces match — this filter is empty"
+            : `~${matchState.count} trace${matchState.count === 1 ? "" : "s"} match`
+    }
+
+    const handleSave = useCallback(async () => {
+        if (!projectId || !activeRow) return
+
+        let values: {name: string; sampling_rate?: unknown}
+        try {
+            values = await form.validateFields()
+        } catch {
+            return // antd surfaces field errors inline
+        }
+
+        setSaving(true)
+        try {
+            const filtering = toFilteringPayload(filters)
+            const windowing = toWindowingPayload({
+                samplingRate: parseSamplingRate(values.sampling_rate),
+                historicalRange: undefined,
+            })
+            const data: QueryRevisionDataPayload = {}
+            if (filtering) data.filtering = filtering
+            if (windowing) data.windowing = windowing
+            const dataField = Object.keys(data).length ? data : undefined
+
+            if (isCreate) {
+                await createSimpleQuery({
+                    projectId,
+                    query: {
+                        name: values.name,
+                        ...(dataField ? {data: dataField as SimpleQueryCreate["data"]} : {}),
+                    },
+                })
+                message.success("Query created")
+            } else {
+                await editSimpleQuery({
+                    projectId,
+                    queryId: activeRow.queryId,
+                    query: {
+                        name: values.name,
+                        ...(dataField ? {data: dataField as SimpleQueryEdit["data"]} : {}),
+                    },
+                })
+                message.success("Query updated")
+            }
+
+            invalidateQueryRegistryStore()
+            invalidateQueryCache()
+            close()
+        } catch {
+            message.error(isCreate ? "Could not create query" : "Could not save query")
+        } finally {
+            setSaving(false)
+        }
+    }, [projectId, activeRow, form, filters, isCreate, close])
+
+    return (
+        <EnhancedDrawer
+            title={<span>{isCreate ? "New query" : "Edit query"}</span>}
+            open={open}
+            onClose={close}
+            width={showPreview ? 960 : 520}
+            destroyOnHidden
+            closeOnLayoutClick={false}
+            styles={{body: {padding: 0}, footer: {padding: 8}}}
+            footer={
+                <div className="flex w-full items-center justify-end gap-2">
+                    <Button onClick={close}>Cancel</Button>
+                    <Button
+                        type="primary"
+                        onClick={handleSave}
+                        loading={saving}
+                        disabled={!isDirty}
+                    >
+                        {isCreate ? "Create" : "Save"}
+                    </Button>
+                </div>
+            }
+        >
+            <Form
+                form={form}
+                layout="vertical"
+                requiredMark={false}
+                className="p-4"
+                initialValues={{historical: false, sampling_rate: 100}}
+            >
+                <Form.Item
+                    name="name"
+                    label="Name"
+                    rules={[{required: true, message: "Enter a name"}]}
+                >
+                    <Input placeholder="Query name" />
+                </Form.Item>
+                <QueryEditor
+                    inlineFilters
+                    filters={filters}
+                    onFiltersChange={setFilters}
+                    filterColumns={filterColumns}
+                />
+                <div className="mt-3 flex items-center justify-between gap-3">
+                    {matchLabel ? (
+                        <div aria-live="polite">
+                            <Text type={matchIsEmpty ? "warning" : "secondary"} className="text-xs">
+                                {matchLabel}
+                            </Text>
+                        </div>
+                    ) : (
+                        <span />
+                    )}
+                    <Button
+                        type="link"
+                        size="small"
+                        className="px-0 text-xs"
+                        onClick={() => setShowPreview((v) => !v)}
+                    >
+                        {showPreview ? "Hide matching traces" : "Show matching traces"}
+                    </Button>
+                </div>
+            </Form>
+            {showPreview ? (
+                <div className="flex h-[360px] flex-col border-t border-solid border-[var(--ant-color-border-secondary)]">
+                    <QueryTracePreview projectId={projectId} filtering={previewFiltering} />
+                </div>
+            ) : null}
+        </EnhancedDrawer>
+    )
+}
+
+export default QueryRegistryDrawer

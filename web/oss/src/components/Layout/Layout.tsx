@@ -55,6 +55,8 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     const isAnnotations = pathname.includes("/annotations")
     const isRegistry = pathname.includes("/variants")
     const isObservability = pathname.includes("/observability") || pathname.includes("/traces")
+    // The Query Registry hosts a full-height InfiniteVirtualTable, like Observability.
+    const isQueries = pathname.includes("/queries")
     // The Audit Log settings tab hosts a full-height InfiniteVirtualTable.
     // Scoped to the `tab` query param so other settings tabs keep the default
     // (content-flow) layout.
@@ -78,6 +80,7 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
             isAnnotations ||
             isRegistry ||
             isObservability ||
+            isQueries ||
             isAuditLog,
     }
 })

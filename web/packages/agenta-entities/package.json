@@ -46,6 +46,7 @@
         "./trace/etl": "./src/trace/etl/index.ts",
         "./testset": "./src/testset/index.ts",
         "./testcase": "./src/testcase/index.ts",
+        "./query": "./src/query/index.ts",
         "./event": "./src/event/index.ts",
         "./event/state": "./src/event/state/index.ts",
         "./secret": "./src/secret/index.ts",

@@ -4,6 +4,7 @@ import {
     DatabaseIcon,
     DesktopIcon,
     FlaskIcon,
+    FunnelIcon,
     PaperPlaneIcon,
     PhoneIcon,
     QuestionIcon,
@@ -104,6 +105,13 @@ export const useSidebarConfig = () => {
             title: "Observability",
             link: `${projectURL}/observability`,
             icon: <ChartLineUpIcon size={14} />,
+            disabled: !hasProjectURL,
+        },
+        {
+            key: "project-queries-link",
+            title: "Queries",
+            link: `${projectURL}/queries`,
+            icon: <FunnelIcon size={14} />,
             disabled: !hasProjectURL,
         },
         {
