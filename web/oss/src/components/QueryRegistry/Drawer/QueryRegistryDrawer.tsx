@@ -1,17 +1,18 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     countMatchingTraces,
     createSimpleQuery,
-    editSimpleQuery,
     invalidateQueryCache,
+    queryMolecule,
+    saveQueryHeadAtom,
+    type QueryRevision,
     type SimpleQueryCreate,
-    type SimpleQueryEdit,
 } from "@agenta/entities/query"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {Button, Form, Input, Typography} from "antd"
-import {useAtom, useAtomValue} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {
@@ -60,33 +61,28 @@ const QueryRegistryDrawer = () => {
     const [saving, setSaving] = useState(false)
     const [matchState, setMatchState] = useState<MatchState>({status: "idle"})
     const [showPreview, setShowPreview] = useState(false)
-    // Snapshot of the editable state when the drawer opened — used to disable Save
-    // until the user actually changes something.
-    const [initialSnapshot, setInitialSnapshot] = useState<{
-        name: string
-        filteringKey: string
-        rate: number
-    } | null>(null)
 
     const watchedName = Form.useWatch("name", form)
     const watchedRate = Form.useWatch("sampling_rate", form)
 
     const open = activeRow !== null
+    const queryId = activeRow?.queryId ?? ""
     const isCreate = !activeRow?.queryId
+
+    // Edit mode is backed by the query molecule (committed head revision + draft).
+    // It owns the real, semantic dirty diff and the commit; create stays on the
+    // one-shot createSimpleQuery path.
+    const [editState] = queryMolecule.useController(queryId)
+    const syncDraft = useSetAtom(queryMolecule.reducers.update)
+    const discardDraft = useSetAtom(queryMolecule.reducers.discard)
+    const saveQueryHead = useSetAtom(saveQueryHeadAtom)
 
     // Stable filtering payload for the preview — recomputed only when the filter
     // conditions change, so the preview table doesn't refetch on every render.
     const previewFiltering = useMemo(() => toFilteringPayload(filters), [filters])
-    const filteringKey = useMemo(() => JSON.stringify(previewFiltering ?? null), [previewFiltering])
 
-    // Create: enabled once a name is typed. Edit: enabled only when name, filter,
-    // or sampling rate differ from what was loaded.
-    const isDirty = isCreate
-        ? Boolean((watchedName ?? "").trim())
-        : initialSnapshot !== null &&
-          ((watchedName ?? "") !== initialSnapshot.name ||
-              filteringKey !== initialSnapshot.filteringKey ||
-              Number(watchedRate) !== initialSnapshot.rate)
+    // Create: enabled once a name is typed. Edit: the molecule's semantic isDirty.
+    const isDirty = isCreate ? Boolean((watchedName ?? "").trim()) : editState.isDirty
 
     useEffect(() => {
         if (!open || !activeRow) return
@@ -97,14 +93,42 @@ const QueryRegistryDrawer = () => {
         const rawRate = (activeRow.windowing as {rate?: number} | null)?.rate
         const rate = typeof rawRate === "number" ? Math.round(rawRate * 100) : 100
         form.setFieldsValue({name: activeRow.name, sampling_rate: rate, historical: false})
-        // Capture the baseline through the same toFilteringPayload path the dirty
-        // check uses, so a clean round-trip never reads as dirty.
-        setInitialSnapshot({
-            name: activeRow.name ?? "",
-            filteringKey: JSON.stringify(toFilteringPayload(hydratedFilters) ?? null),
-            rate,
-        })
     }, [open, activeRow, form])
+
+    // Mirror the live form state into the molecule draft (edit only). The molecule
+    // derives the semantic dirty diff against the committed head revision, so we
+    // only sync once the server data is loaded, and skip no-op writes via a key
+    // guard to avoid a render loop.
+    const lastSyncedRef = useRef<string>("")
+    useEffect(() => {
+        if (isCreate || !open || !editState.serverData) return
+        const draft = {
+            name: watchedName ?? "",
+            data: {
+                filtering: toFilteringPayload(filters) ?? undefined,
+                windowing:
+                    toWindowingPayload({
+                        samplingRate: parseSamplingRate(watchedRate),
+                        historicalRange: undefined,
+                    }) ?? undefined,
+            },
+        }
+        const key = JSON.stringify(draft)
+        if (key === lastSyncedRef.current) return
+        lastSyncedRef.current = key
+        // OSS filtering/windowing payloads are structurally the entity's revision
+        // data; the cast bridges the two nominal package types.
+        syncDraft(queryId, draft as unknown as Partial<QueryRevision>)
+    }, [
+        isCreate,
+        open,
+        editState.serverData,
+        watchedName,
+        watchedRate,
+        filters,
+        queryId,
+        syncDraft,
+    ])
 
     // D3: live debounced match-count. Executes the in-progress filter against the
     // trace store so a filter that matches nothing is caught at edit time. Cancels
@@ -138,13 +162,14 @@ const QueryRegistryDrawer = () => {
     }, [open, projectId, filters])
 
     const close = useCallback(() => {
+        if (queryId) discardDraft(queryId)
+        lastSyncedRef.current = ""
         setActiveRow(null)
         setFilters([])
         setMatchState({status: "idle"})
         setShowPreview(false)
-        setInitialSnapshot(null)
         form.resetFields()
-    }, [setActiveRow, form])
+    }, [setActiveRow, form, queryId, discardDraft])
 
     let matchLabel: string | null = null
     let matchIsEmpty = false
@@ -191,14 +216,13 @@ const QueryRegistryDrawer = () => {
                 })
                 message.success("Query created")
             } else {
-                await editSimpleQuery({
-                    projectId,
-                    queryId: activeRow.queryId,
-                    query: {
-                        name: values.name,
-                        ...(dataField ? {data: dataField as SimpleQueryEdit["data"]} : {}),
-                    },
-                })
+                // Commit through the molecule: flush the validated values into the
+                // draft, then save (commits a new head revision + clears the draft).
+                syncDraft(queryId, {
+                    name: values.name,
+                    data: {filtering: filtering ?? undefined, windowing: windowing ?? undefined},
+                } as unknown as Partial<QueryRevision>)
+                await saveQueryHead({projectId, queryId})
                 message.success("Query updated")
             }
 
@@ -210,7 +234,7 @@ const QueryRegistryDrawer = () => {
         } finally {
             setSaving(false)
         }
-    }, [projectId, activeRow, form, filters, isCreate, close])
+    }, [projectId, activeRow, form, filters, isCreate, close, queryId, syncDraft, saveQueryHead])
 
     return (
         <EnhancedDrawer
