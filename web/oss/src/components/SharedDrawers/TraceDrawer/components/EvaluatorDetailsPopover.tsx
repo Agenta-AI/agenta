@@ -39,7 +39,8 @@ const EvaluatorDetailsPopover = ({
     children,
 }: EvaluatorDetailsPopoverProps) => {
     const {buildEvaluatorTarget} = useEvaluatorNavigation()
-    const latestRevisionId = useAtomValue(workflowLatestRevisionQueryAtomFamily(evaluator?.id || "")).data?.id ?? null
+    const latestRevisionId =
+        useAtomValue(workflowLatestRevisionQueryAtomFamily(evaluator?.id || "")).data?.id ?? null
 
     const evaluatorName = evaluator?.name || fallbackLabel
     const evaluatorId =
