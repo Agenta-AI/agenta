@@ -4,7 +4,7 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .application_revision import ApplicationRevision
+from .application_revision_output import ApplicationRevisionOutput
 
 
 class ApplicationRevisionsResponse(UniversalBaseModel):
@@ -16,7 +16,7 @@ class ApplicationRevisionsResponse(UniversalBaseModel):
     Number of revisions in this page.
     """
     
-    application_revisions: typing.Optional[typing.List[ApplicationRevision]] = pydantic.Field(default=None)
+    application_revisions: typing.Optional[typing.List[ApplicationRevisionOutput]] = pydantic.Field(default=None)
     """
     Application revisions matching the query or log.
     """

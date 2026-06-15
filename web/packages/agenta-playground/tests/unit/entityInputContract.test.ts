@@ -7,10 +7,14 @@
  * protected-column collector looked only at `<input>_key` settings. The
  * evaluator then ran without `guidelines`.
  *
- * `collectTestcaseServerColumns` regression (#4647): the strict row clean
+ * `collectTestsetServerColumns` regression (#4647): the strict row clean
  * deleted a synced test set's columns the prompt didn't reference, emptying
- * the "unused testcase columns" footer on Run. The server snapshot's columns
- * are intentional data and must survive the clean.
+ * the "unused testcase columns" footer on Run. The server snapshots' columns
+ * are intentional data and must survive the clean. The collection is
+ * test-set-scoped (union across all server rows) so rows that joined the
+ * test set locally — a draft kept through "Keep and load", a row added while
+ * connected — are protected too; per-row protection wiped their filled
+ * test set columns on Run.
  *
  * The atom sources (workflow + testcase molecules) are mocked so the tests
  * stay pure function checks: each selector returns a token the fake getter
@@ -32,7 +36,7 @@ vi.mock("@agenta/entities/workflow", () => ({
 }))
 
 // Keep the real module (other packages in the import graph use
-// `testcaseMolecule.atoms`); only `serverData` returns a token the fake
+// `testcaseMolecule.atoms`); `serverData` and `ids` return tokens the fake
 // getter resolves against fixtures. `isSystemField` stays the real one.
 vi.mock("@agenta/entities/testcase", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/entities/testcase")>()
@@ -40,6 +44,7 @@ vi.mock("@agenta/entities/testcase", async (importOriginal) => {
         ...actual,
         testcaseMolecule: {
             ...actual.testcaseMolecule,
+            ids: {__testcaseIds: "ids"},
             selectors: {
                 ...actual.testcaseMolecule.selectors,
                 serverData: (rowId: string) => ({__serverDataFor: rowId}),
@@ -50,7 +55,7 @@ vi.mock("@agenta/entities/testcase", async (importOriginal) => {
 
 import {
     collectDownstreamReferencedColumns,
-    collectTestcaseServerColumns,
+    collectTestsetServerColumns,
     reconcileRowDataForEntity,
 } from "../../src/state/helpers/entityInputContract"
 
@@ -60,6 +65,8 @@ interface TestNode {
 }
 
 interface GetterFixtures {
+    /** Connected test set's server row ids — resolved for `testcaseMolecule.ids`. */
+    testcaseIds?: string[]
     serverDataByRow?: Record<string, {data?: Record<string, unknown> | null} | null>
     entityById?: Record<string, unknown>
     modeById?: Record<string, "chat" | "completion">
@@ -75,6 +82,7 @@ function makeGet(
         const t = token as Record<string, string | undefined> | null
         if (!t) return null
         if (t.__configFor) return configByEntity[t.__configFor] ?? null
+        if (t.__testcaseIds) return fixtures.testcaseIds ?? []
         if (t.__serverDataFor) return fixtures.serverDataByRow?.[t.__serverDataFor] ?? null
         if (t.__dataFor) return fixtures.entityById?.[t.__dataFor] ?? null
         if (t.__modeFor) return fixtures.modeById?.[t.__modeFor]
@@ -210,11 +218,12 @@ describe("collectDownstreamReferencedColumns", () => {
     })
 })
 
-describe("collectTestcaseServerColumns", () => {
+describe("collectTestsetServerColumns", () => {
     it("returns the connected test set's non-system columns", () => {
         const get = makeGet(
             {},
             {
+                testcaseIds: ["tc1"],
                 serverDataByRow: {
                     tc1: {
                         data: {
@@ -229,38 +238,61 @@ describe("collectTestcaseServerColumns", () => {
             },
         )
 
-        const columns = collectTestcaseServerColumns(get, "tc1")
+        const columns = collectTestsetServerColumns(get)
 
         expect([...columns].sort()).toEqual(["capital", "country"])
+    })
+
+    it("unions columns across all server rows of the test set", () => {
+        const get = makeGet(
+            {},
+            {
+                testcaseIds: ["tc1", "tc2"],
+                serverDataByRow: {
+                    tc1: {data: {country: "France"}},
+                    tc2: {data: {country: "Spain", expected_output: "Madrid"}},
+                },
+            },
+        )
+
+        const columns = collectTestsetServerColumns(get)
+
+        expect([...columns].sort()).toEqual(["country", "expected_output"])
     })
 
     it("excludes chat transport keys so the chat-to-completion strip is preserved", () => {
         const get = makeGet(
             {},
             {
+                testcaseIds: ["tc1"],
                 serverDataByRow: {
                     tc1: {data: {messages: [{role: "user", content: "hi"}], country: "France"}},
                 },
             },
         )
 
-        const columns = collectTestcaseServerColumns(get, "tc1")
+        const columns = collectTestsetServerColumns(get)
 
         expect(columns.has("messages")).toBe(false)
         expect(columns.has("country")).toBe(true)
     })
 
-    it("returns an empty set when the row has no server data (local row)", () => {
-        const get = makeGet({}, {serverDataByRow: {tc1: null}})
+    it("returns an empty set in local mode (no server ids)", () => {
+        const get = makeGet({}, {testcaseIds: []})
 
-        expect(collectTestcaseServerColumns(get, "tc1").size).toBe(0)
+        expect(collectTestsetServerColumns(get).size).toBe(0)
     })
 
-    it("returns an empty set for a missing row id", () => {
-        const get = makeGet({})
+    it("skips rows whose server snapshot is missing", () => {
+        const get = makeGet(
+            {},
+            {
+                testcaseIds: ["tc1", "tc2"],
+                serverDataByRow: {tc1: null, tc2: {data: {country: "Spain"}}},
+            },
+        )
 
-        expect(collectTestcaseServerColumns(get, undefined).size).toBe(0)
-        expect(collectTestcaseServerColumns(get, null).size).toBe(0)
+        expect([...collectTestsetServerColumns(get)]).toEqual(["country"])
     })
 })
 
@@ -276,10 +308,11 @@ describe("reconcileRowDataForEntity with protected server columns", () => {
             {},
             {
                 ...completionAppFixtures,
+                testcaseIds: ["tc1"],
                 serverDataByRow: {tc1: {data: {country: "France", capital: "Paris"}}},
             },
         )
-        const serverColumns = collectTestcaseServerColumns(get, "tc1")
+        const serverColumns = collectTestsetServerColumns(get)
 
         const result = reconcileRowDataForEntity(
             get,
@@ -288,7 +321,7 @@ describe("reconcileRowDataForEntity with protected server columns", () => {
                 country: "France",
                 capital: "Paris",
                 // Stale local key from a previously selected chat app — not in
-                // the server snapshot, so it must still be cleaned (#4525).
+                // any server snapshot, so it must still be cleaned (#4525).
                 messages: [{role: "user", content: "hi"}],
             },
             {protectedKeys: serverColumns},
@@ -299,9 +332,35 @@ describe("reconcileRowDataForEntity with protected server columns", () => {
         expect(result.data).toEqual({country: "France", capital: "Paris"})
     })
 
-    it("drops unreferenced columns when the row has no server snapshot", () => {
-        const get = makeGet({}, completionAppFixtures)
-        const serverColumns = collectTestcaseServerColumns(get, "local-1")
+    it("keeps a test set column filled on a row that joined the test set locally", () => {
+        // A draft kept through "Keep and load" has no server snapshot of its
+        // own, but the test set's columns (here `capital`, carried by tc1's
+        // snapshot) are intentional data for it too — the clean must not wipe
+        // the value the user just filled.
+        const get = makeGet(
+            {},
+            {
+                ...completionAppFixtures,
+                testcaseIds: ["tc1"],
+                serverDataByRow: {tc1: {data: {country: "France", capital: "Paris"}}},
+            },
+        )
+        const serverColumns = collectTestsetServerColumns(get)
+
+        const result = reconcileRowDataForEntity(
+            get,
+            "app",
+            {country: "Spain", capital: "Madrid"},
+            {protectedKeys: serverColumns},
+        )
+
+        expect(result.dropped).toEqual([])
+        expect(result.data).toEqual({country: "Spain", capital: "Madrid"})
+    })
+
+    it("drops unreferenced columns in local mode (no connected test set)", () => {
+        const get = makeGet({}, {...completionAppFixtures, testcaseIds: []})
+        const serverColumns = collectTestsetServerColumns(get)
 
         const result = reconcileRowDataForEntity(
             get,

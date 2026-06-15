@@ -1310,7 +1310,7 @@ class GitDAO(GitDAOInterface):
         variant_refs: Optional[List[Reference]] = None,
         revision_refs: Optional[List[Reference]] = None,
         #
-        application_refs: Optional[List[Reference]] = None,
+        references: Optional[List[Reference]] = None,
         #
         include_archived: Optional[bool] = None,
         #
@@ -1481,7 +1481,7 @@ class GitDAO(GitDAOInterface):
 
             revision_dbes = result.scalars().all()
 
-            # TEMPORARY ADAPTER: this `application_refs` filter exists only for the
+            # TEMPORARY ADAPTER: this `references` filter exists only for the
             # current web UX/UI, which wants to view environment history by
             # application and only surface revisions where that application's
             # deployment changed. This is not canonical DAO behavior.
@@ -1491,8 +1491,8 @@ class GitDAO(GitDAOInterface):
             # this logic should not live in the DAO, but we are not moving it
             # elsewhere because the intended transition is from "temporary
             # adapter here" to "removed entirely".
-            if application_refs:
-                app_ids = {str(ref.id) for ref in application_refs if ref.id}
+            if references:
+                app_ids = {str(ref.id) for ref in references if ref.id}
                 if app_ids:
                     filtered_dbes = []
                     prev_app_revision_ids: dict[str, str | None] = {
@@ -1690,7 +1690,7 @@ class GitDAO(GitDAOInterface):
         #
         revisions_log: RevisionsLog,
         #
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> List[Revision]:
         # If only artifact_id is provided, fetch the default variant first
         variant_id = revisions_log.variant_id

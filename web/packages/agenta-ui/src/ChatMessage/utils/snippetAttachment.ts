@@ -191,7 +191,7 @@ function createPdfBytes(pages: string[][]): Uint8Array {
 }
 
 export async function createSnippetPdfAttachment(text: string): Promise<SnippetAttachment> {
-    const pdfBlob = new Blob([createPdfBytes(paginateText(text))], {
+    const pdfBlob = new Blob([createPdfBytes(paginateText(text)).slice().buffer], {
         type: SNIPPET_PDF_MIME_TYPE,
     })
     const fileData = await readBlobAsDataUrl(pdfBlob)

@@ -25,7 +25,7 @@ from ..types.evaluation_result_query import EvaluationResultQuery
 from ..types.evaluation_result_response import EvaluationResultResponse
 from ..types.evaluation_results_response import EvaluationResultsResponse
 from ..types.evaluation_run_create import EvaluationRunCreate
-from ..types.evaluation_run_data_step import EvaluationRunDataStep
+from ..types.evaluation_run_data_step_input import EvaluationRunDataStepInput
 from ..types.evaluation_run_edit import EvaluationRunEdit
 from ..types.evaluation_run_id_response import EvaluationRunIdResponse
 from ..types.evaluation_run_ids_response import EvaluationRunIdsResponse
@@ -48,6 +48,7 @@ from ..types.simple_evaluation_response import SimpleEvaluationResponse
 from ..types.simple_evaluations_response import SimpleEvaluationsResponse
 from ..types.simple_queue_create import SimpleQueueCreate
 from ..types.simple_queue_id_response import SimpleQueueIdResponse
+from ..types.simple_queue_ids_response import SimpleQueueIdsResponse
 from ..types.simple_queue_query import SimpleQueueQuery
 from ..types.simple_queue_response import SimpleQueueResponse
 from ..types.simple_queue_scenarios_query import SimpleQueueScenariosQuery
@@ -1663,13 +1664,13 @@ class EvaluationsClient:
         _response = self._raw_client.remove_scenarios(evaluation_id, scenario_ids=scenario_ids, request_options=request_options)
         return _response.data
     
-    def add_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStep], request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
+    def add_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStepInput], request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
         """
         Parameters
         ----------
         evaluation_id : str
         
-        steps : typing.Sequence[EvaluationRunDataStep]
+        steps : typing.Sequence[EvaluationRunDataStepInput]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1681,7 +1682,7 @@ class EvaluationsClient:
         
         Examples
         --------
-        from agenta import AgentaApi, EvaluationRunDataStep, Reference
+        from agenta import AgentaApi, EvaluationRunDataStepInput, Reference
         
         client = AgentaApi(
             api_key="YOUR_API_KEY",
@@ -1689,7 +1690,7 @@ class EvaluationsClient:
         client.evaluations.add_steps(
             evaluation_id="evaluation_id",
             steps=[
-                EvaluationRunDataStep(
+                EvaluationRunDataStepInput(
                     key="key",
                     type="input",
                     origin="custom",
@@ -1791,6 +1792,34 @@ class EvaluationsClient:
         _response = self._raw_client.create_simple_queue(queue=queue, request_options=request_options)
         return _response.data
     
+    def delete_simple_queues(self, *, queue_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> SimpleQueueIdsResponse:
+        """
+        Parameters
+        ----------
+        queue_ids : typing.Sequence[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SimpleQueueIdsResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.evaluations.delete_simple_queues(
+            queue_ids=["queue_ids"],
+        )
+        """
+        _response = self._raw_client.delete_simple_queues(queue_ids=queue_ids, request_options=request_options)
+        return _response.data
+    
     def query_simple_queues(self, *, queue: typing.Optional[SimpleQueueQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SimpleQueuesResponse:
         """
         Parameters
@@ -1845,6 +1874,34 @@ class EvaluationsClient:
         )
         """
         _response = self._raw_client.fetch_simple_queue(queue_id, request_options=request_options)
+        return _response.data
+    
+    def delete_simple_queue(self, queue_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SimpleQueueIdResponse:
+        """
+        Parameters
+        ----------
+        queue_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SimpleQueueIdResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.evaluations.delete_simple_queue(
+            queue_id="queue_id",
+        )
+        """
+        _response = self._raw_client.delete_simple_queue(queue_id, request_options=request_options)
         return _response.data
     
     def query_simple_queue_scenarios(self, queue_id: str, *, queue: typing.Optional[SimpleQueueScenariosQuery] = OMIT, scenario: typing.Optional[EvaluationScenarioQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SimpleQueueScenariosResponse:
@@ -3979,13 +4036,13 @@ class AsyncEvaluationsClient:
         _response = await self._raw_client.remove_scenarios(evaluation_id, scenario_ids=scenario_ids, request_options=request_options)
         return _response.data
     
-    async def add_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStep], request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
+    async def add_steps(self, evaluation_id: str, *, steps: typing.Sequence[EvaluationRunDataStepInput], request_options: typing.Optional[RequestOptions] = None) -> EvaluationRunResponse:
         """
         Parameters
         ----------
         evaluation_id : str
         
-        steps : typing.Sequence[EvaluationRunDataStep]
+        steps : typing.Sequence[EvaluationRunDataStepInput]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -3999,7 +4056,7 @@ class AsyncEvaluationsClient:
         --------
         import asyncio
         
-        from agenta import AsyncAgentaApi, EvaluationRunDataStep, Reference
+        from agenta import AsyncAgentaApi, EvaluationRunDataStepInput, Reference
         
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
@@ -4010,7 +4067,7 @@ class AsyncEvaluationsClient:
             await client.evaluations.add_steps(
                 evaluation_id="evaluation_id",
                 steps=[
-                    EvaluationRunDataStep(
+                    EvaluationRunDataStepInput(
                         key="key",
                         type="input",
                         origin="custom",
@@ -4139,6 +4196,42 @@ class AsyncEvaluationsClient:
         _response = await self._raw_client.create_simple_queue(queue=queue, request_options=request_options)
         return _response.data
     
+    async def delete_simple_queues(self, *, queue_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None) -> SimpleQueueIdsResponse:
+        """
+        Parameters
+        ----------
+        queue_ids : typing.Sequence[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SimpleQueueIdsResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.evaluations.delete_simple_queues(
+                queue_ids=["queue_ids"],
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.delete_simple_queues(queue_ids=queue_ids, request_options=request_options)
+        return _response.data
+    
     async def query_simple_queues(self, *, queue: typing.Optional[SimpleQueueQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SimpleQueuesResponse:
         """
         Parameters
@@ -4209,6 +4302,42 @@ class AsyncEvaluationsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.fetch_simple_queue(queue_id, request_options=request_options)
+        return _response.data
+    
+    async def delete_simple_queue(self, queue_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SimpleQueueIdResponse:
+        """
+        Parameters
+        ----------
+        queue_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SimpleQueueIdResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.evaluations.delete_simple_queue(
+                queue_id="queue_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.delete_simple_queue(queue_id, request_options=request_options)
         return _response.data
     
     async def query_simple_queue_scenarios(self, queue_id: str, *, queue: typing.Optional[SimpleQueueScenariosQuery] = OMIT, scenario: typing.Optional[EvaluationScenarioQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SimpleQueueScenariosResponse:

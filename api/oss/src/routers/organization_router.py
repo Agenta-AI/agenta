@@ -2,7 +2,7 @@ from typing import List
 from uuid import UUID
 
 from fastapi.responses import JSONResponse
-from fastapi import Request, BackgroundTasks
+from fastapi import HTTPException, Request, BackgroundTasks
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager
@@ -14,6 +14,12 @@ from oss.src.models.api.organization_models import (
     OrganizationMember,
 )
 from oss.src.services import organization_service
+from oss.src.services.organization_service import (
+    InviteNotFoundError,
+    InviteExpiredError,
+    InviteAlreadyAcceptedError,
+    InviteEmailMismatchError,
+)
 from oss.src.models.api.workspace_models import (
     InviteRequest,
     ResendInviteRequest,
@@ -391,26 +397,55 @@ async def accept_organization_invitation(
         JSONResponse: Accepted invitation to workspace; status_code: 200
     """
 
-    if is_ee():
-        workspace = await workspace_manager.get_workspace(workspace_id)
-        organization = await db_manager_ee.get_organization(organization_id)
-        user = await db_manager.get_user(request.state.user_id)
+    try:
+        if is_ee():
+            workspace = await workspace_manager.get_workspace(workspace_id)
+            organization = await db_manager_ee.get_organization(organization_id)
+            user = await db_manager.get_user(request.state.user_id)
 
-        accept_invitation = await workspace_manager.accept_workspace_invitation(
-            token=payload.token,
-            project_id=project_id,
-            organization=organization,
-            workspace=workspace,
-            user=user,
-        )
+            accept_invitation = await workspace_manager.accept_workspace_invitation(
+                token=payload.token,
+                project_id=project_id,
+                organization=organization,
+                workspace=workspace,
+                user=user,
+            )
 
-        if accept_invitation:
-            background_tasks.add_task(notify_org_admin_invitation, workspace, user)
+            if accept_invitation:
+                background_tasks.add_task(notify_org_admin_invitation, workspace, user)
 
-    else:
-        await organization_service.accept_organization_invitation(
-            token=payload.token,
-            organization_id=organization_id,
-            email=payload.email,
-        )
+        else:
+            await organization_service.accept_organization_invitation(
+                token=payload.token,
+                organization_id=organization_id,
+                email=payload.email,
+                session_email=request.state.user_email,
+            )
+    except InviteNotFoundError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": e.code, "message": "Invitation does not exist."},
+        ) from e
+    except InviteEmailMismatchError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": e.code,
+                "message": "Invitation is addressed to a different user.",
+            },
+        ) from e
+    except InviteExpiredError as e:
+        raise HTTPException(
+            status_code=410,
+            detail={"error": e.code, "message": "Invitation has expired."},
+        ) from e
+    except InviteAlreadyAcceptedError as e:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": e.code,
+                "message": "Invitation has already been accepted.",
+            },
+        ) from e
+
     return JSONResponse({"message": "Added user to workspace"}, status_code=200)

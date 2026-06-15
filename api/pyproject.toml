@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.103.3"
+version = "0.103.5"
 description = "Agenta API"
 requires-python = ">=3.11,<3.14"
 authors = [
@@ -14,10 +14,10 @@ dependencies = [
     "uvicorn[standard]>=0.49,<0.50",
     "gunicorn>=26,<27",
     "httpx>=0.28,<0.29",
-    "structlog>=25,<26",
+    "structlog>=26,<27",
     "python-dotenv>=1,<2",
-    "python-multipart>=0.0.31,<0.0.32",
-    "cryptography>=48,<49",
+    "python-multipart>=0.0.32,<0.0.33",
+    "cryptography>=49,<50",
     "sqlalchemy>=2,<3",
     "sqlalchemy-utils>=0.42,<0.43",
     "sqlalchemy-json>=0.7,<0.8",

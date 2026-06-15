@@ -5,9 +5,9 @@ import type * as AgentaApi from "../../../../index.js";
 /**
  * @example
  *     {
- *         environment: {}
+ *         environment_revisions: {}
  *     }
  */
 export interface EnvironmentRevisionsLogRequest {
-    environment: AgentaApi.EnvironmentRevisionsLog;
+    environment_revisions: AgentaApi.EnvironmentRevisionsLog;
 }

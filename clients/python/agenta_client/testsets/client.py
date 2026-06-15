@@ -24,6 +24,7 @@ from ..types.testset_revisions_log import TestsetRevisionsLog
 from ..types.testset_revisions_response import TestsetRevisionsResponse
 from ..types.testset_variant_create import TestsetVariantCreate
 from ..types.testset_variant_edit import TestsetVariantEdit
+from ..types.testset_variant_fork import TestsetVariantFork
 from ..types.testset_variant_query import TestsetVariantQuery
 from ..types.testset_variant_response import TestsetVariantResponse
 from ..types.testset_variants_response import TestsetVariantsResponse
@@ -486,6 +487,48 @@ class TestsetsClient:
         _response = self._raw_client.query_testset_variants(testset_variant=testset_variant, testset_refs=testset_refs, testset_variant_refs=testset_variant_refs, include_archived=include_archived, windowing=windowing, request_options=request_options)
         return _response.data
     
+    def fork_testset_variant(self, *, testset_variant: TestsetVariantFork, testset_variant_ref: Reference, testset_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetVariantResponse:
+        """
+        Fork an existing testset variant into a new variant.
+        
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `testset_revision_ref` is provided). Provide `slug`
+        and `name` in the fork body to identify the new variant.
+        
+        Parameters
+        ----------
+        testset_variant : TestsetVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        testset_variant_ref : Reference
+            Source variant to fork from.
+        
+        testset_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        TestsetVariantResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi, Reference, TestsetVariantFork
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.fork_testset_variant(
+            testset_variant=TestsetVariantFork(),
+            testset_variant_ref=Reference(),
+        )
+        """
+        _response = self._raw_client.fork_testset_variant(testset_variant=testset_variant, testset_variant_ref=testset_variant_ref, testset_revision_ref=testset_revision_ref, request_options=request_options)
+        return _response.data
+    
     def create_testset_revision(self, *, testset_revision: TestsetRevisionCreate, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetRevisionResponse:
         """
         Create and commit the initial revision for a testset variant.
@@ -761,11 +804,11 @@ class TestsetsClient:
         _response = self._raw_client.query_testset_revisions(testset_revision=testset_revision, testset_refs=testset_refs, testset_variant_refs=testset_variant_refs, testset_revision_refs=testset_revision_refs, include_archived=include_archived, include_testcases=include_testcases, windowing=windowing, request_options=request_options)
         return _response.data
     
-    def commit_testset_revision(self, *, testset_revision_commit: TestsetRevisionCommit, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetRevisionResponse:
+    def commit_testset_revision(self, *, testset_revision: TestsetRevisionCommit, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetRevisionResponse:
         """
         Parameters
         ----------
-        testset_revision_commit : TestsetRevisionCommit
+        testset_revision : TestsetRevisionCommit
             New revision to commit. Pass either `data` (full replacement of the testcase list) or `delta` (add/remove/replace operations against the base revision) — not both.
         
         include_testcases : typing.Optional[bool]
@@ -787,10 +830,10 @@ class TestsetsClient:
             api_key="YOUR_API_KEY",
         )
         client.testsets.commit_testset_revision(
-            testset_revision_commit=TestsetRevisionCommit(),
+            testset_revision=TestsetRevisionCommit(),
         )
         """
-        _response = self._raw_client.commit_testset_revision(testset_revision_commit=testset_revision_commit, include_testcases=include_testcases, request_options=request_options)
+        _response = self._raw_client.commit_testset_revision(testset_revision=testset_revision, include_testcases=include_testcases, request_options=request_options)
         return _response.data
     
     def retrieve_testset_revision(self, *, testset_ref: typing.Optional[Reference] = OMIT, testset_variant_ref: typing.Optional[Reference] = OMIT, testset_revision_ref: typing.Optional[Reference] = OMIT, include_testcase_ids: typing.Optional[bool] = OMIT, include_testcases: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetRevisionResponse:
@@ -835,11 +878,11 @@ class TestsetsClient:
         _response = self._raw_client.retrieve_testset_revision(testset_ref=testset_ref, testset_variant_ref=testset_variant_ref, testset_revision_ref=testset_revision_ref, include_testcase_ids=include_testcase_ids, include_testcases=include_testcases, windowing=windowing, request_options=request_options)
         return _response.data
     
-    def log_testset_revisions(self, *, testset_revision: TestsetRevisionsLog, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetRevisionsResponse:
+    def log_testset_revisions(self, *, testset_revisions: TestsetRevisionsLog, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetRevisionsResponse:
         """
         Parameters
         ----------
-        testset_revision : TestsetRevisionsLog
+        testset_revisions : TestsetRevisionsLog
             Scope for the log: one of `testset_id`, `testset_variant_id`, or `testset_revision_id`. Optional `depth` limits how far back to walk.
         
         include_testcases : typing.Optional[bool]
@@ -861,10 +904,10 @@ class TestsetsClient:
             api_key="YOUR_API_KEY",
         )
         client.testsets.log_testset_revisions(
-            testset_revision=TestsetRevisionsLog(),
+            testset_revisions=TestsetRevisionsLog(),
         )
         """
-        _response = self._raw_client.log_testset_revisions(testset_revision=testset_revision, include_testcases=include_testcases, request_options=request_options)
+        _response = self._raw_client.log_testset_revisions(testset_revisions=testset_revisions, include_testcases=include_testcases, request_options=request_options)
         return _response.data
     
     def create_simple_testset(self, *, testset: SimpleTestsetCreate, testset_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> SimpleTestsetResponse:
@@ -1705,6 +1748,56 @@ class AsyncTestsetsClient:
         _response = await self._raw_client.query_testset_variants(testset_variant=testset_variant, testset_refs=testset_refs, testset_variant_refs=testset_variant_refs, include_archived=include_archived, windowing=windowing, request_options=request_options)
         return _response.data
     
+    async def fork_testset_variant(self, *, testset_variant: TestsetVariantFork, testset_variant_ref: Reference, testset_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetVariantResponse:
+        """
+        Fork an existing testset variant into a new variant.
+        
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `testset_revision_ref` is provided). Provide `slug`
+        and `name` in the fork body to identify the new variant.
+        
+        Parameters
+        ----------
+        testset_variant : TestsetVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        testset_variant_ref : Reference
+            Source variant to fork from.
+        
+        testset_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        TestsetVariantResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi, Reference, TestsetVariantFork
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.testsets.fork_testset_variant(
+                testset_variant=TestsetVariantFork(),
+                testset_variant_ref=Reference(),
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.fork_testset_variant(testset_variant=testset_variant, testset_variant_ref=testset_variant_ref, testset_revision_ref=testset_revision_ref, request_options=request_options)
+        return _response.data
+    
     async def create_testset_revision(self, *, testset_revision: TestsetRevisionCreate, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetRevisionResponse:
         """
         Create and commit the initial revision for a testset variant.
@@ -2044,11 +2137,11 @@ class AsyncTestsetsClient:
         _response = await self._raw_client.query_testset_revisions(testset_revision=testset_revision, testset_refs=testset_refs, testset_variant_refs=testset_variant_refs, testset_revision_refs=testset_revision_refs, include_archived=include_archived, include_testcases=include_testcases, windowing=windowing, request_options=request_options)
         return _response.data
     
-    async def commit_testset_revision(self, *, testset_revision_commit: TestsetRevisionCommit, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetRevisionResponse:
+    async def commit_testset_revision(self, *, testset_revision: TestsetRevisionCommit, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetRevisionResponse:
         """
         Parameters
         ----------
-        testset_revision_commit : TestsetRevisionCommit
+        testset_revision : TestsetRevisionCommit
             New revision to commit. Pass either `data` (full replacement of the testcase list) or `delta` (add/remove/replace operations against the base revision) — not both.
         
         include_testcases : typing.Optional[bool]
@@ -2075,13 +2168,13 @@ class AsyncTestsetsClient:
         
         async def main() -> None:
             await client.testsets.commit_testset_revision(
-                testset_revision_commit=TestsetRevisionCommit(),
+                testset_revision=TestsetRevisionCommit(),
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.commit_testset_revision(testset_revision_commit=testset_revision_commit, include_testcases=include_testcases, request_options=request_options)
+        _response = await self._raw_client.commit_testset_revision(testset_revision=testset_revision, include_testcases=include_testcases, request_options=request_options)
         return _response.data
     
     async def retrieve_testset_revision(self, *, testset_ref: typing.Optional[Reference] = OMIT, testset_variant_ref: typing.Optional[Reference] = OMIT, testset_revision_ref: typing.Optional[Reference] = OMIT, include_testcase_ids: typing.Optional[bool] = OMIT, include_testcases: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetRevisionResponse:
@@ -2134,11 +2227,11 @@ class AsyncTestsetsClient:
         _response = await self._raw_client.retrieve_testset_revision(testset_ref=testset_ref, testset_variant_ref=testset_variant_ref, testset_revision_ref=testset_revision_ref, include_testcase_ids=include_testcase_ids, include_testcases=include_testcases, windowing=windowing, request_options=request_options)
         return _response.data
     
-    async def log_testset_revisions(self, *, testset_revision: TestsetRevisionsLog, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetRevisionsResponse:
+    async def log_testset_revisions(self, *, testset_revisions: TestsetRevisionsLog, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> TestsetRevisionsResponse:
         """
         Parameters
         ----------
-        testset_revision : TestsetRevisionsLog
+        testset_revisions : TestsetRevisionsLog
             Scope for the log: one of `testset_id`, `testset_variant_id`, or `testset_revision_id`. Optional `depth` limits how far back to walk.
         
         include_testcases : typing.Optional[bool]
@@ -2165,13 +2258,13 @@ class AsyncTestsetsClient:
         
         async def main() -> None:
             await client.testsets.log_testset_revisions(
-                testset_revision=TestsetRevisionsLog(),
+                testset_revisions=TestsetRevisionsLog(),
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.log_testset_revisions(testset_revision=testset_revision, include_testcases=include_testcases, request_options=request_options)
+        _response = await self._raw_client.log_testset_revisions(testset_revisions=testset_revisions, include_testcases=include_testcases, request_options=request_options)
         return _response.data
     
     async def create_simple_testset(self, *, testset: SimpleTestsetCreate, testset_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> SimpleTestsetResponse:

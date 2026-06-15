@@ -224,4 +224,41 @@ describe("splitInputsVisibility", () => {
             ).toEqual([{name: "expected", value: "world"}])
         })
     })
+
+    describe("test set columns missing from the row", () => {
+        it("appends missing test set columns as empty fields after the row's own", () => {
+            // A draft row kept through "Keep and load" carries only its own
+            // keys; the test set's extra columns must still render so the
+            // user can fill them in the grid, not just the drawer.
+            const {unreferencedColumns} = splitInputsVisibility({
+                referencedKeys: ["prompt"],
+                testcaseData: {prompt: "hello", notes: "draft"},
+                testsetColumnKeys: ["expected_output", "context"],
+            })
+            expect(unreferencedColumns).toEqual([
+                {name: "notes", value: "draft"},
+                {name: "expected_output", value: undefined},
+                {name: "context", value: undefined},
+            ])
+        })
+
+        it("does not duplicate columns the row already carries", () => {
+            const {unreferencedColumns} = splitInputsVisibility({
+                referencedKeys: [],
+                testcaseData: {expected_output: "42"},
+                testsetColumnKeys: ["expected_output"],
+            })
+            expect(unreferencedColumns).toEqual([{name: "expected_output", value: "42"}])
+        })
+
+        it("leaves referenced test set columns to the inputs cards", () => {
+            const {inputs, unreferencedColumns} = splitInputsVisibility({
+                referencedKeys: ["country"],
+                testcaseData: {},
+                testsetColumnKeys: ["country", "expected_output"],
+            })
+            expect(inputs).toEqual([{name: "country", value: undefined}])
+            expect(unreferencedColumns).toEqual([{name: "expected_output", value: undefined}])
+        })
+    })
 })

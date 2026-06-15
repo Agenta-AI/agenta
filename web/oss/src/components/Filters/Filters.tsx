@@ -1,6 +1,6 @@
 import {useMemo, useState} from "react"
 
-import {evaluatorsListDataAtom} from "@agenta/entities/workflow"
+import {evaluatorsListDataAtom, evaluatorFeedbackSchemasAtom} from "@agenta/entities/workflow"
 import {
     ArrowClockwiseIcon,
     CaretDownIcon,
@@ -286,6 +286,7 @@ const Filters: React.FC<Props> = ({
     reconcileFilterRows,
 }) => {
     const evaluatorPreviews = useAtomValue(evaluatorsListDataAtom)
+    const evaluatorFeedbackSchemas = useAtomValue(evaluatorFeedbackSchemasAtom)
 
     const annotationEvaluatorOptions = useMemo(
         () =>
@@ -309,23 +310,21 @@ const Filters: React.FC<Props> = ({
     }
 
     const annotationFeedbackOptions = useMemo(() => {
-        if (!evaluatorPreviews) return [] as AnnotationFeedbackOption[]
         const options: AnnotationFeedbackOption[] = []
-        evaluatorPreviews.forEach((evaluator: any) => {
-            const metrics = evaluator.metrics ?? {}
-            Object.entries(metrics).forEach(([key, schema]) => {
+        evaluatorFeedbackSchemas.forEach((evaluator) => {
+            Object.entries(evaluator.properties).forEach(([key, schema]) => {
                 const typedSchema = schema as any
                 options.push({
                     label: typedSchema?.title ?? key,
                     value: key,
-                    evaluatorSlug: evaluator.slug,
-                    evaluatorLabel: evaluator.name || evaluator.slug,
+                    evaluatorSlug: evaluator.slug ?? "",
+                    evaluatorLabel: evaluator.name || evaluator.slug || "",
                     type: deriveFeedbackValueType(typedSchema),
                 })
             })
         })
         return options
-    }, [evaluatorPreviews])
+    }, [evaluatorFeedbackSchemas])
 
     // Dedupe feedback options by feedback key across evaluators
     const dedupeFeedbackOptions = (options: AnnotationFeedbackOption[]) => {
@@ -542,6 +541,9 @@ const Filters: React.FC<Props> = ({
     const [activeFieldDropdown, setActiveFieldDropdown] = useState<number | null>(null)
     const [isFilterOpen, setIsFilterOpen] = useState(false)
     const [keySearchTerms, setKeySearchTerms] = useState<Record<number, string>>({})
+    // Free-text the user is typing into a row's feedback-field Select. Lets them name a
+    // feedback metric even when the evaluator has no output schema to suggest options.
+    const [feedbackFieldSearch, setFeedbackFieldSearch] = useState<Record<number, string>>({})
 
     /**
      * Display-only projection of `filter`. The reconciler is opt-in (passed by
@@ -1248,12 +1250,36 @@ const Filters: React.FC<Props> = ({
                                     return f ?? undefined
                                 })()
 
-                            const feedbackOptionsForSelect = availableFeedbackOptions.map(
-                                (option) => ({
-                                    label: annotationValue?.evaluator ? option.label : option.label,
+                            const feedbackOptionsForSelect = (() => {
+                                const options = availableFeedbackOptions.map((option) => ({
+                                    label: option.label,
                                     value: option.value,
-                                }),
-                            )
+                                }))
+                                const known = new Set(options.map((o) => o.value))
+
+                                // Keep already-selected custom keys visible with a label.
+                                const selectedFields = Array.isArray(feedbackFieldValueForSelect)
+                                    ? feedbackFieldValueForSelect
+                                    : feedbackFieldValueForSelect
+                                      ? [feedbackFieldValueForSelect]
+                                      : []
+                                for (const selected of selectedFields) {
+                                    if (selected && !known.has(selected)) {
+                                        options.push({label: selected, value: selected})
+                                        known.add(selected)
+                                    }
+                                }
+
+                                // Surface the text the user is typing as a selectable option, so
+                                // evaluators without an output schema can still be given a
+                                // feedback name. Enter or click commits it.
+                                const typed = (feedbackFieldSearch[idx] ?? "").trim()
+                                if (typed && !known.has(typed)) {
+                                    options.unshift({label: `${typed} (custom)`, value: typed})
+                                }
+
+                                return options
+                            })()
 
                             return (
                                 <Space
@@ -1759,10 +1785,27 @@ const Filters: React.FC<Props> = ({
                                                         }
                                                         value={feedbackFieldValueForSelect}
                                                         options={feedbackOptionsForSelect}
+                                                        onSearch={(searchValue) =>
+                                                            setFeedbackFieldSearch((prev) => ({
+                                                                ...prev,
+                                                                [idx]: searchValue,
+                                                            }))
+                                                        }
                                                         onChange={(val) => {
                                                             handleFeedbackFieldChange(
                                                                 val as string | string[],
                                                             )
+                                                            setFeedbackFieldSearch((prev) => ({
+                                                                ...prev,
+                                                                [idx]: "",
+                                                            }))
+                                                        }}
+                                                        onOpenChange={(open) => {
+                                                            if (!open)
+                                                                setFeedbackFieldSearch((prev) => ({
+                                                                    ...prev,
+                                                                    [idx]: "",
+                                                                }))
                                                         }}
                                                         suffixIcon={<CaretDownIcon size={14} />}
                                                         optionFilterProp="label"

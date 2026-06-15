@@ -60,7 +60,7 @@ interface AnnotationBatchRequest {
  * Batch fetcher that collects concurrent annotation requests and fetches
  * them in a single `POST /annotations/query` call.
  *
- * Groups by projectId, deduplicates by (traceId, spanId) pair.
+ * Deduplicates by (traceId, spanId) pair.
  * Indexes results by both the annotation's own trace_id:span_id AND
  * by all `links[*].trace_id:span_id` entries — matching how the
  * legacy `EvalRunDetails/atoms/annotations.ts` batch fetcher works.
@@ -70,84 +70,71 @@ const annotationBatchFetcher = createBatchFetcher<AnnotationBatchRequest, Annota
     maxBatchSize: 50,
     batchFn: async (requests, serializedKeys) => {
         const results: Record<string, Annotation[]> = {}
-
-        // Group by projectId
-        const byProject = new Map<
-            string,
-            {links: {trace_id: string; span_id: string}[]; keys: string[]}
-        >()
-
-        requests.forEach((req, idx) => {
-            const key = serializedKeys[idx]
-            if (!req.projectId || !req.traceId || !req.spanId) {
-                results[key] = []
-                return
-            }
-
-            const existing = byProject.get(req.projectId)
-            if (existing) {
-                existing.links.push({trace_id: req.traceId, span_id: req.spanId})
-                existing.keys.push(key)
-            } else {
-                byProject.set(req.projectId, {
-                    links: [{trace_id: req.traceId, span_id: req.spanId}],
-                    keys: [key],
-                })
-            }
+        serializedKeys.forEach((key) => {
+            results[key] = []
         })
 
-        // Fetch each project's annotations in parallel
-        await Promise.all(
-            Array.from(byProject.entries()).map(async ([projectId, group]) => {
-                try {
-                    const response = await queryAnnotations({
-                        projectId,
-                        annotationLinks: group.links,
-                    })
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("annotationBatchFetcher: requests span multiple projects")
+        }
 
-                    // Index annotations by composite key
-                    // An annotation can be found by:
-                    // 1. Its own trace_id:span_id
-                    // 2. Any link entry's trace_id:span_id
-                    const byCompositeKey = new Map<string, Set<Annotation>>()
+        const links: {trace_id: string; span_id: string}[] = []
+        const keys: string[] = []
+        requests.forEach((req, idx) => {
+            if (!req.traceId || !req.spanId) return
+            links.push({trace_id: req.traceId, span_id: req.spanId})
+            keys.push(serializedKeys[idx])
+        })
 
-                    const addToKey = (compositeKey: string, ann: Annotation) => {
-                        const fullKey = `${projectId}:${compositeKey}`
-                        if (!byCompositeKey.has(fullKey)) {
-                            byCompositeKey.set(fullKey, new Set())
-                        }
-                        byCompositeKey.get(fullKey)!.add(ann)
-                    }
+        if (links.length === 0) return results
 
-                    for (const ann of response.annotations) {
-                        // Index by own trace_id:span_id
-                        if (ann.trace_id && ann.span_id) {
-                            addToKey(encodeAnnotationId(ann.trace_id, ann.span_id), ann)
-                        }
+        try {
+            const response = await queryAnnotations({
+                projectId,
+                annotationLinks: links,
+            })
 
-                        // Index by all link entries
-                        if (ann.links) {
-                            for (const link of Object.values(ann.links)) {
-                                if (link.trace_id && link.span_id) {
-                                    addToKey(encodeAnnotationId(link.trace_id, link.span_id), ann)
-                                }
-                            }
-                        }
-                    }
+            // Index annotations by composite key
+            // An annotation can be found by:
+            // 1. Its own trace_id:span_id
+            // 2. Any link entry's trace_id:span_id
+            const byCompositeKey = new Map<string, Set<Annotation>>()
 
-                    // Resolve each request key
-                    group.keys.forEach((key) => {
-                        const annSet = byCompositeKey.get(key)
-                        results[key] = annSet ? Array.from(annSet) : []
-                    })
-                } catch (error) {
-                    console.error("[annotationBatchFetcher] Failed:", error)
-                    group.keys.forEach((key) => {
-                        results[key] = []
-                    })
+            const addToKey = (compositeKey: string, ann: Annotation) => {
+                const fullKey = `${projectId}:${compositeKey}`
+                if (!byCompositeKey.has(fullKey)) {
+                    byCompositeKey.set(fullKey, new Set())
                 }
-            }),
-        )
+                byCompositeKey.get(fullKey)!.add(ann)
+            }
+
+            for (const ann of response.annotations) {
+                // Index by own trace_id:span_id
+                if (ann.trace_id && ann.span_id) {
+                    addToKey(encodeAnnotationId(ann.trace_id, ann.span_id), ann)
+                }
+
+                // Index by all link entries
+                if (ann.links) {
+                    for (const link of Object.values(ann.links)) {
+                        if (link.trace_id && link.span_id) {
+                            addToKey(encodeAnnotationId(link.trace_id, link.span_id), ann)
+                        }
+                    }
+                }
+            }
+
+            // Resolve each request key
+            keys.forEach((key) => {
+                const annSet = byCompositeKey.get(key)
+                results[key] = annSet ? Array.from(annSet) : []
+            })
+        } catch (error) {
+            console.error("[annotationBatchFetcher] Failed:", error)
+        }
 
         return results
     },
