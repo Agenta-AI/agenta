@@ -16,7 +16,7 @@ import type {QueryRegistryRow} from "../../store/queryRegistryStore"
 /** Controlled expand state for the version-history rows (mirrors the registry table). */
 export interface QueryExpandState {
     expandedRowKeys: string[]
-    handleExpand: (expanded: boolean, rowKey: string) => void
+    handleExpand: (expanded: boolean, record: QueryRegistryRow) => void
 }
 
 const {Text} = Typography
@@ -212,22 +212,22 @@ export function createQueryRegistryColumns(
                     )
                 }
                 // Head (parent) row: custom expand toggle + name (mirrors the
-                // workflow registry table, which hides antd's default caret).
+                // workflow registry table, which hides antd's default caret). A
+                // <span> (not <button>) avoids the default button chrome/focus box.
                 const isExpanded = expandState?.expandedRowKeys.includes(record.key) ?? false
                 return (
-                    <div className="flex h-full items-center gap-2">
+                    <div className="flex h-full min-w-0 items-center gap-2">
                         {expandState ? (
-                            <button
-                                type="button"
-                                className="flex items-center text-[var(--ant-color-text-secondary)]"
+                            <span
                                 aria-label={isExpanded ? "Hide versions" : "Show versions"}
+                                className="shrink-0 cursor-pointer leading-[1] text-gray-400 transition-colors hover:text-gray-600"
                                 onClick={(event) => {
                                     event.stopPropagation()
-                                    expandState.handleExpand(!isExpanded, record.key)
+                                    expandState.handleExpand(!isExpanded, record)
                                 }}
                             >
                                 {isExpanded ? <MinusCircle size={16} /> : <PlusCircle size={16} />}
-                            </button>
+                            </span>
                         ) : null}
                         <Text className="text-xs font-medium">{record.name}</Text>
                     </div>

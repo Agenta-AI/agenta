@@ -131,9 +131,17 @@ const QueryRegistryTable = ({
         [projectId, childrenByQueryId],
     )
 
-    const handleExpand = useCallback((expanded: boolean, rowKey: string) => {
-        setExpandedKeys((prev) => (expanded ? [...prev, rowKey] : prev.filter((k) => k !== rowKey)))
-    }, [])
+    // The custom Name-cell toggle drives expansion AND the lazy fetch (antd's
+    // own onExpand never fires because we hide its caret with expandIcon: null).
+    const handleExpand = useCallback(
+        (expanded: boolean, record: QueryRegistryRow) => {
+            setExpandedKeys((prev) =>
+                expanded ? [...prev, record.key] : prev.filter((k) => k !== record.key),
+            )
+            if (expanded) void fetchRevisions(record)
+        },
+        [fetchRevisions],
+    )
 
     const expandState = useMemo(
         () => ({expandedRowKeys: expandedKeys, handleExpand}),
@@ -173,6 +181,19 @@ const QueryRegistryTable = ({
         [expandedKeys, fetchRevisions],
     )
 
+    // Revision (child) and loader rows aren't selectable — hide their checkboxes.
+    const rowSelection = useMemo(
+        () =>
+            ({
+                ...table.shellProps.rowSelection,
+                getCheckboxProps: (record: QueryRegistryRow) => ({
+                    disabled: Boolean(record.__isSkeleton || isRevisionRow(record)),
+                    style: isRevisionRow(record) ? {display: "none"} : undefined,
+                }),
+            }) as typeof table.shellProps.rowSelection,
+        [table.shellProps.rowSelection],
+    )
+
     return (
         <InfiniteVirtualTableFeatureShell<QueryRegistryRow>
             {...table.shellProps}
@@ -183,6 +204,7 @@ const QueryRegistryTable = ({
             className="flex-1 min-h-0"
             autoHeight
             dataSource={dataSource}
+            rowSelection={rowSelection}
             tableProps={{
                 ...table.shellProps.tableProps,
                 expandable: treeExpandable,
