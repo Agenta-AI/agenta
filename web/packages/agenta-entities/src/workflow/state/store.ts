@@ -375,7 +375,7 @@ export const workflowProjectIdAtom = projectIdAtom
  * - `flags` — filtering (is_evaluator, is_feedback, is_custom)
  * - `deleted_at` — archive filtering
  * - `description` — human evaluator list display
- * - `created_at` — sort order in some views
+ * - `created_at` / `updated_at` — sort order and metadata display in some views
  */
 export interface WorkflowListRef {
     id: string
@@ -385,6 +385,7 @@ export interface WorkflowListRef {
     flags: Workflow["flags"]
     deleted_at: string | null
     created_at: string | null
+    updated_at: string | null
 }
 
 /**
@@ -407,6 +408,7 @@ export function toWorkflowListRef(w: Workflow): WorkflowListRef {
         flags: w.flags,
         deleted_at: w.deleted_at ?? null,
         created_at: w.created_at ?? null,
+        updated_at: w.updated_at ?? null,
     }
 }
 
@@ -2289,6 +2291,7 @@ export function seedCreatedWorkflowCache(
         flags: revision.flags,
         deleted_at: revision.deleted_at ?? null,
         created_at: revision.created_at ?? null,
+        updated_at: revision.updated_at ?? null,
     }
 
     store.set(workflowLocalServerDataAtomFamily(revision.id), revision)

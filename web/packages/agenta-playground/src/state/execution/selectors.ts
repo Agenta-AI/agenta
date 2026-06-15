@@ -18,11 +18,10 @@ import {testcaseMolecule, isSystemField} from "@agenta/entities/testcase"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {atom, type Getter} from "jotai"
 import {selectAtom} from "jotai/utils"
-import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
 import {playgroundIsChatBehaviorAtom} from "../atoms/modeOverride"
-import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
+import {entityIdsAtom, playgroundNodesAtom, playgroundStoreAtom} from "../atoms/playground"
 import {addUserMessageAtom} from "../chat"
 import {sharedMessageIdsAtomFamily} from "../chat/messageSelectors"
 
@@ -968,7 +967,7 @@ export const generationRowIdsAtom = atom<string[]>((get) => {
         const rowIds = get(sharedMessageIdsAtomFamily(loadableId))
         if (rowIds.length === 0) {
             // Bootstrap first blank user message for chat mode
-            getDefaultStore().set(addUserMessageAtom, {loadableId, userMessage: null})
+            get(playgroundStoreAtom).set(addUserMessageAtom, {loadableId, userMessage: null})
             return get(sharedMessageIdsAtomFamily(loadableId))
         }
         return rowIds

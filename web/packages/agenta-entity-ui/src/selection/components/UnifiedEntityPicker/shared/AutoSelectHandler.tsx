@@ -34,6 +34,11 @@ export interface AutoSelectHandlerProps<TSelection = EntitySelectionResult> {
     childLevelConfig: HierarchyLevel<unknown>
 
     /**
+     * Child IDs that should be skipped when resolving the latest selectable child
+     */
+    disabledChildIds?: Set<string>
+
+    /**
      * Function to create selection result
      */
     createSelection: (path: SelectionPathItem[], entity: unknown) => TSelection
@@ -68,6 +73,7 @@ export function AutoSelectHandler<TSelection = EntitySelectionResult>({
     parentLabel,
     parentLevelConfig,
     childLevelConfig,
+    disabledChildIds,
     createSelection,
     onSelect,
     onComplete,
@@ -77,6 +83,7 @@ export function AutoSelectHandler<TSelection = EntitySelectionResult>({
         parentLabel,
         parentLevelConfig,
         childLevelConfig,
+        disabledChildIds,
         createSelection,
         onSelect,
         onComplete,

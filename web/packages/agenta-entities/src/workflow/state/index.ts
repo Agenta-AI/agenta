@@ -176,6 +176,11 @@ export {
     evaluatorPresetsAtomFamily,
     // Key map
     evaluatorKeyMapAtom,
+    // Workflow display metadata (version count + last modified)
+    evaluatorWorkflowMetaMapAtom,
+    type EvaluatorWorkflowMeta,
+    // Parent evaluator name lookup per revision
+    evaluatorNameByRevisionAtomFamily,
     // Feedback metric schemas (observability annotation filter)
     evaluatorFeedbackSchemasAtom,
     type EvaluatorFeedbackSchema,
