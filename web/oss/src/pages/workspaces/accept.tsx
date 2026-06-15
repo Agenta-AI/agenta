@@ -160,7 +160,9 @@ const Accept: FC = () => {
                             "Failed to accept invite"
                         const errorMessage = inviteErrorMessageFromCode(code, detailRaw)
 
-                        console.error("[invite] accept failed", error)
+                        // Known, typed outcomes (mismatch/expired/not-found) are
+                        // expected; only log the genuinely unexpected ones.
+                        if (!code) console.error("[invite] accept failed", error)
                         clearInvite()
                         setError(errorMessage)
                     }
@@ -185,7 +187,7 @@ const Accept: FC = () => {
                     message.info("You already joined this workspace.")
                     cacheWorkspaceOrgPair(workspaceId || organizationId, organizationId)
                 } else {
-                    console.error("[invite] accept failed", error)
+                    if (!code) console.error("[invite] accept failed", error)
                     message.error(detailMessage)
                 }
 
