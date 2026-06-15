@@ -100,7 +100,7 @@ def _load_sendgrid() -> Optional["SendGridAPIClient"]:
         # SendGrid client": None signals "not available" (disabled OR import/config
         # failure), and callers need a single `if sg is None` check.
         if not env.sendgrid.enabled:
-            if env.sendgrid.api_key and not env.sendgrid.from_address:
+            if env.sendgrid.api_key and not env.sendgrid.from_email:
                 log.warn("✗ SendGrid disabled: missing sender email address")
             else:
                 log.warn("✗ SendGrid disabled")

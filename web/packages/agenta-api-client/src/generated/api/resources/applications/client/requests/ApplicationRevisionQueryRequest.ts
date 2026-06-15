@@ -19,6 +19,4 @@ export interface ApplicationRevisionQueryRequest {
     include_archived?: boolean | null;
     /** Cursor pagination and time-range controls. */
     windowing?: AgentaApi.Windowing | null;
-    /** When `true`, resolve embedded references in each returned revision's `data` (for example, snippet references). Defaults to `false`. */
-    resolve?: boolean | null;
 }

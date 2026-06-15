@@ -11,11 +11,28 @@ session, and separately assert that an API key is refused.
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
+import pytest
 import requests
 
 from utils.constants import BASE_TIMEOUT
 
 _PASSWORD = "DefaultPass1!"
+
+
+def _emailpassword_enabled(api_url) -> bool:
+    """Whether the target env has the EmailPassword SuperTokens recipe mounted.
+
+    The recipe is only initialized when email_method == "password" (no SMTP /
+    SendGrid configured). On OTP/thirdparty envs (preview, cloud) /auth/signin
+    is unmounted and returns 404, so these password-signin tests can't run.
+    """
+    resp = requests.post(
+        f"{api_url}/auth/signin",
+        headers={"rid": "emailpassword", "Content-Type": "application/json"},
+        json={"formFields": []},
+        timeout=BASE_TIMEOUT,
+    )
+    return resp.status_code != 404
 
 
 def _create_account(ag_env, *, email, with_api_key=False):
@@ -74,6 +91,13 @@ def _signin(api_url, *, email):
 
 
 class TestSelfServeAccountDeletion:
+    @pytest.fixture(autouse=True)
+    def _require_emailpassword(self, ag_env):
+        # These tests sign in via email+password; skip on OTP/thirdparty envs
+        # (preview, cloud) where that recipe is unmounted.
+        if not _emailpassword_enabled(ag_env["api_url"]):
+            pytest.skip("email+password signin not enabled on this environment")
+
     def test_delete_own_account_succeeds(self, ag_env):
         email = f"del-{uuid4().hex[:12]}@test.agenta.ai"
         _create_account(ag_env, email=email)

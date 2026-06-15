@@ -1,6 +1,5 @@
 export type { ApplicationCreateRequest } from "./ApplicationCreateRequest.js";
 export type { ApplicationEditRequest } from "./ApplicationEditRequest.js";
-export type { ApplicationForkRequest } from "./ApplicationForkRequest.js";
 export type { ApplicationQueryRequest } from "./ApplicationQueryRequest.js";
 export type { ApplicationRevisionCommitRequest } from "./ApplicationRevisionCommitRequest.js";
 export type { ApplicationRevisionCreateRequest } from "./ApplicationRevisionCreateRequest.js";
@@ -12,6 +11,7 @@ export type { ApplicationRevisionRetrieveRequest } from "./ApplicationRevisionRe
 export type { ApplicationRevisionsLogRequest } from "./ApplicationRevisionsLogRequest.js";
 export type { ApplicationVariantCreateRequest } from "./ApplicationVariantCreateRequest.js";
 export type { ApplicationVariantEditRequest } from "./ApplicationVariantEditRequest.js";
+export type { ApplicationVariantForkRequest } from "./ApplicationVariantForkRequest.js";
 export type { ArchiveApplicationRequest } from "./ArchiveApplicationRequest.js";
 export type { ArchiveApplicationRevisionRequest } from "./ArchiveApplicationRevisionRequest.js";
 export type { ArchiveApplicationVariantRequest } from "./ArchiveApplicationVariantRequest.js";

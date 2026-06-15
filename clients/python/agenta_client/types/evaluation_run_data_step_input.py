@@ -4,10 +4,20 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .evaluation_run_data_step_input_key import EvaluationRunDataStepInputKey
+from .evaluation_run_data_step_input_origin import EvaluationRunDataStepInputOrigin
+from .evaluation_run_data_step_input_type import EvaluationRunDataStepInputType
+from .json_schemas_input import JsonSchemasInput
+from .reference import Reference
 
 
 class EvaluationRunDataStepInput(UniversalBaseModel):
     key: str
+    type: EvaluationRunDataStepInputType
+    origin: EvaluationRunDataStepInputOrigin
+    references: typing.Dict[str, Reference]
+    inputs: typing.Optional[typing.List[EvaluationRunDataStepInputKey]] = None
+    schemas: typing.Optional[JsonSchemasInput] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

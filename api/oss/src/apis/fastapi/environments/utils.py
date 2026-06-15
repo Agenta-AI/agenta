@@ -553,7 +553,7 @@ def parse_environment_revision_query_request_from_body(
     environment_variant_refs: Optional[List[Reference]] = None,
     environment_revision_refs: Optional[List[Reference]] = None,
     #
-    application_refs: Optional[List[Reference]] = None,
+    references: Optional[List[Reference]] = None,
     #
     include_archived: Optional[bool] = None,
     #
@@ -569,7 +569,7 @@ def parse_environment_revision_query_request_from_body(
             environment_variant_refs=environment_variant_refs,
             environment_revision_refs=environment_revision_refs,
             #
-            application_refs=application_refs,
+            references=references,
             #
             include_archived=include_archived,
             #
@@ -606,8 +606,7 @@ def merge_environment_revision_query_requests(
             environment_revision_refs=query_request_body.environment_revision_refs
             or query_request_params.environment_revision_refs,
             #
-            application_refs=query_request_body.application_refs
-            or query_request_params.application_refs,
+            references=query_request_body.references or query_request_params.references,
             #
             include_archived=(
                 query_request_body.include_archived
