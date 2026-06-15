@@ -277,6 +277,29 @@ Do NOT use `useEffect` with manual state for data fetching. Use `atomWithQuery`.
 
 Legacy SWR + axios is present in older code but must not be used for new features.
 
+## Entity display names (workflows, variants, revisions)
+
+Workflows are stored git-style: a workflow artifact has variants, and each variant has
+revisions. All three carry a `name` column, and reading the wrong one is a recurring bug
+class (evaluators showing "default", SDK-created apps showing "--" or hex slugs).
+
+- The entity display name lives on the workflow ARTIFACT: `artifact.name`, falling back
+  to its slug. Use `workflowMolecule.selectors.artifactName(entityId)`; it accepts a
+  revision id or a workflow id.
+- A variant label comes from the VARIANT: `variant.name`, then `variant.slug`. Resolve it
+  through the variants list by `workflow_variant_id`. Never label a variant from a
+  revision's fields.
+- `revision.name` is dead for display. Never read it as a label and never write entity
+  names into it. Revisions contribute only `version` (the vN tag) and `message`. Reason:
+  UI-created revisions carry the variant name ("default") and SDK-created revisions carry
+  no name at all.
+- Pick the label by entity kind. Evaluators and other entities that do not use variants
+  display artifact name + version. Applications in comparison or evaluation contexts
+  display the variant label + version.
+- Review blocker: any `.name` read off a revision entity (e.g. `selectors.data(id)?.name`
+  or a revision row's `name`) used as a display label. Point to the sanctioned selectors
+  above instead.
+
 ## Styling
 
 Always prefer Tailwind utility classes over CSS-in-JS or separate CSS files.
