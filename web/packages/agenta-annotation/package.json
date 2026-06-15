@@ -8,7 +8,14 @@
     "scripts": {
         "build": "tsc --noEmit",
         "types:check": "tsc --noEmit",
-        "lint": "eslint --config ../eslint.config.mjs src/"
+        "lint": "eslint --config ../eslint.config.mjs src/",
+        "test": "pnpm run test:unit",
+        "test:unit": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "test:all": "pnpm run test:unit && pnpm run test:integration",
+        "check": "pnpm run types:check && pnpm run lint"
     },
     "exports": {
         ".": "./src/index.ts",
@@ -25,7 +32,9 @@
         "jotai-tanstack-query": ">=0.9.0"
     },
     "devDependencies": {
-        "@types/node": "^20.8.10",
-        "typescript": "5.8.3"
+        "@types/node": "^20.19.20",
+        "@vitest/coverage-v8": "^4.1.4",
+        "typescript": "^5.9.3",
+        "vitest": "^4.1.4"
     }
 }

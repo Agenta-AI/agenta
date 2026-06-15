@@ -59,6 +59,7 @@ from oss.src.core.testsets.utils import (
 from oss.src.apis.fastapi.testsets.models import (
     TestsetCreateRequest,
     TestsetEditRequest,
+    TestsetVariantForkRequest,
     TestsetQueryRequest,
     TestsetResponse,
     TestsetsResponse,
@@ -91,8 +92,11 @@ from oss.src.apis.fastapi.testsets.utils import (
 )
 
 if is_ee():
-    from ee.src.models.shared_models import Permission
-    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
+    from ee.src.core.access.permissions.types import Permission
+    from ee.src.core.access.permissions.service import (
+        check_action_access,
+        FORBIDDEN_EXCEPTION,
+    )
 
 
 log = get_module_logger(__name__)
@@ -266,7 +270,11 @@ class TestsetsRouter:
         has_traces=False,
     )
 
-    def __init__(self, *, testsets_service: TestsetsService):
+    def __init__(
+        self,
+        *,
+        testsets_service: TestsetsService,
+    ):
         self.testsets_service = testsets_service
 
         self.router = APIRouter()
@@ -392,6 +400,16 @@ class TestsetsRouter:
             operation_id="query_testset_variants",
             status_code=status.HTTP_200_OK,
             response_model=TestsetVariantsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/variants/fork",
+            self.fork_testset_variant,
+            methods=["POST"],
+            operation_id="fork_testset_variant",
+            status_code=status.HTTP_200_OK,
+            response_model=TestsetVariantResponse,
             response_model_exclude_none=True,
         )
 
@@ -967,6 +985,42 @@ class TestsetsRouter:
 
         return testset_variant_response
 
+    @intercept_exceptions()
+    @handle_git_exceptions()
+    async def fork_testset_variant(
+        self,
+        request: Request,
+        *,
+        testset_fork_request: TestsetVariantForkRequest,
+    ) -> TestsetVariantResponse:
+        """Fork an existing testset variant into a new variant.
+
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `testset_revision_ref` is provided). Provide `slug`
+        and `name` in the fork body to identify the new variant.
+        """
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_TESTSETS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        testset_variant = await self.testsets_service.fork_testset_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            testset_variant_fork=testset_fork_request.testset_variant,
+            testset_variant_ref=testset_fork_request.testset_variant_ref,
+            testset_revision_ref=testset_fork_request.testset_revision_ref,
+        )
+
+        return TestsetVariantResponse(
+            count=1 if testset_variant else 0,
+            testset_variant=testset_variant,
+        )
+
     # TESTSET REVISIONS --------------------------------------------------------
 
     @intercept_exceptions()
@@ -1349,7 +1403,7 @@ class TestsetsRouter:
             )
 
         testset_revision_commit_request = TestsetRevisionCommitRequest(
-            testset_revision_commit=TestsetRevisionCommit(
+            testset_revision=TestsetRevisionCommit(
                 testset_id=base_revision.testset_id,
                 testset_variant_id=base_revision.testset_variant_id,
                 testset_revision_id=testset_revision_id,
@@ -1424,7 +1478,7 @@ class TestsetsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        commit = testset_revision_commit_request.testset_revision_commit
+        commit = testset_revision_commit_request.testset_revision
         if commit.data and commit.delta:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1575,7 +1629,7 @@ class TestsetsRouter:
         testset_revisions = await self.testsets_service.log_testset_revisions(
             project_id=UUID(request.state.project_id),
             #
-            testset_revisions_log=testset_revisions_log_request.testset_revision,
+            testset_revisions_log=testset_revisions_log_request.testset_revisions,
             include_testcases=testset_revisions_log_request.include_testcases,
         )
 

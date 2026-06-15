@@ -90,10 +90,18 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-browsers
 
+      # System deps for chromium only (not the full webkit/firefox apt set,
+      # which pulls in the gstreamer/audio/video stack and takes ~14m). Runs
+      # every time since apt packages aren't covered by the browser cache.
+      - name: Install Playwright system deps
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        working-directory: web/tests
+        run: pnpm exec playwright install-deps chromium
+
       - name: Install Playwright if not cached
         if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)) && steps.restore-playwright-cache.outputs.cache-hit != 'true'
         working-directory: web/tests
-        run: pnpm exec playwright install --with-deps
+        run: pnpm exec playwright install chromium
 
       - name: Run web unit tests
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)

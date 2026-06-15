@@ -494,6 +494,15 @@ generate_typescript() {
   cp -R "${fern_output_dir}" "${target_dir}"
 
   log "generated TypeScript client in ${target_dir}"
+
+  # Rebuild the compiled dist/ that consumers (@agenta/sdk, web/oss, ...) import
+  # from. tsc does not delete stale outputs, so wipe dist first — otherwise types
+  # dropped from the spec (e.g. a renamed/removed model) linger as orphan .js/.d.ts.
+  local pkg_dir="${REPO_ROOT}/web/packages/agenta-api-client"
+  log "rebuilding compiled client dist (clean) at ${pkg_dir}/dist"
+  rm -rf "${pkg_dir}/dist"
+  (cd "${REPO_ROOT}/web" && pnpm --filter @agentaai/api-client build)
+  log "rebuilt TypeScript client dist"
 }
 
 case "${LANGUAGE}" in

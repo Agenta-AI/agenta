@@ -43,10 +43,13 @@ export {
     parseWorkflowKeyFromUri,
     buildWorkflowUri,
     generateSlug,
+    // Workflow type utilities
+    WORKFLOW_TYPE_COLOR_MAP,
+    getWorkflowTypeColor,
+    getWorkflowTypeLabel,
+    normalizeWorkflowTypeKey,
+    type WorkflowTypeColor,
     // Evaluator-specific utilities (for evaluator-type workflows)
-    getEvaluatorColor,
-    type EvaluatorColor,
-    getAppTypeColor,
     parseEvaluatorKeyFromUri,
     buildEvaluatorUri,
     isOnlineCapableEvaluator,
@@ -83,3 +86,11 @@ export {
     type EvaluatorDefinition,
     type MetricColumnDefinition,
 } from "./evaluatorResolution"
+
+// Observability defaults (kept pure for unit-testability)
+export {
+    defaultTraceTypeForWorkflow,
+    type TraceTypeDefault,
+    type ObservabilityTab,
+    type WorkflowKindForTraceDefault,
+} from "./traceTypeDefault"

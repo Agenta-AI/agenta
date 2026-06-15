@@ -21,10 +21,10 @@ import {
     PromptImageUpload,
     PromptDocumentUpload,
 } from "@agenta/ui/components/presentational"
-import type {ViewMode} from "@agenta/ui/drill-in"
+import {messageViewModeAtom, toMessageViewMode} from "@agenta/ui/drill-in"
 import type {UploadFile} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import JSON5 from "json5"
 import {v4 as uuidv4} from "uuid"
 
@@ -215,9 +215,13 @@ const TurnMessageAdapter: React.FC<Props> = ({
 
         return fallback
     }, [computedText, msg])
-    const [viewMode, setViewMode] = useState<ViewMode>("text")
-    const isCodeMode = viewMode === "json" || viewMode === "yaml"
-    const editorLanguage = viewMode === "yaml" ? "yaml" : "json"
+    // Shared + persisted across all message editors (see messageViewModeAtom).
+    // The atom is typed `ViewMode` (can hold "form"), so coerce to a mode this
+    // editor can actually render before deriving any mode-dependent state.
+    const [viewMode, setViewMode] = useAtom(messageViewModeAtom)
+    const chatViewMode = toMessageViewMode(viewMode)
+    const isCodeMode = chatViewMode === "json" || chatViewMode === "yaml"
+    const editorLanguage = chatViewMode === "yaml" ? "yaml" : "json"
 
     const effectiveDisabled = Boolean(disabled)
     const isUserRole = kind === "user" && !isToolKind
@@ -656,7 +660,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             isJSON={isCodeMode}
                             isTool={isCodeMode}
                             language={editorLanguage}
-                            markdownView={viewMode === "markdown"}
+                            markdownView={chatViewMode === "text"}
                             onFocusChange={handleEditorFocusChange}
                             text={p?.json}
                             enableTokens={messageProps?.enableTokens ?? !isCodeMode}
@@ -686,7 +690,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                                     resultHashes={propsResultHashes ?? resultHashes}
                                     results={results}
                                     text={p?.json ?? editorText}
-                                    viewMode={viewMode}
+                                    viewMode={chatViewMode}
                                     onViewModeChange={setViewMode}
                                     collapsed={isMessageCollapsed}
                                     allowFileUpload={isUserRole && !effectiveDisabled}
@@ -750,7 +754,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                         state={editorState}
                         isJSON={isCodeMode}
                         language={editorLanguage}
-                        markdownView={viewMode === "markdown"}
+                        markdownView={chatViewMode === "text"}
                         enableTokens={messageProps?.enableTokens ?? !isCodeMode}
                         headerRight={
                             <TurnMessageHeaderOptions
@@ -761,7 +765,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                                 resultHashes={propsResultHashes ?? resultHashes}
                                 results={results}
                                 text={editorText}
-                                viewMode={viewMode}
+                                viewMode={chatViewMode}
                                 onViewModeChange={setViewMode}
                                 collapsed={isMessageCollapsed}
                                 allowFileUpload={isUserRole && !effectiveDisabled}

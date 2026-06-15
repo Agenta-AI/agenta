@@ -476,6 +476,70 @@ const connectedHasLocalChangesAtomFamily = atomFamily((loadableId: string) =>
 )
 
 /**
+ * Whether a row value carries user-entered content.
+ *
+ * Chat message shells ({role, content}) always carry a role string, so only
+ * their content decides meaningfulness — otherwise the blank seeded chat row
+ * would count as a draft.
+ */
+const hasMeaningfulValue = (value: unknown): boolean => {
+    if (value == null) return false
+    if (typeof value === "string") return value.trim().length > 0
+    if (typeof value === "number" || typeof value === "boolean") return true
+    if (Array.isArray(value)) return value.some(hasMeaningfulValue)
+    if (isRecord(value)) {
+        if (typeof value.role === "string" && "content" in value) {
+            return hasMeaningfulValue(value.content)
+        }
+        return Object.values(value).some(hasMeaningfulValue)
+    }
+    return false
+}
+
+/**
+ * Local-mode draft rows that contain meaningful (user-entered) data.
+ *
+ * Returns [] when connected to a source: connected loadables track edits via
+ * hasLocalChanges, whose "false when not connected" contract this selector
+ * deliberately leaves untouched. Used to warn before connectToSource clears
+ * local entities (e.g. rows created manually or from a trace).
+ *
+ * The initial empty row every fresh playground seeds is excluded, so a clean
+ * playground connecting its first test set is not treated as having drafts.
+ */
+const meaningfulLocalRowsAtomFamily = atomFamily((loadableId: string) =>
+    atom<TestsetRow[]>((get) => {
+        const state = get(loadableStateAtomFamily(loadableId))
+        if (state.connectedSourceId) {
+            return []
+        }
+
+        // Use the loadable-filtered row ids (not the raw molecule list) so rows
+        // the user removed in the playground (hiddenTestcaseIds) don't count as
+        // drafts and can't be resurrected by a keep-and-connect flow.
+        const displayRowIds = get(displayRowIdsAtomFamily(loadableId))
+        const rows: TestsetRow[] = []
+        for (const id of displayRowIds) {
+            const entity = get(testcaseMolecule.data(id))
+            const entityData = (entity?.data ?? {}) as Record<string, unknown>
+
+            const data: Record<string, unknown> = {}
+            let meaningful = false
+            for (const [key, value] of Object.entries(entityData)) {
+                if (SYSTEM_FIELDS.has(key)) continue
+                data[key] = value
+                if (hasMeaningfulValue(value)) meaningful = true
+            }
+
+            if (meaningful) {
+                rows.push({id, data} as TestsetRow)
+            }
+        }
+        return rows
+    }),
+)
+
+/**
  * Returns the list of column keys that are new (added from runnable but not in original testcase data).
  * Used to indicate "(new)" in the UI for provided columns.
  *
@@ -837,6 +901,32 @@ const resetRowsForPlaygroundClearAtom = atom(null, (get, set, loadableId: string
         executionResults: {},
         hiddenTestcaseIds: new Set<string>(),
     })
+})
+
+/**
+ * Thin global row-store reset for app→app navigation.
+ *
+ * The testcase row store is a global singleton shared across loadables, so
+ * rows drafted in one app's playground would otherwise leak into the next
+ * app's playground. Unlike `resetRowsForPlaygroundClear` this ignores the
+ * connected-mode branch (a previous app's connection must not preserve its
+ * server rows), adds no initial row (the next `linkToRunnable` seeds it once
+ * the store is empty), and touches no per-loadable state.
+ *
+ * `currentRevisionId` is cleared too: the paginated testcase query falls back
+ * to it, and leaving it set would let a mounted subscriber re-append the
+ * previous app's connected-testset rows right after this reset.
+ */
+const resetRowsForAppSwitchAtom = atom(null, (get, set) => {
+    const existingIds = get(testcaseMolecule.atoms.displayRowIds)
+    for (const id of existingIds) {
+        set(testcaseMolecule.actions.delete, id)
+    }
+
+    set(resetTestcaseIdsAtom)
+    set(clearNewEntityIdsAtom)
+    set(clearDeletedIdsAtom)
+    set(setCurrentRevisionIdAtom, null)
 })
 
 // ============================================================================
@@ -2372,6 +2462,9 @@ export const testsetLoadable = {
         /** Has local changes for a loadable */
         hasLocalChanges: (loadableId: string) => connectedHasLocalChangesAtomFamily(loadableId),
 
+        /** Local-mode draft rows with meaningful data (empty when connected) */
+        meaningfulLocalRows: (loadableId: string) => meaningfulLocalRowsAtomFamily(loadableId),
+
         /** Column keys that are new (added from runnable but not in original testcase data) */
         newColumnKeys: (loadableId: string) => newColumnKeysAtomFamily(loadableId),
 
@@ -2482,6 +2575,9 @@ export const testsetLoadable = {
 
         /** Reset rows for the playground Clear action */
         resetRowsForPlaygroundClear: resetRowsForPlaygroundClearAtom,
+
+        /** Reset the global row store on playground app→app navigation */
+        resetRowsForAppSwitch: resetRowsForAppSwitchAtom,
 
         /** Set columns */
         setColumns: setColumnsAtom,
@@ -2613,6 +2709,10 @@ const unifiedSelectors = {
     /** Has local changes for a loadable */
     hasLocalChanges: (loadableId: string) => testsetLoadable.selectors.hasLocalChanges(loadableId),
 
+    /** Local-mode draft rows with meaningful data (empty when connected) */
+    meaningfulLocalRows: (loadableId: string) =>
+        testsetLoadable.selectors.meaningfulLocalRows(loadableId),
+
     /** Column keys that are new (added but not in original data) */
     newColumnKeys: (loadableId: string) => testsetLoadable.selectors.newColumnKeys(loadableId),
 
@@ -2686,6 +2786,7 @@ const unifiedActions = {
     importRows: testsetLoadable.actions.importRows,
     clearRows: testsetLoadable.actions.clearRows,
     resetRowsForPlaygroundClear: testsetLoadable.actions.resetRowsForPlaygroundClear,
+    resetRowsForAppSwitch: testsetLoadable.actions.resetRowsForAppSwitch,
 
     // Column actions
     setColumns: testsetLoadable.actions.setColumns,

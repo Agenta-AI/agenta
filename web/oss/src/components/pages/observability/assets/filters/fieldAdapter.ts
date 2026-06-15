@@ -25,6 +25,13 @@ export interface FieldConfig {
     valueDisplayText?: string
     queryKey?: string
     referenceProperty?: string
+    /**
+     * Category for the `references` family (application / evaluator /
+     * application_variant / environment). Used by `mapFilterData` to
+     * disambiguate which sub-column an incoming filter row maps to when
+     * multiple share `baseField: "references"` and `referenceProperty: "id"`.
+     */
+    referenceCategory?: string
     // reference/application/evaluator transforms
     toExternal?: (normalized: any) => any
     toUI?: (external: any) => any
@@ -86,6 +93,7 @@ const walk = (nodes: FilterMenuNode[], acc: FieldConfig[]) => {
             valueDisplayText: leaf.valueDisplayText,
             queryKey: leaf.queryKey,
             referenceProperty: leaf.referenceProperty,
+            referenceCategory: leaf.referenceCategory,
         }
 
         // references/application/evaluator → keep simple mapper
@@ -112,9 +120,23 @@ const walk = (nodes: FilterMenuNode[], acc: FieldConfig[]) => {
             }
             cfg.toUI = (external: any) => {
                 const arr = Array.isArray(external) ? external : external ? [external] : []
-                return arr.map((e: any) =>
+                // De-dup by extracted value. References can OR-match across
+                // slots in a single condition (e.g.,
+                // `[{id:X, key:eval}, {id:X, key:app}]` for "match this entity
+                // in either slot"). Without de-dup the UI shows the same id
+                // twice. The backend keeps the rich shape via `toExternal`.
+                const mapped = arr.map((e: any) =>
                     e && typeof e === "object" ? (e[leaf.referenceProperty!] ?? "") : e,
                 )
+                const seen = new Set<string>()
+                const out: any[] = []
+                for (const v of mapped) {
+                    const key = typeof v === "string" ? v : JSON.stringify(v)
+                    if (seen.has(key)) continue
+                    seen.add(key)
+                    out.push(v)
+                }
+                return out
             }
         }
 

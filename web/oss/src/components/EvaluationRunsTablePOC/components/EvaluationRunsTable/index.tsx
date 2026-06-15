@@ -1,4 +1,4 @@
-import type {Key, MouseEvent, ReactNode} from "react"
+import type {Key, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useQueryClient} from "@tanstack/react-query"
@@ -34,7 +34,6 @@ import {
 } from "@/oss/lib/onboarding"
 import {useQueryParamState} from "@/oss/state/appState"
 
-import {shouldIgnoreRowClick} from "../../actions/navigationActions"
 import {
     evaluationRunsDeleteContextAtom,
     evaluationRunsTableFetchEnabledAtom,
@@ -97,6 +96,9 @@ const SetupEvaluationModal = dynamic(
     () => import("@/oss/components/pages/evaluations/SetupEvaluationModal"),
     {ssr: false},
 )
+const EditEvaluationDrawer = dynamic(() => import("@/oss/components/EditEvaluationDrawer"), {
+    ssr: false,
+})
 const InactiveTablePlaceholder = ({className}: {className?: string}) => (
     <div className={clsx("flex h-full min-h-0 flex-col gap-4", className)}>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -279,6 +281,14 @@ const EvaluationRunsTableActive = ({
         [setDeleteModalOpen, setSelectedRowKeys],
     )
 
+    // Edit-evaluation drawer is owned here (the parent), NOT inside the virtualized
+    // row cell — the row action only signals which run to edit.
+    const [editEvaluationRunId, setEditEvaluationRunId] = useState<string | null>(null)
+    const handleEditEvaluation = useCallback((record: EvaluationRunTableRow) => {
+        const id = record?.preview?.id ?? record?.runId ?? null
+        if (id) setEditEvaluationRunId(id)
+    }, [])
+
     const pagination = evaluationRunsDatasetStore.hooks.usePagination({
         scopeId,
         pageSize,
@@ -333,8 +343,7 @@ const EvaluationRunsTableActive = ({
             const runId = record.preview?.id ?? record.runId
             const isNavigable = Boolean(!record.__isSkeleton && runId)
             return {
-                onClick: (event: MouseEvent<HTMLTableRowElement>) => {
-                    if (shouldIgnoreRowClick(event)) return
+                onClick: () => {
                     if (!isNavigable) return
                     handleOpenRun(record)
                 },
@@ -678,6 +687,7 @@ const EvaluationRunsTableActive = ({
         onVariantNavigation: handleVariantNavigation,
         onTestsetNavigation: handleTestsetNavigation,
         onRequestDelete: handleRequestDelete,
+        onEditEvaluation: handleEditEvaluation,
         resolveAppId: resolveRowAppIdForScope,
         onExportRow: canExportData ? handleExportRow : undefined,
         rowExportingKey,
@@ -781,6 +791,12 @@ const EvaluationRunsTableActive = ({
                 evaluationType={evaluationType}
                 isMultiple={selectionSnapshot.rows.length > 1}
                 deletionConfig={deletionConfig}
+            />
+
+            <EditEvaluationDrawer
+                runId={editEvaluationRunId}
+                open={Boolean(editEvaluationRunId)}
+                onClose={() => setEditEvaluationRunId(null)}
             />
 
             {createSupported ? (

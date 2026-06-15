@@ -188,7 +188,7 @@ export async function commitEnvironmentRevision(
     const response = await axios.post(
         `${getAgentaApiUrl()}/environments/revisions/commit`,
         {
-            environment_revision_commit: {
+            environment_revision: {
                 slug,
                 environment_id: environmentId,
                 environment_variant_id: environmentVariantId,

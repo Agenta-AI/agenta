@@ -459,6 +459,7 @@ const ListOfOrgs = ({
             AlertPopup({
                 title: "Logout",
                 message: "Are you sure you want to logout?",
+                centered: true,
                 onOk: logout,
             })
             return
@@ -550,10 +551,6 @@ const ListOfOrgs = ({
                                         payload?.session_identities ||
                                         payload?.sessionIdentities ||
                                         []
-                                    console.debug("[auth-upgrade] captured session identities", {
-                                        organizationId,
-                                        sessionIdentities,
-                                    })
                                     window.localStorage.setItem(
                                         "authUpgradeSessionIdentities",
                                         JSON.stringify(sessionIdentities),

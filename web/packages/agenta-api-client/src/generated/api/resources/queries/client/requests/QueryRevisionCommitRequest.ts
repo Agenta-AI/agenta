@@ -5,9 +5,9 @@ import type * as AgentaApi from "../../../../index.js";
 /**
  * @example
  *     {
- *         query_revision_commit: {}
+ *         query_revision: {}
  *     }
  */
 export interface QueryRevisionCommitRequest {
-    query_revision_commit: AgentaApi.QueryRevisionCommit;
+    query_revision: AgentaApi.QueryRevisionCommit;
 }

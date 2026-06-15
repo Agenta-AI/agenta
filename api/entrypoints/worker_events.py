@@ -19,9 +19,12 @@ from oss.src.utils.logging import get_module_logger
 
 # Guard EE imports — see worker_tracing.py for the rationale.
 if is_ee():
-    from ee.src.utils.entitlements import bootstrap_entitlements_services
+    from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
 
 log = get_module_logger(__name__)
+
+# Bound the stream so acked entries are trimmed; without this it grows unbounded.
+MAXLEN_QUEUES_WEBHOOKS = 100_000
 
 
 async def main_async() -> int:
@@ -47,6 +50,8 @@ async def main_async() -> int:
             url=env.redis.uri_durable,
             queue_name="queues:webhooks",
             consumer_group_name="worker-events-webhooks-dispatcher",
+            maxlen=MAXLEN_QUEUES_WEBHOOKS,
+            approximate=True,
         )
         await broker.startup()
 

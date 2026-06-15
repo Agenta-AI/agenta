@@ -134,7 +134,6 @@ JsonSchemas
   outputs: Optional[Schema]
 
 WorkflowServiceInterface
-  version: str = "2025.07.14"
   uri: Optional[str]
   url: Optional[str]
   headers: Optional[Dict]

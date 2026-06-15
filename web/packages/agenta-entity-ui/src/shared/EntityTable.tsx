@@ -33,7 +33,7 @@
  * @module EntityTable
  */
 
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
 
 import type {
     EntityColumnDef,
@@ -133,6 +133,12 @@ export interface EntityTableProps<
     prependColumns?: ColumnsType<TRow>
     /** Extra columns appended to the column list */
     appendColumns?: ColumnsType<TRow>
+    /** Optional cell renderer override for entity-specific display rules. */
+    renderCell?: (
+        value: unknown,
+        rowData: Record<string, unknown> | null,
+        column: TColumn,
+    ) => ReactNode
 
     // Table features
     /** Row height config */
@@ -214,6 +220,7 @@ export function EntityTable<
     grouping = false,
     prependColumns,
     appendColumns,
+    renderCell,
     rowHeightConfig = DEFAULT_ROW_HEIGHT_CONFIG,
     showSettings = true,
     enableExport = true,
@@ -461,6 +468,7 @@ export function EntityTable<
             getRowData,
             getCellValue,
             grouping: groupingOptions,
+            renderCell,
         } as BuildEntityColumnsOptions<TRow, TColumn>)
 
         // Assemble final columns
@@ -483,19 +491,10 @@ export function EntityTable<
         handleRowSelect,
         getRowData,
         getCellValue,
+        renderCell,
         prependColumns,
         appendColumns,
     ])
-
-    // Loading state
-    if (isLoading && rows.length === 0) {
-        return <TableLoadingState rows={loadingRows} />
-    }
-
-    // Empty state
-    if (!isLoading && rows.length === 0) {
-        return <TableEmptyState message={emptyMessage} />
-    }
 
     // Default type chip wiring. Reuses existing data accessors so chips appear
     // for every consumer (eg. testset preview modal in edit mode) without each
@@ -518,6 +517,16 @@ export function EntityTable<
             getRowValue: defaultGetRowValue,
         }
     }, [typeChips, defaultGetRowValue])
+
+    // Loading state
+    if (isLoading && rows.length === 0) {
+        return <TableLoadingState rows={loadingRows} />
+    }
+
+    // Empty state
+    if (!isLoading && rows.length === 0) {
+        return <TableEmptyState message={emptyMessage} />
+    }
 
     return (
         <div className="h-full">

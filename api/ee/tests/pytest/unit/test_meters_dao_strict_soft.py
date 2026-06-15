@@ -26,7 +26,7 @@ from uuid import UUID
 
 import pytest
 
-from ee.src.core.entitlements.types import Quota
+from ee.src.core.access.entitlements.types import Quota
 from ee.src.core.meters.types import MeterDTO, Meters
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 
@@ -104,14 +104,16 @@ class _SessionContext:
         return False
 
 
-def _patch_session(monkeypatch, session: _Session):
-    from ee.src.dbs.postgres.meters import dao as dao_module
+class _MockEngine:
+    def __init__(self, session: _Session):
+        self._session = session
 
-    monkeypatch.setattr(
-        dao_module.engine,
-        "core_session",
-        lambda: _SessionContext(session),
-    )
+    def session(self):
+        return _SessionContext(self._session)
+
+
+def _mock_engine(session: _Session) -> _MockEngine:
+    return _MockEngine(session)
 
 
 # ---------------------------------------------------------------------------
@@ -121,12 +123,10 @@ def _patch_session(monkeypatch, session: _Session):
 
 class TestCheck:
     @pytest.mark.asyncio
-    async def test_below_limit_with_delta_allows(self, monkeypatch):
+    async def test_below_limit_with_delta_allows(self):
         """current=5, delta=3, limit=10 → 8 <= 10 → allowed."""
         session = _Session(scalar=SimpleNamespace(value=5, synced=0))
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         allowed, dto = await dao.check(
             meter=_meter(delta=3),
             quota=Quota(limit=10),
@@ -136,12 +136,10 @@ class TestCheck:
         assert dto.value == 5  # returned current value
 
     @pytest.mark.asyncio
-    async def test_at_limit_with_zero_delta_allows(self, monkeypatch):
+    async def test_at_limit_with_zero_delta_allows(self):
         """current=10, delta=0, limit=10 → 10 <= 10 → allowed (boundary)."""
         session = _Session(scalar=SimpleNamespace(value=10, synced=0))
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         allowed, _ = await dao.check(
             meter=_meter(delta=0),
             quota=Quota(limit=10),
@@ -150,12 +148,10 @@ class TestCheck:
         assert allowed is True
 
     @pytest.mark.asyncio
-    async def test_would_exceed_limit_blocks(self, monkeypatch):
+    async def test_would_exceed_limit_blocks(self):
         """current=10, delta=2, limit=10 → 12 > 10 → blocked."""
         session = _Session(scalar=SimpleNamespace(value=10, synced=0))
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         allowed, _ = await dao.check(
             meter=_meter(delta=2),
             quota=Quota(limit=10),
@@ -164,12 +160,10 @@ class TestCheck:
         assert allowed is False
 
     @pytest.mark.asyncio
-    async def test_negative_delta_clamps_at_zero(self, monkeypatch):
+    async def test_negative_delta_clamps_at_zero(self):
         """current=3, delta=-10, limit=10 → max(-7, 0)=0 <= 10 → allowed."""
         session = _Session(scalar=SimpleNamespace(value=3, synced=0))
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         allowed, _ = await dao.check(
             meter=_meter(delta=-10),
             quota=Quota(limit=10),
@@ -178,12 +172,10 @@ class TestCheck:
         assert allowed is True
 
     @pytest.mark.asyncio
-    async def test_no_existing_row_treats_current_as_zero(self, monkeypatch):
+    async def test_no_existing_row_treats_current_as_zero(self):
         """No row in DB, delta=5, limit=10 → 0+5=5 <= 10 → allowed."""
         session = _Session(scalar=None)
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         allowed, dto = await dao.check(
             meter=_meter(delta=5),
             quota=Quota(limit=10),
@@ -194,12 +186,10 @@ class TestCheck:
         assert dto.synced == 0
 
     @pytest.mark.asyncio
-    async def test_no_limit_always_allows(self, monkeypatch):
+    async def test_no_limit_always_allows(self):
         """limit=None → unconditional pass even at huge values."""
         session = _Session(scalar=SimpleNamespace(value=10_000_000, synced=0))
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         allowed, _ = await dao.check(
             meter=_meter(delta=1_000_000),
             quota=Quota(limit=None),
@@ -234,12 +224,10 @@ def _extract_where_sql(statement) -> str:
 
 class TestAdjustStrictVsSoft:
     @pytest.mark.asyncio
-    async def test_strict_emits_value_plus_delta_predicate(self, monkeypatch):
+    async def test_strict_emits_value_plus_delta_predicate(self):
         """Strict mode must gate on `value + delta <= limit`."""
         session = _Session(row=(7,))  # post-update value
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         await dao.adjust(
             meter=_meter(delta=2),
             quota=Quota(limit=10, strict=True),
@@ -255,7 +243,7 @@ class TestAdjustStrictVsSoft:
 
     @pytest.mark.asyncio
     async def test_nonstrict_emits_value_strictly_less_than_limit_predicate(
-        self, monkeypatch
+        self,
     ):
         """Non-strict mode gates the SQL predicate on `value < limit`.
 
@@ -266,9 +254,7 @@ class TestAdjustStrictVsSoft:
         already at-or-over limit.
         """
         session = _Session(row=(7,))
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         await dao.adjust(
             meter=_meter(delta=2),
             quota=Quota(limit=10, strict=False),
@@ -301,15 +287,13 @@ class TestAdjustStrictVsSoft:
     # ---------------------------------------------------------------------
 
     @pytest.mark.asyncio
-    async def test_huge_delta_denied_in_strict(self, monkeypatch):
+    async def test_huge_delta_denied_in_strict(self):
         """0 + 12 with limit=10 → predictable self-overshoot → deny.
 
         Python-side fast-path; no DB call should land.
         """
         session = _Session(row=None)
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         allowed, _, _ = await dao.adjust(
             meter=_meter(delta=12),
             quota=Quota(limit=10, strict=True),
@@ -321,15 +305,13 @@ class TestAdjustStrictVsSoft:
         )
 
     @pytest.mark.asyncio
-    async def test_huge_delta_denied_in_nonstrict(self, monkeypatch):
+    async def test_huge_delta_denied_in_nonstrict(self):
         """0 + 12 with limit=10 → predictable self-overshoot → deny.
 
         Non-strict shares the same `delta <= limit` rule as strict.
         """
         session = _Session(row=None)
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         allowed, _, _ = await dao.adjust(
             meter=_meter(delta=12),
             quota=Quota(limit=10, strict=False),
@@ -339,13 +321,11 @@ class TestAdjustStrictVsSoft:
         assert session.executed_statements == []
 
     @pytest.mark.asyncio
-    async def test_at_limit_denied_in_strict(self, monkeypatch):
+    async def test_at_limit_denied_in_strict(self):
         """10 + 2 with limit=10 → strict SQL predicate filters the row
         out (greatest(10+2, 0) > 10) → RETURNING empty → deny."""
         session = _Session(row=None)
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         allowed, _, _ = await dao.adjust(
             meter=_meter(delta=2),
             quota=Quota(limit=10, strict=True),
@@ -357,13 +337,11 @@ class TestAdjustStrictVsSoft:
         assert len(session.executed_statements) == 1
 
     @pytest.mark.asyncio
-    async def test_at_limit_denied_in_nonstrict(self, monkeypatch):
+    async def test_at_limit_denied_in_nonstrict(self):
         """10 + 2 with limit=10 → non-strict SQL predicate `value < 10`
         rejects current=10 → RETURNING empty → deny."""
         session = _Session(row=None)
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         allowed, _, _ = await dao.adjust(
             meter=_meter(delta=2),
             quota=Quota(limit=10, strict=False),
@@ -373,13 +351,11 @@ class TestAdjustStrictVsSoft:
         assert len(session.executed_statements) == 1
 
     @pytest.mark.asyncio
-    async def test_one_over_denied_in_strict(self, monkeypatch):
+    async def test_one_over_denied_in_strict(self):
         """9 + 2 with limit=10 → strict SQL predicate `greatest(9+2, 0) > 10`
         rejects → deny."""
         session = _Session(row=None)
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         allowed, _, _ = await dao.adjust(
             meter=_meter(delta=2),
             quota=Quota(limit=10, strict=True),
@@ -388,7 +364,7 @@ class TestAdjustStrictVsSoft:
         assert allowed is False
 
     @pytest.mark.asyncio
-    async def test_one_over_allowed_in_nonstrict(self, monkeypatch):
+    async def test_one_over_allowed_in_nonstrict(self):
         """9 + 2 with limit=10 → non-strict SQL predicate `9 < 10` → allow.
 
         This is the cross-the-line-once case: the request itself crosses
@@ -396,9 +372,7 @@ class TestAdjustStrictVsSoft:
         request would then be denied by the same predicate.
         """
         session = _Session(row=(11,))  # post-update value
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         allowed, _, _ = await dao.adjust(
             meter=_meter(delta=2),
             quota=Quota(limit=10, strict=False),
@@ -407,13 +381,11 @@ class TestAdjustStrictVsSoft:
         assert allowed is True
 
     @pytest.mark.asyncio
-    async def test_fills_exactly_allowed_in_both_modes(self, monkeypatch):
+    async def test_fills_exactly_allowed_in_both_modes(self):
         """8 + 2 with limit=10 → equal to limit → allowed in both modes."""
         for strict in (True, False):
             session = _Session(row=(10,))
-            _patch_session(monkeypatch, session)
-
-            dao = MetersDAO()
+            dao = MetersDAO(engine=_mock_engine(session))
             allowed, _, _ = await dao.adjust(
                 meter=_meter(delta=2),
                 quota=Quota(limit=10, strict=strict),
@@ -421,16 +393,14 @@ class TestAdjustStrictVsSoft:
             assert allowed is True, f"strict={strict}: 8+2 should allow"
 
     @pytest.mark.asyncio
-    async def test_strict_blocks_when_proposed_value_exceeds_limit(self, monkeypatch):
+    async def test_strict_blocks_when_proposed_value_exceeds_limit(self):
         """`adjust` early-returns False when caller-set value > limit.
 
         This is the absolute-value pre-check at the top of `adjust` (delta-mode
         callers hit the SQL predicate instead).
         """
         session = _Session(row=None)
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         allowed, _, _ = await dao.adjust(
             meter=_meter(value=20),  # explicit value, no delta
             quota=Quota(limit=10, strict=True),
@@ -441,13 +411,11 @@ class TestAdjustStrictVsSoft:
         assert session.executed_statements == []
 
     @pytest.mark.asyncio
-    async def test_returns_false_when_predicate_blocks(self, monkeypatch):
+    async def test_returns_false_when_predicate_blocks(self):
         """When the WHERE clause filters the row out, RETURNING is empty →
         upsert "succeeded" with zero rows → DAO returns allowed=False."""
         session = _Session(row=None)  # RETURNING produced nothing
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         allowed, dto, _ = await dao.adjust(
             meter=_meter(delta=5),
             quota=Quota(limit=10, strict=True),
@@ -459,13 +427,11 @@ class TestAdjustStrictVsSoft:
         assert dto.value == 5
 
     @pytest.mark.asyncio
-    async def test_returns_true_when_returning_row_present(self, monkeypatch):
+    async def test_returns_true_when_returning_row_present(self):
         """RETURNING produced a row → upsert succeeded → allowed=True with
         the post-update value coming from RETURNING."""
         session = _Session(row=(7,))
-        _patch_session(monkeypatch, session)
-
-        dao = MetersDAO()
+        dao = MetersDAO(engine=_mock_engine(session))
         allowed, dto, _ = await dao.adjust(
             meter=_meter(delta=2),
             quota=Quota(limit=10, strict=True),

@@ -4,5 +4,5 @@ import type * as AgentaApi from "../index.js";
 
 export interface EnvironmentRevisionsResponse {
     count?: number | undefined;
-    environment_revisions?: AgentaApi.EnvironmentRevision[] | undefined;
+    environment_revisions?: AgentaApi.EnvironmentRevisionOutput[] | undefined;
 }

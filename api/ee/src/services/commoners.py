@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import acquire_lock, release_lock
+from oss.src.utils.locking import acquire_lock, release_lock
 from oss.src.utils.common import env
 
 from oss.src.services import db_manager
@@ -24,26 +24,23 @@ from oss.src.services.user_service import (
     delete_user,
 )
 from oss.src.models.db_models import OrganizationDB
-from ee.src.services.email_helper import (
-    add_contact_to_loops,
-)
+from oss.src.utils import emailing
 
 from oss.src.core.auth.service import AuthService
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.subscriptions.types import get_default_plan
-from ee.src.dbs.postgres.meters.dao import MetersDAO
-from ee.src.core.meters.service import MetersService
-from ee.src.utils.entitlements import check_entitlements, scope_from, Gauge
+from ee.src.core.access.entitlements.service import (
+    check_entitlements,
+    scope_from,
+    Gauge,
+)
 from ee.src.core.organizations.exceptions import OrganizationCreationNotAllowedError
 
 log = get_module_logger(__name__)
 
 subscription_service = SubscriptionsService(
     subscriptions_dao=SubscriptionsDAO(),
-    meters_service=MetersService(
-        meters_dao=MetersDAO(),
-    ),
 )
 
 DEMOS = "AGENTA_DEMOS"
@@ -247,7 +244,7 @@ async def create_accounts(
         if is_ee():
             try:
                 # Adds contact to loops for marketing emails. TODO: Add opt-in checkbox to supertokens
-                add_contact_to_loops(user_dict["email"])  # type: ignore
+                emailing.add_contact(user_dict["email"])  # type: ignore
             except ConnectionError as ex:
                 log.warn("error adding contact to loops %s", ex)
 
@@ -304,7 +301,7 @@ async def create_organization_for_signup(
 
     # Provision the initial signup subscription for the organization
     try:
-        await subscription_service.provision_signup_subscription(
+        await subscription_service.provision_subscription(
             organization_id=str(organization.id),
             organization_name=organization.name,
             organization_email=organization_email,

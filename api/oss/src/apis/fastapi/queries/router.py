@@ -24,6 +24,7 @@ from oss.src.core.queries.service import (
 from oss.src.apis.fastapi.queries.models import (
     QueryCreateRequest,
     QueryEditRequest,
+    QueryVariantForkRequest,
     QueryQueryRequest,
     QueryResponse,
     QueriesResponse,
@@ -56,8 +57,11 @@ from oss.src.apis.fastapi.queries.utils import (
 )
 
 if is_ee():
-    from ee.src.models.shared_models import Permission
-    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
+    from ee.src.core.access.permissions.types import Permission
+    from ee.src.core.access.permissions.service import (
+        check_action_access,
+        FORBIDDEN_EXCEPTION,
+    )
 
 
 log = get_module_logger(__name__)
@@ -82,7 +86,11 @@ class QueriesRouter:
     # `QueriesService.commit_query_revision`, not from this router. See
     # core/events/utils.py module docstring for the read-vs-write split
     # rationale.
-    def __init__(self, *, queries_service: QueriesService):
+    def __init__(
+        self,
+        *,
+        queries_service: QueriesService,
+    ):
         self.queries_service = queries_service
         self.router = APIRouter()
 
@@ -207,6 +215,16 @@ class QueriesRouter:
             operation_id="query_query_variants",
             status_code=status.HTTP_200_OK,
             response_model=QueryVariantsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/variants/fork",
+            self.fork_query_variant,
+            methods=["POST"],
+            operation_id="fork_query_variant",
+            status_code=status.HTTP_200_OK,
+            response_model=QueryVariantResponse,
             response_model_exclude_none=True,
         )
 
@@ -685,6 +703,42 @@ class QueriesRouter:
             query_variants=query_variants,
         )
 
+    @intercept_exceptions()
+    @handle_git_exceptions()
+    async def fork_query_variant(
+        self,
+        request: Request,
+        *,
+        query_fork_request: QueryVariantForkRequest,
+    ) -> QueryVariantResponse:
+        """Fork an existing query variant into a new variant.
+
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `query_revision_ref` is provided). Provide `slug`
+        and `name` in the fork body to identify the new variant.
+        """
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_QUERIES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        query_variant = await self.queries_service.fork_query_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            query_variant_fork=query_fork_request.query_variant,
+            query_variant_ref=query_fork_request.query_variant_ref,
+            query_revision_ref=query_fork_request.query_revision_ref,
+        )
+
+        return QueryVariantResponse(
+            count=1 if query_variant else 0,
+            query_variant=query_variant,
+        )
+
     # QUERY REVISIONS ----------------------------------------------------------
 
     @intercept_exceptions()
@@ -918,7 +972,7 @@ class QueriesRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            query_revision_commit=query_revision_commit_request.query_revision_commit,
+            query_revision_commit=query_revision_commit_request.query_revision,
         )
 
         query_revision_response = QueryRevisionResponse(

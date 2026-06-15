@@ -176,6 +176,11 @@ code_v0_interface = WorkflowRevisionData(
     schemas=None,
 )
 
+mock_v0_interface = WorkflowRevisionData(
+    uri="agenta:custom:mock:v0",
+    schemas=None,
+)
+
 config_v0_interface = WorkflowRevisionData(
     uri="agenta:custom:config:v0",
     schemas=None,
@@ -693,13 +698,15 @@ auto_custom_code_run_v0_interface = WorkflowRevisionData(
                     x_ag_type="choice",
                 ),
                 "version": ag_field(
-                    base=scalar(jtype="string", default="2"), x_ag_type="hidden"
+                    base=scalar(jtype="string", default="3"), x_ag_type="hidden"
                 ),
             },
             required=["code"],
             additional_properties=False,
         ),
-        outputs=SCORE_SUCCESS_OUTPUTS_SCHEMA,
+        # No outputs schema: v3 code evaluators return arbitrary JSON, so the
+        # output shape cannot be declared here. v1/v2 evaluator revisions get
+        # their pinned score+success schema from build_evaluator_data.
     ),
 )
 

@@ -4,7 +4,6 @@ from uuid import UUID
 
 from orjson import dumps, loads
 from pydantic import BaseModel
-from redis.asyncio import Redis
 
 try:
     from asyncpg.pgproto.pgproto import UUID as AsyncpgUUID
@@ -12,10 +11,13 @@ except ImportError:
     AsyncpgUUID = None
 
 from oss.src.core.events.dtos import Event
-from oss.src.utils.env import env
+from oss.src.dbs.redis.shared.engine import get_streams_engine
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
+
+# Bound the stream so consumed entries are trimmed; without this it grows unbounded.
+MAXLEN_STREAMS_EVENTS = 100_000
 
 
 def _orjson_default(obj):
@@ -24,16 +26,9 @@ def _orjson_default(obj):
     raise TypeError(f"Type is not JSON serializable: {type(obj)}")
 
 
-_redis: Optional[Redis] = None
-
-
-def _get_redis() -> Optional[Redis]:
-    global _redis
-
-    if _redis is None and env.redis.uri_durable:
-        _redis = Redis.from_url(env.redis.uri_durable, decode_responses=False)
-
-    return _redis
+def _get_redis():
+    engine = get_streams_engine()
+    return engine.get_redis() if engine else None
 
 
 class EventMessage(BaseModel):
@@ -91,6 +86,8 @@ async def publish_event(
         await redis.xadd(
             name="streams:events",
             fields={"data": event_bytes},
+            maxlen=MAXLEN_STREAMS_EVENTS,
+            approximate=True,
         )
         return True
     except Exception as e:

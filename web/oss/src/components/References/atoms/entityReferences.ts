@@ -6,6 +6,8 @@ import {testsetQueryAtomFamily, type Testset} from "@agenta/entities/testset"
 import {
     fetchWorkflow,
     fetchWorkflowRevisionById,
+    parseWorkflowKeyFromUri,
+    workflowArtifactScopedQueryAtomFamily,
     resolveOutputSchemaProperties,
     workflowMolecule,
     workflowsListQueryStateAtom,
@@ -245,6 +247,7 @@ export interface EvaluatorReference {
     id?: string | null
     slug?: string | null
     name?: string | null
+    workflowKey?: string | null
     metrics?: EvaluatorReferenceMetric[]
 }
 
@@ -330,11 +333,27 @@ export const evaluatorReferenceAtomFamily = atomFamily(
                 }
                 const workflow = query.data
                 if (workflow) {
+                    const artifactId = workflow.workflow_id ?? null
+                    const artifactName = artifactId
+                        ? (get(
+                              workflowArtifactScopedQueryAtomFamily({
+                                  projectId,
+                                  workflowId: artifactId,
+                              }),
+                          ).data?.name ?? null)
+                        : null
                     return {
                         data: {
                             id: workflow.workflow_id ?? workflow.id ?? id,
                             slug: workflow.slug ?? slug ?? null,
-                            name: workflow.name ?? workflow.slug ?? slug ?? id ?? null,
+                            name:
+                                artifactName ??
+                                workflow.name ??
+                                workflow.slug ??
+                                slug ??
+                                id ??
+                                null,
+                            workflowKey: parseWorkflowKeyFromUri(workflow.data?.uri ?? null),
                             metrics: extractMetricsFromWorkflow(workflow),
                         },
                         isPending: false,
@@ -360,6 +379,7 @@ export const evaluatorReferenceAtomFamily = atomFamily(
                             id: listMatch.id ?? id ?? null,
                             slug: listMatch.slug ?? slug,
                             name: listMatch.name ?? listMatch.slug ?? slug,
+                            workflowKey: parseWorkflowKeyFromUri(listMatch.data?.uri ?? null),
                             metrics: extractMetricsFromWorkflow(listMatch),
                         },
                         isPending: false,
@@ -387,6 +407,7 @@ export const evaluatorReferenceAtomFamily = atomFamily(
                     id: id ?? null,
                     slug: slug ?? null,
                     name: slug ?? id ?? null,
+                    workflowKey: null,
                     metrics: [],
                 },
                 isPending: false,

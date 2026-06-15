@@ -275,7 +275,7 @@ const TraceInputKeyCell = memo(function TraceInputKeyCell({
             maxLines={3}
             chatPreference="input"
             chatPreviewStrategy="last-user"
-            beautifyJson
+            prettyJson
         />
     )
 })
@@ -317,7 +317,7 @@ const TraceInputCell = memo(function TraceInputCell({
             maxLines={3}
             chatPreference="input"
             chatPreviewStrategy="last-user"
-            beautifyJson
+            prettyJson
         />
     )
 })
@@ -398,7 +398,7 @@ const AnnotationColumnHeader = memo(function AnnotationColumnHeader({
     def: AnnotationColumnDef
 }) {
     const evaluatorLookupId = def.evaluatorRevisionId ?? def.evaluatorId ?? ""
-    const name = useAtomValue(workflowMolecule.selectors.name(evaluatorLookupId))
+    const name = useAtomValue(workflowMolecule.selectors.artifactName(evaluatorLookupId))
     const slug = useAtomValue(workflowMolecule.selectors.slug(evaluatorLookupId))
     const displaySlug = def.evaluatorSlug || slug
     const displayName = name || displaySlug || def.columnName || def.stepKey
@@ -426,7 +426,7 @@ const AnnotationGroupHeader = memo(function AnnotationGroupHeader({
     onToggle: () => void
 }) {
     const evaluatorLookupId = def.evaluatorRevisionId ?? def.evaluatorId ?? ""
-    const name = useAtomValue(workflowMolecule.selectors.name(evaluatorLookupId))
+    const name = useAtomValue(workflowMolecule.selectors.artifactName(evaluatorLookupId))
     const slug = useAtomValue(workflowMolecule.selectors.slug(evaluatorLookupId))
     const displaySlug = def.evaluatorSlug || slug
     const displayName = name || displaySlug || def.columnName || def.stepKey
@@ -1095,7 +1095,7 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
                     </div>
 
                     {/* Right panel: Annotation form */}
-                    <div className="w-[340px] min-w-[280px] shrink-0 border border-solid border-[rgba(5,23,41,0.06)] rounded-lg overflow-hidden bg-[var(--ag-c-FFFFFF)]">
+                    <div className="w-[340px] min-w-[280px] shrink-0 border border-solid border-[var(--ag-rgba-051729-06)] rounded-lg overflow-hidden bg-[var(--ag-c-FFFFFF)]">
                         <AnnotationPanel
                             scenarioId={scenarioId}
                             queueId={queueId}
@@ -1172,7 +1172,7 @@ function resolveExportColumnLabel(
             const annotationDef = def.annotationDef
             const evaluatorLookupId = annotationDef.evaluatorRevisionId ?? annotationDef.evaluatorId
             const name = evaluatorLookupId
-                ? store.get(workflowMolecule.selectors.name(evaluatorLookupId))
+                ? store.get(workflowMolecule.selectors.artifactName(evaluatorLookupId))
                 : null
             const slug = evaluatorLookupId
                 ? store.get(workflowMolecule.selectors.slug(evaluatorLookupId))

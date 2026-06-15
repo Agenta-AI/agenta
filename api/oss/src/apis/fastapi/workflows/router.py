@@ -32,7 +32,7 @@ from oss.src.apis.fastapi.workflows.models import (
     WorkflowCreateRequest,
     WorkflowEditRequest,
     WorkflowQueryRequest,
-    WorkflowForkRequest,
+    WorkflowVariantForkRequest,
     WorkflowResponse,
     WorkflowsResponse,
     #
@@ -97,8 +97,11 @@ from oss.src.resources.workflows.catalog import (
 
 
 if is_ee():
-    from ee.src.models.shared_models import Permission
-    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
+    from ee.src.core.access.permissions.types import Permission
+    from ee.src.core.access.permissions.service import (
+        check_action_access,
+        FORBIDDEN_EXCEPTION,
+    )
 
 
 log = get_module_logger(__name__)
@@ -1153,7 +1156,7 @@ class WorkflowsRouter:
         self,
         request: Request,
         *,
-        workflow_fork_request: WorkflowForkRequest,
+        workflow_fork_request: WorkflowVariantForkRequest,
     ) -> WorkflowVariantResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1167,7 +1170,9 @@ class WorkflowsRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            workflow_fork=workflow_fork_request.workflow,
+            workflow_variant_fork=workflow_fork_request.workflow_variant,
+            workflow_variant_ref=workflow_fork_request.workflow_variant_ref,
+            workflow_revision_ref=workflow_fork_request.workflow_revision_ref,
         )
 
         # Invalidate legacy caches so the registry page reflects the forked variant
@@ -1490,7 +1495,7 @@ class WorkflowsRouter:
         workflow_revisions = await self.workflows_service.log_workflow_revisions(
             project_id=UUID(request.state.project_id),
             #
-            workflow_revisions_log=workflow_revisions_log_request.workflow,
+            workflow_revisions_log=workflow_revisions_log_request.workflow_revisions,
         )
 
         await publish_revision_event(

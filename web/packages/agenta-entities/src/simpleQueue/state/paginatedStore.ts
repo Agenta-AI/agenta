@@ -14,6 +14,40 @@ import {querySimpleQueues} from "../api"
 import type {SimpleQueue, SimpleQueueKind} from "../core"
 
 // ============================================================================
+// DISPLAY FEATURE FLAGS
+// ============================================================================
+//
+// Compile-time switches for which queues the table shows. The API returns
+// every queue for the project; these decide what we actually render. Flip them
+// here (no env var, no deploy config) when the product decision changes.
+
+/**
+ * When true, hide non-default queues from the table (show only `is_default`).
+ * Today every web-created queue adopts its run's default queue, so non-default
+ * queues are an internal detail; set false to surface them.
+ */
+const SHOW_ONLY_DEFAULT_QUEUES = true
+
+/**
+ * When true, show only queues sourced directly from traces or testcases (the
+ * annotation-queue surface). Set false to also include source-backed queues
+ * (queries/testsets), e.g. human-eval default queues.
+ */
+const SHOW_ONLY_DIRECT_SOURCE_QUEUES = true
+
+const DIRECT_SOURCE_KINDS = new Set(["traces", "testcases"])
+
+function isQueueVisible(queue: SimpleQueue): boolean {
+    if (SHOW_ONLY_DEFAULT_QUEUES && !queue.flags?.is_default) {
+        return false
+    }
+    if (SHOW_ONLY_DIRECT_SOURCE_QUEUES && !DIRECT_SOURCE_KINDS.has(queue.data?.kind ?? "")) {
+        return false
+    }
+    return true
+}
+
+// ============================================================================
 // TABLE ROW TYPE
 // ============================================================================
 
@@ -109,7 +143,7 @@ export const simpleQueuePaginatedStore = createPaginatedEntityStore<
         })
 
         return {
-            rows: response.queues,
+            rows: response.queues.filter(isQueueVisible),
             totalCount: null,
             hasMore: !!response.windowing?.next,
             nextCursor: response.windowing?.next ?? null,

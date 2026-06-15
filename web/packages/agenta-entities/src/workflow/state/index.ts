@@ -69,6 +69,11 @@ export {
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    // Artifact (workflow-level container — entity display name)
+    workflowArtifactQueryAtomFamily,
+    workflowArtifactScopedQueryAtomFamily,
+    workflowVariantsScopedQueryAtomFamily,
+    primeWorkflowArtifactCacheImperative,
 } from "./store"
 
 // Union atoms (app + evaluator combined)
@@ -159,6 +164,7 @@ export {
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
     fullPagePlaygroundEvaluatorsAtom,
+    nonHumanEvaluatorsAtom,
     // Templates
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,
@@ -170,6 +176,9 @@ export {
     evaluatorPresetsAtomFamily,
     // Key map
     evaluatorKeyMapAtom,
+    // Feedback metric schemas (observability annotation filter)
+    evaluatorFeedbackSchemasAtom,
+    type EvaluatorFeedbackSchema,
     // Evaluator configs (non-human, non-custom)
     evaluatorConfigsListDataAtom,
     evaluatorConfigsQueryStateAtom,

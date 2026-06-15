@@ -9,6 +9,7 @@ export interface SimpleQueueData {
     evaluators?: (SimpleQueueData.Evaluators | null) | undefined;
     repeats?: (number | null) | undefined;
     assignments?: (string[][] | null) | undefined;
+    step_keys?: (string[] | null) | undefined;
     settings?: (AgentaApi.SimpleQueueSettings | null) | undefined;
 }
 

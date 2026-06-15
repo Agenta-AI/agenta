@@ -1,5 +1,6 @@
 from typing import Optional, List
 from uuid import UUID
+from datetime import datetime
 
 from pydantic import BaseModel, model_validator
 from fastapi import HTTPException
@@ -12,6 +13,7 @@ from oss.src.core.evaluations.types import (
     EvaluationRunCreate,
     EvaluationRunEdit,
     EvaluationRunQuery,
+    EvaluationRunDataStep,
     #
     EvaluationScenario,
     EvaluationScenarioCreate,
@@ -20,12 +22,10 @@ from oss.src.core.evaluations.types import (
     #
     EvaluationResult,
     EvaluationResultCreate,
-    EvaluationResultEdit,
     EvaluationResultQuery,
     #
     EvaluationMetrics,
     EvaluationMetricsCreate,
-    EvaluationMetricsEdit,
     EvaluationMetricsQuery,
     EvaluationMetricsRefresh,
     #
@@ -78,6 +78,51 @@ class EvaluationClosedException(HTTPException):
         self.scenario_id = scenario_id
         self.result_id = result_id
         self.metrics_id = metrics_id
+        self.queue_id = queue_id
+
+
+class DefaultQueueDataInvalidException(HTTPException):
+    """Raised when a default queue carries scenario/step/assignment/batch filters."""
+
+    def __init__(self, message: str, queue_id: Optional[UUID] = None):
+        details = dict(message=message)
+        if queue_id:
+            details["queue_id"] = str(queue_id)
+        super().__init__(status_code=422, detail=details)
+        self.queue_id = queue_id
+
+
+class EvaluationMetricsInvalidException(HTTPException):
+    """Raised when a metric does not match a valid global/variational/temporal shape."""
+
+    def __init__(
+        self,
+        message: str,
+        run_id: Optional[UUID] = None,
+        scenario_id: Optional[UUID] = None,
+        timestamp: Optional[datetime] = None,
+    ):
+        details = dict(message=message)
+        if run_id:
+            details["run_id"] = str(run_id)
+        if scenario_id:
+            details["scenario_id"] = str(scenario_id)
+        if timestamp:
+            details["timestamp"] = str(timestamp)
+        super().__init__(status_code=422, detail=details)
+        self.run_id = run_id
+        self.scenario_id = scenario_id
+        self.timestamp = timestamp
+
+
+class DefaultQueueEditingForbiddenException(HTTPException):
+    """Raised when demoting or hard-deleting a default queue is attempted."""
+
+    def __init__(self, message: str, queue_id: Optional[UUID] = None):
+        details = dict(message=message)
+        if queue_id:
+            details["queue_id"] = str(queue_id)
+        super().__init__(status_code=409, detail=details)
         self.queue_id = queue_id
 
 
@@ -177,16 +222,8 @@ class EvaluationScenarioIdsResponse(BaseModel):
 # - EVALUATION RESULTS ---------------------------------------------------------
 
 
-class EvaluationResultsCreateRequest(BaseModel):
+class EvaluationResultsSetRequest(BaseModel):
     results: List[EvaluationResultCreate]
-
-
-class EvaluationResultEditRequest(BaseModel):
-    result: EvaluationResultEdit
-
-
-class EvaluationResultsEditRequest(BaseModel):
-    results: List[EvaluationResultEdit]
 
 
 class EvaluationResultQueryRequest(BaseModel):
@@ -219,15 +256,95 @@ class EvaluationResultIdsResponse(BaseModel):
     result_ids: List[UUID] = []
 
 
+# - EVALUATION RUN SLICE -------------------------------------------------------
+
+
+class RunSliceRequest(BaseModel):
+    # Coordinate projection over EXISTING scenarios. Any omitted dimension is
+    # "all" for that axis; an explicit empty list means "none addressed".
+    scenario_ids: Optional[List[UUID]] = None
+    step_keys: Optional[List[str]] = None
+    repeat_idxs: Optional[List[int]] = None
+
+
+class PopulateSliceRequest(EvaluationResultsSetRequest):
+    # Write-side slice op: same `results` payload as the generic results setter,
+    # but the populate endpoint owns its own request type so its run-scoped
+    # validation and OpenAPI surface can diverge from `set_results`.
+    pass
+
+
+class ProcessSliceRequest(RunSliceRequest):
+    # `overwrite=False` (default) runs only cells without a result (fill-missing);
+    # `overwrite=True` re-runs every addressed cell (force).
+    overwrite: bool = False
+
+
+class ProbeSliceRequest(RunSliceRequest):
+    # Read-side slice op: coordinate projection over existing cells. Its own
+    # request type keeps the probe OpenAPI surface independent of the other
+    # run operations.
+    pass
+
+
+class PruneSliceRequest(RunSliceRequest):
+    # Delete-side slice op: clears the addressed cells (and refreshes metrics).
+    # Owns its request type for the same reason.
+    pass
+
+
+class RefreshSliceRequest(RunSliceRequest):
+    # Metrics-side slice op: recompute the metric rows (variational + aggregate)
+    # over the addressed scope without writing or executing cells. Owns its
+    # request type for the same reason as the others.
+    pass
+
+
+# `process` returns 202 (async dispatch acknowledged) and `prune`/`refresh`
+# return 204 — none carries a body, so there is no response model for them.
+
+
+# - EVALUATION RUN OPERATIONS --------------------------------------------------
+#
+# Reshape the run (scenarios x steps x repeats). Paired with the run operations
+# above: shape ops add/remove coordinates, run operations fill/clear cells within a
+# shape. One request model per axis op; responses reuse the scenario/run/result
+# envelopes already defined above.
+
+
+class AddScenariosRequest(BaseModel):
+    # Height: append `count` empty scenario rows; `populate`/`process` fill them.
+    count: int
+    # Optional temporal bucket. Floored to the minute server-side (interval is
+    # fixed at 1 minute); omit to leave the new scenarios off the temporal axis.
+    timestamp: Optional[datetime] = None
+
+
+class RemoveScenariosRequest(BaseModel):
+    # Height: drop these scenario rows (and all their cells).
+    scenario_ids: List[UUID]
+
+
+class AddStepsRequest(BaseModel):
+    # Width: append step columns (idempotent on key).
+    steps: List[EvaluationRunDataStep]
+
+
+class RemoveStepsRequest(BaseModel):
+    # Width: drop step columns by key.
+    step_keys: List[str]
+
+
+class SetRepeatsRequest(BaseModel):
+    # Depth: set the run's repeat count.
+    repeats: int
+
+
 # - EVALUATION METRICS ---------------------------------------------------------
 
 
-class EvaluationMetricsCreateRequest(BaseModel):
+class EvaluationMetricsSetRequest(BaseModel):
     metrics: List[EvaluationMetricsCreate]
-
-
-class EvaluationMetricsEditRequest(BaseModel):
-    metrics: List[EvaluationMetricsEdit]
 
 
 class EvaluationMetricsQueryRequest(BaseModel):
@@ -405,6 +522,15 @@ class SimpleQueuesResponse(BaseModel):
 class SimpleQueueIdResponse(BaseModel):
     count: int = 0
     queue_id: Optional[UUID] = None
+
+
+class SimpleQueueIdsRequest(BaseModel):
+    queue_ids: List[UUID]
+
+
+class SimpleQueueIdsResponse(BaseModel):
+    count: int = 0
+    queue_ids: List[UUID] = []
 
 
 class SimpleQueueScenariosResponse(BaseModel):

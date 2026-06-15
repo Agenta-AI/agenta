@@ -20,12 +20,6 @@ import {
     registerWorkflowCommitCallbacks,
     getWorkflowCommitCallbacks,
 } from "@agenta/entities/workflow"
-import {EntityPicker} from "@agenta/entity-ui"
-import {
-    createWorkflowRevisionAdapter,
-    type WorkflowRevisionSelectionResult,
-} from "@agenta/entity-ui/selection"
-import {playgroundController} from "@agenta/playground"
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {ArrowsIn, ArrowsOut} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
@@ -34,12 +28,10 @@ import dynamic from "next/dynamic"
 
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import {
-    connectAppToEvaluatorAtom,
-    evaluatorConfigEntityIdsAtom,
-    hasAppConnectedAtom,
-    selectedAppLabelAtom,
-} from "@/oss/components/Evaluators/components/ConfigureEvaluator/atoms"
+import {evaluatorConfigEntityIdsAtom} from "@/oss/components/Evaluators/components/ConfigureEvaluator/atoms"
+import EvaluatorRunControls from "@/oss/components/Evaluators/components/ConfigureEvaluator/EvaluatorRunControls"
+import SelectAppEmptyState from "@/oss/components/Evaluators/components/ConfigureEvaluator/SelectAppEmptyState"
+import {useEvaluatorRunControls} from "@/oss/components/Evaluators/components/ConfigureEvaluator/useEvaluatorRunControls"
 import {clearEvaluatorWorkflowCache} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
 import PlaygroundTestcaseEditor from "@/oss/components/Playground/Components/PlaygroundTestcaseEditor"
 import {OSSPlaygroundShell} from "@/oss/components/Playground/OSSPlaygroundShell"
@@ -49,11 +41,6 @@ import {closeDrawerAtom, drawerEntityIdAtom, drawerExpandedAtom, drawerOpenAtom}
 
 const PlaygroundMainView = dynamic(
     () => import("@/oss/components/Playground/Components/MainLayout"),
-    {ssr: false},
-)
-
-const TestsetDropdown = dynamic(
-    () => import("@/oss/components/Playground/Components/TestsetDropdown"),
     {ssr: false},
 )
 
@@ -68,55 +55,19 @@ const DrawerHeader = ({entityId, onClose}: {entityId: string; onClose: () => voi
     const entityData = useAtomValue(
         useMemo(() => workflowMolecule.selectors.data(entityId), [entityId]),
     )
-    const name = entityData?.name?.trim() || entityData?.slug?.trim() || "New Evaluator"
-
-    const hasAppConnected = useAtomValue(hasAppConnectedAtom)
-    const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
-    const connectApp = useSetAtom(connectAppToEvaluatorAtom)
-
-    // Read current evaluator node (same logic as evaluator playground page)
-    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
-    const evaluatorNode = useMemo(() => {
-        const downstream = nodes.find((n) => n.depth > 0)
-        if (downstream) return downstream
-        return nodes[0] ?? null
-    }, [nodes])
-
-    const appWorkflowAdapter = useMemo(
-        () =>
-            createWorkflowRevisionAdapter({
-                skipVariantLevel: true,
-                excludeRevisionZero: true,
-                flags: {is_evaluator: false, is_feedback: false},
-            }),
-        [],
+    // Entity display name lives on the artifact; the revision's own `name`
+    // carries the variant name ("default"). Falls back to the entity name
+    // for ephemeral drafts that have no artifact yet.
+    const artifactName = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.artifactName(entityId), [entityId]),
     )
-
-    const handleAppSelect = useCallback(
-        (selection: WorkflowRevisionSelectionResult) => {
-            if (!evaluatorNode) return
-            connectApp({
-                appRevisionId: selection.id,
-                appLabel: selection.label,
-                evaluatorRevisionId: evaluatorNode.entityId,
-                evaluatorLabel: evaluatorNode.label ?? "Evaluator",
-            })
-        },
-        [connectApp, evaluatorNode],
-    )
+    const name = artifactName?.trim() || entityData?.slug?.trim() || "New Evaluator"
 
     return (
         <div className="flex items-center justify-between px-4 py-3 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
             <Typography.Text className="text-base font-semibold">{name}</Typography.Text>
             <div className="flex items-center gap-2">
-                <EntityPicker<WorkflowRevisionSelectionResult>
-                    variant="popover-cascader"
-                    adapter={appWorkflowAdapter}
-                    onSelect={handleAppSelect}
-                    size="small"
-                    placeholder={selectedAppLabel ?? "Select app"}
-                />
-                {hasAppConnected && <TestsetDropdown />}
+                <EvaluatorRunControls />
                 <Button
                     type="text"
                     size="small"
@@ -141,10 +92,11 @@ const DrawerContent = ({
     onEvaluatorCreated?: (configId?: string) => void
 }) => {
     const isExpanded = useAtomValue(drawerExpandedAtom)
-    const hasAppConnected = useAtomValue(hasAppConnectedAtom)
     const configEntityIds = useAtomValue(evaluatorConfigEntityIdsAtom)
-    const connectApp = useSetAtom(connectAppToEvaluatorAtom)
-    const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
+    // Same shared controls the header uses — the run gate now respects the
+    // run-on mode, so test-case mode runs without forcing an app.
+    const {appWorkflowAdapter, handleAppSelect, selectedAppLabel, runDisabled} =
+        useEvaluatorRunControls()
     const onEvaluatorCreatedRef = useRef(onEvaluatorCreated)
     onEvaluatorCreatedRef.current = onEvaluatorCreated
 
@@ -173,51 +125,13 @@ const DrawerContent = ({
         }
     }, [])
 
-    // Read current evaluator node for app selection
-    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
-    const evaluatorNode = useMemo(() => {
-        const downstream = nodes.find((n) => n.depth > 0)
-        if (downstream) return downstream
-        return nodes[0] ?? null
-    }, [nodes])
-
-    const appWorkflowAdapter = useMemo(
-        () =>
-            createWorkflowRevisionAdapter({
-                skipVariantLevel: true,
-                excludeRevisionZero: true,
-                flags: {is_evaluator: false, is_feedback: false},
-            }),
-        [],
-    )
-
-    const handleAppSelect = useCallback(
-        (selection: WorkflowRevisionSelectionResult) => {
-            if (!evaluatorNode) return
-            connectApp({
-                appRevisionId: selection.id,
-                appLabel: selection.label,
-                evaluatorRevisionId: evaluatorNode.entityId,
-                evaluatorLabel: evaluatorNode.label ?? "Evaluator",
-            })
-        },
-        [connectApp, evaluatorNode],
-    )
-
     const runDisabledContent = useMemo(
         () => (
-            <>
-                <Typography.Text type="secondary" className="text-sm">
-                    Select an app to run the evaluator chain
-                </Typography.Text>
-                <EntityPicker<WorkflowRevisionSelectionResult>
-                    variant="popover-cascader"
-                    adapter={appWorkflowAdapter}
-                    onSelect={handleAppSelect}
-                    size="middle"
-                    placeholder={selectedAppLabel ?? "Select app"}
-                />
-            </>
+            <SelectAppEmptyState
+                adapter={appWorkflowAdapter}
+                onSelect={handleAppSelect}
+                selectedAppLabel={selectedAppLabel}
+            />
         ),
         [appWorkflowAdapter, handleAppSelect, selectedAppLabel],
     )
@@ -240,7 +154,7 @@ const DrawerContent = ({
                     mode="evaluator"
                     viewMode={isExpanded ? "full" : "configOnly"}
                     configEntityIdsOverride={configEntityIds}
-                    runDisabled={!hasAppConnected}
+                    runDisabled={runDisabled}
                     runDisabledContent={runDisabledContent}
                 />
             </div>

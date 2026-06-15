@@ -11,5 +11,5 @@ export interface EvaluationRunEdit {
     id?: (string | null) | undefined;
     version?: string | undefined;
     status?: (AgentaApi.EvaluationStatus | null) | undefined;
-    data?: (AgentaApi.EvaluationRunData | null) | undefined;
+    data?: (AgentaApi.EvaluationRunDataInput | null) | undefined;
 }

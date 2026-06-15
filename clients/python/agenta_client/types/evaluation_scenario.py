@@ -7,11 +7,12 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
+from .evaluation_run_flags import EvaluationRunFlags
 from .evaluation_status import EvaluationStatus
 
 
 class EvaluationScenario(UniversalBaseModel):
-    flags: typing.Optional[typing.Dict[str, typing.Any]] = None
+    flags: typing.Optional[EvaluationRunFlags] = None
     tags: typing.Optional[typing.Dict[str, typing.Any]] = None
     meta: typing.Optional[typing.Dict[str, typing.Any]] = None
     created_at: typing.Optional[dt.datetime] = None

@@ -1,4 +1,4 @@
-from ee.src.core.entitlements.types import Counter, Gauge
+from ee.src.core.access.entitlements.types import Counter, Gauge
 from ee.src.core.meters.types import Meters
 
 

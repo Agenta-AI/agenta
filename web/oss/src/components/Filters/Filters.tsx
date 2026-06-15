@@ -1,6 +1,6 @@
 import {useMemo, useState} from "react"
 
-import {evaluatorsListDataAtom} from "@agenta/entities/workflow"
+import {evaluatorsListDataAtom, evaluatorFeedbackSchemasAtom} from "@agenta/entities/workflow"
 import {
     ArrowClockwiseIcon,
     CaretDownIcon,
@@ -283,8 +283,10 @@ const Filters: React.FC<Props> = ({
     onApplyFilter,
     onClearFilter,
     buttonProps,
+    reconcileFilterRows,
 }) => {
     const evaluatorPreviews = useAtomValue(evaluatorsListDataAtom)
+    const evaluatorFeedbackSchemas = useAtomValue(evaluatorFeedbackSchemasAtom)
 
     const annotationEvaluatorOptions = useMemo(
         () =>
@@ -308,23 +310,21 @@ const Filters: React.FC<Props> = ({
     }
 
     const annotationFeedbackOptions = useMemo(() => {
-        if (!evaluatorPreviews) return [] as AnnotationFeedbackOption[]
         const options: AnnotationFeedbackOption[] = []
-        evaluatorPreviews.forEach((evaluator: any) => {
-            const metrics = evaluator.metrics ?? {}
-            Object.entries(metrics).forEach(([key, schema]) => {
+        evaluatorFeedbackSchemas.forEach((evaluator) => {
+            Object.entries(evaluator.properties).forEach(([key, schema]) => {
                 const typedSchema = schema as any
                 options.push({
                     label: typedSchema?.title ?? key,
                     value: key,
-                    evaluatorSlug: evaluator.slug,
-                    evaluatorLabel: evaluator.name || evaluator.slug,
+                    evaluatorSlug: evaluator.slug ?? "",
+                    evaluatorLabel: evaluator.name || evaluator.slug || "",
                     type: deriveFeedbackValueType(typedSchema),
                 })
             })
         })
         return options
-    }, [evaluatorPreviews])
+    }, [evaluatorFeedbackSchemas])
 
     // Dedupe feedback options by feedback key across evaluators
     const dedupeFeedbackOptions = (options: AnnotationFeedbackOption[]) => {
@@ -358,6 +358,37 @@ const Filters: React.FC<Props> = ({
                             : item.value == null
                               ? []
                               : [item.value]
+
+                        // Prefer a candidate whose `referenceCategory` matches
+                        // the entry's `"attributes.key"`. This disambiguates
+                        // the `references` family — application.id /
+                        // evaluator.id / environment.id all share
+                        // `baseField: "references"` and
+                        // `referenceProperty: "id"`, so without this check the
+                        // first match (application.id) always wins, mislabelling
+                        // an evaluator-scoped filter as "Application ID".
+                        const attributesKey = (() => {
+                            for (const entry of valuesArray) {
+                                if (entry && typeof entry === "object") {
+                                    const ak = (entry as Record<string, unknown>)["attributes.key"]
+                                    if (typeof ak === "string") return ak
+                                }
+                            }
+                            return undefined
+                        })()
+                        if (attributesKey) {
+                            for (const candidate of matches) {
+                                if (candidate.referenceCategory !== attributesKey) continue
+                                if (!candidate.referenceProperty) continue
+                                const refProp = candidate.referenceProperty
+                                const hasMatch = valuesArray.some(
+                                    (entry) =>
+                                        entry && typeof entry === "object" && refProp in entry,
+                                )
+                                if (hasMatch) return candidate
+                            }
+                        }
+
                         for (const candidate of matches) {
                             if (!candidate.referenceProperty) continue
                             const refProp = candidate.referenceProperty
@@ -510,6 +541,25 @@ const Filters: React.FC<Props> = ({
     const [activeFieldDropdown, setActiveFieldDropdown] = useState<number | null>(null)
     const [isFilterOpen, setIsFilterOpen] = useState(false)
     const [keySearchTerms, setKeySearchTerms] = useState<Record<number, string>>({})
+    // Free-text the user is typing into a row's feedback-field Select. Lets them name a
+    // feedback metric even when the evaluator has no output schema to suggest options.
+    const [feedbackFieldSearch, setFeedbackFieldSearch] = useState<Record<number, string>>({})
+
+    /**
+     * Display-only projection of `filter`. The reconciler is opt-in (passed by
+     * the parent) and may rewrite *cosmetic* row fields like `selectedField` /
+     * `selectedLabel` so the UI reflects an in-flight choice (e.g.,
+     * observability flipping the references row's label between "Application
+     * ID" / "Evaluator ID" as the user picks a trace_type, before Apply).
+     *
+     * Mutations still call `setFilter(filter)` by index, so the reconciler is
+     * required to preserve array length and per-index order — that contract
+     * is documented on the prop.
+     */
+    const displayedFilter = useMemo(
+        () => (reconcileFilterRows ? reconcileFilterRows(filter) : filter),
+        [filter, reconcileFilterRows],
+    )
 
     const sanitizedFilters = useMemo(() => {
         return sanitizeFilterItems(
@@ -816,7 +866,7 @@ const Filters: React.FC<Props> = ({
                     </div>
 
                     <div className={filterContainerClass}>
-                        {filter.map((item, idx) => {
+                        {displayedFilter.map((item, idx) => {
                             const uiKey = item.selectedField || item.field || ""
                             const baseFieldCfg = getField(uiKey)
                             const field = effectiveFieldForRow(baseFieldCfg, item)
@@ -1200,12 +1250,36 @@ const Filters: React.FC<Props> = ({
                                     return f ?? undefined
                                 })()
 
-                            const feedbackOptionsForSelect = availableFeedbackOptions.map(
-                                (option) => ({
-                                    label: annotationValue?.evaluator ? option.label : option.label,
+                            const feedbackOptionsForSelect = (() => {
+                                const options = availableFeedbackOptions.map((option) => ({
+                                    label: option.label,
                                     value: option.value,
-                                }),
-                            )
+                                }))
+                                const known = new Set(options.map((o) => o.value))
+
+                                // Keep already-selected custom keys visible with a label.
+                                const selectedFields = Array.isArray(feedbackFieldValueForSelect)
+                                    ? feedbackFieldValueForSelect
+                                    : feedbackFieldValueForSelect
+                                      ? [feedbackFieldValueForSelect]
+                                      : []
+                                for (const selected of selectedFields) {
+                                    if (selected && !known.has(selected)) {
+                                        options.push({label: selected, value: selected})
+                                        known.add(selected)
+                                    }
+                                }
+
+                                // Surface the text the user is typing as a selectable option, so
+                                // evaluators without an output schema can still be given a
+                                // feedback name. Enter or click commits it.
+                                const typed = (feedbackFieldSearch[idx] ?? "").trim()
+                                if (typed && !known.has(typed)) {
+                                    options.unshift({label: `${typed} (custom)`, value: typed})
+                                }
+
+                                return options
+                            })()
 
                             return (
                                 <Space
@@ -1711,10 +1785,27 @@ const Filters: React.FC<Props> = ({
                                                         }
                                                         value={feedbackFieldValueForSelect}
                                                         options={feedbackOptionsForSelect}
+                                                        onSearch={(searchValue) =>
+                                                            setFeedbackFieldSearch((prev) => ({
+                                                                ...prev,
+                                                                [idx]: searchValue,
+                                                            }))
+                                                        }
                                                         onChange={(val) => {
                                                             handleFeedbackFieldChange(
                                                                 val as string | string[],
                                                             )
+                                                            setFeedbackFieldSearch((prev) => ({
+                                                                ...prev,
+                                                                [idx]: "",
+                                                            }))
+                                                        }}
+                                                        onOpenChange={(open) => {
+                                                            if (!open)
+                                                                setFeedbackFieldSearch((prev) => ({
+                                                                    ...prev,
+                                                                    [idx]: "",
+                                                                }))
                                                         }}
                                                         suffixIcon={<CaretDownIcon size={14} />}
                                                         optionFilterProp="label"

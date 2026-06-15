@@ -2,20 +2,24 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
+from .evaluation_run_flags import EvaluationRunFlags
 from .evaluation_status import EvaluationStatus
 
 
 class EvaluationScenarioEdit(UniversalBaseModel):
-    flags: typing.Optional[typing.Dict[str, typing.Any]] = None
+    flags: typing.Optional[EvaluationRunFlags] = None
     tags: typing.Optional[typing.Dict[str, typing.Any]] = None
     meta: typing.Optional[typing.Dict[str, typing.Any]] = None
     id: typing.Optional[str] = None
     version: typing.Optional[str] = None
     status: typing.Optional[EvaluationStatus] = None
+    interval: typing.Optional[int] = None
+    timestamp: typing.Optional[dt.datetime] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

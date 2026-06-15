@@ -11,7 +11,7 @@ Tests all combinations of:
 import pytest
 from datetime import datetime, timezone
 
-from ee.src.utils.entitlements import monthly_period_from
+from ee.src.core.access.entitlements.service import monthly_period_from
 
 
 # ---- Helpers ----

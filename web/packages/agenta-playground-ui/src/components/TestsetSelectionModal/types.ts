@@ -55,6 +55,8 @@ export interface TestsetSelectionPayload {
 export interface TestsetSelectionModalProps extends Omit<ModalProps, "onCancel"> {
     /** Loadable ID for context */
     loadableId: string
+    /** Current connected testset ID (for edit mode picker selection) */
+    connectedTestsetId?: string
     /** Current connected revision ID (for edit mode) */
     connectedRevisionId?: string
     /** Mode: 'load' for initial, 'edit' for modifying selection */
@@ -89,6 +91,8 @@ export interface TestsetSelectionModalProps extends Omit<ModalProps, "onCancel">
 export interface TestsetSelectionModalContentProps {
     /** Loadable ID for context */
     loadableId: string
+    /** Current connected testset ID (for edit mode picker selection) */
+    connectedTestsetId?: string
     /** Current connected revision ID (for edit mode, also used to disable in picker) */
     connectedRevisionId?: string
     /** Mode: 'load' for initial, 'edit' for modifying selection */

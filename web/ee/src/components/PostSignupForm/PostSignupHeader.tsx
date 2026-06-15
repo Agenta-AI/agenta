@@ -1,5 +1,6 @@
 import Image from "next/image"
 
+import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import ListOfOrgs from "@/oss/components/Sidebar/components/ListOfOrgs"
 import type {Org} from "@/oss/lib/Types"
 
@@ -15,11 +16,16 @@ interface PostSignupHeaderProps {
  */
 const PostSignupHeader = ({orgs}: PostSignupHeaderProps) => {
     const overrideOrgId = orgs.length > 0 ? orgs[0]?.id : undefined
+    const {appTheme} = useAppTheme()
 
     return (
         <section className="w-[90%] flex items-center justify-between mx-auto mt-12 mb-5">
             <Image
-                src="/assets/Agenta-logo-full-light.png"
+                src={
+                    appTheme === "dark"
+                        ? "/assets/Agenta-logo-full-dark-accent.png"
+                        : "/assets/Agenta-logo-full-light.png"
+                }
                 alt="agenta-ai"
                 width={114}
                 height={39}
