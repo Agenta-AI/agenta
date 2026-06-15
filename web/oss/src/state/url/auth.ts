@@ -348,20 +348,11 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
                     }
                     store.set(protectedRouteReadyAtom, false)
                 } else {
-                    const inviteEmail = invite.email ?? undefined
-                    const userEmail = user?.email?.toLowerCase()
-                    if (inviteEmail && userEmail && inviteEmail !== userEmail) {
-                        if (!path.startsWith(baseAppURL)) {
-                            void Router.replace(baseAppURL).catch((error) => {
-                                console.error(
-                                    "Failed to redirect due to invite email mismatch:",
-                                    error,
-                                )
-                            })
-                        }
-                        store.set(protectedRouteReadyAtom, false)
-                        return
-                    }
+                    // On a wrong-account invite, do NOT redirect away. Let the accept
+                    // page render its "this invitation is not for you" card with the
+                    // sign-in-as-different-account action. Redirecting here would bounce
+                    // the user to their own workspace and hide the explanation.
+                    store.set(protectedRouteReadyAtom, true)
                 }
             }
 

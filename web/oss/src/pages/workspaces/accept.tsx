@@ -163,7 +163,9 @@ const Accept: FC = () => {
                         // Known, typed outcomes (mismatch/expired/not-found) are
                         // expected; only log the genuinely unexpected ones.
                         if (!code) console.error("[invite] accept failed", error)
-                        clearInvite()
+                        // Do NOT clearInvite() here: stripping the invite makes
+                        // syncAuthStateFromUrl treat the accept route as "empty invite"
+                        // and bounce to /w, hiding this card. The card's buttons clear it.
                         setError(errorMessage)
                     }
                 }
