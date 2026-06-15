@@ -19,7 +19,7 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {safeStringify} from "@agenta/shared/utils"
-import {CollapseToggleButton, getCollapseStyle} from "@agenta/ui/components/presentational"
+import {CollapseToggleButton} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {CopySimple, MinusCircle} from "@phosphor-icons/react"
@@ -256,7 +256,6 @@ interface ToolHeaderProps {
     builtinToolLabel?: string
     builtinIcon?: React.ReactNode
     gatewayHeader?: React.ReactNode
-    containerRef?: React.RefObject<HTMLElement | null>
 }
 
 function GatewayToolHeaderIdentity({
@@ -344,11 +343,10 @@ const ToolHeader = memo(function ToolHeader({
     builtinToolLabel,
     builtinIcon,
     gatewayHeader,
-    containerRef,
 }: ToolHeaderProps) {
     return (
         <div className="w-full flex items-start justify-between py-1">
-            <div className="grow min-w-0">
+            <div className="grow min-w-0 pl-2">
                 {gatewayHeader ? (
                     gatewayHeader
                 ) : isBuiltinTool ? (
@@ -391,31 +389,33 @@ const ToolHeader = memo(function ToolHeader({
                 )}
             </div>
 
-            <div className="flex items-center gap-1 invisible group-hover/tool:visible shrink-0">
-                {!isReadOnly && onDuplicate && (
-                    <Tooltip title="Duplicate">
-                        <Button
-                            icon={<CopySimple size={14} />}
-                            type="text"
-                            onClick={onDuplicate}
-                            size="small"
-                        />
-                    </Tooltip>
-                )}
-                {!isReadOnly && onDelete && (
-                    <Tooltip title="Remove">
-                        <Button
-                            icon={<MinusCircle size={14} />}
-                            type="text"
-                            onClick={onDelete}
-                            size="small"
-                        />
-                    </Tooltip>
-                )}
+            <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-1 invisible group-hover/tool:visible">
+                    {!isReadOnly && onDuplicate && (
+                        <Tooltip title="Duplicate">
+                            <Button
+                                icon={<CopySimple size={14} />}
+                                type="text"
+                                onClick={onDuplicate}
+                                size="small"
+                            />
+                        </Tooltip>
+                    )}
+                    {!isReadOnly && onDelete && (
+                        <Tooltip title="Remove">
+                            <Button
+                                icon={<MinusCircle size={14} />}
+                                type="text"
+                                onClick={onDelete}
+                                size="small"
+                            />
+                        </Tooltip>
+                    )}
+                </div>
                 <CollapseToggleButton
                     collapsed={minimized}
                     onToggle={onToggleMinimize}
-                    contentRef={containerRef}
+                    className="!transition-opacity !duration-0 !delay-200 group-hover/tool:!delay-0 opacity-50 group-hover/tool:opacity-100"
                 />
             </div>
         </div>
@@ -467,16 +467,8 @@ export const ToolItemControl = memo(function ToolItemControl({
     const effectiveRenderProviderIcon = renderProviderIcon ?? defaultRenderProviderIcon
 
     const isReadOnly = disabled
-    const [minimized, setMinimized] = useState(() => {
-        if (value && typeof value === "object" && !Array.isArray(value)) {
-            const obj = value as Record<string, unknown>
-            if (obj.agenta_metadata && typeof obj.agenta_metadata === "object") {
-                const meta = obj.agenta_metadata as Record<string, unknown>
-                return meta.source === "gateway" || meta.source === "builtin"
-            }
-        }
-        return false
-    })
+    // Default collapsed: tool cards open to just their title + description.
+    const [minimized, setMinimized] = useState(true)
     const containerRef = useRef<HTMLDivElement>(null)
 
     // Strip agenta_metadata if present (re-attach on change)
@@ -652,7 +644,6 @@ export const ToolItemControl = memo(function ToolItemControl({
                     builtinToolLabel={toolLabel}
                     builtinIcon={providerIcon}
                     gatewayHeader={gatewayHeader}
-                    containerRef={containerRef}
                 />
                 {!minimized && (
                     <textarea
@@ -666,10 +657,34 @@ export const ToolItemControl = memo(function ToolItemControl({
         )
     }
 
+    const toolFunction = (toolObj as Record<string, unknown>)?.function as
+        | Record<string, string>
+        | undefined
+    const header = (
+        <ToolHeader
+            name={toolFunction ? (toolFunction.name ?? "") : ""}
+            desc={toolFunction ? (toolFunction.description ?? "") : ""}
+            isReadOnly={isReadOnly}
+            minimized={minimized}
+            onToggleMinimize={() => setMinimized((v) => !v)}
+            onDelete={onDelete}
+            onDuplicate={onDuplicate}
+            isBuiltinTool={isBuiltinTool}
+            builtinProviderLabel={providerLabel}
+            builtinToolLabel={toolLabel}
+            builtinIcon={providerIcon}
+            gatewayHeader={gatewayHeader}
+            containerRef={containerRef}
+        />
+    )
+
+    // Collapsed = header only. Keep a SINGLE SharedEditor in both states (same
+    // border, padding and chrome — no fork, no pixel shift) and just hide the
+    // editor body when minimized. Header drives the height naturally, so it
+    // works for every header variant (title, title+desc, builtin icon row).
     return (
         <div
             ref={containerRef}
-            style={getCollapseStyle(minimized)}
             className={clsx("group/tool flex flex-col", "w-full max-w-full", className)}
         >
             <SharedEditor
@@ -689,43 +704,18 @@ export const ToolItemControl = memo(function ToolItemControl({
                 disableDebounce
                 syncWithInitialValueChanges
                 editorType="border"
-                className={clsx("group/tool")}
+                className={clsx(
+                    "group/tool",
+                    // Symmetric padding (codeOnly forces pt-0); zero the editor body's
+                    // own bottom margin/padding so open & closed end the same 11px below.
+                    "!pt-[11px] !pb-[11px] [&_.agenta-editor-wrapper]:!mb-0 [&_.editor-code]:!pb-0",
+                    // Indent the JSON body to align with the pl-2 header (cancel the
+                    // codeOnly -ml-[12px] pull, then add the 8px message-matched indent).
+                    "[&_.agenta-editor-wrapper]:!pl-[20px]",
+                    minimized && "[&_.agenta-editor-wrapper]:!hidden",
+                )}
                 state={isReadOnly ? "readOnly" : "filled"}
-                header={
-                    <ToolHeader
-                        name={
-                            (toolObj as Record<string, unknown>)?.function
-                                ? ((
-                                      (toolObj as Record<string, unknown>).function as Record<
-                                          string,
-                                          string
-                                      >
-                                  )?.name ?? "")
-                                : ""
-                        }
-                        desc={
-                            (toolObj as Record<string, unknown>)?.function
-                                ? ((
-                                      (toolObj as Record<string, unknown>).function as Record<
-                                          string,
-                                          string
-                                      >
-                                  )?.description ?? "")
-                                : ""
-                        }
-                        isReadOnly={isReadOnly}
-                        minimized={minimized}
-                        onToggleMinimize={() => setMinimized((v) => !v)}
-                        onDelete={onDelete}
-                        onDuplicate={onDuplicate}
-                        isBuiltinTool={isBuiltinTool}
-                        builtinProviderLabel={providerLabel}
-                        builtinToolLabel={toolLabel}
-                        builtinIcon={providerIcon}
-                        gatewayHeader={gatewayHeader}
-                        containerRef={containerRef}
-                    />
-                }
+                header={header}
             />
         </div>
     )
