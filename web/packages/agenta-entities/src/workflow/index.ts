@@ -306,6 +306,9 @@ export {
     evaluatorPresetsAtomFamily,
     // Key map
     evaluatorKeyMapAtom,
+    // Feedback metric schemas (observability annotation filter)
+    evaluatorFeedbackSchemasAtom,
+    type EvaluatorFeedbackSchema,
     // Evaluator configs (non-human, non-custom)
     evaluatorConfigsListDataAtom,
     evaluatorConfigsQueryStateAtom,
