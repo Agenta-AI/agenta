@@ -15,7 +15,7 @@ import {invalidateAppManagementWorkflowQueries} from "../../store"
 import {closeEditAppModalAtom, editAppModalAtom} from "./store/editAppModalStore"
 
 const EditAppModal = () => {
-    const {open, appDetails} = useAtomValue(editAppModalAtom)
+    const {open, appDetails, onRenamed} = useAtomValue(editAppModalAtom)
     const closeModal = useSetAtom(closeEditAppModalAtom)
     const {apps, isLoading, mutate} = useAppsData()
     const [appNameInput, setAppNameInput] = useState(appDetails?.name || "")
@@ -47,11 +47,12 @@ const EditAppModal = () => {
             invalidateWorkflowsListCache()
             await mutate()
             await invalidateAppManagementWorkflowQueries()
+            await onRenamed?.({id: appDetails?.id, name: appNameInput})
             closeModal()
         } catch (error) {
             console.error(error)
         }
-    }, [appDetails, appNameInput, mutate, closeModal])
+    }, [appDetails, appNameInput, mutate, closeModal, onRenamed])
 
     return (
         <Modal
