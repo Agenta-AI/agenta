@@ -25,7 +25,12 @@ import {inspectWorkflow} from "../api"
 import type {EvaluatorCatalogPresetsResponse} from "../api/templates"
 import {fetchEvaluatorCatalogPresets} from "../api/templates"
 import type {Workflow} from "../core"
-import {buildWorkflowUri, hasFullPagePlaygroundUX, parseWorkflowKeyFromUri} from "../core"
+import {
+    buildWorkflowUri,
+    hasFullPagePlaygroundUX,
+    parseWorkflowKeyFromUri,
+    resolveOutputSchemaProperties,
+} from "../core"
 
 import {evaluatorTemplatesDataAtom} from "./evaluatorTemplateAtoms"
 import {buildServiceUrlFromUri} from "./helpers"
@@ -311,6 +316,40 @@ export const evaluatorNameByRevisionAtomFamily = atomFamily((revisionId: string)
         return evaluator?.name?.trim() || null
     }),
 )
+
+/**
+ * Per-evaluator output-metric schema, keyed for the observability annotation/feedback
+ * filter. `properties` is the raw `{ metricKey: jsonSchema }` record from the latest
+ * revision's output schema.
+ */
+export interface EvaluatorFeedbackSchema {
+    slug: string | null
+    name: string | null
+    properties: Record<string, unknown>
+}
+
+/**
+ * Derived atom: every non-archived evaluator paired with its output-metric properties.
+ */
+export const evaluatorFeedbackSchemasAtom = atom<EvaluatorFeedbackSchema[]>((get) => {
+    const evaluators = get(nonArchivedEvaluatorsAtom)
+    const result: EvaluatorFeedbackSchema[] = []
+
+    for (const evaluator of evaluators) {
+        if (!evaluator.id) continue
+
+        const revision = get(workflowLatestRevisionQueryAtomFamily(evaluator.id)).data
+        if (!revision) continue
+
+        result.push({
+            slug: evaluator.slug ?? null,
+            name: evaluator.name ?? null,
+            properties: resolveOutputSchemaProperties(revision.data) ?? {},
+        })
+    }
+
+    return result
+})
 
 interface EvaluatorRevisionFlags {
     isFeedback: boolean
