@@ -1,26 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- relocated eval-run parity data layer (WP-4e-2b); reads dynamic backend-shaped payloads, logic unchanged */
-import type {TraceSpan} from "@agenta/entities/trace"
-import {uuidToTraceId} from "@agenta/shared/utils"
-
 import type {TraceTree} from "../../../core"
-
-export function findTraceForStep(traces: any[] | undefined, traceId?: string): any | undefined {
-    if (!traces?.length || !traceId) return undefined
-    const noDash = uuidToTraceId(traceId)
-
-    return traces.find((t) => {
-        // Case 1: wrapper with trees array (new shape)
-        if (t?.trees?.length) {
-            const firstTree = t.trees[0]
-            if (firstTree?.tree?.id === traceId) return true
-            if (firstTree?.nodes?.[0]?.trace_id === noDash) return true
-        }
-        // Case 2: flat shape { tree, nodes }
-        if (t?.tree?.id === traceId) return true
-        if (t?.nodes?.[0]?.trace_id === noDash) return true
-        return false
-    })
-}
 
 // generic safe path resolver
 export function resolvePath(obj: any, path: string): any {
@@ -284,23 +263,6 @@ export function extractSpanIdFromResultPayload(payload: unknown): string | null 
     }
 
     return null
-}
-
-export function extractRootSpanIdFromTraceData(traceId: string, data: unknown): string | null {
-    const traceResponse = asRecord(data)
-    const traces = asRecord(traceResponse?.traces)
-    if (!traces) return null
-
-    const canonicalTraceId = traceId.replace(/-/g, "")
-    const traceEntry = asRecord(traces[canonicalTraceId] ?? traces[traceId])
-    const spansRecord = asRecord(traceEntry?.spans)
-    if (!spansRecord) return null
-
-    const spans = Object.values(spansRecord) as TraceSpan[]
-    if (spans.length === 0) return null
-
-    const rootSpan = spans.find((span) => !span?.parent_id) ?? spans[0]
-    return asNonEmptyString(rootSpan?.span_id)
 }
 
 export function toTestsetTraceReference(result: unknown): TestsetTraceReference | null {

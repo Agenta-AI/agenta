@@ -27,17 +27,6 @@ export const invalidatePreviewRunCache = (projectId: string, runId: string) => {
     previewRunCache.delete(key)
 }
 
-export const primePreviewRunCache = (projectId: string, runs: any[] | undefined | null) => {
-    if (!projectId || !Array.isArray(runs)) return
-    runs.forEach((run) => {
-        const runId = resolveRunId(run)
-        if (!runId) return
-        const key = `${projectId}:${runId}`
-        const payload = run?.run ?? run ?? null
-        previewRunCache.set(key, payload)
-    })
-}
-
 let previewRunBatcherCore:
     | ((key: PreviewRunBatchKey) => Promise<PreviewRunBatchValue | undefined>)
     | null = null

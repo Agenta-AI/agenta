@@ -82,5 +82,3 @@ export const evaluationScenarioMolecule = {
         query: evaluationScenariosQueryAtomFamily,
     },
 }
-
-export type EvaluationScenarioMolecule = typeof evaluationScenarioMolecule

@@ -21,14 +21,7 @@
 import {queryEvaluationResults} from "../api"
 import type {EvaluationResult} from "../core"
 
-import {
-    createScenarioCacheMolecule,
-    type PrefetchScenarioArgs,
-    type ScenarioCacheOutcome,
-} from "./scenarioCacheMolecule"
-
-export type PrefetchResultsArgs = PrefetchScenarioArgs
-export type PrefetchResultsOutcome = ScenarioCacheOutcome<EvaluationResult, "results">
+import {createScenarioCacheMolecule} from "./scenarioCacheMolecule"
 
 export const evaluationResultMolecule = createScenarioCacheMolecule<EvaluationResult, "results">({
     keyPrefix: "evaluation-results",
@@ -36,5 +29,3 @@ export const evaluationResultMolecule = createScenarioCacheMolecule<EvaluationRe
     fetch: (args) => queryEvaluationResults(args),
     getScenarioId: (r) => r.scenario_id,
 })
-
-export type EvaluationResultMolecule = typeof evaluationResultMolecule

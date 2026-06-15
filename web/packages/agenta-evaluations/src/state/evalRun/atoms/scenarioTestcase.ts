@@ -187,25 +187,3 @@ export const scenarioTestcaseValueAtomFamily = atomFamily(
             },
         ),
 )
-
-/**
- * Check if a scenario has embedded input data in steps (for online evaluations)
- * Online evaluations may not have testcaseId but have inputs directly in steps
- */
-export const scenarioHasEmbeddedInputsAtomFamily = atomFamily(
-    ({scenarioId, runId}: {scenarioId: string; runId?: string | null}) =>
-        atom((get): boolean => {
-            const effectiveRunId = runId ?? get(activePreviewRunIdAtom) ?? undefined
-            const stepsQuery = get(scenarioStepsQueryFamily({scenarioId, runId: effectiveRunId}))
-            const steps = stepsQuery.data?.steps ?? []
-
-            // Check if any step has embedded inputs
-            for (const step of steps) {
-                if (step?.inputs && Object.keys(step.inputs).length > 0) {
-                    return true
-                }
-            }
-
-            return false
-        }),
-)

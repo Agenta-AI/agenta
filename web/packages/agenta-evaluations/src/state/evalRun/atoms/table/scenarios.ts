@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- relocated eval-run parity data layer (WP-4e-2b); reads dynamic backend-shaped payloads, logic unchanged */
 import {axios} from "@agenta/shared/api"
-import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -285,15 +284,5 @@ export const tableScenarioRowsQueryAtomFamily = atomFamily(
                 },
             }
         }),
-    scenarioQueryKeyEquals,
-)
-
-export const tableScenarioIdsAtomFamily = atomFamily(
-    (params: ScenarioQueryKey) =>
-        atom(
-            (get) =>
-                get(tableScenarioRowsQueryAtomFamily(params)).data?.rows?.map((row) => row.id) ??
-                [],
-        ),
     scenarioQueryKeyEquals,
 )

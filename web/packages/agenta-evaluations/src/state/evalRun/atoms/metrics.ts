@@ -85,15 +85,6 @@ export const getScenarioStatuses = (scenarioIds: string[]): Map<string, string |
 }
 
 /**
- * Clear the scenario status cache.
- * Call this when projectId/workspace changes.
- */
-export const clearScenarioStatusCache = () => {
-    scenarioStatusCache.clear()
-    recentlySavedScenarios.clear()
-}
-
-/**
  * Invalidate the metric batcher cache.
  * Call this after updating metrics to force a fresh fetch.
  */
@@ -229,8 +220,6 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
         return batcher
     }),
 )
-
-export const evaluationMetricBatcherAtom = atom((get) => get(evaluationMetricBatcherFamily({})))
 
 export const evaluationMetricQueryAtomFamily = atomFamily(
     ({scenarioId, runId}: {scenarioId: string; runId?: string | null}) =>

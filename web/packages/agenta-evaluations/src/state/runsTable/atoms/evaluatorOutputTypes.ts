@@ -1,5 +1,3 @@
-import {canonicalizeMetricKey} from "@agenta/shared/metrics"
-
 /**
  * Module-level cache for evaluator output types.
  * This is used instead of Jotai atoms because the table component uses its own Jotai store,
@@ -12,11 +10,6 @@ const outputTypesCache = new Map<string, Map<string, string | null>>()
  * Listeners for output types changes.
  */
 const outputTypesListeners = new Map<string, Set<() => void>>()
-
-/**
- * Version counter to track changes and trigger re-renders.
- */
-let globalVersion = 0
 
 /**
  * Creates a key for the evaluator output types cache.
@@ -40,7 +33,6 @@ export const getOutputTypesMap = (key: string): Map<string, string | null> => {
  */
 export const setOutputTypesMap = (key: string, map: Map<string, string | null>): void => {
     outputTypesCache.set(key, map)
-    globalVersion += 1
 
     // Notify listeners
     const listeners = outputTypesListeners.get(key)
@@ -70,31 +62,10 @@ export const subscribeToOutputTypes = (key: string, listener: () => void): (() =
 }
 
 /**
- * Gets the current global version (for dependency tracking).
- */
-export const getOutputTypesVersion = (): number => {
-    return globalVersion
-}
-
-/**
  * Checks if a metric output type is a string type that should be filtered out.
  */
 export const isStringOutputType = (outputType: string | null | undefined): boolean => {
     if (!outputType) return false
     const normalized = outputType.toLowerCase()
     return normalized === "string"
-}
-
-/**
- * Checks if a metric should be visible based on its output type from the cache.
- */
-export const isMetricVisibleByOutputType = (
-    metricPath: string,
-    outputTypesMap: Map<string, string | null>,
-): boolean => {
-    const canonicalPath = canonicalizeMetricKey(metricPath)
-    const outputType = outputTypesMap.get(canonicalPath)
-    // If we don't have output type info, show the column (don't filter)
-    if (outputType === undefined) return true
-    return !isStringOutputType(outputType)
 }

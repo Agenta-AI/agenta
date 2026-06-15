@@ -1,4 +1,3 @@
-import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
 export type ScenarioRowHeight = "small" | "medium" | "large"
@@ -19,11 +18,3 @@ export const scenarioRowHeightAtom = atomWithStorage<ScenarioRowHeight>(
     "agenta:scenario-table:row-height",
     DEFAULT_ROW_HEIGHT,
 )
-
-/**
- * Derived atom that returns the actual pixel height for the current row height setting
- */
-export const scenarioRowHeightPxAtom = atom((get) => {
-    const height = get(scenarioRowHeightAtom)
-    return ROW_HEIGHT_CONFIG[height].height
-})

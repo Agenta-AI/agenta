@@ -208,24 +208,3 @@ export function buildRunIndex(rawRunInput: unknown): RunIndex {
 
     return {steps, columnsByStep, invocationKeys, annotationKeys, inputKeys}
 }
-
-export function serializeRunIndex(idx: RunIndex) {
-    return {
-        ...idx,
-        invocationKeys: [...idx.invocationKeys],
-        annotationKeys: [...idx.annotationKeys],
-        inputKeys: [...idx.inputKeys],
-    }
-}
-
-/** Serialized form of a {@link RunIndex} (Sets flattened to arrays for transport). */
-export type SerializedRunIndex = ReturnType<typeof serializeRunIndex>
-
-export function deserializeRunIndex(idx: SerializedRunIndex): RunIndex {
-    return {
-        ...idx,
-        invocationKeys: new Set(idx.invocationKeys),
-        annotationKeys: new Set(idx.annotationKeys),
-        inputKeys: new Set(idx.inputKeys),
-    }
-}

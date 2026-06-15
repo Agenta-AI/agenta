@@ -70,7 +70,6 @@ import {projectIdAtom} from "@agenta/shared/state"
 import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-import {getDefaultStore} from "jotai/vanilla"
 
 import {mergeTestcaseAnnotationTags, selectQueueScopedAnnotation} from "../testsetSync"
 import type {
@@ -83,7 +82,7 @@ import type {
     EvaluatorStepRef,
 } from "../types"
 
-import {annotationSessionController} from "./annotationSessionController"
+import {annotationSessionController, getStore} from "./annotationSessionController"
 
 // ============================================================================
 // SCHEMA EXTRACTION HELPERS
@@ -102,13 +101,7 @@ export function isEmptyValue(value: unknown): boolean {
 }
 
 function isEmptyMetrics(fields: Record<string, {value: unknown}>): boolean {
-    return Object.values(fields).every(
-        (f) =>
-            f.value === null ||
-            f.value === undefined ||
-            f.value === "" ||
-            (Array.isArray(f.value) && f.value.length === 0),
-    )
+    return Object.values(fields).every((f) => isEmptyValue(f.value))
 }
 
 async function patchScenarioStatus(projectId: string, scenarioId: string, status: string) {
@@ -1236,10 +1229,6 @@ const clearFormStateAtom = atom(null, () => {
 // ============================================================================
 // IMPERATIVE API
 // ============================================================================
-
-function getStore() {
-    return getDefaultStore()
-}
 
 // ============================================================================
 // CONTROLLER EXPORT

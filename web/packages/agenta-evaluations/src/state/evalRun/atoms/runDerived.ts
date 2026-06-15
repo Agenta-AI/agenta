@@ -1,8 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- relocated eval-run parity data layer (WP-4e-2b); reads dynamic backend-shaped run payloads, logic unchanged */
-import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
-import {activePreviewRunIdAtom} from "./run"
 import {evaluationRunQueryAtomFamily} from "./table/run"
 
 interface RunDerivedRefs {
@@ -92,36 +90,6 @@ export const runInvocationRefsAtomFamily = atomFamily((runId: string | null) =>
             a.variantId === b.variantId,
     ),
 )
-
-export const runApplicationIdAtomFamily = atomFamily((runId: string | null) =>
-    selectAtom(
-        runInvocationRefsAtomFamily(runId),
-        (refs) => refs.applicationId ?? null,
-        primitiveEqual,
-    ),
-)
-
-export const runApplicationVariantIdAtomFamily = atomFamily((runId: string | null) =>
-    selectAtom(
-        runInvocationRefsAtomFamily(runId),
-        (refs) => refs.applicationVariantId ?? null,
-        primitiveEqual,
-    ),
-)
-
-export const runVariantIdAtomFamily = atomFamily((runId: string | null) =>
-    selectAtom(
-        runInvocationRefsAtomFamily(runId),
-        (refs) => refs.variantId ?? refs.applicationVariantId ?? null,
-        primitiveEqual,
-    ),
-)
-
-export const activePreviewApplicationIdAtom = atom((get) => {
-    const runId = get(activePreviewRunIdAtom)
-    if (!runId) return null
-    return get(runApplicationIdAtomFamily(runId))
-})
 
 export const runTestsetIdsAtomFamily = atomFamily((runId: string | null) =>
     selectAtom(

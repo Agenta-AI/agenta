@@ -249,9 +249,3 @@ export const triggerRunInvocationAtom = atom(
         }
     },
 )
-
-/** Helper to check if a scenario/step is currently running */
-export const isInvocationRunningAtom = atom((get) => {
-    const running = get(runningInvocationsAtom)
-    return (scenarioId: string, stepKey: string) => running.has(`${scenarioId}:${stepKey}`)
-})

@@ -115,8 +115,6 @@ export const scenarioStepsBatcherFamily = atomFamily(({runId}: {runId?: string |
     }),
 )
 
-export const scenarioStepsBatcherAtom = atom((get) => get(scenarioStepsBatcherFamily(undefined)))
-
 export const scenarioStepsQueryFamily = atomFamily(
     ({scenarioId, runId}: {scenarioId: string; runId?: string | null}) =>
         atomWithQuery<ScenarioStepsBatchResult>((get) => {

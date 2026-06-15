@@ -32,7 +32,6 @@ export type {
 // ── Constants ──────────────────────────────────────────────────────────────────
 export {
     STATUS_OPTIONS,
-    FLAG_LABELS,
     EVALUATION_KIND_LABELS,
     EVALUATION_KIND_FILTER_OPTIONS,
     METRIC_COLUMN_CONFIG,
@@ -68,9 +67,7 @@ export {
     getOutputTypesMap,
     setOutputTypesMap,
     subscribeToOutputTypes,
-    getOutputTypesVersion,
     isStringOutputType,
-    isMetricVisibleByOutputType,
 } from "./atoms/evaluatorOutputTypes"
 export {previewRunSummaryAtomFamily} from "./atoms/runSummaries"
 export type {PreviewRunSummary} from "./atoms/runSummaries"
@@ -82,7 +79,6 @@ export {default as usePreviewRunSummary} from "./hooks/usePreviewRunSummary"
 export {
     default as useRunMetricSelection,
     clearMetricSelectionCache,
-    invalidateMetricSelectionCache,
 } from "./hooks/useRunMetricSelection"
 export {default as useEvaluationRunsPolling} from "./hooks/useEvaluationRunsPolling"
 

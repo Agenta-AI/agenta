@@ -21,8 +21,4 @@ export {
 
 export {queryEvaluationScenarios, setEvaluationScenarioStatuses} from "./api"
 
-export {
-    evaluationScenarioMolecule,
-    type EvaluationScenarioMolecule,
-    evaluationScenariosQueryAtomFamily,
-} from "./state/molecule"
+export {evaluationScenarioMolecule, evaluationScenariosQueryAtomFamily} from "./state/molecule"

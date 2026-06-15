@@ -131,7 +131,7 @@ type TestsetWithData = OssTestset & {
 }
 
 /** Eval-type discriminants the hook branches on (formerly OSS `EvaluationType`). */
-export type PreviewEvaluationType = "human" | "online" | "automatic" | "single_model_test"
+export type PreviewEvaluationFilterType = "human" | "online" | "automatic" | "single_model_test"
 
 /**
  * Custom hook to manage and enrich preview evaluation runs.
@@ -150,7 +150,7 @@ const usePreviewEvaluations = ({
     isCustomApp = false,
 }: {
     skip?: boolean
-    types?: PreviewEvaluationType[]
+    types?: PreviewEvaluationFilterType[]
     debug?: boolean
     appId?: string | null
     flags?: RunFlagsFilter

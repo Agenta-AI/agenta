@@ -563,5 +563,3 @@ export const evaluationRunMolecule = {
         invalidateDetail: invalidateEvaluationRunCache,
     },
 }
-
-export type EvaluationRunMolecule = typeof evaluationRunMolecule

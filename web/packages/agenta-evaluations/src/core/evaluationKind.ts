@@ -126,23 +126,3 @@ export const deriveEvaluationKind = (
     if (isCustomEvaluation(run)) return "custom"
     return "auto"
 }
-
-/**
- * Normalize a string evaluation kind value to a valid EvaluationRunKind.
- * Returns null if the value is not a valid kind.
- */
-export const normalizeEvaluationKindString = (
-    value: string | null | undefined,
-): EvaluationRunKind | null => {
-    if (typeof value !== "string") return null
-    const normalized = value.trim().toLowerCase()
-    switch (normalized) {
-        case "auto":
-        case "human":
-        case "online":
-        case "custom":
-            return normalized
-        default:
-            return null
-    }
-}

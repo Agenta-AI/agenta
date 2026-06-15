@@ -8,7 +8,7 @@
 // MOLECULE (Primary API)
 // ============================================================================
 
-export {evaluationQueueMolecule, type EvaluationQueueMolecule} from "./molecule"
+export {evaluationQueueMolecule} from "./molecule"
 
 // ============================================================================
 // STORE ATOMS

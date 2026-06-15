@@ -23,19 +23,6 @@ export type FlagKey =
     | "has_human"
     | "has_auto"
 
-export const FLAG_LABELS: Record<FlagKey, string> = {
-    is_live: "Live",
-    is_active: "Active",
-    is_closed: "Closed",
-    is_queue: "Queue",
-    has_queries: "Has queries",
-    has_testsets: "Has testsets",
-    has_evaluators: "Has evaluators",
-    has_custom: "Custom evaluators",
-    has_human: "Human evaluators",
-    has_auto: "Auto evaluators",
-}
-
 export const EVALUATION_KIND_LABELS: Record<ConcreteEvaluationRunKind, string> = {
     auto: "Auto",
     human: "Human",

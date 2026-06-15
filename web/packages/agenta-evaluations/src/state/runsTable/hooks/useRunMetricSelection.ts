@@ -135,17 +135,4 @@ export const clearMetricSelectionCache = () => {
     metricSelectionCache.clear()
 }
 
-/**
- * Remove a specific entry from the cache.
- */
-export const invalidateMetricSelectionCache = (
-    runId: string,
-    metricKey?: string,
-    metricPath?: string,
-    stepKey?: string,
-) => {
-    const key = buildCacheKey(runId, metricKey, metricPath, stepKey)
-    metricSelectionCache.delete(key)
-}
-
 export default useRunMetricSelection

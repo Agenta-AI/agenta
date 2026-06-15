@@ -17,14 +17,7 @@
 import {queryEvaluationMetrics} from "../api"
 import type {EvaluationMetric} from "../core"
 
-import {
-    createScenarioCacheMolecule,
-    type PrefetchScenarioArgs,
-    type ScenarioCacheOutcome,
-} from "./scenarioCacheMolecule"
-
-export type PrefetchMetricsArgs = PrefetchScenarioArgs
-export type PrefetchMetricsOutcome = ScenarioCacheOutcome<EvaluationMetric, "metrics">
+import {createScenarioCacheMolecule} from "./scenarioCacheMolecule"
 
 export const evaluationMetricMolecule = createScenarioCacheMolecule<EvaluationMetric, "metrics">({
     keyPrefix: "evaluation-metrics",
@@ -33,5 +26,3 @@ export const evaluationMetricMolecule = createScenarioCacheMolecule<EvaluationMe
     getScenarioId: (m) => m.scenario_id,
     skipItemsWithoutScenarioId: true, // run-level aggregates have no scenario_id
 })
-
-export type EvaluationMetricMolecule = typeof evaluationMetricMolecule

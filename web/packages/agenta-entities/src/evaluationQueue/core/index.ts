@@ -26,13 +26,7 @@ export {
     type EvaluationQueueIdResponse,
     evaluationQueueIdsResponseSchema,
     type EvaluationQueueIdsResponse,
-    evaluationQueueScenarioIdsResponseSchema,
-    type EvaluationQueueScenarioIdsResponse,
 } from "./schema"
 
 // API parameter types
-export type {
-    EvaluationQueueListParams,
-    EvaluationQueueDetailParams,
-    EvaluationQueueScenariosParams,
-} from "./types"
+export type {EvaluationQueueListParams, EvaluationQueueDetailParams} from "./types"

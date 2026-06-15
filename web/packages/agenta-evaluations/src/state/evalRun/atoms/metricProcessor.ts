@@ -47,10 +47,6 @@ export const clearBootstrapAttempt = (runId: string) => {
     bootstrapAttemptedRuns.delete(runId)
 }
 
-export const clearAllBootstrapAttempts = () => {
-    bootstrapAttemptedRuns.clear()
-}
-
 const LEGACY_VALUE_ALLOWED_KEYS = new Set([
     "value",
     "count",

@@ -343,5 +343,3 @@ export const evaluationQueueMolecule = {
         invalidateDetail: invalidateEvaluationQueueCache,
     },
 }
-
-export type EvaluationQueueMolecule = typeof evaluationQueueMolecule

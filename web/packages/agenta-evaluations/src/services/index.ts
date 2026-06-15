@@ -28,8 +28,6 @@ export {upsertScenarioMetricData, type UpsertScenarioMetricDataParams} from "./m
 
 export {upsertStepResultWithInvocation, type InvocationReferences} from "./invocations"
 
-export {updateScenarioStatusRemote, upsertScenarioStep} from "./workerUtils"
-
 export {
     editEvaluationRunShape,
     processEvaluationRunSlice,
