@@ -525,9 +525,6 @@ export const inProgressFeatures: PlannedFeature[] = [
       },
     ],
   },
-];
-
-export const plannedFeatures: PlannedFeature[] = [
   {
     id: "annotation-queue-label-testsets",
     title: "Annotation Queue to Label Test Sets",
@@ -545,6 +542,9 @@ export const plannedFeatures: PlannedFeature[] = [
       },
     ],
   },
+];
+
+export const plannedFeatures: PlannedFeature[] = [
   {
     id: "trace-usage-limits",
     title: "Usage Limits for Traces (Hard and Soft Caps)",
