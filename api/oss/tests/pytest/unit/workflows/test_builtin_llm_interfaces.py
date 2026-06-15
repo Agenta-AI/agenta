@@ -1,5 +1,6 @@
 from agenta.sdk.engines.running.interfaces import (
     auto_custom_code_run_v0_interface,
+    auto_json_diff_v0_interface,
     chat_v0_interface,
     completion_v0_interface,
     match_v0_interface,
@@ -95,6 +96,17 @@ def test_match_v0_interface_exposes_recursive_matchers_parameters_schema():
 
 
 def test_score_success_outputs_preserve_empty_required_list():
-    outputs = auto_custom_code_run_v0_interface.schemas.outputs
+    outputs = auto_json_diff_v0_interface.schemas.outputs
 
     assert outputs["required"] == []
+
+
+def test_custom_code_interface_declares_no_outputs_schema():
+    # v3 code evaluators return arbitrary JSON; metrics are inferred from traces
+    assert auto_custom_code_run_v0_interface.schemas.outputs is None
+
+
+def test_custom_code_interface_defaults_to_version_3():
+    parameters = auto_custom_code_run_v0_interface.schemas.parameters
+
+    assert parameters["properties"]["version"]["default"] == "3"

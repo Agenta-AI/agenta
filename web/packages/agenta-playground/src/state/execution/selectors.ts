@@ -21,6 +21,7 @@ import {selectAtom} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
+import {playgroundIsChatBehaviorAtom} from "../atoms/modeOverride"
 import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
 import {addUserMessageAtom} from "../chat"
 import {sharedMessageIdsAtomFamily} from "../chat/messageSelectors"
@@ -542,7 +543,33 @@ export const playgroundInputsAtomFamily = atomFamily(
                 testcaseData[key] = value
             }
 
-            return splitInputsVisibility({referencedKeys, draftKeys, testcaseData})
+            // In connected mode, surface the test set's columns even when
+            // this row doesn't carry them yet — a draft kept through "Keep
+            // and load" or a row added while connected starts with only its
+            // own keys. The drawer already offers these via the registry
+            // merge in `rowVariableKeysAtomFamily`; without the same merge
+            // here the grid hides exactly those fields. Same system/chat
+            // strips as `testcaseData` above.
+            let testsetColumnKeys: string[] | undefined
+            const loadableId = get(derivedLoadableIdAtom)
+            const mode = loadableId ? get(loadableController.selectors.mode(loadableId)) : null
+            if (mode === "connected") {
+                const registry = get(testcaseMolecule.atoms.columns) as {key: string}[] | null
+                testsetColumnKeys = (registry ?? [])
+                    .map((column) => column.key)
+                    .filter(
+                        (key) =>
+                            !isSystemField(key) &&
+                            !(isChat && (key === "messages" || key === "outputs")),
+                    )
+            }
+
+            return splitInputsVisibility({
+                referencedKeys,
+                draftKeys,
+                testcaseData,
+                testsetColumnKeys,
+            })
         }),
     (a, b) => a.testcaseId === b.testcaseId && (a.downstreamKey ?? "") === (b.downstreamKey ?? ""),
 )
@@ -1194,18 +1221,19 @@ export const outputPortSchemaMapAtom = atom<
 // ============================================================================
 
 /**
- * App-level chat mode detection.
+ * Playground-level chat behavior.
  *
- * Derives from the primary node's entity ID via `workflowMolecule.selectors.executionMode`.
- * Returns `true` for chat apps, `false` for completion apps, `undefined` while loading.
+ * Combines the app's capability (the primary node's
+ * `workflowMolecule.selectors.executionMode`) with the user's playground
+ * mode override (`playgroundModeOverrideAtom`). Completion apps cannot run
+ * conversations, so the override only applies to chat-capable apps.
+ * Returns `true` for chat behavior, `false` for completion behavior,
+ * `undefined` while the playground has no root node.
  *
+ * Request shapes follow the capability, not this atom (see
+ * docs/design/playground-mode-switch/).
  */
-export const isChatModeAtom = atom<boolean | undefined>((get) => {
-    const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
-    if (!rootNode) return undefined
-    const mode = get(workflowMolecule.selectors.executionMode(rootNode.entityId))
-    return mode === "chat"
-})
+export const isChatModeAtom = atom<boolean | undefined>((get) => get(playgroundIsChatBehaviorAtom))
 
 /**
  * App-level type derived from chat mode.

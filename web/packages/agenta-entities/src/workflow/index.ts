@@ -242,6 +242,8 @@ export {
     workflowLatestRevisionQueryAtomFamily,
     // Artifact (workflow-level container — entity display name)
     workflowArtifactQueryAtomFamily,
+    workflowArtifactScopedQueryAtomFamily,
+    workflowVariantsScopedQueryAtomFamily,
     primeWorkflowArtifactCacheImperative,
     // Commit / Archive
     commitWorkflowRevisionAtom,
@@ -304,6 +306,9 @@ export {
     evaluatorPresetsAtomFamily,
     // Key map
     evaluatorKeyMapAtom,
+    // Feedback metric schemas (observability annotation filter)
+    evaluatorFeedbackSchemasAtom,
+    type EvaluatorFeedbackSchema,
     // Evaluator configs (non-human, non-custom)
     evaluatorConfigsListDataAtom,
     evaluatorConfigsQueryStateAtom,

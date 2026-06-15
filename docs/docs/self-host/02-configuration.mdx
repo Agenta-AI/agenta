@@ -254,12 +254,35 @@ This key has no env-var or `env.py` equivalent.
 | `REDIS_URI_DURABLE` | `redis.uri_durable` | `redis.uriDurable` |
 | `REDIS_URI_VOLATILE` | `redis.uri_volatile` | `redis.uriVolatile` |
 
+## smtp
+
+SMTP is preferred for email delivery. It is enabled only when host, port, and
+sender are configured. SendGrid remains supported as a fallback when SMTP is not
+fully configured.
+
+For local Mailpit from an API container, use `SMTP_HOST=host.docker.internal`
+when Mailpit runs on the host, or `SMTP_HOST=mailpit` only when Mailpit is on
+the same Docker network.
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `SMTP_HOST` | `smtp.host` | _(not mapped)_ |
+| `SMTP_PORT` | `smtp.port` | _(not mapped)_ |
+| `SMTP_USERNAME` | `smtp.username` | _(not mapped)_ |
+| `SMTP_PASSWORD` | `smtp.password` | _(not mapped)_ |
+| `SMTP_FROM_EMAIL` | `smtp.from_email` | _(not mapped)_ |
+| `SMTP_USE_TLS` | `smtp.use_tls` | _(not mapped)_ |
+| `SMTP_USE_SSL` | `smtp.use_ssl` | _(not mapped)_ |
+| `SMTP_TIMEOUT` | `smtp.timeout` | _(not mapped)_ |
+
 ## sendgrid
+
+SendGrid is used only when SMTP is not fully configured.
 
 | Env var | env.py path | values.yaml path |
 |---|---|---|
 | `SENDGRID_API_KEY` | `sendgrid.api_key` | `sendgrid.apiKey` |
-| `SENDGRID_FROM_ADDRESS` | `sendgrid.from_address` | `sendgrid.fromAddress` |
+| `SENDGRID_FROM_EMAIL` | `sendgrid.from_email` | `sendgrid.fromEmail` |
 
 ## stripe
 
@@ -322,7 +345,7 @@ future major release.
 | `NEW_RELIC_LICENSE_KEY` | `NEWRELIC_LICENSE_KEY` |
 | `NRIA_LICENSE_KEY` | `NEWRELIC_LICENSE_KEY` |
 | `POSTHOG_HOST` | `POSTHOG_API_URL` |
-| `AGENTA_AUTHN_EMAIL_FROM` | `SENDGRID_FROM_ADDRESS` |
-| `AGENTA_SEND_EMAIL_FROM_ADDRESS` | `SENDGRID_FROM_ADDRESS` |
+| `AGENTA_AUTHN_EMAIL_FROM` | `SMTP_FROM_EMAIL` (preferred) or `SENDGRID_FROM_EMAIL` fallback |
+| `AGENTA_SEND_EMAIL_FROM_ADDRESS` | `SMTP_FROM_EMAIL` (preferred) or `SENDGRID_FROM_EMAIL` fallback |
 | `STRIPE_TARGET` | `STRIPE_WEBHOOK_TARGET` |
 | `SUPERTOKENS_CONNECTION_URI` | `SUPERTOKENS_URI_CORE` |

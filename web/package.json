@@ -1,6 +1,6 @@
 {
     "name": "agenta-web",
-    "version": "0.103.1",
+    "version": "0.103.5",
     "workspaces": [
         "ee",
         "oss",
@@ -10,7 +10,7 @@
     ],
     "dependencies": {
         "ajv-formats": "^3.0.1",
-        "jotai-eager": "^0.2.4",
+        "jotai-eager": "^0.2.6",
         "jotai-history": "^0.5.1",
         "jotai-transaction": "^0.2.0",
         "json5": "^2.2.3",
@@ -23,25 +23,25 @@
         "@eslint/js": "^9.39.4",
         "@lexical/eslint-plugin": "^0.40.0",
         "@next/eslint-plugin-next": "15.5.18",
-        "@typescript-eslint/eslint-plugin": "^8.59.3",
-        "@typescript-eslint/parser": "^8.59.3",
+        "@typescript-eslint/eslint-plugin": "^8.61.0",
+        "@typescript-eslint/parser": "^8.61.0",
         "eslint": "^9.39.4",
         "eslint-config-next": "15.5.18",
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-import": "^2.32.0",
-        "eslint-plugin-prettier": "^5.5.5",
+        "eslint-plugin-prettier": "^5.5.6",
         "eslint-plugin-react": "^7.37.5",
         "eslint-plugin-react-hooks": "^7.1.1",
         "husky": "^9.1.7",
         "node-fetch": "^3.3.2",
-        "prettier": "3.7.4",
+        "prettier": "^3.7.4",
         "prettier-eslint": "^16.4.2",
         "prettier-plugin-tailwindcss": "^0.1.13",
         "ts-node": "^10.9.2",
         "tsconfig-paths": "^4.2.0",
-        "tsx": "^4.21.0",
+        "tsx": "^4.22.4",
         "turbo": "2.8.20",
-        "typescript-eslint": "^8.59.3"
+        "typescript-eslint": "^8.61.0"
     },
     "packageManager": "pnpm@11.1.2+sha512.415a1cc25974731e75455c1468371be74c5aa5fb7621b50d4056d222451609f11412f23fd602e6169f1e060466641f798597e1be961a10688836a67b16569499",
     "scripts": {

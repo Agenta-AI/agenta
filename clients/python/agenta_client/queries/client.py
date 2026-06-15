@@ -18,6 +18,7 @@ from ..types.query_revisions_log import QueryRevisionsLog
 from ..types.query_revisions_response import QueryRevisionsResponse
 from ..types.query_variant_create import QueryVariantCreate
 from ..types.query_variant_edit import QueryVariantEdit
+from ..types.query_variant_fork import QueryVariantFork
 from ..types.query_variant_query import QueryVariantQuery
 from ..types.query_variant_response import QueryVariantResponse
 from ..types.query_variants_response import QueryVariantsResponse
@@ -424,6 +425,48 @@ class QueriesClient:
         _response = self._raw_client.query_query_variants(query_variant=query_variant, query_refs=query_refs, query_variant_refs=query_variant_refs, include_archived=include_archived, windowing=windowing, request_options=request_options)
         return _response.data
     
+    def fork_query_variant(self, *, query_variant: QueryVariantFork, query_variant_ref: Reference, query_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> QueryVariantResponse:
+        """
+        Fork an existing query variant into a new variant.
+        
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `query_revision_ref` is provided). Provide `slug`
+        and `name` in the fork body to identify the new variant.
+        
+        Parameters
+        ----------
+        query_variant : QueryVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        query_variant_ref : Reference
+            Source variant to fork from.
+        
+        query_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        QueryVariantResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi, QueryVariantFork, Reference
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.queries.fork_query_variant(
+            query_variant=QueryVariantFork(),
+            query_variant_ref=Reference(),
+        )
+        """
+        _response = self._raw_client.fork_query_variant(query_variant=query_variant, query_variant_ref=query_variant_ref, query_revision_ref=query_revision_ref, request_options=request_options)
+        return _response.data
+    
     def retrieve_query_revision(self, *, query_ref: typing.Optional[Reference] = OMIT, query_variant_ref: typing.Optional[Reference] = OMIT, query_revision_ref: typing.Optional[Reference] = OMIT, include_trace_ids: typing.Optional[bool] = OMIT, include_traces: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> QueryRevisionResponse:
         """
         Parameters
@@ -642,11 +685,11 @@ class QueriesClient:
         _response = self._raw_client.query_query_revisions(query_revision=query_revision, query_refs=query_refs, query_variant_refs=query_variant_refs, query_revision_refs=query_revision_refs, include_archived=include_archived, windowing=windowing, request_options=request_options)
         return _response.data
     
-    def commit_query_revision(self, *, query_revision_commit: QueryRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> QueryRevisionResponse:
+    def commit_query_revision(self, *, query_revision: QueryRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> QueryRevisionResponse:
         """
         Parameters
         ----------
-        query_revision_commit : QueryRevisionCommit
+        query_revision : QueryRevisionCommit
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -664,10 +707,10 @@ class QueriesClient:
             api_key="YOUR_API_KEY",
         )
         client.queries.commit_query_revision(
-            query_revision_commit=QueryRevisionCommit(),
+            query_revision=QueryRevisionCommit(),
         )
         """
-        _response = self._raw_client.commit_query_revision(query_revision_commit=query_revision_commit, request_options=request_options)
+        _response = self._raw_client.commit_query_revision(query_revision=query_revision, request_options=request_options)
         return _response.data
     
     def log_query_revisions(self, *, query_revisions: QueryRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> QueryRevisionsResponse:
@@ -1361,6 +1404,56 @@ class AsyncQueriesClient:
         _response = await self._raw_client.query_query_variants(query_variant=query_variant, query_refs=query_refs, query_variant_refs=query_variant_refs, include_archived=include_archived, windowing=windowing, request_options=request_options)
         return _response.data
     
+    async def fork_query_variant(self, *, query_variant: QueryVariantFork, query_variant_ref: Reference, query_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> QueryVariantResponse:
+        """
+        Fork an existing query variant into a new variant.
+        
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `query_revision_ref` is provided). Provide `slug`
+        and `name` in the fork body to identify the new variant.
+        
+        Parameters
+        ----------
+        query_variant : QueryVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        query_variant_ref : Reference
+            Source variant to fork from.
+        
+        query_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        QueryVariantResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi, QueryVariantFork, Reference
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.queries.fork_query_variant(
+                query_variant=QueryVariantFork(),
+                query_variant_ref=Reference(),
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.fork_query_variant(query_variant=query_variant, query_variant_ref=query_variant_ref, query_revision_ref=query_revision_ref, request_options=request_options)
+        return _response.data
+    
     async def retrieve_query_revision(self, *, query_ref: typing.Optional[Reference] = OMIT, query_variant_ref: typing.Optional[Reference] = OMIT, query_revision_ref: typing.Optional[Reference] = OMIT, include_trace_ids: typing.Optional[bool] = OMIT, include_traces: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> QueryRevisionResponse:
         """
         Parameters
@@ -1635,11 +1728,11 @@ class AsyncQueriesClient:
         _response = await self._raw_client.query_query_revisions(query_revision=query_revision, query_refs=query_refs, query_variant_refs=query_variant_refs, query_revision_refs=query_revision_refs, include_archived=include_archived, windowing=windowing, request_options=request_options)
         return _response.data
     
-    async def commit_query_revision(self, *, query_revision_commit: QueryRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> QueryRevisionResponse:
+    async def commit_query_revision(self, *, query_revision: QueryRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> QueryRevisionResponse:
         """
         Parameters
         ----------
-        query_revision_commit : QueryRevisionCommit
+        query_revision : QueryRevisionCommit
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1662,13 +1755,13 @@ class AsyncQueriesClient:
         
         async def main() -> None:
             await client.queries.commit_query_revision(
-                query_revision_commit=QueryRevisionCommit(),
+                query_revision=QueryRevisionCommit(),
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.commit_query_revision(query_revision_commit=query_revision_commit, request_options=request_options)
+        _response = await self._raw_client.commit_query_revision(query_revision=query_revision, request_options=request_options)
         return _response.data
     
     async def log_query_revisions(self, *, query_revisions: QueryRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> QueryRevisionsResponse:

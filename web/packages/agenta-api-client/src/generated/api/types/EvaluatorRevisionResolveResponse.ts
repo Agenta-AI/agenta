@@ -9,7 +9,7 @@ export interface EvaluatorRevisionResolveResponse {
     /** 1 when a revision was resolved, 0 otherwise. */
     count?: number | undefined;
     /** The resolved revision. */
-    evaluator_revision?: (AgentaApi.EvaluatorRevision | null) | undefined;
+    evaluator_revision?: (AgentaApi.EvaluatorRevisionOutput | null) | undefined;
     /** Diagnostic information about the resolution pass (depth, embed count, errors). */
     resolution_info?: (AgentaApi.ResolutionInfo | null) | undefined;
     /** References (artifact / variant / revision) actually used to retrieve this revision. */

@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {Skeleton, Splitter, Tabs, TabsProps} from "antd"
 import clsx from "clsx"
@@ -36,6 +36,24 @@ const TraceContent = ({
     const activeTrace = active
     const spanEntityId = activeTrace?.span_id || activeTrace?.invocationIds?.span_id || activeId
     const [tab, setTab] = useState("overview")
+    const tabsWrapperRef = useRef<HTMLDivElement>(null)
+    const [tabNavHeight, setTabNavHeight] = useState(0)
+
+    // Measure the actual rendered tab nav bar height so sticky JSON headers
+    // can be offset correctly below it (avoids hardcoded magic numbers).
+    useEffect(() => {
+        const el = tabsWrapperRef.current
+        if (!el) return
+        const nav = el.querySelector<HTMLElement>(".ant-tabs-nav")
+        if (!nav) return
+        const observer = new ResizeObserver(() => {
+            setTabNavHeight(nav.getBoundingClientRect().height)
+        })
+        observer.observe(nav)
+        // Capture initial height immediately
+        setTabNavHeight(nav.getBoundingClientRect().height)
+        return () => observer.disconnect()
+    }, [])
 
     const items: TabsProps["items"] = useMemo(() => {
         if (isLoading && !activeTrace) {
@@ -76,7 +94,12 @@ const TraceContent = ({
             {
                 key: "overview",
                 label: "Overview",
-                children: <OverviewTabItem activeTrace={activeTrace} />,
+                children: (
+                    <OverviewTabItem
+                        activeTrace={activeTrace}
+                        prettyJsonStickyOffset={tabNavHeight}
+                    />
+                ),
             },
             {
                 key: "raw_data",
@@ -91,6 +114,7 @@ const TraceContent = ({
                                 editable={false}
                                 rootScope="span"
                                 allowSpanCollapse={false}
+                                prettyJsonStickyOffset={tabNavHeight}
                             />
                         ) : (
                             <AccordionTreePanel
@@ -115,7 +139,7 @@ const TraceContent = ({
                 children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
             },
         ]
-    }, [activeTrace, isLoading, traceResponse, error, tab, spanEntityId])
+    }, [activeTrace, isLoading, traceResponse, error, tab, spanEntityId, tabNavHeight])
 
     // Ensure active tab exists in items; if not, switch to first tab
     const itemKeys = useMemo(() => (items || []).map((it) => String(it?.key)), [items])
@@ -144,14 +168,14 @@ const TraceContent = ({
 
                 <Splitter className="flex-1 min-h-0">
                     <Splitter.Panel min={400} className="w-full flex-1">
-                        <div className="flex-1">
+                        <div ref={tabsWrapperRef} className="flex-1">
                             <Tabs
                                 defaultActiveKey="overview"
                                 activeKey={tab}
                                 onChange={setTab}
                                 items={items}
                                 className={clsx(
-                                    "flex flex-col h-full [&_.ant-tabs-nav]:!sticky [&_.ant-tabs-nav]:!top-0 [&_.ant-tabs-nav]:!z-10 [&_.ant-tabs-nav]:!bg-[var(--ag-c-FFFFFF)]",
+                                    "flex flex-col h-full [&_.ant-tabs-nav]:!sticky [&_.ant-tabs-nav]:!top-0 [&_.ant-tabs-nav]:!z-30 [&_.ant-tabs-nav]:!bg-[var(--ag-c-FFFFFF)]",
                                     "[&_.ant-tabs-nav]:mb-2 [&_.ant-tabs-nav]:flex-wrap-reverse [&_.ant-tabs-nav-wrap]:px-4",
                                     "[&_.ant-tabs-content-holder]:p-3 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-content]:h-full [&_.ant-tabs-tabpane]:h-full",
                                     "[&_.ant-tabs-nav-operations]:!hidden",

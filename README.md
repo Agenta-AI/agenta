@@ -10,17 +10,15 @@
   
 <div align="center">
   <strong> <h1> The Open-source LLMOps Platform </h1></strong>
-  Build reliable LLM applications faster with integrated prompt management, evaluation, and observability.
+  Build reliable LLM applications with prompt management, evaluation, and observability.
 </div>
 
 
   <br />
       <div align="center" >
-        <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
+        <a href="https://www.youtube.com/watch?v=zZJfqkc608M" target="_blank">
           <picture >
-        <source media="(prefers-color-scheme: dark)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large"  >
-        <source media="(prefers-color-scheme: light)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large"  >
-        <img alt="Shows the logo of agenta" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large" >
+            <img alt="Agenta platform walkthrough" src="https://github.com/user-attachments/assets/992d4880-86ce-44bc-bfe4-e9eae9b731c8" >
           </picture>
         </a>
     </div>
@@ -191,7 +189,7 @@ We welcome contributions of all kinds, from filing issues and sharing ideas to i
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-63-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-67-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -281,6 +279,12 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/anshk8"><img src="https://avatars.githubusercontent.com/u/141085661?v=4?s=100" width="100px;" alt="Ansh Kakkar"/><br /><sub><b>Ansh Kakkar</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Aanshk8" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Devarsh05"><img src="https://avatars.githubusercontent.com/u/116822773?v=4?s=100" width="100px;" alt="Devarsh Prajapati"/><br /><sub><b>Devarsh Prajapati</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3ADevarsh05" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/axelray-dev"><img src="https://avatars.githubusercontent.com/u/110029405?v=4?s=100" width="100px;" alt="AxelRay"/><br /><sub><b>AxelRay</b></sub></a><br /><a href="#platform-axelray-dev" title="Packaging/porting to new platform">📦</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=axelray-dev" title="Documentation">📖</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Sanket2329"><img src="https://avatars.githubusercontent.com/u/196506711?v=4?s=100" width="100px;" alt="Sanket Shakya"/><br /><sub><b>Sanket Shakya</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Sanket2329" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/unfitcoder101"><img src="https://avatars.githubusercontent.com/u/175036458?v=4?s=100" width="100px;" alt="unfitcoder101"/><br /><sub><b>unfitcoder101</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Aunfitcoder101" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Shunmuka"><img src="https://avatars.githubusercontent.com/u/137101604?v=4?s=100" width="100px;" alt="Shunmuka Valsa"/><br /><sub><b>Shunmuka Valsa</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Shunmuka" title="Code">💻</a> <a href="#platform-Shunmuka" title="Packaging/porting to new platform">📦</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/NamHT4Devlop"><img src="https://avatars.githubusercontent.com/u/122743792?v=4?s=100" width="100px;" alt="Hồ Trung Nam"/><br /><sub><b>Hồ Trung Nam</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=NamHT4Devlop" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>

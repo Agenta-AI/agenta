@@ -903,6 +903,32 @@ const resetRowsForPlaygroundClearAtom = atom(null, (get, set, loadableId: string
     })
 })
 
+/**
+ * Thin global row-store reset for app→app navigation.
+ *
+ * The testcase row store is a global singleton shared across loadables, so
+ * rows drafted in one app's playground would otherwise leak into the next
+ * app's playground. Unlike `resetRowsForPlaygroundClear` this ignores the
+ * connected-mode branch (a previous app's connection must not preserve its
+ * server rows), adds no initial row (the next `linkToRunnable` seeds it once
+ * the store is empty), and touches no per-loadable state.
+ *
+ * `currentRevisionId` is cleared too: the paginated testcase query falls back
+ * to it, and leaving it set would let a mounted subscriber re-append the
+ * previous app's connected-testset rows right after this reset.
+ */
+const resetRowsForAppSwitchAtom = atom(null, (get, set) => {
+    const existingIds = get(testcaseMolecule.atoms.displayRowIds)
+    for (const id of existingIds) {
+        set(testcaseMolecule.actions.delete, id)
+    }
+
+    set(resetTestcaseIdsAtom)
+    set(clearNewEntityIdsAtom)
+    set(clearDeletedIdsAtom)
+    set(setCurrentRevisionIdAtom, null)
+})
+
 // ============================================================================
 // COLUMN ACTIONS
 // ============================================================================
@@ -2550,6 +2576,9 @@ export const testsetLoadable = {
         /** Reset rows for the playground Clear action */
         resetRowsForPlaygroundClear: resetRowsForPlaygroundClearAtom,
 
+        /** Reset the global row store on playground app→app navigation */
+        resetRowsForAppSwitch: resetRowsForAppSwitchAtom,
+
         /** Set columns */
         setColumns: setColumnsAtom,
 
@@ -2757,6 +2786,7 @@ const unifiedActions = {
     importRows: testsetLoadable.actions.importRows,
     clearRows: testsetLoadable.actions.clearRows,
     resetRowsForPlaygroundClear: testsetLoadable.actions.resetRowsForPlaygroundClear,
+    resetRowsForAppSwitch: testsetLoadable.actions.resetRowsForAppSwitch,
 
     // Column actions
     setColumns: testsetLoadable.actions.setColumns,

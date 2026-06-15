@@ -301,7 +301,7 @@ async def create_organization_for_signup(
 
     # Provision the initial signup subscription for the organization
     try:
-        await subscription_service.provision_signup_subscription(
+        await subscription_service.provision_subscription(
             organization_id=str(organization.id),
             organization_name=organization.name,
             organization_email=organization_email,
