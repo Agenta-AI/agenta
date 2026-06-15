@@ -91,7 +91,8 @@ const revisionBatchFetcher = createBatchFetcher<RevisionRequest, Revision | null
             revisionIds.forEach((id) => {
                 results.set(`${projectId}:${id}`, byId.get(id) ?? null)
             })
-        } catch (_error) {
+        } catch (error) {
+            console.error("[revisionBatchFetcher] Batch fetch failed:", error)
             // results already null-filled
         }
 

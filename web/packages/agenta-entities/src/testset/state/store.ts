@@ -549,7 +549,8 @@ const testsetBatchFetcher = createBatchFetcher<TestsetRequest, Testset | null>({
                     primeTestsetDetailCache(queryClient, projectId, testset)
                 }
             })
-        } catch {
+        } catch (error) {
+            console.error("[testsetBatchFetcher] Batch fetch failed, falling back:", error)
             // Fall back to individual fetches
             await Promise.all(
                 toFetch.map(async ({key, testsetId}) => {
