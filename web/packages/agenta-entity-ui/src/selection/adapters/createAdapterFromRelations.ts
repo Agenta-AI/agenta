@@ -68,6 +68,8 @@ export interface LevelOverride<T = unknown> {
     getIcon?: (entity: T) => ReactNode
     /** Custom description extractor */
     getDescription?: (entity: T) => string | undefined
+    /** Custom suffix node (rendered after the label block, before the chevron) */
+    getSuffixNode?: (entity: T) => ReactNode
     /** Override hasChildren */
     hasChildren?: boolean | ((entity: T) => boolean)
     /** Override isSelectable */
@@ -216,6 +218,7 @@ function applyOverrides<T>(
         getPlaceholderNode: overrides.getPlaceholderNode ?? baseLevel.getPlaceholderNode,
         getIcon: overrides.getIcon ?? baseLevel.getIcon,
         getDescription: overrides.getDescription ?? baseLevel.getDescription,
+        getSuffixNode: overrides.getSuffixNode ?? baseLevel.getSuffixNode,
         hasChildren:
             overrides.hasChildren !== undefined
                 ? typeof overrides.hasChildren === "function"
@@ -347,6 +350,7 @@ export function createAdapterFromRelations<
         getDescription: rootLevel.getDescription as
             | ((entity: unknown) => string | undefined)
             | undefined,
+        getSuffixNode: rootLevel.getSuffixNode as ((entity: unknown) => ReactNode) | undefined,
         hasChildren: rootLevel.hasChildren as boolean | ((entity: unknown) => boolean) | undefined,
         isSelectable: rootLevel.isSelectable as
             | boolean

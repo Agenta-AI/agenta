@@ -10,17 +10,15 @@
   
 <div align="center">
   <strong> <h1> The Open-source LLMOps Platform </h1></strong>
-  Build reliable LLM applications faster with integrated prompt management, evaluation, and observability.
+  Build reliable LLM applications with prompt management, evaluation, and observability.
 </div>
 
 
   <br />
       <div align="center" >
-        <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
+        <a href="https://www.youtube.com/watch?v=zZJfqkc608M" target="_blank">
           <picture >
-        <source media="(prefers-color-scheme: dark)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large"  >
-        <source media="(prefers-color-scheme: light)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large"  >
-        <img alt="Shows the logo of agenta" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large" >
+            <img alt="Agenta platform walkthrough" src="https://github.com/user-attachments/assets/992d4880-86ce-44bc-bfe4-e9eae9b731c8" >
           </picture>
         </a>
     </div>

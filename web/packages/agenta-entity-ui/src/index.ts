@@ -297,6 +297,7 @@ export {
     commitModalLoadingAtom,
     commitModalErrorAtom,
     commitModalEntityNameAtom,
+    commitModalOriginalEntityNameAtom,
     commitModalCanCommitAtom,
     commitModalCanProceedAtom,
     commitModalStateAtom,

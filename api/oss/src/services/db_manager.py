@@ -1643,6 +1643,27 @@ async def get_project_invitation_by_token_and_email(
         return invitation
 
 
+async def get_project_invitation_by_token(
+    project_id: str, token: str
+) -> Optional[InvitationDB]:
+    """Get a project invitation by project ID and token alone.
+
+    The token is effectively unique, so this resolves the invitation without
+    knowing the addressee, which lets callers compare the invite's email to the
+    signed-in user before any further check.
+    """
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(InvitationDB).filter_by(
+                project_id=uuid.UUID(project_id), token=token
+            )
+        )
+        return result.scalars().first()
+
+
 async def get_project_invitation_by_organization_token_and_email(
     organization_id: str,
     token: str,
