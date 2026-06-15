@@ -32,15 +32,18 @@ const initialSnapshot: AppStateSnapshot = {
 // completes and the projects fetch returns. That's the "banner missing on
 // reload" race users have reported.
 //
-// If a projectId is present in the URL, the user must be on an authenticated
-// route (ProtectedRoute guards all /w/.../p/... pages), so we can safely
-// pre-set sessionAtom. SessionListener will confirm the real auth state once
-// React effects fire — if it's actually false, ProtectedRoute redirects to
-// login before the optimistic queries matter.
+// Only pre-set sessionAtom for a true project route (/w/<ws>/p/<proj>/...,
+// routeLayer === "project"), which ProtectedRoute guards. A bare project_id in
+// the query string is NOT proof of auth: the invite link
+// /workspaces/accept?...&project_id=... carries one while the visitor is logged
+// out, and optimistically setting sessionAtom there fabricates a ghost session
+// whose gated queries then 401-storm. The accept page handles its own auth.
 if (initialParsedLocation.projectId) {
     const store = getDefaultStore()
     store.set(projectIdAtom, initialParsedLocation.projectId)
-    store.set(sessionAtom, true)
+    if (initialParsedLocation.routeLayer === "project") {
+        store.set(sessionAtom, true)
+    }
 }
 
 export const appStateSnapshotAtom = atom<AppStateSnapshot>(initialSnapshot)
@@ -52,11 +55,12 @@ export const setLocationAtom = atom(null, (_get, set, location: ParsedAppLocatio
     })
     // Sync projectId to shared atom so entity packages can read it
     set(setSharedProjectIdAtom, location.projectId ?? null)
-    // Keep sessionAtom in sync: if projectId is present in the URL the user
-    // is on an authenticated route, so entity queries should be enabled.
-    // SessionListener provides the authoritative value via useEffect,
-    // but this ensures queries are not blocked during SPA navigation.
-    if (location.projectId) {
+    // Keep sessionAtom in sync only on a true project route (path-param
+    // /w/.../p/..., routeLayer === "project"), which ProtectedRoute guards. A
+    // query-string project_id (e.g. the logged-out invite link) must not flip
+    // the session on, or its gated queries 401-storm. SessionListener provides
+    // the authoritative value via useEffect.
+    if (location.projectId && location.routeLayer === "project") {
         set(sessionAtom, true)
     }
 })
