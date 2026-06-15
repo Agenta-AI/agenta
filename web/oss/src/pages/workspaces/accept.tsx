@@ -14,8 +14,9 @@ import {acceptWorkspaceInvite} from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {useProjectData} from "@/oss/state/project"
+import {sessionExistsAtom} from "@/oss/state/session"
 import {jwtReadyAtom} from "@/oss/state/session/jwt"
-import {clearInvite} from "@/oss/state/url/auth"
+import {clearInvite, persistInviteToStorage} from "@/oss/state/url/auth"
 import {buildPostLoginPath} from "@/oss/state/url/postLoginRedirect"
 import {activeInviteAtom} from "@/oss/state/url/test"
 
@@ -62,12 +63,37 @@ const Accept: FC = () => {
             accept.current = true
             processedTokens.add(token)
             const store = getDefaultStore()
+
+            // No session means an unauthenticated user pasted the invite link.
+            // Stash the invite and send them to /auth (with redirect back) to sign in/up.
+            if (!store.get(sessionExistsAtom)) {
+                accept.current = false
+                processedTokens.delete(token)
+                persistInviteToStorage({
+                    token,
+                    email,
+                    organization_id: organizationId,
+                    workspace_id: workspaceId,
+                    project_id: projectId,
+                    survey: isSurvey ? "true" : undefined,
+                })
+                const redirectToPath = encodeURIComponent(router.asPath)
+                await router.replace(`/auth?redirectToPath=${redirectToPath}`)
+                return
+            }
+
             try {
+                // Don't wait on the JWT forever; fall through after a timeout.
                 await new Promise<void>((resolve) => {
                     let unsub: () => void = () => {}
+                    const timer = setTimeout(() => {
+                        unsub()
+                        resolve()
+                    }, 10000)
                     const check = () => {
                         const ready = (store.get(jwtReadyAtom) as any)?.data ?? false
                         if (ready) {
+                            clearTimeout(timer)
                             unsub()
                             resolve()
                         }
