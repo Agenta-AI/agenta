@@ -119,8 +119,4 @@ export type {
 // STATE
 // ============================================================================
 
-export {
-    evaluationRunQueryAtomFamily,
-    scenarioStepsQueryAtomFamily,
-    invalidateEvaluationRunCache,
-} from "./state"
+export {evaluationRunQueryAtomFamily, scenarioStepsQueryAtomFamily} from "./state"

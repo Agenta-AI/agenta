@@ -2396,8 +2396,6 @@ export const annotationSessionController = {
         applyRouteState: applyRouteStateAtom,
         /** Sync testcase annotations back into one or more testsets */
         syncToTestsets: syncToTestsetsAtom,
-        /** Sync annotated data back to source testset as new revision */
-        syncToTestset: syncToTestsetsAtom,
         /** Open the add-to-testset commit modal */
         openAddToTestsetModal: openAddToTestsetModalAtom,
         /** Close the add-to-testset commit modal */
@@ -2493,7 +2491,6 @@ export const annotationSessionController = {
         applyRouteState: (payload: ApplyRouteStatePayload) =>
             getStore().set(applyRouteStateAtom, payload),
         syncToTestsets: () => getStore().set(syncToTestsetsAtom),
-        syncToTestset: () => getStore().set(syncToTestsetsAtom),
         openAddToTestsetModal: (payload: {scope: AddToTestsetScope; scenarioIds?: string[]}) =>
             getStore().set(openAddToTestsetModalAtom, payload),
         closeAddToTestsetModal: () => getStore().set(closeAddToTestsetModalAtom),

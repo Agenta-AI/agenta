@@ -3,7 +3,6 @@ export {
     type EvaluationRunMolecule,
     evaluationRunQueryAtomFamily,
     scenarioStepsQueryAtomFamily,
-    invalidateEvaluationRunCache,
 } from "./molecule"
 
 // Per-scenario read-only entity caches with cache-aware prefetch

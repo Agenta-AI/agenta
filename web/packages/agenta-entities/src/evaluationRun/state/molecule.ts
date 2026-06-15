@@ -381,86 +381,6 @@ const annotationColumnDefsAtomFamily = atomFamily(
     runKeyEqual,
 )
 
-/**
- * Step references indexed by evaluator ID.
- * Maps evaluator workflow ID → {evaluator_revision, evaluator_variant} refs.
- * Used during annotation creation to build the correct references payload.
- */
-interface StepEvaluatorRefs {
-    evaluator_revision?: {id?: string; slug?: string}
-    evaluator_variant?: {id?: string; slug?: string}
-}
-
-const stepReferencesByEvaluatorIdAtomFamily = atomFamily(
-    ({projectId, runId}: RunKey) =>
-        atom<Map<string, StepEvaluatorRefs>>((get) => {
-            const steps = get(annotationStepsAtomFamily({projectId, runId}))
-            const refMap = new Map<string, StepEvaluatorRefs>()
-            for (const step of steps) {
-                const evalId = step.references?.evaluator?.id
-                if (evalId) {
-                    refMap.set(evalId, {
-                        evaluator_revision: step.references?.evaluator_revision
-                            ? {
-                                  id: step.references.evaluator_revision.id ?? undefined,
-                                  slug: step.references.evaluator_revision.slug ?? undefined,
-                              }
-                            : undefined,
-                        evaluator_variant: step.references?.evaluator_variant
-                            ? {
-                                  id: step.references.evaluator_variant.id ?? undefined,
-                                  slug: step.references.evaluator_variant.slug ?? undefined,
-                              }
-                            : undefined,
-                    })
-                }
-            }
-            return refMap
-        }),
-    runKeyEqual,
-)
-
-/**
- * Step keys indexed by evaluator slug.
- * Maps evaluator slug → annotation step key.
- * Used for duplicate detection and step key resolution during submission.
- */
-const stepKeysByEvaluatorSlugAtomFamily = atomFamily(
-    ({projectId, runId}: RunKey) =>
-        atom<Map<string, string>>((get) => {
-            const steps = get(annotationStepsAtomFamily({projectId, runId}))
-            const keyMap = new Map<string, string>()
-            for (const step of steps) {
-                const evalSlug = step.references?.evaluator?.slug
-                if (evalSlug && step.key) {
-                    keyMap.set(evalSlug, step.key)
-                }
-            }
-            return keyMap
-        }),
-    runKeyEqual,
-)
-
-/**
- * Invocation step key for a scenario.
- * Finds the first step result with a trace_id and step_key (the invocation step).
- * Used for building annotation links during submission.
- */
-const scenarioInvocationStepKeyAtomFamily = atomFamily(
-    ({projectId, runId, scenarioId}: ScenarioStepsKey) =>
-        atom<string | null>((get) => {
-            const query = get(scenarioStepsQueryAtomFamily({projectId, runId, scenarioId}))
-            const steps = query.data ?? []
-            for (const step of steps) {
-                if (step.trace_id && step.step_key) {
-                    return step.step_key
-                }
-            }
-            return null
-        }),
-    scenarioStepsKeyEqual,
-)
-
 // ============================================================================
 // SCENARIO STEPS (Evaluation Results)
 // ============================================================================
@@ -543,7 +463,7 @@ const scenarioTestcaseRefAtomFamily = atomFamily(
 /**
  * Invalidate a single run's cache.
  */
-export function invalidateEvaluationRunCache({projectId, runId}: RunKey, options?: StoreOptions) {
+function invalidateEvaluationRunCache({projectId, runId}: RunKey, options?: StoreOptions) {
     const store = getStore(options)
     const current = store.get(evaluationRunQueryAtomFamily({projectId, runId}))
     if (current?.refetch) {
@@ -584,12 +504,6 @@ export const evaluationRunMolecule = {
         annotationMappings: annotationMappingsAtomFamily,
         /** Annotation column definitions (steps + mappings joined with evaluator refs) */
         annotationColumnDefs: annotationColumnDefsAtomFamily,
-        /** Step references indexed by evaluator ID (for annotation creation) */
-        stepReferencesByEvaluatorId: stepReferencesByEvaluatorIdAtomFamily,
-        /** Step keys indexed by evaluator slug (for duplicate detection) */
-        stepKeysByEvaluatorSlug: stepKeysByEvaluatorSlugAtomFamily,
-        /** Invocation step key for a scenario (first step with trace_id) */
-        scenarioInvocationStepKey: scenarioInvocationStepKeyAtomFamily,
         /** Scenario step results (evaluation results for a scenario) */
         scenarioSteps: scenarioStepsQueryAtomFamily,
         /** Trace/span reference for a scenario (derived from steps) */
@@ -628,19 +542,6 @@ export const evaluationRunMolecule = {
             getStore(options).get(annotationMappingsAtomFamily({projectId, runId})),
         annotationColumnDefs: (projectId: string, runId: string, options?: StoreOptions) =>
             getStore(options).get(annotationColumnDefsAtomFamily({projectId, runId})),
-        stepReferencesByEvaluatorId: (projectId: string, runId: string, options?: StoreOptions) =>
-            getStore(options).get(stepReferencesByEvaluatorIdAtomFamily({projectId, runId})),
-        stepKeysByEvaluatorSlug: (projectId: string, runId: string, options?: StoreOptions) =>
-            getStore(options).get(stepKeysByEvaluatorSlugAtomFamily({projectId, runId})),
-        scenarioInvocationStepKey: (
-            projectId: string,
-            runId: string,
-            scenarioId: string,
-            options?: StoreOptions,
-        ) =>
-            getStore(options).get(
-                scenarioInvocationStepKeyAtomFamily({projectId, runId, scenarioId}),
-            ),
         scenarioTraceRef: (
             projectId: string,
             runId: string,

@@ -71,14 +71,12 @@ vi.mock("../../src/state/controllers/annotationSessionController", () => ({
 }))
 
 // Import the functions AFTER all vi.mock() declarations.
-// The schema-extraction helpers were relocated to `@agenta/evaluations/state`
-// (metricSchema tier); the controllers index re-exports them from their
-// original annotation path, so import them through that compat surface.
+// The schema-extraction helpers live in `@agenta/evaluations/state` (metricSchema tier).
 import {
     getMetricFieldsFromEvaluator,
     getMetricsFromAnnotation,
     getOutputsSchema,
-} from "../../src/state/controllers"
+} from "@agenta/evaluations/state"
 import {isEmptyValue} from "../../src/state/controllers/annotationFormController"
 import type {Annotation} from "@agenta/entities/annotation"
 import type {Workflow} from "@agenta/entities/workflow"

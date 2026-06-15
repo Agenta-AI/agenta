@@ -6,20 +6,12 @@
  *   const scenarios = useAtomValue(evaluationScenarioMolecule.selectors.list({projectId, runId}))
  *   const statuses = useAtomValue(evaluationScenarioMolecule.selectors.statuses({projectId, runId}))
  */
-import {atom, getDefaultStore} from "jotai"
+import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {queryEvaluationScenarios} from "../api"
 import type {EvaluationScenario, ScenarioListKey} from "../core"
-
-interface StoreOptions {
-    store?: ReturnType<typeof getDefaultStore>
-}
-
-function getStore(options?: StoreOptions) {
-    return options?.store ?? getDefaultStore()
-}
 
 function keyEqual(a: ScenarioListKey, b: ScenarioListKey): boolean {
     return a.projectId === b.projectId && a.runId === b.runId
@@ -55,20 +47,6 @@ const listAtomFamily = atomFamily(
     keyEqual,
 )
 
-const queryStateAtomFamily = atomFamily(
-    ({projectId, runId}: ScenarioListKey) =>
-        atom((get) => {
-            const query = get(evaluationScenariosQueryAtomFamily({projectId, runId}))
-            return {
-                data: query.data ?? [],
-                isPending: query.isPending,
-                isError: query.isError,
-                error: query.error ?? null,
-            }
-        }),
-    keyEqual,
-)
-
 const idsAtomFamily = atomFamily(
     ({projectId, runId}: ScenarioListKey) =>
         atom<string[]>((get) => get(listAtomFamily({projectId, runId})).map((s) => s.id)),
@@ -95,8 +73,6 @@ export const evaluationScenarioMolecule = {
     selectors: {
         /** All scenarios for the run */
         list: listAtomFamily,
-        /** Query state (loading/error) */
-        query: queryStateAtomFamily,
         /** Scenario IDs */
         ids: idsAtomFamily,
         /** Status keyed by scenario id */
@@ -104,14 +80,6 @@ export const evaluationScenarioMolecule = {
     },
     atoms: {
         query: evaluationScenariosQueryAtomFamily,
-    },
-    get: {
-        list: (projectId: string, runId: string, options?: StoreOptions) =>
-            getStore(options).get(listAtomFamily({projectId, runId})),
-        ids: (projectId: string, runId: string, options?: StoreOptions) =>
-            getStore(options).get(idsAtomFamily({projectId, runId})),
-        statuses: (projectId: string, runId: string, options?: StoreOptions) =>
-            getStore(options).get(statusesAtomFamily({projectId, runId})),
     },
 }
 

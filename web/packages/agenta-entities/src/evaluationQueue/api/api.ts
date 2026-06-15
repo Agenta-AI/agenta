@@ -10,6 +10,7 @@
  * nullable, so the local schemas narrow them and act as an independent drift check.
  */
 
+import {getEvaluationsClient, projectScopedRequest} from "../../evaluationRun/api/client"
 import {safeParseWithLogging} from "../../shared"
 import {
     evaluationQueueResponseSchema,
@@ -28,8 +29,6 @@ import type {
     EvaluationQueueDetailParams,
     EvaluationQueueScenariosParams,
 } from "../core"
-
-import {getEvaluationsClient, projectScopedRequest} from "./client"
 
 // ============================================================================
 // QUERY / LIST
