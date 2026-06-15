@@ -8,6 +8,8 @@ export {
     queryMatchingTraces,
     type QueryMatchingTracesParams,
     queryQueryRevisions,
+    queryRevisionsForQueries,
+    type QueryRevisionsForQueriesParams,
     type QueryRevisionSummary,
     type QueryRevisionsByQueryParams,
 } from "./api"

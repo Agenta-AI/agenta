@@ -1,7 +1,7 @@
 import type {ReactNode} from "react"
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {queryQueryRevisions} from "@agenta/entities/query"
+import {queryRevisionsForQueries, type QueryRevisionSummary} from "@agenta/entities/query"
 import {projectIdAtom} from "@agenta/shared/state"
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
 import {useAtomValue} from "jotai"
@@ -30,30 +30,7 @@ interface QueryRegistryTableProps {
     mode?: QueryRegistryStatus
 }
 
-const isRevisionRow = (row: QueryRegistryRow) =>
-    Boolean(row.__isRevisionChild || row.__isRevisionLoader)
-
-const loaderRow = (row: QueryRegistryRow): QueryRegistryRow => ({
-    key: `${row.queryId}__rev-loader`,
-    queryId: row.queryId,
-    variantId: row.variantId,
-    revisionId: null,
-    name: "",
-    slug: null,
-    filtering: null,
-    windowing: null,
-    createdAt: null,
-    createdById: null,
-    __isRevisionLoader: true,
-})
-
-const emptyHistoryRow = (row: QueryRegistryRow): QueryRegistryRow => ({
-    ...loaderRow(row),
-    key: `${row.queryId}__rev-empty`,
-    name: "No earlier versions",
-    __isRevisionLoader: false,
-    __isRevisionChild: true,
-})
+const isRevisionRow = (row: QueryRegistryRow) => Boolean(row.__isRevisionChild)
 
 const QueryRegistryTable = ({
     actions,
@@ -68,13 +45,14 @@ const QueryRegistryTable = ({
     const projectId = useAtomValue(projectIdAtom)
     const datasetStore = getQueryRegistryTableState(mode).store
 
-    // Lazily-loaded revision history per query (the version-history expand).
-    const [childrenByQueryId, setChildrenByQueryId] = useState<Record<string, QueryRegistryRow[]>>(
-        {},
-    )
+    // Revision history per query, batch-fetched for the visible page (newest
+    // first). Drives the parent's head-version badge + the expandable child rows.
+    const [revisionsByQueryId, setRevisionsByQueryId] = useState<
+        Record<string, QueryRevisionSummary[]>
+    >({})
     const [expandedKeys, setExpandedKeys] = useState<string[]>([])
 
-    // Row click opens the manage drawer, but not for revision/loader rows.
+    // Row click opens the manage drawer, but not for revision rows.
     const handleRowClick = useCallback(
         (record: QueryRegistryRow) => {
             if (isRevisionRow(record)) return
@@ -94,54 +72,45 @@ const QueryRegistryTable = ({
             : "agenta:query-registry:column-visibility",
     })
 
-    const fetchRevisions = useCallback(
-        async (row: QueryRegistryRow) => {
-            if (!projectId || childrenByQueryId[row.queryId]) return
-            try {
-                const revisions = await queryQueryRevisions({projectId, queryId: row.queryId})
-                // Drop the head revision (already shown as the parent row) — children
-                // are the earlier versions only.
-                const children: QueryRegistryRow[] = revisions
-                    .filter((rev) => rev.revisionId !== row.revisionId)
-                    .map((rev) => ({
-                        key: rev.revisionId || `${row.queryId}:${rev.version}`,
-                        queryId: row.queryId,
-                        variantId: row.variantId,
-                        revisionId: rev.revisionId,
-                        name: row.name,
-                        slug: row.slug,
-                        filtering: rev.filtering,
-                        windowing: null,
-                        createdAt: rev.createdAt,
-                        createdById: rev.createdById,
-                        version: rev.version,
-                        __isRevisionChild: true,
-                    }))
-                setChildrenByQueryId((prev) => ({
-                    ...prev,
-                    [row.queryId]: children.length ? children : [emptyHistoryRow(row)],
-                }))
-            } catch {
-                setChildrenByQueryId((prev) => ({
-                    ...prev,
-                    [row.queryId]: [emptyHistoryRow(row)],
-                }))
-            }
-        },
-        [projectId, childrenByQueryId],
+    const rows = table.shellProps.pagination?.rows ?? []
+    const headQueryIds = useMemo(
+        () => rows.filter((row) => !row.__isSkeleton && row.queryId).map((row) => row.queryId),
+        [rows],
     )
 
-    // The custom Name-cell toggle drives expansion AND the lazy fetch (antd's
-    // own onExpand never fires because we hide its caret with expandIcon: null).
-    const handleExpand = useCallback(
-        (expanded: boolean, record: QueryRegistryRow) => {
-            setExpandedKeys((prev) =>
-                expanded ? [...prev, record.key] : prev.filter((k) => k !== record.key),
-            )
-            if (expanded) void fetchRevisions(record)
-        },
-        [fetchRevisions],
-    )
+    // Batch-fetch revisions for any visible queries we haven't loaded yet.
+    useEffect(() => {
+        if (!projectId) return
+        const missing = headQueryIds.filter((id) => !(id in revisionsByQueryId))
+        if (!missing.length) return
+        let cancelled = false
+        queryRevisionsForQueries({projectId, queryIds: missing})
+            .then((revs) => {
+                if (cancelled) return
+                // Seed each requested id (so we don't refetch) then group by query.
+                const grouped: Record<string, QueryRevisionSummary[]> = {}
+                for (const id of missing) grouped[id] = []
+                for (const rev of revs) (grouped[rev.queryId] ??= []).push(rev)
+                setRevisionsByQueryId((prev) => ({...prev, ...grouped}))
+            })
+            .catch(() => {
+                if (cancelled) return
+                // Mark as fetched-empty so a transient failure doesn't loop.
+                setRevisionsByQueryId((prev) => ({
+                    ...prev,
+                    ...Object.fromEntries(missing.map((id) => [id, prev[id] ?? []])),
+                }))
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [projectId, headQueryIds, revisionsByQueryId])
+
+    const handleExpand = useCallback((expanded: boolean, record: QueryRegistryRow) => {
+        setExpandedKeys((prev) =>
+            expanded ? [...prev, record.key] : prev.filter((k) => k !== record.key),
+        )
+    }, [])
 
     const expandState = useMemo(
         () => ({expandedRowKeys: expandedKeys, handleExpand}),
@@ -154,34 +123,49 @@ const QueryRegistryTable = ({
         [actions, fieldLabels, isArchived, expandState],
     )
 
-    // Attach lazily-loaded revision rows (or a loader placeholder) as antd tree
-    // children so the virtual table renders the expanded history inline.
-    const rows = table.shellProps.pagination?.rows ?? []
+    // Enrich each head row with its head version + earlier-revision child rows.
     const dataSource = useMemo(
         () =>
             rows.map((row) => {
                 if (row.__isSkeleton || !row.queryId) return row
-                return {...row, children: childrenByQueryId[row.queryId] ?? [loaderRow(row)]}
+                const revs = revisionsByQueryId[row.queryId]
+                if (!revs?.length) return row
+                const headVersion = revs[0]?.version ?? null
+                const children: QueryRegistryRow[] = revs.slice(1).map((rev) => ({
+                    key: rev.revisionId || `${row.queryId}:${rev.version}`,
+                    queryId: row.queryId,
+                    variantId: row.variantId,
+                    revisionId: rev.revisionId,
+                    name: row.name,
+                    slug: row.slug,
+                    filtering: rev.filtering,
+                    windowing: null,
+                    createdAt: rev.createdAt,
+                    createdById: rev.createdById,
+                    version: rev.version,
+                    __isRevisionChild: true,
+                }))
+                return {
+                    ...row,
+                    version: headVersion,
+                    ...(children.length ? {children} : {}),
+                }
             }),
-        [rows, childrenByQueryId],
+        [rows, revisionsByQueryId],
     )
 
     const treeExpandable = useMemo(
         () => ({
             expandedRowKeys: expandedKeys,
-            // Drive the fetch off expansion; the toggle lives in the Name cell.
-            onExpand: (expanded: boolean, record: QueryRegistryRow) => {
-                if (expanded) void fetchRevisions(record)
-            },
             // Custom toggle in the Name cell renders the caret instead.
             expandIcon: () => null as unknown as null,
             rowExpandable: (record: QueryRegistryRow) =>
                 !isRevisionRow(record) && !record.__isSkeleton,
         }),
-        [expandedKeys, fetchRevisions],
+        [expandedKeys],
     )
 
-    // Revision (child) and loader rows aren't selectable — hide their checkboxes.
+    // Revision (child) rows aren't selectable — hide their checkboxes.
     const rowSelection = useMemo(
         () =>
             ({

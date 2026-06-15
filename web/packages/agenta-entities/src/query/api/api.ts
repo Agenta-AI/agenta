@@ -109,6 +109,8 @@ export async function querySimpleQueries({
 }
 
 export interface QueryRevisionSummary {
+    /** Owning query artifact id — lets a batched fetch be grouped per query. */
+    queryId: string
     revisionId: string
     version: string | null
     filtering: unknown
@@ -117,38 +119,59 @@ export interface QueryRevisionSummary {
     message: string | null
 }
 
+const toRevisionSummary = (revision: AgentaApi.QueryRevision): QueryRevisionSummary => ({
+    queryId: revision.query_id ?? revision.artifact_id ?? "",
+    revisionId: revision.id ?? "",
+    version: revision.version ?? null,
+    filtering: revision.data?.filtering ?? null,
+    createdAt: revision.created_at ?? null,
+    createdById: revision.created_by_id ?? null,
+    message: revision.message ?? null,
+})
+
 export interface QueryRevisionsByQueryParams {
     projectId: string
     queryId: string
 }
 
 /**
- * List the revision history of one query artifact (newest first), for the
- * registry's lazy expand-on-click. Queries by the artifact ref (`query_refs`) —
- * simple queries are single-variant, so this is the full version history and
- * needs no variant id (which the list endpoint doesn't return). Flat per-revision
- * summary.
+ * List the revision history of one query artifact (newest first). Queries by the
+ * artifact ref (`query_refs`) — simple queries are single-variant, so this is the
+ * full version history and needs no variant id.
  */
 export async function queryQueryRevisions({
     projectId,
     queryId,
 }: QueryRevisionsByQueryParams): Promise<QueryRevisionSummary[]> {
+    return queryRevisionsForQueries({projectId, queryIds: [queryId]})
+}
+
+export interface QueryRevisionsForQueriesParams {
+    projectId: string
+    queryIds: string[]
+    limit?: number
+}
+
+/**
+ * Batched revision history for several query artifacts in one request (newest
+ * first), grouped client-side by `queryId`. Used by the registry to surface each
+ * query's head version + earlier-version rows without an N+1 per row.
+ */
+export async function queryRevisionsForQueries({
+    projectId,
+    queryIds,
+    limit = 500,
+}: QueryRevisionsForQueriesParams): Promise<QueryRevisionSummary[]> {
+    if (!queryIds.length) return []
     const client = getAgentaSdkClient({host: getAgentaApiUrl()})
     const response = await client.queries.queryQueryRevisions(
         {
-            query_refs: [{id: queryId}],
-            windowing: {limit: 100, order: "descending"},
+            query_refs: queryIds.map((id) => ({id})),
+            windowing: {limit, order: "descending"},
         },
         {queryParams: {project_id: projectId}},
     )
-    return (response.query_revisions ?? []).map((revision) => ({
-        revisionId: revision.id ?? "",
-        version: revision.version ?? null,
-        filtering: revision.data?.filtering ?? null,
-        createdAt: revision.created_at ?? null,
-        createdById: revision.created_by_id ?? null,
-        message: revision.message ?? null,
-    }))
+    return (response.query_revisions ?? []).map(toRevisionSummary)
 }
 
 /**
