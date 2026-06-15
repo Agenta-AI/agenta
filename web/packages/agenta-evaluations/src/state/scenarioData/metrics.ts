@@ -8,7 +8,7 @@
  * that resolves value + stats from metrics ONLY (no annotation lookup).
  */
 
-import {axios} from "@agenta/shared/api"
+import {queryEvaluationMetrics} from "@agenta/entities/evaluationRun"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -348,19 +348,14 @@ export const scenarioMetricsQueryAtomFamily = atomFamily(
             queryFn: async (): Promise<ScenarioMetricData | null> => {
                 if (!projectId || !runId || !scenarioId) return null
 
-                const response = await axios.post(
-                    `/evaluations/metrics/query`,
-                    {
-                        metrics: {
-                            scenario_ids: [scenarioId],
-                        },
-                    },
-                    {params: {project_id: projectId}},
-                )
-
-                const rawMetrics = Array.isArray(response.data?.metrics)
-                    ? response.data.metrics
-                    : []
+                // Single scenario belongs to exactly one run, so constraining by
+                // run_id here is a redundant (behavior-equivalent) narrowing — routed
+                // through the typed/zod entities fetcher instead of raw axios.
+                const rawMetrics = await queryEvaluationMetrics({
+                    projectId,
+                    runId,
+                    scenarioIds: [scenarioId],
+                })
 
                 if (rawMetrics.length === 0) return null
 
