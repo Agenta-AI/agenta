@@ -5,11 +5,21 @@ the Kaggle "Resume Dataset": ~2,400 real, anonymized resumes scraped from
 livecareer.com), converts a curated subset to Markdown, and writes
 `data/testset.csv`.
 
+The demo's backstory: the company's working language is German, so every
+candidate in the test set speaks it (a Languages section is appended to
+each CV). The job-spec prompt in `config.py` does NOT list German as a
+requirement — that gap is what the demo walkthrough fixes. One strong
+candidate (`DEMO_RESUME_ID`) has no German and is deliberately excluded
+from the test set: it is the CV the recruiter screens in the Streamlit
+demo, flags with negative feedback, and adds as a new test case.
+
 The subset is hand-picked so the assessments against the IT Manager
-job spec (see `config.py`) have a meaningful spread: strong matches
-(IT managers and directors), partial matches (IT specialists, an IT
-supervisor, an engineering manager), and clear rejections (chef, teacher,
-attorney, ...). Each row carries human-assigned `expected_tech_match`,
+job spec (see `config.py`) have a meaningful spread: clear advances
+(IT managers, directors, senior infrastructure specialists), deceptively
+close rejections (an IT supervisor short on leadership scope, an IT
+instructor, an engineering manager with weak IT depth), and clear
+rejections (chef, teacher, attorney, ...). Each row carries
+human-assigned `expected_tech_match`,
 `expected_experience_match`, and `expected_overall_match` booleans so you
 can run a code evaluator in Agenta out of the box. An empty expected cell
 means "no ground truth for this dimension" and is skipped by the evaluator.
@@ -42,6 +52,29 @@ DATA_DIR = Path(__file__).parent / "data"
 CACHE_PATH = DATA_DIR / "resumes.parquet"
 TESTSET_PATH = DATA_DIR / "testset.csv"
 
+# The CV used in the Streamlit demo: a strong IT Manager on paper, but
+# with no German — which the job actually requires and the prompt does not
+# check at first. Excluded from the test set so the walkthrough can add it
+# as a new test case from the recruiter's negative feedback.
+DEMO_RESUME_ID = 18301617  # IT Manager, 15 years, infra + budget + team
+
+# Every test-set candidate speaks the company's working language (German).
+# Appended to each CV that does not already mention it.
+LANGUAGES_SECTION = """
+
+## Languages
+
+- German (fluent)
+- English (fluent)\
+"""
+
+
+def add_languages_section(markdown: str) -> str:
+    if "german" in markdown.lower():
+        return markdown
+    return markdown + LANGUAGES_SECTION
+
+
 # Curated resume IDs with human-assigned ground truth against the
 # IT Manager job spec, as (tech_match, experience_match, overall_match)
 # booleans. Reviewed by hand: titles alone are not reliable —
@@ -49,22 +82,19 @@ TESTSET_PATH = DATA_DIR / "testset.csv"
 # source dataset but is actually a paralegal CV (kept on purpose as a
 # distractor).
 CURATED_RESUMES = {
-    # --- strong matches: seasoned IT managers / directors ---
-    18301617: (True, True, True),  # IT Manager, 15 years, infra + budget + team
+    # --- advance: seasoned IT managers / directors / senior specialists ---
     13836471: (True, True, True),  # IT Manager since 2007, network + budget, 80 users
     17688766: (True, True, True),  # Director of IT
     28672970: (True, True, True),  # Director of IT, executive profile
     41344156: (True, True, True),  # VP of IT
     17681064: (True, True, True),  # IT Senior Manager, 15+ years, vendor management
-    # --- partial matches: relevant but missing scope or seniority ---
-    33241454: (True, False, False),  # IT Supervisor, 5 yrs IT, 1 yr supervisory (Army)
-    24913648: (True, False, False),  # IT Specialist, experienced network engineer
-    66832845: (True, False, False),  # IT Specialist I
-    21780877: (True, False, False),  # IT Specialist GS11 (government)
-    25959103: (True, False, False),  # Administrator of IT
-    25990239: (True, True, False),  # IT Instructor, 17 yrs IT, teaching not ops
-    44624796: (False, True, False),  # Engineering Manager, 25 yrs mgmt, weak IT depth
-    # --- no matches: too junior, mislabeled, or unrelated fields ---
+    24913648: (True, True, True),  # Senior network engineer, deep infra experience
+    21780877: (True, True, True),  # IT Specialist GS11, broad sysadmin + security scope
+    # --- reject, deceptively close: relevant titles, wrong substance ---
+    33241454: (False, False, False),  # IT Supervisor: 1 yr supervisory, shallow stack
+    25990239: (False, False, False),  # IT Instructor, 17 yrs IT but teaching, not ops
+    44624796: (False, False, False),  # Engineering Manager, 25 yrs mgmt, weak IT depth
+    # --- reject: too junior, mislabeled, or unrelated fields ---
     68460556: (False, False, False),  # IT Intern
     20024870: (False, False, False),  # IT Internship, recent MBA grad
     91697974: (False, False, False),  # "IT Coordinator" — actually a paralegal CV
@@ -134,7 +164,9 @@ def build_testset(df: pd.DataFrame) -> list[dict]:
         record = matches.iloc[0]
         rows.append(
             {
-                "cv": resume_html_to_markdown(record["Resume_html"]),
+                "cv": add_languages_section(
+                    resume_html_to_markdown(record["Resume_html"])
+                ),
                 "expected_tech_match": str(tech).lower(),
                 "expected_experience_match": str(experience).lower(),
                 "expected_overall_match": str(overall).lower(),

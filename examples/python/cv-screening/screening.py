@@ -115,7 +115,7 @@ def classify_cv(inputs: dict, config: ScreeningConfig) -> dict:
 
 def send_feedback(invocation: dict, thumbs_up: bool, comment: str) -> bool:
     """Attach user feedback to a screening trace as an Agenta annotation."""
-    outputs: dict = {"score": 1 if thumbs_up else 0}
+    outputs: dict = {"score": thumbs_up}
     if comment.strip():
         outputs["comment"] = comment.strip()
 

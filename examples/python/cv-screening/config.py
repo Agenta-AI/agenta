@@ -15,7 +15,7 @@ TESTSET_NAME = "CV Screening - IT Manager"
 # The job specification lives inside the prompt so it can be edited,
 # versioned, and A/B tested from the Agenta playground.
 JOB_SPEC = """\
-## Role: IT Manager (mid-sized company, ~150 employees)
+## Role: IT Manager (mid-sized German manufacturing company, ~150 employees)
 
 ### Requirements (must-have)
 - 5+ years of hands-on IT experience (infrastructure, networking, or system administration)

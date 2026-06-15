@@ -26,13 +26,14 @@ PDF upload ──> Markdown (markitdown) ──> prompt fetched from Agenta ─�
 | File | Purpose |
 | --- | --- |
 | `config.py` | Job spec, prompt messages, structured-output JSON schema, app slugs |
-| `create_app.py` | Creates the `cv-screening` app in Agenta and deploys the prompt to production |
+| `setup_app.py` | Creates the `cv-screening` app in Agenta and deploys the prompt to production (idempotent) |
 | `prepare_testset.py` | Builds `data/testset.csv` from a public resume dataset (optionally uploads it to Agenta) |
-| `data/testset.csv` | 30 real Markdown CVs with hand-labeled expected matches (committed, ready to upload) |
+| `data/testset.csv` | 27 real Markdown CVs (all German speakers) with hand-labeled expected matches |
 | `screening.py` | The AI logic: fetches the prompt, calls the LLM, traces, sends feedback |
 | `app.py` | Streamlit demo UI: upload a PDF, screen the candidate |
-| `make_sample_pdfs.py` | Renders three test set CVs as PDFs for the demo |
-| `data/sample_cvs/` | Sample CV PDFs (one strong match, one potential match, one rejection) |
+| `generate_traces.py` | Screens test set CVs to seed traces (no feedback) before a demo |
+| `make_sample_pdfs.py` | Renders four CVs as PDFs for the demo |
+| `data/sample_cvs/` | Sample CV PDFs: the demo candidate (no German), a German-speaking strong match, a partial profile, a rejection |
 
 ## The test set
 
@@ -42,17 +43,27 @@ dataset on Hugging Face — a mirror of the Kaggle
 [Resume Dataset](https://www.kaggle.com/datasets/snehaanbhawal/resume-dataset)
 (~2,400 real, anonymized resumes from livecareer.com, 24 job categories).
 
-`prepare_testset.py` takes a curated subset of 30 resumes, converts them from
+`prepare_testset.py` takes a curated subset of 27 resumes, converts them from
 HTML to clean Markdown, and labels each one by hand against the IT Manager
 job spec in `config.py`:
 
-- **6 strong matches** — seasoned IT managers, directors, and a VP of IT
-- **7 partial matches** — IT specialists and supervisors missing
-  management scope, plus an engineering manager with weak IT depth
-- **17 rejections** — interns, and candidates from unrelated fields (chef,
-  teacher, attorney, finance analyst, ...), including one resume that is
-  mislabeled in the source dataset (an "IT Coordinator" that is actually a
-  paralegal CV — a nice robustness check for the classifier)
+- **7 advances** — seasoned IT managers, directors, a VP of IT, and senior
+  infrastructure specialists
+- **3 deceptively close rejections** — an IT supervisor short on leadership
+  scope, an IT instructor (17 years of IT, but teaching rather than
+  operations), and an engineering manager with weak IT depth
+- **17 clear rejections** — interns, and candidates from unrelated fields
+  (chef, teacher, attorney, finance analyst, ...), including one resume that
+  is mislabeled in the source dataset (an "IT Coordinator" that is actually
+  a paralegal CV — a nice robustness check for the classifier)
+
+One detail sets up the demo's story: the company is German and its working
+language is German, so **every candidate in the test set speaks German** (a
+Languages section on each CV). The job spec in the prompt, however, does
+not mention the language requirement — and the demo candidate
+(`data/sample_cvs/candidate_it_manager.pdf`, deliberately **not** in the
+test set) is a strong IT manager who doesn't speak German. That gap is what
+the closing-the-loop walkthrough below catches and fixes.
 
 Each CSV row has:
 
@@ -85,13 +96,14 @@ cp .env.example .env   # then fill in your keys
 ### 1. Create the prompt in Agenta
 
 ```bash
-python create_app.py
+python setup_app.py
 ```
 
 This creates a completion app called `cv-screening`, commits the screening
 prompt (with the job spec and the JSON schema for structured output), and
 deploys it to the production environment. Open the app in Agenta to see it
-in the playground.
+in the playground. The script is idempotent: re-run it after editing
+`config.py` to commit and deploy a new revision.
 
 ### 2. Upload the test set
 
@@ -183,7 +195,7 @@ under the `user-feedback` evaluator slug:
 1. `classify_cv` captures the trace and span IDs while its span is open
    (`ag.tracing.build_invocation_link()`),
 2. on submit, the app POSTs an annotation to `/api/simple/traces/` with
-   `{"score": 1 | 0, "comment": ...}` linked to that invocation.
+   `{"score": true | false, "comment": ...}` linked to that invocation.
 
 The feedback appears on the trace in Agenta's observability view, so you
 can filter for badly rated screenings, inspect the CVs that caused them,
@@ -193,33 +205,44 @@ and turn them into new test cases. To see aggregated stats for the
 
 ### 6. Close the loop: from feedback to a deployed fix
 
-The pieces above compose into the core Agenta workflow. Say the role
-requires fluent German, but the prompt doesn't mention it:
+The pieces above compose into the core Agenta workflow. The setup: the
+company's working language is German, every candidate in the test set
+speaks it, but the prompt's job spec never says so.
 
-1. **Recruiter** screens a CV in the app, sees "Advance to interview" for
-   a candidate with no German, and submits a 👎 with the comment
-   *"candidate doesn't speak German"*.
+1. **Recruiter** uploads `data/sample_cvs/candidate_it_manager.pdf` — a
+   strong IT manager with no German — and sees "Advance to interview".
+   They submit a 👎 with the comment *"candidate doesn't speak German —
+   it's our working language"*.
 2. **AI engineer** filters traces by the `user-feedback` annotation, opens
    the badly rated trace, and opens its span in the playground — landing
    on the exact prompt revision with the CV pre-filled.
-3. In the playground, they add *"Fluent German (the company's working
-   language)"* to the must-have requirements and rerun: `overall_match`
-   flips to `false` and German shows up in `missing_requirements`, while
-   `tech_match` and `experience_match` stay `true`.
+3. In the playground, they add a line at the top of the must-have
+   requirements:
+
+   ```
+   - Fluent German (the company's working language)
+   ```
+
+   and rerun: `overall_match` flips to `false` and German shows up in
+   `missing_requirements`, while `tech_match` and `experience_match` stay
+   `true` — the candidate is still technically excellent, just not
+   eligible.
 4. They add the CV to the test set as a new test case with
    `expected_overall_match = false` and the other two expected columns
    left **empty** — the code evaluator only checks the overall decision
    for this case.
 5. They run an evaluation comparing the deployed revision against the new
-   one. The old prompt fails the new test case; the new prompt passes it
-   without regressing the other 30.
+   one. The old prompt fails the new test case (it advances the
+   candidate); the new prompt passes it and keeps all 27 original test
+   cases passing — everyone else in the test set speaks German, so
+   nothing regresses.
 6. They deploy the new revision to production. The Streamlit app picks it
    up on the next screening — no code change, no redeploy.
 
 ## Adapting it to your role
 
 Everything role-specific lives in the prompt: edit the job spec directly in
-the Agenta playground (or in `config.py` and re-run `create_app.py`). The
+the Agenta playground (or in `config.py` and re-run `setup_app.py`). The
 structured-output schema and the app don't need to change. To build a test
 set for a different role, adjust the curated IDs and labels in
 `prepare_testset.py` — the source dataset has 24 job categories to draw

@@ -1,31 +1,40 @@
-"""Render a few test set CVs as PDFs to upload in the Streamlit demo.
+"""Render a few CVs as PDFs to upload in the Streamlit demo.
 
-Picks one strong match, one partial match, and one rejection from
-`data/testset.csv` and writes simple PDFs to `data/sample_cvs/`.
+Writes four PDFs to `data/sample_cvs/`:
+
+- the demo candidate: a strong IT Manager with **no German** — the CV the
+  recruiter screens and flags in the walkthrough (not in the test set),
+- a strong IT Manager who speaks German (advances before and after the
+  prompt fix),
+- a partial match and a clear rejection (German speakers, like the rest
+  of the test set).
 
 Usage:
     python make_sample_pdfs.py
 """
 
-import csv
 import re
-import sys
 from pathlib import Path
 
 from fpdf import FPDF
 
-from prepare_testset import CURATED_RESUMES
+from prepare_testset import (
+    DEMO_RESUME_ID,
+    add_languages_section,
+    download_dataset,
+    resume_html_to_markdown,
+)
 
 DATA_DIR = Path(__file__).parent / "data"
-TESTSET_PATH = DATA_DIR / "testset.csv"
 OUTPUT_DIR = DATA_DIR / "sample_cvs"
 
-# Resume ID -> output file name. The CSV rows are written in
-# CURATED_RESUMES order, so the ID's position gives the row index.
+# Resume ID -> (file name, speaks German). The demo candidate is the only
+# one without the Languages section the test set injects.
 SAMPLES = {
-    18301617: "candidate_it_manager.pdf",  # strong match
-    33241454: "candidate_it_supervisor.pdf",  # partial match
-    24221960: "candidate_chef.pdf",  # rejection
+    DEMO_RESUME_ID: ("candidate_it_manager.pdf", False),  # the demo CV
+    13836471: ("candidate_it_manager_german.pdf", True),  # strong match
+    33241454: ("candidate_it_supervisor.pdf", True),  # partial match
+    24221960: ("candidate_chef.pdf", True),  # rejection
 }
 
 MAX_TOKEN_LENGTH = 50
@@ -81,23 +90,20 @@ def markdown_to_pdf(markdown: str, path: Path) -> None:
 
 
 def main() -> None:
-    if not TESTSET_PATH.exists():
-        sys.exit("data/testset.csv not found; run prepare_testset.py first")
-
+    df = download_dataset()
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    with open(TESTSET_PATH, newline="", encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
 
-    resume_ids = list(CURATED_RESUMES)
-    for resume_id, filename in SAMPLES.items():
-        index = resume_ids.index(resume_id)
-        if index >= len(rows):
-            print(f"warning: resume {resume_id} not in testset.csv, skipping")
+    for resume_id, (filename, speaks_german) in SAMPLES.items():
+        matches = df[df["ID"] == resume_id]
+        if matches.empty:
+            print(f"warning: resume {resume_id} not found in dataset, skipping")
             continue
-        row = rows[index]
+        markdown = resume_html_to_markdown(matches.iloc[0]["Resume_html"])
+        if speaks_german:
+            markdown = add_languages_section(markdown)
         path = OUTPUT_DIR / filename
-        markdown_to_pdf(row["cv"], path)
-        print(f"Wrote {path} (expected overall: {row['expected_overall_match']})")
+        markdown_to_pdf(markdown, path)
+        print(f"Wrote {path}")
 
 
 if __name__ == "__main__":
