@@ -38,6 +38,7 @@ class InviteEmailMismatchError(Exception):
         self.invited_email = invited_email
         super().__init__("Invitation is addressed to a different user.")
 
+
 def generate_invitation_token(token_length: int = 16):
     token = secrets.token_urlsafe(token_length)
     return token
