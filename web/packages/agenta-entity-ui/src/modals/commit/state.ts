@@ -104,6 +104,20 @@ export const commitModalEntityNameAtom = atom((get): string => {
     return adapter.getDisplayName(entityData)
 })
 
+// The original name of the entity before any user edit overrides
+export const commitModalOriginalEntityNameAtom = atom((get): string => {
+    const entity = get(commitModalEntityAtom)
+    if (!entity) return ""
+
+    if (entity.name) return entity.name
+
+    const adapter = getEntityAdapter(entity.type)
+    if (!adapter) return entity.id
+
+    const entityData = get(adapter.dataAtom(entity.id))
+    return adapter.getDisplayName(entityData)
+})
+
 /**
  * Whether entity can be committed (based on adapter.canCommit)
  */

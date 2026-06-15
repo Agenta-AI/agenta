@@ -12,6 +12,9 @@ from oss.src.core.tracing.dtos import OTelFlatSpan
 
 log = get_module_logger(__name__)
 
+# Bound the stream so consumed entries are trimmed; without this it grows unbounded.
+MAXLEN_STREAMS_TRACING = 100_000
+
 
 def _get_redis():
     return get_streams_engine().get_redis()
@@ -93,6 +96,8 @@ async def publish_spans(
         await redis.xadd(
             name="streams:tracing",
             fields={"data": span_bytes},
+            maxlen=MAXLEN_STREAMS_TRACING,
+            approximate=True,
         )
 
         count += 1
