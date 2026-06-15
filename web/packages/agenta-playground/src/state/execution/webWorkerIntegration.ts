@@ -20,7 +20,7 @@ import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
 import {clearSessionResponsesAtom, messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat"
 import {
     collectDownstreamReferencedColumns,
-    collectTestcaseServerColumns,
+    collectTestsetServerColumns,
     reconcileRowDataForEntity,
 } from "../helpers/entityInputContract"
 
@@ -336,9 +336,12 @@ export const triggerExecutionAtom = atom(
         // inputs. The synced test set's own columns are protected too (#4647):
         // a column the prompt doesn't reference is intentional test set data,
         // not a stale leftover, and deleting it here emptied the "unused
-        // testcase columns" footer on Run.
+        // testcase columns" footer on Run. The protection is test-set-scoped
+        // (union across all server rows), not per-row, so rows that joined
+        // the test set locally — kept drafts, rows added while connected —
+        // keep their filled test set columns too.
         const protectedColumns = collectDownstreamReferencedColumns(get, nodes)
-        for (const column of collectTestcaseServerColumns(get, testcaseRowId)) {
+        for (const column of collectTestsetServerColumns(get)) {
             protectedColumns.add(column)
         }
         const reconciledRow = reconcileRowDataForEntity(get, rootEntityId, rawTestcaseData, {
