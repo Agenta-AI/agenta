@@ -27,14 +27,17 @@ export interface EntityEvaluatorSelectorProps {
     buttonLabel?: string
     onCreate?: () => void
     createLabel?: string
-    disabledRevisionIds?: Set<string>
-    disabledRevisionTooltip?: string
     panelMinWidth?: number
     panelWidth?: number
+    childPanelWidth?: number
     disabled?: boolean
-    selectedEvaluatorId?: string | null
-    selectedRevisionId?: string | null
+    selectedRevisionIds: Set<string>
+    selectedRevisionsByEvaluator: Map<string, {id: string; label: string}[]>
+    totalRevisionsByEvaluator: Map<string, number>
+    onDeselectRevision: (revisionId: string) => void
+    onClearAll: () => void
     openVersionOnHover?: boolean
+    defaultOpenVersionPanel?: boolean
 }
 
 function getNestedValue(obj: unknown, ...keys: string[]): unknown {
@@ -129,14 +132,17 @@ export function EntityEvaluatorSelector({
     buttonLabel = "Add evaluator",
     onCreate,
     createLabel = "Create evaluator",
-    disabledRevisionIds,
-    disabledRevisionTooltip = "Already added",
     panelMinWidth = 280,
     panelWidth,
+    childPanelWidth,
     disabled = false,
-    selectedEvaluatorId,
-    selectedRevisionId,
-    openVersionOnHover = false,
+    selectedRevisionIds,
+    selectedRevisionsByEvaluator,
+    totalRevisionsByEvaluator,
+    onDeselectRevision,
+    onClearAll,
+    openVersionOnHover = true,
+    defaultOpenVersionPanel = false,
 }: EntityEvaluatorSelectorProps) {
     const renderRevisionLabel = useCallback((entity: unknown) => {
         const revision = entity as WorkflowRevisionLike
@@ -164,7 +170,9 @@ export function EntityEvaluatorSelector({
         )
     }, [])
 
-    const evaluatorAdapter = useEnrichedHumanEvaluatorAdapter(renderRevisionLabel)
+    const evaluatorAdapter = useEnrichedHumanEvaluatorAdapter(renderRevisionLabel, {
+        showWorkflowMeta: true,
+    })
 
     return (
         <div className="min-w-0 w-full">
@@ -179,12 +187,20 @@ export function EntityEvaluatorSelector({
                 showDropdownIcon={false}
                 panelMinWidth={panelMinWidth}
                 panelWidth={panelWidth}
+                childPanelWidth={childPanelWidth}
                 disabled={disabled}
-                selectedParentId={selectedEvaluatorId}
-                selectedChildId={selectedRevisionId}
-                disabledChildIds={disabledRevisionIds}
-                disabledChildTooltip={disabledRevisionTooltip}
                 openChildOnHover={openVersionOnHover}
+                defaultOpenChildPanel={defaultOpenVersionPanel}
+                multiSelect
+                selectedChildIds={selectedRevisionIds}
+                selectionSummary
+                showParentCheckboxes
+                selectedChildrenByParent={selectedRevisionsByEvaluator}
+                totalChildrenByParent={totalRevisionsByEvaluator}
+                onDeselectChild={onDeselectRevision}
+                showParentDescription
+                showChildSelectAll
+                onClearAll={onClearAll}
                 size="middle"
                 onCreateNew={onCreate}
                 createNewLabel={createLabel}

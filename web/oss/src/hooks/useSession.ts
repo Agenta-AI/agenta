@@ -11,6 +11,7 @@ import {resetOrganizationData} from "@/oss/state/org"
 import {resetProfileData} from "@/oss/state/profile"
 import {resetProjectData} from "@/oss/state/project"
 import {authFlowAtom, sessionExistsAtom, sessionLoadingAtom} from "@/oss/state/session"
+import {clearInvite} from "@/oss/state/url/auth"
 
 // sessionExistsAtom is a re-export of @agenta/shared/state's sessionAtom,
 // so a single setter covers both oss and entity-package readers.
@@ -92,6 +93,9 @@ export const useSession: () => {
                 window.localStorage.removeItem("workspaceOrgMap")
                 window.localStorage.removeItem("lastUsedWorkspaceId")
             }
+
+            // Forget any stale invite.
+            clearInvite()
 
             // Update session state
             setSessionExists(false)

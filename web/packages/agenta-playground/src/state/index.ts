@@ -204,6 +204,8 @@ export {
     type PlaygroundStatus,
 } from "./execution"
 
+export {playgroundStoreAtom} from "./atoms/playground"
+
 // Web worker integration
 export {
     executionHeadersAtom,

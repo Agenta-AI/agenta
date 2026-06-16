@@ -70,78 +70,59 @@ const spanBatchFetcher = createBatchFetcher<
     serializeKey: ({projectId, spanId}) => `${projectId}:${spanId}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, TraceSpan | null>()
+        serializedKeys.forEach((key) => results.set(key, null))
 
-        // Group by projectId
-        const byProject = new Map<string, {spanIds: string[]; keys: string[]}>()
-        requests.forEach((req, idx) => {
-            const key = serializedKeys[idx]
-            // Skip invalid requests
-            if (!req.projectId || !req.spanId) {
-                results.set(key, null)
-                return
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("spanBatchFetcher: requests span multiple projects")
+        }
+
+        const spanIds = [...new Set(requests.map((req) => req.spanId).filter(Boolean))]
+        if (spanIds.length === 0) return results
+
+        try {
+            const filter = {
+                conditions: [
+                    {
+                        field: "span_id",
+                        operator: "in",
+                        value: spanIds,
+                    },
+                ],
             }
-            const existing = byProject.get(req.projectId)
-            if (existing) {
-                existing.spanIds.push(req.spanId)
-                existing.keys.push(key)
-            } else {
-                byProject.set(req.projectId, {spanIds: [req.spanId], keys: [key]})
+
+            const data = await fetchAllPreviewTraces(
+                {
+                    size: spanIds.length,
+                    focus: "span",
+                    filter: JSON.stringify(filter),
+                },
+                "", // appId not needed for span lookup
+                projectId,
+            )
+
+            const spans: TraceSpan[] = []
+            if (isSpansResponse(data)) {
+                spans.push(...data.spans.map((s) => traceSpanSchema.parse(s)))
             }
-        })
 
-        // Fetch each project's spans in batch
-        await Promise.all(
-            Array.from(byProject.entries()).map(async ([projectId, {spanIds, keys}]) => {
-                try {
-                    // Build filter for span_ids
-                    const filter = {
-                        conditions: [
-                            {
-                                field: "span_id",
-                                operator: "in",
-                                value: spanIds,
-                            },
-                        ],
-                    }
+            const byId = new Map<string, TraceSpan>()
+            spans.forEach((span) => {
+                byId.set(span.span_id, span)
+            })
 
-                    const data = await fetchAllPreviewTraces(
-                        {
-                            size: spanIds.length,
-                            focus: "span",
-                            filter: JSON.stringify(filter),
-                        },
-                        "", // appId not needed for span lookup
-                        projectId,
-                    )
-
-                    // Parse response
-                    const spans: TraceSpan[] = []
-                    if (isSpansResponse(data)) {
-                        spans.push(...data.spans.map((s) => traceSpanSchema.parse(s)))
-                    }
-
-                    // Map results by span_id
-                    const byId = new Map<string, TraceSpan>()
-                    spans.forEach((span) => {
-                        byId.set(span.span_id, span)
-                    })
-
-                    // Resolve each request
-                    spanIds.forEach((spanId, idx) => {
-                        const key = keys[idx]
-                        results.set(key, byId.get(spanId) ?? null)
-                    })
-                } catch (error) {
-                    console.error(
-                        `[spanBatchFetcher] Failed to fetch spans for project ${projectId}:`,
-                        error instanceof Error ? error.message : String(error),
-                        {projectId, spanIds, error},
-                    )
-                    // Set null for all failed requests
-                    keys.forEach((key) => results.set(key, null))
-                }
-            }),
-        )
+            requests.forEach((req, idx) => {
+                results.set(serializedKeys[idx], byId.get(req.spanId) ?? null)
+            })
+        } catch (error) {
+            console.error(
+                `[spanBatchFetcher] Failed to fetch spans for project ${projectId}:`,
+                error instanceof Error ? error.message : String(error),
+                {projectId, spanIds, error},
+            )
+        }
 
         return results
     },
@@ -173,77 +154,63 @@ export const traceBatchFetcher = createBatchFetcher<
     serializeKey: ({projectId, traceId}) => `${projectId}:${traceId}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, TracesApiResponse | null>()
+        serializedKeys.forEach((key) => results.set(key, null))
 
-        // Group by projectId
-        const byProject = new Map<string, {traceIds: string[]; keys: string[]}>()
-        requests.forEach((req, idx) => {
-            const key = serializedKeys[idx]
-            if (!req.projectId || !req.traceId) {
-                results.set(key, null)
-                return
-            }
-            const existing = byProject.get(req.projectId)
-            if (existing) {
-                existing.traceIds.push(req.traceId)
-                existing.keys.push(key)
-            } else {
-                byProject.set(req.projectId, {traceIds: [req.traceId], keys: [key]})
-            }
-        })
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("traceBatchFetcher: requests span multiple projects")
+        }
 
-        // Fetch each project's traces in batch using /spans/query
-        await Promise.all(
-            Array.from(byProject.entries()).map(async ([projectId, {traceIds, keys}]) => {
-                try {
-                    // Normalize trace IDs (remove dashes) for the query
-                    const canonicalIds = traceIds.map((id) => id.replace(/-/g, ""))
+        const traceIds = requests.map((req) => req.traceId).filter(Boolean)
+        if (traceIds.length === 0) return results
 
-                    const data = (await fetchAllPreviewTraces(
-                        {
-                            focus: "trace",
-                            format: "agenta",
-                            filter: JSON.stringify({
-                                conditions: [
-                                    {
-                                        field: "trace_id",
-                                        operator: "in",
-                                        value: canonicalIds,
-                                    },
-                                ],
-                            }),
-                        },
-                        "",
-                        projectId,
-                    )) as TracesApiResponse
+        // Normalize trace IDs (remove dashes) for the query
+        const canonicalIds = [...new Set(traceIds.map((id) => id.replace(/-/g, "")))]
 
-                    // The response has format: { traces: { [traceIdNoDashes]: { spans: {...} } } }
-                    const tracesObj = data?.traces ?? {}
+        try {
+            const data = (await fetchAllPreviewTraces(
+                {
+                    focus: "trace",
+                    format: "agenta",
+                    filter: JSON.stringify({
+                        conditions: [
+                            {
+                                field: "trace_id",
+                                operator: "in",
+                                value: canonicalIds,
+                            },
+                        ],
+                    }),
+                },
+                "",
+                projectId,
+            )) as TracesApiResponse
 
-                    traceIds.forEach((traceId, idx) => {
-                        const key = keys[idx]
-                        const traceIdNoDashes = canonicalIds[idx]
-                        const traceData = tracesObj[traceIdNoDashes]
+            // The response has format: { traces: { [traceIdNoDashes]: { spans: {...} } } }
+            const tracesObj = data?.traces ?? {}
 
-                        if (traceData) {
-                            // Return a response that looks like fetchPreviewTrace output
-                            results.set(key, {
-                                count: 1,
-                                traces: {[traceIdNoDashes]: traceData},
-                            })
-                        } else {
-                            results.set(key, null)
-                        }
+            requests.forEach((req, idx) => {
+                if (!req.traceId) return
+                const traceIdNoDashes = req.traceId.replace(/-/g, "")
+                const traceData = tracesObj[traceIdNoDashes]
+
+                if (traceData) {
+                    // Return a response that looks like fetchPreviewTrace output
+                    results.set(serializedKeys[idx], {
+                        count: 1,
+                        traces: {[traceIdNoDashes]: traceData},
                     })
-                } catch (error) {
-                    console.error(
-                        `[traceBatchFetcher] Failed to fetch traces:`,
-                        error instanceof Error ? error.message : String(error),
-                        error,
-                    )
-                    keys.forEach((key) => results.set(key, null))
                 }
-            }),
-        )
+            })
+        } catch (error) {
+            console.error(
+                `[traceBatchFetcher] Failed to fetch traces:`,
+                error instanceof Error ? error.message : String(error),
+                error,
+            )
+        }
 
         return results
     },

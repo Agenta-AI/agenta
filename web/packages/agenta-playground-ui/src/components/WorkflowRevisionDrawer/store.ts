@@ -12,6 +12,7 @@
  * - "app-create": Ephemeral app from template (new app creation flow)
  */
 
+import type {Workflow} from "@agenta/entities/workflow"
 import {atom} from "jotai"
 import {atomWithReset, RESET} from "jotai/utils"
 
@@ -36,6 +37,18 @@ export type DrawerContext =
 export const isCreateContext = (context: DrawerContext): boolean =>
     context === "evaluator-create" || context === "app-create"
 
+export interface WorkflowCreatedResult {
+    configId?: string
+    newAppId?: string
+    newRevisionId?: string
+    workflow?: Workflow
+}
+
+export interface DrawerInitialAppSelection {
+    revisionId: string
+    label: string
+}
+
 export interface OpenDrawerParams {
     entityId: string
     context: DrawerContext
@@ -49,11 +62,7 @@ export interface OpenDrawerParams {
      * For `app-create`, called with `{newAppId, newRevisionId}` so the caller
      * can navigate to the app-scoped playground.
      */
-    onWorkflowCreated?: (result: {
-        configId?: string
-        newAppId?: string
-        newRevisionId?: string
-    }) => void
+    onWorkflowCreated?: (result: WorkflowCreatedResult) => void
     /**
      * @deprecated Use `onWorkflowCreated` instead. Kept for backward compatibility
      * with existing evaluator-create call sites; will be removed in a follow-up.
@@ -73,6 +82,21 @@ export interface OpenDrawerParams {
      * from the editor.
      */
     stacked?: boolean
+    /**
+     * Run the drawer playground in a dedicated Jotai store. Intended for
+     * opening a creation playground on top of an already-mounted playground.
+     */
+    isolatedPlayground?: boolean
+    /**
+     * App revision to connect when initializing an evaluator playground.
+     * Existing persisted selection remains the fallback when omitted.
+     */
+    initialAppSelection?: DrawerInitialAppSelection
+    /**
+     * Controls evaluator-create navigation after commit.
+     * @default "default"
+     */
+    postCreateNavigation?: "default" | "stay"
 }
 
 // ================================================================
@@ -93,6 +117,13 @@ export const workflowRevisionDrawerExpandedAtom = atomWithReset<boolean>(false)
 
 /** Whether the drawer is stacked over another drawer (forces mask + focus lock) */
 export const workflowRevisionDrawerStackedAtom = atomWithReset<boolean>(false)
+export const workflowRevisionDrawerIsolatedPlaygroundAtom = atomWithReset<boolean>(false)
+export const workflowRevisionDrawerInitialAppSelectionAtom =
+    atomWithReset<DrawerInitialAppSelection | null>(null)
+export const workflowRevisionDrawerPostCreateNavigationAtom = atomWithReset<"default" | "stay">(
+    "default",
+)
+export const workflowRevisionDrawerScopedDirtyAtom = atomWithReset<boolean>(false)
 
 /** Config view mode (form/json/yaml) — persists across expand/collapse */
 export const workflowRevisionDrawerViewModeAtom = atomWithReset<ConfigViewMode>("form")
@@ -106,7 +137,7 @@ export const workflowRevisionDrawerNavigationIdsAtom = atomWithReset<string[]>([
  * inside `openWorkflowRevisionDrawerAtom`.
  */
 export const workflowRevisionDrawerCallbackAtom = atom<
-    ((result: {configId?: string; newAppId?: string; newRevisionId?: string}) => void) | undefined
+    ((result: WorkflowCreatedResult) => void) | undefined
 >(undefined)
 
 // ================================================================
@@ -139,6 +170,10 @@ export const openWorkflowRevisionDrawerAtom = atom(null, (get, set, params: Open
     set(workflowRevisionDrawerExpandedAtom, opensExpanded)
     set(workflowRevisionDrawerContextAtom, params.context)
     set(workflowRevisionDrawerStackedAtom, params.stacked ?? false)
+    set(workflowRevisionDrawerIsolatedPlaygroundAtom, params.isolatedPlayground ?? false)
+    set(workflowRevisionDrawerInitialAppSelectionAtom, params.initialAppSelection ?? null)
+    set(workflowRevisionDrawerPostCreateNavigationAtom, params.postCreateNavigation ?? "default")
+    set(workflowRevisionDrawerScopedDirtyAtom, false)
     if (params.navigationIds !== undefined) {
         set(workflowRevisionDrawerNavigationIdsAtom, params.navigationIds)
     }
@@ -182,6 +217,10 @@ export const closeWorkflowRevisionDrawerAtom = atom(
         set(workflowRevisionDrawerExpandedAtom, RESET)
         set(workflowRevisionDrawerContextAtom, RESET)
         set(workflowRevisionDrawerStackedAtom, RESET)
+        set(workflowRevisionDrawerIsolatedPlaygroundAtom, RESET)
+        set(workflowRevisionDrawerInitialAppSelectionAtom, RESET)
+        set(workflowRevisionDrawerPostCreateNavigationAtom, RESET)
+        set(workflowRevisionDrawerScopedDirtyAtom, RESET)
         set(workflowRevisionDrawerNavigationIdsAtom, RESET)
         set(workflowRevisionDrawerCallbackAtom, undefined)
         set(workflowRevisionDrawerViewModeAtom, RESET)

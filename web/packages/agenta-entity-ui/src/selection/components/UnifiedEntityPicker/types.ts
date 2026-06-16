@@ -611,6 +611,23 @@ export interface PopoverCascaderVariantProps<
     panelWidth?: number
 
     /**
+     * Fixed width of the child (right-hand) panel (px), e.g. the revision
+     * panel. Overrides `panelWidth` for the child panel only; the root panel
+     * keeps `panelWidth`/`panelMinWidth`.
+     */
+    childPanelWidth?: number
+
+    /**
+     * Opens a child panel automatically when the popover opens.
+     *
+     * When enabled, the currently selected parent is preferred; otherwise the
+     * first visible parent is opened. When disabled, the child panel opens only
+     * after the user hovers or clicks a parent.
+     * @default false
+     */
+    defaultOpenChildPanel?: boolean
+
+    /**
      * Maximum height of item lists (px)
      * @default 340
      */
@@ -678,6 +695,77 @@ export interface PopoverCascaderVariantProps<
      * @default "full"
      */
     childItemLabelMode?: "full" | "simple"
+
+    // ========================================================================
+    // PARENT (ROOT) MULTI-SELECT
+    // ========================================================================
+
+    /**
+     * Render a checkbox on each root row (multi-select mode only).
+     * Checked when the parent has at least one selected child (per
+     * `selectedChildrenByParent`); indeterminate when only some of its
+     * children are selected (requires `totalChildrenByParent`).
+     * @default false
+     */
+    showParentCheckboxes?: boolean
+
+    /**
+     * Consumer-provided map: parentId → currently selected children of that
+     * parent. Drives the parent checkbox checked state and the selected-child
+     * chips rendered under the parent label.
+     */
+    selectedChildrenByParent?: Map<string, {id: string; label: string}[]>
+
+    /**
+     * Consumer-provided map: parentId → total child count. Used to render the
+     * parent checkbox as indeterminate when only some children are selected.
+     */
+    totalChildrenByParent?: Map<string, number>
+
+    /**
+     * Called when a selected-child chip's remove (×) button is clicked.
+     * Also called for every selected child when its parent checkbox is unchecked.
+     */
+    onDeselectChild?: (childId: string) => void
+
+    // ========================================================================
+    // ROOT ROW METADATA
+    // ========================================================================
+
+    /**
+     * Show the adapter's `getDescription()` as a subtitle on root rows.
+     * Replaced by the selected-child chips when the row has selections.
+     * @default false
+     */
+    showParentDescription?: boolean
+
+    // ========================================================================
+    // GROUP HEADERS
+    // ========================================================================
+
+    /**
+     * Render group label headers with divider lines above each group when the
+     * "All" tab is active and the adapter provides grouping.
+     * @default false
+     */
+    showGroupHeaders?: boolean
+
+    // ========================================================================
+    // BULK ACTIONS
+    // ========================================================================
+
+    /**
+     * Show a "Select all" link in the child panel header (multi-select only).
+     * Selects every enabled, not-yet-selected child of the open parent.
+     * @default false
+     */
+    showChildSelectAll?: boolean
+
+    /**
+     * When provided, renders a "Clear all" link next to the selection summary
+     * (requires `selectionSummary`). Called to clear the entire selection.
+     */
+    onClearAll?: () => void
 
     // ========================================================================
     // SELECTION SUMMARY
