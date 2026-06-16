@@ -41,6 +41,8 @@ export interface QueryRegistryRow {
     createdById: string | null
     /** Revision version label, shown as a badge on expanded history rows. */
     version?: string | null
+    /** Git-style commit message for this revision (head row = head revision's). */
+    message?: string | null
     /** True for a lazily-loaded revision (child) row in the version-history expand. */
     __isRevisionChild?: boolean
     /** Placeholder row shown while a query's revisions are being fetched. */

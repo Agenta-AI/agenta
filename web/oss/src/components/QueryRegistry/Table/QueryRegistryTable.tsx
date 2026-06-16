@@ -142,6 +142,7 @@ const QueryRegistryTable = ({
                 const revs = revisionsByQueryId[row.queryId]
                 if (!revs?.length) return row
                 const headVersion = revs[0]?.version ?? null
+                const headMessage = revs[0]?.message ?? null
                 const children: QueryRegistryRow[] = revs.slice(1).map((rev) => ({
                     key: rev.revisionId || `${row.queryId}:${rev.version}`,
                     queryId: row.queryId,
@@ -154,11 +155,13 @@ const QueryRegistryTable = ({
                     createdAt: rev.createdAt,
                     createdById: rev.createdById,
                     version: rev.version,
+                    message: rev.message,
                     __isRevisionChild: true,
                 }))
                 return {
                     ...row,
                     version: headVersion,
+                    message: headMessage,
                     ...(children.length ? {children} : {}),
                 }
             }),

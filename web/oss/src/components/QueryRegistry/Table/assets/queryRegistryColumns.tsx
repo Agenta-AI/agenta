@@ -323,6 +323,31 @@ export function createQueryRegistryColumns(
             },
         },
         {
+            type: "text",
+            key: "message",
+            title: "Commit message",
+            width: 220,
+            render: (_value, record) => {
+                if (record.__isSkeleton) return <SkeletonLine width="50%" />
+                if (!record.message) {
+                    return (
+                        <div className="flex h-full items-center">
+                            <Text type="secondary" className="text-xs">
+                                —
+                            </Text>
+                        </div>
+                    )
+                }
+                return (
+                    <div className="flex h-full items-center">
+                        <Text className="text-xs" ellipsis={{tooltip: record.message}}>
+                            {record.message}
+                        </Text>
+                    </div>
+                )
+            },
+        },
+        {
             type: "actions",
             width: 48,
             maxWidth: 48,
