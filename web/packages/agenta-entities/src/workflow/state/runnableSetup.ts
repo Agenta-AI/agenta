@@ -603,8 +603,9 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
             __appWorkflow: true, // Marker for buildExecutionItem to apply app-specific transforms
             ...(iface ? {interface: iface} : {}),
             data: {
-                inputs: {},
+                revision: entity,
                 parameters: agConfig && Object.keys(agConfig).length > 0 ? agConfig : undefined,
+                inputs: {},
             },
             references,
             // Pass through metadata needed by execution pipeline
