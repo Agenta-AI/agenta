@@ -1072,6 +1072,9 @@ importers:
         specifier: '>=2.0.0'
         version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
     devDependencies:
+      '@agenta/entities':
+        specifier: workspace:../agenta-entities
+        version: link:../agenta-entities
       '@types/node':
         specifier: ^20.19.20
         version: 20.19.39

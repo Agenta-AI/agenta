@@ -3,6 +3,7 @@ import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
 import {onboardingStorageUserIdAtom} from "./atoms"
+import {getCompletionSelectors} from "./completionSelectors"
 import type {OnboardingWidgetConfig, OnboardingWidgetItem, OnboardingWidgetStatus} from "./types"
 
 const STORAGE_KEYS = {
@@ -177,15 +178,42 @@ export const onboardingWidgetManuallyCollapsedAtom = atom(
 export const onboardingWidgetCompletionAtom = atom((get) => {
     const config = get(onboardingWidgetConfigAtom)
     const events = get(onboardingWidgetEventsAtom)
+    const selectors = getCompletionSelectors()
 
     const entries = config.sections.flatMap((section) => section.items)
     const completionMap: Record<string, boolean> = {}
 
     entries.forEach((item) => {
-        completionMap[item.id] = isItemCompleted(item, events)
+        // Union: an item is complete if an imperative event was recorded OR a registered
+        // entity-derived selector for one of its completionEventIds reports complete. The
+        // union guarantees a derived selector never un-completes an already-recorded item.
+        const byEvent = isItemCompleted(item, events)
+        const byDerived = (item.completionEventIds ?? []).some((id) => {
+            const selector = selectors[id]
+            return selector ? get(selector).complete : false
+        })
+        completionMap[item.id] = byEvent || byDerived
     })
 
     return completionMap
+})
+
+/**
+ * True while any registered derived completion selector backing a widget item is still loading.
+ * The widget reads this to avoid flashing an incomplete state before entity queries resolve
+ * (a returning, fully-onboarded user should not briefly see 0%).
+ */
+export const onboardingWidgetCompletionLoadingAtom = atom((get) => {
+    const config = get(onboardingWidgetConfigAtom)
+    const selectors = getCompletionSelectors()
+    return config.sections
+        .flatMap((section) => section.items)
+        .some((item) =>
+            (item.completionEventIds ?? []).some((id) => {
+                const selector = selectors[id]
+                return selector ? get(selector).loading : false
+            }),
+        )
 })
 
 export const firstIncompleteSectionIdAtom = atom((get) => {

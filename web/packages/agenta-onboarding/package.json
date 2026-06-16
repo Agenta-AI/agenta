@@ -12,6 +12,7 @@
         "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 0 --fix",
         "test": "pnpm run test:unit",
         "test:unit": "vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
         "check": "pnpm run types:check && pnpm run lint"
@@ -24,6 +25,7 @@
         "@agenta/shared": "workspace:../agenta-shared"
     },
     "devDependencies": {
+        "@agenta/entities": "workspace:../agenta-entities",
         "@types/node": "^20.19.20",
         "@vitest/coverage-v8": "^4.1.4",
         "jotai-family": "^1.0.1",

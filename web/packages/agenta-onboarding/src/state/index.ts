@@ -28,7 +28,20 @@ export {
     openWidgetAtom,
     computedExpandedSectionsAtom,
     firstIncompleteSectionIdAtom,
+    onboardingWidgetCompletionLoadingAtom,
 } from "./widgetStore"
+
+// Entity-driven completion (app-registered selectors)
+export {
+    setCompletionSelectors,
+    getCompletionSelectors,
+    resetCompletionSelectors,
+} from "./completionSelectors"
+export type {
+    CompletionState,
+    CompletionSelector,
+    CompletionSelectorMap,
+} from "./completionSelectors"
 
 export type {OnboardingWidgetUIState} from "./widgetStore"
 export type {
