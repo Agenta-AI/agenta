@@ -13,7 +13,6 @@ import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {generateId} from "@agenta/shared/utils"
 import type {Getter, Setter} from "jotai"
-import {getDefaultStore} from "jotai/vanilla"
 
 import {messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat/messageAtoms"
 import {SHARED_SESSION_ID, type ChatMessage} from "../chat/messageTypes"
@@ -633,11 +632,10 @@ export async function executeStepForSessionWithExecutionItems(
                             const upstreamOutput =
                                 upstreamResult?.output ?? upstreamResult?.structuredOutput
 
-                            const evalStore = getDefaultStore()
-                            const stageConfiguration = evalStore.get(
+                            const stageConfiguration = get(
                                 workflowMolecule.selectors.configuration(targetEntityId),
                             )
-                            const stageSchemas = evalStore.get(
+                            const stageSchemas = get(
                                 workflowMolecule.selectors.ioSchemas(targetEntityId),
                             )
                             const inputSchema =
