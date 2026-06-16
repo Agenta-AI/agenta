@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {
+    archiveQueryRevision,
     archiveSimpleQuery,
     createSimpleQuery,
     invalidateQueryCache,
@@ -118,16 +119,26 @@ const QueryRegistry = ({mode = "active"}: QueryRegistryProps) => {
         setArchiveTarget(record)
     }, [])
 
+    const archiveTargetIsRevision = Boolean(archiveTarget?.__isRevisionChild)
+
     const confirmArchive = useCallback(async () => {
         if (!projectId || !archiveTarget) return
+        const isRevision = Boolean(archiveTarget.__isRevisionChild)
         setArchiving(true)
         try {
-            await archiveSimpleQuery({projectId, queryId: archiveTarget.queryId})
-            message.success("Query archived")
+            if (isRevision && archiveTarget.revisionId) {
+                // Revision row → archive just that version.
+                await archiveQueryRevision({projectId, revisionId: archiveTarget.revisionId})
+                message.success("Version archived")
+            } else {
+                // Parent row → archive the whole query.
+                await archiveSimpleQuery({projectId, queryId: archiveTarget.queryId})
+                message.success("Query archived")
+            }
             setArchiveTarget(null)
             refresh()
         } catch {
-            message.error("Could not archive query")
+            message.error(isRevision ? "Could not archive version" : "Could not archive query")
         } finally {
             setArchiving(false)
         }
@@ -238,7 +249,11 @@ const QueryRegistry = ({mode = "active"}: QueryRegistryProps) => {
                 centered
                 width={480}
                 open={archiveTarget !== null}
-                title="Archive this query?"
+                title={
+                    archiveTargetIsRevision
+                        ? `Archive version v${archiveTarget?.version ?? ""}?`
+                        : "Archive this query?"
+                }
                 okText="Archive"
                 cancelText="Cancel"
                 onOk={confirmArchive}
@@ -246,8 +261,9 @@ const QueryRegistry = ({mode = "active"}: QueryRegistryProps) => {
                 okButtonProps={{danger: true, loading: archiving}}
             >
                 <Text type="secondary">
-                    This query may be in use by a live evaluation. Archived queries can be restored
-                    later.
+                    {archiveTargetIsRevision
+                        ? "This removes the version from the query's history. It can be restored later."
+                        : "This query may be in use by a live evaluation. Archived queries can be restored later."}
                 </Text>
             </EnhancedModal>
         </PageLayout>

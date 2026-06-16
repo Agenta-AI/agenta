@@ -18,6 +18,8 @@ export {
     editSimpleQuery,
     type EditSimpleQueryParams,
     archiveSimpleQuery,
+    archiveQueryRevision,
+    type ArchiveQueryRevisionParams,
     type ArchiveSimpleQueryParams,
     commitQueryRevision,
     type CommitQueryRevisionParams,

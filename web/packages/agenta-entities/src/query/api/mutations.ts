@@ -141,6 +141,24 @@ export async function archiveSimpleQuery({
     )
 }
 
+export interface ArchiveQueryRevisionParams {
+    projectId: string
+    revisionId: string
+}
+
+/** Archive (soft-delete) a single query revision — distinct from archiving the
+ *  whole query artifact. Used by the registry's per-version archive. */
+export async function archiveQueryRevision({
+    projectId,
+    revisionId,
+}: ArchiveQueryRevisionParams): Promise<void> {
+    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
+    await client.queries.archiveQueryRevision(
+        {query_revision_id: revisionId},
+        {queryParams: {project_id: projectId}},
+    )
+}
+
 export interface UnarchiveSimpleQueryParams {
     projectId: string
     queryId: string

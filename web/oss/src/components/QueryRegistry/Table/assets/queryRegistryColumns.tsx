@@ -162,11 +162,12 @@ function buildActionItems(actions: QueryColumnActions, isArchived: boolean) {
         },
         {type: "divider" as const, hidden: isRevisionRow},
         {
+            // Visible on revision rows too: the parent archives the whole query,
+            // a revision row archives just that version.
             key: "archive",
             label: "Archive",
             icon: <ArchiveIcon size={14} />,
             danger: true,
-            hidden: isRevisionRow,
             onClick: (record: QueryRegistryRow) => actions.handleArchive?.(record),
         },
     ]
