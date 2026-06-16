@@ -15,7 +15,7 @@ import {querySimpleQueries, type SimpleQuery} from "@agenta/entities/query"
 import {createPaginatedEntityStore} from "@agenta/entities/shared"
 import type {InfiniteTableFetchResult} from "@agenta/entities/shared"
 import {projectIdAtom} from "@agenta/shared/state"
-import {atom} from "jotai"
+import {atom, getDefaultStore} from "jotai"
 
 import {emptyFetchResult} from "@/oss/state/entities/shared"
 
@@ -185,6 +185,15 @@ export function getQueryRegistryTableState(status: QueryRegistryStatus) {
     return store
 }
 
+/**
+ * Bumped on every registry invalidation. The table's batched revision-history
+ * cache (parent version badges + child rows) is React state, not part of the
+ * paginated store, so it watches this signal to refetch after a commit/restore.
+ */
+export const queryRegistryRevisionsRefreshAtom = atom(0)
+
 export function invalidateQueryRegistryStore() {
     _stores.forEach((store) => store.invalidate())
+    const store = getDefaultStore()
+    store.set(queryRegistryRevisionsRefreshAtom, (v) => v + 1)
 }

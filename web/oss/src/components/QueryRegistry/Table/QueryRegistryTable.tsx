@@ -10,7 +10,10 @@ import getFilterColumns from "@/oss/components/pages/observability/assets/getFil
 
 import type {QueryRegistryStatus} from "../store/queryRegistryFilterAtoms"
 import type {QueryRegistryRow} from "../store/queryRegistryStore"
-import {getQueryRegistryTableState} from "../store/queryRegistryStore"
+import {
+    getQueryRegistryTableState,
+    queryRegistryRevisionsRefreshAtom,
+} from "../store/queryRegistryStore"
 
 import {
     buildFieldLabelMap,
@@ -44,6 +47,7 @@ const QueryRegistryTable = ({
     const isArchived = mode === "archived"
     const projectId = useAtomValue(projectIdAtom)
     const datasetStore = getQueryRegistryTableState(mode).store
+    const revisionsRefresh = useAtomValue(queryRegistryRevisionsRefreshAtom)
 
     // Revision history per query, batch-fetched for the visible page (newest
     // first). Drives the parent's head-version badge + the expandable child rows.
@@ -51,6 +55,13 @@ const QueryRegistryTable = ({
         Record<string, QueryRevisionSummary[]>
     >({})
     const [expandedKeys, setExpandedKeys] = useState<string[]>([])
+
+    // Drop the cached revisions on invalidation (commit/restore) so the batched
+    // fetch re-runs and the version badges + child rows reflect the new revision.
+    useEffect(() => {
+        if (revisionsRefresh === 0) return
+        setRevisionsByQueryId({})
+    }, [revisionsRefresh])
 
     // Row click opens the manage drawer, but not for revision rows.
     const handleRowClick = useCallback(
