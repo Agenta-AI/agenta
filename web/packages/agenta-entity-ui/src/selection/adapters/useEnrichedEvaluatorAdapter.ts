@@ -21,6 +21,7 @@ import {
     evaluatorKeyMapAtom,
     evaluatorTemplatesMapAtom,
     evaluatorTemplatesDataAtom,
+    type EvaluatorCatalogTemplate,
     evaluatorConfigsQueryStateAtom,
     evaluatorWorkflowMetaMapAtom,
     humanEvaluatorsListQueryAtom,
@@ -61,6 +62,12 @@ export function useEnsureEvaluatorEnrichment(enabled = true) {
     }, [enabled, activate])
 }
 
+// Stable empties read while a lazy adapter is dormant, so the evaluator template
+// catalog (a separate GET /evaluators/catalog/templates fetch) isn't requested
+// until the gate opens.
+const EMPTY_TEMPLATES_MAP_ATOM = atom<Map<string, string>>(new Map())
+const EMPTY_TEMPLATES_DATA_ATOM = atom<EvaluatorCatalogTemplate[]>([])
+
 /**
  * Hook that provides the evaluator key map and template definitions map.
  *
@@ -69,12 +76,17 @@ export function useEnsureEvaluatorEnrichment(enabled = true) {
  *
  * Activates the enrichment gate on mount unless `lazy` is set — lazy callers
  * (e.g. the playground header) defer activation to first picker-open so a plain
- * playground load doesn't trigger the evaluator revision fan-out.
+ * playground load doesn't trigger the evaluator revision fan-out (and holds the
+ * template catalog read until the gate opens too).
  */
 export function useEvaluatorEnrichedData(options?: {lazy?: boolean}) {
     useEnsureEvaluatorEnrichment(!options?.lazy)
+    const activated = useAtomValue(evaluatorEnrichmentActivatedAtom)
+    const wantData = !options?.lazy || activated
     const evaluatorKeyMap = useAtomValue(evaluatorKeyMapAtom)
-    const evaluatorDefsByKey = useAtomValue(evaluatorTemplatesMapAtom)
+    const evaluatorDefsByKey = useAtomValue(
+        wantData ? evaluatorTemplatesMapAtom : EMPTY_TEMPLATES_MAP_ATOM,
+    )
 
     return {evaluatorKeyMap, evaluatorDefsByKey}
 }
@@ -164,7 +176,11 @@ export function useEnrichedEvaluatorOnlyAdapter(
     options?: {showWorkflowMeta?: boolean; splitTypeTag?: boolean; lazy?: boolean},
 ) {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData({lazy: options?.lazy})
-    const templates = useAtomValue(evaluatorTemplatesDataAtom)
+    const activated = useAtomValue(evaluatorEnrichmentActivatedAtom)
+    const wantData = !options?.lazy || activated
+    const templates = useAtomValue(
+        wantData ? evaluatorTemplatesDataAtom : EMPTY_TEMPLATES_DATA_ATOM,
+    )
     const workflowMetaMap = useAtomValue(evaluatorWorkflowMetaMapAtom)
     const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
     const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
