@@ -95,7 +95,7 @@ const QueryRegistryTable = ({
         const missing = headQueryIds.filter((id) => !(id in revisionsByQueryId))
         if (!missing.length) return
         let cancelled = false
-        queryRevisionsForQueries({projectId, queryIds: missing})
+        queryRevisionsForQueries({projectId, queryIds: missing, includeArchived: true})
             .then((revs) => {
                 if (cancelled) return
                 // Seed each requested id (so we don't refetch) then group by query.
@@ -145,27 +145,31 @@ const QueryRegistryTable = ({
                     (rev) => Number(rev.version ?? 0) > 0,
                 )
                 if (!revs.length) return row
-                const headVersion = revs[0]?.version ?? null
-                const headMessage = revs[0]?.message ?? null
-                const children: QueryRegistryRow[] = revs.slice(1).map((rev) => ({
-                    key: rev.revisionId || `${row.queryId}:${rev.version}`,
-                    queryId: row.queryId,
-                    variantId: row.variantId,
-                    revisionId: rev.revisionId,
-                    name: row.name,
-                    slug: row.slug,
-                    filtering: rev.filtering,
-                    windowing: null,
-                    createdAt: rev.createdAt,
-                    createdById: rev.createdById,
-                    version: rev.version,
-                    message: rev.message,
-                    __isRevisionChild: true,
-                }))
+                // The head is the latest NON-archived revision (an archived head was
+                // repointed server-side); archived revisions still render, tagged.
+                const head = revs.find((rev) => !rev.deletedAt) ?? revs[0]
+                const children: QueryRegistryRow[] = revs
+                    .filter((rev) => rev.revisionId !== head.revisionId)
+                    .map((rev) => ({
+                        key: rev.revisionId || `${row.queryId}:${rev.version}`,
+                        queryId: row.queryId,
+                        variantId: row.variantId,
+                        revisionId: rev.revisionId,
+                        name: row.name,
+                        slug: row.slug,
+                        filtering: rev.filtering,
+                        windowing: null,
+                        createdAt: rev.createdAt,
+                        createdById: rev.createdById,
+                        version: rev.version,
+                        message: rev.message,
+                        __isRevisionChild: true,
+                        __isArchivedRevision: Boolean(rev.deletedAt),
+                    }))
                 return {
                     ...row,
-                    version: headVersion,
-                    message: headMessage,
+                    version: head.version ?? null,
+                    message: head.message ?? null,
                     ...(children.length ? {children} : {}),
                 }
             }),

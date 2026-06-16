@@ -5,6 +5,7 @@ import {
     archiveSimpleQuery,
     createSimpleQuery,
     invalidateQueryCache,
+    unarchiveQueryRevision,
     unarchiveSimpleQuery,
     type SimpleQueryCreate,
 } from "@agenta/entities/query"
@@ -147,12 +148,18 @@ const QueryRegistry = ({mode = "active"}: QueryRegistryProps) => {
     const handleRestore = useCallback(
         async (record: QueryRegistryRow) => {
             if (!projectId) return
+            const isRevision = Boolean(record.__isArchivedRevision)
             try {
-                await unarchiveSimpleQuery({projectId, queryId: record.queryId})
-                message.success("Query restored")
+                if (isRevision && record.revisionId) {
+                    await unarchiveQueryRevision({projectId, revisionId: record.revisionId})
+                    message.success("Version restored")
+                } else {
+                    await unarchiveSimpleQuery({projectId, queryId: record.queryId})
+                    message.success("Query restored")
+                }
                 refresh()
             } catch {
-                message.error("Could not restore query")
+                message.error(isRevision ? "Could not restore version" : "Could not restore query")
             }
         },
         [projectId, refresh],

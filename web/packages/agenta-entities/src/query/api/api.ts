@@ -117,6 +117,8 @@ export interface QueryRevisionSummary {
     createdAt: string | null
     createdById: string | null
     message: string | null
+    /** Soft-delete marker — set when the revision has been archived. */
+    deletedAt: string | null
 }
 
 const toRevisionSummary = (revision: AgentaApi.QueryRevision): QueryRevisionSummary => ({
@@ -127,11 +129,13 @@ const toRevisionSummary = (revision: AgentaApi.QueryRevision): QueryRevisionSumm
     createdAt: revision.created_at ?? null,
     createdById: revision.created_by_id ?? null,
     message: revision.message ?? null,
+    deletedAt: revision.deleted_at ?? null,
 })
 
 export interface QueryRevisionsByQueryParams {
     projectId: string
     queryId: string
+    includeArchived?: boolean
 }
 
 /**
@@ -142,14 +146,17 @@ export interface QueryRevisionsByQueryParams {
 export async function queryQueryRevisions({
     projectId,
     queryId,
+    includeArchived,
 }: QueryRevisionsByQueryParams): Promise<QueryRevisionSummary[]> {
-    return queryRevisionsForQueries({projectId, queryIds: [queryId]})
+    return queryRevisionsForQueries({projectId, queryIds: [queryId], includeArchived})
 }
 
 export interface QueryRevisionsForQueriesParams {
     projectId: string
     queryIds: string[]
     limit?: number
+    /** Include archived revisions so they can be shown (tagged) + restored. */
+    includeArchived?: boolean
 }
 
 /**
@@ -161,12 +168,14 @@ export async function queryRevisionsForQueries({
     projectId,
     queryIds,
     limit = 500,
+    includeArchived,
 }: QueryRevisionsForQueriesParams): Promise<QueryRevisionSummary[]> {
     if (!queryIds.length) return []
     const client = getAgentaSdkClient({host: getAgentaApiUrl()})
     const response = await client.queries.queryQueryRevisions(
         {
             query_refs: queryIds.map((id) => ({id})),
+            ...(includeArchived ? {include_archived: true} : {}),
             windowing: {limit, order: "descending"},
         },
         {queryParams: {project_id: projectId}},

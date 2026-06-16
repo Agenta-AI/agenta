@@ -125,6 +125,7 @@ export interface QueryColumnActions {
  */
 /** Revision-history (child) and loader rows carry no per-row actions. */
 const isRevisionRow = (record: QueryRegistryRow) => Boolean(record.__isRevisionChild)
+const isArchivedRevision = (record: QueryRegistryRow) => Boolean(record.__isArchivedRevision)
 
 function buildActionItems(actions: QueryColumnActions, isArchived: boolean) {
     if (isArchived) {
@@ -163,12 +164,22 @@ function buildActionItems(actions: QueryColumnActions, isArchived: boolean) {
         {type: "divider" as const, hidden: isRevisionRow},
         {
             // Visible on revision rows too: the parent archives the whole query,
-            // a revision row archives just that version.
+            // a revision row archives just that version. Hidden once a revision is
+            // already archived (it shows Restore instead).
             key: "archive",
             label: "Archive",
             icon: <ArchiveIcon size={14} />,
             danger: true,
+            hidden: isArchivedRevision,
             onClick: (record: QueryRegistryRow) => actions.handleArchive?.(record),
+        },
+        {
+            // Restore an archived revision back into the active history.
+            key: "restore-revision",
+            label: "Restore",
+            icon: <ArrowCounterClockwise size={16} />,
+            hidden: (record: QueryRegistryRow) => !isArchivedRevision(record),
+            onClick: (record: QueryRegistryRow) => actions.handleRestore?.(record),
         },
     ]
 }
@@ -192,12 +203,16 @@ export function createQueryRegistryColumns(
                 // Revision (child) row: indent to align under the parent, show the
                 // version badge.
                 if (record.__isRevisionChild) {
+                    const archived = record.__isArchivedRevision
                     return (
                         <div className="flex h-full items-center gap-2 pl-7">
-                            <Text className="text-xs">{record.name}</Text>
+                            <Text type={archived ? "secondary" : undefined} className="text-xs">
+                                {record.name}
+                            </Text>
                             {record.version ? (
                                 <Tag className="m-0 text-xs">v{record.version}</Tag>
                             ) : null}
+                            {archived ? <Tag className="m-0 text-xs">Archived</Tag> : null}
                         </div>
                     )
                 }

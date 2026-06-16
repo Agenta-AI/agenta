@@ -45,6 +45,8 @@ export interface QueryRegistryRow {
     message?: string | null
     /** True for a lazily-loaded revision (child) row in the version-history expand. */
     __isRevisionChild?: boolean
+    /** True when a revision (child) row is archived — shown tagged + restorable. */
+    __isArchivedRevision?: boolean
     /** Placeholder row shown while a query's revisions are being fetched. */
     __isRevisionLoader?: boolean
     /** Injected revision-history rows (antd tree children). */

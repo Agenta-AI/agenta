@@ -159,6 +159,18 @@ export async function archiveQueryRevision({
     )
 }
 
+/** Restore a previously archived query revision. */
+export async function unarchiveQueryRevision({
+    projectId,
+    revisionId,
+}: ArchiveQueryRevisionParams): Promise<void> {
+    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
+    await client.queries.unarchiveQueryRevision(
+        {query_revision_id: revisionId},
+        {queryParams: {project_id: projectId}},
+    )
+}
+
 export interface UnarchiveSimpleQueryParams {
     projectId: string
     queryId: string
