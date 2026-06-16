@@ -226,6 +226,15 @@ export function createQueryRegistryColumns(
                         {record.version ? (
                             <Tag className="m-0 text-xs">v{record.version}</Tag>
                         ) : null}
+                        {/* Parent row is the head revision — flag it as the latest. */}
+                        {record.version ? (
+                            <span className="flex items-center gap-1.5">
+                                <Tag color="blue" className="m-0 text-xs">
+                                    Last modified
+                                </Tag>
+                                <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[#9254de]" />
+                            </span>
+                        ) : null}
                     </div>
                 )
             },

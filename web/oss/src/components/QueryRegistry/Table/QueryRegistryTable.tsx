@@ -139,8 +139,12 @@ const QueryRegistryTable = ({
         () =>
             rows.map((row) => {
                 if (row.__isSkeleton || !row.queryId) return row
-                const revs = revisionsByQueryId[row.queryId]
-                if (!revs?.length) return row
+                // Drop v0 — the auto-created initial revision with no useful data
+                // (matches the workflow registry).
+                const revs = (revisionsByQueryId[row.queryId] ?? []).filter(
+                    (rev) => Number(rev.version ?? 0) > 0,
+                )
+                if (!revs.length) return row
                 const headVersion = revs[0]?.version ?? null
                 const headMessage = revs[0]?.message ?? null
                 const children: QueryRegistryRow[] = revs.slice(1).map((rev) => ({
