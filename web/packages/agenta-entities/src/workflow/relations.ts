@@ -95,6 +95,7 @@ const revisionByWorkflowListAtomFamily = atomFamily((workflowId: string) =>
             isPending,
             isError,
             error,
+            isFetched: query.isFetched,
         }
     }),
 )

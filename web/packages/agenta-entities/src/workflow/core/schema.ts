@@ -922,6 +922,25 @@ export function resolveOutputSchema(data: WorkflowDataInput): Record<string, unk
 }
 
 /**
+ * Auto-created feedback evaluators (`POST /simple/traces/` and `/annotations/`) infer
+ * their output schema with genson over the full trace `data` envelope (`{outputs: {...}}`),
+ * so the stored outputs schema is wrapped one level deeper than UI-created evaluators
+ * (`{score, comment}`). Unwrap the lone `outputs` object so every consumer sees the real
+ * metric keys. This is a strict no-op for every other evaluator: no real evaluator's output
+ * `properties` is a single key named `outputs` whose value has its own nested `properties`.
+ */
+function unwrapEnvelopeProperties(props: Record<string, unknown>): Record<string, unknown> {
+    const keys = Object.keys(props)
+    if (keys.length === 1 && keys[0] === "outputs") {
+        const innerProps = (props.outputs as Record<string, unknown> | undefined)?.properties
+        if (innerProps && typeof innerProps === "object") {
+            return innerProps as Record<string, unknown>
+        }
+    }
+    return props
+}
+
+/**
  * Resolve output metric properties from a workflow's data.
  */
 export function resolveOutputSchemaProperties(
@@ -932,7 +951,7 @@ export function resolveOutputSchemaProperties(
 
     const props = schema.properties
     if (props && typeof props === "object") {
-        return props as Record<string, unknown>
+        return unwrapEnvelopeProperties(props as Record<string, unknown>)
     }
 
     return null

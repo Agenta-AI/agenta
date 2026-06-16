@@ -1,4 +1,6 @@
 from typing import List
+from datetime import datetime, timezone
+
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
@@ -25,7 +27,10 @@ from ee.src.core.access.permissions.types import Permission, RequiredRole
 from oss.src.services.organization_service import (
     create_invitation,
     check_existing_invitation,
-    check_valid_invitation,
+    InviteNotFoundError,
+    InviteExpiredError,
+    InviteAlreadyAcceptedError,
+    InviteEmailMismatchError,
 )
 from ee.src.services.organization_service import send_invitation_email
 from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
@@ -374,43 +379,49 @@ async def accept_workspace_invitation(
         HTTPException: If there is an error retrieving the workspace.
     """
 
-    try:
-        # Check if the user is already a member of the workspace
-        if await db_manager_ee.check_user_in_workspace_with_email(
-            user.email, str(workspace.id)
-        ):
-            raise HTTPException(
-                status_code=409,
-                detail="User is already a member of the workspace",
-            )
+    # Resolve the invite by token alone so we can compare its addressee against
+    # the signed-in user before any membership check. Looking up by user.email
+    # would hide a wrong-account attempt behind a "not found".
+    invitation = await db_manager.get_project_invitation_by_token(project_id, token)
 
-        invitation = await check_valid_invitation(project_id, user.email, token)
-        if invitation is not None:
-            assert invitation.role is not None, (
-                "Invitation does not have any workspace role"
-            )
-            await db_manager_ee.add_user_to_workspace_and_org(
-                organization, workspace, user, project_id, invitation.role
-            )
+    if invitation is None:
+        raise InviteNotFoundError()
 
-            await db_manager_ee.mark_invitation_as_used(
-                project_id, str(user.id), invitation
-            )
+    # The signed-in user must be the invitee. Reject before the already-member
+    # short-circuit so the org owner using someone else's link doesn't get a
+    # misleading "already joined".
+    if (invitation.email or "").lower() != (user.email or "").lower():
+        raise InviteEmailMismatchError(invited_email=invitation.email)
 
-            # Invalidate any cached auth deny for this user so they can
-            # access the project immediately after accepting the invite.
-            await invalidate_cache(
-                namespace="verify_bearer_token",
-                user_id=str(user.id),
-            )
+    # Already a member: idempotent success regardless of invitation state.
+    if await db_manager_ee.check_user_in_workspace_with_email(
+        user.email, str(workspace.id)
+    ):
+        raise InviteAlreadyAcceptedError()
 
-            return True
+    if invitation.used:
+        raise InviteAlreadyAcceptedError()
 
-        else:
-            # Existing invitation is expired
-            raise Exception("Invitation has expired or does not exist")
-    except Exception as e:
-        raise e
+    if invitation.expiration_date <= datetime.now(timezone.utc):
+        raise InviteExpiredError()
+
+    if invitation.role is None:
+        raise ValueError("Invitation does not have any workspace role")
+
+    await db_manager_ee.add_user_to_workspace_and_org(
+        organization, workspace, user, project_id, invitation.role
+    )
+
+    await db_manager_ee.mark_invitation_as_used(project_id, str(user.id), invitation)
+
+    # Invalidate any cached auth deny for this user so they can
+    # access the project immediately after accepting the invite.
+    await invalidate_cache(
+        namespace="verify_bearer_token",
+        user_id=str(user.id),
+    )
+
+    return True
 
 
 async def remove_user_from_workspace(

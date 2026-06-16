@@ -244,31 +244,43 @@ export function collectDownstreamReferencedColumns(
 }
 
 /**
- * Collect the columns a synced test set row carries in its SERVER snapshot.
+ * Collect the columns the connected test set carries in its SERVER
+ * snapshots, unioned across ALL of its rows.
  *
  * These are intentional test set data, not stale leftovers, so the strict
  * row clean must keep them even when the primary app's prompt doesn't
  * reference them (they render under the "unused testcase columns" footer,
- * which would otherwise empty on Run — #4647). Keys a previous primary wrote
- * to the row locally (the #4525 stale-key case) are absent from the server
- * snapshot, so they still get cleaned. Local/unsaved rows have no server
- * snapshot and get no protection.
+ * which would otherwise empty on Run — #4647). The union is test-set-scoped
+ * rather than per-row on purpose: a row that joined the test set locally —
+ * a draft kept through "Keep and load", or a row added while connected —
+ * has no server snapshot of its own, yet the test set's columns are just as
+ * intentional for it. Per-row protection silently excluded those rows, so a
+ * value filled into e.g. `expected_output` was wiped by the pre-run clean.
+ *
+ * The #4525 guarantee is preserved: keys a previous primary wrote to a row
+ * locally exist only in local row data, never in any server snapshot, so
+ * they still get cleaned. In local mode `testcaseMolecule.ids` is empty by
+ * invariant (server ids only exist while connected), so no protection
+ * applies there.
  *
  * `CHAT_TRANSPORT_KEYS` are excluded even when the test set stores them: a
  * chat-formatted test set connected to a completion app must still get the
  * chat-transport strip, and chat apps keep `messages` through `allowedKeys`
  * without needing protection.
  */
-export function collectTestcaseServerColumns(
-    get: Getter,
-    testcaseRowId: string | null | undefined,
-): Set<string> {
-    if (!testcaseRowId) return new Set()
-    const server = get(testcaseMolecule.selectors.serverData(testcaseRowId)) as {
-        data?: Record<string, unknown> | null
-    } | null
-    if (!server?.data || typeof server.data !== "object") return new Set()
-    const columns = new Set(Object.keys(server.data).filter((key) => !isSystemField(key)))
+export function collectTestsetServerColumns(get: Getter): Set<string> {
+    const ids = get(testcaseMolecule.ids) as string[] | null | undefined
+    const columns = new Set<string>()
+    if (!Array.isArray(ids)) return columns
+    for (const id of ids) {
+        const server = get(testcaseMolecule.selectors.serverData(id)) as {
+            data?: Record<string, unknown> | null
+        } | null
+        if (!server?.data || typeof server.data !== "object") continue
+        for (const key of Object.keys(server.data)) {
+            if (!isSystemField(key)) columns.add(key)
+        }
+    }
     for (const key of CHAT_TRANSPORT_KEYS) {
         columns.delete(key)
     }
