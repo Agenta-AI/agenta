@@ -33,6 +33,20 @@ import {evaluationRunsTablePageSizeAtom} from "../atoms/view"
 type WritableAtom = PrimitiveAtom<any> & {write: any}
 
 /**
+ * Mirror a parent-store value into the scoped store. Several injected atoms hold a
+ * FUNCTION value (the query/metric/member families, factories, the api object).
+ * jotai's primitive `set` treats a function argument as a state UPDATER and would
+ * call it (`queriesQueryFamily(prev)` with `prev = null` → crash in the family's
+ * `{payload}` destructure), silently corrupting every function-valued atom. Wrap
+ * function values in a constant updater so the function itself is stored; everything
+ * else passes through verbatim. This mirrors how the host registers them
+ * (`set(atom, () => v)`).
+ */
+const mirrorValue = (store: ReturnType<typeof createStore>, atom: WritableAtom, value: unknown) => {
+    store.set(atom, typeof value === "function" ? () => value : value)
+}
+
+/**
  * Injected eval-view seams the relocated run-list tree reads. The OSS host registers their
  * real sources into the parent (default) store via `registerEvalRunInjections`; this
  * provider creates a SCOPED store and must mirror those values down so the relocated atoms
@@ -77,7 +91,7 @@ const EvaluationRunsTableStoreProvider = ({
     const scopedStore = useMemo(() => {
         const store = createStore()
         MIRRORED_GLOBAL_ATOMS.forEach((atom) => {
-            store.set(atom, parentStore.get(atom))
+            mirrorValue(store, atom, parentStore.get(atom))
         })
         store.set(evaluationRunsTablePageSizeAtom, pageSize)
         store.set(evaluationRunsTableOverridesAtom, resolvedOverrides)
@@ -88,8 +102,7 @@ const EvaluationRunsTableStoreProvider = ({
     useEffect(() => {
         const cleanups = MIRRORED_GLOBAL_ATOMS.map((atom) => {
             const sync = () => {
-                const value = parentStore.get(atom)
-                scopedStore.set(atom, value)
+                mirrorValue(scopedStore, atom, parentStore.get(atom))
             }
             const unsub = parentStore.sub(atom, sync)
             sync()
