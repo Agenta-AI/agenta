@@ -18,11 +18,10 @@ import {testcaseMolecule, isSystemField} from "@agenta/entities/testcase"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {atom, type Getter} from "jotai"
 import {selectAtom} from "jotai/utils"
-import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
 import {playgroundIsChatBehaviorAtom} from "../atoms/modeOverride"
-import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
+import {entityIdsAtom, playgroundNodesAtom, playgroundStoreAtom} from "../atoms/playground"
 import {addUserMessageAtom} from "../chat"
 import {sharedMessageIdsAtomFamily} from "../chat/messageSelectors"
 
@@ -543,7 +542,33 @@ export const playgroundInputsAtomFamily = atomFamily(
                 testcaseData[key] = value
             }
 
-            return splitInputsVisibility({referencedKeys, draftKeys, testcaseData})
+            // In connected mode, surface the test set's columns even when
+            // this row doesn't carry them yet — a draft kept through "Keep
+            // and load" or a row added while connected starts with only its
+            // own keys. The drawer already offers these via the registry
+            // merge in `rowVariableKeysAtomFamily`; without the same merge
+            // here the grid hides exactly those fields. Same system/chat
+            // strips as `testcaseData` above.
+            let testsetColumnKeys: string[] | undefined
+            const loadableId = get(derivedLoadableIdAtom)
+            const mode = loadableId ? get(loadableController.selectors.mode(loadableId)) : null
+            if (mode === "connected") {
+                const registry = get(testcaseMolecule.atoms.columns) as {key: string}[] | null
+                testsetColumnKeys = (registry ?? [])
+                    .map((column) => column.key)
+                    .filter(
+                        (key) =>
+                            !isSystemField(key) &&
+                            !(isChat && (key === "messages" || key === "outputs")),
+                    )
+            }
+
+            return splitInputsVisibility({
+                referencedKeys,
+                draftKeys,
+                testcaseData,
+                testsetColumnKeys,
+            })
         }),
     (a, b) => a.testcaseId === b.testcaseId && (a.downstreamKey ?? "") === (b.downstreamKey ?? ""),
 )
@@ -942,7 +967,7 @@ export const generationRowIdsAtom = atom<string[]>((get) => {
         const rowIds = get(sharedMessageIdsAtomFamily(loadableId))
         if (rowIds.length === 0) {
             // Bootstrap first blank user message for chat mode
-            getDefaultStore().set(addUserMessageAtom, {loadableId, userMessage: null})
+            get(playgroundStoreAtom).set(addUserMessageAtom, {loadableId, userMessage: null})
             return get(sharedMessageIdsAtomFamily(loadableId))
         }
         return rowIds

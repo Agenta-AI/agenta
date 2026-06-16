@@ -21,6 +21,7 @@ import {useRouter} from "next/router"
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {createProject, deleteProject, patchProject} from "@/oss/services/project"
 import type {ProjectsResponse} from "@/oss/services/project/types"
+import {appIdentifiersAtom} from "@/oss/state/appState"
 import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {cacheLastUsedProjectId, useProjectData} from "@/oss/state/project"
@@ -59,6 +60,7 @@ const ListOfProjects = ({
     const {orgs} = useOrgData()
     const {project, projects, refetch} = useProjectData()
     const settingsTab = useAtomValue(settingsTabAtom)
+    const {workspaceId: currentWorkspaceId} = useAtomValue(appIdentifiersAtom)
 
     const totalProjects = useMemo(() => projects.filter(Boolean).length, [projects])
     const canDeleteProjects = totalProjects > 1
@@ -108,7 +110,8 @@ const ListOfProjects = ({
     )
 
     const createMutation = useMutation({
-        mutationFn: ({name}: ProjectFormValues) => createProject({name: name.trim()}),
+        mutationFn: ({name}: ProjectFormValues) =>
+            createProject({name: name.trim()}, currentWorkspaceId ?? undefined),
         onSuccess: (createdProject) => {
             message.success("Project created")
             createForm.resetFields()
@@ -135,7 +138,7 @@ const ListOfProjects = ({
 
     const renameMutation = useMutation({
         mutationFn: ({projectId, name}: {projectId: string; name: string}) =>
-            patchProject(projectId, {name: name.trim()}),
+            patchProject(projectId, {name: name.trim()}, currentWorkspaceId ?? undefined),
         onSuccess: () => {
             message.success("Project renamed")
             void refreshProjects()
@@ -151,7 +154,8 @@ const ListOfProjects = ({
     })
 
     const defaultMutation = useMutation({
-        mutationFn: (projectId: string) => patchProject(projectId, {make_default: true}),
+        mutationFn: (projectId: string) =>
+            patchProject(projectId, {make_default: true}, currentWorkspaceId ?? undefined),
         onSuccess: () => {
             message.success("Default project updated")
             void refreshProjects()
@@ -164,7 +168,8 @@ const ListOfProjects = ({
     })
 
     const deleteMutation = useMutation({
-        mutationFn: (projectId: string) => deleteProject(projectId),
+        mutationFn: (projectId: string) =>
+            deleteProject(projectId, currentWorkspaceId ?? undefined),
         onSuccess: () => {
             message.success("Project deleted")
             void refreshProjects()

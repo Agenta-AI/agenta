@@ -5,6 +5,7 @@ import {
     simpleQueueMolecule,
     type CreateSimpleQueuePayload,
 } from "@agenta/entities/simpleQueue"
+import {evaluatorWorkflowMetaMapAtom} from "@agenta/entities/workflow"
 import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {projectIdAtom} from "@agenta/shared/state"
 import {ModalContent, ModalFooter, message} from "@agenta/ui"
@@ -114,7 +115,25 @@ function CreateQueueDrawerContent({
         [selectedEvaluators],
     )
     const selectedRevisionIds = useMemo(() => new Set(evaluatorRevisionIds), [evaluatorRevisionIds])
-    const latestSelectedEvaluator = selectedEvaluators[selectedEvaluators.length - 1] ?? null
+    const selectedRevisionsByEvaluator = useMemo(() => {
+        const map = new Map<string, {id: string; label: string}[]>()
+
+        for (const evaluator of [...selectedEvaluators].sort((a, b) => b.version - a.version)) {
+            const selected = map.get(evaluator.evaluatorId) ?? []
+            selected.push({id: evaluator.revisionId, label: `v${evaluator.version}`})
+            map.set(evaluator.evaluatorId, selected)
+        }
+
+        return map
+    }, [selectedEvaluators])
+    const evaluatorWorkflowMetaMap = useAtomValue(evaluatorWorkflowMetaMapAtom)
+    const totalRevisionsByEvaluator = useMemo(() => {
+        const map = new Map<string, number>()
+        for (const [evaluatorId, meta] of evaluatorWorkflowMetaMap) {
+            if (meta.versionCount != null) map.set(evaluatorId, meta.versionCount)
+        }
+        return map
+    }, [evaluatorWorkflowMetaMap])
 
     useEffect(() => {
         form.setFieldValue("evaluatorRevisionIds", evaluatorRevisionIds)
@@ -143,7 +162,7 @@ function CreateQueueDrawerContent({
 
         setSelectedEvaluators((prev) => {
             if (prev.some((evaluator) => evaluator.revisionId === id)) {
-                return prev
+                return prev.filter((evaluator) => evaluator.revisionId !== id)
             }
 
             return [
@@ -163,6 +182,10 @@ function CreateQueueDrawerContent({
         setSelectedEvaluators((prev) =>
             prev.filter((evaluator) => evaluator.revisionId !== revisionId),
         )
+    }, [])
+
+    const handleClearEvaluators = useCallback(() => {
+        setSelectedEvaluators([])
     }, [])
 
     const handleFinish = useCallback(
@@ -367,14 +390,13 @@ function CreateQueueDrawerContent({
                                             onCreate={feedbackOnCreate}
                                             createLabel={feedbackCreateLabel}
                                             disabled={isSubmitting}
-                                            disabledRevisionIds={selectedRevisionIds}
-                                            selectedEvaluatorId={
-                                                latestSelectedEvaluator?.evaluatorId ?? null
+                                            selectedRevisionIds={selectedRevisionIds}
+                                            selectedRevisionsByEvaluator={
+                                                selectedRevisionsByEvaluator
                                             }
-                                            selectedRevisionId={
-                                                latestSelectedEvaluator?.revisionId ?? null
-                                            }
-                                            openVersionOnHover
+                                            totalRevisionsByEvaluator={totalRevisionsByEvaluator}
+                                            onDeselectRevision={handleRemoveEvaluator}
+                                            onClearAll={handleClearEvaluators}
                                         />
                                         {selectedEvaluators.map((evaluator) => (
                                             <SelectedEvaluatorCard

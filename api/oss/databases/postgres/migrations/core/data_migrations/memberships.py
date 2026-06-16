@@ -1,3 +1,5 @@
+import uuid_utils.compat as uuid
+
 import sqlalchemy as sa
 from sqlalchemy import Connection, insert
 from sqlalchemy.future import select
@@ -30,18 +32,21 @@ project_invitations = sa.table(
 )
 organization_members = sa.table(
     "organization_members",
+    sa.column("id", sa.UUID()),
     sa.column("user_id", sa.UUID()),
     sa.column("organization_id", sa.UUID()),
     sa.column("role", sa.String()),
 )
 workspace_members = sa.table(
     "workspace_members",
+    sa.column("id", sa.UUID()),
     sa.column("user_id", sa.UUID()),
     sa.column("workspace_id", sa.UUID()),
     sa.column("role", sa.String()),
 )
 project_members = sa.table(
     "project_members",
+    sa.column("id", sa.UUID()),
     sa.column("user_id", sa.UUID()),
     sa.column("project_id", sa.UUID()),
     sa.column("role", sa.String()),
@@ -91,7 +96,10 @@ def upgrade_membership_backfill(session: Connection):
         if user_id and (user_id, organization_id) not in org_member_keys:
             session.execute(
                 insert(organization_members).values(
-                    user_id=user_id, organization_id=organization_id, role=role
+                    id=uuid.uuid7(),
+                    user_id=user_id,
+                    organization_id=organization_id,
+                    role=role,
                 )
             )
             org_member_keys.add((user_id, organization_id))
@@ -100,7 +108,10 @@ def upgrade_membership_backfill(session: Connection):
         if user_id and (user_id, workspace_id) not in workspace_member_keys:
             session.execute(
                 insert(workspace_members).values(
-                    user_id=user_id, workspace_id=workspace_id, role=role
+                    id=uuid.uuid7(),
+                    user_id=user_id,
+                    workspace_id=workspace_id,
+                    role=role,
                 )
             )
             workspace_member_keys.add((user_id, workspace_id))
@@ -109,7 +120,7 @@ def upgrade_membership_backfill(session: Connection):
         if user_id and (user_id, project_id) not in project_member_keys:
             session.execute(
                 insert(project_members).values(
-                    user_id=user_id, project_id=project_id, role=role
+                    id=uuid.uuid7(), user_id=user_id, project_id=project_id, role=role
                 )
             )
             project_member_keys.add((user_id, project_id))

@@ -73,6 +73,8 @@ export interface ListQueryState<T> {
     isPending: boolean
     isError: boolean
     error?: Error | null
+    /** Whether the backing query has completed at least once. */
+    isFetched?: boolean
 }
 
 // ============================================================================
@@ -253,6 +255,12 @@ export interface HierarchyLevel<T = unknown> {
      * Get description text for entity
      */
     getDescription?: (entity: T) => string | undefined
+
+    /**
+     * Get a suffix node rendered after the label block, before the chevron
+     * (e.g., an evaluator type tag). Vertically centered against the whole row.
+     */
+    getSuffixNode?: (entity: T) => ReactNode
 
     /**
      * Filter function to exclude items from the list.
