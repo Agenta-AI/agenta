@@ -26,11 +26,16 @@ ag.init(
     api_url=env.agenta.api_url,
 )
 
+# Bound the stream so acked entries are trimmed; without this it grows unbounded.
+MAXLEN_QUEUES_WEBHOOKS = 100_000
+
 # BROKER -------------------------------------------------------------------
 broker = RedisStreamBroker(
     url=env.redis.uri_durable,
     queue_name="queues:webhooks",
     consumer_group_name="worker-webhooks",
+    maxlen=MAXLEN_QUEUES_WEBHOOKS,
+    approximate=True,
     # Use defaults for timeout as webhooks are short
 )
 

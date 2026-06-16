@@ -20,13 +20,19 @@ import {
     evaluatorTemplatesMapAtom,
     evaluatorTemplatesDataAtom,
     evaluatorConfigsQueryStateAtom,
+    evaluatorWorkflowMetaMapAtom,
     humanEvaluatorsListQueryAtom,
     workflowAppTypeAtomFamily,
     workflowsListDataAtom,
 } from "@agenta/entities/workflow"
 import {atom, getDefaultStore, useAtomValue} from "jotai"
 
-import {renderEvaluatorPickerLabelNode} from "./evaluatorLabelUtils"
+import {
+    renderEvaluatorPickerLabelNode,
+    renderEvaluatorPickerNameNode,
+    renderEvaluatorTypeTag,
+} from "./evaluatorLabelUtils"
+import {formatWorkflowMetaDescription} from "./evaluatorWorkflowMetaDescription"
 import {
     createWorkflowRevisionAdapter,
     type WorkflowRevisionSelectionResult,
@@ -121,21 +127,34 @@ export function useEnrichedEvaluatorBrowseAdapter() {
  * Used by annotation pages and playground evaluator connect flow.
  *
  * @param revisionLabelOverride - Optional custom label renderer for revision level
+ * @param options.showWorkflowMeta - When true, evaluator rows expose a
+ *   "N versions · date" description (consumed by pickers that opt into
+ *   showing parent descriptions). Default false — existing callers unchanged.
+ * @param options.splitTypeTag - When true, the colored type tag moves out of
+ *   the label line into the adapter's `getSuffixNode` (rendered after the
+ *   label block, vertically centered against the whole row). Default false —
+ *   existing callers keep the tag trailing the name.
  */
 export function useEnrichedEvaluatorOnlyAdapter(
     revisionLabelOverride?: (entity: unknown) => React.ReactNode,
+    options?: {showWorkflowMeta?: boolean; splitTypeTag?: boolean},
 ) {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
     const templates = useAtomValue(evaluatorTemplatesDataAtom)
+    const workflowMetaMap = useAtomValue(evaluatorWorkflowMetaMapAtom)
     const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
     const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
     const revisionLabelOverrideRef = useRef(revisionLabelOverride)
+    const workflowMetaMapRef = useRef(workflowMetaMap)
 
     evaluatorKeyMapRef.current = evaluatorKeyMap
     evaluatorDefsByKeyRef.current = evaluatorDefsByKey
     revisionLabelOverrideRef.current = revisionLabelOverride
+    workflowMetaMapRef.current = workflowMetaMap
 
     const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
+    const showWorkflowMeta = Boolean(options?.showWorkflowMeta)
+    const splitTypeTag = Boolean(options?.splitTypeTag)
 
     // Build a stable Map<evaluatorKey, primaryCategory> from template data
     const templateCategoryMap = useMemo(() => {
@@ -167,12 +186,25 @@ export function useEnrichedEvaluatorOnlyAdapter(
     )
 
     return useMemo(() => {
-        const getLabelNode = (entity: unknown): React.ReactNode =>
-            renderEvaluatorPickerLabelNode(
-                entity,
-                evaluatorKeyMapRef.current,
-                evaluatorDefsByKeyRef.current,
-            )
+        // With splitTypeTag the colored tag renders in the row's suffix slot
+        // (vertically centered) instead of trailing the name.
+        const getLabelNode = splitTypeTag
+            ? renderEvaluatorPickerNameNode
+            : (entity: unknown): React.ReactNode =>
+                  renderEvaluatorPickerLabelNode(
+                      entity,
+                      evaluatorKeyMapRef.current,
+                      evaluatorDefsByKeyRef.current,
+                  )
+
+        const getSuffixNode = splitTypeTag
+            ? (entity: unknown): React.ReactNode =>
+                  renderEvaluatorTypeTag(
+                      entity,
+                      evaluatorKeyMapRef.current,
+                      evaluatorDefsByKeyRef.current,
+                  )
+            : undefined
 
         // Resolve workflowId → evaluatorKey → primary category
         const getGroupKey = (entity: unknown): string | null | undefined => {
@@ -192,12 +224,21 @@ export function useEnrichedEvaluatorOnlyAdapter(
 
         const getGroupLabel = (key: string): string => CATEGORY_LABELS[key] ?? key
 
+        const getDescription = showWorkflowMeta
+            ? (entity: unknown): string | undefined => {
+                  const w = entity as {id: string}
+                  return formatWorkflowMetaDescription(workflowMetaMapRef.current.get(w.id))
+              }
+            : undefined
+
         const options: NonNullable<Parameters<typeof createWorkflowRevisionAdapter>[0]> = {
             skipVariantLevel: true,
             excludeRevisionZero: true,
             workflowListAtom: autoEvaluatorsListAtom,
             grandparentOverrides: {
                 getLabelNode,
+                getDescription,
+                getSuffixNode,
                 getGroupKey,
                 getGroupLabel,
                 buildTabs: (entities: unknown[]) => {
@@ -232,7 +273,7 @@ export function useEnrichedEvaluatorOnlyAdapter(
         }
 
         return createWorkflowRevisionAdapter(options)
-    }, [hasRevisionLabelOverride, autoEvaluatorsListAtom])
+    }, [hasRevisionLabelOverride, showWorkflowMeta, splitTypeTag, autoEvaluatorsListAtom])
 }
 
 type AnnotationWorkflowRevisionSelectionResult = WorkflowRevisionSelectionResult & {
@@ -247,17 +288,22 @@ type AnnotationWorkflowRevisionSelectionResult = WorkflowRevisionSelectionResult
  */
 export function useEnrichedHumanEvaluatorAdapter(
     revisionLabelOverride?: (entity: unknown) => React.ReactNode,
+    options?: {showWorkflowMeta?: boolean},
 ) {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
+    const workflowMetaMap = useAtomValue(evaluatorWorkflowMetaMapAtom)
     const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
     const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
     const revisionLabelOverrideRef = useRef(revisionLabelOverride)
+    const workflowMetaMapRef = useRef(workflowMetaMap)
 
     evaluatorKeyMapRef.current = evaluatorKeyMap
     evaluatorDefsByKeyRef.current = evaluatorDefsByKey
     revisionLabelOverrideRef.current = revisionLabelOverride
+    workflowMetaMapRef.current = workflowMetaMap
 
     const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
+    const showWorkflowMeta = Boolean(options?.showWorkflowMeta)
 
     // Stable atom that wraps humanEvaluatorsListQueryAtom into ListQueryState<unknown>.
     // Uses a proper Jotai atom so filtering reactively updates when revision data resolves.
@@ -289,6 +335,14 @@ export function useEnrichedHumanEvaluatorAdapter(
             workflowListAtom: humanEvaluatorsListAtom,
             grandparentOverrides: {
                 getLabelNode,
+                getDescription: showWorkflowMeta
+                    ? (entity: unknown): string | undefined => {
+                          const workflow = entity as {id: string}
+                          return formatWorkflowMetaDescription(
+                              workflowMetaMapRef.current.get(workflow.id),
+                          )
+                      }
+                    : undefined,
             },
             toSelection: (path, leafEntity) => {
                 const revision = leafEntity as {id: string; version?: number}
@@ -324,7 +378,7 @@ export function useEnrichedHumanEvaluatorAdapter(
         }
 
         return createWorkflowRevisionAdapter(options)
-    }, [hasRevisionLabelOverride, humanEvaluatorsListAtom])
+    }, [hasRevisionLabelOverride, humanEvaluatorsListAtom, showWorkflowMeta])
 }
 
 /**
