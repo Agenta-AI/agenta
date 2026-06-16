@@ -51,6 +51,7 @@ import {
     isManagedServiceUrl,
     deriveWorkflowTypeFromRevision,
 } from "./helpers"
+import type {WorkflowType} from "./molecule"
 
 // ============================================================================
 // HELPERS
@@ -856,8 +857,11 @@ export const workflowLatestRevisionIdAtomFamily = atomFamily((workflowId: string
  * when used inside InfiniteVirtualTable cells, which render in an isolated store.
  */
 export const workflowAppTypeAtomFamily = atomFamily((workflowId: string) =>
-    atom((get) => {
+    atom<WorkflowType | null>((get) => {
         const query = get(workflowLatestRevisionQueryAtomFamily(workflowId))
+
+        if (query.isPending || !query.data) return null
+
         return deriveWorkflowTypeFromRevision(query.data)
     }),
 )
