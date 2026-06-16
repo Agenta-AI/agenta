@@ -17,6 +17,7 @@ import {useEffect, useMemo, useRef} from "react"
 
 import {
     activateEvaluatorEnrichmentAtom,
+    evaluatorEnrichmentActivatedAtom,
     evaluatorKeyMapAtom,
     evaluatorTemplatesMapAtom,
     evaluatorTemplatesDataAtom,
@@ -178,6 +179,13 @@ export function useEnrichedEvaluatorOnlyAdapter(
     const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
     const showWorkflowMeta = Boolean(options?.showWorkflowMeta)
     const splitTypeTag = Boolean(options?.splitTypeTag)
+    // The EntityPicker subscribes to the list atom below on MOUNT (even while
+    // closed), and that list flows through evaluatorConfigsQueryStateAtom →
+    // evaluatorRevisionFlagsMapAtom, which fans out a latest-revision query per
+    // evaluator. For lazy callers we hold that list empty until the shared
+    // enrichment gate opens, so a closed picker mounts no fan-out.
+    const lazyRef = useRef(Boolean(options?.lazy))
+    lazyRef.current = Boolean(options?.lazy)
 
     // Build a stable Map<evaluatorKey, primaryCategory> from template data
     const templateCategoryMap = useMemo(() => {
@@ -197,6 +205,10 @@ export function useEnrichedEvaluatorOnlyAdapter(
     const autoEvaluatorsListAtom = useMemo(
         () =>
             atom((get) => {
+                // Lazy + gate-closed → don't subscribe to the fan-out list yet.
+                if (lazyRef.current && !get(evaluatorEnrichmentActivatedAtom)) {
+                    return {data: [] as unknown[], isPending: true, isError: false, error: null}
+                }
                 const state = get(evaluatorConfigsQueryStateAtom)
                 return {
                     data: state.data as unknown[],

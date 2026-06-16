@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {humanEvaluatorsListDataAtom} from "@agenta/entities/workflow"
-import {useAtomValue} from "jotai"
+import {humanEvaluatorsListDataAtom, type Workflow} from "@agenta/entities/workflow"
+import {atom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useLocalStorage} from "usehooks-ts"
 
@@ -13,6 +13,13 @@ import {AnnotateDrawerSteps} from "./assets/enum"
 import {useEvaluatorSchemas} from "./assets/hooks/useEvaluatorSchemas"
 import {AnnotateDrawerProps, AnnotateDrawerStepsType, UpdatedMetricsType} from "./assets/types"
 import {isAnnotationCreatedByCurrentUser} from "./assets/utils"
+
+// `humanEvaluatorsListDataAtom` resolves every evaluator's latest revision (a
+// batched per-evaluator fan-out). This drawer is mounted (closed) in shared
+// layouts incl. the playground, so reading it unconditionally fired that fan-out
+// on every page load. Swap in a stable empty atom while the drawer is closed —
+// the list is only needed once it opens.
+const EMPTY_EVALUATOR_REFS_ATOM = atom<Workflow[]>([])
 
 const Annotate = dynamic(() => import("./assets/Annotate"), {ssr: false})
 const SelectEvaluators = dynamic(() => import("./assets/SelectEvaluators"), {ssr: false})
@@ -30,7 +37,9 @@ const AnnotateDrawer = ({
     ...props
 }: AnnotateDrawerProps) => {
     const {projectId} = getProjectValues()
-    const evaluatorRefs = useAtomValue(humanEvaluatorsListDataAtom)
+    const evaluatorRefs = useAtomValue(
+        props.open ? humanEvaluatorsListDataAtom : EMPTY_EVALUATOR_REFS_ATOM,
+    )
     const evaluators = useEvaluatorSchemas(evaluatorRefs as any)
     const evalLSKey = `${projectId}-evaluator`
 
