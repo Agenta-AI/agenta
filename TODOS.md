@@ -18,10 +18,20 @@
 - **Depends on:** the `@agenta/onboarding` state extraction landing first.
 
 ### Entity-driven widget completion
-- **What:** Derive widget completion (`prompt_created`, `evaluation_ran`, `testset_created`,
-  `evaluator_created`, `variant_deployed`, `trace_annotated`) from `@agenta/entities` state
-  instead of imperative `recordWidgetEvent`. Hybrid resolver (6 `has*` selectors + the ~6
-  events with no backing entity stay imperative), union-with-stored (never un-complete),
+- **STARTED (commit 702b8b620d):** the app-registered selector machinery now exists in
+  `@agenta/onboarding/state` — `setCompletionSelectors({eventId: Atom<{loading,complete}>})`,
+  `onboardingWidgetCompletionAtom` unions derived selectors with imperative events (derived
+  never un-completes), `onboardingWidgetCompletionLoadingAtom` for the no-flash requirement.
+  Covered by 6 unit tests + a real integration test (`testset_created` ⇐ `testsetsListAtom`,
+  reusing the entities harness; env-gated). `@agenta/entities` is a test-only devDep; `/state`
+  stays entities-free so playground-ui's bundle is unaffected.
+- **Remaining:** wire the OSS app (and EE) to actually call `setCompletionSelectors` in
+  production with the real selectors; add the other 5 derived selectors (`prompt_created`,
+  `evaluation_ran`, `evaluator_created`, `variant_deployed`, `trace_annotated`); have the widget
+  consume `onboardingWidgetCompletionLoadingAtom`; EE `setUserAtoms`; decide migration semantics
+  for already-onboarded users. The ~6 events with no backing entity stay imperative.
+- **What (original):** Derive widget completion from `@agenta/entities` state instead of
+  imperative `recordWidgetEvent`. Hybrid resolver, union-with-stored (never un-complete),
   `{loading,complete}` selector contract, behind a flag.
 - **Why:** Completion becomes truth-based, not "did we remember to fire the event."
 - **Pros:** Fewer scattered imperative event calls; accurate completion.
