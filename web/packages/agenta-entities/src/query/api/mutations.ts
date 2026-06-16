@@ -9,9 +9,15 @@
 
 import {getAgentaSdkClient} from "@agenta/sdk"
 import {getAgentaApiUrl} from "@agenta/shared/api"
+import type {AgentaApi} from "@agentaai/api-client"
 import {v4 as uuidv4} from "uuid"
 
-import type {CreateSimpleQueryParams, CreateSimpleQueryResult, SimpleQueryEdit} from "../core/types"
+import type {
+    CreateSimpleQueryParams,
+    CreateSimpleQueryResult,
+    QueryRevisionDataInput,
+    SimpleQueryEdit,
+} from "../core/types"
 
 import {retrieveQueryRevision} from "./api"
 
@@ -76,6 +82,43 @@ export async function editSimpleQuery({
     const client = getAgentaSdkClient({host: getAgentaApiUrl()})
     await client.queries.editSimpleQuery(
         {query_id: queryId, query},
+        {queryParams: {project_id: projectId}},
+    )
+}
+
+export interface CommitQueryRevisionParams {
+    projectId: string
+    /** The query's head variant to commit a new revision onto. */
+    variantId: string
+    data: QueryRevisionDataInput
+    name?: string
+    /** Git-style commit message attached to the new revision. */
+    message?: string
+}
+
+/**
+ * Commit a new revision to a query's variant with an optional commit message —
+ * the git-style update path (`/queries/revisions/commit`). Unlike
+ * `editSimpleQuery`, this carries a `message`, so it backs the registry's commit
+ * modal. Simple queries are single-variant, so the variant id comes from the
+ * head revision.
+ */
+export async function commitQueryRevision({
+    projectId,
+    variantId,
+    data,
+    name,
+    message,
+}: CommitQueryRevisionParams): Promise<void> {
+    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
+    const queryRevision: AgentaApi.QueryRevisionCommit = {
+        variant_id: variantId,
+        data,
+        ...(name != null ? {name} : {}),
+        ...(message ? {message} : {}),
+    }
+    await client.queries.commitQueryRevision(
+        {query_revision: queryRevision},
         {queryParams: {project_id: projectId}},
     )
 }

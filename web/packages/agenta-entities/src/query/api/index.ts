@@ -19,6 +19,8 @@ export {
     type EditSimpleQueryParams,
     archiveSimpleQuery,
     type ArchiveSimpleQueryParams,
+    commitQueryRevision,
+    type CommitQueryRevisionParams,
     unarchiveSimpleQuery,
     type UnarchiveSimpleQueryParams,
 } from "./mutations"

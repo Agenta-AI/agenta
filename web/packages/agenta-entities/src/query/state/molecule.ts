@@ -15,8 +15,8 @@ import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
 
 import {createMolecule, type AtomFamily, type QueryState} from "../../shared"
-import {editSimpleQuery} from "../api"
-import type {QueryRevision, SimpleQueryEdit} from "../core"
+import {commitQueryRevision, editSimpleQuery} from "../api"
+import type {QueryRevision, QueryRevisionDataInput, SimpleQueryEdit} from "../core"
 
 import {invalidateQueryCache, queryHeadDraftAtomFamily, queryHeadQueryAtomFamily} from "./store"
 
@@ -52,16 +52,22 @@ export const queryMolecule = createMolecule<QueryRevision, Partial<QueryRevision
 export interface SaveQueryHeadParams {
     projectId: string
     queryId: string
+    /** Optional git-style commit message for the new revision. */
+    message?: string
 }
 
 /**
- * Commit the draft as a new head revision (`editSimpleQuery`), clear the draft,
- * and refresh caches. No-op when there are no unsaved changes. The draft carries
- * the full {name, data}, so it wins over (possibly stale) server data on merge.
+ * Commit the draft as a new head revision, clear the draft, and refresh caches.
+ * No-op when there are no unsaved changes. The draft carries the full {name,
+ * data}, so it wins over (possibly stale) server data on merge.
+ *
+ * When the head revision's variant id is known, commits through the git endpoint
+ * so a commit `message` can be attached; otherwise falls back to the simple edit
+ * (no message).
  */
 export const saveQueryHeadAtom = atom(
     null,
-    async (get, set, {projectId, queryId}: SaveQueryHeadParams): Promise<void> => {
+    async (get, set, {projectId, queryId, message}: SaveQueryHeadParams): Promise<void> => {
         const draft = get(queryHeadDraftAtomFamily(queryId))
         if (!draft) return
         const serverData = get(queryMolecule.atoms.serverData(queryId))
@@ -69,15 +75,25 @@ export const saveQueryHeadAtom = atom(
         const data = {
             filtering: merged.data?.filtering ?? null,
             windowing: merged.data?.windowing ?? null,
-        } as NonNullable<SimpleQueryEdit["data"]>
-        await editSimpleQuery({
-            projectId,
-            queryId,
-            query: {
-                ...(merged.name != null ? {name: merged.name} : {}),
-                data,
-            },
-        })
+        }
+        const name = merged.name ?? undefined
+        const variantId = serverData?.variant_id ?? serverData?.query_variant_id ?? null
+
+        if (variantId) {
+            await commitQueryRevision({
+                projectId,
+                variantId,
+                data: data as QueryRevisionDataInput,
+                name,
+                message,
+            })
+        } else {
+            await editSimpleQuery({
+                projectId,
+                queryId,
+                query: {...(name != null ? {name} : {}), data: data as SimpleQueryEdit["data"]},
+            })
+        }
         set(queryHeadDraftAtomFamily(queryId), null)
         invalidateQueryCache()
     },

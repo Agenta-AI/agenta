@@ -15,6 +15,7 @@ import {Button, Form, Input, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
+import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {
     fromFilteringPayload,
     parseSamplingRate,
@@ -61,6 +62,9 @@ const QueryRegistryDrawer = () => {
     const [saving, setSaving] = useState(false)
     const [matchState, setMatchState] = useState<MatchState>({status: "idle"})
     const [showPreview, setShowPreview] = useState(false)
+    // Edit commits go through a commit modal so the user can attach a message.
+    const [commitOpen, setCommitOpen] = useState(false)
+    const [commitMessage, setCommitMessage] = useState("")
 
     const watchedName = Form.useWatch("name", form)
     const watchedRate = Form.useWatch("sampling_rate", form)
@@ -168,6 +172,8 @@ const QueryRegistryDrawer = () => {
         setFilters([])
         setMatchState({status: "idle"})
         setShowPreview(false)
+        setCommitOpen(false)
+        setCommitMessage("")
         form.resetFields()
     }, [setActiveRow, form, queryId, discardDraft])
 
@@ -194,19 +200,19 @@ const QueryRegistryDrawer = () => {
             return // antd surfaces field errors inline
         }
 
-        setSaving(true)
-        try {
-            const filtering = toFilteringPayload(filters)
-            const windowing = toWindowingPayload({
-                samplingRate: parseSamplingRate(values.sampling_rate),
-                historicalRange: undefined,
-            })
+        const filtering = toFilteringPayload(filters)
+        const windowing = toWindowingPayload({
+            samplingRate: parseSamplingRate(values.sampling_rate),
+            historicalRange: undefined,
+        })
+
+        if (isCreate) {
             const data: QueryRevisionDataPayload = {}
             if (filtering) data.filtering = filtering
             if (windowing) data.windowing = windowing
             const dataField = Object.keys(data).length ? data : undefined
-
-            if (isCreate) {
+            setSaving(true)
+            try {
                 await createSimpleQuery({
                     projectId,
                     query: {
@@ -215,96 +221,144 @@ const QueryRegistryDrawer = () => {
                     },
                 })
                 message.success("Query created")
-            } else {
-                // Commit through the molecule: flush the validated values into the
-                // draft, then save (commits a new head revision + clears the draft).
-                syncDraft(queryId, {
-                    name: values.name,
-                    data: {filtering: filtering ?? undefined, windowing: windowing ?? undefined},
-                } as unknown as Partial<QueryRevision>)
-                await saveQueryHead({projectId, queryId})
-                message.success("Query updated")
+                invalidateQueryRegistryStore()
+                invalidateQueryCache()
+                close()
+            } catch {
+                message.error("Could not create query")
+            } finally {
+                setSaving(false)
             }
+            return
+        }
 
+        // Edit: flush the validated values into the molecule draft, then open the
+        // commit modal so the user can attach a commit message before committing.
+        syncDraft(queryId, {
+            name: values.name,
+            data: {filtering: filtering ?? undefined, windowing: windowing ?? undefined},
+        } as unknown as Partial<QueryRevision>)
+        setCommitMessage("")
+        setCommitOpen(true)
+    }, [projectId, activeRow, form, filters, isCreate, close, queryId, syncDraft])
+
+    const confirmCommit = useCallback(async () => {
+        if (!projectId || !queryId) return
+        setSaving(true)
+        try {
+            await saveQueryHead({projectId, queryId, message: commitMessage.trim() || undefined})
+            message.success("Query updated")
             invalidateQueryRegistryStore()
             invalidateQueryCache()
+            setCommitOpen(false)
             close()
         } catch {
-            message.error(isCreate ? "Could not create query" : "Could not save query")
+            message.error("Could not save query")
         } finally {
             setSaving(false)
         }
-    }, [projectId, activeRow, form, filters, isCreate, close, queryId, syncDraft, saveQueryHead])
+    }, [projectId, queryId, commitMessage, saveQueryHead, close])
 
     return (
-        <EnhancedDrawer
-            title={<span>{isCreate ? "New query" : "Edit query"}</span>}
-            open={open}
-            onClose={close}
-            width={showPreview ? 960 : 520}
-            destroyOnHidden
-            closeOnLayoutClick={false}
-            styles={{body: {padding: 0}, footer: {padding: 8}}}
-            footer={
-                <div className="flex w-full items-center justify-end gap-2">
-                    <Button onClick={close}>Cancel</Button>
-                    <Button
-                        type="primary"
-                        onClick={handleSave}
-                        loading={saving}
-                        disabled={!isDirty}
-                    >
-                        {isCreate ? "Create" : "Save"}
-                    </Button>
-                </div>
-            }
-        >
-            <Form
-                form={form}
-                layout="vertical"
-                requiredMark={false}
-                className="p-4"
-                initialValues={{historical: false, sampling_rate: 100}}
+        <>
+            <EnhancedDrawer
+                title={<span>{isCreate ? "New query" : "Edit query"}</span>}
+                open={open}
+                onClose={close}
+                width={showPreview ? 960 : 520}
+                destroyOnHidden
+                closeOnLayoutClick={false}
+                styles={{body: {padding: 0}, footer: {padding: 8}}}
+                footer={
+                    <div className="flex w-full items-center justify-end gap-2">
+                        <Button onClick={close}>Cancel</Button>
+                        <Button
+                            type="primary"
+                            onClick={handleSave}
+                            loading={saving}
+                            disabled={!isDirty}
+                        >
+                            {isCreate ? "Create" : "Save"}
+                        </Button>
+                    </div>
+                }
             >
-                <Form.Item
-                    name="name"
-                    label="Name"
-                    rules={[{required: true, message: "Enter a name"}]}
+                <Form
+                    form={form}
+                    layout="vertical"
+                    requiredMark={false}
+                    className="p-4"
+                    initialValues={{historical: false, sampling_rate: 100}}
                 >
-                    <Input placeholder="Query name" />
-                </Form.Item>
-                <QueryEditor
-                    inlineFilters
-                    filters={filters}
-                    onFiltersChange={setFilters}
-                    filterColumns={filterColumns}
-                />
-                <div className="mt-3 flex items-center justify-between gap-3">
-                    {matchLabel ? (
-                        <div aria-live="polite">
-                            <Text type={matchIsEmpty ? "warning" : "secondary"} className="text-xs">
-                                {matchLabel}
-                            </Text>
-                        </div>
-                    ) : (
-                        <span />
-                    )}
-                    <Button
-                        type="link"
-                        size="small"
-                        className="px-0 text-xs"
-                        onClick={() => setShowPreview((v) => !v)}
+                    <Form.Item
+                        name="name"
+                        label="Name"
+                        rules={[{required: true, message: "Enter a name"}]}
                     >
-                        {showPreview ? "Hide matching traces" : "Show matching traces"}
-                    </Button>
+                        <Input placeholder="Query name" />
+                    </Form.Item>
+                    <QueryEditor
+                        inlineFilters
+                        filters={filters}
+                        onFiltersChange={setFilters}
+                        filterColumns={filterColumns}
+                    />
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                        {matchLabel ? (
+                            <div aria-live="polite">
+                                <Text
+                                    type={matchIsEmpty ? "warning" : "secondary"}
+                                    className="text-xs"
+                                >
+                                    {matchLabel}
+                                </Text>
+                            </div>
+                        ) : (
+                            <span />
+                        )}
+                        <Button
+                            type="link"
+                            size="small"
+                            className="px-0 text-xs"
+                            onClick={() => setShowPreview((v) => !v)}
+                        >
+                            {showPreview ? "Hide matching traces" : "Show matching traces"}
+                        </Button>
+                    </div>
+                </Form>
+                {showPreview ? (
+                    <div className="flex h-[360px] flex-col border-t border-solid border-[var(--ant-color-border-secondary)]">
+                        <QueryTracePreview projectId={projectId} filtering={previewFiltering} />
+                    </div>
+                ) : null}
+            </EnhancedDrawer>
+            <EnhancedModal
+                centered
+                width={480}
+                open={commitOpen}
+                title="Commit changes"
+                okText="Commit"
+                cancelText="Cancel"
+                onOk={confirmCommit}
+                onCancel={() => setCommitOpen(false)}
+                okButtonProps={{loading: saving}}
+            >
+                <div className="flex flex-col gap-2">
+                    <Text type="secondary" className="text-xs">
+                        Saving creates a new version of this query. Add an optional message
+                        describing what changed.
+                    </Text>
+                    <Input.TextArea
+                        autoFocus
+                        rows={3}
+                        value={commitMessage}
+                        onChange={(event) => setCommitMessage(event.target.value)}
+                        placeholder="Commit message (optional)"
+                        maxLength={280}
+                    />
                 </div>
-            </Form>
-            {showPreview ? (
-                <div className="flex h-[360px] flex-col border-t border-solid border-[var(--ant-color-border-secondary)]">
-                    <QueryTracePreview projectId={projectId} filtering={previewFiltering} />
-                </div>
-            ) : null}
-        </EnhancedDrawer>
+            </EnhancedModal>
+        </>
     )
 }
 
