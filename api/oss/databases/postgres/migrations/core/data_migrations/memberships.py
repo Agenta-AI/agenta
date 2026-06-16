@@ -1,4 +1,4 @@
-import uuid
+import uuid_utils.compat as uuid
 
 import sqlalchemy as sa
 from sqlalchemy import Connection, insert
