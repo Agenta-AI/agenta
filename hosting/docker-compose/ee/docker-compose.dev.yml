@@ -428,8 +428,12 @@ services:
             sh -c "mkdir -p /pi-agent && cp -a /pi-agent-ro/. /pi-agent/ 2>/dev/null || true;
             exec node_modules/.bin/tsx src/server.ts"
         # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.ee.dev}
+        # Deliberately NO env_file: the Pi sandbox must not inherit the stack's
+        # secrets (COMPOSIO_API_KEY, STRIPE/POSTHOG/GOOGLE/DAYTONA keys, ...). Tools
+        # run server-side via /tools/call, so the sandbox only needs its own port,
+        # the Pi login (mounted below), and the OTLP export fallback. The wrapper
+        # reads exactly: PORT, PI_CODING_AGENT_DIR, AGENTA_HOST, AGENTA_API_KEY, and
+        # the optional AGENTA_AGENT_TOOL_CALL_TIMEOUT_MS / OTEL_SERVICE_NAME.
         environment:
             PORT: "8765"
             PI_CODING_AGENT_DIR: /pi-agent

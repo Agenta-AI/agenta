@@ -92,8 +92,9 @@ network the internal hostname resolves from both; if it does not, the sidecar's
 
 ## How to verify
 
-1. Start the service (`entrypoints.agent_main:app`) with `AGENTA_HOST` and
-   `AGENTA_API_KEY` set and a Pi login or provider key available.
+1. Start the services app (`entrypoints.main:app`, which mounts the agent at
+   `/agent/v0`) with `AGENTA_HOST` and `AGENTA_API_KEY` set and a Pi login or provider
+   key available.
 2. POST a chat-style body to `/agent/v0/invoke` and read `x-ag-trace-id` from the
    response headers (it equals `trace_id` in the body).
 3. Fetch the trace and confirm the merged tree and the totals:

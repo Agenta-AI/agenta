@@ -34,24 +34,30 @@ AGENT_INPUTS_SCHEMA = {
     },
 }
 
-# Parameters: the agent config the playground renders as editable fields. Exposes
-# the two values that actually drive a run: the model and the AGENTS.md instructions.
-# `x-parameters.multiline` is the hint the playground honors to render a textarea.
+# Parameters: the agent config the playground renders. We reuse the existing
+# `prompt-template` control (model selector + tool picker + message editor) instead
+# of a bespoke agent form: the `x-ag-type-ref: prompt-template` marker makes the
+# playground render the same prompt UI chat/completion use, so the tool picker comes
+# for free. The agent reads the system message as its AGENTS.md, `llm_config.model`
+# as the model, and `llm_config.tools` (the picker output) as its runnable tools.
 AGENT_PARAMETERS_SCHEMA = {
     "$schema": _SCHEMA,
     "type": "object",
     "additionalProperties": True,
     "properties": {
-        "model": {
-            "type": "string",
-            "default": _DEFAULT_MODEL,
-            "description": "Model the agent runs on.",
-        },
-        "agents_md": {
-            "type": "string",
-            "default": _DEFAULT_AGENTS_MD,
-            "description": "The agent's instructions (AGENTS.md).",
-            "x-parameters": {"multiline": True},
+        "prompt": {
+            "x-ag-type-ref": "prompt-template",
+            "type": "object",
+            "description": (
+                "The agent's instructions (system message), model, and tools. Tools "
+                "are picked from connected providers (e.g. Composio) and run "
+                "server-side via /tools/call."
+            ),
+            "default": {
+                "messages": [{"role": "system", "content": _DEFAULT_AGENTS_MD}],
+                "template_format": "mustache",
+                "llm_config": {"model": _DEFAULT_MODEL, "tools": []},
+            },
         },
     },
 }

@@ -9,7 +9,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 # services/oss/src/agent_pi/config.py -> parents[3] == services/
 _SERVICES_DIR = Path(__file__).resolve().parents[3]
@@ -30,7 +30,11 @@ DEFAULT_AGENTS_MD = (
 class AgentConfig:
     agents_md: str
     model: Optional[str] = None
-    tools: List[str] = field(default_factory=list)
+    # Provider-agnostic tool references (WP-7). Each entry is either a plain string
+    # (a Pi built-in name, normalized to a ``builtin`` ref downstream) or a
+    # discriminated dict (``{"type": "composio", ...}``). Resolution happens in the
+    # backend at invoke time; the service just forwards the list.
+    tools: List[Any] = field(default_factory=list)
 
 
 def wrapper_dir() -> Path:

@@ -42,6 +42,10 @@ class PiHttpHarness(Harness):
             "prompt": request.prompt,
             "messages": request.messages,
             "tools": request.tools,
+            "customTools": request.custom_tools,
+            "toolCallback": request.tool_callback.to_wire()
+            if request.tool_callback
+            else None,
             "trace": request.trace.to_wire() if request.trace else None,
         }
 

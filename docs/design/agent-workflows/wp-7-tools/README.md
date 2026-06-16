@@ -1,6 +1,8 @@
 # WP-7: Runnable tools as agent configuration
 
-Status: design draft. Builds on WP-2 (agent service) and WP-6 (workflow type and template).
+Status: Composio MVP implemented. Resolution lives in `api`; the bridge routes Pi tool
+calls back through `POST /tools/call`. Builds on WP-2 (agent service) and WP-6 (workflow
+type and template). See [Implementation status](#implementation-status-composio-mvp) below.
 
 ## Goal
 
@@ -204,6 +206,99 @@ dispatches purely by `provider_key` through the registry, the agent side stays p
 - An execution bridge that routes Pi tool calls through `/tools/call`, verified with a Composio
   smoke run, with the call nested under the agent invoke span and the Composio key absent from the
   sandbox.
+
+## Implementation status (Composio MVP)
+
+What landed, by seam. WP-6 is not started, so resolution runs in `api` behind a thin
+endpoint that the agent service calls over HTTP; when WP-6 lands, its invoke path calls the
+same `ToolsService.resolve_agent_tools(...)` in-process and the HTTP hop drops out.
+
+**Backend (`api`) — the resolver and the shared connection lookup.**
+
+- `core/tools/dtos.py`: `AgentToolReference` (discriminated `builtin` | `composio`),
+  `ResolvedAgentTool` (`name`, `description`, `input_schema`, `call_ref`), and
+  `AgentToolsResolution` (`builtins`, `custom`).
+- `core/tools/service.py`: `resolve_connection_by_slug(...)` (extracted from `call_tool`, now
+  shared) and `resolve_agent_tools(...)`. Composio refs validate the connection up front,
+  enrich `description` + `input_schema` from the catalog (`get_action`), and build the
+  `call_ref` `tools.composio.{integration}.{action}.{connection}`. Slug segments are validated
+  and `__` is rejected so the `/tools/call` `__`↔`.` round-trip can't corrupt the split.
+- `apis/fastapi/tools/router.py`: `POST /tools/resolve` (project-scoped, EE `VIEW_TOOLS`)
+  returns the resolution; `call_tool` now reuses `resolve_connection_by_slug`. `call_tool` is
+  otherwise unchanged as the execution endpoint.
+
+**Agent service (`services/oss`) — thin driver.**
+
+- `agent_pi/ports.py`: `ToolCallback` (endpoint + authorization) and `custom_tools` /
+  `tool_callback` on `HarnessRequest`, serialized onto the wire by both harness adapters.
+- `agent.py`: reads `parameters["tools"]` (or the file config), POSTs them to `/tools/resolve`,
+  and threads the result plus a `/tools/call` callback into the harness. The callback endpoint
+  and credential reuse the OTLP-credential mechanism (`inject()` Authorization, API-base derived
+  from `ag.tracing.otlp_url`, with `AGENTA_AGENT_TOOLS_API_URL` / `AGENTA_API_KEY` fallbacks). An
+  agent with no tools never touches the backend, preserving the tool-less WP-2 path.
+
+**TS wrapper (`services/agent`) — the bridge.**
+
+- `runPi.ts`: `buildCustomTools(...)` turns each resolved spec into a Pi `customTool` whose
+  `execute` does one `POST {endpoint}` with the OpenAI envelope
+  `{ data: { id, type, function: { name: callRef, arguments } } }` and the callback
+  Authorization. Arguments go as an object (no double-encoding); the result `content` returns
+  verbatim; an HTTP/timeout failure throws, which Pi turns into a tool-error result rather than a
+  run failure. Custom tool names are added to the `createAgentSession` `tools` allowlist, because
+  the allowlist gates custom tools too (an empty allowlist would hide them).
+
+**Config schema as shipped.** Under the agent revision `parameters["tools"]`, each entry is a
+built-in tool name (string, normalized to `{"type": "builtin", "name": ...}`) or a discriminated
+object. Example:
+
+```json
+{
+  "model": "gpt-5.5",
+  "tools": [
+    "read_file",
+    { "type": "composio", "integration": "gmail", "action": "GMAIL_SEND_EMAIL",
+      "connection": "gmail-team", "name": "gmail__SEND_EMAIL" }
+  ]
+}
+```
+
+**Playground integration: reuse the existing tool picker.** The chat/completion tool picker
+only renders inside the prompt control, which the playground shows for a config field marked
+`x-ag-type-ref: "prompt-template"`. So the agent advertises its config as a `prompt`
+prompt-template (`agent_pi/schemas.py`) instead of a bespoke form: the playground then renders
+the same model selector + system-message editor + tool picker, with no new frontend code. The
+handler (`agent.py` `_resolve_run_config`) reads the system message as the AGENTS.md, the model
+and tools from `prompt.llm_config`, and still accepts the flat `{model, agents_md, tools}` an API
+caller may send. The picker encodes a Composio action as a gateway function name,
+`tools__{provider}__{integration}__{action}__{connection}` (connection = the connection slug);
+`agent.py` `_parse_gateway_slug` turns that into the same `composio` ref the resolver already
+takes, so no backend change was needed. Non-Composio picker entries (provider built-ins, inline
+functions) are skipped.
+
+**Verified live (2026-06-16, dev stack, pi-agents project).** A real GitHub Composio connection
+(`github-tvn`) plus a `GET_THE_AUTHENTICATED_USER` reference, passed via `parameters["tools"]` to
+the agent `/invoke`, drove the whole path: `/tools/resolve` built the spec, Pi registered the
+`github_whoami` customTool, called it, and the bridge executed the real action through
+`/tools/call`. The agent answered with live data (login `mmabrouk`, follower count, public-repo
+count) that only comes from executing the action. The trace nests the tool call correctly:
+`_agent → invoke_agent → turn 0 → {chat, execute_tool github_whoami} → turn 1 → chat`. The same
+run also works end to end from the playground: the picker shows the GitHub tool as a gateway card,
+and Run returns the live answer.
+
+Earlier unit-level checks still hold: the resolver builds correct specs and raises the right
+errors for missing / inactive / invalid connections, bad slugs, and missing actions; the bridge
+sends the right envelope, forwards Authorization, sends object-form arguments, returns content
+verbatim, and throws on HTTP error; Pi's validator accepts and coerces the plain Composio JSON
+Schema.
+
+**Deployment hardening found and fixed.** The DoD wants the Composio key absent from the sandbox.
+The WP-7 *data path* already guarantees this (the key is never sent to Pi). But the dev
+`agent-pi` sidecar was loading the whole stack `env_file`, so the container inherited
+`COMPOSIO_API_KEY` and other secrets anyway. Dropping `env_file` from the `agent-pi` service in
+`hosting/docker-compose/ee/docker-compose.dev.yml` (it reads only `PORT`, `PI_CODING_AGENT_DIR`,
+`AGENTA_HOST`, `AGENTA_API_KEY`, and two optional vars; Pi auth comes from the mounted login) makes
+the property hold in the local sidecar too. A real sandbox (WP-3 Daytona) is isolated and never
+saw these.
 
 ## Links
 

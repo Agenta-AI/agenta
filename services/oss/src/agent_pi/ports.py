@@ -85,6 +85,28 @@ class TraceContext:
 
 
 @dataclass
+class ToolCallback:
+    """How the harness routes a tool call back through Agenta's ``/tools/call``.
+
+    The backend resolves runnable tool references into specs and hands the harness
+    this callback. The TS wrapper turns each spec into a Pi ``customTool`` whose
+    ``execute`` POSTs the OpenAI-style envelope to ``endpoint`` with
+    ``authorization``. The provider key and connection auth never enter the sandbox;
+    they stay behind ``/tools/call``. Same mechanism that threads the OTLP credential.
+    """
+
+    endpoint: str  # full ``/tools/call`` URL
+    authorization: Optional[str] = None  # full Authorization header value
+
+    def to_wire(self) -> Dict[str, Any]:
+        """Serialize to the camelCase shape the TS wrapper expects on the wire."""
+        return {
+            "endpoint": self.endpoint,
+            "authorization": self.authorization,
+        }
+
+
+@dataclass
 class HarnessRequest:
     """One agent run: instructions, model, the user turn, and optional history."""
 
@@ -93,6 +115,10 @@ class HarnessRequest:
     prompt: Optional[str] = None
     messages: List[Any] = field(default_factory=list)
     tools: List[str] = field(default_factory=list)
+    # Resolved runnable tool specs, already in the camelCase wire shape the TS
+    # wrapper turns into Pi customTools: {name, description, inputSchema, callRef}.
+    custom_tools: List[Dict[str, Any]] = field(default_factory=list)
+    tool_callback: Optional[ToolCallback] = None
     trace: Optional[TraceContext] = None
 
 

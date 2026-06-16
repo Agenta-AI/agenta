@@ -15,6 +15,9 @@ from oss.src.core.tools.dtos import (
     ToolConnectionCreate,
     # Tool Calls
     ToolResult,
+    # Agent tools
+    AgentToolReference,
+    ResolvedAgentTool,
 )
 
 
@@ -87,3 +90,18 @@ class ToolConnectionsResponse(BaseModel):
 
 class ToolCallResponse(BaseModel):
     call: ToolResult
+
+
+# ---------------------------------------------------------------------------
+# Agent tool resolution
+# ---------------------------------------------------------------------------
+
+
+class ToolResolveRequest(BaseModel):
+    tools: List[AgentToolReference] = []
+
+
+class ToolResolveResponse(BaseModel):
+    count: int = 0
+    builtins: List[str] = []
+    custom: List[ResolvedAgentTool] = []

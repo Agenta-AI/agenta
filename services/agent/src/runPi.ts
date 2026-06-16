@@ -4,8 +4,9 @@
  * This is the concrete "harness" behind the service's Harness port. It drives the
  * Pi SDK (`createAgentSession`) for a single run: it injects the agent's AGENTS.md
  * in memory, resolves the model, sends one user turn, and returns the final
- * assistant text. No streaming, no tools by default, no session persistence. Those
- * are later work packages.
+ * assistant text. It also turns the backend-resolved runnable tools (WP-7) into Pi
+ * customTools that route back through Agenta's /tools/call. No streaming and no
+ * session persistence yet; those are later work packages.
  *
  * Auth: uses `AuthStorage.create()`, which reads ~/.pi/agent/auth.json (the local
  * Pi login). Set OPENAI_API_KEY / ANTHROPIC_API_KEY in the environment as an
@@ -54,6 +55,34 @@ export interface TraceContext {
   captureContent?: boolean;
 }
 
+/**
+ * A runnable tool the backend already resolved from the agent config: name +
+ * description + JSON-Schema params for the model, plus the `callRef` slug the
+ * execution bridge sends back to Agenta's /tools/call. The Composio key and the
+ * connection auth stay server-side; this sandbox never sees them.
+ */
+export interface ResolvedToolSpec {
+  /** Function name shown to the model (e.g. "gmail__SEND_EMAIL"). */
+  name: string;
+  /** Description shown to the model. Resolved live from the provider catalog. */
+  description?: string;
+  /** JSON Schema for the tool arguments. Pi accepts plain JSON Schema here. */
+  inputSchema?: Record<string, unknown> | null;
+  /** "tools.{provider}.{integration}.{action}.{connection}" — the /tools/call slug. */
+  callRef: string;
+}
+
+/**
+ * Where and how to route a tool call back through Agenta. The backend builds the
+ * full /tools/call URL and threads the same credential the OTLP export rides on.
+ */
+export interface ToolCallbackContext {
+  /** Full /tools/call URL. */
+  endpoint: string;
+  /** Authorization header value for the callback (project-scoped). */
+  authorization?: string;
+}
+
 export interface AgentRunRequest {
   /** AGENTS.md text injected as the agent's instructions (in memory). */
   agentsMd?: string;
@@ -65,6 +94,10 @@ export interface AgentRunRequest {
   messages?: ChatMessage[];
   /** Built-in tools to enable. MVP default: none. */
   tools?: string[];
+  /** Resolved runnable tools (WP-7), turned into Pi customTools below. */
+  customTools?: ResolvedToolSpec[];
+  /** Where customTools route their calls back to. Required when customTools is set. */
+  toolCallback?: ToolCallbackContext;
   /** Tracing: thread the Agenta trace context across the boundary. */
   trace?: TraceContext;
 }
@@ -126,6 +159,117 @@ function extractAssistantText(messages: any[]): string {
   return "";
 }
 
+/** Per-tool budget for the /tools/call round-trip. Surfaced as a tool error on timeout. */
+const TOOL_CALL_TIMEOUT_MS = Number(
+  process.env.AGENTA_AGENT_TOOL_CALL_TIMEOUT_MS ?? 30000,
+);
+
+/** Permissive default when a resolved tool has no input schema. */
+const EMPTY_OBJECT_SCHEMA = {
+  type: "object",
+  properties: {},
+  additionalProperties: true,
+};
+
+/**
+ * Turn resolved tool specs into Pi customTools. Each tool's `execute` does one
+ * POST back through Agenta's /tools/call, so Pi runs the loop while the Composio
+ * key and connection auth stay server-side. A failed call throws, which Pi turns
+ * into a tool-error result (the loop continues) rather than a run failure.
+ */
+export function buildCustomTools(
+  specs: ResolvedToolSpec[],
+  callback: ToolCallbackContext | undefined,
+): any[] {
+  if (specs.length === 0) return [];
+  if (!callback?.endpoint) {
+    log(`skipping ${specs.length} custom tool(s): missing toolCallback endpoint`);
+    return [];
+  }
+
+  return specs.map((spec) => ({
+    name: spec.name,
+    label: spec.name,
+    description: spec.description ?? spec.name,
+    // Pi accepts a plain JSON Schema for `parameters` (its validator has a
+    // non-TypeBox path); the schema is resolved live from the provider catalog.
+    parameters: (spec.inputSchema as any) ?? EMPTY_OBJECT_SCHEMA,
+    async execute(toolCallId: string, params: unknown, signal?: AbortSignal) {
+      const text = await callAgentaTool(
+        callback,
+        spec.callRef,
+        toolCallId,
+        params,
+        signal,
+      );
+      return {
+        content: [{ type: "text", text }],
+        details: { callRef: spec.callRef },
+      };
+    },
+  }));
+}
+
+/** One /tools/call round-trip. Returns the result string; throws on failure. */
+async function callAgentaTool(
+  callback: ToolCallbackContext,
+  callRef: string,
+  toolCallId: string,
+  params: unknown,
+  signal?: AbortSignal,
+): Promise<string> {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (callback.authorization) headers["authorization"] = callback.authorization;
+
+  // Combine Pi's abort signal (if any) with a per-tool timeout.
+  const timeoutSignal = AbortSignal.timeout(TOOL_CALL_TIMEOUT_MS);
+  const anyOf = (AbortSignal as any).any;
+  const combined =
+    signal && typeof anyOf === "function"
+      ? anyOf([signal, timeoutSignal])
+      : timeoutSignal;
+
+  let response: Response;
+  try {
+    response = await fetch(callback.endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        data: {
+          id: toolCallId,
+          type: "function",
+          // Arguments as an object (not a JSON string) to avoid double-encoding.
+          function: { name: callRef, arguments: params ?? {} },
+        },
+      }),
+      signal: combined,
+    });
+  } catch (err) {
+    throw new Error(
+      `tool call ${callRef} failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  const bodyText = await response.text();
+  if (!response.ok) {
+    throw new Error(
+      `tool call ${callRef} returned HTTP ${response.status}: ${bodyText.slice(0, 500)}`,
+    );
+  }
+
+  // ToolCallResponse -> { call: { data: { content }, status } }. `content` is the
+  // execution result serialized as a JSON string; hand it to the model verbatim.
+  try {
+    const parsed = JSON.parse(bodyText);
+    const content = parsed?.call?.data?.content;
+    if (typeof content === "string") return content;
+    if (content != null) return JSON.stringify(content);
+    return bodyText;
+  } catch {
+    return bodyText;
+  }
+}
+
 export async function runPi(request: AgentRunRequest): Promise<AgentRunResult> {
   const prompt = resolvePrompt(request);
   if (!prompt) {
@@ -176,12 +320,27 @@ export async function runPi(request: AgentRunRequest): Promise<AgentRunResult> {
     });
     await loader.reload();
 
+    // Build runnable tools from the resolved specs. Pi's allowlist gates custom
+    // tools too, so their names must be in `tools` for the model to see them.
+    const customTools = buildCustomTools(
+      request.customTools ?? [],
+      request.toolCallback,
+    );
+    const toolAllowlist = [
+      ...(request.tools ?? []),
+      ...customTools.map((tool) => tool.name),
+    ];
+    if (customTools.length > 0) {
+      log(`custom tools: ${customTools.map((t) => t.name).join(", ")}`);
+    }
+
     const { session } = await createAgentSession({
       cwd,
       model,
       authStorage,
       modelRegistry,
-      tools: request.tools ?? [],
+      tools: toolAllowlist,
+      customTools,
       sessionManager: SessionManager.inMemory(cwd),
       settingsManager: SettingsManager.inMemory(),
       resourceLoader: loader,

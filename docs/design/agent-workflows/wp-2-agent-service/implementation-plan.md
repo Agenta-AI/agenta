@@ -4,6 +4,14 @@ Status: MVP built and verified by curl (2026-06-15). Decisions below were taken;
 "Implemented" section records what shipped. Original decision points are kept marked
 **[DECISION]** for history.
 
+> Note (current state): the sections below describe the iterative MVP, including a
+> standalone entrypoint (`agent_main.py`) and dedicated composes
+> (`docker-compose.agent.yml`, `docker-compose.stack.yml`). Those were **removed** in
+> favor of the integrated path only: the agent is mounted in `entrypoints/main.py` at
+> `/agent/v0` and the `agent-pi` sidecar lives in
+> `hosting/docker-compose/ee/docker-compose.dev.yml`. The standalone run commands below
+> are historical. See `qa.md` for the rationale.
+
 ## Implemented (MVP, verified by curl)
 
 Per the decisions: a Python service exposes the Agenta `/invoke` contract (auth,

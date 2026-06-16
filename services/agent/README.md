@@ -1,4 +1,4 @@
-# Agent service: Pi wrapper (WP-2)
+# Agent service: Pi wrapper (WP-2 + WP-7)
 
 This is the TypeScript side of the agent workflow service. It is a thin wrapper that
 drives the [Pi](https://pi.dev) agent harness for a single run. The Python service
@@ -54,6 +54,34 @@ With no `trace` block the run is traced standalone using `AGENTA_HOST` /
 `AGENTA_API_KEY`, or not at all when neither is set. The extension lives in
 `src/agenta-otel.ts`.
 
+## Tools (WP-7)
+
+The agent's runnable tools are resolved in the backend (not here) and arrive on the
+request as `customTools` plus a `toolCallback`. `buildCustomTools` in `src/runPi.ts`
+turns each spec into a Pi `customTool` whose `execute` does one
+`POST {toolCallback.endpoint}` (Agenta's `/tools/call`) with the `callRef` slug and the
+threaded `authorization`. Pi drives the loop and runs the tool in-process; the provider
+key and connection auth stay server-side behind `/tools/call` and never enter this
+sandbox. See `docs/design/agent-workflows/wp-7-tools/README.md`.
+
+```json
+{
+  "prompt": "What is my GitHub username?",
+  "customTools": [
+    {
+      "name": "github__GET_THE_AUTHENTICATED_USER",
+      "description": "Gets the authenticated GitHub user.",
+      "inputSchema": {"type": "object", "properties": {}},
+      "callRef": "tools.composio.github.GET_THE_AUTHENTICATED_USER.github-tvn"
+    }
+  ],
+  "toolCallback": {
+    "endpoint": "https://host/api/tools/call",
+    "authorization": "ApiKey ..."
+  }
+}
+```
+
 ## Auth
 
 `AuthStorage.create()` reads `~/.pi/agent/auth.json`. Log in once with `pnpm exec pi`
@@ -68,6 +96,8 @@ echo '{"agentsMd":"You are a hello-world agent.","prompt":"Hi"}' | pnpm run run:
 
 ## Config
 
-`config/AGENTS.md` and `config/agent.json` hold the hardcoded MVP config. They are read
-by the Python service and passed into the request, so editing them changes the agent
-without a code change.
+The live config comes from the agent revision in the playground: a `prompt-template`
+whose system message is the AGENTS.md, with the model and the picked tools under
+`llm_config`. The Python service (`services/oss/src/agent.py`) reads that and fills the
+request. `config/AGENTS.md` and `config/agent.json` are only the file fallback used when
+the request carries no config.
