@@ -13,9 +13,10 @@
  */
 
 import type React from "react"
-import {useMemo, useRef} from "react"
+import {useEffect, useMemo, useRef} from "react"
 
 import {
+    activateEvaluatorEnrichmentAtom,
     evaluatorKeyMapAtom,
     evaluatorTemplatesMapAtom,
     evaluatorTemplatesDataAtom,
@@ -25,7 +26,7 @@ import {
     workflowAppTypeAtomFamily,
     workflowsListDataAtom,
 } from "@agenta/entities/workflow"
-import {atom, getDefaultStore, useAtomValue} from "jotai"
+import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
 import {
     renderEvaluatorPickerLabelNode,
@@ -43,12 +44,34 @@ import {
 // ============================================================================
 
 /**
+ * Activate the evaluator-enrichment gate (`evaluatorEnrichmentActivatedAtom`).
+ *
+ * The aggregate evaluator atoms (key map, meta map, non-human list, feedback
+ * schemas) stay dormant — and mount no per-evaluator latest-revision fan-out —
+ * until something activates them. Pickers/switchers call this: eagerly (on mount,
+ * the default) or lazily (`enabled` gated on first open) so the batched
+ * `POST /workflows/revisions/query` only runs when the data is actually needed.
+ * Idempotent and one-way.
+ */
+export function useEnsureEvaluatorEnrichment(enabled = true) {
+    const activate = useSetAtom(activateEvaluatorEnrichmentAtom)
+    useEffect(() => {
+        if (enabled) activate()
+    }, [enabled, activate])
+}
+
+/**
  * Hook that provides the evaluator key map and template definitions map.
  *
  * Uses package-level atoms (auto-fetching) instead of legacy SWR hooks,
  * so it works on any page without manual data population.
+ *
+ * Activates the enrichment gate on mount unless `lazy` is set — lazy callers
+ * (e.g. the playground header) defer activation to first picker-open so a plain
+ * playground load doesn't trigger the evaluator revision fan-out.
  */
-export function useEvaluatorEnrichedData() {
+export function useEvaluatorEnrichedData(options?: {lazy?: boolean}) {
+    useEnsureEvaluatorEnrichment(!options?.lazy)
     const evaluatorKeyMap = useAtomValue(evaluatorKeyMapAtom)
     const evaluatorDefsByKey = useAtomValue(evaluatorTemplatesMapAtom)
 
@@ -137,9 +160,9 @@ export function useEnrichedEvaluatorBrowseAdapter() {
  */
 export function useEnrichedEvaluatorOnlyAdapter(
     revisionLabelOverride?: (entity: unknown) => React.ReactNode,
-    options?: {showWorkflowMeta?: boolean; splitTypeTag?: boolean},
+    options?: {showWorkflowMeta?: boolean; splitTypeTag?: boolean; lazy?: boolean},
 ) {
-    const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
+    const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData({lazy: options?.lazy})
     const templates = useAtomValue(evaluatorTemplatesDataAtom)
     const workflowMetaMap = useAtomValue(evaluatorWorkflowMetaMapAtom)
     const evaluatorKeyMapRef = useRef(evaluatorKeyMap)

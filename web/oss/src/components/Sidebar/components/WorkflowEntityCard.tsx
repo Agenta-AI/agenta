@@ -1,6 +1,7 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {
+    activateEvaluatorEnrichmentAtom,
     nonHumanEvaluatorsAtom,
     nonArchivedAppWorkflowsAtom,
     nonArchivedEvaluatorsAtom,
@@ -135,21 +136,21 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     //
     // LAZY: that latest-revision resolution fans out one batched
     // POST /workflows/revisions/query over EVERY evaluator in the project, and
-    // it's only needed to populate the switcher dropdown. So we defer the
-    // subscription until the switcher is first opened (`switcherActivated`,
-    // latched on below) — until then we read a stable empty atom and the
-    // fan-out never mounts. The `EVALUATOR_FULL_PAGE_NAV_ENABLED` guard also
-    // hides the "Evaluators" group while the flag is off, so there's nothing to
-    // resolve in that case either.
-    const [switcherActivated, setSwitcherActivated] = useState(false)
-    const wantEvaluators = EVALUATOR_FULL_PAGE_NAV_ENABLED && switcherActivated
+    // it's only needed to populate the switcher dropdown. `nonHumanEvaluatorsAtom`
+    // sits behind the shared enrichment gate (dormant → empty until activated),
+    // and we activate it on first switcher-open (see `handleSwitcherOpenChange`),
+    // so a plain sidebar mount never triggers the fan-out. While the
+    // `EVALUATOR_FULL_PAGE_NAV_ENABLED` flag is off we read a stable empty atom
+    // instead, so the "Evaluators" group stays hidden regardless of whether some
+    // other consumer has activated the gate.
     const switcherEvaluators = useAtomValue(
-        wantEvaluators ? nonHumanEvaluatorsAtom : EMPTY_EVALUATORS_ATOM,
+        EVALUATOR_FULL_PAGE_NAV_ENABLED ? nonHumanEvaluatorsAtom : EMPTY_EVALUATORS_ATOM,
     ) as readonly Workflow[]
     const recentAppId = useAtomValue(recentAppIdAtom)
     const recentEvaluatorId = useAtomValue(recentEvaluatorIdAtom)
     const navigateToWorkflow = useSetAtom(routerAppNavigationAtom)
     const requestNavigation = useSetAtom(requestNavigationAtom)
+    const activateEvaluatorEnrichment = useSetAtom(activateEvaluatorEnrichmentAtom)
     const {baseAppURL} = useURL()
     const [switcherOpen, setSwitcherOpen] = useState(false)
 
@@ -224,13 +225,16 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
         [navigateToWorkflow, workflowId],
     )
 
-    // Opening the switcher latches the evaluator subscription on (one-way), so
-    // the batched latest-revision fetch happens on first open instead of on
-    // sidebar mount. It never resets, so reopening is served from cache.
-    const handleSwitcherOpenChange = useCallback((open: boolean) => {
-        setSwitcherOpen(open)
-        if (open) setSwitcherActivated(true)
-    }, [])
+    // Opening the switcher activates the shared evaluator-enrichment gate (one-way),
+    // so the batched latest-revision fetch happens on first open instead of on
+    // sidebar mount. Idempotent + cached, so reopening is instant.
+    const handleSwitcherOpenChange = useCallback(
+        (open: boolean) => {
+            setSwitcherOpen(open)
+            if (open && EVALUATOR_FULL_PAGE_NAV_ENABLED) activateEvaluatorEnrichment()
+        },
+        [activateEvaluatorEnrichment],
+    )
 
     const handleClose = useCallback(() => {
         // Exit the entity context — go back to the apps listing. We replace
