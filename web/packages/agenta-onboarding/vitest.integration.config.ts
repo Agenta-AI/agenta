@@ -18,7 +18,10 @@ export default defineConfig({
         include: ["tests/integration/**/*.test.ts"],
         environment: "node",
         globalSetup: [path.resolve(entitiesIntegration, "setup/global.ts")],
-        setupFiles: [path.resolve(entitiesIntegration, "setup/worker.ts")],
+        setupFiles: [
+            path.resolve(entitiesIntegration, "setup/worker.ts"),
+            path.resolve(__dirname, "tests/integration/setup/fernAuth.ts"),
+        ],
         testTimeout: 30_000,
         hookTimeout: 30_000,
         sequence: {
