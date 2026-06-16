@@ -172,3 +172,20 @@ export const normalizeInviteError = (detailRaw: string, fallbackMessage?: string
     }
     return detailRaw
 }
+
+// User-facing copy for the backend's typed invite-error codes. The backend keeps
+// its messages generic (and never echoes the invited email); the user-facing
+// wording lives here.
+const INVITE_ERROR_MESSAGES: Record<string, string> = {
+    INVITE_EMAIL_MISMATCH:
+        "This invitation is not for you. Sign in with the invited account to accept it.",
+    INVITE_EXPIRED: "This invitation has expired. Ask the workspace admin for a new one.",
+    INVITE_NOT_FOUND: "This invitation is not valid. Ask the workspace admin for another one.",
+}
+
+/**
+ * Map a typed invite-error code to user-facing copy. Falls back to
+ * normalizeInviteError on the raw detail when the code is unknown.
+ */
+export const inviteErrorMessageFromCode = (code: string | undefined, detailRaw: string): string =>
+    INVITE_ERROR_MESSAGES[code ?? ""] ?? normalizeInviteError(detailRaw)

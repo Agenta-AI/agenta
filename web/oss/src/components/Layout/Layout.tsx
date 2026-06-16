@@ -66,7 +66,7 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
             pathname.includes("/auth") ||
             pathname.includes("/post-signup") ||
             pathname.includes("/get-started") ||
-            pathname.includes("/workspaces"),
+            pathname.startsWith("/workspaces/accept"),
         isAppRoute: routeLayer === "app",
         isPlayground: pathname.includes("/playground"),
         isHumanEval,

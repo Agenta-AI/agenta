@@ -9,6 +9,7 @@ import {ProjectsResponse} from "@/oss/services/project/types"
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {selectedOrgAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {sessionExistsAtom} from "@/oss/state/session"
+import {jwtReadyAtom} from "@/oss/state/session/jwt"
 
 // Re-export the shared projectIdAtom so all OSS code uses the same atom as entity packages
 export {projectIdAtom}
@@ -91,25 +92,25 @@ export const clearLastUsedProjectId = (workspaceId: string | null) => {
 }
 
 export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
-    const workspaceId = get(selectedOrgIdAtom)
+    const orgId = get(selectedOrgIdAtom)
+    const {workspaceId} = get(appIdentifiersAtom)
     const snapshot = get(appStateSnapshotAtom)
+    const jwtReady = Boolean((get(jwtReadyAtom) as any)?.data)
     const isAcceptRoute = snapshot.pathname.startsWith("/workspaces/accept")
     return {
-        queryKey: ["projects", workspaceId || ""],
-        queryFn: async () => fetchAllProjects(),
+        queryKey: ["projects", orgId || ""],
+        queryFn: async () => fetchAllProjects(workspaceId ?? undefined),
         experimental_prefetchInRender: true,
         staleTime: 60_000,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: false,
-        // sessionExistsAtom is the actual auth gate. Don't also gate on
-        // profile.data.id — fetchAllProjects() uses session cookies, not
-        // user.id, and the profile gate forced /projects/ to wait for
-        // /profile/ to complete (sequential), producing a visible window
-        // where project?.is_demo is unknown and the demo-workspace banner
-        // can't render on cold reload. Letting both queries fire in
-        // parallel under the same session gate closes that window.
-        enabled: get(sessionExistsAtom) && !isAcceptRoute && !!workspaceId,
+        // Gate on a usable JWT, not just the session cookie. On reload (or with a
+        // stale sessionExistsAtom) SuperTokens reports a session before the access
+        // token is readable; firing /projects/ then 401s. jwtReady resolves in
+        // parallel with /profile/, so this does not reintroduce the sequential
+        // profile-wait that 2ede5faa10 removed to fix the demo-banner cold-load race.
+        enabled: get(sessionExistsAtom) && jwtReady && !isAcceptRoute && !!orgId,
     }
 })
 
