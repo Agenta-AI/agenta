@@ -1,7 +1,11 @@
 import type {ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {queryRevisionsForQueries, type QueryRevisionSummary} from "@agenta/entities/query"
+import {
+    querySimpleQueries,
+    queryRevisionsForQueries,
+    type QueryRevisionSummary,
+} from "@agenta/entities/query"
 import {projectIdAtom} from "@agenta/shared/state"
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
 import {useAtomValue} from "jotai"
@@ -33,7 +37,8 @@ interface QueryRegistryTableProps {
     mode?: QueryRegistryStatus
 }
 
-const isRevisionRow = (row: QueryRegistryRow) => Boolean(row.__isRevisionChild)
+const isRevisionRow = (row: QueryRegistryRow) =>
+    Boolean(row.__isRevisionChild || row.__isArchivedRevision)
 
 const QueryRegistryTable = ({
     actions,
@@ -49,21 +54,23 @@ const QueryRegistryTable = ({
     const datasetStore = getQueryRegistryTableState(mode).store
     const revisionsRefresh = useAtomValue(queryRegistryRevisionsRefreshAtom)
 
-    // Revision history per query, batch-fetched for the visible page (newest
-    // first). Drives the parent's head-version badge + the expandable child rows.
+    // Active-tab version history per query (batch-fetched, active revisions only):
+    // drives the head-version badge + the expandable child rows.
     const [revisionsByQueryId, setRevisionsByQueryId] = useState<
         Record<string, QueryRevisionSummary[]>
     >({})
+    // Archived-tab top-level rows for individually-archived revisions (of queries
+    // that are themselves still active).
+    const [archivedRevisionRows, setArchivedRevisionRows] = useState<QueryRegistryRow[]>([])
     const [expandedKeys, setExpandedKeys] = useState<string[]>([])
 
-    // Drop the cached revisions on invalidation (commit/restore) so the batched
-    // fetch re-runs and the version badges + child rows reflect the new revision.
+    // Drop caches on invalidation (commit/archive/restore) so the relevant fetch re-runs.
     useEffect(() => {
         if (revisionsRefresh === 0) return
         setRevisionsByQueryId({})
+        setArchivedRevisionRows([])
     }, [revisionsRefresh])
 
-    // Row click opens the manage drawer, but not for revision rows.
     const handleRowClick = useCallback(
         (record: QueryRegistryRow) => {
             if (isRevisionRow(record)) return
@@ -89,16 +96,15 @@ const QueryRegistryTable = ({
         [rows],
     )
 
-    // Batch-fetch revisions for any visible queries we haven't loaded yet.
+    // ACTIVE tab: batch-fetch each visible query's active revision history.
     useEffect(() => {
-        if (!projectId) return
+        if (isArchived || !projectId) return
         const missing = headQueryIds.filter((id) => !(id in revisionsByQueryId))
         if (!missing.length) return
         let cancelled = false
-        queryRevisionsForQueries({projectId, queryIds: missing, includeArchived: true})
+        queryRevisionsForQueries({projectId, queryIds: missing})
             .then((revs) => {
                 if (cancelled) return
-                // Seed each requested id (so we don't refetch) then group by query.
                 const grouped: Record<string, QueryRevisionSummary[]> = {}
                 for (const id of missing) grouped[id] = []
                 for (const rev of revs) (grouped[rev.queryId] ??= []).push(rev)
@@ -106,7 +112,6 @@ const QueryRegistryTable = ({
             })
             .catch(() => {
                 if (cancelled) return
-                // Mark as fetched-empty so a transient failure doesn't loop.
                 setRevisionsByQueryId((prev) => ({
                     ...prev,
                     ...Object.fromEntries(missing.map((id) => [id, prev[id] ?? []])),
@@ -115,7 +120,57 @@ const QueryRegistryTable = ({
         return () => {
             cancelled = true
         }
-    }, [projectId, headQueryIds, revisionsByQueryId])
+    }, [isArchived, projectId, headQueryIds, revisionsByQueryId])
+
+    // ARCHIVED tab: surface individually-archived revisions (of still-active queries)
+    // as their own rows, alongside the archived queries the store already provides.
+    useEffect(() => {
+        if (!isArchived || !projectId) return
+        let cancelled = false
+        ;(async () => {
+            try {
+                const response = await querySimpleQueries({projectId, includeArchived: true})
+                const all = response.queries ?? []
+                const activeIds = all
+                    .filter((q) => !q.deleted_at && q.id)
+                    .map((q) => q.id as string)
+                const nameById = new Map(all.map((q) => [q.id ?? "", q.name ?? q.slug ?? ""]))
+                if (!activeIds.length) {
+                    if (!cancelled) setArchivedRevisionRows([])
+                    return
+                }
+                const revs = await queryRevisionsForQueries({
+                    projectId,
+                    queryIds: activeIds,
+                    includeArchived: true,
+                })
+                if (cancelled) return
+                const archivedRows: QueryRegistryRow[] = revs
+                    .filter((rev) => rev.deletedAt && Number(rev.version ?? 0) > 0)
+                    .map((rev) => ({
+                        key: `arch-rev:${rev.revisionId}`,
+                        queryId: rev.queryId,
+                        variantId: null,
+                        revisionId: rev.revisionId,
+                        name: nameById.get(rev.queryId) || "Query",
+                        slug: null,
+                        filtering: rev.filtering,
+                        windowing: null,
+                        createdAt: rev.createdAt,
+                        createdById: rev.createdById,
+                        version: rev.version,
+                        message: rev.message,
+                        __isArchivedRevision: true,
+                    }))
+                setArchivedRevisionRows(archivedRows)
+            } catch {
+                if (!cancelled) setArchivedRevisionRows([])
+            }
+        })()
+        return () => {
+            cancelled = true
+        }
+    }, [isArchived, projectId, revisionsRefresh])
 
     const handleExpand = useCallback((expanded: boolean, record: QueryRegistryRow) => {
         setExpandedKeys((prev) =>
@@ -130,64 +185,65 @@ const QueryRegistryTable = ({
 
     const fieldLabels = useMemo(() => buildFieldLabelMap(getFilterColumns()), [])
     const columns = useMemo(
-        () => createQueryRegistryColumns(actions, fieldLabels, isArchived, expandState),
+        // No expand toggle in the archived view — its rows are leaf items.
+        () =>
+            createQueryRegistryColumns(
+                actions,
+                fieldLabels,
+                isArchived,
+                isArchived ? undefined : expandState,
+            ),
         [actions, fieldLabels, isArchived, expandState],
     )
 
-    // Enrich each head row with its head version + earlier-revision child rows.
-    const dataSource = useMemo(
-        () =>
-            rows.map((row) => {
-                if (row.__isSkeleton || !row.queryId) return row
-                // Drop v0 — the auto-created initial revision with no useful data
-                // (matches the workflow registry).
-                const revs = (revisionsByQueryId[row.queryId] ?? []).filter(
-                    (rev) => Number(rev.version ?? 0) > 0,
-                )
-                if (!revs.length) return row
-                // The head is the latest NON-archived revision (an archived head was
-                // repointed server-side); archived revisions still render, tagged.
-                const head = revs.find((rev) => !rev.deletedAt) ?? revs[0]
-                const children: QueryRegistryRow[] = revs
-                    .filter((rev) => rev.revisionId !== head.revisionId)
-                    .map((rev) => ({
-                        key: rev.revisionId || `${row.queryId}:${rev.version}`,
-                        queryId: row.queryId,
-                        variantId: row.variantId,
-                        revisionId: rev.revisionId,
-                        name: row.name,
-                        slug: row.slug,
-                        filtering: rev.filtering,
-                        windowing: null,
-                        createdAt: rev.createdAt,
-                        createdById: rev.createdById,
-                        version: rev.version,
-                        message: rev.message,
-                        __isRevisionChild: true,
-                        __isArchivedRevision: Boolean(rev.deletedAt),
-                    }))
-                return {
-                    ...row,
-                    version: head.version ?? null,
-                    message: head.message ?? null,
-                    ...(children.length ? {children} : {}),
-                }
-            }),
-        [rows, revisionsByQueryId],
-    )
+    const dataSource = useMemo(() => {
+        if (isArchived) {
+            // Archived queries (from the store) + archived revisions, flat.
+            return [...rows, ...archivedRevisionRows]
+        }
+        // Active: enrich each head row with its head version + revision children.
+        return rows.map((row) => {
+            if (row.__isSkeleton || !row.queryId) return row
+            const revs = (revisionsByQueryId[row.queryId] ?? []).filter(
+                (rev) => Number(rev.version ?? 0) > 0,
+            )
+            if (!revs.length) return row
+            const head = revs[0]
+            const children: QueryRegistryRow[] = revs.slice(1).map((rev) => ({
+                key: rev.revisionId || `${row.queryId}:${rev.version}`,
+                queryId: row.queryId,
+                variantId: row.variantId,
+                revisionId: rev.revisionId,
+                name: row.name,
+                slug: row.slug,
+                filtering: rev.filtering,
+                windowing: null,
+                createdAt: rev.createdAt,
+                createdById: rev.createdById,
+                version: rev.version,
+                message: rev.message,
+                __isRevisionChild: true,
+            }))
+            return {
+                ...row,
+                version: head.version ?? null,
+                message: head.message ?? null,
+                ...(children.length ? {children} : {}),
+            }
+        })
+    }, [isArchived, rows, archivedRevisionRows, revisionsByQueryId])
 
     const treeExpandable = useMemo(
         () => ({
             expandedRowKeys: expandedKeys,
-            // Custom toggle in the Name cell renders the caret instead.
             expandIcon: () => null as unknown as null,
             rowExpandable: (record: QueryRegistryRow) =>
-                !isRevisionRow(record) && !record.__isSkeleton,
+                !isArchived && !isRevisionRow(record) && !record.__isSkeleton,
         }),
-        [expandedKeys],
+        [expandedKeys, isArchived],
     )
 
-    // Revision (child) rows aren't selectable — hide their checkboxes.
+    // Revision rows aren't selectable — hide their checkboxes.
     const rowSelection = useMemo(
         () =>
             ({

@@ -123,9 +123,8 @@ export interface QueryColumnActions {
  * Archived tab only restores (editing an archived query is meaningless — it would
  * commit a revision on a soft-deleted artifact).
  */
-/** Revision-history (child) and loader rows carry no per-row actions. */
+/** Active expand child rows carry no parent-level actions (Open/Edit/Duplicate). */
 const isRevisionRow = (record: QueryRegistryRow) => Boolean(record.__isRevisionChild)
-const isArchivedRevision = (record: QueryRegistryRow) => Boolean(record.__isArchivedRevision)
 
 function buildActionItems(actions: QueryColumnActions, isArchived: boolean) {
     if (isArchived) {
@@ -163,23 +162,13 @@ function buildActionItems(actions: QueryColumnActions, isArchived: boolean) {
         },
         {type: "divider" as const, hidden: isRevisionRow},
         {
-            // Visible on revision rows too: the parent archives the whole query,
-            // a revision row archives just that version. Hidden once a revision is
-            // already archived (it shows Restore instead).
+            // Visible on revision rows too: the parent archives the whole query, a
+            // revision row archives just that version (which moves it to Archived).
             key: "archive",
             label: "Archive",
             icon: <ArchiveIcon size={14} />,
             danger: true,
-            hidden: isArchivedRevision,
             onClick: (record: QueryRegistryRow) => actions.handleArchive?.(record),
-        },
-        {
-            // Restore an archived revision back into the active history.
-            key: "restore-revision",
-            label: "Restore",
-            icon: <ArrowCounterClockwise size={16} />,
-            hidden: (record: QueryRegistryRow) => !isArchivedRevision(record),
-            onClick: (record: QueryRegistryRow) => actions.handleRestore?.(record),
         },
     ]
 }
@@ -200,19 +189,30 @@ export function createQueryRegistryColumns(
             columnVisibilityLocked: true,
             render: (_value, record) => {
                 if (record.__isSkeleton) return <SkeletonLine width="70%" />
-                // Revision (child) row: indent to align under the parent, show the
-                // version badge.
+                // Revision (child) row in the active expand: indent + version badge.
                 if (record.__isRevisionChild) {
-                    const archived = record.__isArchivedRevision
                     return (
                         <div className="flex h-full items-center gap-2 pl-7">
-                            <Text type={archived ? "secondary" : undefined} className="text-xs">
+                            <Text className="text-xs">{record.name}</Text>
+                            {record.version ? (
+                                <Tag className="m-0 text-xs">v{record.version}</Tag>
+                            ) : null}
+                        </div>
+                    )
+                }
+                // Archived-revision row (archived tab, top-level): name + version +
+                // an Archived tag, aligned with the non-toggle rows.
+                if (record.__isArchivedRevision) {
+                    return (
+                        <div className="flex h-full min-w-0 items-center gap-2">
+                            <span className="w-4 shrink-0" />
+                            <Text type="secondary" className="text-xs">
                                 {record.name}
                             </Text>
                             {record.version ? (
                                 <Tag className="m-0 text-xs">v{record.version}</Tag>
                             ) : null}
-                            {archived ? <Tag className="m-0 text-xs">Archived</Tag> : null}
+                            <Tag className="m-0 text-xs">Archived</Tag>
                         </div>
                     )
                 }
