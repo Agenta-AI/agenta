@@ -1725,7 +1725,7 @@ function PlaygroundConfigSection({
     )
 
     // ========== LOADING / EMPTY STATE ==========
-    const isConfigLoading = schemaQuery.isPending && !hasParameters(activeData)
+    const isConfigLoading = schemaQuery.isPending && !hasRenderableConfigSections(activeData)
 
     if (isConfigLoading) {
         return (
@@ -1737,7 +1737,7 @@ function PlaygroundConfigSection({
         )
     }
 
-    if (!hasParameters(activeData)) {
+    if (!hasRenderableConfigSections(activeData)) {
         return (
             <div
                 className={clsx("flex flex-col items-center justify-center py-12 px-6", className)}

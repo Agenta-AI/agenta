@@ -41,6 +41,7 @@ from agenta.sdk.engines.running.sandbox import execute_code_safely
 from agenta.sdk.engines.running.templates import EVALUATOR_TEMPLATES
 from agenta.sdk.engines.running.errors import (
     CustomCodeServerV0Error,
+    CustomHookHandlerNotDefinedV0Error,
     ErrorStatus,
     InvalidConfigurationParametersV0Error,
     InvalidConfigurationParameterV0Error,
@@ -2223,8 +2224,15 @@ async def chat_v0(
     return message.model_dump(exclude_none=True)  # type: ignore
 
 
-@instrument(ignore_inputs=["parameters"])
-async def hook_v0(
+def _extract_revision_field(value: Optional[Data], field: str) -> Optional[Any]:
+    if isinstance(value, dict):
+        data = value.get("data") if "data" in value else value
+        if isinstance(data, dict):
+            return data.get(field)
+    return None
+
+
+async def remote_forward_v0(
     request: Optional[Data] = None,
     revision: Optional[Data] = None,
     #
@@ -2235,37 +2243,21 @@ async def hook_v0(
     trace: Optional[Data] = None,
     testcase: Optional[Data] = None,
 ) -> Any:
-    """
-    Webhook-based application handler for CUSTOM app types.
+    """Run a workflow remotely by forwarding the request to its ``url``.
 
-    Forwards the request to an external webhook URL and returns the response.
-    The webhook URL is read from the workflow interface (``url`` field in
-    revision data), not from ``parameters``.
-
-    Args:
-        request: Optional canonical request envelope.
-        revision: Optional revision data containing the webhook URL.
-        parameters: Configuration parameters forwarded to the webhook.
-        inputs: Inputs to forward to the webhook.
-        outputs: Optional outputs to forward to the webhook.
-        trace: Optional trace data to forward to the webhook.
-        testcase: Optional testcase data to forward to the webhook.
-
-    Returns:
-        The response from the webhook.
+    Selected when a workflow declares ``remote=True``. Reads ``url`` (and optional
+    ``headers``) from the revision data, POSTs to ``{url}/invoke``, and returns the
+    response. This is execution-location logic, not a per-URI handler.
     """
     from agenta.sdk.contexts.running import RunningContext
 
-    def _extract_webhook_url(value: Optional[Data]) -> Optional[str]:
-        if isinstance(value, dict):
-            data = value.get("data") if "data" in value else value
-            if isinstance(data, dict):
-                url = data.get("url")
-                return str(url) if url else None
-        return None
-
     ctx = RunningContext.get()
-    webhook_url = _extract_webhook_url(revision) or _extract_webhook_url(ctx.revision)
+    webhook_url = _extract_revision_field(revision, "url") or _extract_revision_field(
+        ctx.revision, "url"
+    )
+    headers = _extract_revision_field(revision, "headers") or _extract_revision_field(
+        ctx.revision, "headers"
+    )
 
     if not webhook_url:
         raise MissingConfigurationParameterV0Error(path="url")
@@ -2279,6 +2271,11 @@ async def hook_v0(
             expected="http/https URL",
             got=webhook_url,
         ) from exc
+
+    # The stored url is the service base; the invoke surface lives at /invoke.
+    target_url = f"{webhook_url.rstrip('/')}/invoke"
+
+    log.info("remote_forward_v0 POST", url=target_url)
 
     json_payload = {
         "inputs": inputs or {},
@@ -2294,8 +2291,9 @@ async def hook_v0(
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(
-                url=webhook_url,
+                url=target_url,
                 json=json_payload,
+                headers=headers if isinstance(headers, dict) else None,
                 timeout=httpx.Timeout(30.0, connect=5.0),
             )
         except Exception as e:
@@ -2325,6 +2323,26 @@ async def hook_v0(
             return json.loads(response_bytes)
         except Exception:
             return response_bytes.decode("utf-8")
+
+
+async def hook_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    #
+    parameters: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    #
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
+) -> Any:
+    """Placeholder for the custom-hook URI. Reaching it is a misconfiguration.
+
+    A custom hook must run its own installed handler (local) or forward to its url
+    (``remote=True``). The URI never resolves to this function in either path, so
+    being here means a custom hook was invoked without a defined handler.
+    """
+    raise CustomHookHandlerNotDefinedV0Error()
 
 
 def _resolve_reference_value(reference: Any, request: Dict[str, Any]) -> Any:

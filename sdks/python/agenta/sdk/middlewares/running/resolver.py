@@ -587,7 +587,11 @@ class ResolverMiddleware:
             except Exception:
                 raise
 
-        handler = await resolve_handler(uri=(revision.uri if revision else None))
+        # Keep a handler the decorator already installed (local handler or remote
+        # forwarder); only resolve from the URI registry for pure URI dispatch.
+        handler = ctx.handler or await resolve_handler(
+            uri=(revision.uri if revision else None)
+        )
 
         ctx.revision = (
             {"data": revision.model_dump(mode="json", exclude_none=True)}
