@@ -12,7 +12,12 @@ import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {revisionModalAdapter, testsetModalAdapter, variantModalAdapter} from "../../../adapters"
+import {
+    queryModalAdapter,
+    revisionModalAdapter,
+    testsetModalAdapter,
+    variantModalAdapter,
+} from "../../../adapters"
 import type {
     EntityReference,
     CommitSubmitResult,
@@ -48,6 +53,7 @@ import {EntityCommitTitle} from "./EntityCommitTitle"
 void testsetModalAdapter
 void revisionModalAdapter
 void variantModalAdapter
+void queryModalAdapter
 
 export type {CommitSubmitResult, CommitSubmitParams, CommitCreateFieldsConfig}
 

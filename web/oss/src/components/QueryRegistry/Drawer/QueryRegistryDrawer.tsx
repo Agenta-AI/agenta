@@ -5,17 +5,16 @@ import {
     createSimpleQuery,
     invalidateQueryCache,
     queryMolecule,
-    saveQueryHeadAtom,
     type QueryRevision,
     type SimpleQueryCreate,
 } from "@agenta/entities/query"
+import {EntityCommitModal, type EntityReference} from "@agenta/entity-ui/modals"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {Button, Form, Input, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {
     fromFilteringPayload,
     parseSamplingRate,
@@ -62,9 +61,8 @@ const QueryRegistryDrawer = () => {
     const [saving, setSaving] = useState(false)
     const [matchState, setMatchState] = useState<MatchState>({status: "idle"})
     const [showPreview, setShowPreview] = useState(false)
-    // Edit commits go through a commit modal so the user can attach a message.
+    // Edits commit through the shared EntityCommitModal (version diff + message).
     const [commitOpen, setCommitOpen] = useState(false)
-    const [commitMessage, setCommitMessage] = useState("")
 
     const watchedName = Form.useWatch("name", form)
     const watchedRate = Form.useWatch("sampling_rate", form)
@@ -79,7 +77,9 @@ const QueryRegistryDrawer = () => {
     const [editState] = queryMolecule.useController(queryId)
     const syncDraft = useSetAtom(queryMolecule.reducers.update)
     const discardDraft = useSetAtom(queryMolecule.reducers.discard)
-    const saveQueryHead = useSetAtom(saveQueryHeadAtom)
+
+    // Stable reference the shared commit modal resolves through the query adapter.
+    const commitEntity = useMemo<EntityReference>(() => ({type: "query", id: queryId}), [queryId])
 
     // Stable filtering payload for the preview — recomputed only when the filter
     // conditions change, so the preview table doesn't refetch on every render.
@@ -173,7 +173,6 @@ const QueryRegistryDrawer = () => {
         setMatchState({status: "idle"})
         setShowPreview(false)
         setCommitOpen(false)
-        setCommitMessage("")
         form.resetFields()
     }, [setActiveRow, form, queryId, discardDraft])
 
@@ -233,31 +232,23 @@ const QueryRegistryDrawer = () => {
         }
 
         // Edit: flush the validated values into the molecule draft, then open the
-        // commit modal so the user can attach a commit message before committing.
+        // shared commit modal (it reads the draft via the query adapter and lets
+        // the user attach a commit message before committing).
         syncDraft(queryId, {
             name: values.name,
             data: {filtering: filtering ?? undefined, windowing: windowing ?? undefined},
         } as unknown as Partial<QueryRevision>)
-        setCommitMessage("")
         setCommitOpen(true)
     }, [projectId, activeRow, form, filters, isCreate, close, queryId, syncDraft])
 
-    const confirmCommit = useCallback(async () => {
-        if (!projectId || !queryId) return
-        setSaving(true)
-        try {
-            await saveQueryHead({projectId, queryId, message: commitMessage.trim() || undefined})
-            message.success("Query updated")
-            invalidateQueryRegistryStore()
-            invalidateQueryCache()
-            setCommitOpen(false)
-            close()
-        } catch {
-            message.error("Could not save query")
-        } finally {
-            setSaving(false)
-        }
-    }, [projectId, queryId, commitMessage, saveQueryHead, close])
+    // After the shared modal commits (it already cleared the molecule draft and
+    // entity cache), refresh the registry list and close the drawer.
+    const onCommitSuccess = useCallback(() => {
+        invalidateQueryRegistryStore()
+        invalidateQueryCache()
+        setCommitOpen(false)
+        close()
+    }, [close])
 
     return (
         <>
@@ -332,32 +323,17 @@ const QueryRegistryDrawer = () => {
                     </div>
                 ) : null}
             </EnhancedDrawer>
-            <EnhancedModal
-                centered
-                width={480}
+            {/* Shared entity commit modal — version transition + filtering/windowing
+                diff + message. Name editing and the save-mode/new-variant flow are
+                intentionally omitted (the drawer owns the name; queries are
+                single-variant). */}
+            <EntityCommitModal
                 open={commitOpen}
-                title="Commit changes"
-                okText="Commit"
-                cancelText="Cancel"
-                onOk={confirmCommit}
-                onCancel={() => setCommitOpen(false)}
-                okButtonProps={{loading: saving}}
-            >
-                <div className="flex flex-col gap-2">
-                    <Text type="secondary" className="text-xs">
-                        Saving creates a new version of this query. Add an optional message
-                        describing what changed.
-                    </Text>
-                    <Input.TextArea
-                        autoFocus
-                        rows={3}
-                        value={commitMessage}
-                        onChange={(event) => setCommitMessage(event.target.value)}
-                        placeholder="Commit message (optional)"
-                        maxLength={280}
-                    />
-                </div>
-            </EnhancedModal>
+                entity={commitEntity}
+                onClose={() => setCommitOpen(false)}
+                onSuccess={onCommitSuccess}
+                successMessage="Query updated"
+            />
         </>
     )
 }
