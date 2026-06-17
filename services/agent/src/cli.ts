@@ -7,6 +7,14 @@
  * long-lived RPC adapter can replace it later behind the same Python-side port.
  */
 import { runPi, type AgentRunRequest, type AgentRunResult } from "./runPi.ts";
+import { runRivet } from "./runRivet.ts";
+
+// `rivet` drives the harness over ACP via a rivet daemon (WP-8); default = legacy Pi.
+const BACKEND = (process.env.AGENT_BACKEND ?? "pi").toLowerCase();
+
+function runAgent(request: AgentRunRequest): Promise<AgentRunResult> {
+  return BACKEND === "rivet" ? runRivet(request) : runPi(request);
+}
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -32,7 +40,7 @@ async function main(): Promise<void> {
   }
 
   try {
-    const result = await runPi(request);
+    const result = await runAgent(request);
     emit(result);
     process.exit(result.ok ? 0 : 1);
   } catch (err) {

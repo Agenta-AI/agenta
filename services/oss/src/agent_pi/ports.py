@@ -114,6 +114,12 @@ class HarnessRequest:
     model: Optional[str] = None
     prompt: Optional[str] = None
     messages: List[Any] = field(default_factory=list)
+    # Continue a prior run by id (rivet path resumes/replays its history). None = new.
+    session_id: Optional[str] = None
+    # Provider API keys resolved from the project vault, as harness env vars
+    # ({"OPENAI_API_KEY": "...", ...}). Injected into the harness environment (local
+    # daemon + Daytona env_vars). Empty => the harness uses its own login (OAuth).
+    secrets: Dict[str, str] = field(default_factory=dict)
     tools: List[str] = field(default_factory=list)
     # Resolved runnable tool specs, already in the camelCase wire shape the TS
     # wrapper turns into Pi customTools: {name, description, inputSchema, callRef}.
@@ -129,6 +135,10 @@ class HarnessResult:
     output: str
     session_id: Optional[str] = None
     model: Optional[str] = None
+    # Run token/cost totals ({input, output, total, cost}). The harness span tree is
+    # exported in a separate OTLP batch from the workflow span, so the service rolls
+    # these onto the workflow span itself (see agent.py). None when unavailable.
+    usage: Optional[Dict[str, Any]] = None
 
 
 class Harness(ABC):

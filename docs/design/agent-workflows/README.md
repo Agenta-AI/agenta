@@ -116,6 +116,9 @@ running agent.
 - [`wp-7-tools/`](wp-7-tools/README.md) — make runnable tools part of the agent config; resolve
   Composio actions into Pi tools and route tool calls back through the existing
   `POST /tools/call`, with MCP and workflow-as-tool as future adapters.
+- [`wp-8-rivet-acp-runtime/`](wp-8-rivet-acp-runtime/README.md) — re-platform the service onto
+  `rivet-dev/sandbox-agent` so the agent is driven over ACP and the harness (Pi, Claude Code,
+  Codex) becomes a config value, running locally first; tools, Daytona, and the folder jail deferred.
 
 ## Related work
 

@@ -12,6 +12,8 @@
 **/*dont_commit_me*
 web/packages/agenta-api-client/dist/
 web/tsconfig.tsbuildinfo
+# Agent Pi extension bundle, built by `pnpm run build:extension` and in the Docker image.
+services/agent/dist/
 
 __pycache__/
 **/__pycache__/

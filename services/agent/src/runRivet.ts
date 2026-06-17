@@ -1,0 +1,698 @@
+/**
+ * WP-8 rivet harness driver.
+ *
+ * Drives a coding harness (Pi, Claude Code, ...) over the Agent Client Protocol (ACP)
+ * through a rivet `sandbox-agent` daemon, instead of the bespoke Pi SDK calls in
+ * runPi.ts. It serves the same /run contract (AgentRunRequest -> AgentRunResult), so
+ * the Python side stays thin and the choice of harness/sandbox is config, not new code.
+ *
+ * Per invoke (cold), mirroring the shipped code-evaluator DaytonaRunner pattern:
+ *
+ *   SandboxAgent.start({ sandbox: local({ env }) | daytona({ create }) })
+ *     -> createSession({ agent: <harness>, cwd, model })
+ *       -> write AGENTS.md into cwd
+ *       -> session.prompt([{ type: "text", text }])
+ *         -> accumulate ACP `agent_message_chunk` text + build the trace
+ *           -> destroySandbox()
+ *
+ * Two orthogonal axes swap independently: the sandbox (where the daemon runs) and the
+ * harness (which engine). The ACP boundary is daemon-to-harness; the service-to-rivet
+ * hop stays harness-agnostic behind the Harness port.
+ *
+ * Tracing is built here from the ACP event stream (see agenta-otel.ts createRivetOtel),
+ * so it is uniform across every harness and always nests under the caller's /invoke
+ * span. stdout is reserved for the JSON result (see cli.ts); logs go to stderr.
+ */
+import { randomBytes } from "node:crypto";
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { SandboxAgent, InMemorySessionPersistDriver } from "sandbox-agent";
+import { local } from "sandbox-agent/local";
+import { daytona } from "sandbox-agent/daytona";
+
+import { createRivetOtel } from "./agenta-otel.ts";
+import { buildToolMcpServers, type ResolvedToolSpec, type ToolCallbackContext } from "./toolBridge.ts";
+import type { AgentRunRequest, AgentRunResult, ChatMessage } from "./runPi.ts";
+
+const require = createRequire(import.meta.url);
+// services/agent/src/runRivet.ts -> services/agent
+const PKG_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const ADAPTER_BIN_DIR = join(PKG_ROOT, "node_modules", ".bin");
+
+/** Map node platform/arch to the @sandbox-agent CLI binary package. */
+const CLI_PACKAGES: Record<string, string> = {
+  "darwin-arm64": "@sandbox-agent/cli-darwin-arm64",
+  "darwin-x64": "@sandbox-agent/cli-darwin-x64",
+  "linux-x64": "@sandbox-agent/cli-linux-x64",
+  "linux-arm64": "@sandbox-agent/cli-linux-arm64",
+  "win32-x64": "@sandbox-agent/cli-win32-x64",
+};
+
+function log(message: string): void {
+  process.stderr.write(`[rivet-wrapper] ${message}\n`);
+}
+
+/**
+ * Resolve the sandbox-agent daemon binary. Prefers SANDBOX_AGENT_BIN, then the
+ * platform CLI package shipped with `sandbox-agent` (resolved from the SDK's own
+ * location, since pnpm nests it under `sandbox-agent`). Ensures it is executable
+ * (pnpm may skip the package's chmod postinstall). Returns undefined when not found;
+ * the local provider then runs its own resolution and surfaces a clear error.
+ */
+function resolveDaemonBinary(): string | undefined {
+  const fromEnv = process.env.SANDBOX_AGENT_BIN;
+  if (fromEnv && existsSync(fromEnv)) return ensureExecutable(fromEnv);
+
+  const pkg = CLI_PACKAGES[`${process.platform}-${process.arch}`];
+  if (!pkg) return undefined;
+  const bin = process.platform === "win32" ? "sandbox-agent.exe" : "sandbox-agent";
+  try {
+    // Resolve from the sandbox-agent package context (its node_modules sees the
+    // sibling CLI package in the pnpm layout); package.json blocks the subpath, so
+    // resolve from the main entry instead.
+    const sdkRequire = createRequire(require.resolve("sandbox-agent"));
+    const pkgJson = sdkRequire.resolve(`${pkg}/package.json`);
+    const resolved = join(dirname(pkgJson), "bin", bin);
+    if (existsSync(resolved)) return ensureExecutable(resolved);
+  } catch {
+    // fall through to a store scan
+  }
+  // Fallback: scan the pnpm store for the platform binary.
+  try {
+    const store = join(PKG_ROOT, "node_modules", ".pnpm");
+    for (const entry of readdirSync(store)) {
+      if (!entry.startsWith(`@sandbox-agent+cli-${process.platform}`)) continue;
+      const candidate = join(store, entry, "node_modules", pkg, "bin", bin);
+      if (existsSync(candidate)) return ensureExecutable(candidate);
+    }
+  } catch {
+    // store not present
+  }
+  return undefined;
+}
+
+function ensureExecutable(path: string): string {
+  try {
+    chmodSync(path, 0o755);
+  } catch {
+    // read-only fs (e.g. baked snapshot already +x): ignore
+  }
+  return path;
+}
+
+// The bundled Agenta Pi extension (tracing + tools). Built by `pnpm run build:extension`
+// and into the image; installed into Pi's agent dir so Pi loads it on every run.
+const EXTENSION_BUNDLE =
+  process.env.AGENTA_RIVET_EXTENSION_BUNDLE ?? join(PKG_ROOT, "dist", "extensions", "agenta.js");
+
+/**
+ * Env the Agenta Pi extension reads. Propagating the trace context here is what makes Pi
+ * emit its real spans under the caller's `/invoke` span; the tool spec + callback make Pi
+ * register the resolved tools natively (no MCP). Empty keys are omitted so the extension
+ * stays inert when nothing applies.
+ */
+function buildPiExtensionEnv(
+  request: AgentRunRequest,
+  tracing: boolean,
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  // Tracing env is omitted when the harness process can't reach Agenta's OTLP (Daytona):
+  // there the runner traces from the event stream instead, and the extension only does
+  // tools + the usage writeback.
+  const trace = tracing ? request.trace : undefined;
+  if (trace?.traceparent) env.AGENTA_TRACEPARENT = trace.traceparent;
+  if (trace?.endpoint) env.AGENTA_OTLP_ENDPOINT = trace.endpoint;
+  if (trace?.authorization) env.AGENTA_OTLP_AUTHORIZATION = trace.authorization;
+  if (trace && trace.captureContent === false) env.AGENTA_CAPTURE_CONTENT = "false";
+
+  const specs = (request.customTools as ResolvedToolSpec[]) ?? [];
+  if (specs.length && request.toolCallback?.endpoint) {
+    env.AGENTA_TOOL_SPECS = JSON.stringify(specs);
+    env.AGENTA_TOOL_CALLBACK_ENDPOINT = request.toolCallback.endpoint;
+    if (request.toolCallback.authorization) {
+      env.AGENTA_TOOL_CALLBACK_AUTH = request.toolCallback.authorization;
+    }
+  }
+  return env;
+}
+
+/** Install the extension bundle into a local Pi agent dir's extensions/. Best-effort. */
+function installPiExtensionLocal(agentDir: string): void {
+  if (!existsSync(EXTENSION_BUNDLE)) {
+    log(`pi extension bundle missing at ${EXTENSION_BUNDLE} (run build:extension)`);
+    return;
+  }
+  try {
+    const dir = join(agentDir, "extensions");
+    mkdirSync(dir, { recursive: true });
+    copyFileSync(EXTENSION_BUNDLE, join(dir, "agenta.js"));
+  } catch (err) {
+    log(`pi extension install skipped: ${(err as Error).message}`);
+  }
+}
+
+/** Upload the extension bundle into a Daytona sandbox's Pi extensions dir. Best-effort. */
+async function uploadPiExtensionToSandbox(sandbox: any, agentDir: string): Promise<void> {
+  if (!existsSync(EXTENSION_BUNDLE)) return;
+  try {
+    const dir = `${agentDir}/extensions`;
+    await sandbox.mkdirFs({ path: dir });
+    await sandbox.writeFsFile({ path: `${dir}/agenta.js` }, readFileSync(EXTENSION_BUNDLE, "utf-8"));
+  } catch (err) {
+    log(`pi extension upload skipped: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * The environment the daemon is born with. The local provider merges this into the
+ * `sandbox-agent server` subprocess, which passes it to the ACP adapter and then to
+ * the harness. This is also where per-invoke trace/secret injection would go for a
+ * warm-daemon model; under one-daemon-per-invoke the in-process tracer handles spans,
+ * so this only needs to make the adapters and harness resolvable + authed.
+ */
+function buildDaemonEnv(harness: string): Record<string, string> {
+  const env: Record<string, string> = {};
+
+  // Adapters (pi-acp, claude-agent-acp) and the pi CLI live in our node_modules/.bin;
+  // claude CLI is on the inherited PATH. Prepend ours, keep the inherited PATH.
+  const extra = process.env.AGENTA_RIVET_ADAPTER_PATH;
+  env.PATH = [ADAPTER_BIN_DIR, extra, process.env.PATH].filter(Boolean).join(":");
+
+  // Pi: point pi-acp at our pi bin and the agent dir that carries auth.json.
+  env.PI_ACP_PI_COMMAND =
+    process.env.AGENTA_RIVET_PI_COMMAND ?? join(ADAPTER_BIN_DIR, "pi");
+  const piAgentDir = process.env.PI_CODING_AGENT_DIR;
+  if (piAgentDir) env.PI_CODING_AGENT_DIR = piAgentDir;
+
+  // Keep HOME so harness logins (~/.pi/agent, ~/.claude) resolve.
+  if (process.env.HOME) env.HOME = process.env.HOME;
+
+  // Harness LLM auth passed as launch env, never written into the agent filesystem.
+  for (const key of [
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "CLAUDE_CONFIG_DIR",
+    "GEMINI_API_KEY",
+  ]) {
+    const value = process.env[key];
+    if (value) env[key] = value;
+  }
+
+  return env;
+}
+
+/** The latest user turn: explicit prompt, else last user message content. */
+function resolvePrompt(request: AgentRunRequest): string {
+  if (request.prompt && request.prompt.trim()) return request.prompt;
+  const messages = request.messages ?? [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "user" && messages[i].content) return messages[i].content;
+  }
+  return "";
+}
+
+/** Prior turns (everything before the latest user message) for trace + history. */
+function priorMessages(request: AgentRunRequest): ChatMessage[] {
+  const messages = request.messages ?? [];
+  const latest = resolvePrompt(request);
+  // Drop the trailing user turn (it is the prompt we send) to avoid double-counting.
+  if (messages.length && messages[messages.length - 1].role === "user") {
+    return messages.slice(0, -1);
+  }
+  // No trailing user message (prompt came in explicitly): keep turns that aren't it.
+  return messages.filter((m) => !(m.role === "user" && m.content === latest));
+}
+
+/**
+ * The text sent over ACP for this turn. Each invoke is a cold sandbox, so prior turns
+ * are replayed as transcript context ahead of the latest user message — this is the
+ * "persisted message history replayed" model, with the client/playground holding the
+ * history. Capped by AGENTA_AGENT_HISTORY_MAX_CHARS so replay tokens stay bounded.
+ */
+function buildTurnText(request: AgentRunRequest): string {
+  const latest = resolvePrompt(request);
+  const history = priorMessages(request).filter((m) => m.content);
+  if (history.length === 0) return latest;
+
+  const maxChars = Number(process.env.AGENTA_AGENT_HISTORY_MAX_CHARS ?? 24000);
+  let transcript = history.map((m) => `${m.role}: ${m.content}`).join("\n");
+  if (transcript.length > maxChars) transcript = transcript.slice(-maxChars);
+  return (
+    `Conversation so far:\n${transcript}\n\n` +
+    `Continue the conversation. The user now says:\n${latest}`
+  );
+}
+
+/**
+ * Pick the harness-specific model id for a requested name. Harnesses expose their own
+ * ids (Pi: "openai-codex/gpt-5.5"; Claude: its own). Match exact, then by the id after
+ * the provider prefix, so "gpt-5.5" resolves to "openai-codex/gpt-5.5".
+ */
+function pickModel(allowed: string[], wanted?: string): string | undefined {
+  if (!wanted) return undefined;
+  if (allowed.includes(wanted)) return wanted;
+  const suffix = (id: string) => id.slice(id.indexOf("/") + 1);
+  return (
+    allowed.find((id) => suffix(id) === wanted) ??
+    allowed.find((id) => suffix(id) === suffix(wanted)) ??
+    undefined
+  );
+}
+
+/** Enumerate the harness's selectable model ids from the session config options. */
+async function allowedModels(session: any): Promise<string[]> {
+  try {
+    const options = await session.getConfigOptions();
+    const modelOpt = (options ?? []).find(
+      (o: any) => o.category === "model" || o.id === "model",
+    );
+    const choices = modelOpt?.options ?? [];
+    return choices.map((c: any) => c.id).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/** Parse the allowed model ids out of an UnsupportedSessionValueError message. */
+function allowedFromError(err: unknown): string[] {
+  const match = /Allowed values:\s*(.+?)\s*$/.exec(String((err as Error)?.message ?? err));
+  if (!match) return [];
+  return match[1]
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Apply the requested model to a session, normalizing to the harness's own id. Tries the
+ * value as given first (already-qualified ids pass); on rejection it reads the allowed
+ * ids from the error (always listed there) or the session config and retries a match.
+ * Returns the id set, or undefined when no match exists (the harness keeps its default
+ * rather than failing the run).
+ */
+async function applyModel(session: any, wanted?: string): Promise<string | undefined> {
+  if (!wanted) return undefined;
+  try {
+    await session.setModel(wanted);
+    return wanted;
+  } catch (err) {
+    const allowed = allowedFromError(err);
+    const fallbackAllowed = allowed.length ? allowed : await allowedModels(session);
+    const match = pickModel(fallbackAllowed, wanted);
+    if (match && match !== wanted) {
+      try {
+        await session.setModel(match);
+        return match;
+      } catch {
+        // fall through to harness default
+      }
+    }
+    log(`model '${wanted}' not settable (${(err as Error).message}); using harness default`);
+    return undefined;
+  }
+}
+
+/**
+ * In-sandbox env for the Daytona daemon: where Pi reads its login, any provider keys,
+ * and the Agenta extension env (traceparent + OTLP + tool spec) so the remote Pi traces
+ * and runs tools exactly like local. No local-only paths (PATH/PI_ACP_PI_COMMAND) here.
+ */
+function daytonaEnvVars(
+  piExtEnv: Record<string, string>,
+  secrets: Record<string, string>,
+): Record<string, string> {
+  const env: Record<string, string> = {
+    PI_CODING_AGENT_DIR: DAYTONA_PI_DIR,
+    ...piExtEnv,
+    // Provider API keys from the vault: the in-sandbox harness authenticates with these.
+    ...secrets,
+  };
+  // Point pi-acp at the `pi` we install into the sandbox (the image lacks it).
+  if (DAYTONA_PI_INSTALL) {
+    env.PI_ACP_PI_COMMAND = `${DAYTONA_PI_INSTALL_DIR}/node_modules/.bin/pi`;
+  }
+  return env;
+}
+
+/**
+ * Build the rivet sandbox provider for the requested axis.
+ *
+ * Daytona needs an image that carries both the rivet daemon and the harness CLI. Rivet's
+ * `-full` image ships the daemon and the ACP adapters but NOT the `pi` CLI, so we run
+ * from a pre-baked snapshot (`AGENTA_RIVET_DAYTONA_SNAPSHOT`, default `agenta-rivet-pi`,
+ * built by poc/build_rivet_snapshot.py) that adds `pi`; this avoids a ~150s per-invoke
+ * `npm install pi`. `AGENTA_RIVET_DAYTONA_IMAGE` overrides with a plain image instead. The
+ * code-evaluator DAYTONA_SNAPSHOT is intentionally NOT reused (it has no daemon). The
+ * provider key comes from the vault env; Pi's OAuth login is only uploaded when no key.
+ */
+function buildSandboxProvider(
+  sandboxId: string,
+  env: Record<string, string>,
+  binaryPath: string | undefined,
+  piExtEnv: Record<string, string>,
+  secrets: Record<string, string>,
+) {
+  if (sandboxId === "daytona") {
+    const snapshot = process.env.AGENTA_RIVET_DAYTONA_SNAPSHOT;
+    const image = process.env.AGENTA_RIVET_DAYTONA_IMAGE;
+    const target = process.env.DAYTONA_TARGET;
+    return daytona({
+      ...(image ? { image } : {}),
+      create: {
+        // The rivet provider always sets a default `image`, which Daytona turns into a
+        // build entry that conflicts with `snapshot`. Spreading image:undefined last
+        // suppresses that so the snapshot is used as-is.
+        ...(snapshot ? { snapshot, image: undefined } : {}),
+        ...(target ? { target } : {}),
+        envVars: daytonaEnvVars(piExtEnv, secrets),
+        ephemeral: true,
+      } as any,
+    });
+  }
+  // local: spawn `sandbox-agent server` on this host with the daemon env merged in.
+  const logMode = (process.env.AGENTA_RIVET_DAEMON_LOG ?? "silent") as any;
+  return local({ env, binaryPath, log: logMode });
+}
+
+/** In-sandbox Pi agent dir on the rivet `-full` image (daemon runs as user `sandbox`). */
+const DAYTONA_PI_DIR = process.env.AGENTA_RIVET_DAYTONA_PI_DIR ?? "/home/sandbox/.pi/agent";
+// The rivet `-full` image ships the pi-acp adapter but NOT the `pi` CLI, so by default we
+// install it into the sandbox at session time and point pi-acp at it. A snapshot that
+// pre-installs `pi` should set AGENTA_RIVET_DAYTONA_INSTALL_PI=false (faster, no per-run
+// npm install). Version mirrors the wrapper's pinned Pi.
+const DAYTONA_PI_INSTALL_DIR = "/home/sandbox/.agenta-pi";
+const DAYTONA_PI_INSTALL = process.env.AGENTA_RIVET_DAYTONA_INSTALL_PI !== "false";
+const DAYTONA_PI_VERSION = process.env.AGENTA_RIVET_PI_VERSION ?? "0.79.4";
+
+/** Install the `pi` CLI into a Daytona sandbox (the rivet image lacks it). Best-effort. */
+async function installPiInSandbox(sandbox: any): Promise<void> {
+  try {
+    await sandbox.mkdirFs({ path: DAYTONA_PI_INSTALL_DIR });
+    const res = await sandbox.runProcess({
+      command: "npm",
+      args: [
+        "install",
+        "--no-fund",
+        "--no-audit",
+        `@earendil-works/pi-coding-agent@${DAYTONA_PI_VERSION}`,
+      ],
+      cwd: DAYTONA_PI_INSTALL_DIR,
+      timeoutMs: 180_000,
+    });
+    if (res?.exitCode !== 0) {
+      log(`pi install in sandbox exit=${res?.exitCode}: ${String(res?.stderr).slice(-400)}`);
+    }
+  } catch (err) {
+    log(`pi install in sandbox skipped: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * Upload the local Pi login into a Daytona sandbox so the remote Pi authenticates with
+ * the dev's ChatGPT/Codex OAuth (it auto-refreshes from the token in auth.json). Must
+ * `mkdirFs` the parent first (a fresh sandbox lacks it) and pass a string body — a
+ * missing dir or a stream body is what produced the earlier "Stream Error". Best-effort:
+ * with no local login the remote run falls back to any provider key in the sandbox env.
+ */
+async function uploadPiAuthToSandbox(sandbox: any): Promise<void> {
+  const localDir = process.env.PI_CODING_AGENT_DIR || join(process.env.HOME ?? "", ".pi/agent");
+  const authPath = join(localDir, "auth.json");
+  if (!existsSync(authPath)) return;
+  try {
+    await sandbox.mkdirFs({ path: DAYTONA_PI_DIR });
+    await sandbox.writeFsFile({ path: `${DAYTONA_PI_DIR}/auth.json` }, readFileSync(authPath, "utf-8"));
+    const settingsPath = join(localDir, "settings.json");
+    if (existsSync(settingsPath)) {
+      await sandbox.writeFsFile(
+        { path: `${DAYTONA_PI_DIR}/settings.json` },
+        readFileSync(settingsPath, "utf-8"),
+      );
+    }
+  } catch (err) {
+    log(`pi auth upload skipped: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * A `fetch` that persists cookies per host. Daytona's preview proxy authenticates with a
+ * `daytona-sandbox-auth-*` cookie set on the first response; Node's fetch keeps no cookie
+ * jar, so without this the proxy rejects later ACP requests with "Authentication
+ * required" / 502. The rivet SDK accepts a custom fetch, so we hand it this one.
+ */
+function createCookieFetch(): typeof fetch {
+  const jar = new Map<string, Map<string, string>>(); // host -> (name -> "name=value")
+  return async (input: any, init?: any) => {
+    const url = new URL(typeof input === "string" ? input : input.url);
+    const host = url.host;
+    const cookies = jar.get(host);
+    const headers = new Headers(init?.headers ?? (typeof input !== "string" ? input.headers : undefined));
+    if (cookies && cookies.size > 0) {
+      const existing = headers.get("cookie");
+      const merged = [...cookies.values()];
+      if (existing) merged.unshift(existing);
+      headers.set("cookie", merged.join("; "));
+    }
+    const response = await fetch(input, { ...init, headers });
+    const setCookies =
+      typeof (response.headers as any).getSetCookie === "function"
+        ? (response.headers as any).getSetCookie()
+        : (response.headers.get("set-cookie") ? [response.headers.get("set-cookie")] : []);
+    if (setCookies.length) {
+      const store = jar.get(host) ?? new Map<string, string>();
+      for (const sc of setCookies) {
+        const pair = String(sc).split(";")[0];
+        const name = pair.split("=")[0];
+        if (name) store.set(name, pair);
+      }
+      jar.set(host, store);
+    }
+    return response;
+  };
+}
+
+/** Read the run-total usage Pi wrote on agent_end (local fs or the sandbox FS API). */
+async function readRunUsage(
+  sandbox: any,
+  path: string | undefined,
+  isDaytona: boolean,
+): Promise<AgentRunResult["usage"]> {
+  if (!path) return undefined;
+  try {
+    let raw: string;
+    if (isDaytona) {
+      const bytes = await sandbox.readFsFile({ path });
+      raw = typeof bytes === "string" ? bytes : new TextDecoder().decode(bytes);
+    } else {
+      if (!existsSync(path)) return undefined;
+      raw = readFileSync(path, "utf-8");
+    }
+    const u = JSON.parse(raw);
+    return u && u.total > 0 ? u : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Turn a harness/SDK error into one clear line for the caller (the playground shows it
+ * verbatim), instead of dumping a full ACP/JS stack. Recognizes the common harness auth
+ * failures so the user sees what to fix.
+ */
+function conciseError(err: unknown, harness: string): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  const msg = raw.split("\n")[0].trim();
+  const keyHint =
+    harness === "claude" ? "the project's Anthropic key" : "the project's OpenAI key";
+  if (/credit balance is too low/i.test(raw)) {
+    return `${harness}: the model provider account has insufficient credit (check ${keyHint}).`;
+  }
+  if (/authentication required|invalid api key|401|unauthorized/i.test(raw)) {
+    return `${harness}: model authentication failed — add ${keyHint} to the project vault, or log in (OAuth).`;
+  }
+  return msg || "agent run failed";
+}
+
+export async function runRivet(request: AgentRunRequest): Promise<AgentRunResult> {
+  const harness = request.harness || process.env.AGENTA_AGENT_HARNESS || "pi";
+  const sandboxId = request.sandbox || process.env.AGENTA_AGENT_SANDBOX || "local";
+
+  const prompt = resolvePrompt(request);
+  if (!prompt) {
+    return { ok: false, error: "No user message to send (prompt/messages empty)." };
+  }
+  // What we actually send over ACP: the latest turn, with prior turns replayed as
+  // context when this is a continued conversation.
+  const turnText = buildTurnText(request);
+
+  const isPi = harness === "pi";
+  const isDaytona = sandboxId === "daytona";
+
+  // Provider API keys resolved from the vault (OPENAI_API_KEY/ANTHROPIC_API_KEY/...).
+  // Present => the harness authenticates with the key; absent => it uses its own login
+  // (OAuth: local Codex / a mounted-or-uploaded auth.json).
+  const secrets = request.secrets ?? {};
+  const harnessKeyVar = harness === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
+  const hasApiKey = !!secrets[harnessKeyVar];
+
+  const env = buildDaemonEnv(harness);
+  Object.assign(env, secrets); // local daemon inherits the provider keys
+  // Pi self-instruments locally: propagate the trace context + tools into Pi via the
+  // Agenta extension (real spans + native tools). On Daytona the in-sandbox process
+  // can't reach Agenta's OTLP, so the extension skips tracing (tools + usage only) and
+  // the runner traces from the ACP event stream instead — hence emitSpans on Daytona.
+  const piExtEnv = isPi ? buildPiExtensionEnv(request, !isDaytona) : {};
+  Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
+  // undefined is fine: the local provider runs its own resolution and errors clearly.
+  const binaryPath = resolveDaemonBinary();
+
+  // For local Pi, install the extension into the agent dir Pi loads from.
+  const localPiAgentDir = process.env.PI_CODING_AGENT_DIR;
+  if (isPi && !isDaytona && localPiAgentDir) installPiExtensionLocal(localPiAgentDir);
+
+  // Session cwd holds AGENTS.md. Local: a host temp dir. Daytona: an in-sandbox path
+  // (the host path would not exist on the remote sandbox).
+  const cwd = isDaytona
+    ? `/home/sandbox/agenta-${randomBytes(6).toString("hex")}`
+    : mkdtempSync(join(tmpdir(), "agenta-rivet-"));
+  const agentsMd = request.agentsMd?.trim();
+
+  // Pi writes its run totals here on agent_end; we read them back and return them so the
+  // caller can roll them onto the workflow span (separate OTLP batch, see piExtension).
+  const usageOutPath = isPi ? `${cwd}/.agenta-usage.json` : undefined;
+  if (usageOutPath) {
+    env.AGENTA_USAGE_OUT = usageOutPath;
+    piExtEnv.AGENTA_USAGE_OUT = usageOutPath;
+  }
+
+  log(`harness=${harness} sandbox=${sandboxId} cwd=${cwd}`);
+
+  // Persist events in-process so a follow-up turn can resume by session id.
+  const persist = new InMemorySessionPersistDriver();
+  const sandbox = await SandboxAgent.start({
+    sandbox: buildSandboxProvider(sandboxId, env, binaryPath, piExtEnv, secrets),
+    persist,
+    // Daytona's preview proxy authenticates with a per-sandbox cookie; carry it across
+    // requests so ACP calls after the first don't 401. Harmless for local.
+    ...(isDaytona ? { fetch: createCookieFetch() } : {}),
+  });
+
+  // Pi traces itself via the extension under the propagated traceparent; for other
+  // harnesses we build the span tree here from the ACP event stream. Created below, once
+  // the model is resolved, so the chat span carries the harness's actual model rather
+  // than the requested one. Declared here so the catch can flush a partial trace.
+  let otel: ReturnType<typeof createRivetOtel> | undefined;
+
+  try {
+    // On Daytona, push the harness login, the extension, and AGENTS.md into the remote
+    // sandbox via the filesystem API (nothing secret is baked into the image). Locally
+    // these use the host filesystem and the harness's own login (PI_CODING_AGENT_DIR).
+    if (isDaytona) {
+      if (isPi) {
+        // With a provider API key the harness authenticates via env; only fall back to
+        // uploading the Codex/OAuth login when no key is available.
+        if (!hasApiKey) await uploadPiAuthToSandbox(sandbox);
+        await uploadPiExtensionToSandbox(sandbox, DAYTONA_PI_DIR);
+        if (DAYTONA_PI_INSTALL) await installPiInSandbox(sandbox);
+      }
+      await sandbox.mkdirFs({ path: cwd }).catch(() => {});
+      if (agentsMd) await sandbox.writeFsFile({ path: `${cwd}/AGENTS.md` }, agentsMd);
+    } else if (agentsMd) {
+      writeFileSync(join(cwd, "AGENTS.md"), agentsMd, "utf-8");
+    }
+
+    // Pi gets tools via the extension (above); other harnesses via MCP.
+    const mcpServers = isPi
+      ? []
+      : buildToolMcpServers(
+          (request.customTools as ResolvedToolSpec[]) ?? [],
+          request.toolCallback as ToolCallbackContext | undefined,
+        );
+
+    const session = await sandbox.createSession({
+      agent: harness,
+      cwd,
+      sessionInit: { cwd, mcpServers },
+    });
+
+    // Resolve the model first: when the harness rejects the requested id and keeps its
+    // own default (e.g. Claude ignores "gpt-5.5"), `model` is undefined and the chat span
+    // is labelled "chat" instead of falsely claiming the requested model.
+    const model = await applyModel(session, request.model);
+
+    const run = createRivetOtel({
+      harness,
+      model,
+      traceparent: request.trace?.traceparent,
+      baggage: request.trace?.baggage,
+      endpoint: request.trace?.endpoint,
+      authorization: request.trace?.authorization,
+      captureContent: request.trace?.captureContent,
+      emitSpans: !isPi || isDaytona,
+    });
+    otel = run;
+
+    run.start({
+      prompt,
+      sessionId: session.id,
+      messages: [...priorMessages(request), { role: "user", content: prompt }],
+    });
+
+    session.onEvent((event: any) => {
+      const payload = event?.payload;
+      const update = payload?.params?.update ?? payload?.update;
+      if (update) run.handleUpdate(update);
+    });
+
+    // Auto-approve permission requests so a permission-gating harness (e.g. Claude
+    // Code) does not block on tool use. Tools are backend-resolved and trusted; the
+    // run is headless so there is no human to prompt. Set AGENTA_RIVET_DENY_PERMISSIONS
+    // to reject instead.
+    const denyPermissions = process.env.AGENTA_RIVET_DENY_PERMISSIONS === "true";
+    session.onPermissionRequest((req: any) => {
+      const replies: string[] = req?.availableReplies ?? [];
+      const reply = denyPermissions
+        ? "reject"
+        : replies.find((r) => r === "always") ?? replies.find((r) => r === "once") ?? "once";
+      if (req?.id) session.respondPermission(req.id, reply as any).catch(() => {});
+    });
+
+    const result = await session.prompt([{ type: "text", text: turnText }]);
+    log(`prompt stopReason=${(result as any)?.stopReason}`);
+
+    const output = run.finish();
+    await run.flush();
+
+    return {
+      ok: true,
+      output,
+      sessionId: session.id,
+      model: model ?? request.model,
+      traceId: run.traceId(),
+      usage: await readRunUsage(sandbox, usageOutPath, isDaytona),
+    };
+  } catch (err) {
+    otel?.finish();
+    await otel?.flush().catch(() => {});
+    return { ok: false, error: conciseError(err, harness) };
+  } finally {
+    await sandbox.destroySandbox().catch(() => {});
+    await sandbox.dispose().catch(() => {});
+    rmSync(cwd, { recursive: true, force: true });
+  }
+}

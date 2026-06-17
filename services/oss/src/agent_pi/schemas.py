@@ -59,6 +59,23 @@ AGENT_PARAMETERS_SCHEMA = {
                 "llm_config": {"model": _DEFAULT_MODEL, "tools": []},
             },
         },
+        # The two orthogonal runtime axes, editable in the playground so a run can
+        # switch engine (pi/claude) or where it runs (local/daytona) without redeploy.
+        # Read in agent.py and threaded to the rivet harness; fall back to env defaults.
+        "harness": {
+            "type": "string",
+            "title": "Harness",
+            "enum": ["pi", "claude"],
+            "default": "pi",
+            "description": "Coding agent engine to drive over ACP (pi or claude).",
+        },
+        "sandbox": {
+            "type": "string",
+            "title": "Sandbox",
+            "enum": ["local", "daytona"],
+            "default": "local",
+            "description": "Where the agent runs: local daemon or a Daytona sandbox.",
+        },
     },
 }
 

@@ -17,6 +17,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
+from opentelemetry import trace as otel_trace
 
 import agenta as ag
 from agenta.sdk.engines.tracing.propagation import inject
@@ -27,6 +28,7 @@ from oss.src.agent_pi.local_runtime import LocalRuntime
 from oss.src.agent_pi.pi_harness import PiHarness
 from oss.src.agent_pi.pi_http_harness import PiHttpHarness
 from oss.src.agent_pi.ports import Harness, HarnessRequest, ToolCallback, TraceContext
+from oss.src.agent_pi.rivet_harness import RivetHarness
 from oss.src.agent_pi.schemas import AGENT_SCHEMAS
 
 log = get_module_logger(__name__)
@@ -41,13 +43,38 @@ _CAPTURE_CONTENT = os.getenv("AGENTA_AGENT_CAPTURE_CONTENT", "true").lower() not
 _TOOLS_RESOLVE_TIMEOUT = float(os.getenv("AGENTA_AGENT_TOOLS_TIMEOUT", "30"))
 
 
-def _build_harness() -> Harness:
+def _build_harness(
+    harness: Optional[str] = None,
+    sandbox: Optional[str] = None,
+) -> Harness:
     """Pick the harness adapter for the current deployment.
 
-    - ``AGENTA_AGENT_PI_URL`` set (docker): call the Pi sidecar over HTTP.
+    Runtime axis (``AGENTA_AGENT_RUNTIME``):
+    - ``rivet``: drive the harness over ACP via a rivet daemon (WP-8). The harness
+      (pi/claude) and sandbox (local/daytona) are independent config axes, taken from
+      the request config when set (so they are editable in the playground), else the
+      ``AGENTA_AGENT_HARNESS`` / ``AGENTA_AGENT_SANDBOX`` env defaults.
+    - default (``pi``): the legacy in-process Pi path (WP-2), kept so nothing regresses.
+
+    Transport axis (both runtimes):
+    - ``AGENTA_AGENT_PI_URL`` set (docker): call the TS wrapper sidecar over HTTP.
     - otherwise (local): spawn the TS wrapper as a subprocess.
     """
     pi_url = os.getenv("AGENTA_AGENT_PI_URL")
+    runtime = os.getenv("AGENTA_AGENT_RUNTIME", "pi").lower()
+
+    if runtime == "rivet":
+        harness = (harness or os.getenv("AGENTA_AGENT_HARNESS", "pi")).lower()
+        sandbox = (sandbox or os.getenv("AGENTA_AGENT_SANDBOX", "local")).lower()
+        if pi_url:
+            return RivetHarness(harness=harness, sandbox=sandbox, base_url=pi_url)
+        return RivetHarness(
+            harness=harness,
+            sandbox=sandbox,
+            runtime=LocalRuntime(),
+            wrapper_dir=str(wrapper_dir()),
+        )
+
     if pi_url:
         return PiHttpHarness(pi_url)
     return PiHarness(LocalRuntime(), wrapper_dir=str(wrapper_dir()))
@@ -108,6 +135,62 @@ def _latest_user_message(messages: Optional[List[Any]]) -> str:
             content = message["content"]
             return content if isinstance(content, str) else str(content)
     return ""
+
+
+# Map a vault standard-provider kind to the env var the harness (Pi/Claude/litellm)
+# reads. Only providers an agent harness can use are listed.
+_PROVIDER_ENV_VARS = {
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+    "mistral": "MISTRAL_API_KEY",
+    "mistralai": "MISTRAL_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "together_ai": "TOGETHERAI_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+}
+
+
+async def _resolve_harness_secrets() -> Dict[str, str]:
+    """Resolve provider API keys from the project vault into harness env vars.
+
+    The agent authenticates the harness with the same provider keys the project
+    configured for LLM access. We fetch the project's vault ``provider_key`` secrets
+    from the backend directly (same backend + caller credential the tool resolver uses)
+    and inject each as its standard env var, so the harness uses whichever its model
+    needs. The SDK's per-request secret context does not propagate to this custom route,
+    so we resolve here rather than reading it. Empty when the vault has none (the harness
+    then falls back to its own login / OAuth — see ``runRivet``). Best-effort.
+    """
+    api_base = _agenta_api_base()
+    if not api_base:
+        return {}
+    headers = {"Content-Type": "application/json"}
+    authorization = _request_authorization()
+    if authorization:
+        headers["Authorization"] = authorization
+
+    try:
+        async with httpx.AsyncClient(timeout=_TOOLS_RESOLVE_TIMEOUT) as client:
+            response = await client.get(f"{api_base}/secrets/", headers=headers)
+        if response.status_code >= 400:
+            log.warning("agent: vault secrets fetch HTTP %s", response.status_code)
+            return {}
+        secrets = response.json() or []
+    except Exception:  # pylint: disable=broad-except
+        log.warning("agent: vault secrets fetch failed", exc_info=True)
+        return {}
+
+    env: Dict[str, str] = {}
+    for secret in secrets:
+        if not isinstance(secret, dict) or secret.get("kind") != "provider_key":
+            continue
+        data = secret.get("data") or {}
+        env_var = _PROVIDER_ENV_VARS.get(str(data.get("kind", "")).lower())
+        key = (data.get("provider") or {}).get("key")
+        if env_var and key:
+            env.setdefault(env_var, key)
+    return env
 
 
 def _trace_context() -> Optional[TraceContext]:
@@ -324,7 +407,12 @@ async def _agent(
 
     builtins, custom_tools, tool_callback = await _resolve_tools(tools_config)
 
-    harness = _build_harness()
+    # Harness (pi/claude) and sandbox (local/daytona) are editable config (see
+    # schemas.py), so a playground run can switch engine or environment; unset falls
+    # back to the env defaults inside _build_harness.
+    harness_id = params.get("harness")
+    sandbox_id = params.get("sandbox")
+    harness = _build_harness(harness=harness_id, sandbox=sandbox_id)
 
     await harness.setup()
     try:
@@ -338,12 +426,41 @@ async def _agent(
                 custom_tools=custom_tools,
                 tool_callback=tool_callback,
                 trace=_trace_context(),
+                secrets=await _resolve_harness_secrets(),
             )
         )
     finally:
         await harness.shutdown()
 
+    _record_usage(result.usage)
+
     return {"role": "assistant", "content": result.output}
+
+
+def _record_usage(usage: Optional[Dict[str, Any]]) -> None:
+    """Stamp the agent's token/cost totals onto the active ``/invoke`` workflow span.
+
+    The harness emits its own span tree (turns, LLM, tools) in a separate OTLP batch, so
+    Agenta's per-batch cumulative roll-up cannot bridge the totals onto the workflow
+    span. Setting ``gen_ai.usage.*`` here records them directly on that span (the root of
+    its batch), so the trace shows the run's tokens and cost. Best-effort.
+    """
+    if not usage or not usage.get("total"):
+        return
+    try:
+        span = otel_trace.get_current_span()
+        input_tokens = int(usage.get("input") or 0)
+        output_tokens = int(usage.get("output") or 0)
+        span.set_attribute("gen_ai.usage.input_tokens", input_tokens)
+        span.set_attribute("gen_ai.usage.output_tokens", output_tokens)
+        span.set_attribute("gen_ai.usage.prompt_tokens", input_tokens)
+        span.set_attribute("gen_ai.usage.completion_tokens", output_tokens)
+        span.set_attribute("gen_ai.usage.total_tokens", int(usage.get("total") or 0))
+        cost = usage.get("cost")
+        if cost:
+            span.set_attribute("gen_ai.usage.cost", float(cost))
+    except Exception:  # pylint: disable=broad-except
+        log.warning("agent: failed to record usage on workflow span", exc_info=True)
 
 
 def create_agent_app():

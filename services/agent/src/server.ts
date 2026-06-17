@@ -12,9 +12,22 @@
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
-import { runPi, type AgentRunRequest } from "./runPi.ts";
+import { runPi, type AgentRunRequest, type AgentRunResult } from "./runPi.ts";
+import { runRivet } from "./runRivet.ts";
 
 const PORT = Number(process.env.PORT ?? 8765);
+
+// Select the harness driver. `rivet` drives the harness over ACP via a rivet daemon
+// (WP-8); `pi` is the legacy in-process Pi path (WP-2). `auto` (default) routes by the
+// request: a rivet envelope carries `harness`/`sandbox`, so one sidecar serves both and
+// nothing regresses.
+const BACKEND = (process.env.AGENT_BACKEND ?? "auto").toLowerCase();
+
+function runAgent(request: AgentRunRequest): Promise<AgentRunResult> {
+  if (BACKEND === "rivet") return runRivet(request);
+  if (BACKEND === "pi") return runPi(request);
+  return request.harness || request.sandbox ? runRivet(request) : runPi(request);
+}
 
 function send(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
@@ -48,7 +61,7 @@ const server = createServer(async (req, res) => {
         return send(res, 400, { ok: false, error: `Invalid JSON: ${String(err)}` });
       }
 
-      const result = await runPi(request);
+      const result = await runAgent(request);
       return send(res, result.ok ? 200 : 500, result);
     }
 
@@ -57,6 +70,20 @@ const server = createServer(async (req, res) => {
     const message = err instanceof Error ? err.stack ?? err.message : String(err);
     return send(res, 500, { ok: false, error: message });
   }
+});
+
+// The rivet SDK can reject a background promise (e.g. an adapter install or the Daytona
+// preview SSE failing) outside any awaited path. Node's default turns that into an
+// uncaught exception that kills the whole process — taking every in-flight request with
+// it (the caller sees "Server disconnected"). Log and keep serving instead; the failing
+// run still returns its own error to its caller.
+process.on("unhandledRejection", (reason) => {
+  process.stderr.write(
+    `[pi-wrapper] unhandledRejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}\n`,
+  );
+});
+process.on("uncaughtException", (err) => {
+  process.stderr.write(`[pi-wrapper] uncaughtException: ${err.stack ?? err.message}\n`);
 });
 
 server.listen(PORT, () => {

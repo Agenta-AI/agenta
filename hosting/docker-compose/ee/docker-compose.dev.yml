@@ -394,8 +394,13 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Agent workflow (WP-2): reach the Pi harness sidecar in-network.
+            # Agent workflow (WP-2): reach the harness wrapper sidecar in-network.
             AGENTA_AGENT_PI_URL: http://agent-pi:8765
+            # Agent runtime (WP-8): drive the harness over ACP via a rivet daemon.
+            # Harness (pi/claude) and sandbox (local/daytona) are independent axes.
+            AGENTA_AGENT_RUNTIME: ${AGENTA_AGENT_RUNTIME:-rivet}
+            AGENTA_AGENT_HARNESS: ${AGENTA_AGENT_HARNESS:-pi}
+            AGENTA_AGENT_SANDBOX: ${AGENTA_AGENT_SANDBOX:-local}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -429,11 +434,10 @@ services:
             exec node_modules/.bin/tsx src/server.ts"
         # === CONFIGURATION ======================================== #
         # Deliberately NO env_file: the Pi sandbox must not inherit the stack's
-        # secrets (COMPOSIO_API_KEY, STRIPE/POSTHOG/GOOGLE/DAYTONA keys, ...). Tools
-        # run server-side via /tools/call, so the sandbox only needs its own port,
-        # the Pi login (mounted below), and the OTLP export fallback. The wrapper
-        # reads exactly: PORT, PI_CODING_AGENT_DIR, AGENTA_HOST, AGENTA_API_KEY, and
-        # the optional AGENTA_AGENT_TOOL_CALL_TIMEOUT_MS / OTEL_SERVICE_NAME.
+        # secrets (COMPOSIO_API_KEY, STRIPE/POSTHOG/GOOGLE keys, ...). Tools run
+        # server-side via /tools/call, so the sandbox only needs its own port, the Pi
+        # login (mounted below), the OTLP export fallback, and — for the rivet `daytona`
+        # sandbox axis (WP-8) — the Daytona credentials the SDK reads to create sandboxes.
         environment:
             PORT: "8765"
             PI_CODING_AGENT_DIR: /pi-agent
@@ -441,6 +445,15 @@ services:
             # credential). Must be reachable from this container.
             AGENTA_HOST: ${AGENTA_HOST:-http://144.76.237.122:8280}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
+            # Daytona sandbox axis: the rivet daytona provider's `new Daytona()` reads
+            # these. Scoped to Daytona only (not the full stack secret set).
+            DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
+            DAYTONA_API_URL: ${DAYTONA_API_URL:-}
+            DAYTONA_TARGET: ${DAYTONA_TARGET:-}
+            # Pre-baked snapshot (rivet daemon + Pi + Claude + certs) so Daytona runs skip
+            # the ~150s per-invoke `npm install pi`. Built by poc/build_rivet_snapshot.py.
+            AGENTA_RIVET_DAYTONA_SNAPSHOT: ${AGENTA_RIVET_DAYTONA_SNAPSHOT:-agenta-rivet-pi}
+            AGENTA_RIVET_DAYTONA_INSTALL_PI: ${AGENTA_RIVET_DAYTONA_INSTALL_PI:-false}
         # === STORAGE ============================================== #
         volumes:
             - ../../../services/agent/src:/app/src

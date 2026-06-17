@@ -402,6 +402,8 @@ export interface AgentaOtel {
   config: RunConfig;
   /** Flush this run's trace to Agenta. Await before the process/response ends. */
   flush: () => Promise<void>;
+  /** Run totals (tokens + cost) summed across turns, for roll-up onto the parent. */
+  usage: () => { input: number; output: number; total: number; cost: number };
 }
 
 /**
@@ -434,6 +436,22 @@ export function createAgentaOtel(
   let llmSpan: Span | undefined;
   let lastContextMessages: any[] | undefined;
   const toolSpans = new Map<string, Span>();
+  // Run totals, summed across every assistant turn. Stamped on the agent span and
+  // returned so the caller can roll them up onto the workflow span in its own process
+  // (the agent and workflow spans are exported in separate OTLP batches, so Agenta's
+  // per-batch cumulative roll-up cannot bridge them on its own).
+  const runUsage = { input: 0, output: 0, total: 0, cost: 0 };
+
+  function accumulateUsage(msg: any): void {
+    const u = msg?.usage;
+    if (!u) return;
+    const input = u.input ?? 0;
+    const output = u.output ?? 0;
+    runUsage.input += input;
+    runUsage.output += output;
+    runUsage.total += u.totalTokens ?? input + output;
+    if (u.cost?.total != null) runUsage.cost += u.cost.total;
+  }
 
   const register = (pi: ExtensionAPI): void => {
     pi.on("before_agent_start", async (event: any) => {
@@ -494,6 +512,7 @@ export function createAgentaOtel(
       const msg = event?.message;
       if (!msg || msg.role !== "assistant" || !llmSpan) return;
       applyAssistant(llmSpan, msg, config.captureContent);
+      accumulateUsage(msg);
       llmSpan.end();
       llmSpan = undefined;
     });
@@ -524,6 +543,7 @@ export function createAgentaOtel(
       // close it from the turn's assistant message.
       if (llmSpan && event?.message) {
         applyAssistant(llmSpan, event.message, config.captureContent);
+        accumulateUsage(event.message);
         llmSpan.end();
         llmSpan = undefined;
       }
@@ -536,6 +556,16 @@ export function createAgentaOtel(
     pi.on("agent_end", async (event: any) => {
       if (!agentSpan) return;
       setOutput(agentSpan, lastAssistantText(event?.messages), config.captureContent);
+      // Stamp the run total on the agent span so it shows the agent's tokens/cost even
+      // though Agenta cannot roll the per-turn LLM spans up across batches.
+      if (runUsage.total > 0) {
+        agentSpan.setAttribute("gen_ai.usage.input_tokens", runUsage.input);
+        agentSpan.setAttribute("gen_ai.usage.output_tokens", runUsage.output);
+        agentSpan.setAttribute("gen_ai.usage.prompt_tokens", runUsage.input);
+        agentSpan.setAttribute("gen_ai.usage.completion_tokens", runUsage.output);
+        agentSpan.setAttribute("gen_ai.usage.total_tokens", runUsage.total);
+        if (runUsage.cost > 0) agentSpan.setAttribute("gen_ai.usage.cost", runUsage.cost);
+      }
       agentSpan.end();
       agentSpan = undefined;
       agentCtx = undefined;
@@ -547,5 +577,277 @@ export function createAgentaOtel(
     register,
     config,
     flush: () => flushTrace(config.traceId),
+    usage: () => ({ ...runUsage }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Rivet / ACP tracer (one per run; state is closure-scoped)
+// ---------------------------------------------------------------------------
+//
+// The Pi extension above hooks Pi's in-process `pi.on(...)` events. Under rivet the
+// harness runs as a separate process and we never see those events; instead the rivet
+// SDK surfaces the run as ACP `session/update` notifications (agent_message_chunk,
+// tool_call, tool_call_update, usage_update). This tracer builds the SAME span tree
+// from that event stream, so tracing is uniform across every harness rivet drives
+// (Pi, Claude Code, ...) and always nests under the caller's `/invoke` span.
+//
+// Span tree (per prompt turn):
+//   invoke_agent          (AGENT)
+//     turn 0              (CHAIN)
+//       chat <model>      (LLM)   — model interaction; usage where the harness reports it
+//       execute_tool <n>  (TOOL)  — one per ACP tool_call
+
+/** Text of an ACP ContentBlock (the shape carried by message/thought chunks). */
+function acpBlockText(block: any): string {
+  if (!block) return "";
+  if (typeof block === "string") return block;
+  if (block.type === "text" && typeof block.text === "string") return block.text;
+  return "";
+}
+
+/** Text of an ACP tool_call `content` array (ToolCallContent[]). */
+function acpToolContentText(content: any): string {
+  if (!content) return "";
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((c: any) => acpBlockText(c?.content ?? c))
+      .filter(Boolean)
+      .join("");
+  }
+  return "";
+}
+
+/**
+ * Strip the pi-acp startup banner that some setups emit as the first agent message
+ * chunk (a "pi vX.Y.Z" / "## Context" / file list / "New version available" prelude,
+ * surfaced ahead of the real answer). Removes only a leading run of those marker lines
+ * so a genuine answer is never touched.
+ */
+function stripStartupBanner(text: string): string {
+  const lines = text.split("\n");
+  const isBanner = (line: string) =>
+    /^pi v\d+\.\d+\.\d+/.test(line) ||
+    /^## Context\b/.test(line) ||
+    /^-\s+\/.*AGENTS\.md\s*$/.test(line) ||
+    /^New version available:/.test(line) ||
+    /^Run: `npm/.test(line) ||
+    line.trim() === "---" ||
+    line.trim() === "";
+  let i = 0;
+  let sawBanner = false;
+  while (i < lines.length && isBanner(lines[i])) {
+    if (lines[i].trim() !== "") sawBanner = true;
+    i++;
+  }
+  return sawBanner ? lines.slice(i).join("\n").trim() : text;
+}
+
+/** Split a resolved model id ("openai-codex/gpt-5.5") into provider + id. */
+function splitModel(model?: string): { provider?: string; id?: string } {
+  if (!model) return {};
+  const slash = model.indexOf("/");
+  if (slash === -1) return { id: model };
+  return { provider: model.slice(0, slash), id: model.slice(slash + 1) };
+}
+
+export interface RivetOtelInit extends Partial<RunConfig> {
+  captureContent?: boolean;
+  /** Harness id ("pi" / "claude"); becomes gen_ai.agent.name. */
+  harness?: string;
+  /** Resolved model id ("openai-codex/gpt-5.5"); set on the LLM span. */
+  model?: string;
+  /**
+   * Emit the span tree from the ACP event stream. Default true. Set false when the
+   * harness instruments itself (e.g. Pi via the agenta extension propagates the trace
+   * context and emits its own real turn/chat/tool spans) — then this only accumulates
+   * the reply text and builds no spans, so the two do not double up.
+   */
+  emitSpans?: boolean;
+}
+
+export interface RivetOtel {
+  /** Start the invoke_agent (AGENT) span as a child of the caller's traceparent. */
+  start(input: { prompt?: string; messages?: any[]; sessionId?: string }): void;
+  /** Feed one ACP `session/update` payload (the `update` object). */
+  handleUpdate(update: any): void;
+  /** End all open spans. Returns the accumulated assistant text. */
+  finish(): string;
+  /** Flush this run's trace to Agenta (invoke_agent has a remote parent). */
+  flush(): Promise<void>;
+  /** Trace id of the run (the caller's trace when a traceparent was passed). */
+  traceId(): string | undefined;
+  /** Accumulated assistant output text so far. */
+  output(): string;
+}
+
+/**
+ * Build an ACP-event-driven tracer scoped to a single rivet run. Call `start` once,
+ * `handleUpdate` for every ACP session update, then `finish` + `await flush`.
+ */
+export function createRivetOtel(init: RivetOtelInit): RivetOtel {
+  ensureProvider();
+
+  const capture = init.captureContent !== false;
+  const emitSpans = init.emitSpans !== false;
+  const endpoint = init.endpoint ?? defaultTarget().endpoint;
+  const authorization = init.authorization ?? defaultTarget().authorization;
+  const { provider, id: modelId } = splitModel(init.model);
+  const tracer = trace.getTracer("agenta-rivet-otel", "0.1.0");
+
+  let agentSpan: Span | undefined;
+  let agentCtx: Context | undefined;
+  let turnSpan: Span | undefined;
+  let turnCtx: Context | undefined;
+  let llmSpan: Span | undefined;
+  let runTraceId: string | undefined;
+  let accumulated = "";
+  let usage: { cost?: number; total?: number } | undefined;
+  const toolSpans = new Map<string, { span: Span; name: string }>();
+
+  function start(input: { prompt?: string; messages?: any[]; sessionId?: string }): void {
+    // Span-less mode (harness self-instruments): only track the trace id so the run can
+    // report it; the harness emits the spans under the propagated parent.
+    if (!emitSpans) {
+      const m = /^00-([0-9a-f]{32})-/.exec(init.traceparent ?? "");
+      runTraceId = m ? m[1] : undefined;
+      return;
+    }
+    const parent = parentContext(init.traceparent);
+    agentSpan = tracer.startSpan("invoke_agent", undefined, parent);
+    agentSpan.setAttribute("openinference.span.kind", "AGENT");
+    agentSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
+    agentSpan.setAttribute("gen_ai.agent.name", init.harness ?? "agent");
+    const sessionId = input.sessionId ?? init.sessionId;
+    if (sessionId) {
+      agentSpan.setAttribute("session.id", sessionId);
+      agentSpan.setAttribute("gen_ai.conversation.id", sessionId);
+    }
+    setInputs(agentSpan, { prompt: input.prompt ?? "" }, capture);
+
+    runTraceId = agentSpan.spanContext().traceId;
+    traceTargets.set(runTraceId, { endpoint, authorization });
+    agentCtx = trace.setSpan(parent ?? context.active(), agentSpan);
+
+    turnSpan = tracer.startSpan("turn 0", undefined, agentCtx);
+    turnSpan.setAttribute("openinference.span.kind", "CHAIN");
+    turnSpan.setAttribute("pi.turn.index", 0);
+    turnCtx = trace.setSpan(agentCtx, turnSpan);
+
+    llmSpan = tracer.startSpan(modelId ? `chat ${modelId}` : "chat", undefined, turnCtx);
+    llmSpan.setAttribute("openinference.span.kind", "LLM");
+    llmSpan.setAttribute("gen_ai.operation.name", "chat");
+    if (provider) llmSpan.setAttribute("gen_ai.system", provider);
+    if (modelId) llmSpan.setAttribute("gen_ai.request.model", modelId);
+    const inputMessages =
+      input.messages && input.messages.length
+        ? input.messages
+        : [{ role: "user", content: input.prompt ?? "" }];
+    emitMessages(llmSpan, "llm.input_messages", inputMessages, capture);
+  }
+
+  function handleUpdate(update: any): void {
+    const kind = update?.sessionUpdate;
+    if (!kind) return;
+
+    if (kind === "agent_message_chunk") {
+      const t = acpBlockText(update.content);
+      if (!t) return;
+      // Pi streams pure deltas; Claude streams deltas plus a cumulative snapshot.
+      // Replace when a chunk is a superset of what we have, append otherwise.
+      if (t.startsWith(accumulated)) accumulated = t;
+      else accumulated += t;
+      return;
+    }
+
+    if (!emitSpans) return; // output accumulated above; spans come from the harness
+
+    if (kind === "tool_call") {
+      const id = update.toolCallId;
+      if (!id || !turnCtx) return;
+      const name = update.title || update.kind || "tool";
+      const span = tracer.startSpan(`execute_tool ${name}`, undefined, turnCtx);
+      span.setAttribute("openinference.span.kind", "TOOL");
+      span.setAttribute("gen_ai.operation.name", "execute_tool");
+      span.setAttribute("gen_ai.tool.name", String(name));
+      span.setAttribute("gen_ai.tool.call.id", String(id));
+      if (update.rawInput != null)
+        setInputs(span, update.rawInput as Record<string, unknown>, capture);
+      toolSpans.set(id, { span, name: String(name) });
+      // A tool_call can arrive already completed (status set up front).
+      maybeCloseTool(id, update);
+      return;
+    }
+
+    if (kind === "tool_call_update") {
+      maybeCloseTool(update.toolCallId, update);
+      return;
+    }
+
+    if (kind === "usage_update") {
+      const cost = update.cost?.amount;
+      const total = update.used;
+      usage = {
+        cost: typeof cost === "number" ? cost : usage?.cost,
+        total: typeof total === "number" ? total : usage?.total,
+      };
+    }
+  }
+
+  /** Close a tool span when the update marks it completed or failed. */
+  function maybeCloseTool(id: string | undefined, update: any): void {
+    if (!id) return;
+    const entry = toolSpans.get(id);
+    if (!entry) return;
+    const status = update?.status;
+    if (status !== "completed" && status !== "failed") return;
+    const out = acpToolContentText(update.content) || acpToolContentText(update.rawOutput);
+    setOutput(entry.span, out, capture);
+    if (status === "failed") entry.span.setStatus({ code: SpanStatusCode.ERROR });
+    entry.span.end();
+    toolSpans.delete(id);
+  }
+
+  function finish(): string {
+    const text = stripStartupBanner(accumulated.trim());
+    if (!emitSpans) return text;
+    if (llmSpan) {
+      emitMessages(
+        llmSpan,
+        "llm.output_messages",
+        [{ role: "assistant", content: text }],
+        capture,
+      );
+      if (usage?.total != null) {
+        llmSpan.setAttribute("gen_ai.usage.total_tokens", usage.total);
+      }
+      if (usage?.cost != null) llmSpan.setAttribute("gen_ai.usage.cost", usage.cost);
+      llmSpan.end();
+      llmSpan = undefined;
+    }
+    for (const { span } of toolSpans.values()) span.end();
+    toolSpans.clear();
+    if (turnSpan) {
+      turnSpan.end();
+      turnSpan = undefined;
+    }
+    if (agentSpan) {
+      setOutput(agentSpan, text, capture);
+      agentSpan.end();
+      agentSpan = undefined;
+    }
+    agentCtx = undefined;
+    turnCtx = undefined;
+    return text;
+  }
+
+  return {
+    start,
+    handleUpdate,
+    finish,
+    flush: () => flushTrace(runTraceId),
+    traceId: () => runTraceId,
+    output: () => accumulated,
   };
 }

@@ -8,6 +8,13 @@ FROM node:24-slim
 
 WORKDIR /app
 
+# CA certificates: the rivet daemon (Rust) downloads harness CLIs (e.g. Claude Code) over
+# HTTPS using the system trust store, which node:*-slim omits — without this the daemon's
+# `install-agent claude` fails TLS verification. git lets npm/installers fetch git deps.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates git \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN corepack enable
 
 # Install deps as a cached layer (manifest + lockfile only).
@@ -16,7 +23,13 @@ RUN pnpm install --frozen-lockfile
 
 # Fallback copy for non-mounted runs; in dev these are bind-mounted over.
 COPY tsconfig.json ./
+COPY scripts ./scripts
 COPY src ./src
+
+# Bundle the Agenta Pi extension (tracing + tools) into dist/. dist/ is NOT bind-mounted
+# in dev, so this baked copy is what runRivet installs into Pi's agent dir. Rebuild the
+# image after editing src/piExtension.ts or src/agenta-otel.ts.
+RUN pnpm run build:extension
 
 ENV NODE_ENV=development \
     PORT=8765

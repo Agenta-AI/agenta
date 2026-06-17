@@ -84,6 +84,15 @@ export interface ToolCallbackContext {
 }
 
 export interface AgentRunRequest {
+  /** Harness id for the rivet backend ("pi" / "claude"). Ignored by the Pi backend. */
+  harness?: string;
+  /** Sandbox for the rivet backend ("local" / "daytona"). Ignored by the Pi backend. */
+  sandbox?: string;
+  /** Continue a prior run by replaying its history. The rivet backend resumes by id. */
+  sessionId?: string;
+  /** Provider API keys as env vars ({OPENAI_API_KEY,...}), resolved from the vault.
+   *  Injected into the harness env; empty means the harness uses its own login (OAuth). */
+  secrets?: Record<string, string>;
   /** AGENTS.md text injected as the agent's instructions (in memory). */
   agentsMd?: string;
   /** Model id ("gpt-5.5") or "provider/id" ("openai-codex/gpt-5.5"). */
@@ -109,6 +118,8 @@ export interface AgentRunResult {
   model?: string;
   /** Trace id of the run (the caller's trace when a traceparent was passed). */
   traceId?: string;
+  /** Run token/cost totals, for roll-up onto the caller's workflow span. */
+  usage?: { input: number; output: number; total: number; cost: number };
   error?: string;
 }
 
