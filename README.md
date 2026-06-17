@@ -47,6 +47,7 @@
     <img src="https://img.shields.io/pypi/dm/agenta" alt="PyPI - Downloads">
   </a>
   <img src="https://img.shields.io/github/last-commit/Agenta-AI/agenta" alt="Last Commit">
+  <a href="https://www.aiflowlearn.net/en/codex/agenta"><img alt="Sagerbuddy Repo Guide" src="https://img.shields.io/badge/Sagerbuddy-Repo%20Guide-00B8A9?style=flat&logo=readthedocs&logoColor=white" /></a>
 </br>
 </p>
 
