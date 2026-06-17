@@ -41,7 +41,7 @@ async def get_workspace(request: Request):
         HTTPException: If the user does not have permission to perform this action.
     """
 
-    workspaces_db = await db_manager.get_workspaces()
+    workspaces_db = await db_manager.get_user_workspaces(request.state.user_id)
     return [
         Workspace(
             id=str(workspace_db.id),

@@ -86,13 +86,18 @@ async def list_organizations(
         organizations_db = await db_manager_ee.get_organizations_by_list_ids(
             user_org_workspace_data["organization_ids"]
         )
+        workspaces_by_org = {}
     else:
-        workspaces_db = await db_manager.get_workspaces()
-        active_workspace = next(iter(workspaces_db), None)
-        if not active_workspace:
-            return []
+        organizations_db = await db_manager.get_user_organizations(
+            request.state.user_id
+        )
 
-        organizations_db = await db_manager.get_organizations()
+        user_workspaces = await db_manager.get_user_workspaces(request.state.user_id)
+        workspaces_by_org = {}
+        for workspace_db in user_workspaces:
+            workspaces_by_org.setdefault(workspace_db.organization_id, []).append(
+                str(workspace_db.id)
+            )
 
     response = [
         Organization(
@@ -108,7 +113,7 @@ async def list_organizations(
             #
             owner_id=organization_db.owner_id,
             #
-            workspaces=[str(active_workspace.id)] if not is_ee() else [],
+            workspaces=workspaces_by_org.get(organization_db.id, []),
         ).model_dump(exclude_unset=True)
         for organization_db in organizations_db
     ]
@@ -126,17 +131,35 @@ async def fetch_organization_details(
 ):
     """Return the details of the organization."""
 
-    workspaces_db = await db_manager.get_workspaces()
-    active_workspace = next(iter(workspaces_db), None)
+    user_organizations = await db_manager.get_user_organizations(request.state.user_id)
+    if not any(str(org.id) == str(organization_id) for org in user_organizations):
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "Not a member of this organization."},
+        )
+
+    organization_workspaces = [
+        workspace_db
+        for workspace_db in await db_manager.get_workspaces()
+        if str(workspace_db.organization_id) == str(organization_id)
+    ]
+    active_workspace = next(iter(organization_workspaces), None)
     if not active_workspace:
         return {}
 
     organization_owner = await db_manager.get_organization_owner(
         organization_id=organization_id
     )
-    project_invitations = await db_manager.get_project_invitations(
-        project_id=request.state.project_id
+
+    default_project = await db_manager.get_default_project_by_organization_id(
+        organization_id=organization_id
     )
+    project_invitations = (
+        await db_manager.get_project_invitations(project_id=str(default_project.id))
+        if default_project
+        else []
+    )
+
     organization_db = await db_manager.get_organization_by_id(
         organization_id=organization_id
     )
@@ -201,7 +224,7 @@ async def fetch_organization_details(
             "type": active_workspace.type,  # type: ignore
             "members": members,
         },
-        workspaces=[str(active_workspace.id)],
+        workspaces=[str(workspace.id) for workspace in organization_workspaces],
     ).model_dump(exclude_unset=True)
 
 
