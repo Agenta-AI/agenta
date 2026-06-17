@@ -1,29 +1,29 @@
 /**
  * WP-8 tool delivery over rivet/ACP.
  *
- * The Pi backend (runPi.ts) injected resolved runnable tools (WP-7) as in-process Pi
+ * The Pi engine (engines/pi.ts) injected resolved runnable tools (WP-7) as in-process Pi
  * customTools. Over ACP the harness only accepts tools through MCP, so the same
  * resolved specs are exposed as an MCP server whose tool bodies POST back to Agenta's
  * /tools/call (the provider key and connection auth stay server-side, exactly as in
  * the Pi path). `buildToolMcpServers` returns the ACP `mcpServers` entry to attach to
  * the session.
  *
- * Delivery: a stdio MCP bridge (toolBridgeServer.ts) launched by the daemon. The specs
- * and callback are passed to it as env, so nothing tool-specific is written to the
+ * Delivery: a stdio MCP bridge (mcp-server.ts) launched by the daemon. The specs and
+ * callback are passed to it as env, so nothing tool-specific is written to the
  * agent-visible filesystem.
  */
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { ResolvedToolSpec, ToolCallbackContext } from "./protocol.ts";
+import type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
 
-export type { ResolvedToolSpec, ToolCallbackContext } from "./protocol.ts";
+export type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// services/agent/src/toolBridge.ts -> services/agent/node_modules/.bin/tsx
-const TSX_BIN = join(HERE, "..", "node_modules", ".bin", "tsx");
-const SERVER = join(HERE, "toolBridgeServer.ts");
+// services/agent/src/tools/mcp-bridge.ts -> services/agent/node_modules/.bin/tsx
+const TSX_BIN = join(HERE, "..", "..", "node_modules", ".bin", "tsx");
+const SERVER = join(HERE, "mcp-server.ts");
 
 /** Resolve how to launch the bridge: an explicit override, else the local tsx bin. */
 function bridgeLauncher(): { command: string; args: string[] } {

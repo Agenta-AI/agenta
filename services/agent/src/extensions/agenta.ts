@@ -26,9 +26,9 @@ import { writeFileSync } from "node:fs";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { createAgentaOtel } from "./agenta-otel.ts";
-import type { ResolvedToolSpec } from "./protocol.ts";
-import { EMPTY_OBJECT_SCHEMA, callAgentaTool } from "./toolClient.ts";
+import { createAgentaOtel } from "../tracing/otel.ts";
+import type { ResolvedToolSpec } from "../protocol.ts";
+import { EMPTY_OBJECT_SCHEMA, callAgentaTool } from "../tools/client.ts";
 
 function log(message: string): void {
   process.stderr.write(`[agenta-pi-ext] ${message}\n`);

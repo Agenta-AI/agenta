@@ -52,7 +52,7 @@ import type {
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
-import type { AgentEvent, AgentUsage } from "./protocol.ts";
+import type { AgentEvent, AgentUsage } from "../protocol.ts";
 
 // ---------------------------------------------------------------------------
 // Shared, process-wide tracing infrastructure
@@ -798,7 +798,7 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
     if (kind === "usage_update") {
       // ACP usage_update carries only `used` (context tokens) and `cost.amount`. The
       // per-call input/output split is NOT on the stream; it rides on the PromptResponse,
-      // which runRivet.ts reads. Keep total + cost here and leave the split to the caller.
+      // which the rivet engine reads. Keep total + cost here and leave the split to the caller.
       const cost = update.cost?.amount;
       const total = update.used;
       usage = {

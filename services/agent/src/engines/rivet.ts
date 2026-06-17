@@ -2,9 +2,9 @@
  * WP-8 rivet harness driver.
  *
  * Drives a coding harness (Pi, Claude Code, ...) over the Agent Client Protocol (ACP)
- * through a rivet `sandbox-agent` daemon, instead of the bespoke Pi SDK calls in
- * runPi.ts. It serves the same /run contract (AgentRunRequest -> AgentRunResult), so
- * the Python side stays thin and the choice of harness/sandbox is config, not new code.
+ * through a rivet `sandbox-agent` daemon, instead of the bespoke Pi SDK calls in the pi
+ * engine. It serves the same /run contract (AgentRunRequest -> AgentRunResult), so the
+ * Python side stays thin and the choice of harness/sandbox is config, not new code.
  *
  * Per invoke (cold), mirroring the shipped code-evaluator DaytonaRunner pattern:
  *
@@ -19,7 +19,7 @@
  * harness (which engine). The ACP boundary is daemon-to-harness; the service-to-rivet
  * hop stays harness-agnostic behind the Harness port.
  *
- * Tracing is built here from the ACP event stream (see agenta-otel.ts createRivetOtel),
+ * Tracing is built here from the ACP event stream (see tracing/otel.ts createRivetOtel),
  * so it is uniform across every harness and always nests under the caller's /invoke
  * span. stdout is reserved for the JSON result (see cli.ts); logs go to stderr.
  */
@@ -44,8 +44,8 @@ import { SandboxAgent, InMemorySessionPersistDriver } from "sandbox-agent";
 import { local } from "sandbox-agent/local";
 import { daytona } from "sandbox-agent/daytona";
 
-import { createRivetOtel } from "./agenta-otel.ts";
-import { buildToolMcpServers } from "./toolBridge.ts";
+import { createRivetOtel } from "../tracing/otel.ts";
+import { buildToolMcpServers } from "../tools/mcp-bridge.ts";
 import {
   type AgentRunRequest,
   type AgentRunResult,
@@ -55,11 +55,11 @@ import {
   type ToolCallbackContext,
   messageText,
   resolvePromptText,
-} from "./protocol.ts";
+} from "../protocol.ts";
 
 const require = createRequire(import.meta.url);
-// services/agent/src/runRivet.ts -> services/agent
-const PKG_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+// services/agent/src/engines/rivet.ts -> services/agent
+const PKG_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const ADAPTER_BIN_DIR = join(PKG_ROOT, "node_modules", ".bin");
 
 /** Map node platform/arch to the @sandbox-agent CLI binary package. */

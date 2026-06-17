@@ -7,8 +7,8 @@
  * long-lived RPC adapter can replace it later behind the same Python-side port.
  */
 import type { AgentRunRequest, AgentRunResult } from "./protocol.ts";
-import { runPi } from "./runPi.ts";
-import { runRivet } from "./runRivet.ts";
+import { runPi } from "./engines/pi.ts";
+import { runRivet } from "./engines/rivet.ts";
 
 // Engine: `rivet` drives a harness over ACP via a rivet daemon; `pi` (default) is the
 // legacy in-process Pi path. The request's `backend` wins, then the AGENT_BACKEND env.

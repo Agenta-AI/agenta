@@ -6,7 +6,7 @@
  * (WP-7) and routes each tool call back through Agenta's /tools/call — so the Composio
  * key and connection auth stay server-side, exactly as in the in-process Pi path.
  *
- * Launched by the rivet daemon as a session MCP server (see toolBridge.ts). It reads
+ * Launched by the rivet daemon as a session MCP server (see mcp-bridge.ts). It reads
  * everything from env so nothing tool-specific is written to the agent filesystem:
  *   AGENTA_TOOL_SPECS            JSON array of { name, description, inputSchema, callRef }
  *   AGENTA_TOOL_CALLBACK_ENDPOINT  full /tools/call URL
@@ -16,8 +16,8 @@
  * initialize, tools/list, tools/call; ignores notifications. stdout carries protocol
  * messages only; logs go to stderr.
  */
-import type { ResolvedToolSpec } from "./protocol.ts";
-import { EMPTY_OBJECT_SCHEMA, callAgentaTool } from "./toolClient.ts";
+import type { ResolvedToolSpec } from "../protocol.ts";
+import { EMPTY_OBJECT_SCHEMA, callAgentaTool } from "./client.ts";
 
 const SPECS: ResolvedToolSpec[] = JSON.parse(process.env.AGENTA_TOOL_SPECS ?? "[]");
 const ENDPOINT = process.env.AGENTA_TOOL_CALLBACK_ENDPOINT ?? "";

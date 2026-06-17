@@ -13,8 +13,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
 import type { AgentRunRequest, AgentRunResult } from "./protocol.ts";
-import { runPi } from "./runPi.ts";
-import { runRivet } from "./runRivet.ts";
+import { runPi } from "./engines/pi.ts";
+import { runRivet } from "./engines/rivet.ts";
 
 const PORT = Number(process.env.PORT ?? 8765);
 

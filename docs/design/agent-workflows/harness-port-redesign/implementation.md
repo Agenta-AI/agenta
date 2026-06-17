@@ -38,16 +38,22 @@ transports, not three backend adapters. The harness folder is named for the seam
 Pi: harness choice (pi/claude) lives inside the runtime, which is why there is no
 `agent_claude` package.
 
-### TypeScript (`services/agent/src/`)
+### TypeScript (`services/agent/src/`) — grouped by role
 
 | File | Holds |
 | --- | --- |
-| `protocol.ts` | Shared wire types: `AgentRunRequest`, `AgentRunResult`, `AgentEvent`, `ContentBlock`, `HarnessCapabilities`. Both runners import from here (no more `runRivet` importing types out of `runPi`). |
-| `runPi.ts` | Legacy backend: drive the Pi SDK in-process. Returns the enriched result. |
-| `runRivet.ts` | Rivet backend: drive a harness over ACP. Probes `getAgent(harness).capabilities` and branches on capability flags, not on the harness name. Returns the enriched result, including usage for both Pi and Claude. |
-| `agenta-otel.ts` | The Pi-extension tracer and the ACP-event tracer. Also accumulates the structured event log. |
-| `piExtension.ts`, `toolBridge*.ts` | Unchanged tool/trace delivery. |
-| `cli.ts`, `server.ts` | Route to the backend by `AGENT_BACKEND` (auto by request shape on the sidecar). |
+| `cli.ts`, `server.ts` | The two entrypoints (stdio subprocess, HTTP sidecar). Route to an engine by the request's `backend`. |
+| `protocol.ts` | Shared wire types: `AgentRunRequest`, `AgentRunResult`, `AgentEvent`, `ContentBlock`, `HarnessCapabilities`. Both engines import from here. |
+| `engines/pi.ts` | Legacy engine: drive the Pi SDK in-process. Returns the enriched result. |
+| `engines/rivet.ts` | Rivet engine: drive a harness over ACP. Probes `getAgent(harness).capabilities` and branches on capability flags, not on the harness name. Returns the enriched result, with usage for both Pi and Claude. |
+| `tracing/otel.ts` | The Pi-extension tracer and the ACP-event tracer; accumulates the structured event log. |
+| `tools/client.ts` | The one `/tools/call` HTTP client. |
+| `tools/mcp-bridge.ts`, `tools/mcp-server.ts` | Tool delivery over MCP for non-Pi harnesses. |
+| `extensions/agenta.ts` | The Pi extension (tracing + tools), bundled to `dist/extensions/agenta.js`. |
+
+The folder grouping (entrypoints + contract at the top, `engines/`, `tracing/`, `tools/`,
+`extensions/`) replaced a flat `src/` of ten files that had grown one work package at a
+time. No behavior change.
 
 ## The seams
 

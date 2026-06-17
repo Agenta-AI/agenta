@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 await build({
-  entryPoints: [join(root, "src/piExtension.ts")],
+  entryPoints: [join(root, "src/extensions/agenta.ts")],
   outfile: join(root, "dist/extensions/agenta.js"),
   bundle: true,
   platform: "node",

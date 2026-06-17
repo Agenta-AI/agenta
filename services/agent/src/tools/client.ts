@@ -2,15 +2,15 @@
  * Shared Agenta /tools/call client.
  *
  * One implementation of the tool round-trip used by every delivery path:
- *  - runPi.ts buildCustomTools (in-process Pi customTools)
- *  - piExtension.ts registerTools (Pi under rivet/ACP, via the bundled extension)
- *  - toolBridgeServer.ts (the MCP stdio bridge for non-Pi harnesses)
+ *  - engines/pi.ts buildCustomTools (in-process Pi customTools)
+ *  - extensions/agenta.ts registerTools (Pi under rivet/ACP, via the bundled extension)
+ *  - tools/mcp-server.ts (the MCP stdio bridge for non-Pi harnesses)
  *
  * Each call POSTs the OpenAI-style envelope to Agenta's /tools/call, so the Composio key
  * and connection auth stay server-side. Keeping the request envelope and response parse in
  * one place means a change to the /tools/call contract is a one-line edit, not three.
  */
-export type { ResolvedToolSpec, ToolCallbackContext } from "./protocol.ts";
+export type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
 
 /** Per-tool budget for the /tools/call round-trip. Surfaced as a tool error on timeout. */
 export const TOOL_CALL_TIMEOUT_MS = Number(

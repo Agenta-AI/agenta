@@ -5,7 +5,7 @@
  * AGENTS.md in memory, resolves the model, sends one user turn, and returns the structured
  * result (final text, messages, events, usage, capabilities). It also turns the
  * backend-resolved runnable tools (WP-7) into Pi customTools that route back through
- * Agenta's /tools/call. The rivet backend (`runRivet.ts`) is the ACP path; both serve the
+ * Agenta's /tools/call. The rivet engine (`engines/rivet.ts`) is the ACP path; both serve the
  * same `/run` contract (see `protocol.ts`).
  *
  * Auth: provider keys arrive as `request.secrets` (applied to the env) or fall back to the
@@ -30,7 +30,7 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 
-import { createAgentaOtel } from "./agenta-otel.ts";
+import { createAgentaOtel } from "../tracing/otel.ts";
 import {
   type AgentEvent,
   type AgentRunRequest,
@@ -40,8 +40,8 @@ import {
   type ResolvedToolSpec,
   type ToolCallbackContext,
   resolvePromptText,
-} from "./protocol.ts";
-import { EMPTY_OBJECT_SCHEMA, callAgentaTool } from "./toolClient.ts";
+} from "../protocol.ts";
+import { EMPTY_OBJECT_SCHEMA, callAgentaTool } from "../tools/client.ts";
 
 /** What the in-process Pi engine supports. Static (no daemon to probe, unlike rivet). */
 const PI_CAPABILITIES: HarnessCapabilities = {

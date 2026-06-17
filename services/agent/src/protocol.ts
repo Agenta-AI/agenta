@@ -3,7 +3,7 @@
  *
  * The Python side mirrors these names in `services/oss/src/harness/wire.py`. Keeping the
  * request/result/event/capability types here (rather than in one runner that the other
- * imports from) is what lets `runPi.ts` and `runRivet.ts` stay peers.
+ * imports from) is what lets `engines/pi.ts` and `engines/rivet.ts` stay peers.
  */
 
 /** One piece of a message. `text` is all the playground sends today; the rest is plumbed. */
