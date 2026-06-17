@@ -46,6 +46,7 @@ import { daytona } from "sandbox-agent/daytona";
 
 import { createRivetOtel } from "../tracing/otel.ts";
 import { buildToolMcpServers } from "../tools/mcp-bridge.ts";
+import { startToolRelay } from "../tools/relay.ts";
 import {
   type AgentRunRequest,
   type AgentRunResult,
@@ -644,6 +645,14 @@ export async function runRivet(request: AgentRunRequest): Promise<AgentRunResult
     piExtEnv.AGENTA_USAGE_OUT = usageOutPath;
   }
 
+  // Daytona can't reach a firewalled Agenta from inside the sandbox, so relay the Pi
+  // extension's tool calls through the runner via the sandbox filesystem (see tools/relay).
+  const toolSpecsForRun = (request.customTools as ResolvedToolSpec[]) ?? [];
+  const relayDir = `${cwd}/.agenta-tools`;
+  const useToolRelay =
+    isPi && isDaytona && toolSpecsForRun.length > 0 && !!request.toolCallback?.endpoint;
+  if (useToolRelay) piExtEnv.AGENTA_TOOL_RELAY_DIR = relayDir;
+
   log(`harness=${harness} sandbox=${sandboxId} cwd=${cwd}`);
 
   // Persist events in-process so a follow-up turn can resume by session id.
@@ -661,6 +670,8 @@ export async function runRivet(request: AgentRunRequest): Promise<AgentRunResult
   // the model is resolved, so the chat span carries the harness's actual model rather
   // than the requested one. Declared here so the catch can flush a partial trace.
   let otel: ReturnType<typeof createRivetOtel> | undefined;
+  // Daytona tool relay loop (started once the session exists, stopped after the prompt).
+  let toolRelay: { stop: () => Promise<void> } | undefined;
 
   try {
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote
@@ -675,6 +686,7 @@ export async function runRivet(request: AgentRunRequest): Promise<AgentRunResult
         if (DAYTONA_PI_INSTALL) await installPiInSandbox(sandbox);
       }
       await sandbox.mkdirFs({ path: cwd }).catch(() => {});
+      if (useToolRelay) await sandbox.mkdirFs({ path: relayDir }).catch(() => {});
       if (agentsMd) await sandbox.writeFsFile({ path: `${cwd}/AGENTS.md` }, agentsMd);
     } else if (agentsMd) {
       writeFileSync(join(cwd, "AGENTS.md"), agentsMd, "utf-8");
@@ -744,7 +756,12 @@ export async function runRivet(request: AgentRunRequest): Promise<AgentRunResult
       if (req?.id) session.respondPermission(req.id, reply as any).catch(() => {});
     });
 
+    if (useToolRelay) {
+      toolRelay = startToolRelay(sandbox, relayDir, request.toolCallback as ToolCallbackContext);
+    }
+
     const result = await session.prompt([{ type: "text", text: turnText }]);
+    await toolRelay?.stop();
     const stopReason = (result as any)?.stopReason;
     log(`prompt stopReason=${stopReason}`);
 
@@ -785,6 +802,7 @@ export async function runRivet(request: AgentRunRequest): Promise<AgentRunResult
     await otel?.flush().catch(() => {});
     return { ok: false, error: conciseError(err, harness) };
   } finally {
+    await toolRelay?.stop().catch(() => {});
     await sandbox.destroySandbox().catch(() => {});
     await sandbox.dispose().catch(() => {});
     rmSync(cwd, { recursive: true, force: true });

@@ -17,21 +17,76 @@
  *   AGENTA_TOOL_SPECS             JSON [{ name, description, inputSchema, callRef }]
  *   AGENTA_TOOL_CALLBACK_ENDPOINT full /tools/call URL
  *   AGENTA_TOOL_CALLBACK_AUTH     Authorization header for the callback
+ *   AGENTA_TOOL_RELAY_DIR         set on Daytona: relay tool calls through the runner via
+ *                                 files here, since the sandbox can't reach Agenta directly
  *
  * Bundled self-contained (esbuild) so its OpenTelemetry deps resolve wherever Pi loads
  * it (local, the docker sidecar, a Daytona snapshot). Default export is the Pi
  * ExtensionFactory.
  */
-import { writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { createAgentaOtel } from "../tracing/otel.ts";
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA, callAgentaTool } from "../tools/client.ts";
+import {
+  RELAY_POLL_MS,
+  RELAY_REQ_SUFFIX,
+  RELAY_RES_SUFFIX,
+  RELAY_TIMEOUT_MS,
+  sanitizeRelayId,
+  sleep,
+  type RelayResponse,
+} from "../tools/relay.ts";
 
 function log(message: string): void {
   process.stderr.write(`[agenta-pi-ext] ${message}\n`);
+}
+
+/**
+ * Daytona tool call: the in-sandbox process can't reach Agenta, so write the request to a
+ * file the runner watches and poll for the response it writes back (see tools/relay.ts).
+ */
+async function relayToolCall(
+  dir: string,
+  callRef: string,
+  toolCallId: string,
+  params: unknown,
+  signal?: AbortSignal,
+): Promise<string> {
+  const id = sanitizeRelayId(toolCallId);
+  const reqPath = `${dir}/${id}${RELAY_REQ_SUFFIX}`;
+  const resPath = `${dir}/${id}${RELAY_RES_SUFFIX}`;
+  try {
+    mkdirSync(dir, { recursive: true });
+  } catch {
+    // The runner also creates it; a race here is harmless.
+  }
+  writeFileSync(reqPath, JSON.stringify({ callRef, toolCallId, args: params ?? {} }), "utf-8");
+
+  const deadline = Date.now() + RELAY_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (signal?.aborted) throw new Error("aborted");
+    if (existsSync(resPath)) {
+      const res = JSON.parse(readFileSync(resPath, "utf-8")) as RelayResponse;
+      try {
+        unlinkSync(reqPath);
+      } catch {
+        /* best-effort cleanup */
+      }
+      try {
+        unlinkSync(resPath);
+      } catch {
+        /* best-effort cleanup */
+      }
+      if (res.ok) return res.text ?? "";
+      throw new Error(res.error || `tool relay failed for ${callRef}`);
+    }
+    await sleep(RELAY_POLL_MS);
+  }
+  throw new Error(`tool relay timed out for ${callRef}`);
 }
 
 /** Register the resolved tools (from env) as Pi tools that call back to Agenta. */
@@ -48,6 +103,9 @@ function registerTools(pi: ExtensionAPI): void {
     return;
   }
   const authorization = process.env.AGENTA_TOOL_CALLBACK_AUTH;
+  // Daytona: the in-sandbox process can't reach Agenta, so tool calls are relayed through
+  // the runner via files in this dir. Unset for local runs (direct /tools/call).
+  const relayDir = process.env.AGENTA_TOOL_RELAY_DIR;
 
   for (const spec of specs) {
     pi.registerTool({
@@ -57,19 +115,14 @@ function registerTools(pi: ExtensionAPI): void {
       // Pi accepts plain JSON Schema here (non-TypeBox validation path).
       parameters: (spec.inputSchema as any) ?? EMPTY_OBJECT_SCHEMA,
       async execute(toolCallId: string, params: unknown, signal?: AbortSignal) {
-        const text = await callAgentaTool(
-          endpoint,
-          authorization,
-          spec.callRef,
-          toolCallId,
-          params,
-          signal,
-        );
+        const text = relayDir
+          ? await relayToolCall(relayDir, spec.callRef, toolCallId, params, signal)
+          : await callAgentaTool(endpoint, authorization, spec.callRef, toolCallId, params, signal);
         return { content: [{ type: "text", text }], details: { callRef: spec.callRef } };
       },
     } as any);
   }
-  log(`registered ${specs.length} tool(s) -> ${endpoint}`);
+  log(`registered ${specs.length} tool(s) -> ${relayDir ? `relay ${relayDir}` : endpoint}`);
 }
 
 /** The Pi ExtensionFactory: tools + (env-driven) tracing + usage writeback. */
