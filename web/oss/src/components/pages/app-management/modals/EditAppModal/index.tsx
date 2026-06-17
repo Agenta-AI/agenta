@@ -47,7 +47,11 @@ const EditAppModal = () => {
             invalidateWorkflowsListCache()
             await mutate()
             await invalidateAppManagementWorkflowQueries()
-            await onRenamed?.({id: appDetails?.id, name: appNameInput})
+            try {
+                await onRenamed?.({id: appDetails?.id, name: appNameInput})
+            } catch (callbackError) {
+                console.error(callbackError)
+            }
             closeModal()
         } catch (error) {
             console.error(error)
