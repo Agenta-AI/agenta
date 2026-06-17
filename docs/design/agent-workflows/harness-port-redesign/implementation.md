@@ -5,20 +5,38 @@ the as-built reference for the rewrite (kept in sync with the code).
 
 ## Module layout
 
-### Python (`services/oss/src/agent_pi/`)
+### Python — two packages
+
+The engine-agnostic runtime and the Agenta workflow integration are separate packages, so
+nothing in the runtime is Agenta-specific and the god-module is gone.
+
+`services/oss/src/harness/` — the engine-agnostic runtime:
 
 | File | Holds |
 | --- | --- |
-| `ports.py` | The neutral types and the two seams. Types: `HarnessCapabilities`, `ContentBlock`, `Message`, `AgentEvent`, `TraceContext`, `ToolCallback`, `SessionConfig`, `AgentRequest`, `AgentResult`. Seams: `Environment` (where it runs) and `Harness` (the agent). Plus the concrete `AgentSession` sugar. |
-| `wire.py` | One place that serializes an `AgentRequest` to the camelCase `/run` JSON and parses an `AgentResult` back. Shared by every transport so the wire shape lives once. |
+| `ports.py` | The neutral types and the two seams. Types: `HarnessCapabilities`, `ContentBlock`, `Message`, `AgentEvent`, `TraceContext`, `ToolCallback`, `SessionConfig`, `AgentRequest`, `AgentResult`. Seams: `Environment` (where it runs) and `Harness` (the agent), plus the concrete `AgentSession`. |
+| `transports.py` | The two transports: `SubprocessHarness` (spawn the TS CLI) and `HttpHarness` (POST to the sidecar). Both share `wire.py`. Replaces `pi_harness.py`, `pi_http_harness.py`, `rivet_harness.py`. |
 | `environment.py` | `LocalEnvironment` (subprocess on this host). Replaces `local_runtime.py`. |
-| `harness.py` | The two transports: `SubprocessHarness` (spawn the TS CLI) and `HttpHarness` (POST to the sidecar). Both share `wire.py`. Replaces `pi_harness.py`, `pi_http_harness.py`, `rivet_harness.py`. |
-| `config.py` | Unchanged: load the file-backed `AgentConfig`. |
-| `schemas.py` | The `/inspect` schemas. Gains the permission-policy parameter. |
+| `wire.py` | Serializes an `AgentRequest` to the camelCase `/run` JSON and parses an `AgentResult` back. The wire shape lives once. |
 
-The backend engine (legacy in-process Pi vs rivet ACP) is no longer a Python class. It
-is one env value (`AGENT_BACKEND`) the transport passes to the TS runner, or the sidecar
-auto-routes by request shape. So Python has two transports, not three backend adapters.
+`services/oss/src/agent/` — the Agenta workflow app (was the single `agent.py` god-module):
+
+| File | Holds |
+| --- | --- |
+| `app.py` | The `/invoke` handler plus `select_backend` / `build_harness`. Thin: it orchestrates the modules below. |
+| `inputs.py` | Request parsing: `resolve_run_config`, `to_messages`, `_system_text`. |
+| `tools.py` | Tool resolution through `/tools/resolve` (and slug parsing). |
+| `secrets.py` | Provider keys from the project vault. |
+| `tracing.py` | `trace_context` and `record_usage` (the OTel glue). |
+| `client.py` | Shared Agenta-backend access (base URL + caller credential). |
+| `schemas.py` | The `/inspect` schemas. Gains the permission-policy parameter. |
+| `config.py` | The file-backed `AgentConfig` and the TS runner path. |
+
+The backend engine (legacy in-process Pi vs rivet ACP) is no longer a Python class. It is
+one env value (`AGENT_BACKEND`) the transport passes to the TS runner, so Python has two
+transports, not three backend adapters. The harness folder is named for the seam, not for
+Pi: harness choice (pi/claude) lives inside the runtime, which is why there is no
+`agent_claude` package.
 
 ### TypeScript (`services/agent/src/`)
 

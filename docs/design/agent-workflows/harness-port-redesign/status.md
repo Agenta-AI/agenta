@@ -4,11 +4,18 @@ Source of truth for this design effort. Keep it current.
 
 ## Current state
 
-Research and proposal drafted (2026-06-17). Nothing implemented. The comparison is in
+IMPLEMENTED, reviewed, and verified live (2026-06-17). Draft PR
+[#4721](https://github.com/Agenta-AI/agenta/pull/4721), stacked on the WP-8 PR (#4718).
+The as-built reference is [`implementation.md`](implementation.md); the comparison is in
 [`research.md`](research.md); the recommended shape and phased path are in
-[`proposal.md`](proposal.md). This builds on the shipped WP-8 runtime
-([`../wp-8-rivet-acp-runtime/status.md`](../wp-8-rivet-acp-runtime/status.md)), which
-adopted rivet unmodified and kept the ports unchanged on purpose.
+[`proposal.md`](proposal.md) and [`plan.md`](plan.md). Builds on the shipped WP-8 runtime
+([`../wp-8-rivet-acp-runtime/status.md`](../wp-8-rivet-acp-runtime/status.md)).
+
+The new port (`Environment` + `Harness` + `AgentSession`, capabilities, content blocks,
+structured events/result) ships with both backends (rivet ACP, legacy in-process Pi) on
+two transports sharing one wire contract. Verified live: pi, rivet+pi+local,
+rivet+claude+local, rivet+pi+daytona; a playground run nests `invoke_agent` under the
+`/invoke` span with usage. A high-effort review found and fixed 10 issues.
 
 ## Recommendation in one line
 

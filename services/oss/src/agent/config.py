@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Optional
 
-# services/oss/src/agent_pi/config.py -> parents[3] == services/
+# services/oss/src/agent/config.py -> parents[3] == services/
 _SERVICES_DIR = Path(__file__).resolve().parents[3]
 _DEFAULT_AGENT_DIR = _SERVICES_DIR / "agent"
 

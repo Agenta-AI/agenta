@@ -1,7 +1,7 @@
 /**
  * The `/run` wire contract, shared by both backends.
  *
- * The Python side mirrors these names in `services/oss/src/agent_pi/wire.py`. Keeping the
+ * The Python side mirrors these names in `services/oss/src/harness/wire.py`. Keeping the
  * request/result/event/capability types here (rather than in one runner that the other
  * imports from) is what lets `runPi.ts` and `runRivet.ts` stay peers.
  */
