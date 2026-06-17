@@ -51,7 +51,6 @@ import {
     isManagedServiceUrl,
     deriveWorkflowTypeFromRevision,
 } from "./helpers"
-import type {WorkflowType} from "./molecule"
 
 // ============================================================================
 // HELPERS
