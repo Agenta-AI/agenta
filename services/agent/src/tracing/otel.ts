@@ -3,7 +3,7 @@
  * OpenTelemetry spans and exports them (OTLP/HTTP protobuf) to Agenta.
  *
  * This is the service build of the WP-1 POC extension
- * (docs/design/agent-workflows/wp-1-pi-tracing/poc/agenta-otel.ts). It keeps the
+ * (docs/design/agent-workflows/scratch/wp-1-pi-tracing/poc/agenta-otel.ts). It keeps the
  * span tree and the load-bearing attribute choices identical, and adds three
  * things the service needs that the single-run POC did not:
  *

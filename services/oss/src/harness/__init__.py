@@ -2,7 +2,7 @@
 
 Nothing here is Agenta-specific. The Agenta workflow integration (the ``/invoke`` handler,
 tool resolution, secrets, tracing) lives in ``oss.src.agent``. Two seams (see
-``docs/design/agent-workflows/harness-port-redesign/``):
+``docs/design/agent-workflows/ports-and-adapters.md``):
 
 - ``Harness``: the agent engine. ``SubprocessHarness`` and ``HttpHarness`` (``transports.py``)
   reach the TypeScript runner over a subprocess or HTTP. The engine that runs behind them

@@ -2,7 +2,7 @@
 
 These interfaces keep the service environment-agnostic and engine-agnostic. The shapes
 are borrowed from the rivet ``sandbox-agent`` SDK (see
-``docs/design/agent-workflows/harness-port-redesign/``) but stay ours, so rivet is one
+``docs/design/agent-workflows/ports-and-adapters.md``) but stay ours, so rivet is one
 adapter behind the seam and a non-rivet engine (the legacy in-process Pi path) fits the
 same port.
 
