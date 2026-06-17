@@ -467,25 +467,6 @@ async def create_project_member(
     )
 
 
-async def fetch_project_memberships_by_user_id(
-    user_id: str,
-) -> List[ProjectMemberDB]:
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(ProjectMemberDB)
-            .filter_by(user_id=uuid.UUID(user_id))
-            .options(
-                joinedload(ProjectMemberDB.project).joinedload(ProjectDB.workspace),
-                joinedload(ProjectMemberDB.project).joinedload(ProjectDB.organization),
-            )
-        )
-        project_memberships = result.scalars().all()
-
-        return project_memberships
-
-
 async def create_workspace_db_object(
     session: AsyncSession,
     payload: CreateWorkspace,

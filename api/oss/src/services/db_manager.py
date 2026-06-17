@@ -106,6 +106,24 @@ async def fetch_projects_by_workspace(
         return result.scalars().all()
 
 
+async def fetch_project_memberships_by_user_id(
+    user_id: str,
+) -> List[ProjectMemberDB]:
+    """Retrieve every project membership for a user across all organizations."""
+
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        result = await session.execute(
+            select(ProjectMemberDB)
+            .filter_by(user_id=uuid.UUID(user_id))
+            .options(
+                joinedload(ProjectMemberDB.project).joinedload(ProjectDB.workspace),
+                joinedload(ProjectMemberDB.project).joinedload(ProjectDB.organization),
+            )
+        )
+        return result.scalars().all()
+
+
 async def fetch_workspace_by_id(
     workspace_id: str,
 ) -> Optional[WorkspaceDB]:

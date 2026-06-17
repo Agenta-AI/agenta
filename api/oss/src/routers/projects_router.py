@@ -80,9 +80,7 @@ async def _get_ee_membership_for_project(user_id, project_id):
     if not is_ee():
         return None
 
-    memberships = await db_manager_ee.fetch_project_memberships_by_user_id(
-        user_id=user_id
-    )
+    memberships = await db_manager.fetch_project_memberships_by_user_id(user_id=user_id)
     return next(
         (m for m in memberships if str(m.project_id) == str(project_id)),
         None,
@@ -136,77 +134,34 @@ async def get_projects(
     request: Request,
 ):
     try:
-        if is_oss():
-            workspace_id = getattr(request.state, "workspace_id", None)
-            if not workspace_id:
-                raise HTTPException(
-                    status_code=400, detail="Workspace context is required"
-                )
-
-            workspace = await db_manager.fetch_workspace_by_id(
-                workspace_id=str(workspace_id)
-            )
-            if not workspace:
-                raise HTTPException(status_code=404, detail="Workspace not found")
-
-            organization = await db_manager.fetch_organization_by_id(
-                organization_id=str(workspace.organization_id)
-            )
-            if not organization:
-                raise HTTPException(status_code=404, detail="Organization not found")
-
-            projects_db = await db_manager.fetch_projects_by_workspace(
-                workspace_id=str(workspace_id)
-            )
-            if not projects_db:
-                raise HTTPException(status_code=404, detail="No projects found")
-
-            user_role = _get_oss_user_role(organization, request.state.user_id)
-
-            projects = []
-            for project in projects_db:
-                project_response = await _project_to_response(
-                    project,
-                    user_role=user_role,
-                    is_demo=False,
-                    workspace=workspace,
-                    organization=organization,
-                )
-                projects.append(project_response)
-
-            return projects
-
-        elif is_ee():
-            _project_memberships = (
-                await db_manager_ee.fetch_project_memberships_by_user_id(
-                    user_id=request.state.user_id
-                )
-            )
-
-            if not _project_memberships:
-                return JSONResponse(
-                    status_code=404,
-                    content={"message": "No projects found."},
-                )
-
-            projects: List[ProjectsResponse] = []
-            for project_membership in _project_memberships:
-                project_response = await _project_to_response(
-                    project_membership.project,
-                    user_role=project_membership.role,
-                    is_demo=project_membership.is_demo,
-                    workspace=project_membership.project.workspace,
-                    organization=project_membership.project.organization,
-                )
-                projects.append(project_response)
-
-            return projects
-
-        else:
+        if not (is_oss() or is_ee()):
             return JSONResponse(
                 status_code=404,
                 content={"message": "No projects found."},
             )
+
+        _project_memberships = await db_manager.fetch_project_memberships_by_user_id(
+            user_id=request.state.user_id
+        )
+
+        if not _project_memberships:
+            return JSONResponse(
+                status_code=404,
+                content={"message": "No projects found."},
+            )
+
+        projects: List[ProjectsResponse] = []
+        for project_membership in _project_memberships:
+            project_response = await _project_to_response(
+                project_membership.project,
+                user_role=project_membership.role,
+                is_demo=project_membership.is_demo,
+                workspace=project_membership.project.workspace,
+                organization=project_membership.project.organization,
+            )
+            projects.append(project_response)
+
+        return projects
 
     except Exception as exc:  # pylint: disable=bare-except
         log.error(exc)
@@ -265,7 +220,7 @@ async def get_project(
             )
 
         if is_ee():
-            memberships = await db_manager_ee.fetch_project_memberships_by_user_id(
+            memberships = await db_manager.fetch_project_memberships_by_user_id(
                 user_id=request.state.user_id
             )
             membership = next(
