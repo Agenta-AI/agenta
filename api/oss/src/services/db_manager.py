@@ -50,6 +50,7 @@ from oss.src.models.db_models import (
     APIKeyDB,
     InvitationDB,
     OrganizationDB,
+    OrganizationMemberDB,
     AppDB,
     AppVariantDB,
     AppVariantRevisionsDB,
@@ -918,28 +919,19 @@ async def get_user_organizations(user_id: str) -> List[OrganizationDB]:
     Returns:
         List[OrganizationDB]: List of organizations the user belongs to
     """
-    # Import OrganizationMemberDB conditionally (EE only)
-    if is_ee():
-        from ee.src.models.db_models import OrganizationMemberDB
+    engine = get_transactions_engine()
 
-        engine = get_transactions_engine()
-
-        async with engine.session() as session:
-            # Query organizations through organization_members table
-            result = await session.execute(
-                select(OrganizationDB)
-                .join(
-                    OrganizationMemberDB,
-                    OrganizationDB.id == OrganizationMemberDB.organization_id,
-                )
-                .filter(OrganizationMemberDB.user_id == uuid.UUID(user_id))
+    async with engine.session() as session:
+        result = await session.execute(
+            select(OrganizationDB)
+            .join(
+                OrganizationMemberDB,
+                OrganizationDB.id == OrganizationMemberDB.organization_id,
             )
-            organizations = result.scalars().all()
-            return list(organizations)
-    else:
-        # OSS mode: return empty list or implement simplified logic
-        # In OSS, users might only have one default organization
-        return []
+            .filter(OrganizationMemberDB.user_id == uuid.UUID(user_id))
+        )
+        organizations = result.scalars().all()
+        return list(organizations)
 
 
 async def get_workspace(workspace_id: str) -> WorkspaceDB:
