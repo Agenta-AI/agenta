@@ -9,10 +9,6 @@ from fastapi.responses import JSONResponse
 from oss.src.utils.common import is_ee, is_oss, APIRouter
 from oss.src.services import db_manager
 
-if is_ee():
-    from ee.src.services import db_manager_ee
-
-
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -276,45 +272,6 @@ async def create_project(
     if not project_name:
         raise HTTPException(status_code=400, detail="Project name cannot be empty")
 
-    if is_ee():
-        # EE: project created + memberships cloned
-        project = await db_manager_ee.create_workspace_project(
-            project_name=project_name,
-            workspace_id=str(workspace_id),
-            set_default=payload.make_default,
-        )
-
-        # Create default evaluators for the new project
-        # Import here to avoid circular import at module load time
-        from oss.src.core.evaluators.defaults import create_default_evaluators
-
-        await create_default_evaluators(
-            project_id=project.id,
-            user_id=UUID(request.state.user_id),
-        )
-
-        # Create default environments for the new project
-        from oss.src.core.environments.defaults import create_default_environments
-
-        await create_default_environments(
-            project_id=project.id,
-            user_id=UUID(request.state.user_id),
-        )
-
-        membership = await _get_ee_membership_for_project(
-            user_id=request.state.user_id,
-            project_id=project.id,
-        )
-        user_role = membership.role if membership else None
-        is_demo = membership.is_demo if membership else None
-
-        return await _project_to_response(
-            project,
-            user_role=user_role,
-            is_demo=is_demo,
-        )
-
-    # OSS
     project = await db_manager.create_workspace_project(
         project_name=project_name,
         workspace_id=str(workspace_id),
@@ -322,36 +279,31 @@ async def create_project(
         set_default=payload.make_default,
     )
 
-    # Create default evaluators for the new project
     # Import here to avoid circular import at module load time
     from oss.src.core.evaluators.defaults import create_default_evaluators
+    from oss.src.core.environments.defaults import create_default_environments
 
     await create_default_evaluators(
         project_id=project.id,
         user_id=UUID(request.state.user_id),
     )
-
-    # Create default environments for the new project
-    from oss.src.core.environments.defaults import create_default_environments
-
     await create_default_environments(
         project_id=project.id,
         user_id=UUID(request.state.user_id),
     )
 
-    organization = await db_manager.fetch_organization_by_id(
-        organization_id=str(organization_id)
+    memberships = await db_manager.fetch_project_memberships_by_user_id(
+        user_id=request.state.user_id
     )
-    if not organization:
-        raise HTTPException(status_code=404, detail="Organization not found")
-
-    user_role = _get_oss_user_role(organization, request.state.user_id)
+    membership = next(
+        (m for m in memberships if str(m.project_id) == str(project.id)),
+        None,
+    )
 
     return await _project_to_response(
         project,
-        user_role=user_role,
-        is_demo=False,
-        organization=organization,
+        user_role=membership.role if membership else None,
+        is_demo=membership.is_demo if membership else None,
     )
 
 

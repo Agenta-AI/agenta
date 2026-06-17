@@ -1377,11 +1377,70 @@ async def create_workspace_project(
         return project_db
 
     if session is not None:
-        return await _create(session)
+        project_db = await _create(session)
+        await sync_workspace_members_to_project(str(project_db.id), session=session)
+        return project_db
 
     engine = get_transactions_engine()
     async with engine.session() as new_session:
-        return await _create(new_session)
+        project_db = await _create(new_session)
+        await sync_workspace_members_to_project(str(project_db.id), session=new_session)
+        return project_db
+
+
+async def sync_workspace_members_to_project(
+    project_id: str,
+    session: Optional[AsyncSession] = None,
+) -> None:
+    """Ensure all workspace members are mirrored as project members."""
+
+    async def _sync(db_session: AsyncSession) -> None:
+        project = await db_session.get(ProjectDB, uuid.UUID(project_id))
+        if project is None:
+            raise NoResultFound(f"Project with ID {project_id} not found")
+
+        workspace_members_result = await db_session.execute(
+            select(WorkspaceMemberDB).filter_by(workspace_id=project.workspace_id)
+        )
+        workspace_members = workspace_members_result.scalars().all()
+        if not workspace_members:
+            return
+
+        user_ids = [member.user_id for member in workspace_members]
+        existing_members_result = await db_session.execute(
+            select(ProjectMemberDB).filter(
+                ProjectMemberDB.project_id == project.id,
+                ProjectMemberDB.user_id.in_(user_ids),
+            )
+        )
+        existing_members = {
+            member.user_id: member for member in existing_members_result.scalars().all()
+        }
+
+        for member in workspace_members:
+            project_member = existing_members.get(member.user_id)
+            if project_member:
+                if project_member.role != member.role:
+                    project_member.role = member.role
+                continue
+
+            db_session.add(
+                ProjectMemberDB(
+                    user_id=member.user_id,
+                    project_id=project.id,
+                    role=member.role,
+                )
+            )
+
+        await db_session.commit()
+
+    if session is not None:
+        await _sync(session)
+        return
+
+    engine = get_transactions_engine()
+    async with engine.session() as new_session:
+        await _sync(new_session)
 
 
 async def delete_project(project_id: str) -> None:

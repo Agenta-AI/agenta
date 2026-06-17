@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Set, Union, NoReturn, Optional
+from typing import Any, Dict, List, Set, Union, NoReturn
 import uuid
 from datetime import datetime, timezone
 
@@ -269,96 +269,6 @@ async def create_default_project(
         is_default=True,
     )
     return project_db
-
-
-async def create_workspace_project(
-    project_name: str,
-    workspace_id: str,
-    *,
-    set_default: bool = False,
-) -> ProjectDB:
-    """
-    Create a project for a workspace and sync memberships.
-    """
-
-    workspace = await db_manager.get_workspace(workspace_id)
-    if workspace is None:
-        raise NoResultFound(f"Workspace with ID {workspace_id} not found")
-
-    project = await db_manager.create_workspace_project(
-        project_name=project_name,
-        workspace_id=workspace_id,
-        organization_id=str(workspace.organization_id),
-        set_default=set_default,
-    )
-
-    await sync_workspace_members_to_project(str(project.id))
-    return project
-
-
-async def sync_workspace_members_to_project(
-    project_id: str,
-    session: Optional[AsyncSession] = None,
-) -> None:
-    """
-    Ensure all workspace members are mirrored as project members.
-    """
-
-    async def _sync(db_session: AsyncSession) -> None:
-        project = await db_session.get(ProjectDB, uuid.UUID(project_id))
-        if project is None:
-            raise NoResultFound(f"Project with ID {project_id} not found")
-
-        workspace_members_result = await db_session.execute(
-            select(WorkspaceMemberDB).filter_by(workspace_id=project.workspace_id)
-        )
-        workspace_members = workspace_members_result.scalars().all()
-        if not workspace_members:
-            return
-
-        user_ids = [member.user_id for member in workspace_members]
-        existing_members_result = await db_session.execute(
-            select(ProjectMemberDB).filter(
-                ProjectMemberDB.project_id == project.id,
-                ProjectMemberDB.user_id.in_(user_ids),
-            )
-        )
-        existing_members = {
-            member.user_id: member for member in existing_members_result.scalars().all()
-        }
-
-        for member in workspace_members:
-            project_member = existing_members.get(member.user_id)
-            if project_member:
-                if project_member.role != member.role:
-                    project_member.role = member.role
-                continue
-
-            project_member = ProjectMemberDB(
-                user_id=member.user_id,
-                project_id=project.id,
-                role=member.role,
-            )
-            db_session.add(project_member)
-
-            await db_session.commit()
-
-            log.info(
-                "[scopes] project membership created",
-                organization_id=str(project.organization_id),
-                workspace_id=str(project.workspace_id),
-                project_id=str(project.id),
-                user_id=str(member.user_id),
-                membership_id=project_member.id,
-            )
-
-    if session is not None:
-        await _sync(session)
-        return
-
-    engine = get_transactions_engine()
-    async with engine.session() as new_session:
-        await _sync(new_session)
 
 
 async def get_default_workspace_id_from_organization(
@@ -718,7 +628,7 @@ async def update_user_roles(
         project_members = project_members_result.scalars().all()
         if len(project_members) != len(project_ids):
             for project in projects:
-                await sync_workspace_members_to_project(
+                await db_manager.sync_workspace_members_to_project(
                     str(project.id), session=session
                 )
 
