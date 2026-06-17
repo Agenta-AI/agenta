@@ -1737,8 +1737,10 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
             }
         }
 
-        // Get the effective current parameters (base entity = server/clone + draft overlay,
-        // without schema resolution — isDirty only compares parameters, never schemas)
+        // Effective current data: base entity (server/clone + draft overlay).
+        // isDirty diffs the whole data object (parameters, schemas, url, headers,
+        // script, runtime); evaluator parameters and schemas are nested to match
+        // the entity side before comparison.
         const entityData = get(workflowBaseEntityAtomFamily(workflowId))
 
         // Get the comparison baseline — for local drafts this redirects to the
@@ -1823,18 +1825,41 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
             return sortObjectKeys(normalized)
         }
 
+        // Server schemas.parameters stays flat for evaluators while the entity
+        // side is nested (nestEvaluatorSchema in workflowBaseEntityAtomFamily).
+        // Nest the server schema too so the whole-data diff is like-for-like.
+        const rawServerSchemaParams = serverData.data?.schemas?.parameters as
+            | Record<string, unknown>
+            | undefined
+        const serverSchemas =
+            rawServerSchemaParams && serverData.flags?.is_evaluator
+                ? {
+                      ...serverData.data?.schemas,
+                      parameters: nestEvaluatorSchema(rawServerSchemaParams),
+                  }
+                : serverData.data?.schemas
+
         // Compare the whole data object (so code/hook fields register as dirty),
-        // keeping parameters normalized to avoid false positives.
+        // keeping parameters and schemas normalized to avoid false positives.
         const normalizeData = (
             data: Record<string, unknown> | null | undefined,
             normalizedParams: unknown,
+            normalizedSchemas: unknown,
         ): unknown => {
             const base = (data ?? {}) as Record<string, unknown>
-            return sortObjectKeys({...base, parameters: normalizeForComparison(normalizedParams)})
+            return sortObjectKeys({
+                ...base,
+                parameters: normalizeForComparison(normalizedParams),
+                ...(normalizedSchemas !== undefined ? {schemas: normalizedSchemas} : {}),
+            })
         }
 
-        const normalizedEntity = normalizeData(entityData.data, entityParams)
-        const normalizedServer = normalizeData(serverData.data, serverParams)
+        const normalizedEntity = normalizeData(
+            entityData.data,
+            entityParams,
+            entityData.data?.schemas,
+        )
+        const normalizedServer = normalizeData(serverData.data, serverParams, serverSchemas)
         const isDirty = !isEqual(normalizedEntity, normalizedServer)
 
         return isDirty
