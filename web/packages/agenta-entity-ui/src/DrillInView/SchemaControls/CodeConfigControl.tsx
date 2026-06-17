@@ -1,9 +1,4 @@
-/**
- * CodeConfigControl
- *
- * Dedicated control for the code workflow data fields (script, runtime). These
- * are not schema-driven, so they render directly instead of via SchemaPropertyRenderer.
- */
+/** Renders the code workflow script editor (runtime picker lives in the section header). */
 
 import {memo, useCallback, useState} from "react"
 

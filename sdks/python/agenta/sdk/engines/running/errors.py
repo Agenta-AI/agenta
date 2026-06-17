@@ -259,9 +259,8 @@ class CustomHookHandlerNotDefinedV0Error(ErrorStatus):
             code=self.code,
             type=self.type,
             message=(
-                "You reached the custom-hook placeholder handler. A custom hook must "
-                "define its own handler (run it locally) or set remote=True (forward "
-                "to its url). You shouldn't be here."
+                "Custom hook has no handler. Define a local handler on the workflow, "
+                "or set remote=True to forward to its configured url."
             ),
         )
 

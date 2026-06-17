@@ -1,11 +1,4 @@
-/**
- * SchemasConfigControl
- *
- * Renders the workflow's data.schemas (parameters / inputs / outputs) as three
- * JSON-schema editors. Shown for both code and hook workflows. Each field is a
- * JSON schema, edited as JSON with tool-card chrome (copy + collapse), and
- * collapsed by default.
- */
+/** Renders data.schemas (parameters/inputs/outputs) as collapsible JSON editors. */
 
 import {memo, useCallback, useMemo, useState} from "react"
 

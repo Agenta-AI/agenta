@@ -2272,7 +2272,8 @@ async def remote_forward_v0(
             got=webhook_url,
         ) from exc
 
-    # The stored url is the service base; the invoke surface lives at /invoke.
+    # The stored url is the service base (pre-/invoke); the invoke surface lives
+    # at /invoke and is always appended.
     target_url = f"{webhook_url.rstrip('/')}/invoke"
 
     log.info("remote_forward_v0 POST", url=target_url)
@@ -2288,12 +2289,19 @@ async def remote_forward_v0(
     if testcase is not None:
         json_payload["testcase"] = testcase
 
+    # httpx requires str->str headers; coerce values from revision data.
+    request_headers = (
+        {str(k): str(v) for k, v in headers.items()}
+        if isinstance(headers, dict)
+        else None
+    )
+
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(
                 url=target_url,
                 json=json_payload,
-                headers=headers if isinstance(headers, dict) else None,
+                headers=request_headers,
                 timeout=httpx.Timeout(30.0, connect=5.0),
             )
         except Exception as e:

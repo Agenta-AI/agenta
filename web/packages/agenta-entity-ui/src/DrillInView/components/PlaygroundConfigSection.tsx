@@ -300,8 +300,7 @@ const RUNTIME_SELECT_OPTIONS = ["python", "typescript", "javascript"].map((value
     value,
 }))
 
-// Sibling `data` fields grouped into one section per workflow kind. The section
-// key (`hook`/`code`) is virtual: a `["hook","url"]` path maps to `data.url`.
+// Virtual section keys for sibling data fields; `["hook","url"]` maps to `data.url`.
 const SIBLING_GROUPS = {
     hook: ["url", "headers"],
     code: ["script", "runtime"],
@@ -322,8 +321,7 @@ function allowedSiblingGroup(uri: unknown): SiblingGroupKey | null {
     return isSiblingGroupKey(key) ? key : null
 }
 
-// Adapter data: `parameters` + one uri-allowed sibling GROUP (hook/code) holding
-// its fields, surfaced as a single section.
+// Adapter data: `parameters` + one sibling group (hook/code) as a single section.
 function mergeSiblingFields(
     config: Record<string, unknown> | null,
     full: {data?: Record<string, unknown> | null} | null,
@@ -332,14 +330,14 @@ function mergeSiblingFields(
     const group = allowedSiblingGroup(fullData?.uri)
     const merged: Record<string, unknown> = {parameters: (config ?? {}) as Record<string, unknown>}
     if (group && fullData) {
+        const SIBLING_FIELD_DEFAULTS: Record<string, unknown> = {headers: {}, runtime: "python"}
         const fields: Record<string, unknown> = {}
         for (const field of SIBLING_GROUPS[group]) {
-            fields[field] = fullData[field] ?? (field === "headers" ? {} : "")
+            fields[field] = fullData[field] ?? SIBLING_FIELD_DEFAULTS[field] ?? ""
         }
         merged[group] = fields
     }
-    // `schemas` is nested under data.schemas and shown for any workflow that has it
-    // (not URI-gated like hook/code). Each field is a JSON schema object.
+    // `schemas` nests under data.schemas; shown for any workflow that has it.
     const schemas = fullData?.schemas as Record<string, unknown> | null | undefined
     if (schemas && typeof schemas === "object") {
         const fields: Record<string, unknown> = {}
@@ -470,10 +468,16 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
             },
             getChangesFromPath: (data: unknown, path: DataPath, value: unknown) => {
                 const d = data as {parameters?: Record<string, unknown>} | null
+                // Sibling edits emit a tagged __siblingData payload (like
+                // getChangesFromRoot); params emit plain param keys.
                 if (pathTargetsSibling(path)) {
-                    const next = {...(d ?? {})}
-                    setValueAtPath(next, path, value)
-                    return next
+                    const group = path[0] as SiblingGroupKey
+                    const fields = {...((d as Record<string, unknown>)?.[group] ?? {})}
+                    setValueAtPath(fields, path.slice(1), value)
+                    if (group === "schemas") {
+                        return {__siblingData: {schemas: fields}} as Record<string, unknown>
+                    }
+                    return {__siblingData: fields} as Record<string, unknown>
                 }
                 const params = {...(d?.parameters ?? {})}
                 setValueAtPath(params, path, value)

@@ -32,12 +32,10 @@ import {
 // PATCH VALIDATION SCHEMA
 // ============================================================================
 
-// Patch is a shallow diff over the whole `data` object (any changed top-level
-// key: uri, schemas, url, headers, script, runtime, parameters).
+// Shallow diff over the whole `data` object (any changed top-level key).
 const workflowPatchSchema = z.record(z.string(), z.unknown())
 
-// Merge a data patch over a server baseline: parameters shallow-merge (nested
-// diff), every other key replaces.
+// Merge a data patch over the server baseline: parameters shallow-merge, rest replace.
 function mergeDataPatch(
     remoteData: Workflow | null | undefined,
     patch: Record<string, unknown>,

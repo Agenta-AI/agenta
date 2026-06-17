@@ -1,9 +1,4 @@
-/**
- * HookConfigControl
- *
- * Dedicated control for the hook workflow data fields (url, headers). These are
- * not schema-driven, so they render directly instead of via SchemaPropertyRenderer.
- */
+/** Renders the hook workflow data fields (url, headers). */
 
 import {memo, useCallback, useMemo} from "react"
 
@@ -130,7 +125,7 @@ export const HookConfigControl = memo(function HookConfigControl({
         <div className={clsx("flex flex-col gap-4", className)}>
             <LabeledField label="URL" direction="vertical">
                 <Input
-                    placeholder="https://your-service/invoke"
+                    placeholder="https://your-service"
                     className="font-mono"
                     value={(group.url as string) ?? ""}
                     disabled={disabled}
