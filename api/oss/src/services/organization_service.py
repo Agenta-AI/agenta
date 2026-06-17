@@ -339,13 +339,17 @@ async def accept_organization_invitation(
         HTTPException: If there is an error retrieving the workspace.
     """
 
-    user_exists = await db_manager.get_user_with_email(email=email)
+    user_exists = await db_manager.get_user_with_email(
+        email=email,
+    )
     if user_exists is None:
         raise HTTPException(status_code=400, detail="User does not exist")
 
     invitation = (
         await db_manager.get_project_invitation_by_organization_token_and_email(
-            organization_id=organization_id, email=email, token=token
+            organization_id=organization_id,
+            email=email,
+            token=token,
         )
     )
 
@@ -356,7 +360,9 @@ async def accept_organization_invitation(
     # different logged-in user (e.g. the org owner) can't consume someone else's
     # invite or get a misleading "already joined".
     if (invitation.email or "").lower() != (session_email or "").lower():
-        raise InviteEmailMismatchError(invited_email=invitation.email)
+        raise InviteEmailMismatchError(
+            invited_email=invitation.email,
+        )
 
     # OSS consumes the invitation at signup, so the most common "failure" here is
     # an invitation this same user already accepted. Treat that as idempotent.
@@ -366,7 +372,32 @@ async def accept_organization_invitation(
     if invitation.expiration_date <= datetime.now(timezone.utc):
         raise InviteExpiredError()
 
+    project = await db_manager.get_project_by_id(
+        project_id=str(invitation.project_id),
+    )
+    if project is None:
+        raise HTTPException(status_code=400, detail="Invited project no longer exists")
+
+    organization = await db_manager.get_organization_by_id(
+        organization_id=str(project.organization_id)
+    )
+    workspace = await db_manager.get_workspace(
+        workspace_id=str(project.workspace_id),
+    )
+
+    await db_manager.add_user_to_workspace_and_org(
+        organization=organization,
+        workspace=workspace,
+        user=user_exists,
+        project_id=str(project.id),
+        role=invitation.role,
+    )
+
     await db_manager.update_invitation(
-        str(invitation.id), values_to_update={"used": True}
+        str(invitation.id),
+        values_to_update={
+            "user_id": str(user_exists.id),
+            "used": True,
+        },
     )
     return True

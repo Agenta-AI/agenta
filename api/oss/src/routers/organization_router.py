@@ -12,6 +12,8 @@ from oss.src.models.api.organization_models import (
     Organization,
     OrganizationDetails,
     OrganizationMember,
+    CreateOrganizationPayload,
+    UpdateOrganizationPayload,
 )
 from oss.src.services import organization_service
 from oss.src.services.organization_service import (
@@ -449,3 +451,204 @@ async def accept_organization_invitation(
         ) from e
 
     return JSONResponse({"message": "Added user to workspace"}, status_code=200)
+
+
+async def _check_org_owner(organization_id: str, user_id: str) -> bool:
+    organization = await db_manager.get_organization_by_id(
+        organization_id=organization_id
+    )
+    return organization is not None and str(organization.owner_id) == str(user_id)
+
+
+if not is_ee():
+    # In EE these endpoints come from the EE organization router (with RBAC
+    # and entitlement gates); registering them here too would shadow it.
+    from fastapi import HTTPException
+
+    from oss.src.services.commoners import create_organization_for_user
+    from oss.src.core.organizations.exceptions import (
+        OrganizationCreationNotAllowedError,
+    )
+
+    @router.post("/", operation_id="create_organization")
+    async def create_organization(
+        request: Request,
+        payload: CreateOrganizationPayload,
+    ):
+        """Create a new organization."""
+        try:
+            user = await db_manager.get_user(request.state.user_id)
+            if not user:
+                return JSONResponse(
+                    {"detail": "User not found"},
+                    status_code=404,
+                )
+
+            organization = await create_organization_for_user(
+                user_id=UUID(str(user.id)),
+                organization_name=payload.name,
+                organization_description=payload.description,
+            )
+
+            return JSONResponse(
+                {
+                    "id": str(organization.id),
+                    "name": organization.name,
+                    "description": organization.description,
+                },
+                status_code=201,
+            )
+
+        except OrganizationCreationNotAllowedError as e:
+            raise HTTPException(
+                status_code=403,
+                detail=e.message,
+            ) from e
+
+        except Exception:
+            log.error(
+                "Unexpected error while creating organization",
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="An internal error occurred while creating the organization.",
+            )
+
+    @router.put("/{organization_id}", operation_id="update_organization")
+    @router.patch("/{organization_id}", operation_id="patch_organization")
+    async def update_organization(
+        request: Request,
+        organization_id: str,
+        payload: UpdateOrganizationPayload,
+    ):
+        if not payload.name and not payload.description:
+            return JSONResponse(
+                {"detail": "Please provide a field to update"},
+                status_code=400,
+            )
+
+        if not await _check_org_owner(organization_id, request.state.user_id):
+            return JSONResponse(
+                {"detail": "You do not have permission to perform this action"},
+                status_code=403,
+            )
+
+        try:
+            organization = await db_manager.update_organization(
+                organization_id=organization_id,
+                values_to_update=payload.model_dump(exclude_unset=True),
+            )
+            return JSONResponse(
+                {
+                    "id": str(organization.id),
+                    "name": organization.name,
+                    "description": organization.description,
+                },
+                status_code=200,
+            )
+        except Exception:
+            log.error(
+                "Unexpected error while updating organization",
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="An internal error occurred while updating the organization.",
+            )
+
+    @router.post(
+        "/{organization_id}/transfer/{new_owner_id}",
+        operation_id="transfer_organization_ownership",
+    )
+    async def transfer_organization_ownership(
+        request: Request,
+        organization_id: str,
+        new_owner_id: str,
+    ):
+        """Transfer organization ownership to another member."""
+        if not await _check_org_owner(organization_id, request.state.user_id):
+            return JSONResponse(
+                {"detail": "Only the organization owner can transfer ownership"},
+                status_code=403,
+            )
+
+        try:
+            organization = await db_manager.transfer_organization_ownership(
+                organization_id=organization_id,
+                new_owner_id=new_owner_id,
+                current_user_id=str(request.state.user_id),
+            )
+
+            return JSONResponse(
+                {
+                    "organization_id": str(organization.id),
+                    "owner_id": str(organization.owner_id),
+                },
+                status_code=200,
+            )
+
+        except ValueError:
+            log.warning(
+                "Invalid organization ownership transfer request",
+                exc_info=True,
+            )
+            return JSONResponse(
+                {"detail": "Invalid organization or new owner for ownership transfer"},
+            )
+        except Exception:
+            log.error(
+                "Unexpected error while transferring organization ownership",
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="An internal error occurred while transferring organization ownership.",
+            )
+
+    @router.delete("/{organization_id}", operation_id="delete_organization")
+    async def delete_organization(
+        request: Request,
+        organization_id: str,
+    ):
+        """Delete an organization (owner only)."""
+        if not await _check_org_owner(organization_id, request.state.user_id):
+            return JSONResponse(
+                {"detail": "You do not have permission to perform this action"},
+                status_code=403,
+            )
+
+        try:
+            org_count = await db_manager.count_organizations_by_owner(
+                str(request.state.user_id)
+            )
+            if org_count <= 1:
+                return JSONResponse(
+                    {
+                        "detail": "Cannot delete your last organization. You must have at least one organization."
+                    },
+                    status_code=400,
+                )
+
+            await db_manager.delete_organization(organization_id)
+
+            log.info(
+                "[organization] organization deleted",
+                organization_id=organization_id,
+                user_id=request.state.user_id,
+            )
+
+            return JSONResponse(
+                {"detail": "Organization deleted successfully"},
+                status_code=200,
+            )
+
+        except Exception:
+            log.error(
+                "Unexpected error while deleting organization",
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="An internal error occurred while deleting the organization.",
+            )
