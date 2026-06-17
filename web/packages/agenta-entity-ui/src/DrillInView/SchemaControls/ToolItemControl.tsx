@@ -674,14 +674,10 @@ export const ToolItemControl = memo(function ToolItemControl({
             builtinToolLabel={toolLabel}
             builtinIcon={providerIcon}
             gatewayHeader={gatewayHeader}
-            containerRef={containerRef}
         />
     )
 
-    // Collapsed = header only. Keep a SINGLE SharedEditor in both states (same
-    // border, padding and chrome — no fork, no pixel shift) and just hide the
-    // editor body when minimized. Header drives the height naturally, so it
-    // works for every header variant (title, title+desc, builtin icon row).
+    // Single SharedEditor in both states; just hide the editor body when minimized.
     return (
         <div
             ref={containerRef}

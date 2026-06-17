@@ -165,12 +165,10 @@ const ChatMessageItem: React.FC<{
         <div
             className={cn(
                 flexLayouts.column,
-                // Collapsed = role row + one line of content, clipped vertically so
-                // formatting (indentation, markdown, JSON) is preserved instead of
-                // collapsed to a single run-on line. Height is a clean line-height
-                // multiple so it never bleeds a half-line.
+                // Collapsed = role row + one clipped line; !min-h-0 cancels the
+                // editor wrapper's min-h-[70px] so it hugs that single line.
                 isMinimized &&
-                    "[&_.agenta-editor-wrapper]:!max-h-[1lh] [&_.agenta-editor-wrapper]:overflow-hidden",
+                    "[&_.agenta-editor-wrapper]:!max-h-[1lh] [&_.agenta-editor-wrapper]:overflow-hidden [&_.agenta-rich-text-editor]:!min-h-0",
             )}
             ref={containerRef}
         >
@@ -196,7 +194,7 @@ const ChatMessageItem: React.FC<{
                     handleCreateSnippetFromPaste({pastedText, maxPasteChars, overBy})
                 }
                 headerBottom={
-                    isToolResponse && (msg.name || msg.tool_call_id) ? (
+                    !isMinimized && isToolResponse && (msg.name || msg.tool_call_id) ? (
                         <ToolMessageHeader name={msg.name} toolCallId={msg.tool_call_id} />
                     ) : undefined
                 }
@@ -254,7 +252,7 @@ const ChatMessageItem: React.FC<{
                     </div>
                 }
                 footer={
-                    hasAttachmentsFlag ? (
+                    !isMinimized && hasAttachmentsFlag ? (
                         <MessageAttachments
                             content={msg.content!}
                             onRemove={(attachmentIndex) =>
