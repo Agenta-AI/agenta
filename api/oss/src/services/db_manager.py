@@ -9,11 +9,8 @@ from fastapi import HTTPException
 from sqlalchemy.future import select
 from sqlalchemy import delete, func, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from supertokens_python.types import AccountInfo
 from sqlalchemy.orm import joinedload, load_only
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
-from supertokens_python.asyncio import list_users_by_account_info
-from supertokens_python.asyncio import delete_user as delete_user_from_supertokens
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
@@ -122,6 +119,48 @@ async def fetch_project_memberships_by_user_id(
             )
         )
         return result.scalars().all()
+
+
+async def project_member_exists(
+    *,
+    project_id: str,
+    user_id: str,
+) -> bool:
+    """Check whether a user is a member of a project (EXISTS sub-query)."""
+
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        stmt = select(
+            select(ProjectMemberDB.id)
+            .filter(
+                ProjectMemberDB.project_id == uuid.UUID(project_id),
+                ProjectMemberDB.user_id == uuid.UUID(user_id),
+            )
+            .exists()
+        )
+        result = await session.execute(stmt)
+        return result.scalar() or False
+
+
+async def workspace_member_exists(
+    *,
+    workspace_id: str,
+    user_id: str,
+) -> bool:
+    """Check whether a user is a member of a workspace (EXISTS sub-query)."""
+
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        stmt = select(
+            select(WorkspaceMemberDB.id)
+            .filter(
+                WorkspaceMemberDB.workspace_id == uuid.UUID(workspace_id),
+                WorkspaceMemberDB.user_id == uuid.UUID(user_id),
+            )
+            .exists()
+        )
+        result = await session.execute(stmt)
+        return result.scalar() or False
 
 
 async def fetch_workspace_by_id(
@@ -363,8 +402,10 @@ async def get_user(user_uid: str) -> UserDB:
 
 async def get_default_workspace_id(user_id: str) -> str:
     """
-    Retrieve the default workspace ID for a user: the workspace they own,
-    falling back to their oldest membership.
+    Retrieve the default workspace ID for a user: their oldest membership.
+    Owner-role is NOT preferred — under multi-org an invitee owns their own
+    empty personal workspace, so preferring it would strand them there instead
+    of the workspace they actually joined.
     """
 
     engine = get_transactions_engine()
@@ -392,13 +433,6 @@ async def get_default_workspace_id(user_id: str) -> str:
                 str(membership.workspace_id),
             )
         )
-
-        owner_membership = next(
-            (membership for membership in memberships if membership.role == "owner"),
-            None,
-        )
-        if owner_membership is not None:
-            return str(owner_membership.workspace_id)
 
         return str(memberships[0].workspace_id)
 
@@ -1056,58 +1090,89 @@ async def get_workspaces() -> List[WorkspaceDB]:
         return workspaces
 
 
-async def remove_user_from_workspace(project_id: str, email: str):
-    """Remove a user from a workspace.
+async def remove_user_from_workspace(workspace_id: str, email: str) -> bool:
+    """Remove a user's memberships (and pending invitations) from a workspace.
 
-    Args:
-        project_id (str): The ID of the project
-        email (str): The email of the user to remove
+    Deletes the user's workspace/project/organization membership rows for this
+    workspace — NOT the global UserDB. The workspace owner cannot be removed.
     """
 
-    user = await get_user_with_email(email=email)
-    user_invitation = await get_project_invitation_by_email(
-        project_id=project_id, email=email
-    )
+    user = await get_user_with_email(email)
+    workspace = await get_workspace(workspace_id=workspace_id)
+    if workspace is None:
+        raise NoResultFound(f"Workspace with ID {workspace_id} not found")
 
-    user_id = user.id if user else None
-
-    project = await fetch_project_by_id(project_id=project_id)
-
-    if not project:
-        raise NoResultFound(f"Project with ID {project_id} not found")
+    projects = await fetch_projects_by_workspace(workspace_id)
+    if not projects:
+        raise NoResultFound(
+            f"No projects found for the provided workspace_id {workspace_id}"
+        )
+    project_ids = [project.id for project in projects]
 
     engine = get_transactions_engine()
 
     async with engine.session() as session:
-        if user:
-            await session.delete(user)
-
-            log.info(
-                "[scopes] user deleted",
-                user_id=user_id,
+        if user is not None:
+            workspace_owner_result = await session.execute(
+                select(WorkspaceMemberDB)
+                .filter_by(workspace_id=workspace.id, user_id=user.id, role="owner")
+                .options(
+                    load_only(
+                        WorkspaceMemberDB.user_id,  # type: ignore
+                        WorkspaceMemberDB.role,  # type: ignore
+                    )
+                )
             )
-
-        if user_invitation:
-            user_info_from_supertokens = await list_users_by_account_info(
-                tenant_id="public", account_info=AccountInfo(email=email)
-            )
-            if len(user_info_from_supertokens) >= 1:
-                await delete_user_from_supertokens(
-                    user_id=user_info_from_supertokens[0].id
+            workspace_owner = workspace_owner_result.scalars().first()
+            if workspace_owner is not None and workspace_owner.role == "owner":
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "message": "You do not have permission to perform this action. Please contact your Organization Owner"
+                    },
                 )
 
-            await session.delete(user_invitation)
-
-            log.info(
-                "[scopes] invitation deleted",
-                organization_id=project.organization_id,
-                workspace_id=project.workspace_id,
-                project_id=project_id,
-                user_id=user_id,
-                invitation_id=user_invitation.id,
+            workspace_member_result = await session.execute(
+                select(WorkspaceMemberDB).filter(
+                    WorkspaceMemberDB.workspace_id == workspace.id,
+                    WorkspaceMemberDB.user_id == user.id,
+                )
             )
+            workspace_member = workspace_member_result.scalars().first()
+            if workspace_member and workspace_member.role != "owner":
+                await session.delete(workspace_member)
+
+            project_member_result = await session.execute(
+                select(ProjectMemberDB).filter(
+                    ProjectMemberDB.project_id.in_(project_ids),
+                    ProjectMemberDB.user_id == user.id,
+                    ProjectMemberDB.role != "owner",
+                )
+            )
+            for project_member in project_member_result.scalars().all():
+                await session.delete(project_member)
+
+            joined_org_result = await session.execute(
+                select(OrganizationMemberDB).filter_by(
+                    user_id=user.id, organization_id=workspace.organization_id
+                )
+            )
+            member_joined_org = joined_org_result.scalars().first()
+            if member_joined_org:
+                await session.delete(member_joined_org)
+
+        user_invitations_query = await session.execute(
+            select(InvitationDB).filter(
+                InvitationDB.project_id.in_(project_ids),
+                InvitationDB.email == email,
+            )
+        )
+        for invitation in user_invitations_query.scalars().all():
+            await session.delete(invitation)
 
         await session.commit()
+
+        return True
 
 
 async def get_user_with_id(user_id: str) -> UserDB:

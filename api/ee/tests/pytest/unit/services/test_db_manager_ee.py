@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 
 from ee.src.services import db_manager_ee
+from oss.src.services import db_manager
 
 
 class _ScalarsResult:
@@ -100,24 +101,12 @@ async def test_remove_user_from_workspace_deletes_pending_invitation_without_use
     async def fetch_projects_by_workspace(workspace_id):
         return [SimpleNamespace(id=project_id)]
 
-    async def fail_if_nested_invitation_delete_is_used(invitation_id):
-        raise AssertionError(f"unexpected nested invitation delete: {invitation_id}")
-
+    monkeypatch.setattr(db_manager, "get_user_with_email", get_user_with_email)
+    monkeypatch.setattr(db_manager, "get_workspace", get_workspace)
     monkeypatch.setattr(
-        db_manager_ee.db_manager,
-        "get_user_with_email",
-        get_user_with_email,
-    )
-    monkeypatch.setattr(db_manager_ee.db_manager, "get_workspace", get_workspace)
-    monkeypatch.setattr(
-        db_manager_ee.db_manager,
+        db_manager,
         "fetch_projects_by_workspace",
         fetch_projects_by_workspace,
-    )
-    monkeypatch.setattr(
-        db_manager_ee,
-        "delete_invitation",
-        fail_if_nested_invitation_delete_is_used,
     )
     mock_engine = type(
         "MockEngine",
@@ -125,12 +114,12 @@ async def test_remove_user_from_workspace_deletes_pending_invitation_without_use
         {"session": lambda self: _PendingInviteSessionContext(session)},
     )()
     monkeypatch.setattr(
-        db_manager_ee,
+        db_manager,
         "get_transactions_engine",
         lambda: mock_engine,
     )
 
-    result = await db_manager_ee.remove_user_from_workspace(
+    result = await db_manager.remove_user_from_workspace(
         str(workspace_id),
         "pending@test.agenta.ai",
     )

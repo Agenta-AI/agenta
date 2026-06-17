@@ -63,26 +63,6 @@ async def _assert_org_owner(request: Request):
     return organization
 
 
-def _get_oss_user_role(organization, user_id: str) -> str:
-    """Owner vs admin logic used across OSS endpoints."""
-    return "owner" if str(organization.owner_id) == str(user_id) else "admin"
-
-
-async def _get_ee_membership_for_project(user_id, project_id):
-    """
-    Return the project membership for this user & project in EE, or None.
-    Uses the same source as get_projects/get_project (fetch_project_memberships_by_user_id).
-    """
-    if not is_ee():
-        return None
-
-    memberships = await db_manager.fetch_project_memberships_by_user_id(user_id=user_id)
-    return next(
-        (m for m in memberships if str(m.project_id) == str(project_id)),
-        None,
-    )
-
-
 async def _project_to_response(
     project,
     *,
@@ -186,59 +166,27 @@ async def get_project(
                     status_code=400, detail="Active project context is missing"
                 )
 
-        if is_oss():
-            project = await db_manager.fetch_project_by_id(
-                project_id=str(lookup_project_id)
-            )
-            if not project:
-                raise HTTPException(status_code=404, detail="Project not found")
+        memberships = await db_manager.fetch_project_memberships_by_user_id(
+            user_id=request.state.user_id
+        )
+        membership = next(
+            (
+                project_membership
+                for project_membership in memberships
+                if str(project_membership.project_id) == str(lookup_project_id)
+            ),
+            None,
+        )
+        if not membership:
+            raise HTTPException(status_code=404, detail="Project not found")
 
-            if not project.organization_id:
-                raise HTTPException(
-                    status_code=404, detail="Project organization not found"
-                )
-
-            organization = await db_manager.fetch_organization_by_id(
-                organization_id=str(project.organization_id)
-            )
-            if not organization:
-                raise HTTPException(
-                    status_code=404, detail="Project organization not found"
-                )
-
-            user_role = _get_oss_user_role(organization, request.state.user_id)
-
-            return await _project_to_response(
-                project,
-                user_role=user_role,
-                is_demo=False,
-                organization=organization,
-            )
-
-        if is_ee():
-            memberships = await db_manager.fetch_project_memberships_by_user_id(
-                user_id=request.state.user_id
-            )
-            membership = next(
-                (
-                    project_membership
-                    for project_membership in memberships
-                    if str(project_membership.project_id) == str(lookup_project_id)
-                ),
-                None,
-            )
-            if not membership:
-                raise HTTPException(status_code=404, detail="Project not found")
-
-            return await _project_to_response(
-                membership.project,
-                user_role=membership.role,
-                is_demo=membership.is_demo,
-                workspace=membership.project.workspace,
-                organization=membership.project.organization,
-            )
-
-        raise HTTPException(status_code=404, detail="Project not found")
+        return await _project_to_response(
+            membership.project,
+            user_role=membership.role,
+            is_demo=membership.is_demo,
+            workspace=membership.project.workspace,
+            organization=membership.project.organization,
+        )
 
     except HTTPException:
         raise
@@ -347,15 +295,17 @@ async def update_project(
 ) -> ProjectsResponse:
     # await _assert_org_owner(request)
 
-    workspace_id = getattr(request.state, "workspace_id", None)
-
-    if not workspace_id:
-        raise HTTPException(status_code=400, detail="Workspace context is required")
-
-    project = await db_manager.fetch_project_by_id(project_id=str(project_id))
-
-    if not project or str(project.workspace_id) != str(workspace_id):
+    memberships = await db_manager.fetch_project_memberships_by_user_id(
+        user_id=request.state.user_id
+    )
+    membership = next(
+        (m for m in memberships if str(m.project_id) == str(project_id)),
+        None,
+    )
+    if not membership:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    project = membership.project
 
     if payload.name is None and payload.make_default is None:
         raise HTTPException(
@@ -388,21 +338,10 @@ async def update_project(
         organization_id=str(updated_project.organization_id)
     )
 
-    if is_ee():
-        membership = await _get_ee_membership_for_project(
-            user_id=request.state.user_id,
-            project_id=updated_project.id,
-        )
-        user_role = membership.role if membership else None
-        is_demo = membership.is_demo if membership else None
-    else:
-        user_role = _get_oss_user_role(organization, request.state.user_id)
-        is_demo = False
-
     return await _project_to_response(
         updated_project,
-        user_role=user_role,
-        is_demo=is_demo,
+        user_role=membership.role,
+        is_demo=membership.is_demo,
         workspace=workspace,
         organization=organization,
     )

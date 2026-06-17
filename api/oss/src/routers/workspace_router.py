@@ -163,7 +163,7 @@ async def remove_user_from_workspace(
 
     else:
         delete_user_from_workspace = await db_manager.remove_user_from_workspace(
-            project_id=request.state.project_id,
+            workspace_id=workspace_id,
             email=email,
         )
 
