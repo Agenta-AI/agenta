@@ -34,34 +34,50 @@ AGENT_INPUTS_SCHEMA = {
     },
 }
 
-# Parameters: the agent config the playground renders. We reuse the existing
-# `prompt-template` control (model selector + tool picker + message editor) instead
-# of a bespoke agent form: the `x-ag-type-ref: prompt-template` marker makes the
-# playground render the same prompt UI chat/completion use, so the tool picker comes
-# for free. The agent reads the system message as its AGENTS.md, `llm_config.model`
-# as the model, and `llm_config.tools` (the picker output) as its runnable tools.
-AGENT_PARAMETERS_SCHEMA = {
-    "$schema": _SCHEMA,
+# The agent config element: one composite control the playground renders for the whole
+# agent config, instead of reusing `prompt-template` plus loose params. The
+# `x-ag-type: agent_config` marker is what the playground dispatches to the AgentConfigControl
+# (web/packages/agenta-entity-ui/.../AgentConfigControl.tsx). The schema is inline (not an
+# `x-ag-type-ref`), so it needs no `/ag-types` registration; the control reuses the existing
+# model selector, tool picker, and enum selects. agent.py reads this value (see inputs.py).
+_DEFAULT_AGENT_CONFIG = {
+    "instructions": _DEFAULT_AGENTS_MD,
+    "model": _DEFAULT_MODEL,
+    "tools": [],
+    "harness": "pi",
+    "sandbox": "local",
+    "permission_policy": "auto",
+}
+
+AGENT_CONFIG_SCHEMA = {
     "type": "object",
-    "additionalProperties": True,
+    "x-ag-type": "agent_config",
+    "title": "Agent",
+    "description": "The agent's instructions, model, tools, and runtime.",
     "properties": {
-        "prompt": {
-            "x-ag-type-ref": "prompt-template",
-            "type": "object",
-            "description": (
-                "The agent's instructions (system message), model, and tools. Tools "
-                "are picked from connected providers (e.g. Composio) and run "
-                "server-side via /tools/call."
-            ),
-            "default": {
-                "messages": [{"role": "system", "content": _DEFAULT_AGENTS_MD}],
-                "template_format": "mustache",
-                "llm_config": {"model": _DEFAULT_MODEL, "tools": []},
-            },
+        "instructions": {
+            "type": "string",
+            "x-ag-type": "textarea",
+            "title": "Instructions",
+            "description": "The agent's system prompt (its AGENTS.md).",
+            "default": _DEFAULT_AGENTS_MD,
         },
-        # The two orthogonal runtime axes, editable in the playground so a run can
-        # switch engine (pi/claude) or where it runs (local/daytona) without redeploy.
-        # Read in agent.py and threaded to the rivet harness; fall back to env defaults.
+        "model": {
+            "type": "string",
+            "x-parameter": "grouped_choice",
+            "title": "Model",
+            "default": _DEFAULT_MODEL,
+        },
+        "tools": {
+            "type": "array",
+            "title": "Tools",
+            "description": (
+                "Runnable tools the agent can call. Picked from connected providers "
+                "(e.g. Composio) and run server-side via /tools/call."
+            ),
+            "items": {"type": "object", "additionalProperties": True},
+            "default": [],
+        },
         "harness": {
             "type": "string",
             "title": "Harness",
@@ -87,6 +103,14 @@ AGENT_PARAMETERS_SCHEMA = {
             ),
         },
     },
+    "default": _DEFAULT_AGENT_CONFIG,
+}
+
+AGENT_PARAMETERS_SCHEMA = {
+    "$schema": _SCHEMA,
+    "type": "object",
+    "additionalProperties": True,
+    "properties": {"agent": AGENT_CONFIG_SCHEMA},
 }
 
 # Outputs: the final assistant message.

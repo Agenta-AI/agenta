@@ -1,9 +1,70 @@
 """Parse the playground/API request into a model, instructions, tools, and messages."""
 
+import os
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from oss.src.agent.config import AgentConfig
 from oss.src.harness.ports import Message
+
+
+@dataclass
+class RunConfig:
+    """The agent config for one run, resolved from the request and the file defaults."""
+
+    instructions: str
+    model: str
+    tools: List[Any] = field(default_factory=list)
+    harness: str = "pi"
+    sandbox: str = "local"
+    permission_policy: str = "auto"
+
+
+def _as_list(raw: Any) -> List[Any]:
+    """Coerce a tools value (a dict, a list, or nothing) into a list."""
+    if isinstance(raw, dict):
+        return [raw]
+    if isinstance(raw, list):
+        return raw
+    return []
+
+
+def resolve_agent_config(params: Dict[str, Any], config: AgentConfig) -> RunConfig:
+    """Resolve the full agent run config from the request parameters.
+
+    Prefers the dedicated ``agent`` config element (the ``agent_config`` control). Falls
+    back to the legacy shape (a ``prompt`` prompt-template plus loose ``harness`` /
+    ``sandbox`` / ``permission_policy`` params) so existing revisions keep working.
+    Unset harness/sandbox fall back to the env defaults.
+    """
+    agent = params.get("agent")
+    if isinstance(agent, dict):
+        return RunConfig(
+            instructions=agent.get("instructions") or config.agents_md,
+            model=agent.get("model") or config.model,
+            tools=_as_list(agent.get("tools")),
+            harness=(
+                agent.get("harness") or os.getenv("AGENTA_AGENT_HARNESS", "pi")
+            ).lower(),
+            sandbox=(
+                agent.get("sandbox") or os.getenv("AGENTA_AGENT_SANDBOX", "local")
+            ).lower(),
+            permission_policy=(agent.get("permission_policy") or "auto").lower(),
+        )
+
+    model, instructions, raw_tools = resolve_run_config(params, config)
+    return RunConfig(
+        instructions=instructions,
+        model=model,
+        tools=_as_list(raw_tools),
+        harness=(
+            params.get("harness") or os.getenv("AGENTA_AGENT_HARNESS", "pi")
+        ).lower(),
+        sandbox=(
+            params.get("sandbox") or os.getenv("AGENTA_AGENT_SANDBOX", "local")
+        ).lower(),
+        permission_policy=(params.get("permission_policy") or "auto").lower(),
+    )
 
 
 def _system_text(messages: Optional[List[Any]]) -> str:

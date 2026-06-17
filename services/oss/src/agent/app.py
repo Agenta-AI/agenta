@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 import agenta as ag
 
 from oss.src.agent.config import load_config, wrapper_dir
-from oss.src.agent.inputs import resolve_run_config, to_messages
+from oss.src.agent.inputs import resolve_agent_config, to_messages
 from oss.src.agent.schemas import AGENT_SCHEMAS
 from oss.src.agent.secrets import resolve_harness_secrets
 from oss.src.agent.tools import resolve_tools
@@ -68,38 +68,27 @@ async def _agent(
     parameters: Optional[Dict] = None,
 ):
     params = parameters or {}
-    model, agents_md, raw_tools = resolve_run_config(params, load_config())
-
-    if isinstance(raw_tools, dict):
-        raw_tools = [raw_tools]
-    elif not isinstance(raw_tools, list):
-        raw_tools = []
+    cfg = resolve_agent_config(params, load_config())
 
     msgs = to_messages(messages or (inputs or {}).get("messages") or [])
-    builtins, custom_tools, tool_callback = await resolve_tools(raw_tools)
+    builtins, custom_tools, tool_callback = await resolve_tools(cfg.tools)
 
-    harness_id = (
-        params.get("harness") or os.getenv("AGENTA_AGENT_HARNESS", "pi")
-    ).lower()
-    sandbox_id = (
-        params.get("sandbox") or os.getenv("AGENTA_AGENT_SANDBOX", "local")
-    ).lower()
     session_config = SessionConfig(
-        instructions=agents_md,
-        model=model,
-        harness=harness_id,
-        sandbox=sandbox_id,
+        instructions=cfg.instructions,
+        model=cfg.model,
+        harness=cfg.harness,
+        sandbox=cfg.sandbox,
         secrets=await resolve_harness_secrets(),
         builtin_tools=builtins,
         custom_tools=custom_tools,
         tool_callback=tool_callback,
-        permission_policy=(params.get("permission_policy") or "auto").lower(),
+        permission_policy=cfg.permission_policy,
         trace=trace_context(),
     )
 
     # The engine follows the selected harness/sandbox: a claude harness or a daytona
     # sandbox needs rivet, so the legacy pi path never silently swallows the selection.
-    harness = build_harness(select_backend(harness_id, sandbox_id))
+    harness = build_harness(select_backend(cfg.harness, cfg.sandbox))
     await harness.setup()
     try:
         session = harness.create_session(session_config)
