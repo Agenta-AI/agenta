@@ -14,7 +14,7 @@ import {Copy, MinusCircle, Plus} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import {useAtom} from "jotai"
 
-import {CollapseToggleButton} from "../../components/presentational/buttons"
+import {CollapseToggleButton, getCollapseStyle} from "../../components/presentational/buttons"
 import {ViewModeDropdown} from "../../drill-in/core/ViewModeDropdown"
 import {messageViewModeAtom} from "../../drill-in/state/messageViewModeAtom"
 import {getViewOptions, toMessageViewMode, type ViewMode} from "../../drill-in/utils/getViewOptions"
@@ -163,14 +163,9 @@ const ChatMessageItem: React.FC<{
 
     return (
         <div
-            className={cn(
-                flexLayouts.column,
-                // Collapsed = role row + one clipped line; !min-h-0 cancels the
-                // editor wrapper's min-h-[70px] so it hugs that single line.
-                isMinimized &&
-                    "[&_.agenta-editor-wrapper]:!max-h-[1lh] [&_.agenta-editor-wrapper]:overflow-hidden [&_.agenta-rich-text-editor]:!min-h-0",
-            )}
+            className={cn(flexLayouts.column)}
             ref={containerRef}
+            style={getCollapseStyle(isMinimized, 72)}
         >
             <ChatMessageEditor
                 id={editorId}
@@ -194,7 +189,7 @@ const ChatMessageItem: React.FC<{
                     handleCreateSnippetFromPaste({pastedText, maxPasteChars, overBy})
                 }
                 headerBottom={
-                    !isMinimized && isToolResponse && (msg.name || msg.tool_call_id) ? (
+                    isToolResponse && (msg.name || msg.tool_call_id) ? (
                         <ToolMessageHeader name={msg.name} toolCallId={msg.tool_call_id} />
                     ) : undefined
                 }
@@ -252,7 +247,7 @@ const ChatMessageItem: React.FC<{
                     </div>
                 }
                 footer={
-                    !isMinimized && hasAttachmentsFlag ? (
+                    hasAttachmentsFlag ? (
                         <MessageAttachments
                             content={msg.content!}
                             onRemove={(attachmentIndex) =>
