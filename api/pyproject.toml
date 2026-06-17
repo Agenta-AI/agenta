@@ -9,7 +9,7 @@ authors = [
 ]
 dependencies = [
     "agenta",
-    "fastapi>=0.136,<0.137",
+    "fastapi>=0.137,<0.138",
     "pydantic[email]>=2,<3",
     "uvicorn[standard]>=0.49,<0.50",
     "gunicorn>=26,<27",
