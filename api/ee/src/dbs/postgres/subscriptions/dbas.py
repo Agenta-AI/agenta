@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Boolean, SmallInteger
 
-from oss.src.dbs.postgres.shared.dbas import OrganizationScopeDBA
+from oss.src.dbs.postgres.shared.dbas import LifecycleDBA, OrganizationScopeDBA
 
 
 class StripeDBA:
@@ -11,6 +11,7 @@ class StripeDBA:
 class SubscriptionDBA(
     OrganizationScopeDBA,
     StripeDBA,
+    LifecycleDBA,
 ):
     __abstract__ = True
 

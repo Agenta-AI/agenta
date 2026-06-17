@@ -87,31 +87,13 @@ class FolderScopeDBA:
     )
 
 
-class LegacyLifecycleDBA:
-    __abstract__ = True
-
-    created_at = Column(
-        TIMESTAMP(timezone=True),
-        server_default=func.current_timestamp(),
-        nullable=True,
-    )
-    updated_at = Column(
-        TIMESTAMP(timezone=True),
-        nullable=True,
-    )
-    updated_by_id = Column(
-        UUID(as_uuid=True),
-        nullable=True,
-    )
-
-
 class LifecycleDBA:
     __abstract__ = True
 
     created_at = Column(
         TIMESTAMP(timezone=True),
         server_default=func.current_timestamp(),
-        nullable=False,
+        nullable=True,
     )
     updated_at = Column(
         TIMESTAMP(timezone=True),
@@ -123,7 +105,7 @@ class LifecycleDBA:
     )
     created_by_id = Column(
         UUID(as_uuid=True),
-        nullable=False,
+        nullable=True,
     )
     updated_by_id = Column(
         UUID(as_uuid=True),

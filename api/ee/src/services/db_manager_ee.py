@@ -58,7 +58,6 @@ from ee.src.models.db_models import (
 from oss.src.models.db_models import (
     UserDB,
     InvitationDB,
-    DeploymentDB,
 )
 
 from ee.src.core.organizations.exceptions import (
@@ -1860,40 +1859,6 @@ async def get_org_default_workspace(organization: Organization) -> WorkspaceDB:
             )
         )
         return result.scalars().first()
-
-
-# Merged from ee/src/services/db_manager.py
-async def create_deployment(
-    app_id: str,
-    project_id: str,
-    uri: str,
-) -> DeploymentDB:
-    """Create a new deployment.
-    Args:
-        app_id (str): The app variant to create the deployment for.
-        project_id (str): The project variant to create the deployment for.
-        uri (str): The URI of the service.
-    Returns:
-        DeploymentDB: The created deployment.
-    """
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        try:
-            deployment = DeploymentDB(
-                app_id=uuid.UUID(app_id),
-                project_id=uuid.UUID(project_id),
-                uri=uri,
-            )
-
-            session.add(deployment)
-            await session.commit()
-            await session.refresh(deployment)
-
-            return deployment
-        except Exception as e:
-            raise Exception(f"Error while creating deployment: {e}")
 
 
 # Merged from ee/src/services/converters.py

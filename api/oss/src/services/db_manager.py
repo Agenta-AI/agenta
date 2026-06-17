@@ -50,10 +50,6 @@ from oss.src.models.db_models import (
     OrganizationMemberDB,
     WorkspaceMemberDB,
     ProjectMemberDB,
-    AppDB,
-    AppVariantDB,
-    AppVariantRevisionsDB,
-    AppEnvironmentRevisionDB,
 )
 from oss.src.dbs.postgres.webhooks.dbes import WebhookSubscriptionDBE
 from oss.src.core.testcases.dtos import Testcase
@@ -2073,17 +2069,6 @@ async def _admin_detach_user_references(
             WebhookSubscriptionDBE.created_by_id.in_(user_ids)
         )
     )
-    for model in (
-        AppDB,
-        AppVariantDB,
-        AppVariantRevisionsDB,
-        AppEnvironmentRevisionDB,
-    ):
-        await session.execute(
-            update(model)
-            .where(model.modified_by_id.in_(user_ids))
-            .values(modified_by_id=None)
-        )
 
 
 async def admin_delete_accounts_batch(
