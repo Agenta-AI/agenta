@@ -45,7 +45,9 @@ import {
     getModelSchema,
     getLLMConfigValue,
     getLLMConfigProperties,
-    HookCodeConfigControl,
+    HookConfigControl,
+    CodeConfigControl,
+    SchemasConfigControl,
 } from "../SchemaControls"
 import {feedbackConfigModeAtomFamily} from "../SchemaControls/FeedbackConfigurationControl"
 import {
@@ -303,6 +305,7 @@ const RUNTIME_SELECT_OPTIONS = ["python", "typescript", "javascript"].map((value
 const SIBLING_GROUPS = {
     hook: ["url", "headers"],
     code: ["script", "runtime"],
+    schemas: ["parameters", "inputs", "outputs"],
 } as const
 type SiblingGroupKey = keyof typeof SIBLING_GROUPS
 const SIBLING_GROUP_KEYS = Object.keys(SIBLING_GROUPS) as SiblingGroupKey[]
@@ -335,7 +338,17 @@ function mergeSiblingFields(
         }
         merged[group] = fields
     }
-    if (!config && !group) return null
+    // `schemas` is nested under data.schemas and shown for any workflow that has it
+    // (not URI-gated like hook/code). Each field is a JSON schema object.
+    const schemas = fullData?.schemas as Record<string, unknown> | null | undefined
+    if (schemas && typeof schemas === "object") {
+        const fields: Record<string, unknown> = {}
+        for (const field of SIBLING_GROUPS.schemas) {
+            fields[field] = schemas[field] ?? {}
+        }
+        merged.schemas = fields
+    }
+    if (!config && !group && !merged.schemas) return null
     return merged
 }
 
@@ -473,6 +486,10 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
                 if (pathTargetsSibling(path)) {
                     const group = path[0] as SiblingGroupKey
                     const fields = (root[group] ?? {}) as Record<string, unknown>
+                    // schemas nests under data.schemas; hook/code fields sit flat on data.
+                    if (group === "schemas") {
+                        return {__siblingData: {schemas: {...fields}}} as Record<string, unknown>
+                    }
                     return {__siblingData: {...fields}} as Record<string, unknown>
                 }
                 for (const group of SIBLING_GROUP_KEYS) delete root[group]
@@ -786,6 +803,8 @@ function PlaygroundConfigSection({
     // ========== COLLAPSE STATE ==========
     const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
         advanced_settings: true,
+        // Section open; individual schema cards default closed (SchemaEditor).
+        schemas: false,
     })
 
     const toggleSection = useCallback((key: string) => {
@@ -1661,12 +1680,25 @@ function PlaygroundConfigSection({
                 return (
                     <HeightCollapse open={!isCollapsed}>
                         <div className="px-4 py-3 flex flex-col gap-3">
-                            <HookCodeConfigControl
-                                kind={fieldKey}
-                                value={siblingGroups[fieldKey] as Record<string, unknown>}
-                                onChange={(next) => props.onChange(next)}
-                                disabled={disabled}
-                            />
+                            {fieldKey === "schemas" ? (
+                                <SchemasConfigControl
+                                    value={siblingGroups[fieldKey] as Record<string, unknown>}
+                                    onChange={(next) => props.onChange(next)}
+                                    disabled={disabled}
+                                />
+                            ) : fieldKey === "hook" ? (
+                                <HookConfigControl
+                                    value={siblingGroups[fieldKey] as Record<string, unknown>}
+                                    onChange={(next) => props.onChange(next)}
+                                    disabled={disabled}
+                                />
+                            ) : (
+                                <CodeConfigControl
+                                    value={siblingGroups[fieldKey] as Record<string, unknown>}
+                                    onChange={(next) => props.onChange(next)}
+                                    disabled={disabled}
+                                />
+                            )}
                         </div>
                     </HeightCollapse>
                 )
