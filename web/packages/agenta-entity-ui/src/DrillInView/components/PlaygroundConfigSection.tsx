@@ -468,20 +468,21 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
             },
             getChangesFromPath: (data: unknown, path: DataPath, value: unknown) => {
                 const d = data as {parameters?: Record<string, unknown>} | null
-                // Sibling edits emit a tagged __siblingData payload (like
-                // getChangesFromRoot); params emit plain param keys.
+                // Sibling edits emit a tagged __siblingData payload. setValueAtPath
+                // is immutable, so use its return value.
                 if (pathTargetsSibling(path)) {
                     const group = path[0] as SiblingGroupKey
-                    const fields = {...((d as Record<string, unknown>)?.[group] ?? {})}
-                    setValueAtPath(fields, path.slice(1), value)
+                    const base = (d as Record<string, unknown>)?.[group] ?? {}
+                    const fields = setValueAtPath(base, path.slice(1), value) as Record<
+                        string,
+                        unknown
+                    >
                     if (group === "schemas") {
                         return {__siblingData: {schemas: fields}} as Record<string, unknown>
                     }
                     return {__siblingData: fields} as Record<string, unknown>
                 }
-                const params = {...(d?.parameters ?? {})}
-                setValueAtPath(params, path, value)
-                return params
+                return setValueAtPath(d?.parameters ?? {}, path, value) as Record<string, unknown>
             },
             // rootData flattened: a sibling group edit emits a tagged payload of the
             // group's fields (paths drop the virtual group key); params emit param keys.
