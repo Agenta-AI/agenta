@@ -26,6 +26,49 @@ bottom.
 - Docs writing: the Diátaxis framework digest at `agents/docs/diataxis/`, and the
   `write-docs` skill for Agenta style, voice, and structure.
 
+## Branching and PRs with GitButler
+
+This repo may be in GitButler workspace mode (current branch `gitbutler/workspace`).
+If so, use the `but` CLI instead of raw `git branch`/`git commit`:
+
+- `but status` shows lanes and unassigned changes; `but branch new <name>` creates a
+  parallel lane; add `--anchor <parent-branch>` to stack on a parent.
+- `but commit <branch> -m "..."` commits the uncommitted changes to that branch.
+  Pre-commit hooks (ruff, prettier, gitleaks) run; if a hook reformats files the
+  commit aborts — just rerun it. Changes belonging to another lane's commits stay
+  unassigned rather than being folded in.
+- `but pr new` needs interactive forge auth; use `but push <branch>` then
+  `gh pr create --head <branch> --base <parent-or-main>` instead. For stacked PRs,
+  set `--base` to the parent branch so each PR shows only its own diff.
+- To update already-committed files, use `but absorb` — it routes uncommitted
+  changes back into the commits they belong to in one operation. Run
+  `but absorb --dry-run` first to see the plan (which change → which commit). With
+  no argument it absorbs ALL uncommitted changes; `but absorb <branch>` scopes to a
+  stack. Do NOT hand-amend file-by-file with `but amend <file> <commit>`: each amend
+  rewrites the commit and invalidates the cliIds, so the next amend fails on a stale
+  id. Force-push an amended branch with `but push <branch> -f`.
+- To commit to a specific branch in a stack, stage the files to it first
+  (`but rub <path> <branch>`), then `but commit <branch> --only`. `but commit`
+  alone sweeps ALL uncommitted changes into that branch.
+
+### Hard-won gotchas (don't relearn these)
+
+- **GitButler series need linear history.** A stack of branches connected by
+  `git merge` commits (e.g. branches synced by merging a release in) can collapse
+  to a single series (the tip) when unapplied/re-applied — the intermediate
+  branches stop being addressable and you can't `but commit` to them. Prefer
+  GitButler's own stacking over merging branches into each other.
+- **Don't sync a behind lane with `unapply` → `git branch -f origin/<b>` →
+  `apply`.** Pointing a series at a merge-based origin ref flattens the stack.
+  There is no clean "fast-forward this series to its own remote" in the CLI when
+  origin is merge-based and ahead.
+- **`but pull` rebases applied branches on the TARGET (main), not on each
+  branch's own upstream.** It will not advance a series to `origin/<that-branch>`.
+- **Recovery: `but oplog list` then `but oplog restore <sha>`** rewinds the whole
+  workspace (including uncommitted changes) to any prior snapshot — this is how
+  you undo a botched unapply/apply and get a collapsed stack's series back. Take
+  a `but oplog snapshot -m "..."` before risky operations.
+
 ## Before committing
 
 - Frontend changes: run `pnpm lint-fix` within the `web` folder. Details: `web/AGENTS.md`.

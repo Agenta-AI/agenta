@@ -91,3 +91,6 @@ hosting/kubernetes/**/values.*.yaml
 # IDE/LSP config (local tooling)
 pyrightconfig.json
 .gstack/
+
+# GitButler local lane tracking (not committed)
+.gitbutler.lanes.md
