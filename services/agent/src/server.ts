@@ -12,20 +12,22 @@
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
-import { runPi, type AgentRunRequest, type AgentRunResult } from "./runPi.ts";
+import type { AgentRunRequest, AgentRunResult } from "./protocol.ts";
+import { runPi } from "./runPi.ts";
 import { runRivet } from "./runRivet.ts";
 
 const PORT = Number(process.env.PORT ?? 8765);
 
-// Select the harness driver. `rivet` drives the harness over ACP via a rivet daemon
-// (WP-8); `pi` is the legacy in-process Pi path (WP-2). `auto` (default) routes by the
-// request: a rivet envelope carries `harness`/`sandbox`, so one sidecar serves both and
-// nothing regresses.
-const BACKEND = (process.env.AGENT_BACKEND ?? "auto").toLowerCase();
+// Select the engine. `rivet` drives a harness over ACP via a rivet daemon; `pi` is the
+// legacy in-process Pi path. The request's explicit `backend` (set by the Python
+// transport) wins; the AGENT_BACKEND env is the sidecar default; `auto` falls back to the
+// request shape (a rivet request carries `harness`/`sandbox`).
+const DEFAULT_BACKEND = (process.env.AGENT_BACKEND ?? "auto").toLowerCase();
 
 function runAgent(request: AgentRunRequest): Promise<AgentRunResult> {
-  if (BACKEND === "rivet") return runRivet(request);
-  if (BACKEND === "pi") return runPi(request);
+  const backend = (request.backend ?? DEFAULT_BACKEND).toLowerCase();
+  if (backend === "rivet") return runRivet(request);
+  if (backend === "pi") return runPi(request);
   return request.harness || request.sandbox ? runRivet(request) : runPi(request);
 }
 

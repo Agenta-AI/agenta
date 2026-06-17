@@ -27,70 +27,11 @@ import { writeFileSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { createAgentaOtel } from "./agenta-otel.ts";
-
-interface ToolSpec {
-  name: string;
-  description?: string;
-  inputSchema?: Record<string, unknown> | null;
-  callRef: string;
-}
-
-const TOOL_CALL_TIMEOUT_MS = Number(process.env.AGENTA_AGENT_TOOL_CALL_TIMEOUT_MS ?? 30000);
-const EMPTY_SCHEMA = { type: "object", properties: {}, additionalProperties: true };
+import type { ResolvedToolSpec } from "./protocol.ts";
+import { EMPTY_OBJECT_SCHEMA, callAgentaTool } from "./toolClient.ts";
 
 function log(message: string): void {
   process.stderr.write(`[agenta-pi-ext] ${message}\n`);
-}
-
-/** One /tools/call round-trip. Returns the result text; throws on failure (Pi turns a
- *  thrown execute into a tool-error result, so the loop continues). */
-async function callAgentaTool(
-  endpoint: string,
-  authorization: string | undefined,
-  callRef: string,
-  toolCallId: string,
-  args: unknown,
-  signal?: AbortSignal,
-): Promise<string> {
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (authorization) headers["authorization"] = authorization;
-
-  const timeoutSignal = AbortSignal.timeout(TOOL_CALL_TIMEOUT_MS);
-  const anyOf = (AbortSignal as any).any;
-  const combined =
-    signal && typeof anyOf === "function" ? anyOf([signal, timeoutSignal]) : timeoutSignal;
-
-  let response: Response;
-  try {
-    response = await fetch(endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        data: {
-          id: toolCallId,
-          type: "function",
-          function: { name: callRef, arguments: args ?? {} },
-        },
-      }),
-      signal: combined,
-    });
-  } catch (err) {
-    throw new Error(`tool call ${callRef} failed: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  const bodyText = await response.text();
-  if (!response.ok) {
-    throw new Error(`tool call ${callRef} returned HTTP ${response.status}: ${bodyText.slice(0, 500)}`);
-  }
-  try {
-    const parsed = JSON.parse(bodyText);
-    const content = parsed?.call?.data?.content;
-    if (typeof content === "string") return content;
-    if (content != null) return JSON.stringify(content);
-    return bodyText;
-  } catch {
-    return bodyText;
-  }
 }
 
 /** Register the resolved tools (from env) as Pi tools that call back to Agenta. */
@@ -99,7 +40,7 @@ function registerTools(pi: ExtensionAPI): void {
   const endpoint = process.env.AGENTA_TOOL_CALLBACK_ENDPOINT;
   if (!raw || !endpoint) return;
 
-  let specs: ToolSpec[] = [];
+  let specs: ResolvedToolSpec[] = [];
   try {
     specs = JSON.parse(raw);
   } catch (err) {
@@ -114,7 +55,7 @@ function registerTools(pi: ExtensionAPI): void {
       label: spec.name,
       description: spec.description ?? spec.name,
       // Pi accepts plain JSON Schema here (non-TypeBox validation path).
-      parameters: (spec.inputSchema as any) ?? EMPTY_SCHEMA,
+      parameters: (spec.inputSchema as any) ?? EMPTY_OBJECT_SCHEMA,
       async execute(toolCallId: string, params: unknown, signal?: AbortSignal) {
         const text = await callAgentaTool(
           endpoint,

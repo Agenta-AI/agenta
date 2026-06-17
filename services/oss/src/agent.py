@@ -24,11 +24,15 @@ from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.utils.logging import get_module_logger
 
 from oss.src.agent_pi.config import load_config, wrapper_dir
-from oss.src.agent_pi.local_runtime import LocalRuntime
-from oss.src.agent_pi.pi_harness import PiHarness
-from oss.src.agent_pi.pi_http_harness import PiHttpHarness
-from oss.src.agent_pi.ports import Harness, HarnessRequest, ToolCallback, TraceContext
-from oss.src.agent_pi.rivet_harness import RivetHarness
+from oss.src.agent_pi.environment import LocalEnvironment
+from oss.src.agent_pi.harness import HttpHarness, SubprocessHarness
+from oss.src.agent_pi.ports import (
+    Harness,
+    Message,
+    SessionConfig,
+    ToolCallback,
+    TraceContext,
+)
 from oss.src.agent_pi.schemas import AGENT_SCHEMAS
 
 log = get_module_logger(__name__)
@@ -43,41 +47,35 @@ _CAPTURE_CONTENT = os.getenv("AGENTA_AGENT_CAPTURE_CONTENT", "true").lower() not
 _TOOLS_RESOLVE_TIMEOUT = float(os.getenv("AGENTA_AGENT_TOOLS_TIMEOUT", "30"))
 
 
-def _build_harness(
-    harness: Optional[str] = None,
-    sandbox: Optional[str] = None,
-) -> Harness:
-    """Pick the harness adapter for the current deployment.
+def _select_backend(harness_id: str, sandbox_id: str) -> str:
+    """Choose the engine (``rivet`` or ``pi``) for a run.
 
-    Runtime axis (``AGENTA_AGENT_RUNTIME``):
-    - ``rivet``: drive the harness over ACP via a rivet daemon (WP-8). The harness
-      (pi/claude) and sandbox (local/daytona) are independent config axes, taken from
-      the request config when set (so they are editable in the playground), else the
-      ``AGENTA_AGENT_HARNESS`` / ``AGENTA_AGENT_SANDBOX`` env defaults.
-    - default (``pi``): the legacy in-process Pi path (WP-2), kept so nothing regresses.
+    ``rivet`` drives a harness over ACP via a rivet daemon; ``pi`` is the legacy
+    in-process Pi path. The legacy path only runs the ``pi`` harness locally, so any other
+    harness or sandbox forces ``rivet`` rather than silently dropping the selection.
+    ``AGENTA_AGENT_RUNTIME=rivet`` forces rivet for everything.
+    """
+    runtime = os.getenv("AGENTA_AGENT_RUNTIME", "pi").lower()
+    if runtime == "rivet" or harness_id != "pi" or sandbox_id != "local":
+        return "rivet"
+    return "pi"
 
-    Transport axis (both runtimes):
-    - ``AGENTA_AGENT_PI_URL`` set (docker): call the TS wrapper sidecar over HTTP.
-    - otherwise (local): spawn the TS wrapper as a subprocess.
+
+def _build_harness(backend: str) -> Harness:
+    """Pick the transport to the TypeScript runner for the current deployment.
+
+    The ``backend`` (engine) is chosen by :func:`_select_backend`. The transport is
+    env-driven: ``AGENTA_AGENT_PI_URL`` set (docker) -> call the sidecar over HTTP; unset
+    (local) -> spawn the runner as a subprocess.
     """
     pi_url = os.getenv("AGENTA_AGENT_PI_URL")
-    runtime = os.getenv("AGENTA_AGENT_RUNTIME", "pi").lower()
-
-    if runtime == "rivet":
-        harness = (harness or os.getenv("AGENTA_AGENT_HARNESS", "pi")).lower()
-        sandbox = (sandbox or os.getenv("AGENTA_AGENT_SANDBOX", "local")).lower()
-        if pi_url:
-            return RivetHarness(harness=harness, sandbox=sandbox, base_url=pi_url)
-        return RivetHarness(
-            harness=harness,
-            sandbox=sandbox,
-            runtime=LocalRuntime(),
-            wrapper_dir=str(wrapper_dir()),
-        )
-
     if pi_url:
-        return PiHttpHarness(pi_url)
-    return PiHarness(LocalRuntime(), wrapper_dir=str(wrapper_dir()))
+        return HttpHarness(pi_url, backend=backend)
+    return SubprocessHarness(
+        LocalEnvironment(),
+        wrapper_dir=str(wrapper_dir()),
+        backend=backend,
+    )
 
 
 def _system_text(messages: Optional[List[Any]]) -> str:
@@ -127,14 +125,18 @@ def _resolve_run_config(
     return model, agents_md, raw_tools
 
 
-def _latest_user_message(messages: Optional[List[Any]]) -> str:
-    for message in reversed(messages or []):
-        if not isinstance(message, dict):
-            continue
-        if message.get("role") == "user" and message.get("content"):
-            content = message["content"]
-            return content if isinstance(content, str) else str(content)
-    return ""
+def _to_messages(raw: Optional[List[Any]]) -> List[Message]:
+    """Coerce the playground's loose message dicts into :class:`Message` objects.
+
+    The runner picks the latest user turn and replays the rest as context, so we hand it
+    the whole conversation rather than pre-extracting a single prompt.
+    """
+    messages: List[Message] = []
+    for item in raw or []:
+        message = Message.from_raw(item)
+        if message is not None:
+            messages.append(message)
+    return messages
 
 
 # Map a vault standard-provider kind to the env var the harness (Pi/Claude/litellm)
@@ -402,33 +404,40 @@ async def _agent(
     elif not isinstance(tools_config, list):
         tools_config = []
 
-    msgs = messages or (inputs or {}).get("messages") or []
-    prompt = _latest_user_message(msgs)
+    msgs = _to_messages(messages or (inputs or {}).get("messages") or [])
 
     builtins, custom_tools, tool_callback = await _resolve_tools(tools_config)
 
-    # Harness (pi/claude) and sandbox (local/daytona) are editable config (see
-    # schemas.py), so a playground run can switch engine or environment; unset falls
-    # back to the env defaults inside _build_harness.
-    harness_id = params.get("harness")
-    sandbox_id = params.get("sandbox")
-    harness = _build_harness(harness=harness_id, sandbox=sandbox_id)
+    # Harness (pi/claude), sandbox (local/daytona), and permission policy are editable
+    # config (see schemas.py), so a playground run can switch engine or environment;
+    # unset falls back to the env defaults. They ride on the per-run SessionConfig.
+    harness_id = (
+        params.get("harness") or os.getenv("AGENTA_AGENT_HARNESS", "pi")
+    ).lower()
+    sandbox_id = (
+        params.get("sandbox") or os.getenv("AGENTA_AGENT_SANDBOX", "local")
+    ).lower()
+    session_config = SessionConfig(
+        instructions=agents_md,
+        model=model,
+        harness=harness_id,
+        sandbox=sandbox_id,
+        secrets=await _resolve_harness_secrets(),
+        builtin_tools=builtins,
+        custom_tools=custom_tools,
+        tool_callback=tool_callback,
+        permission_policy=(params.get("permission_policy") or "auto").lower(),
+        trace=_trace_context(),
+    )
 
+    # The engine follows the selected harness/sandbox: a claude harness or a daytona
+    # sandbox needs rivet, so the legacy pi path never silently swallows the selection.
+    harness = _build_harness(_select_backend(harness_id, sandbox_id))
     await harness.setup()
     try:
-        result = await harness.invoke(
-            HarnessRequest(
-                agents_md=agents_md,
-                model=model,
-                prompt=prompt,
-                messages=msgs,
-                tools=builtins,
-                custom_tools=custom_tools,
-                tool_callback=tool_callback,
-                trace=_trace_context(),
-                secrets=await _resolve_harness_secrets(),
-            )
-        )
+        session = harness.create_session(session_config)
+        result = await session.prompt(msgs)
+        await session.destroy()
     finally:
         await harness.shutdown()
 

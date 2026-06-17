@@ -76,6 +76,16 @@ AGENT_PARAMETERS_SCHEMA = {
             "default": "local",
             "description": "Where the agent runs: local daemon or a Daytona sandbox.",
         },
+        "permission_policy": {
+            "type": "string",
+            "title": "Permission policy",
+            "enum": ["auto", "deny"],
+            "default": "auto",
+            "description": (
+                "How a permission-gating harness (e.g. Claude Code) handles tool-use "
+                "prompts in this headless run: auto-approve or deny."
+            ),
+        },
     },
 }
 

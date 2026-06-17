@@ -6,14 +6,15 @@
  * to stderr. This is the one-shot "json adapter" the design doc describes; a
  * long-lived RPC adapter can replace it later behind the same Python-side port.
  */
-import { runPi, type AgentRunRequest, type AgentRunResult } from "./runPi.ts";
+import type { AgentRunRequest, AgentRunResult } from "./protocol.ts";
+import { runPi } from "./runPi.ts";
 import { runRivet } from "./runRivet.ts";
 
-// `rivet` drives the harness over ACP via a rivet daemon (WP-8); default = legacy Pi.
-const BACKEND = (process.env.AGENT_BACKEND ?? "pi").toLowerCase();
-
+// Engine: `rivet` drives a harness over ACP via a rivet daemon; `pi` (default) is the
+// legacy in-process Pi path. The request's `backend` wins, then the AGENT_BACKEND env.
 function runAgent(request: AgentRunRequest): Promise<AgentRunResult> {
-  return BACKEND === "rivet" ? runRivet(request) : runPi(request);
+  const backend = (request.backend ?? process.env.AGENT_BACKEND ?? "pi").toLowerCase();
+  return backend === "rivet" ? runRivet(request) : runPi(request);
 }
 
 async function readStdin(): Promise<string> {

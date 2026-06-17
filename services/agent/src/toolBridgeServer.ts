@@ -16,21 +16,14 @@
  * initialize, tools/list, tools/call; ignores notifications. stdout carries protocol
  * messages only; logs go to stderr.
  */
-interface ToolSpec {
-  name: string;
-  description?: string;
-  inputSchema?: Record<string, unknown> | null;
-  callRef: string;
-}
+import type { ResolvedToolSpec } from "./protocol.ts";
+import { EMPTY_OBJECT_SCHEMA, callAgentaTool } from "./toolClient.ts";
 
-const SPECS: ToolSpec[] = JSON.parse(process.env.AGENTA_TOOL_SPECS ?? "[]");
+const SPECS: ResolvedToolSpec[] = JSON.parse(process.env.AGENTA_TOOL_SPECS ?? "[]");
 const ENDPOINT = process.env.AGENTA_TOOL_CALLBACK_ENDPOINT ?? "";
 const AUTH = process.env.AGENTA_TOOL_CALLBACK_AUTH;
 const SPEC_BY_NAME = new Map(SPECS.map((s) => [s.name, s]));
-const TOOL_CALL_TIMEOUT_MS = Number(process.env.AGENTA_AGENT_TOOL_CALL_TIMEOUT_MS ?? 30000);
 const DEFAULT_PROTOCOL = "2025-06-18";
-
-const EMPTY_SCHEMA = { type: "object", properties: {}, additionalProperties: true };
 
 function log(message: string): void {
   process.stderr.write(`[tool-bridge] ${message}\n`);
@@ -38,46 +31,6 @@ function log(message: string): void {
 
 function send(message: unknown): void {
   process.stdout.write(`${JSON.stringify(message)}\n`);
-}
-
-/** One /tools/call round-trip. Returns the result text; throws on failure. */
-async function callAgentaTool(callRef: string, args: unknown): Promise<string> {
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (AUTH) headers["authorization"] = AUTH;
-
-  let response: Response;
-  try {
-    response = await fetch(ENDPOINT, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        data: {
-          id: `tool-${Date.now()}`,
-          type: "function",
-          function: { name: callRef, arguments: args ?? {} },
-        },
-      }),
-      signal: AbortSignal.timeout(TOOL_CALL_TIMEOUT_MS),
-    });
-  } catch (err) {
-    throw new Error(`tool call ${callRef} failed: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  const bodyText = await response.text();
-  if (!response.ok) {
-    throw new Error(`tool call ${callRef} returned HTTP ${response.status}: ${bodyText.slice(0, 500)}`);
-  }
-  // ToolCallResponse -> { call: { data: { content }, status } }; content is the result
-  // serialized as a string, handed to the model verbatim.
-  try {
-    const parsed = JSON.parse(bodyText);
-    const content = parsed?.call?.data?.content;
-    if (typeof content === "string") return content;
-    if (content != null) return JSON.stringify(content);
-    return bodyText;
-  } catch {
-    return bodyText;
-  }
 }
 
 async function handle(message: any): Promise<unknown | undefined> {
@@ -108,7 +61,7 @@ async function handle(message: any): Promise<unknown | undefined> {
         tools: SPECS.map((s) => ({
           name: s.name,
           description: s.description ?? s.name,
-          inputSchema: (s.inputSchema as Record<string, unknown>) ?? EMPTY_SCHEMA,
+          inputSchema: (s.inputSchema as Record<string, unknown>) ?? EMPTY_OBJECT_SCHEMA,
         })),
       },
     };
@@ -121,7 +74,13 @@ async function handle(message: any): Promise<unknown | undefined> {
       return { jsonrpc: "2.0", id, error: { code: -32602, message: `unknown tool: ${name}` } };
     }
     try {
-      const text = await callAgentaTool(spec.callRef, params?.arguments);
+      const text = await callAgentaTool(
+        ENDPOINT,
+        AUTH,
+        spec.callRef,
+        `tool-${Date.now()}`,
+        params?.arguments,
+      );
       return { jsonrpc: "2.0", id, result: { content: [{ type: "text", text }] } };
     } catch (err) {
       // Surface as an MCP tool error (isError) so the model can recover, not a crash.

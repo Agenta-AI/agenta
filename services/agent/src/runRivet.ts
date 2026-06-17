@@ -45,8 +45,17 @@ import { local } from "sandbox-agent/local";
 import { daytona } from "sandbox-agent/daytona";
 
 import { createRivetOtel } from "./agenta-otel.ts";
-import { buildToolMcpServers, type ResolvedToolSpec, type ToolCallbackContext } from "./toolBridge.ts";
-import type { AgentRunRequest, AgentRunResult, ChatMessage } from "./runPi.ts";
+import { buildToolMcpServers } from "./toolBridge.ts";
+import {
+  type AgentRunRequest,
+  type AgentRunResult,
+  type ChatMessage,
+  type HarnessCapabilities,
+  type ResolvedToolSpec,
+  type ToolCallbackContext,
+  messageText,
+  resolvePromptText,
+} from "./protocol.ts";
 
 const require = createRequire(import.meta.url);
 // services/agent/src/runRivet.ts -> services/agent
@@ -217,15 +226,8 @@ function buildDaemonEnv(harness: string): Record<string, string> {
   return env;
 }
 
-/** The latest user turn: explicit prompt, else last user message content. */
-function resolvePrompt(request: AgentRunRequest): string {
-  if (request.prompt && request.prompt.trim()) return request.prompt;
-  const messages = request.messages ?? [];
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === "user" && messages[i].content) return messages[i].content;
-  }
-  return "";
-}
+/** The latest user turn (shared protocol helper; flattens content blocks to text). */
+const resolvePrompt = resolvePromptText;
 
 /** Prior turns (everything before the latest user message) for trace + history. */
 function priorMessages(request: AgentRunRequest): ChatMessage[] {
@@ -235,8 +237,17 @@ function priorMessages(request: AgentRunRequest): ChatMessage[] {
   if (messages.length && messages[messages.length - 1].role === "user") {
     return messages.slice(0, -1);
   }
-  // No trailing user message (prompt came in explicitly): keep turns that aren't it.
-  return messages.filter((m) => !(m.role === "user" && m.content === latest));
+  // No trailing user message (prompt came in explicitly): drop only the LAST user turn
+  // whose text matches the prompt being sent, not every matching turn (repeated short
+  // turns like "yes"/"continue" would otherwise vanish from the replayed history).
+  let lastMatch = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "user" && messageText(messages[i].content) === latest) {
+      lastMatch = i;
+      break;
+    }
+  }
+  return lastMatch === -1 ? messages : messages.filter((_, i) => i !== lastMatch);
 }
 
 /**
@@ -247,11 +258,11 @@ function priorMessages(request: AgentRunRequest): ChatMessage[] {
  */
 function buildTurnText(request: AgentRunRequest): string {
   const latest = resolvePrompt(request);
-  const history = priorMessages(request).filter((m) => m.content);
+  const history = priorMessages(request).filter((m) => messageText(m.content));
   if (history.length === 0) return latest;
 
   const maxChars = Number(process.env.AGENTA_AGENT_HISTORY_MAX_CHARS ?? 24000);
-  let transcript = history.map((m) => `${m.role}: ${m.content}`).join("\n");
+  let transcript = history.map((m) => `${m.role}: ${messageText(m.content)}`).join("\n");
   if (transcript.length > maxChars) transcript = transcript.slice(-maxChars);
   return (
     `Conversation so far:\n${transcript}\n\n` +
@@ -528,6 +539,59 @@ function conciseError(err: unknown, harness: string): string {
   return msg || "agent run failed";
 }
 
+/**
+ * Map a rivet `AgentInfo` to our capability flags. Falls back to a per-harness static
+ * guess when the probe is unavailable, so tool delivery and tracing still pick a sane
+ * path. Rivet has no `usage` capability flag (usage rides on `usage_update` events), so we
+ * derive it from the harness: Pi reports usage through its extension, others over ACP.
+ */
+function mapCapabilities(harness: string, info: any): HarnessCapabilities {
+  const c = info?.capabilities;
+  if (c) {
+    return {
+      textMessages: c.textMessages ?? true,
+      images: !!c.images,
+      fileAttachments: !!c.fileAttachments,
+      mcpTools: !!c.mcpTools,
+      toolCalls: !!c.toolCalls,
+      reasoning: !!c.reasoning,
+      planMode: !!c.planMode,
+      permissions: !!c.permissions,
+      streamingDeltas: !!c.streamingDeltas,
+      sessionLifecycle: !!c.sessionLifecycle,
+      usage: true,
+    };
+  }
+  // Static fallback by harness id: pi-acp does not forward MCP, Claude/Codex do.
+  const isPiHarness = harness === "pi";
+  return {
+    textMessages: true,
+    images: false,
+    fileAttachments: false,
+    mcpTools: !isPiHarness,
+    toolCalls: true,
+    reasoning: true,
+    planMode: !isPiHarness,
+    permissions: !isPiHarness,
+    streamingDeltas: true,
+    sessionLifecycle: true,
+    usage: true,
+  };
+}
+
+/** Probe the harness's capabilities from the daemon (best-effort, static fallback). */
+async function probeCapabilities(
+  sandbox: any,
+  harness: string,
+): Promise<HarnessCapabilities> {
+  try {
+    const info = await sandbox.getAgent(harness, { config: true });
+    return mapCapabilities(harness, info);
+  } catch {
+    return mapCapabilities(harness, undefined);
+  }
+}
+
 export async function runRivet(request: AgentRunRequest): Promise<AgentRunResult> {
   const harness = request.harness || process.env.AGENTA_AGENT_HARNESS || "pi";
   const sandboxId = request.sandbox || process.env.AGENTA_AGENT_SANDBOX || "local";
@@ -616,13 +680,19 @@ export async function runRivet(request: AgentRunRequest): Promise<AgentRunResult
       writeFileSync(join(cwd, "AGENTS.md"), agentsMd, "utf-8");
     }
 
-    // Pi gets tools via the extension (above); other harnesses via MCP.
-    const mcpServers = isPi
-      ? []
-      : buildToolMcpServers(
-          (request.customTools as ResolvedToolSpec[]) ?? [],
-          request.toolCallback as ToolCallbackContext | undefined,
-        );
+    // Probe what this harness supports and branch on capabilities, not on the harness
+    // name. Tool delivery: Pi loads our extension (native tools, set up above); any other
+    // harness takes tools over MCP only when it advertises `mcpTools` (pi-acp does not
+    // forward MCP, Claude/Codex do).
+    const capabilities = await probeCapabilities(sandbox, harness);
+    const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];
+    const mcpServers =
+      !isPi && capabilities.mcpTools
+        ? buildToolMcpServers(toolSpecs, request.toolCallback as ToolCallbackContext | undefined)
+        : [];
+    if (!isPi && toolSpecs.length > 0 && !capabilities.mcpTools) {
+      log(`harness '${harness}' lacks MCP tool support; ${toolSpecs.length} tool(s) not delivered`);
+    }
 
     const session = await sandbox.createSession({
       agent: harness,
@@ -660,10 +730,12 @@ export async function runRivet(request: AgentRunRequest): Promise<AgentRunResult
     });
 
     // Auto-approve permission requests so a permission-gating harness (e.g. Claude
-    // Code) does not block on tool use. Tools are backend-resolved and trusted; the
-    // run is headless so there is no human to prompt. Set AGENTA_RIVET_DENY_PERMISSIONS
-    // to reject instead.
-    const denyPermissions = process.env.AGENTA_RIVET_DENY_PERMISSIONS === "true";
+    // Code) does not block on tool use. Tools are backend-resolved and trusted; the run
+    // is headless so there is no human to prompt. The per-run `permissionPolicy` (or the
+    // AGENTA_RIVET_DENY_PERMISSIONS env) flips this to reject.
+    const denyPermissions =
+      request.permissionPolicy === "deny" ||
+      process.env.AGENTA_RIVET_DENY_PERMISSIONS === "true";
     session.onPermissionRequest((req: any) => {
       const replies: string[] = req?.availableReplies ?? [];
       const reply = denyPermissions
@@ -673,18 +745,40 @@ export async function runRivet(request: AgentRunRequest): Promise<AgentRunResult
     });
 
     const result = await session.prompt([{ type: "text", text: turnText }]);
-    log(`prompt stopReason=${(result as any)?.stopReason}`);
+    const stopReason = (result as any)?.stopReason;
+    log(`prompt stopReason=${stopReason}`);
 
     const output = run.finish();
     await run.flush();
 
+    // Usage: Pi writes its totals to a file via the extension. Other harnesses report the
+    // input/output token split on the PromptResponse and the cost on ACP `usage_update`,
+    // so combine the two (the stream alone carries no per-call token split).
+    let usage = await readRunUsage(sandbox, usageOutPath, isDaytona);
+    if (!usage) {
+      const promptUsage = (result as any)?.usage;
+      const streamUsage = run.usage();
+      const inputTokens = promptUsage?.inputTokens ?? streamUsage?.input ?? 0;
+      const outputTokens = promptUsage?.outputTokens ?? streamUsage?.output ?? 0;
+      const total = inputTokens + outputTokens || streamUsage?.total || 0;
+      const cost = streamUsage?.cost ?? 0;
+      usage =
+        total > 0 || cost > 0
+          ? { input: inputTokens, output: outputTokens, total, cost }
+          : undefined;
+    }
+
     return {
       ok: true,
       output,
+      messages: output ? [{ role: "assistant", content: output }] : [],
+      events: run.events(),
+      usage,
+      stopReason,
+      capabilities,
       sessionId: session.id,
       model: model ?? request.model,
       traceId: run.traceId(),
-      usage: await readRunUsage(sandbox, usageOutPath, isDaytona),
     };
   } catch (err) {
     otel?.finish();

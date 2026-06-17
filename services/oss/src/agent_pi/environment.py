@@ -1,26 +1,24 @@
-"""Local runtime adapter: runs the harness as a subprocess on this host.
+"""Local environment: run the harness as a subprocess on this host.
 
-This is the parity baseline for the design doc. The Node process is the run
-environment. A Daytona adapter (WP-3) implements the same port by running the command
-inside a sandbox instead.
+This is the parity baseline. The Node process is the run environment. A sandbox
+environment (Daytona) is selected on the rivet path inside the TypeScript runner, so it
+does not need a separate Python ``Environment`` here.
 """
+
+from __future__ import annotations
 
 import asyncio
 from typing import Dict, Optional, Sequence
 
 from agenta.sdk.utils.logging import get_module_logger
 
-from .ports import ExecResult, Runtime
+from .ports import Environment, ExecResult
 
 log = get_module_logger(__name__)
 
 
-class LocalRuntime(Runtime):
-    async def start(self) -> None:
-        return None
-
-    async def shutdown(self) -> None:
-        return None
+class LocalEnvironment(Environment):
+    """Run a command as a subprocess on this host, feeding it the request on stdin."""
 
     async def exec(
         self,

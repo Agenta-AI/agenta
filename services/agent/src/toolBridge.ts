@@ -16,9 +16,9 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { ResolvedToolSpec, ToolCallbackContext } from "./runPi.ts";
+import type { ResolvedToolSpec, ToolCallbackContext } from "./protocol.ts";
 
-export type { ResolvedToolSpec, ToolCallbackContext } from "./runPi.ts";
+export type { ResolvedToolSpec, ToolCallbackContext } from "./protocol.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // services/agent/src/toolBridge.ts -> services/agent/node_modules/.bin/tsx

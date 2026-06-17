@@ -52,6 +52,8 @@ import type {
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
+import type { AgentEvent, AgentUsage } from "./protocol.ts";
+
 // ---------------------------------------------------------------------------
 // Shared, process-wide tracing infrastructure
 // ---------------------------------------------------------------------------
@@ -250,6 +252,8 @@ export interface RunConfig {
   authorization?: string;
   /** W3C traceparent from the caller; nests invoke_agent under that span. */
   traceparent?: string;
+  /** W3C baggage from the caller (carried for future use). */
+  baggage?: string;
   /** Drop prompt/completion/tool I/O from spans when false. */
   captureContent: boolean;
   /** Pi session id, set after createAgentSession so spans carry session.id. */
@@ -680,6 +684,10 @@ export interface RivetOtel {
   traceId(): string | undefined;
   /** Accumulated assistant output text so far. */
   output(): string;
+  /** The structured event log built from the ACP stream (tool calls, usage, final message). */
+  events(): AgentEvent[];
+  /** Run token/cost totals from the stream, when the harness reported `usage_update`. */
+  usage(): AgentUsage | undefined;
 }
 
 /**
@@ -703,7 +711,8 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
   let llmSpan: Span | undefined;
   let runTraceId: string | undefined;
   let accumulated = "";
-  let usage: { cost?: number; total?: number } | undefined;
+  let usage: AgentUsage | undefined;
+  const events: AgentEvent[] = [];
   const toolSpans = new Map<string, { span: Span; name: string }>();
 
   function start(input: { prompt?: string; messages?: any[]; sessionId?: string }): void {
@@ -775,6 +784,7 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
       if (update.rawInput != null)
         setInputs(span, update.rawInput as Record<string, unknown>, capture);
       toolSpans.set(id, { span, name: String(name) });
+      events.push({ type: "tool_call", id: String(id), name: String(name), input: update.rawInput });
       // A tool_call can arrive already completed (status set up front).
       maybeCloseTool(id, update);
       return;
@@ -786,12 +796,18 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
     }
 
     if (kind === "usage_update") {
+      // ACP usage_update carries only `used` (context tokens) and `cost.amount`. The
+      // per-call input/output split is NOT on the stream; it rides on the PromptResponse,
+      // which runRivet.ts reads. Keep total + cost here and leave the split to the caller.
       const cost = update.cost?.amount;
       const total = update.used;
       usage = {
-        cost: typeof cost === "number" ? cost : usage?.cost,
-        total: typeof total === "number" ? total : usage?.total,
+        input: usage?.input ?? 0,
+        output: usage?.output ?? 0,
+        total: typeof total === "number" ? total : usage?.total ?? 0,
+        cost: typeof cost === "number" ? cost : usage?.cost ?? 0,
       };
+      events.push({ type: "usage", ...usage });
     }
   }
 
@@ -807,10 +823,15 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
     if (status === "failed") entry.span.setStatus({ code: SpanStatusCode.ERROR });
     entry.span.end();
     toolSpans.delete(id);
+    events.push({ type: "tool_result", id, output: out, isError: status === "failed" });
   }
 
   function finish(): string {
     const text = stripStartupBanner(accumulated.trim());
+    // The event log is independent of span emission, so build its tail either way: the
+    // final assistant message, then the terminal done marker.
+    if (text) events.push({ type: "message", text });
+    events.push({ type: "done" });
     if (!emitSpans) return text;
     if (llmSpan) {
       emitMessages(
@@ -849,5 +870,7 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
     flush: () => flushTrace(runTraceId),
     traceId: () => runTraceId,
     output: () => accumulated,
+    events: () => events,
+    usage: () => usage,
   };
 }

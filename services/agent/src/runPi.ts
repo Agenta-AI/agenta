@@ -1,20 +1,20 @@
 /**
- * WP-2 Pi harness driver.
+ * Legacy backend: drive the Pi SDK in-process for one cold run.
  *
- * This is the concrete "harness" behind the service's Harness port. It drives the
- * Pi SDK (`createAgentSession`) for a single run: it injects the agent's AGENTS.md
- * in memory, resolves the model, sends one user turn, and returns the final
- * assistant text. It also turns the backend-resolved runnable tools (WP-7) into Pi
- * customTools that route back through Agenta's /tools/call. No streaming and no
- * session persistence yet; those are later work packages.
+ * This is the non-rivet engine. It drives Pi's `createAgentSession` directly: injects
+ * AGENTS.md in memory, resolves the model, sends one user turn, and returns the structured
+ * result (final text, messages, events, usage, capabilities). It also turns the
+ * backend-resolved runnable tools (WP-7) into Pi customTools that route back through
+ * Agenta's /tools/call. The rivet backend (`runRivet.ts`) is the ACP path; both serve the
+ * same `/run` contract (see `protocol.ts`).
  *
- * Auth: uses `AuthStorage.create()`, which reads ~/.pi/agent/auth.json (the local
- * Pi login). Set OPENAI_API_KEY / ANTHROPIC_API_KEY in the environment as an
- * alternative. Nothing invocation-specific is written to a persistent disk: the
- * session is in-memory and the working dir is a throwaway temp dir.
+ * Auth: provider keys arrive as `request.secrets` (applied to the env) or fall back to the
+ * local Pi login (`AuthStorage.create()` reads ~/.pi/agent/auth.json). Nothing
+ * invocation-specific is written to a persistent disk: the session is in-memory and the
+ * working dir is a throwaway temp dir.
  *
- * Important: stdout is reserved for the JSON result (see cli.ts). Everything here
- * logs to stderr so it never pollutes the result channel.
+ * Important: stdout is reserved for the JSON result (see cli.ts). Everything here logs to
+ * stderr so it never pollutes the result channel.
  */
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,125 +31,53 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 import { createAgentaOtel } from "./agenta-otel.ts";
+import {
+  type AgentEvent,
+  type AgentRunRequest,
+  type AgentRunResult,
+  type ChatMessage,
+  type HarnessCapabilities,
+  type ResolvedToolSpec,
+  type ToolCallbackContext,
+  resolvePromptText,
+} from "./protocol.ts";
+import { EMPTY_OBJECT_SCHEMA, callAgentaTool } from "./toolClient.ts";
 
-export interface ChatMessage {
-  role: string;
-  content: string;
-}
-
-/**
- * Trace context threaded in from the Agenta service so the agent run joins the
- * caller's /invoke trace instead of starting its own. All fields are optional;
- * with none set the run is traced standalone (or not at all) using env config.
- */
-export interface TraceContext {
-  /** W3C traceparent of the caller's workflow span. Nests invoke_agent under it. */
-  traceparent?: string;
-  /** W3C baggage from the caller (carried for future use). */
-  baggage?: string;
-  /** OTLP traces endpoint (e.g. https://host/api/otlp/v1/traces). */
-  endpoint?: string;
-  /** Full Authorization header for the OTLP export (e.g. "ApiKey ..." / "Secret ..."). */
-  authorization?: string;
-  /** Drop prompt/completion/tool I/O from spans when false. Default true. */
-  captureContent?: boolean;
-}
-
-/**
- * A runnable tool the backend already resolved from the agent config: name +
- * description + JSON-Schema params for the model, plus the `callRef` slug the
- * execution bridge sends back to Agenta's /tools/call. The Composio key and the
- * connection auth stay server-side; this sandbox never sees them.
- */
-export interface ResolvedToolSpec {
-  /** Function name shown to the model (e.g. "gmail__SEND_EMAIL"). */
-  name: string;
-  /** Description shown to the model. Resolved live from the provider catalog. */
-  description?: string;
-  /** JSON Schema for the tool arguments. Pi accepts plain JSON Schema here. */
-  inputSchema?: Record<string, unknown> | null;
-  /** "tools.{provider}.{integration}.{action}.{connection}" — the /tools/call slug. */
-  callRef: string;
-}
-
-/**
- * Where and how to route a tool call back through Agenta. The backend builds the
- * full /tools/call URL and threads the same credential the OTLP export rides on.
- */
-export interface ToolCallbackContext {
-  /** Full /tools/call URL. */
-  endpoint: string;
-  /** Authorization header value for the callback (project-scoped). */
-  authorization?: string;
-}
-
-export interface AgentRunRequest {
-  /** Harness id for the rivet backend ("pi" / "claude"). Ignored by the Pi backend. */
-  harness?: string;
-  /** Sandbox for the rivet backend ("local" / "daytona"). Ignored by the Pi backend. */
-  sandbox?: string;
-  /** Continue a prior run by replaying its history. The rivet backend resumes by id. */
-  sessionId?: string;
-  /** Provider API keys as env vars ({OPENAI_API_KEY,...}), resolved from the vault.
-   *  Injected into the harness env; empty means the harness uses its own login (OAuth). */
-  secrets?: Record<string, string>;
-  /** AGENTS.md text injected as the agent's instructions (in memory). */
-  agentsMd?: string;
-  /** Model id ("gpt-5.5") or "provider/id" ("openai-codex/gpt-5.5"). */
-  model?: string;
-  /** The user turn to send. Falls back to the last user message. */
-  prompt?: string;
-  /** Optional prior message history. MVP sends the latest user turn only. */
-  messages?: ChatMessage[];
-  /** Built-in tools to enable. MVP default: none. */
-  tools?: string[];
-  /** Resolved runnable tools (WP-7), turned into Pi customTools below. */
-  customTools?: ResolvedToolSpec[];
-  /** Where customTools route their calls back to. Required when customTools is set. */
-  toolCallback?: ToolCallbackContext;
-  /** Tracing: thread the Agenta trace context across the boundary. */
-  trace?: TraceContext;
-}
-
-export interface AgentRunResult {
-  ok: boolean;
-  output?: string;
-  sessionId?: string;
-  model?: string;
-  /** Trace id of the run (the caller's trace when a traceparent was passed). */
-  traceId?: string;
-  /** Run token/cost totals, for roll-up onto the caller's workflow span. */
-  usage?: { input: number; output: number; total: number; cost: number };
-  error?: string;
-}
+/** What the in-process Pi engine supports. Static (no daemon to probe, unlike rivet). */
+const PI_CAPABILITIES: HarnessCapabilities = {
+  textMessages: true,
+  toolCalls: true,
+  reasoning: true,
+  usage: true,
+  streamingDeltas: true,
+  images: false,
+  fileAttachments: false,
+  mcpTools: false,
+  planMode: false,
+  permissions: false,
+  sessionLifecycle: false,
+};
 
 function log(message: string): void {
   process.stderr.write(`[pi-wrapper] ${message}\n`);
+}
+
+/** Apply vault-resolved provider keys to the process env so Pi's model auth can see them. */
+function applySecrets(secrets: Record<string, string> | undefined): void {
+  for (const [key, value] of Object.entries(secrets ?? {})) {
+    if (value) process.env[key] = value;
+  }
 }
 
 /** Pick the requested model, else gpt-5.5, else a sensible non-mini default. */
 function pickModel(available: any[], wanted?: string): any {
   return (
     (wanted &&
-      available.find(
-        (m) => m.id === wanted || `${m.provider}/${m.id}` === wanted,
-      )) ||
+      available.find((m) => m.id === wanted || `${m.provider}/${m.id}` === wanted)) ||
     available.find((m) => m.id === "gpt-5.5") ||
     available.find((m) => !/spark|mini/i.test(m.id)) ||
     available[0]
   );
-}
-
-/** The latest user turn: explicit prompt, else last user message content. */
-function resolvePrompt(request: AgentRunRequest): string {
-  if (request.prompt && request.prompt.trim()) return request.prompt;
-  const messages = request.messages ?? [];
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === "user" && messages[i].content) {
-      return messages[i].content;
-    }
-  }
-  return "";
 }
 
 /** Concatenate the text blocks of the last assistant message. */
@@ -170,23 +98,21 @@ function extractAssistantText(messages: any[]): string {
   return "";
 }
 
-/** Per-tool budget for the /tools/call round-trip. Surfaced as a tool error on timeout. */
-const TOOL_CALL_TIMEOUT_MS = Number(
-  process.env.AGENTA_AGENT_TOOL_CALL_TIMEOUT_MS ?? 30000,
-);
-
-/** Permissive default when a resolved tool has no input schema. */
-const EMPTY_OBJECT_SCHEMA = {
-  type: "object",
-  properties: {},
-  additionalProperties: true,
-};
+/** The stop reason of the last assistant message, when Pi set one. */
+function lastStopReason(messages: any[]): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "assistant" && messages[i].stopReason) {
+      return String(messages[i].stopReason);
+    }
+  }
+  return undefined;
+}
 
 /**
- * Turn resolved tool specs into Pi customTools. Each tool's `execute` does one
- * POST back through Agenta's /tools/call, so Pi runs the loop while the Composio
- * key and connection auth stay server-side. A failed call throws, which Pi turns
- * into a tool-error result (the loop continues) rather than a run failure.
+ * Turn resolved tool specs into Pi customTools. Each tool's `execute` does one POST back
+ * through Agenta's /tools/call, so Pi runs the loop while the Composio key and connection
+ * auth stay server-side. A failed call throws, which Pi turns into a tool-error result
+ * (the loop continues) rather than a run failure.
  */
 export function buildCustomTools(
   specs: ResolvedToolSpec[],
@@ -202,12 +128,13 @@ export function buildCustomTools(
     name: spec.name,
     label: spec.name,
     description: spec.description ?? spec.name,
-    // Pi accepts a plain JSON Schema for `parameters` (its validator has a
-    // non-TypeBox path); the schema is resolved live from the provider catalog.
+    // Pi accepts a plain JSON Schema for `parameters` (its validator has a non-TypeBox
+    // path); the schema is resolved live from the provider catalog.
     parameters: (spec.inputSchema as any) ?? EMPTY_OBJECT_SCHEMA,
     async execute(toolCallId: string, params: unknown, signal?: AbortSignal) {
       const text = await callAgentaTool(
-        callback,
+        callback.endpoint,
+        callback.authorization,
         spec.callRef,
         toolCallId,
         params,
@@ -221,72 +148,13 @@ export function buildCustomTools(
   }));
 }
 
-/** One /tools/call round-trip. Returns the result string; throws on failure. */
-async function callAgentaTool(
-  callback: ToolCallbackContext,
-  callRef: string,
-  toolCallId: string,
-  params: unknown,
-  signal?: AbortSignal,
-): Promise<string> {
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (callback.authorization) headers["authorization"] = callback.authorization;
-
-  // Combine Pi's abort signal (if any) with a per-tool timeout.
-  const timeoutSignal = AbortSignal.timeout(TOOL_CALL_TIMEOUT_MS);
-  const anyOf = (AbortSignal as any).any;
-  const combined =
-    signal && typeof anyOf === "function"
-      ? anyOf([signal, timeoutSignal])
-      : timeoutSignal;
-
-  let response: Response;
-  try {
-    response = await fetch(callback.endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        data: {
-          id: toolCallId,
-          type: "function",
-          // Arguments as an object (not a JSON string) to avoid double-encoding.
-          function: { name: callRef, arguments: params ?? {} },
-        },
-      }),
-      signal: combined,
-    });
-  } catch (err) {
-    throw new Error(
-      `tool call ${callRef} failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-
-  const bodyText = await response.text();
-  if (!response.ok) {
-    throw new Error(
-      `tool call ${callRef} returned HTTP ${response.status}: ${bodyText.slice(0, 500)}`,
-    );
-  }
-
-  // ToolCallResponse -> { call: { data: { content }, status } }. `content` is the
-  // execution result serialized as a JSON string; hand it to the model verbatim.
-  try {
-    const parsed = JSON.parse(bodyText);
-    const content = parsed?.call?.data?.content;
-    if (typeof content === "string") return content;
-    if (content != null) return JSON.stringify(content);
-    return bodyText;
-  } catch {
-    return bodyText;
-  }
-}
-
 export async function runPi(request: AgentRunRequest): Promise<AgentRunResult> {
-  const prompt = resolvePrompt(request);
+  const prompt = resolvePromptText(request);
   if (!prompt) {
     return { ok: false, error: "No user message to send (prompt/messages empty)." };
   }
 
+  applySecrets(request.secrets);
   const cwd = mkdtempSync(join(tmpdir(), "agenta-agent-"));
 
   try {
@@ -304,9 +172,9 @@ export async function runPi(request: AgentRunRequest): Promise<AgentRunResult> {
     const model = pickModel(available, request.model);
     log(`model: ${model.provider}/${model.id}`);
 
-    // Tracing: turn this run into OTel spans. When the caller passed a
-    // traceparent, invoke_agent nests under their /invoke span so the whole
-    // agent run is part of the same trace (just like completion/chat).
+    // Tracing: turn this run into OTel spans. When the caller passed a traceparent,
+    // invoke_agent nests under their /invoke span so the whole agent run is part of the
+    // same trace (just like completion/chat).
     const otel = createAgentaOtel({
       traceparent: request.trace?.traceparent,
       baggage: request.trace?.baggage,
@@ -331,12 +199,9 @@ export async function runPi(request: AgentRunRequest): Promise<AgentRunResult> {
     });
     await loader.reload();
 
-    // Build runnable tools from the resolved specs. Pi's allowlist gates custom
-    // tools too, so their names must be in `tools` for the model to see them.
-    const customTools = buildCustomTools(
-      request.customTools ?? [],
-      request.toolCallback,
-    );
+    // Build runnable tools from the resolved specs. Pi's allowlist gates custom tools too,
+    // so their names must be in `tools` for the model to see them.
+    const customTools = buildCustomTools(request.customTools ?? [], request.toolCallback);
     const toolAllowlist = [
       ...(request.tools ?? []),
       ...customTools.map((tool) => tool.name),
@@ -377,16 +242,36 @@ export async function runPi(request: AgentRunRequest): Promise<AgentRunResult> {
 
     const output = streamed.trim() || extractAssistantText(session.messages);
     const sessionId = session.sessionId;
+    const stopReason = lastStopReason(session.messages);
+    const usage = otel.usage();
     session.dispose();
 
-    // Ship this run's trace before the result is returned (and before the CLI
-    // process exits): invoke_agent has a remote parent, so the per-trace flush
-    // is what exports it.
+    // Ship this run's trace before the result is returned (and before the CLI process
+    // exits): invoke_agent has a remote parent, so the per-trace flush is what exports it.
     await otel.flush();
+
+    // The structured stream is thinner here than on the rivet path: Pi's in-process tool
+    // events feed the trace spans, while the result-level event log carries the final
+    // message, usage, and stop reason (enough for the platform without double-plumbing).
+    const events: AgentEvent[] = [];
+    if (output) events.push({ type: "message", text: output });
+    if (usage.total > 0) {
+      events.push({ type: "usage", ...usage });
+    }
+    events.push({ type: "done", stopReason });
+
+    const messages: ChatMessage[] = output
+      ? [{ role: "assistant", content: output }]
+      : [];
 
     return {
       ok: true,
       output,
+      messages,
+      events,
+      usage,
+      stopReason,
+      capabilities: PI_CAPABILITIES,
       sessionId,
       model: `${model.provider}/${model.id}`,
       traceId: otel.config.traceId,

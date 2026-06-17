@@ -122,5 +122,9 @@ running agent.
 
 ## Related work
 
+- [`harness-port-redesign/`](harness-port-redesign/README.md) — research and proposal for
+  evolving the `Harness` and `Runtime` ports to learn from the rivet `sandbox-agent` SDK
+  (sessions, structured event streaming, capabilities, attachments, lifecycle). Follows on
+  from WP-8.
 - [`../prompt-runtime-unification/`](../prompt-runtime-unification/README.md) — the
   prompt-side runtime that "future agent-style services" were already anticipated against.
