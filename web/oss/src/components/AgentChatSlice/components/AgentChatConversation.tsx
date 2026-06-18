@@ -2,13 +2,11 @@ import {useMemo, useState} from "react"
 
 import {useChat} from "@ai-sdk/react"
 import {Bubble, Sender} from "@ant-design/x"
-import {Eye, EyeSlash} from "@phosphor-icons/react"
 import {lastAssistantMessageIsCompleteWithApprovalResponses} from "ai"
-import {Alert, Button, Tag, Typography} from "antd"
+import {Alert, Tag, Typography} from "antd"
 
 import {useAgConfigStatus} from "../assets/agConfig"
 import {type AgentChatTrack, trackApi} from "../assets/constants"
-import Markdown from "../assets/markdown"
 import {createAgentChatTransport} from "../assets/transport"
 
 import AgentMessage from "./AgentMessage"
@@ -40,7 +38,10 @@ const ConfigBadge = ({appId}: {appId: string}) => {
  */
 const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: string | null}) => {
     const [input, setInput] = useState("")
-    const [showPreview, setShowPreview] = useState(false)
+    // Stable per-mount session id. The parent remounts per track (key={track}), so each
+    // track gets its own session; it's passed to useChat as the chat id and travels to the
+    // backend as `session_id`.
+    const [sessionId] = useState(() => crypto.randomUUID())
     const transport = useMemo(() => createAgentChatTransport(track, appId), [track, appId])
 
     const {
@@ -53,6 +54,7 @@ const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: st
         addToolApprovalResponse,
         error,
     } = useChat({
+        id: sessionId,
         transport,
         sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
         onError: (err) => {
@@ -71,10 +73,19 @@ const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: st
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-3">
-            <div className="flex items-center justify-between gap-2">
-                <Text type="secondary" className="!text-xs">
-                    POST {trackApi(track)}
-                </Text>
+            <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 flex-col">
+                    <Text type="secondary" className="!text-xs">
+                        POST {trackApi(track)}
+                    </Text>
+                    <Text
+                        type="secondary"
+                        className="!text-[11px] font-mono"
+                        copyable={{text: sessionId}}
+                    >
+                        session: {sessionId}
+                    </Text>
+                </div>
                 <div className="flex items-center gap-2">
                     {appId && <ConfigBadge appId={appId} />}
                     {messages.length > 0 && (
@@ -114,38 +125,14 @@ const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: st
                 )}
             </div>
 
-            <div className="flex flex-col gap-2">
-                {showPreview && (
-                    <div className="max-h-44 overflow-y-auto rounded-md border border-solid border-colorBorderSecondary p-3">
-                        {input.trim() ? (
-                            <Markdown content={input} />
-                        ) : (
-                            <Text type="secondary" className="!text-xs">
-                                Start typing to preview your markdown…
-                            </Text>
-                        )}
-                    </div>
-                )}
-                <div className="flex justify-end">
-                    <Button
-                        size="small"
-                        type="text"
-                        className="!text-xs"
-                        icon={showPreview ? <EyeSlash size={14} /> : <Eye size={14} />}
-                        onClick={() => setShowPreview((v) => !v)}
-                    >
-                        {showPreview ? "Hide preview" : "Markdown preview"}
-                    </Button>
-                </div>
-                <Sender
-                    value={input}
-                    onChange={setInput}
-                    loading={busy}
-                    onSubmit={handleSubmit}
-                    onCancel={stop}
-                    placeholder="Ask the agent… (Enter to send, Shift+Enter for newline)"
-                />
-            </div>
+            <Sender
+                value={input}
+                onChange={setInput}
+                loading={busy}
+                onSubmit={handleSubmit}
+                onCancel={stop}
+                placeholder="Ask the agent… (Enter to send, Shift+Enter for newline)"
+            />
         </div>
     )
 }

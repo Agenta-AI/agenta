@@ -76,7 +76,9 @@ else
   echo "==> No .env found — starting credential-free MOCK ($APP_MODULE) on :$BACKEND_PORT …"
   echo "    Add $EXAMPLE_DIR/.env (see env.example) to run the real agent loop."
 fi
-( cd "$EXAMPLE_DIR" && exec "$VENV/bin/uvicorn" "$APP_MODULE" --port "$BACKEND_PORT" ) &
+# --reload so backend edits (agent_loop.py, contract_stream.py, …) hot-reload without a
+# manual restart while iterating.
+( cd "$EXAMPLE_DIR" && exec "$VENV/bin/uvicorn" "$APP_MODULE" --port "$BACKEND_PORT" --reload ) &
 BACKEND_PID=$!
 
 # wait for /health

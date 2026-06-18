@@ -132,8 +132,10 @@ const AgentMessage = ({
         </div>
     )
 
+    // Control toolbar — hidden until the message row is hovered/focused (group-hover on the
+    // wrapper below), then revealed. Collapses its height when hidden so it reserves no gap.
     const footer = isUser ? undefined : (
-        <div className="flex items-center gap-1">
+        <div className="flex max-h-0 items-center gap-1 overflow-hidden opacity-0 transition-all duration-150 focus-within:max-h-8 focus-within:opacity-100 group-hover:max-h-8 group-hover:opacity-100">
             <Tooltip title="Copy">
                 <Button
                     type="text"
@@ -166,19 +168,22 @@ const AgentMessage = ({
         </div>
     )
 
+    // `group` so the footer toolbar can reveal on hover/focus of the whole message row.
     return (
-        <Bubble<React.ReactNode>
-            placement={isUser ? "end" : "start"}
-            variant={isUser ? "filled" : "outlined"}
-            avatar={avatarFor(isUser)}
-            className="min-w-0 max-w-full"
-            classNames={{
-                content: "min-w-0 max-w-full overflow-hidden",
-                body: "min-w-0 max-w-full overflow-hidden",
-            }}
-            content={body}
-            footer={footer}
-        />
+        <div className="group">
+            <Bubble<React.ReactNode>
+                placement={isUser ? "end" : "start"}
+                variant={isUser ? "filled" : "outlined"}
+                avatar={avatarFor(isUser)}
+                className="min-w-0 max-w-full"
+                classNames={{
+                    content: "min-w-0 max-w-full overflow-hidden",
+                    body: "min-w-0 max-w-full overflow-hidden",
+                }}
+                content={body}
+                footer={footer}
+            />
+        </div>
     )
 }
 

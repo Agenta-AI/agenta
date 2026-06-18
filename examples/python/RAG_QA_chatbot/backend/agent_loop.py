@@ -19,6 +19,7 @@ trace). Tool-calls and approval are real because this is a genuine agent loop �
 the RAG bot in ``main.py`` is not.
 """
 
+import asyncio
 import json
 import os
 import smtplib
@@ -26,6 +27,11 @@ import uuid
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
+
+# Delay between streamed tool-output chunks (search hits revealed one at a time). The v6
+# protocol has no tool-output-delta, but `tool-output-available` accepts a `preliminary`
+# flag, so we emit the growing output as preliminary updates then a final full one.
+OUTPUT_CHUNK_DELAY_S = float(os.getenv("AGENT_OUTPUT_CHUNK_DELAY", "0.12"))
 
 # Heavy deps (litellm / qdrant via rag / agenta) are imported lazily inside the functions
 # that use them, so this module's pure helpers stay importable without credentials.
@@ -462,6 +468,21 @@ async def run_turn(
                                 "title": d.title,
                             }
                         )
+                    # Reveal the hits progressively as `preliminary` outputs, then a
+                    # final full output. (The retrieval itself is one call — this just
+                    # streams the rendering of the already-computed result.)
+                    hits = output.get("hits") if isinstance(output, dict) else None
+                    if isinstance(hits, list) and len(hits) > 1:
+                        for k in range(1, len(hits)):
+                            yield _sse(
+                                {
+                                    "type": "tool-output-available",
+                                    "toolCallId": call_id,
+                                    "output": {"hits": hits[:k]},
+                                    "preliminary": True,
+                                }
+                            )
+                            await asyncio.sleep(OUTPUT_CHUNK_DELAY_S)
                     yield _sse(
                         {
                             "type": "tool-output-available",
@@ -495,6 +516,7 @@ async def run_turn(
             span_cm.__exit__(None, None, None)
 
     if trace_id:
+        # data-trace part (legacy/fallback channel) …
         yield _sse(
             {
                 "type": "data-trace",
@@ -504,7 +526,10 @@ async def run_turn(
                 },
             }
         )
-    yield _sse({"type": "finish"})
+        # … and the RFC-aligned channel: traceId on the finish messageMetadata.
+        yield _sse({"type": "finish", "messageMetadata": {"traceId": trace_id}})
+    else:
+        yield _sse({"type": "finish"})
     yield "data: [DONE]\n\n"
 
 
