@@ -282,8 +282,10 @@ be omitted.
 | `tool-input-start` | `toolCallId`, `toolName` | A tool call begins. |
 | `tool-input-delta` | `toolCallId`, `inputTextDelta` | Append a fragment of the tool arguments (note: `inputTextDelta`, not `delta`). |
 | `tool-input-available` | `toolCallId`, `toolName`, `input` | The full tool arguments are known. |
-| `tool-output-available` | `toolCallId`, `output` | The tool result. |
+| `tool-output-available` | `toolCallId`, `output` | The tool result. MAY carry `preliminary` for streamed/partial results. |
 | `tool-output-error` | `toolCallId`, `errorText` | The tool failed. |
+| `tool-approval-request` | `approvalId`, `toolCallId` | A tool call pauses for human approval (Section 6.2.6). |
+| `tool-output-denied` | `toolCallId` | The user denied a tool; it was not executed (Section 6.2.6). |
 | `file` | `url`, `mediaType` | A file or image. `url` MAY be an `https:` or `data:` URL. |
 | `data-<name>` | `data` | An application-defined part (generative UI). MAY carry `id` and `transient`. |
 | `error` | `errorText` | A stream-level error (Section 8.2). |
@@ -292,7 +294,7 @@ A server **MUST** order parts so that for any `id` or `toolCallId`, a `*-start` 
 deltas, which precede its `*-end` or `*-available`. Text and reasoning deltas are
 concatenated by `id`. Tool parts are keyed by `toolCallId`.
 
-#### 6.2.4 Session id in the stream
+#### 6.2.4 Session id and trace id in the stream
 
 The server **MUST** convey the resolved `session_id` as `messageMetadata.sessionId` on the
 `start` part, which is the first part of the stream:
@@ -303,6 +305,17 @@ data: {"type":"start","messageId":"msg_1","messageMetadata":{"sessionId":"sess_1
 
 A server **MAY** additionally mirror `session_id` to a response header. The body remains the
 normative source.
+
+The server **SHOULD** also convey the run's **trace id** as `messageMetadata.traceId`, so a
+client can open the trace for the turn (the assembled turn is recorded under `ag.session.id`,
+Section 6.2.5). It rides `messageMetadata` on the `finish` part, where `usage` already travels:
+
+```
+data: {"type":"finish","messageMetadata":{"traceId":"<32-hex>","usage":{...}}}
+```
+
+A server **MAY** instead carry it on `start`. The trace id is the OTel trace id of the run
+(the `trace_id` of the JSON response in Section 6.1); the client treats it as opaque.
 
 #### 6.2.5 Mapping from agent events
 
@@ -317,7 +330,8 @@ The streaming edge consumes the agent's internal `AgentEvent` stream
 | `tool_call` | `tool-input-start`, then `tool-input-available` |
 | `tool_result` with `isError=false` | `tool-output-available` |
 | `tool_result` with `isError=true` | `tool-output-error` |
-| `usage` | `messageMetadata` on the `finish` part |
+| tool gated by the before-tool hook | `tool-input-start`/`-available`, then `tool-approval-request` (pause); on resume `tool-output-available` or `tool-output-denied` (Section 6.2.6) |
+| `usage` | `messageMetadata` (`usage`) on the `finish` part; the run `traceId` rides there too (Section 6.2.4) |
 | `error` | `error` (Section 8.2) |
 | `done` | `finish-step`, then `finish` (`finishReason` = `stopReason`), then `[DONE]` |
 
@@ -328,6 +342,30 @@ shape is identical, so the client does not distinguish them.
 The protocol streams deltas only. There is no full-message snapshot part. The client
 assembles the final `UIMessage` from the parts. The server **SHOULD** record the assembled
 turn on the trace (`ag.session.id`), which is the source `load-session` reads.
+
+#### 6.2.6 Tool approval (human-in-the-loop)
+
+A tool MAY require human approval before it runs — the harness gates it at its before-tool
+hook (`capabilities.permissions`). The round-trip uses the parts in Section 6.2.3 and the
+re-sent conversation in Section 5.2; it adds no new request field.
+
+1. The server emits `tool-input-start` then `tool-input-available` for the call, then
+   `tool-approval-request { approvalId, toolCallId }`, and **ends the turn** (`finish`,
+   `[DONE]`) with that tool awaiting a decision. It **MUST NOT** emit a `tool-output-*` part
+   for that call in this turn.
+2. The client records the user's decision on that tool part and re-sends the conversation
+   (`data.messages`, Section 5.2). Because the decision lives in the assistant message's tool
+   part (`UIMessage` form), the server reads it from the history — **no new request field is
+   required**.
+3. On the resumed turn the server, for each decided call, either runs the tool (approved) and
+   emits `tool-output-available`, or skips it (denied) and emits `tool-output-denied
+   { toolCallId }`. The resumed output lands on the **same** logical tool call (matched by
+   `toolCallId`); the turn then continues normally.
+
+A server that never gates tools simply never emits `tool-approval-request` /
+`tool-output-denied`. A client that does not render approvals MAY treat a turn that ends with
+an outstanding `tool-approval-request` as complete. Approval is an extension to the base part
+flow; a profile of this protocol MAY mark it OPTIONAL.
 
 ## 7. The `load-session` endpoint (`POST /load-session`)
 
