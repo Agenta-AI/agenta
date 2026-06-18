@@ -149,6 +149,9 @@ from oss.src.core.triggers.providers.composio import ComposioTriggersAdapter
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
 from oss.src.core.triggers.service import TriggersService
 from oss.src.apis.fastapi.triggers.router import TriggersRouter
+from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
+from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
+from taskiq_redis import RedisStreamBroker
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 
 
@@ -214,7 +217,11 @@ async def lifespan(*args, **kwargs):
     warn_deprecated_env_vars()
     validate_required_env_vars()
 
+    await _triggers_broker.startup()
+
     yield
+
+    await _triggers_broker.shutdown()
 
     for adapter in _composio_adapters.values():
         await adapter.close()
@@ -651,6 +658,26 @@ triggers_service = TriggersService(
     connections_service=connections_service,
 )
 
+# Producer side of the inbound dispatch pipeline: the ingress route enqueues
+# `triggers.dispatch` tasks here; entrypoints/worker_triggers.py consumes them.
+_triggers_broker = RedisStreamBroker(
+    url=env.redis.uri_durable,
+    queue_name="queues:triggers",
+    consumer_group_name="api-triggers-producer",
+    maxlen=100_000,
+    approximate=True,
+)
+
+_triggers_dispatcher = TriggersDispatcher(
+    triggers_dao=triggers_dao,
+    workflows_service=workflows_service,
+)
+
+_triggers_worker = TriggersWorker(
+    broker=_triggers_broker,
+    dispatcher=_triggers_dispatcher,
+)
+
 _t_services_done = time.perf_counter() - _t_services
 print(f"[STARTUP] Service initialization completed (+{_t_services_done:.3f}s)")
 _t_routers = time.perf_counter()
@@ -767,6 +794,7 @@ tools = ToolsRouter(
 
 triggers = TriggersRouter(
     triggers_service=triggers_service,
+    dispatch_task=_triggers_worker.dispatch_trigger,
 )
 
 simple_traces = SimpleTracesRouter(

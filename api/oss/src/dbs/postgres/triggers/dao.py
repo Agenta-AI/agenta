@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
 
 from sqlalchemy import select
@@ -231,6 +231,32 @@ class TriggersDAO(TriggersDAOInterface):
 
             return map_subscription_dbe_to_dto(
                 subscription_dbe=subscription_dbe,
+            )
+
+    async def get_project_and_subscription_by_trigger_id(
+        self,
+        *,
+        trigger_id: str,
+    ) -> Optional[Tuple[UUID, TriggerSubscription]]:
+        async with self.engine.session() as session:
+            stmt = (
+                select(TriggerSubscriptionDBE)
+                .filter(
+                    TriggerSubscriptionDBE.data["ti_id"].astext == trigger_id,
+                )
+                .limit(1)
+            )
+
+            result = await session.execute(stmt)
+
+            subscription_dbe = result.scalars().first()
+
+            if not subscription_dbe:
+                return None
+
+            return (
+                subscription_dbe.project_id,
+                map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe),
             )
 
     # --- DELIVERIES --------------------------------------------------------- #

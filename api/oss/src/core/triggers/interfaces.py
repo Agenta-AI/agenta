@@ -148,6 +148,15 @@ class TriggersDAOInterface(ABC):
         """FROZEN (WP4): resolve an inbound event's ``ti_*`` to its local row."""
         ...
 
+    @abstractmethod
+    async def get_project_and_subscription_by_trigger_id(
+        self,
+        *,
+        trigger_id: str,
+    ) -> Optional[Tuple[UUID, TriggerSubscription]]:
+        """Resolve a ``ti_*`` to its (project_id, subscription); the DTO omits project scope."""
+        ...
+
     # --- deliveries --------------------------------------------------------- #
 
     @abstractmethod

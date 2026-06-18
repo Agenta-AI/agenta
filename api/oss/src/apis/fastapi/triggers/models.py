@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -91,3 +91,26 @@ class TriggerDeliveryResponse(BaseModel):
 class TriggerDeliveriesResponse(BaseModel):
     count: int = 0
     deliveries: List[TriggerDelivery] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Trigger Ingress (inbound provider events)
+# ---------------------------------------------------------------------------
+
+
+class TriggerEventAck(BaseModel):
+    status: str = "accepted"
+    detail: Optional[str] = None
+
+
+class ComposioEventEnvelope(BaseModel):
+    """Loose view of a Composio trigger webhook envelope (`{data, type, ...}`).
+
+    Demultiplexing keys live under ``metadata`` (``trigger_id``, ``id``); the rest
+    is passed through to the resolver as the inbound event.
+    """
+
+    type: Optional[str] = None
+    timestamp: Optional[str] = None
+    data: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None

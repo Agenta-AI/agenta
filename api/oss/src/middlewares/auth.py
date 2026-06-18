@@ -69,6 +69,11 @@ _PUBLIC_ENDPOINTS = (
     "/api/tools/connections/callback",
     "/preview/tools/connections/callback",
     "/api/preview/tools/connections/callback",
+    # TRIGGERS — inbound provider events arrive from Composio with no auth token
+    "/triggers/composio/events",
+    "/api/triggers/composio/events",
+    "/preview/triggers/composio/events",
+    "/api/preview/triggers/composio/events",
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
