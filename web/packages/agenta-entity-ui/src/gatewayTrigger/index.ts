@@ -8,3 +8,5 @@
  */
 
 export {default as TriggerEventsDrawer} from "./drawers/TriggerEventsDrawer"
+export {default as TriggerSubscriptionDrawer} from "./drawers/TriggerSubscriptionDrawer"
+export {default as TriggerDeliveriesDrawer} from "./drawers/TriggerDeliveriesDrawer"

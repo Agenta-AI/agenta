@@ -18,11 +18,23 @@ import {
     triggerCatalogProviderResponseSchema,
     triggerCatalogProvidersResponseSchema,
     triggerConnectionsResponseSchema,
+    triggerDeliveriesResponseSchema,
+    triggerDeliveryResponseSchema,
+    triggerSubscriptionResponseSchema,
+    triggerSubscriptionsResponseSchema,
     type TriggerCatalogEventResponse,
     type TriggerCatalogEventsResponse,
     type TriggerCatalogProviderResponse,
     type TriggerCatalogProvidersResponse,
     type TriggerConnectionsResponse,
+    type TriggerDeliveriesResponse,
+    type TriggerDeliveryQuery,
+    type TriggerDeliveryResponse,
+    type TriggerSubscriptionCreate,
+    type TriggerSubscriptionEdit,
+    type TriggerSubscriptionQuery,
+    type TriggerSubscriptionResponse,
+    type TriggerSubscriptionsResponse,
 } from "../core/types"
 
 import {axios, projectScopedParams, triggersBaseUrl} from "./client"
@@ -116,4 +128,147 @@ export const queryTriggerConnections = async (params?: {
         "[queryTriggerConnections]",
     )
     return (validated as TriggerConnectionsResponse | null) ?? {count: 0, connections: []}
+}
+
+// --- Subscriptions ---
+
+export const queryTriggerSubscriptions = async (
+    subscription?: TriggerSubscriptionQuery,
+): Promise<TriggerSubscriptionsResponse> => {
+    const {data} = await axios.post(
+        `${triggersBaseUrl()}/subscriptions/query`,
+        {subscription: subscription ?? null},
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(
+            triggerSubscriptionsResponseSchema,
+            data,
+            "[queryTriggerSubscriptions]",
+        ) ?? {count: 0, subscriptions: []}
+    )
+}
+
+export const fetchTriggerSubscription = async (
+    subscriptionId: string,
+): Promise<TriggerSubscriptionResponse> => {
+    const {data} = await axios.get(
+        `${triggersBaseUrl()}/subscriptions/${subscriptionId}`,
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(
+            triggerSubscriptionResponseSchema,
+            data,
+            "[fetchTriggerSubscription]",
+        ) ?? {count: 0, subscription: null}
+    )
+}
+
+export const createTriggerSubscription = async (
+    subscription: TriggerSubscriptionCreate,
+): Promise<TriggerSubscriptionResponse> => {
+    const {data} = await axios.post(
+        `${triggersBaseUrl()}/subscriptions/`,
+        {subscription},
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(
+            triggerSubscriptionResponseSchema,
+            data,
+            "[createTriggerSubscription]",
+        ) ?? {count: 0, subscription: null}
+    )
+}
+
+export const editTriggerSubscription = async (
+    subscription: TriggerSubscriptionEdit,
+): Promise<TriggerSubscriptionResponse> => {
+    const {data} = await axios.put(
+        `${triggersBaseUrl()}/subscriptions/${subscription.id}`,
+        {subscription},
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(
+            triggerSubscriptionResponseSchema,
+            data,
+            "[editTriggerSubscription]",
+        ) ?? {count: 0, subscription: null}
+    )
+}
+
+export const refreshTriggerSubscription = async (
+    subscriptionId: string,
+): Promise<TriggerSubscriptionResponse> => {
+    const {data} = await axios.post(
+        `${triggersBaseUrl()}/subscriptions/${subscriptionId}/refresh`,
+        {},
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(
+            triggerSubscriptionResponseSchema,
+            data,
+            "[refreshTriggerSubscription]",
+        ) ?? {count: 0, subscription: null}
+    )
+}
+
+export const revokeTriggerSubscription = async (
+    subscriptionId: string,
+): Promise<TriggerSubscriptionResponse> => {
+    const {data} = await axios.post(
+        `${triggersBaseUrl()}/subscriptions/${subscriptionId}/revoke`,
+        {},
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(
+            triggerSubscriptionResponseSchema,
+            data,
+            "[revokeTriggerSubscription]",
+        ) ?? {count: 0, subscription: null}
+    )
+}
+
+export const deleteTriggerSubscription = async (subscriptionId: string): Promise<void> => {
+    await axios.delete(
+        `${triggersBaseUrl()}/subscriptions/${subscriptionId}`,
+        projectScopedParams(),
+    )
+}
+
+// --- Deliveries (read-only) ---
+
+export const queryTriggerDeliveries = async (
+    delivery?: TriggerDeliveryQuery,
+): Promise<TriggerDeliveriesResponse> => {
+    const {data} = await axios.post(
+        `${triggersBaseUrl()}/deliveries/query`,
+        {delivery: delivery ?? null},
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(triggerDeliveriesResponseSchema, data, "[queryTriggerDeliveries]") ?? {
+            count: 0,
+            deliveries: [],
+        }
+    )
+}
+
+export const fetchTriggerDelivery = async (
+    deliveryId: string,
+): Promise<TriggerDeliveryResponse> => {
+    const {data} = await axios.get(
+        `${triggersBaseUrl()}/deliveries/${deliveryId}`,
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(triggerDeliveryResponseSchema, data, "[fetchTriggerDelivery]") ?? {
+            count: 0,
+            delivery: null,
+        }
+    )
 }

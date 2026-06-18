@@ -129,3 +129,173 @@ export type TriggerConnection = ToolConnection
 export type TriggerConnectionsResponse = ToolConnectionsResponse
 
 export {isConnectionActive, isConnectionValid} from "../../gatewayTool/core/types"
+
+// ---------------------------------------------------------------------------
+// Subscriptions — a standing watch binding a provider event to a workflow.
+//
+// Mirrors the frozen backend DTOs (`api/oss/src/core/triggers/dtos.py`:
+// TriggerSubscription / *Create / *Edit / *Query). Validated at the axios
+// boundary; the aliases swap to `AgentaApi.*` once the triggers resource lands
+// in the Fern client.
+// ---------------------------------------------------------------------------
+
+// A workflow reference (the /retrieve shape): {id, slug?, version?}.
+export const triggerReferenceSchema = z
+    .object({
+        id: z.string().nullish(),
+        slug: z.string().nullish(),
+        version: z.string().nullish(),
+    })
+    .passthrough()
+export type TriggerReference = z.infer<typeof triggerReferenceSchema>
+
+export const triggerSelectorSchema = z
+    .object({
+        key: z.string().nullish(),
+        path: z.string().nullish(),
+    })
+    .passthrough()
+export type TriggerSelector = z.infer<typeof triggerSelectorSchema>
+
+export const triggerSubscriptionDataSchema = z
+    .object({
+        event_key: z.string(),
+        ti_id: z.string().nullish(),
+        trigger_config: z.record(z.string(), z.unknown()).nullish(),
+        inputs_fields: z.record(z.string(), z.unknown()).nullish(),
+        references: z.record(z.string(), triggerReferenceSchema).nullish(),
+        selector: triggerSelectorSchema.nullish(),
+    })
+    .passthrough()
+export type TriggerSubscriptionData = z.infer<typeof triggerSubscriptionDataSchema>
+
+export const triggerSubscriptionSchema = z
+    .object({
+        id: z.string().nullish(),
+        slug: z.string().nullish(),
+        name: z.string().nullish(),
+        description: z.string().nullish(),
+        flags: jsonRecordSchema,
+        tags: jsonRecordSchema,
+        meta: jsonRecordSchema,
+        created_at: z.string().nullish(),
+        updated_at: z.string().nullish(),
+        deleted_at: z.string().nullish(),
+        created_by_id: z.string().nullish(),
+        updated_by_id: z.string().nullish(),
+        deleted_by_id: z.string().nullish(),
+        connection_id: z.string(),
+        data: triggerSubscriptionDataSchema,
+        enabled: z.boolean().default(true),
+        valid: z.boolean().default(true),
+    })
+    .passthrough()
+export type TriggerSubscription = z.infer<typeof triggerSubscriptionSchema>
+
+export const triggerSubscriptionResponseSchema = z
+    .object({
+        count: z.number().default(0),
+        subscription: triggerSubscriptionSchema.nullish(),
+    })
+    .passthrough()
+export type TriggerSubscriptionResponse = z.infer<typeof triggerSubscriptionResponseSchema>
+
+export const triggerSubscriptionsResponseSchema = z
+    .object({
+        count: z.number().default(0),
+        subscriptions: z.array(triggerSubscriptionSchema).default([]),
+    })
+    .passthrough()
+export type TriggerSubscriptionsResponse = z.infer<typeof triggerSubscriptionsResponseSchema>
+
+// Create body (Header + Metadata + connection_id + data); no id.
+export interface TriggerSubscriptionCreate {
+    name?: string | null
+    description?: string | null
+    flags?: Record<string, unknown> | null
+    tags?: Record<string, unknown> | null
+    meta?: Record<string, unknown> | null
+    connection_id: string
+    data: TriggerSubscriptionData
+}
+
+// Edit body — full PUT: Identifier + Header + Metadata + connection_id + data + flags.
+export interface TriggerSubscriptionEdit extends TriggerSubscriptionCreate {
+    id: string
+    enabled: boolean
+    valid: boolean
+}
+
+export interface TriggerSubscriptionQuery {
+    name?: string
+    connection_id?: string
+    event_key?: string
+}
+
+// ---------------------------------------------------------------------------
+// Deliveries — read-only audit rows, one per inbound event dispatched.
+// Mirrors `TriggerDelivery` / `TriggerDeliveryQuery`. `status` is the shared
+// `core.shared.dtos.Status` (timestamp/type/code/message/stacktrace).
+// ---------------------------------------------------------------------------
+
+export const triggerStatusSchema = z
+    .object({
+        timestamp: z.string().nullish(),
+        type: z.string().nullish(),
+        code: z.string().nullish(),
+        message: z.string().nullish(),
+        stacktrace: z.string().nullish(),
+    })
+    .passthrough()
+export type TriggerStatus = z.infer<typeof triggerStatusSchema>
+
+export const triggerDeliveryDataSchema = z
+    .object({
+        event_key: z.string().nullish(),
+        references: z.record(z.string(), triggerReferenceSchema).nullish(),
+        inputs: z.record(z.string(), z.unknown()).nullish(),
+        result: z.record(z.string(), z.unknown()).nullish(),
+        error: z.string().nullish(),
+    })
+    .passthrough()
+export type TriggerDeliveryData = z.infer<typeof triggerDeliveryDataSchema>
+
+export const triggerDeliverySchema = z
+    .object({
+        id: z.string().nullish(),
+        slug: z.string().nullish(),
+        created_at: z.string().nullish(),
+        updated_at: z.string().nullish(),
+        deleted_at: z.string().nullish(),
+        created_by_id: z.string().nullish(),
+        updated_by_id: z.string().nullish(),
+        deleted_by_id: z.string().nullish(),
+        status: triggerStatusSchema,
+        data: triggerDeliveryDataSchema.nullish(),
+        subscription_id: z.string(),
+        event_id: z.string(),
+    })
+    .passthrough()
+export type TriggerDelivery = z.infer<typeof triggerDeliverySchema>
+
+export const triggerDeliveryResponseSchema = z
+    .object({
+        count: z.number().default(0),
+        delivery: triggerDeliverySchema.nullish(),
+    })
+    .passthrough()
+export type TriggerDeliveryResponse = z.infer<typeof triggerDeliveryResponseSchema>
+
+export const triggerDeliveriesResponseSchema = z
+    .object({
+        count: z.number().default(0),
+        deliveries: z.array(triggerDeliverySchema).default([]),
+    })
+    .passthrough()
+export type TriggerDeliveriesResponse = z.infer<typeof triggerDeliveriesResponseSchema>
+
+export interface TriggerDeliveryQuery {
+    status?: TriggerStatus
+    subscription_id?: string
+    event_id?: string
+}

@@ -24,7 +24,22 @@ export type {
     TriggerCatalogProvidersResponse,
     TriggerConnection,
     TriggerConnectionsResponse,
+    TriggerDelivery,
+    TriggerDeliveriesResponse,
+    TriggerDeliveryData,
+    TriggerDeliveryQuery,
+    TriggerDeliveryResponse,
     TriggerProviderKind,
+    TriggerReference,
+    TriggerSelector,
+    TriggerStatus,
+    TriggerSubscription,
+    TriggerSubscriptionCreate,
+    TriggerSubscriptionData,
+    TriggerSubscriptionEdit,
+    TriggerSubscriptionQuery,
+    TriggerSubscriptionResponse,
+    TriggerSubscriptionsResponse,
 } from "./core"
 export {isConnectionActive, isConnectionValid} from "./core"
 
@@ -33,19 +48,34 @@ export {isConnectionActive, isConnectionValid} from "./core"
 // ---------------------------------------------------------------------------
 
 export {
+    createTriggerSubscription,
+    deleteTriggerSubscription,
+    editTriggerSubscription,
+    fetchTriggerDelivery,
     fetchTriggerEvent,
     fetchTriggerEvents,
     fetchTriggerProvider,
     fetchTriggerProviders,
+    fetchTriggerSubscription,
     queryTriggerConnections,
+    queryTriggerDeliveries,
+    queryTriggerSubscriptions,
+    refreshTriggerSubscription,
+    revokeTriggerSubscription,
 } from "./api"
 
 // ---------------------------------------------------------------------------
 // STATE — drawer + selection atoms
 // ---------------------------------------------------------------------------
 
-export {eventsDrawerAtom, eventSearchAtom, selectedCatalogEventAtom} from "./state"
-export type {EventsDrawerState} from "./state"
+export {
+    deliveriesDrawerAtom,
+    eventsDrawerAtom,
+    eventSearchAtom,
+    selectedCatalogEventAtom,
+    subscriptionDrawerAtom,
+} from "./state"
+export type {DeliveriesDrawerState, EventsDrawerState, SubscriptionDrawerState} from "./state"
 
 // ---------------------------------------------------------------------------
 // HOOKS — query hooks for React consumers
@@ -55,10 +85,18 @@ export {
     catalogEventsInfiniteFamily,
     eventsSearchAtom,
     triggerConnectionsQueryAtom,
+    triggerConnectionSubscriptionsAtomFamily,
+    triggerDeliveriesAtomFamily,
     triggerEventDetailQueryFamily,
     triggerIntegrationConnectionsAtomFamily,
+    triggerSubscriptionQueryAtomFamily,
+    triggerSubscriptionsQueryAtom,
     useCatalogEvents,
     useTriggerConnectionsQuery,
+    useTriggerConnectionSubscriptions,
+    useTriggerDeliveries,
     useTriggerEvent,
     useTriggerIntegrationConnections,
+    useTriggerSubscription,
+    useTriggerSubscriptions,
 } from "./hooks"

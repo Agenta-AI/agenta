@@ -32,10 +32,14 @@ vi.mock("jotai", async (importOriginal) => {
 })
 
 import {
+    createTriggerSubscription,
+    fetchTriggerSubscription,
     fetchTriggerEvent,
     fetchTriggerEvents,
     fetchTriggerProviders,
     queryTriggerConnections,
+    queryTriggerDeliveries,
+    queryTriggerSubscriptions,
 } from "../../src/gatewayTrigger/api/api"
 
 beforeEach(() => {
@@ -169,5 +173,110 @@ describe("connections (F2 — shared rows)", () => {
         const res = await queryTriggerConnections()
 
         expect(res).toEqual({count: 0, connections: []})
+    })
+})
+
+describe("subscriptions", () => {
+    const sampleSubscription = {
+        id: "sub-1",
+        name: "Star watch",
+        connection_id: "conn-1",
+        enabled: true,
+        valid: true,
+        data: {
+            event_key: "github_star_added_event",
+            ti_id: "ti_abc",
+            trigger_config: {owner: "agenta", repo: "agenta"},
+            inputs_fields: {message: "{{event.data.action}}"},
+            references: {workflow_revision: {id: "rev-1"}},
+        },
+    }
+
+    it("creates a subscription with the {subscription} envelope and project scope", async () => {
+        post.mockResolvedValueOnce({data: {count: 1, subscription: sampleSubscription}})
+
+        const res = await createTriggerSubscription({
+            name: "Star watch",
+            connection_id: "conn-1",
+            data: {
+                event_key: "github_star_added_event",
+                inputs_fields: {message: "{{event.data.action}}"},
+                references: {workflow_revision: {id: "rev-1"}},
+            },
+        })
+
+        const [url, body, opts] = post.mock.calls[0]
+        expect(url).toBe("https://api.test/triggers/subscriptions/")
+        expect(body.subscription.connection_id).toBe("conn-1")
+        expect(body.subscription.data.references.workflow_revision.id).toBe("rev-1")
+        expect(opts.params).toMatchObject({project_id: "proj-42"})
+        expect(res.subscription?.id).toBe("sub-1")
+    })
+
+    it("queries subscriptions and passes the filter under {subscription}", async () => {
+        post.mockResolvedValueOnce({data: {count: 1, subscriptions: [sampleSubscription]}})
+
+        const res = await queryTriggerSubscriptions({connection_id: "conn-1"})
+
+        const [url, body] = post.mock.calls[0]
+        expect(url).toBe("https://api.test/triggers/subscriptions/query")
+        expect(body).toEqual({subscription: {connection_id: "conn-1"}})
+        expect(res.subscriptions).toHaveLength(1)
+        expect(res.subscriptions[0].data.event_key).toBe("github_star_added_event")
+    })
+
+    it("fetches a single subscription by id", async () => {
+        get.mockResolvedValueOnce({data: {count: 1, subscription: sampleSubscription}})
+
+        const res = await fetchTriggerSubscription("sub-1")
+
+        const [url, opts] = get.mock.calls[0]
+        expect(url).toBe("https://api.test/triggers/subscriptions/sub-1")
+        expect(opts.params).toMatchObject({project_id: "proj-42"})
+        expect(res.subscription?.connection_id).toBe("conn-1")
+    })
+
+    it("falls back to an empty list when the subscriptions payload fails validation", async () => {
+        post.mockResolvedValueOnce({data: {subscriptions: "nope"}})
+
+        const res = await queryTriggerSubscriptions()
+
+        expect(res).toEqual({count: 0, subscriptions: []})
+    })
+})
+
+describe("deliveries (read-only)", () => {
+    it("queries deliveries for a subscription under the {delivery} envelope", async () => {
+        post.mockResolvedValueOnce({
+            data: {
+                count: 1,
+                deliveries: [
+                    {
+                        id: "del-1",
+                        subscription_id: "sub-1",
+                        event_id: "evt-123",
+                        status: {type: "success", code: "200", timestamp: "2026-06-18T00:00:00Z"},
+                        data: {event_key: "github_star_added_event", result: {ok: true}},
+                    },
+                ],
+            },
+        })
+
+        const res = await queryTriggerDeliveries({subscription_id: "sub-1"})
+
+        const [url, body, opts] = post.mock.calls[0]
+        expect(url).toBe("https://api.test/triggers/deliveries/query")
+        expect(body).toEqual({delivery: {subscription_id: "sub-1"}})
+        expect(opts.params).toMatchObject({project_id: "proj-42"})
+        expect(res.deliveries[0].event_id).toBe("evt-123")
+        expect(res.deliveries[0].status.type).toBe("success")
+    })
+
+    it("falls back to an empty list when the deliveries payload fails validation", async () => {
+        post.mockResolvedValueOnce({data: {deliveries: 7}})
+
+        const res = await queryTriggerDeliveries()
+
+        expect(res).toEqual({count: 0, deliveries: []})
     })
 })
