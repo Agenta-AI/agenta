@@ -39,6 +39,10 @@ const Tools = dynamic(() => import("@/oss/components/pages/settings/Tools/Tools"
     ssr: false,
 })
 
+const Triggers = dynamic(() => import("@/oss/components/pages/settings/Triggers/Triggers"), {
+    ssr: false,
+})
+
 const Organization = dynamic(() => import("@/oss/components/pages/settings/Organization"), {
     ssr: false,
 })
@@ -71,12 +75,14 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const canShowBilling = isEE() && isOwner
     const billingEnabled = isBillingEnabled()
     const canShowTools = isToolsEnabled()
+    const canShowTriggers = isToolsEnabled()
     const canShowAuditLog = isEE() && canViewEvents
     const canShowAccount = isEE()
     const resolvedTab =
         (tab === "organization" && !canShowOrganization) ||
         (tab === "billing" && !canShowBilling) ||
         (tab === "tools" && !canShowTools) ||
+        (tab === "triggers" && !canShowTriggers) ||
         (tab === "apiKeys" && !canViewApiKeys) ||
         (tab === "auditLog" && !canShowAuditLog) ||
         (tab === "account" && !canShowAccount)
@@ -124,6 +130,8 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                             return "Providers & Models"
                         case "tools":
                             return "Tools"
+                        case "triggers":
+                            return "Triggers"
                         case "apiKeys":
                             return "API Keys"
                         case "automations":
@@ -177,6 +185,8 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                 return {content: <Secrets />, title: "Providers & Models"}
             case "tools":
                 return {content: <Tools />, title: "Tools"}
+            case "triggers":
+                return {content: <Triggers />, title: "Triggers"}
             case "apiKeys":
                 return {content: <APIKeys />, title: "API Keys"}
             case "billing":

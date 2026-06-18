@@ -5,6 +5,7 @@ import {
     Buildings,
     ClockCounterClockwise,
     Key,
+    Lightning,
     Link,
     Receipt,
     Sparkle,
@@ -46,6 +47,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
     const canShowUsageBilling = isEE() && isOwner
     const billingEnabled = isBillingEnabled()
     const canShowTools = isToolsEnabled()
+    const canShowTriggers = isToolsEnabled()
     // Audit Log is an EE feature. Within EE the tab is gated by `view_events`;
     // the page content is gated separately by the `Flag.AUDIT` entitlement.
     const canShowAuditLog = isEE() && canViewEvents
@@ -57,6 +59,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
             (requestedTab === "organization" && !canShowOrganization) ||
             (requestedTab === "billing" && !canShowUsageBilling) ||
             (requestedTab === "tools" && !canShowTools) ||
+            (requestedTab === "triggers" && !canShowTriggers) ||
             (requestedTab === "apiKeys" && !canViewApiKeys) ||
             (requestedTab === "auditLog" && !canShowAuditLog) ||
             (requestedTab === "account" && !canShowAccount)
@@ -69,6 +72,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
         canShowUsageBilling,
         canShowOrganization,
         canShowTools,
+        canShowTriggers,
         canViewApiKeys,
         canShowAuditLog,
         canShowAccount,
@@ -104,6 +108,15 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                           key: "tools",
                           title: "Tools",
                           icon: <Wrench size={16} className="mt-0.5" />,
+                      },
+                  ]
+                : []),
+            ...(canShowTriggers
+                ? [
+                      {
+                          key: "triggers",
+                          title: "Triggers",
+                          icon: <Lightning size={16} className="mt-0.5" />,
                       },
                   ]
                 : []),
@@ -156,6 +169,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
         billingEnabled,
         canShowOrganization,
         canShowTools,
+        canShowTriggers,
         canViewApiKeys,
         canShowAuditLog,
         canShowAccount,
