@@ -1,10 +1,12 @@
 import {memo} from "react"
 
+import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
+import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
 import {Bubble} from "@ant-design/x"
 import {ArrowsClockwise, Copy, Robot, TreeStructure, User} from "@phosphor-icons/react"
 import type {ToolUIPart, UIMessage} from "ai"
 import {Avatar, Button, Tooltip, Typography} from "antd"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
@@ -14,6 +16,19 @@ import {getMessageTraceId} from "../assets/trace"
 import ToolPart from "./ToolPart"
 
 const {Text} = Typography
+
+/** Cost / tokens / latency for a message, read from its trace (same data + component the
+ * playground and trace drawer use). */
+const TraceMetrics = ({traceId}: {traceId: string}) => {
+    const summary = useAtomValue(traceDataSummaryAtomFamily(traceId))
+    return (
+        <ExecutionMetricsDisplay
+            metrics={summary.metrics}
+            isLoading={summary.isPending}
+            size="small"
+        />
+    )
+}
 
 interface AgentMessageProps {
     message: UIMessage
@@ -135,7 +150,8 @@ const AgentMessage = ({
     // Control toolbar — hidden until the message row is hovered/focused (group-hover on the
     // wrapper below), then revealed. Collapses its height when hidden so it reserves no gap.
     const footer = isUser ? undefined : (
-        <div className="flex max-h-0 items-center gap-1 overflow-hidden opacity-0 transition-all duration-150 focus-within:max-h-8 focus-within:opacity-100 group-hover:max-h-8 group-hover:opacity-100">
+        <div className="flex max-h-0 items-center gap-1 overflow-hidden opacity-0 transition-all duration-150 focus-within:max-h-9 focus-within:opacity-100 group-hover:max-h-9 group-hover:opacity-100">
+            {traceId && <TraceMetrics traceId={traceId} />}
             <Tooltip title="Copy">
                 <Button
                     type="text"
