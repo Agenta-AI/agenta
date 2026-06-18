@@ -40,11 +40,40 @@ If so, use the `but` CLI instead of raw `git branch`/`git commit`:
 - `but pr new` needs interactive forge auth; use `but push <branch>` then
   `gh pr create --head <branch> --base <parent-or-main>` instead. For stacked PRs,
   set `--base` to the parent branch so each PR shows only its own diff.
+- **`but push` prints NOTHING on success.** It is not a confirmation — always verify
+  the push landed by comparing SHAs:
+  `git ls-remote --heads origin <branch>` vs `git rev-parse <branch>`. They must match.
 - To update an already-committed file, `but absorb <path>` amends it into the right
   commit; force-push with `but push <branch> -f`.
-- To commit to a specific branch in a stack, stage the files to it first
-  (`but rub <path> <branch>`), then `but commit <branch> --only`. `but commit`
-  alone sweeps ALL uncommitted changes into that branch.
+
+### Committing to specific lanes in a stack (the part that bites)
+
+Changes are assigned to the **stack**, not to an individual branch. `but rub <file>
+<branch>` and `but commit <branch> --only` both operate on the stack's *assigned-changes*
+set — `--only` commits **whatever is currently assigned** to the named branch, regardless
+of which branch name you used when staging. So:
+
+- **Never pre-stage multiple lanes' files and then commit them one lane at a time.** The
+  first `but commit --only` sweeps the entire assigned set into that one branch (the others
+  end up empty or scrambled). Instead, work **one lane at a time**: assign exactly that
+  lane's files → `but commit <branch> --only` → **verify** → then assign the next lane's
+  files. Keep the assigned set equal to exactly one lane's files at each commit.
+- **Verify every commit immediately:** `git show --stat --name-only <branch>`. If a file
+  from another lane leaked in, stop and fix before continuing.
+- **`but rub` by path goes stale after any mutation.** Every `but` mutation kicks a
+  background sync that invalidates the path index, so the *next* path-based
+  `but rub <path> ...` often fails with "Source '<path>' not found". Use the stable
+  **cliId** instead (the 2-4 char code in `but status` / `but status --json`):
+  `but rub <cliId> <target>`. cliIds survive across the sync; paths don't.
+- **Splitting one file across two stacked lanes** (e.g. `routers.py` where the lower lane
+  owns half the edit and the upper lane the other half): you cannot split mixed hunks
+  reliably. Instead use sequential working-tree states — make the file the lower lane's
+  version, commit it to the lower lane; then edit the file to add the upper lane's delta
+  and `but rub <fileCliId> <upperCommitCliId>` to amend that delta into the upper commit.
+- The **branch ref can diverge from the workspace-applied commit** mid-session (after
+  absorb/amend/rebase). The **working tree is the source of truth**; `but push` pushes the
+  applied state. Don't panic if `git diff <branch> -- <file>` shows a delta while
+  `git status` is clean — verify against `git show "<branch>:<file>"` and re-push.
 
 ### Hard-won gotchas (don't relearn these)
 
