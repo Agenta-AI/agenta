@@ -250,6 +250,19 @@ So the BE work is forward-what's-already-captured + map to protocol + SSE relay,
 greenfield. Estimate ~2-4 days. Pi also exposes before/after tool hooks (the approval hook
 point) and `fork()`/`importFromJsonl()` (sessions / fork-from-here).
 
+**The SSE relay is not net-new — it already exists in the SDK serving layer.** The Agenta
+Python SDK's `@workflow` routing layer already streams: when a handler returns an async
+generator, `agenta/sdk/decorators/routing.py` negotiates format off the `Accept` header
+(`text/event-stream` → SSE `data: <json>\n\n`, or `application/x-ndjson`/`jsonl` → NDJSON)
+via `_make_stream_response` / `_sse_stream`, and sets `x-ag-trace-id` / `x-ag-span-id` /
+`traceparent` headers (`WorkflowStreamingResponse` in `agenta/sdk/models/workflows.py`).
+The catch: it is **protocol-agnostic** — it JSON-dumps whatever chunks the handler yields.
+It does **not** emit the `x-vercel-ai-ui-message-stream: v1` header, the `data: [DONE]\n\n`
+terminator, or any v6 part-type shape. So the SSE *transport* is done; only the **v6
+framing on top of it** (yield v6-shaped part dicts + add the v6 header + `[DONE]`) is
+net-new. This de-risks WP-1: the "real gate" is half-built. (This answers open validation
+item #6 below.)
+
 ---
 
 ## Work packages + effort (fast path)
@@ -278,7 +291,11 @@ Parallelized (FE on a mock stream while BE builds the emitter), MVP without appr
 - WP-0 spike: Pi before-tool hook can gate a tool call.
 - 1-hour spike: confirm the Lexical streaming perf claim if we ever consider our own renderer.
 - Pin the Items/parts contract so backend output maps 1:1 to `UIMessage` parts (no translation layer).
-- Confirm whether the broader SDK serving layer has any chat-streaming path to borrow.
+- ~~Confirm whether the broader SDK serving layer has any chat-streaming path to borrow.~~
+  **Resolved: yes.** The `@workflow` routing layer already does Accept-negotiated SSE/NDJSON
+  relay from an async-generator handler (`agenta/sdk/decorators/routing.py`,
+  `WorkflowStreamingResponse`). It's protocol-agnostic (no v6 header / `[DONE]` / part
+  shapes), so borrow the transport, add the v6 framing. See "Backend streaming state" above.
 - Decide edge topology: browser → FastAPI relay → agent service, vs browser → agent service direct.
 - Daytona auto-stop (15 min idle) vs long streaming runs (BE infra).
 
@@ -486,25 +503,37 @@ Mahmoud to know his service matches.
 header `x-vercel-ai-ui-message-stream: v1`. Each event is `data: <json>\n\n`; stream ends
 with `data: [DONE]\n\n`.
 
-**Stream parts** (`type` field per event). Verified = present in the RAG_QA example;
-v6-docs = standard v6 part, confirm exact field names against the pinned beta:
+**Stream parts** (`type` field per event). All rows below are now **proven** — exact
+field names taken from the installed `ai@6.0.0-beta.150` types and exercised end to end by
+the slice (the RAG_QA contract mock emits them; the real `Chat` engine `useChat` wraps
+consumes them). The earlier "v6-docs / confirm shape" hedges are resolved:
 
-| `type` | Carries | Source |
+| wire `type` | Carries | Notes |
 |---|---|---|
-| `start` | `messageId` | verified |
-| `text-start` / `text-delta` / `text-end` | `id`, `delta` | verified |
-| `source-url` | `sourceId`, `url` | verified |
-| `data-trace` | `data: { url }` (our trace link) | verified |
-| `reasoning-start` / `reasoning-delta` / `reasoning-end` | `id`, `delta` | v6-docs |
-| `tool-input-start` / `tool-input-available` | `toolCallId`, `toolName`, `input` | v6-docs |
-| `tool-output-available` | `toolCallId`, `output` | v6-docs |
-| `tool-input-error` / `tool-output-error` | `toolCallId`, `errorText` | v6-docs |
-| approval (`approval-requested` + decision via `addToolApprovalResponse`) | `approvalId`/`toolCallId`, `input` | v6-docs (beta — confirm shape) |
-| `finish` | (terminal) | verified |
+| `start` | `messageId?`, `messageMetadata?` | metadata is an alternate trace channel (see below) |
+| `text-start` / `text-delta` / `text-end` | `id`, `delta` | |
+| `reasoning-start` / `reasoning-delta` / `reasoning-end` | `id`, `delta` | client part state ends at `done` |
+| `source-url` | `sourceId`, `url`, `title?` | |
+| `tool-input-start` | `toolCallId`, `toolName` | |
+| `tool-input-delta` | `toolCallId`, `inputTextDelta` | streams a partial JSON input |
+| `tool-input-available` | `toolCallId`, `toolName`, `input` | |
+| `tool-approval-request` | `approvalId`, `toolCallId` | **this is the approval chunk** (not `approval-requested`) |
+| `tool-output-available` | `toolCallId`, `output`, `preliminary?` | matched to the existing part by `toolCallId` |
+| `tool-output-denied` | `toolCallId` | emitted on resume when the user denied |
+| `tool-input-error` / `tool-output-error` | `toolCallId`, `errorText` | |
+| `data-trace` | `data: { traceId, url }` (our trace part) | send `traceId` explicitly — the drawer needs an id, not a url |
+| `finish` | `finishReason?`, `messageMetadata?` | terminal; followed by `data: [DONE]\n\n` |
+
+**Correction (live-stream finding):** the wire chunk that pauses for approval is
+`tool-approval-request { approvalId, toolCallId }`, **not** a top-level `approval-requested`
+event. `approval-requested` / `approval-responded` are the *client part states*, not wire
+types. The first cut conflated the two.
 
 On the client, these collapse into `message.parts[]`: `text`, `reasoning`,
-`tool-<toolName>` (with `state`: `input-available` | `output-available` |
-`approval-requested` | error), and `data-trace`.
+`tool-<toolName>` (a `ToolUIPart` whose `state` walks `input-streaming` → `input-available`
+→ `approval-requested` → `approval-responded` → `output-available` | `output-denied` |
+`output-error`, carrying `approval: {id, approved?, reason?}` in the approval states),
+`source-url`, and `data-trace`.
 
 **Request body** (what the FE sends; the contract includes the real fields even though the
 slice may mock transport):
@@ -521,24 +550,138 @@ slice may mock transport):
 
 Query params (not body): `application_id`, `project_id`. Header: `Authorization`.
 
-**Trace convention.** trace id/url arrives as a `data-trace` part (and/or `message.metadata.traceId`).
-FE renders it as the per-message trace action → `openTraceDrawerAtom`. No response-body
-trace field (that path is buffered-only and dies under streaming).
+The slice builds this with `DefaultChatTransport` + `prepareSendMessagesRequest`, which
+returns `{ body, headers?, api? }`. `session_id` is the `useChat` chat `id`. In the slice,
+`ag_config`/`references` are stubbed (mocked transport); on the real page they come from the
+execution-item builder. The `messages` field above shows **Track A** — see the next section
+for the open A/B decision on its shape.
+
+### Request message contract — two tracks (open decision, built both ways)
+
+The first cut of this doc was internally inconsistent on the `messages` shape: the
+"Transport / parallel lane" section adapts `UIMessage.parts → {role, content}`
+(`messages.map(toAgentaMessage)`, to reuse the existing builder), while the S3 body above
+sends raw `parts`. That inconsistency is not a typo — it is an **unmade architectural
+decision**: does the new agent service adopt the AI SDK `UIMessage` shape, or conform to the
+`{role, content}` contract the existing Agenta runtime (`chat.py`, `completion.py`, the
+execution-item builder) already speaks? Rather than pick, the slice **implements both** so
+the team can compare them on a running stream and decide. The **response** stream is
+byte-for-byte identical across tracks — only the request body (and how the mock reads it)
+differs. The slice page has a runtime A/B toggle.
+
+| | **Track A — `UIMessage` parts** | **Track B — Agenta `{role, content}`** |
+|---|---|---|
+| Endpoint | `POST /api/agent/chat` | `POST /api/agent/chat-agenta` |
+| `messages[]` | `{role, parts:[{type:"text",…},{type:"tool-…",…}]}` (posted verbatim) | `{role, content}` + OpenAI `tool_calls` + `{role:"tool",tool_call_id,content}` results |
+| Approval decision | inside the assistant message's tool part (`state:"approval-responded"`, `approval:{id,approved}`) | **side field** `tool_approvals:[{tool_call_id, approved}]` (no slot for it in the message contract) |
+| `reasoning` | preserved as a `reasoning` part | dropped (no field in `{role, content}`) |
+| FE cost | none — `useChat` output posted 1:1 | a translation layer (`toAgentaMessage`) + a net-new approval convention |
+| Backend cost | service must speak AI SDK parts (diverges from chat/completion) | uniform contract across all workflow types |
+| What it honors | JP's "output maps 1:1 to `UIMessage` parts, no translation layer" | backend contract uniformity (reuse the builder, one message shape everywhere) |
+
+The tension is exactly **zero-translation FE (A)** vs **uniform backend contract (B)** — a
+call for Mahmoud + JP, not the FE owner. Both were verified end to end (text + tool +
+approve + deny + trace) through the real `Chat` engine `useChat` wraps; both render the
+identical part set. Code: Track A is the default transport; Track B's adapter is
+`web/oss/src/components/AgentChatSlice/assets/toAgentaMessage.ts`; the mock parses both in
+`examples/python/RAG_QA_chatbot/backend/contract_stream.py`.
+
+**Track B finding (a cost only building it surfaced):** the Agenta message contract has
+**no slot for an approval decision** — approvals are net-new (`AgentRunRequest` carries only
+`permissionPolicy`, no per-call response). So Track B must *invent* one (`tool_approvals`
+here). Track A gets it for free because the decision lives in the message parts. If the team
+values the human-in-the-loop approval ergonomics, that weighs toward A; if it values one
+backend message contract across completion/chat/agent, that weighs toward B.
+
+**Approval round-trip (proven).** `tool-approval-request` finishes the turn with the tool
+part in `approval-requested`. The FE calls `addToolApprovalResponse({ id, approved, reason })`
+(`id` = `approvalId`); the part flips to `approval-responded` with `approval: {id, approved}`.
+Auto-resume is wired with `useChat({ sendAutomaticallyWhen:
+lastAssistantMessageIsCompleteWithApprovalResponses })`, which re-POSTs the full history.
+The service detects the `approval-responded` tool part in `messages` and streams
+`tool-output-available` (approved) or `tool-output-denied` (denied). **The resumed output
+lands on the SAME assistant message** (matched by `toolCallId`), so one assistant message
+can accumulate: original text → tool calls → resolved tool output → resume text → a second
+`data-trace`. The trace action should therefore pick the **last** `data-trace` part.
+
+**Trace convention (refined by the live stream).** `openTraceDrawerAtom` takes a
+**`traceId`, not a URL**. The original RAG_QA example sent only `data-trace { data: { url } }`,
+so the service should send `data-trace { data: { traceId, url } }` (the slice mock now does);
+the FE prefers `data.traceId` and falls back to parsing the last path segment of `url`.
+`message.metadata.traceId` (via `start`/`finish` `messageMetadata`) is a viable alternate
+channel. No response-body trace field (buffered-only, dies under streaming).
 
 **Error shape.** Tool-level: `tool-output-error` part. Run-level: a terminal error part or
 HTTP non-2xx before the stream opens. Settle the exact run-level error envelope with Mahmoud.
 
 **Open contract questions for Mahmoud:**
-1. Exact v6 approval part shape on the pinned beta (`approval-requested` fields + the decision payload).
-2. Run-level error envelope (mid-stream failure vs pre-stream 4xx/5xx).
-3. Where `session_id` is minted (FE-generated vs service-issued) and whether it persists.
-4. `references` + `ag_config` passthrough: does the agent service echo them onto the trace as today's `/test` path does.
-5. Relay specifics: does FastAPI pass the SSE through verbatim, preserving `traceparent`.
+1. ~~Exact v6 approval part shape~~ — **resolved by the slice**: wire chunk
+   `tool-approval-request { approvalId, toolCallId }`; decision via
+   `addToolApprovalResponse({ id, approved, reason })`; resume detects the
+   `approval-responded` part and emits `tool-output-available` / `tool-output-denied`.
+2. **Request message contract: Track A (`UIMessage` parts) vs Track B (Agenta
+   `{role, content}` + `tool_approvals`)** — built both ways (see "Request message contract
+   — two tracks"). The decision (zero-translation FE vs uniform backend contract) is for
+   Mahmoud + JP.
+3. Run-level error envelope (mid-stream failure vs pre-stream 4xx/5xx).
+4. Where `session_id` is minted (FE-generated vs service-issued) and whether it persists.
+5. `references` + `ag_config` passthrough: does the agent service echo them onto the trace as today's `/test` path does.
+6. Relay specifics: does FastAPI pass the SSE through verbatim, preserving `traceparent`.
+
+### What the live stream changed (slice findings)
+
+The slice (`web/oss` route `…/agent-chat`, component `components/AgentChatSlice/`, mock
+`examples/python/RAG_QA_chatbot/backend/contract_stream.py`) corrected the first cut on
+exactly the points only a running stream reveals:
+
+- Approval is the `tool-approval-request` **wire chunk**, not an `approval-requested` event
+  (that name is a client part *state*). Denial resume chunk is `tool-output-denied`.
+- The trace part must carry a `traceId` (the drawer can't use a bare URL).
+- Approve **and** deny round-trips both verified through the real `Chat` engine `useChat`
+  wraps (headless), against the live mock: text → reasoning → sources → auto-tool lifecycle
+  → approval → resumed output/denial → trace. `ai@6.0.0-beta.150` + `@ai-sdk/react@3.0.0-beta.153`
+  run on React 19 (web/oss), not just the example's React 18.
+- The doc's `messages`-shape inconsistency turned out to be an unmade decision, so the slice
+  ships **both** request contracts (Track A / Track B) behind a toggle — verified that both
+  drive the identical response/render. Track B surfaced that the Agenta message contract has
+  no slot for an approval decision (needs the `tool_approvals` side channel).
 
 ### Residual risks
 
 - **v6 beta** (`6.0.0-beta.150`): pin exact versions; keep the contract protocol-level so API churn doesn't reopen it.
 - **Slice proves FE↔edge only**: the FastAPI↔agent-service relay is unproven until the handoff. A green slice can still hide a relay failure.
+- **In-app browser render not exercised against a live stack**: the contract was proven via
+  the real SDK engine (headless) and the route compiles + serves 200 under `next dev`, but a
+  full click-through needs the authenticated docker-compose dev stack (backend + DB + auth).
+  The renderers are pure functions of `message.parts`, which the engine is proven to produce.
+
+### Running the slice (handover)
+
+Credential-free — the mock has no Qdrant/OpenAI/Agenta dependency.
+
+**1. Service** (the contract mock):
+
+```bash
+cd examples/python/RAG_QA_chatbot
+python3 -m venv .venv && .venv/bin/pip install fastapi 'uvicorn[standard]'
+.venv/bin/uvicorn backend.contract_main:app --port 8000
+# POST /api/agent/chat emits the full v6 part set incl. tool + approval.
+# The real RAG_QA main.py also mounts this router (needs the full env to boot).
+```
+
+**2. Frontend** (the page):
+
+```bash
+cd web && NEXT_PUBLIC_AGENT_CHAT_SLICE=true pnpm --filter @agenta/oss dev
+# visit  …/w/<ws>/p/<project>/agent-chat
+```
+
+Flip the **A · UIMessage parts / B · Agenta {role,content}** toggle on the page (or set
+`NEXT_PUBLIC_AGENT_CHAT_TRACK=agenta` for the default) and watch the Network tab to compare
+the two request contracts on the same stream. Override `NEXT_PUBLIC_AGENT_CHAT_API` to
+re-point the same page at the real agent workflow for parity testing. Code:
+`web/oss/src/components/AgentChatSlice/` + route
+`web/oss/src/pages/w/[workspace_id]/p/[project_id]/agent-chat/index.tsx`.
 
 ### Assignment
 
