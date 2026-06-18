@@ -20,7 +20,7 @@ import stripe
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 from oss.src.models.db_models import UserDB
-from oss.src.models.db_models import AppDB
+from oss.src.models.deprecated_models import AppDB
 from ee.src.models.db_models import OrganizationMemberDB
 from oss.src.models.db_models import ProjectDB
 from ee.src.models.extended.deprecated_models import DeprecatedOrganizationDB

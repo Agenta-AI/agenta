@@ -25,7 +25,7 @@ from oss.src.models.deprecated_models import (
     DeprecatedAppVariantRevisionsDB as AppVariantRevisionsDB,
     DeprecatedAppEnvironmentRevisionDB as AppEnvironmentRevisionDB,
 )
-from oss.src.models.db_models import (
+from oss.src.models.deprecated_models import (
     VariantBaseDB,
     DeploymentDB,
     AppEnvironmentDB,
