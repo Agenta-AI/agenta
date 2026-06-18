@@ -15,7 +15,7 @@ from oss.src.agent.client import (
     agenta_api_base,
     request_authorization,
 )
-from oss.src.harness.ports import ToolCallback
+from agenta.sdk.agents import ToolCallback
 
 
 def _parse_gateway_slug(slug: Any) -> Optional[Dict[str, Any]]:

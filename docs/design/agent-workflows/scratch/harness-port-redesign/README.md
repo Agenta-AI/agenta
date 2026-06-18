@@ -1,3 +1,5 @@
+> Superseded by the as-built design in [the design pages](../../README.md) and [scratch/sdk-local-backend/status.md](../sdk-local-backend/status.md). Kept for history.
+
 # Harness + Runtime port redesign
 
 Status: research and proposal, scope approved (full A to E arc, cold per invoke). Not

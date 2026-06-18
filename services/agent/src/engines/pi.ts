@@ -16,9 +16,10 @@
  * Important: stdout is reserved for the JSON result (see cli.ts). Everything here logs to
  * stderr so it never pollutes the result channel.
  */
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   AuthStorage,
@@ -36,6 +37,7 @@ import {
   type AgentRunRequest,
   type AgentRunResult,
   type ChatMessage,
+  type EmitEvent,
   type HarnessCapabilities,
   type ResolvedToolSpec,
   type ToolCallbackContext,
@@ -60,6 +62,35 @@ const PI_CAPABILITIES: HarnessCapabilities = {
 
 function log(message: string): void {
   process.stderr.write(`[pi-wrapper] ${message}\n`);
+}
+
+// services/agent/src/engines/pi.ts -> services/agent. Bundled skills (the Agenta harness's
+// forced skills) live under services/agent/skills/<name>/. Overridable for non-default layouts.
+const PKG_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+const SKILLS_ROOT = process.env.AGENTA_AGENT_SKILLS_DIR || join(PKG_ROOT, "skills");
+
+/**
+ * Resolve the requested skill names to bundled skill directories under SKILLS_ROOT. Each name
+ * must be a committed dir holding a SKILL.md (Pi loads them and surfaces them in the system
+ * prompt). Absolute paths are honored as-is; unknown or non-directory entries are skipped with
+ * a warning so a stale name never fails the run.
+ */
+function resolveSkillDirs(names: string[] | undefined): string[] {
+  const dirs: string[] = [];
+  for (const name of names ?? []) {
+    if (!name) continue;
+    const path = isAbsolute(name) ? name : join(SKILLS_ROOT, name);
+    try {
+      if (existsSync(path) && statSync(path).isDirectory()) {
+        dirs.push(path);
+      } else {
+        log(`skipping unknown skill "${name}" (no directory at ${path})`);
+      }
+    } catch {
+      log(`skipping skill "${name}": cannot stat ${path}`);
+    }
+  }
+  return dirs;
 }
 
 /** Apply vault-resolved provider keys to the process env so Pi's model auth can see them. */
@@ -148,7 +179,10 @@ export function buildCustomTools(
   }));
 }
 
-export async function runPi(request: AgentRunRequest): Promise<AgentRunResult> {
+export async function runPi(
+  request: AgentRunRequest,
+  emit?: EmitEvent,
+): Promise<AgentRunResult> {
   const prompt = resolvePromptText(request);
   if (!prompt) {
     return { ok: false, error: "No user message to send (prompt/messages empty)." };
@@ -185,11 +219,28 @@ export async function runPi(request: AgentRunRequest): Promise<AgentRunResult> {
 
     // Inject AGENTS.md in memory and keep on-disk context files out of the run.
     const agentsMd = request.agentsMd?.trim();
+    // Pi's two system-prompt layers, carried on the request (PiAgentConfig.system /
+    // append_system). `systemPrompt` replaces Pi's base prompt; `appendSystemPrompt` adds to
+    // it. We feed them through the loader overrides so the run stays hermetic: only what the
+    // request carries applies, never a SYSTEM.md / APPEND_SYSTEM.md left on disk.
+    const systemPrompt = request.systemPrompt?.trim();
+    const appendSystemPrompt = request.appendSystemPrompt?.trim();
+    // Forced skills (the Agenta harness): load exactly the bundled dirs the request names.
+    // `noSkills` suppresses host/global discovery so the run is deterministic; the loader still
+    // merges `additionalSkillPaths` on top, so the bundled skills load. They only surface in
+    // the prompt when `read` is enabled (the harness forces it).
+    const skillDirs = resolveSkillDirs(request.skills);
+    if (skillDirs.length > 0) {
+      log(`skills: ${skillDirs.join(", ")}`);
+    }
     const loader = new DefaultResourceLoader({
       cwd,
       agentDir: getAgentDir(),
       noContextFiles: true,
-      appendSystemPromptOverride: () => [],
+      noSkills: true,
+      additionalSkillPaths: skillDirs,
+      systemPromptOverride: () => systemPrompt || undefined,
+      appendSystemPromptOverride: () => (appendSystemPrompt ? [appendSystemPrompt] : []),
       agentsFilesOverride: () => ({
         agentsFiles: agentsMd
           ? [{ path: "/virtual/AGENTS.md", content: agentsMd }]
@@ -227,14 +278,26 @@ export async function runPi(request: AgentRunRequest): Promise<AgentRunResult> {
     otel.config.provider = model.provider;
     otel.config.requestModel = model.id;
 
-    // Accumulate streamed text as the primary output channel.
+    // Accumulate streamed text as the primary output channel. On the streaming path, flush
+    // each Pi `text_delta` as a `message_delta` live (Pi deltas are already pure, so they
+    // emit verbatim); the block opens on the first delta and closes after the run.
     let streamed = "";
+    let piTextId: string | undefined;
     session.subscribe((event: any) => {
       if (
         event.type === "message_update" &&
         event.assistantMessageEvent?.type === "text_delta"
       ) {
-        streamed += event.assistantMessageEvent.delta ?? "";
+        const delta = event.assistantMessageEvent.delta ?? "";
+        if (!delta) return;
+        streamed += delta;
+        if (emit) {
+          if (piTextId === undefined) {
+            piTextId = "msg-0";
+            emit({ type: "message_start", id: piTextId });
+          }
+          emit({ type: "message_delta", id: piTextId, delta });
+        }
       }
     });
 
@@ -253,12 +316,28 @@ export async function runPi(request: AgentRunRequest): Promise<AgentRunResult> {
     // The structured stream is thinner here than on the rivet path: Pi's in-process tool
     // events feed the trace spans, while the result-level event log carries the final
     // message, usage, and stop reason (enough for the platform without double-plumbing).
+    //
+    // On the streaming path the events were flushed live via `emit`, so the result log stays
+    // empty; here we only close the open text block (or synthesize one when the text never
+    // streamed) and flush the tail usage/done events.
     const events: AgentEvent[] = [];
-    if (output) events.push({ type: "message", text: output });
-    if (usage.total > 0) {
-      events.push({ type: "usage", ...usage });
+    const emitOrLog = (event: AgentEvent): void => {
+      if (emit) emit(event);
+      else events.push(event);
+    };
+    if (emit) {
+      if (piTextId !== undefined) {
+        emit({ type: "message_end", id: piTextId });
+      } else if (output) {
+        emit({ type: "message_start", id: "msg-0" });
+        emit({ type: "message_delta", id: "msg-0", delta: output });
+        emit({ type: "message_end", id: "msg-0" });
+      }
+    } else if (output) {
+      events.push({ type: "message", text: output });
     }
-    events.push({ type: "done", stopReason });
+    if (usage.total > 0) emitOrLog({ type: "usage", ...usage });
+    emitOrLog({ type: "done", stopReason });
 
     const messages: ChatMessage[] = output
       ? [{ role: "assistant", content: output }]
@@ -271,7 +350,8 @@ export async function runPi(request: AgentRunRequest): Promise<AgentRunResult> {
       events,
       usage,
       stopReason,
-      capabilities: PI_CAPABILITIES,
+      // `streamingDeltas` is only honest when a live sink carried the deltas end-to-end.
+      capabilities: { ...PI_CAPABILITIES, streamingDeltas: !!emit },
       sessionId,
       model: `${model.provider}/${model.id}`,
       traceId: otel.config.traceId,

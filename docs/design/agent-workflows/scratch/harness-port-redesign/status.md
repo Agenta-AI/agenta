@@ -1,3 +1,5 @@
+> Superseded by the as-built design in [the design pages](../../README.md) and [scratch/sdk-local-backend/status.md](../sdk-local-backend/status.md). Kept for history.
+
 # Status
 
 Source of truth for this design effort. Keep it current.
@@ -11,11 +13,16 @@ The as-built reference is [`implementation.md`](implementation.md); the comparis
 [`proposal.md`](proposal.md) and [`plan.md`](plan.md). Builds on the shipped WP-8 runtime
 ([`../wp-8-rivet-acp-runtime/status.md`](../wp-8-rivet-acp-runtime/status.md)).
 
-The new port (`Environment` + `Harness` + `AgentSession`, capabilities, content blocks,
-structured events/result) ships with both backends (rivet ACP, legacy in-process Pi) on
-two transports sharing one wire contract. Verified live: pi, rivet+pi+local,
-rivet+claude+local, rivet+pi+daytona; a playground run nests `invoke_agent` under the
-`/invoke` span with usage. A high-effort review found and fixed 10 issues.
+The port this effort shipped (`Environment` + `Harness` + `AgentSession`, capabilities,
+content blocks, structured events/result) drove both backends (rivet ACP, in-process Pi)
+over a shared wire contract. Verified live: pi, rivet+pi+local, rivet+claude+local,
+rivet+pi+daytona; a playground run nests `invoke_agent` under the `/invoke` span with usage.
+A high-effort review found and fixed 10 issues.
+
+The runtime later moved into the SDK at `agenta.sdk.agents` and the ports were reshaped
+into `Backend` / `Environment` / `Harness` / `Session`, with the engine modelled as a
+`Backend` class rather than a wire string. The names in this status file are from the
+original effort. See the [design pages](../../README.md) for the as-built shape.
 
 ## Recommendation in one line
 

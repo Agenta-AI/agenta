@@ -1,3 +1,4 @@
+> **Historical record.** This is a work-package note. It describes the design as it was at the time and may reference components that no longer exist. For the current design see the [agent-workflows docs](../../README.md); for the live state see [sdk-local-backend/status.md](../sdk-local-backend/status.md).
 # Integrating the Pi tracing extension into the agent runtime
 
 Status: ready to integrate. Audience: whoever builds the Dockerized Pi agent runtime

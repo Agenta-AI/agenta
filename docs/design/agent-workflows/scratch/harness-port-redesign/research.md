@@ -1,3 +1,5 @@
+> Superseded by the as-built design in [the design pages](../../README.md) and [scratch/sdk-local-backend/status.md](../sdk-local-backend/status.md). Kept for history.
+
 # Research: our ports vs the rivet SDK
 
 Source verified June 2026 against the installed `sandbox-agent@0.4.2` SDK

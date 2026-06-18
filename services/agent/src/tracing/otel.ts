@@ -52,7 +52,7 @@ import type {
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
-import type { AgentEvent, AgentUsage } from "../protocol.ts";
+import type { AgentEvent, AgentUsage, EmitEvent } from "../protocol.ts";
 
 // ---------------------------------------------------------------------------
 // Shared, process-wide tracing infrastructure
@@ -669,6 +669,14 @@ export interface RivetOtelInit extends Partial<RunConfig> {
    * the reply text and builds no spans, so the two do not double up.
    */
   emitSpans?: boolean;
+  /**
+   * Live event sink. When set, each `AgentEvent` is flushed here the moment it is built
+   * (in addition to being recorded in `events[]`), and the text/reasoning blocks are
+   * emitted as `*_start`/`*_delta`/`*_end` lifecycle events rather than coalesced at the
+   * end. When unset (the one-shot path), only the coalesced `message`/`thought` land in
+   * `events[]`. This split is what keeps a delta'd block from being re-sent in full.
+   */
+  emit?: EmitEvent;
 }
 
 export interface RivetOtel {
@@ -711,9 +719,82 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
   let llmSpan: Span | undefined;
   let runTraceId: string | undefined;
   let accumulated = "";
+  let reasoningAccumulated = "";
   let usage: AgentUsage | undefined;
   const events: AgentEvent[] = [];
   const toolSpans = new Map<string, { span: Span; name: string }>();
+
+  // Live emission. `record` is the single choke point for every event: it appends to the
+  // result log and, on the streaming path, flushes the event the moment it is built — so
+  // the live order is byte-identical to `events[]`. A sink failure never aborts the run.
+  const sink = init.emit;
+  function record(event: AgentEvent): void {
+    events.push(event);
+    if (sink) {
+      try {
+        sink(event);
+      } catch {
+        // a downstream sink error must not break the agent run
+      }
+    }
+  }
+
+  // Text/reasoning block lifecycle (streaming path only). At most one block of each kind is
+  // open; each gets a stable, monotonic id. `*Emitted` tracks the total text delivered as
+  // deltas across the whole run (NOT per block) — `accumulated` is run-long, so the next
+  // delta is always its remainder. Block boundaries (a tool call between two text runs) only
+  // insert start/end markers; they must not reset the counter, or the second block would
+  // re-emit the first block's text.
+  let textBlockId: string | undefined;
+  let textEmitted = "";
+  let anyTextDelta = false;
+  let reasoningBlockId: string | undefined;
+  let reasoningEmitted = "";
+  let blockSeq = 0;
+  const nextId = (prefix: string): string => `${prefix}-${blockSeq++}`;
+
+  function closeText(): void {
+    if (textBlockId === undefined) return;
+    record({ type: "message_end", id: textBlockId });
+    textBlockId = undefined;
+  }
+
+  function closeReasoning(): void {
+    if (reasoningBlockId === undefined) return;
+    record({ type: "reasoning_end", id: reasoningBlockId });
+    reasoningBlockId = undefined;
+  }
+
+  /** Open (if needed) the assistant text block and emit the pure delta up to `target`. */
+  function streamText(target: string): void {
+    closeReasoning(); // a text chunk ends any open reasoning run (blocks never overlap)
+    const delta = target.startsWith(textEmitted)
+      ? target.slice(textEmitted.length)
+      : target;
+    if (!delta) return;
+    if (textBlockId === undefined) {
+      textBlockId = nextId("msg");
+      record({ type: "message_start", id: textBlockId });
+    }
+    record({ type: "message_delta", id: textBlockId, delta });
+    textEmitted = target.startsWith(textEmitted) ? target : textEmitted + delta;
+    anyTextDelta = true;
+  }
+
+  /** Open (if needed) the reasoning block and emit the pure delta up to `target`. */
+  function streamReasoning(target: string): void {
+    closeText(); // a reasoning chunk ends any open text run
+    const delta = target.startsWith(reasoningEmitted)
+      ? target.slice(reasoningEmitted.length)
+      : target;
+    if (!delta) return;
+    if (reasoningBlockId === undefined) {
+      reasoningBlockId = nextId("reason");
+      record({ type: "reasoning_start", id: reasoningBlockId });
+    }
+    record({ type: "reasoning_delta", id: reasoningBlockId, delta });
+    reasoningEmitted = target.startsWith(reasoningEmitted) ? target : reasoningEmitted + delta;
+  }
 
   function start(input: { prompt?: string; messages?: any[]; sessionId?: string }): void {
     // Span-less mode (harness self-instruments): only track the trace id so the run can
@@ -767,6 +848,19 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
       // Replace when a chunk is a superset of what we have, append otherwise.
       if (t.startsWith(accumulated)) accumulated = t;
       else accumulated += t;
+      // Live deltas run independent of span emission (text, not a span), so they flow even
+      // when the harness self-instruments (emitSpans=false). `accumulated` is the cumulative
+      // text, so the pure delta is its tail past what we already sent.
+      if (sink) streamText(accumulated);
+      return;
+    }
+
+    if (kind === "agent_thought_chunk") {
+      const t = acpBlockText(update.content);
+      if (!t) return;
+      if (t.startsWith(reasoningAccumulated)) reasoningAccumulated = t;
+      else reasoningAccumulated += t;
+      if (sink) streamReasoning(reasoningAccumulated);
       return;
     }
 
@@ -775,6 +869,10 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
     if (kind === "tool_call") {
       const id = update.toolCallId;
       if (!id || !turnCtx) return;
+      // A tool call ends any open text/reasoning block (keeps streamed block boundaries
+      // clean across text -> tool -> text interleaving). No-op on the one-shot path.
+      closeText();
+      closeReasoning();
       const name = update.title || update.kind || "tool";
       const span = tracer.startSpan(`execute_tool ${name}`, undefined, turnCtx);
       span.setAttribute("openinference.span.kind", "TOOL");
@@ -784,7 +882,7 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
       if (update.rawInput != null)
         setInputs(span, update.rawInput as Record<string, unknown>, capture);
       toolSpans.set(id, { span, name: String(name) });
-      events.push({ type: "tool_call", id: String(id), name: String(name), input: update.rawInput });
+      record({ type: "tool_call", id: String(id), name: String(name), input: update.rawInput });
       // A tool_call can arrive already completed (status set up front).
       maybeCloseTool(id, update);
       return;
@@ -807,7 +905,7 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
         total: typeof total === "number" ? total : usage?.total ?? 0,
         cost: typeof cost === "number" ? cost : usage?.cost ?? 0,
       };
-      events.push({ type: "usage", ...usage });
+      record({ type: "usage", ...usage });
     }
   }
 
@@ -823,15 +921,32 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
     if (status === "failed") entry.span.setStatus({ code: SpanStatusCode.ERROR });
     entry.span.end();
     toolSpans.delete(id);
-    events.push({ type: "tool_result", id, output: out, isError: status === "failed" });
+    record({ type: "tool_result", id, output: out, isError: status === "failed" });
   }
 
   function finish(): string {
     const text = stripStartupBanner(accumulated.trim());
-    // The event log is independent of span emission, so build its tail either way: the
-    // final assistant message, then the terminal done marker.
-    if (text) events.push({ type: "message", text });
-    events.push({ type: "done" });
+    // The event log is independent of span emission, so build its tail either way.
+    closeText();
+    closeReasoning();
+    if (sink) {
+      // Streaming path: the block deltas were already flushed, so do NOT re-emit the
+      // coalesced message (that would double it). If the harness produced no token deltas
+      // at all but there is text, synthesize a minimal start/delta/end so the consumer
+      // always sees one uniform block shape regardless of harness streaming support.
+      if (text && !anyTextDelta) {
+        const id = nextId("msg");
+        record({ type: "message_start", id });
+        record({ type: "message_delta", id, delta: text });
+        record({ type: "message_end", id });
+      }
+    } else {
+      // One-shot path: coalesced events only (no per-token granularity to recover).
+      if (text) record({ type: "message", text });
+      const reasoning = reasoningAccumulated.trim();
+      if (reasoning) record({ type: "thought", text: reasoning });
+    }
+    record({ type: "done" });
     if (!emitSpans) return text;
     if (llmSpan) {
       emitMessages(

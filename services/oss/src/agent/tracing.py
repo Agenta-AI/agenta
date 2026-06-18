@@ -15,7 +15,7 @@ import agenta as ag
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.utils.logging import get_module_logger
 
-from oss.src.harness.ports import TraceContext
+from agenta.sdk.agents import TraceContext
 
 log = get_module_logger(__name__)
 

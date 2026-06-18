@@ -51,6 +51,7 @@ import {
   type AgentRunRequest,
   type AgentRunResult,
   type ChatMessage,
+  type EmitEvent,
   type HarnessCapabilities,
   type ResolvedToolSpec,
   type ToolCallbackContext,
@@ -593,7 +594,11 @@ async function probeCapabilities(
   }
 }
 
-export async function runRivet(request: AgentRunRequest): Promise<AgentRunResult> {
+export async function runRivet(
+  request: AgentRunRequest,
+  emit?: EmitEvent,
+  signal?: AbortSignal,
+): Promise<AgentRunResult> {
   const harness = request.harness || process.env.AGENTA_AGENT_HARNESS || "pi";
   const sandboxId = request.sandbox || process.env.AGENTA_AGENT_SANDBOX || "local";
 
@@ -637,6 +642,15 @@ export async function runRivet(request: AgentRunRequest): Promise<AgentRunResult
     : mkdtempSync(join(tmpdir(), "agenta-rivet-"));
   const agentsMd = request.agentsMd?.trim();
 
+  // Pi's system-prompt overrides (systemPrompt / appendSystemPrompt) are honored on the
+  // in-process Pi engine via the resource loader. The ACP path drives Pi through pi-acp,
+  // which gives us no per-run hook to set them (a project SYSTEM.md is trust-gated, and CLI
+  // flags can't be set per session here), so they are not delivered yet. Warn rather than
+  // drop them silently. AGENTS.md still applies on this path regardless.
+  if (isPi && (request.systemPrompt?.trim() || request.appendSystemPrompt?.trim())) {
+    log("systemPrompt/appendSystemPrompt are not yet delivered on the ACP (rivet) Pi path; ignored");
+  }
+
   // Pi writes its run totals here on agent_end; we read them back and return them so the
   // caller can roll them onto the workflow span (separate OTLP batch, see piExtension).
   const usageOutPath = isPi ? `${cwd}/.agenta-usage.json` : undefined;
@@ -660,6 +674,9 @@ export async function runRivet(request: AgentRunRequest): Promise<AgentRunResult
   const sandbox = await SandboxAgent.start({
     sandbox: buildSandboxProvider(sandboxId, env, binaryPath, piExtEnv, secrets),
     persist,
+    // Propagate caller cancellation (a client disconnect on the streaming HTTP edge) so an
+    // in-flight run aborts instead of finishing unobserved. The `finally` still disposes.
+    ...(signal ? { signal } : {}),
     // Daytona's preview proxy authenticates with a per-sandbox cookie; carry it across
     // requests so ACP calls after the first don't 401. Harmless for local.
     ...(isDaytona ? { fetch: createCookieFetch() } : {}),
@@ -726,6 +743,7 @@ export async function runRivet(request: AgentRunRequest): Promise<AgentRunResult
       authorization: request.trace?.authorization,
       captureContent: request.trace?.captureContent,
       emitSpans: !isPi || isDaytona,
+      emit,
     });
     otel = run;
 
@@ -789,10 +807,14 @@ export async function runRivet(request: AgentRunRequest): Promise<AgentRunResult
       ok: true,
       output,
       messages: output ? [{ role: "assistant", content: output }] : [],
-      events: run.events(),
+      // Streaming already delivered every event live, so the terminal result carries none
+      // (re-sending would double them on the consumer).
+      events: emit ? [] : run.events(),
       usage,
       stopReason,
-      capabilities,
+      // `streamingDeltas` advertises end-to-end live deltas, which is only true when a live
+      // sink is wired. The one-shot path reports false even when the harness produces deltas.
+      capabilities: { ...capabilities, streamingDeltas: !!emit && capabilities.streamingDeltas },
       sessionId: session.id,
       model: model ?? request.model,
       traceId: run.traceId(),

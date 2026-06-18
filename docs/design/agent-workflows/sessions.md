@@ -31,19 +31,20 @@ it forward.
 
 ## The session is already a first-class object
 
-Even though the lifecycle is cold, the port models a session as a real object. The workflow
-handler does not call `invoke` directly. It calls:
+Even though the lifecycle is cold, the ports model a session as a real object. The workflow
+handler works through a `Harness` over an `Environment`:
 
 ```python
-session = harness.create_session(config)
+harness = make_harness(harness_type, Environment(backend))
+session = await harness.create_session(config)
 result = await session.prompt(messages)
 await session.destroy()
 ```
 
-`AgentSession` is the rivet-shaped abstraction described on the
-[ports and adapters](ports-and-adapters.md) page. Under the cold model, `prompt` is a fresh
-`invoke` that replays history and `destroy` is a no-op. The abstraction is stable. Only the
-mechanism behind it is cold. This matters because it gives a future session store a clean
+`Session` is the conversation abstraction described on the
+[ports and adapters](ports-and-adapters.md) page. Under the cold model, `prompt` sends a
+fresh `/run` that replays history and `destroy` is a no-op. The abstraction is stable. Only
+the mechanism behind it is cold. This matters because it gives a future session store a clean
 place to attach, with no change to the handler above it.
 
 ## Why we kept it cold on purpose
@@ -73,7 +74,7 @@ backend database, or by a file for a standalone run) holds the event history. To
 the service replays the persisted history into a fresh cold sandbox, exactly as today, but
 the platform owns the record instead of the client. This keeps the strong isolation of the
 cold model and still gives durable, server-owned sessions. It is the smaller step, and the
-`AgentSession` object is already the place it attaches.
+`Session` object is already the place it attaches.
 
 **Path two: a warm daemon with `session/load`.** Keep a daemon alive between turns and use
 the ACP `session/load` call to restore the real in-harness session, no transcript replay.

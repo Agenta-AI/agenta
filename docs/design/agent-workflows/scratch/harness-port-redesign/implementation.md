@@ -1,30 +1,38 @@
+> Superseded by the as-built design in [the design pages](../../README.md) and [scratch/sdk-local-backend/status.md](../sdk-local-backend/status.md). Kept for history.
+
 # Implementation notes
 
-How the approved A to E arc lands in code, with the cold + replay constraint. This is
-the as-built reference for the rewrite (kept in sync with the code).
+How the approved A to E arc was expected to land in code, with the cold + replay
+constraint. This was the working note for that effort. The as-built design later diverged:
+the neutral runtime moved into the SDK at `agenta.sdk.agents`, the engine became a `Backend`
+class rather than a wire string, and the old `Harness`/`AgentSession` shape was replaced by
+the `Backend` / `Environment` / `Harness` / `Session` ports. See the
+[design pages](../../README.md) for what shipped.
 
 ## Module layout
 
-### Python — two packages
+### Python — two packages (the plan at the time)
 
-The engine-agnostic runtime and the Agenta workflow integration are separate packages, so
-nothing in the runtime is Agenta-specific and the god-module is gone.
+The plan was to split the engine-agnostic runtime from the Agenta workflow integration, so
+nothing in the runtime was Agenta-specific and the god-module was gone. The as-built design
+went further: the runtime moved out of the service entirely and into the SDK at
+`sdks/python/agenta/sdk/agents/` (`dtos.py`, `interfaces.py`, `errors.py`, `adapters/`,
+`utils/`). The package and file names below are the superseded plan, not what shipped.
 
-`services/oss/src/harness/` — the engine-agnostic runtime:
+The planned `services/oss/src/harness/` runtime package:
 
 | File | Holds |
 | --- | --- |
 | `ports.py` | The neutral types and the two seams. Types: `HarnessCapabilities`, `ContentBlock`, `Message`, `AgentEvent`, `TraceContext`, `ToolCallback`, `SessionConfig`, `AgentRequest`, `AgentResult`. Seams: `Environment` (where it runs) and `Harness` (the agent), plus the concrete `AgentSession`. |
-| `transports.py` | The two transports: `SubprocessHarness` (spawn the TS CLI) and `HttpHarness` (POST to the sidecar). Both share `wire.py`. Replaces `pi_harness.py`, `pi_http_harness.py`, `rivet_harness.py`. |
-| `environment.py` | `LocalEnvironment` (subprocess on this host). Replaces `local_runtime.py`. |
+| `transports.py` | The two transports: `SubprocessHarness` (spawn the TS CLI) and `HttpHarness` (POST to the sidecar). Both share `wire.py`. |
+| `environment.py` | `LocalEnvironment` (subprocess on this host). |
 | `wire.py` | Serializes an `AgentRequest` to the camelCase `/run` JSON and parses an `AgentResult` back. The wire shape lives once. |
 
 `services/oss/src/agent/` — the Agenta workflow app (was the single `agent.py` god-module):
 
 | File | Holds |
 | --- | --- |
-| `app.py` | The `/invoke` handler plus `select_backend` / `build_harness`. Thin: it orchestrates the modules below. |
-| `inputs.py` | Request parsing: `resolve_run_config`, `to_messages`, `_system_text`. |
+| `app.py` | The `/invoke` handler plus backend selection. Thin: it orchestrates the modules below. |
 | `tools.py` | Tool resolution through `/tools/resolve` (and slug parsing). |
 | `secrets.py` | Provider keys from the project vault. |
 | `tracing.py` | `trace_context` and `record_usage` (the OTel glue). |
@@ -32,11 +40,13 @@ nothing in the runtime is Agenta-specific and the god-module is gone.
 | `schemas.py` | The `/inspect` schemas. Gains the permission-policy parameter. |
 | `config.py` | The file-backed `AgentConfig` and the TS runner path. |
 
-The backend engine (legacy in-process Pi vs rivet ACP) is no longer a Python class. It is
-one env value (`AGENT_BACKEND`) the transport passes to the TS runner, so Python has two
-transports, not three backend adapters. The harness folder is named for the seam, not for
-Pi: harness choice (pi/claude) lives inside the runtime, which is why there is no
-`agent_claude` package.
+This plan modelled the backend engine as a wire string the transport carried, with two
+transports rather than per-engine classes. The as-built design rejected that: the engine is
+a `Backend` class (`RivetBackend`, `InProcessPiBackend`, `LocalBackend`) that hard-codes its
+own engine id and supported harnesses, and the HTTP vs subprocess delivery is a transport
+helper each backend takes as a constructor argument. Request parsing also moved onto the
+DTOs (`AgentConfig.from_params`, `RunSelection.from_params`) instead of a separate
+`inputs.py`.
 
 ### TypeScript (`services/agent/src/`) — grouped by role
 
@@ -55,7 +65,13 @@ The folder grouping (entrypoints + contract at the top, `engines/`, `tracing/`, 
 `extensions/`) replaced a flat `src/` of ten files that had grown one work package at a
 time. No behavior change.
 
-## The seams
+## The seams (the planned shape)
+
+This was the seam shape this effort planned. The as-built design replaced it: there is no
+`invoke` transport verb and no `AgentSession` class. Instead a `Backend` owns the sandbox
+and session lifecycle, a `Harness` adapter (`PiHarness`, `ClaudeHarness`) holds the
+per-harness mapping over an `Environment`, and a `Session` port is the conversation
+(`prompt`, `destroy`). See [ports and adapters](../../ports-and-adapters.md).
 
 ```python
 class Harness(ABC):
@@ -70,10 +86,10 @@ class AgentSession:                 # sugar over invoke; the first-class session
     async def destroy(self) -> None: ...
 ```
 
-`invoke` is the single transport call (one cold run). `AgentSession` is the rivet-shaped
-abstraction on top: `create_session(config)` then `session.prompt(messages)`. Under cold +
-replay the session holds no warm daemon; continuation replays the caller-supplied history
-into a fresh run, exactly as WP-8 does today. Server-side persisted history is the
+In this plan `invoke` was the single transport call (one cold run) and `AgentSession` was
+the rivet-shaped abstraction on top: `create_session(config)` then `session.prompt(messages)`.
+Under cold + replay the session holds no warm daemon; continuation replays the caller-supplied
+history into a fresh run, exactly as WP-8 does today. Server-side persisted history is the
 deferred Phase C bit (see Deferred below).
 
 ## Capabilities: probed in TS, reported in the result

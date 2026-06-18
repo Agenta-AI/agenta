@@ -1,3 +1,5 @@
+> Superseded by the as-built design in [the design pages](../../README.md) and [scratch/sdk-local-backend/status.md](../sdk-local-backend/status.md). Kept for history.
+
 # Build plan
 
 Scope set by the user (2026-06-17): full A to E arc, cold per invoke (no warm daemon).

@@ -1,14 +1,15 @@
-"""Agent workflow app: the ``/invoke`` handler and how it wires a harness run.
+"""Agent workflow app: the ``/invoke`` handler, wired onto the SDK agent runtime.
 
 Mirrors the chat/completion services: an Agenta app exposing ``/invoke`` and ``/inspect``
 through ``ag.create_app`` + ``ag.workflow`` + ``ag.route``. The handler parses the request
-(``inputs``), resolves tools (``tools``) and provider secrets (``secrets``), threads the
-trace context (``tracing``), runs one turn through an :class:`AgentSession` on the
-engine-agnostic runtime (``oss.src.harness``), and records the run's usage.
+into a neutral ``AgentConfig`` + ``RunSelection`` (``agenta.sdk.agents``), resolves tools
+(``tools``) and provider secrets (``secrets``) server-side, threads the trace context
+(``tracing``), then runs one turn through a :class:`Harness` over a backend it picks from
+the selection, and records the run's usage.
 
-The engine (rivet over ACP vs the legacy in-process Pi path) and the transport (HTTP
-sidecar vs subprocess) are deployment choices; the harness, sandbox, and permission policy
-are editable playground config.
+The backend (rivet over ACP vs the in-process Pi path) and the transport (HTTP sidecar vs
+subprocess) are deployment choices; the harness, sandbox, and permission policy are editable
+playground config.
 """
 
 import os
@@ -16,50 +17,58 @@ from typing import Any, Dict, List, Optional
 
 import agenta as ag
 
+from agenta.sdk.agents import (
+    AgentConfig,
+    Backend,
+    Environment,
+    InProcessPiBackend,
+    RivetBackend,
+    RunSelection,
+    SessionConfig,
+    make_harness,
+    to_messages,
+)
+
 from oss.src.agent.config import load_config, wrapper_dir
-from oss.src.agent.inputs import resolve_agent_config, to_messages
 from oss.src.agent.schemas import AGENT_SCHEMAS
 from oss.src.agent.secrets import resolve_harness_secrets
 from oss.src.agent.tools import resolve_tools
 from oss.src.agent.tracing import record_usage, trace_context
-from oss.src.harness import (
-    Harness,
-    HttpHarness,
-    LocalEnvironment,
-    SessionConfig,
-    SubprocessHarness,
-)
 
 
-def select_backend(harness_id: str, sandbox_id: str) -> str:
-    """Choose the engine (``rivet`` or ``pi``) for a run.
+def _default_agent_config() -> AgentConfig:
+    """The service's file defaults (AGENTS.md, model, tools) as a neutral AgentConfig."""
+    file_cfg = load_config()
+    return AgentConfig(
+        instructions=file_cfg.agents_md,
+        model=file_cfg.model,
+        tools=file_cfg.tools,
+    )
 
-    ``rivet`` drives a harness over ACP via a rivet daemon; ``pi`` is the legacy in-process
-    Pi path. The legacy path only runs the ``pi`` harness locally, so any other harness or
-    sandbox forces ``rivet`` rather than silently dropping the selection.
-    ``AGENTA_AGENT_RUNTIME=rivet`` forces rivet for everything.
+
+def select_backend(selection: RunSelection) -> Backend:
+    """Pick the backend for a run.
+
+    The in-process Pi backend runs Pi locally, and the Agenta harness is Pi with an opinion,
+    so both ``pi`` and ``agenta`` stay on it. Any other harness, a non-local sandbox, or
+    ``AGENTA_AGENT_RUNTIME=rivet`` selects the rivet backend instead of silently dropping the
+    choice (``agenta`` is not yet supported on the rivet path, so ``agenta`` + a non-local
+    sandbox raises ``UnsupportedHarnessError`` rather than running the wrong thing). The
+    transport to the TypeScript runner is a deployment detail each backend takes:
+    ``AGENTA_AGENT_PI_URL`` set (docker) -> HTTP to the sidecar; unset (local checkout) ->
+    spawn the runner CLI from the wrapper dir.
     """
     runtime = os.getenv("AGENTA_AGENT_RUNTIME", "pi").lower()
-    if runtime == "rivet" or harness_id != "pi" or sandbox_id != "local":
-        return "rivet"
-    return "pi"
-
-
-def build_harness(backend: str) -> Harness:
-    """Pick the transport to the TypeScript runner for the current deployment.
-
-    ``AGENTA_AGENT_PI_URL`` set (docker) -> call the sidecar over HTTP; unset (local) ->
-    spawn the runner as a subprocess. ``backend`` (the engine) is chosen by
-    :func:`select_backend`.
-    """
-    pi_url = os.getenv("AGENTA_AGENT_PI_URL")
-    if pi_url:
-        return HttpHarness(pi_url, backend=backend)
-    return SubprocessHarness(
-        LocalEnvironment(),
-        wrapper_dir=str(wrapper_dir()),
-        backend=backend,
+    url = os.getenv("AGENTA_AGENT_PI_URL")
+    cwd = str(wrapper_dir())
+    use_rivet = (
+        runtime == "rivet"
+        or selection.harness not in ("pi", "agenta")
+        or selection.sandbox != "local"
     )
+    if use_rivet:
+        return RivetBackend(sandbox=selection.sandbox, url=url, cwd=cwd)
+    return InProcessPiBackend(url=url, cwd=cwd)
 
 
 async def _agent(
@@ -68,34 +77,36 @@ async def _agent(
     parameters: Optional[Dict] = None,
 ):
     params = parameters or {}
-    cfg = resolve_agent_config(params, load_config())
+
+    agent_config = AgentConfig.from_params(params, defaults=_default_agent_config())
+    selection = RunSelection.from_params(
+        params,
+        default_harness=os.getenv("AGENTA_AGENT_HARNESS", "pi"),
+        default_sandbox=os.getenv("AGENTA_AGENT_SANDBOX", "local"),
+    )
 
     msgs = to_messages(messages or (inputs or {}).get("messages") or [])
-    builtins, custom_tools, tool_callback = await resolve_tools(cfg.tools)
+    builtins, custom_tools, tool_callback = await resolve_tools(agent_config.tools)
 
     session_config = SessionConfig(
-        instructions=cfg.instructions,
-        model=cfg.model,
-        harness=cfg.harness,
-        sandbox=cfg.sandbox,
+        agent=agent_config,
         secrets=await resolve_harness_secrets(),
+        permission_policy=selection.permission_policy,
+        trace=trace_context(),
         builtin_tools=builtins,
         custom_tools=custom_tools,
         tool_callback=tool_callback,
-        permission_policy=cfg.permission_policy,
-        trace=trace_context(),
     )
 
-    # The engine follows the selected harness/sandbox: a claude harness or a daytona
-    # sandbox needs rivet, so the legacy pi path never silently swallows the selection.
-    harness = build_harness(select_backend(cfg.harness, cfg.sandbox))
+    # The harness validates that the chosen backend can drive it; select_backend already
+    # routes a claude harness or a non-local sandbox to rivet, so this never fails in
+    # practice. setup/cleanup own the backend lifecycle; prompt runs one cold turn.
+    harness = make_harness(selection.harness, Environment(select_backend(selection)))
     await harness.setup()
     try:
-        session = harness.create_session(session_config)
-        result = await session.prompt(msgs)
-        await session.destroy()
+        result = await harness.prompt(session_config, msgs)
     finally:
-        await harness.shutdown()
+        await harness.cleanup()
 
     record_usage(result.usage)
     return {"role": "assistant", "content": result.output}

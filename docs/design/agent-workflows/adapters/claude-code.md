@@ -85,10 +85,11 @@ use.
 
 ## What Claude demonstrates
 
-Claude is the proof that the seam works. Adding it required no change above the port and no
-new Python class. It also exercises the capability-driven branches the design is built on:
-tools over MCP because it reports `mcpTools`, a permission answer because it gates tools, and
-event-stream tracing because it does not self-instrument. A future harness that rivet can
-drive would reuse this exact path. A future harness that rivet cannot drive would instead get
-its own engine beside `engines/pi.ts` and `engines/rivet.ts`, behind the same `/run`
-contract.
+Claude is the proof that the seam works. Adding it took a `ClaudeHarness` (which holds its
+Pi-versus-Claude config mapping) and no change to the workflow handler above the ports; the
+same `RivetBackend` drives it. It also exercises the capability-driven branches the design is
+built on: tools over MCP because it reports `mcpTools`, a permission answer because it gates
+tools, and event-stream tracing because it does not self-instrument. A future harness that
+rivet can drive would reuse this exact path. A future harness that rivet cannot drive would
+instead get its own backend beside `RivetBackend` and `InProcessPiBackend`, behind the same
+`/run` contract.

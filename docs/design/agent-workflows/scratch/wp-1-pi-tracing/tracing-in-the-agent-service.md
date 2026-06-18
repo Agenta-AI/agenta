@@ -1,3 +1,4 @@
+> **Historical record.** This is a work-package note. It describes the design as it was at the time and may reference components that no longer exist. For the current design see the [agent-workflows docs](../../README.md); for the live state see [sdk-local-backend/status.md](../sdk-local-backend/status.md).
 # Tracing the agent run into the response, like completion and chat
 
 Status: built and verified end to end against the dev box (2026-06-15). Audience:

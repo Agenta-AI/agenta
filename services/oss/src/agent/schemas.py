@@ -81,9 +81,12 @@ AGENT_CONFIG_SCHEMA = {
         "harness": {
             "type": "string",
             "title": "Harness",
-            "enum": ["pi", "claude"],
+            "enum": ["pi", "claude", "agenta"],
             "default": "pi",
-            "description": "Coding agent engine to drive over ACP (pi or claude).",
+            "description": (
+                "Coding agent to drive: pi, claude, or agenta (pi with Agenta's forced "
+                "skills, tools, and base instructions)."
+            ),
         },
         "sandbox": {
             "type": "string",

@@ -1,3 +1,4 @@
+> **Historical record.** This is a work-package note. It describes the design as it was at the time and may reference components that no longer exist. For the current design see the [agent-workflows docs](../../README.md); for the live state see [sdk-local-backend/status.md](../sdk-local-backend/status.md).
 # Agent Workflows: Daytona and pi.dev due-diligence
 
 Status: research only. Broad due-diligence to surface what the focused research topics

@@ -47,6 +47,60 @@ On Daytona the in-sandbox process cannot reach Agenta directly, so the extension
 tool request to a file (`AGENTA_TOOL_RELAY_DIR`) and the runner, which can reach Agenta,
 relays it to `/tools/call` and writes the answer back. Same envelope, different delivery.
 
+## System prompt: AGENTS.md, SYSTEM, and APPEND_SYSTEM
+
+Pi builds its system prompt from three separate inputs, and they stack rather than compete:
+
+- **`AGENTS.md`** is project context. Pi wraps it in a `<project_context>` block and appends
+  it after the base prompt. It loads with no trust gate, and it is what `instructions` on the
+  neutral `AgentConfig` becomes. This is the right home for project conventions, commands,
+  and preferences.
+- **`APPEND_SYSTEM`** adds to Pi's built-in base prompt without replacing it. Reach for this
+  when you only want to add framing on top of Pi's default coding-assistant prompt.
+- **`SYSTEM`** replaces the base prompt outright. Pi throws away its default
+  "you are a coding assistant" persona, the tool list, and the built-in guidelines, and uses
+  your text instead. Use it only when a workflow needs a fundamentally different agent.
+
+The key fact: these are not either/or with `AGENTS.md`. Even when `SYSTEM` replaces the base
+prompt, Pi still appends the `AGENTS.md` context after it. So `AGENTS.md` stays the project
+layer, and `SYSTEM` / `APPEND_SYSTEM` only change Pi's base persona. For almost every agent,
+`AGENTS.md` alone is enough; the other two are a deliberate opt-in.
+
+### How to set them
+
+`SYSTEM` and `APPEND_SYSTEM` are Pi-specific, so they ride the neutral config's per-harness
+escape hatch, `AgentConfig.harness_options`. It is a bag keyed by harness name; each Harness
+adapter reads only its own slice:
+
+```python
+AgentConfig(
+    instructions="Project: a SQL analytics tool. Run `make lint` before finishing.",  # AGENTS.md
+    harness_options={
+        "pi": {
+            "system": "You are a SQL expert. Only answer with queries.",  # replaces base prompt
+            "append_system": "Always explain each query in one line.",     # adds to base prompt
+        }
+    },
+)
+```
+
+`PiHarness` lifts the `pi` slice onto `PiAgentConfig.system` / `append_system`, which emit
+`systemPrompt` / `appendSystemPrompt` on the `/run` wire. An empty or whitespace value is
+dropped, so it never reaches the runner as a real override.
+
+### Delivery status
+
+The **in-process Pi engine** honors both. It feeds them through the resource loader's
+`systemPromptOverride` / `appendSystemPromptOverride`, so the run stays hermetic: only what
+the request carries applies, never a `SYSTEM.md` or `APPEND_SYSTEM.md` left on disk.
+
+The **ACP (rivet) path does not deliver them yet**. It drives Pi through `pi-acp`, which gives
+us no per-run hook to set the prompt: a project `.pi/SYSTEM.md` is trust-gated, and the CLI
+`--system-prompt` flag cannot be set per session through the adapter. The engine logs a
+warning when these fields are set on that path so the gap is visible, not silent. `AGENTS.md`
+still applies there, because Pi loads context files regardless of trust. Wiring the ACP path
+(via project trust plus `.pi/SYSTEM.md`, or per-session CLI flags) is the remaining work.
+
 ## Tracing: Pi instruments itself
 
 Pi emits lifecycle events on an in-process event bus (`pi.on(...)`). The extension hooks
@@ -101,12 +155,13 @@ And auth comes from the provider key in the sandbox env when present, or from an
 
 ## The in-process engine
 
-The legacy engine (`engines/pi.ts`) skips rivet entirely. It drives Pi's `createAgentSession`
-directly, with everything in memory: AGENTS.md injected through the resource loader, the
-session and settings managers in memory, and a throwaway working directory. It registers the
-same WP-7 tools as Pi `customTools` (the same POST-back-to-`/tools/call` body) and traces
-with the same extension logic, just wired in process rather than loaded from disk.
+The in-process Pi engine (`engines/pi.ts`, selected by the `InProcessPiBackend`) skips rivet
+entirely. It drives Pi's `createAgentSession` directly, with everything in memory: AGENTS.md
+injected through the resource loader, the session and settings managers in memory, and a
+throwaway working directory. It registers the same tools as Pi `customTools` (the same
+POST-back-to-`/tools/call` body) and traces with the same extension logic, just wired in
+process rather than loaded from disk.
 
-It returns the same `/run` result as the rivet path, which is the whole point of the port:
+It returns the same `/run` result as the rivet path, which is the whole point of the ports:
 the workflow author cannot tell which engine ran. It exists for the simplest local case and
 as a path that does not depend on the rivet daemon being present.

@@ -12,7 +12,12 @@
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
-import type { AgentRunRequest, AgentRunResult } from "./protocol.ts";
+import type {
+  AgentRunRequest,
+  AgentRunResult,
+  EmitEvent,
+  StreamRecord,
+} from "./protocol.ts";
 import { runPi } from "./engines/pi.ts";
 import { runRivet } from "./engines/rivet.ts";
 
@@ -24,11 +29,60 @@ const PORT = Number(process.env.PORT ?? 8765);
 // request shape (a rivet request carries `harness`/`sandbox`).
 const DEFAULT_BACKEND = (process.env.AGENT_BACKEND ?? "auto").toLowerCase();
 
-function runAgent(request: AgentRunRequest): Promise<AgentRunResult> {
+function runAgent(
+  request: AgentRunRequest,
+  emit?: EmitEvent,
+  signal?: AbortSignal,
+): Promise<AgentRunResult> {
   const backend = (request.backend ?? DEFAULT_BACKEND).toLowerCase();
-  if (backend === "rivet") return runRivet(request);
-  if (backend === "pi") return runPi(request);
-  return request.harness || request.sandbox ? runRivet(request) : runPi(request);
+  if (backend === "rivet") return runRivet(request, emit, signal);
+  if (backend === "pi") return runPi(request, emit);
+  return request.harness || request.sandbox
+    ? runRivet(request, emit, signal)
+    : runPi(request, emit);
+}
+
+/**
+ * Stream a run as NDJSON: one `{kind:"event"}` line per event the moment it is built, then
+ * exactly one terminal `{kind:"result"}` line (success or failure). Selected by the caller
+ * with `Accept: application/x-ndjson`; the one-shot `/run` path is left untouched.
+ */
+async function runAndStream(
+  req: IncomingMessage,
+  res: ServerResponse,
+  request: AgentRunRequest,
+): Promise<void> {
+  res.writeHead(200, {
+    "content-type": "application/x-ndjson",
+    "cache-control": "no-cache",
+    "x-accel-buffering": "no",
+    connection: "keep-alive",
+  });
+
+  // A client disconnect aborts the in-flight run rather than letting it finish unobserved.
+  // Listen on the response, not the request: the request body is already fully read, so its
+  // `close` can fire early on a keep-alive connection. `res` `close` fires when the response
+  // connection ends — after a normal `res.end()` (harmless: the run is already done) or when
+  // the client drops mid-stream (the case we want to cancel).
+  const controller = new AbortController();
+  res.on("close", () => controller.abort());
+
+  const writeRecord = (record: StreamRecord): void => {
+    if (res.writableEnded) return;
+    res.write(JSON.stringify(record) + "\n");
+  };
+  const emit: EmitEvent = (event) => writeRecord({ kind: "event", event });
+
+  let result: AgentRunResult;
+  try {
+    result = await runAgent(request, emit, controller.signal);
+  } catch (err) {
+    const message = err instanceof Error ? err.stack ?? err.message : String(err);
+    result = { ok: false, error: message };
+  }
+  // Streaming delivered the events live, so don't echo them in the terminal record.
+  writeRecord({ kind: "result", result: { ...result, events: [] } });
+  res.end();
 }
 
 function send(res: ServerResponse, status: number, body: unknown): void {
@@ -61,6 +115,14 @@ const server = createServer(async (req, res) => {
         request = raw.trim() ? (JSON.parse(raw) as AgentRunRequest) : {};
       } catch (err) {
         return send(res, 400, { ok: false, error: `Invalid JSON: ${String(err)}` });
+      }
+
+      const wantsStream = (req.headers["accept"] ?? "").includes(
+        "application/x-ndjson",
+      );
+      if (wantsStream) {
+        await runAndStream(req, res, request);
+        return;
       }
 
       const result = await runAgent(request);

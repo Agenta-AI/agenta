@@ -149,14 +149,15 @@ how a warm model could change it tomorrow.
 ## The other engine: in-process Pi
 
 The relay above describes the **rivet engine**, the default in the deployed stack and the
-path the rest of these docs assume. The runner also ships a second engine: **legacy
-in-process Pi**. It drives the
-Pi SDK directly inside the sidecar, with no daemon, adapter, or ACP in between. It exists
-for the simplest local case and as a fallback that does not depend on the rivet daemon.
+path the rest of these docs assume. The runner also ships a second engine: **in-process
+Pi**. It drives the Pi SDK directly inside the sidecar, with no daemon, adapter, or ACP in
+between. It exists for the simplest local case and as a fallback that does not depend on the
+rivet daemon.
 
-Both engines sit behind the same Python port and serve the same `/run` contract, so the
-choice between them is a deployment detail, not a difference the workflow author sees. The
-[ports and adapters](ports-and-adapters.md) page explains how one neutral seam holds both.
+The two engines are the two backends behind the same SDK ports: `RivetBackend` and
+`InProcessPiBackend`. Both serve the same `/run` contract, so which one runs is a deployment
+detail, not a difference the workflow author sees. The
+[ports and adapters](ports-and-adapters.md) page explains the ports and the backends.
 
 ## How a request flows, end to end
 
@@ -164,9 +165,11 @@ Putting it together, a single agent run on `pi` / `local` goes like this:
 
 1. The playground sends `POST /invoke` to the `services` container.
 2. The Python handler (`agent/app.py`) reads the config, resolves the tools and provider
-   keys, and builds a `SessionConfig`.
-3. It picks the engine (`rivet`) and the transport (HTTP to the sidecar), then sends one
-   `POST /run`.
+   keys, and builds a neutral `AgentConfig` and `SessionConfig` from the SDK runtime
+   (`agenta.sdk.agents`).
+3. It picks a backend (`RivetBackend` here) from the harness and sandbox, wraps it in an
+   `Environment` and a `Harness`, and the harness sends one `POST /run` over the backend's
+   transport (HTTP to the sidecar).
 4. The sidecar's rivet engine starts the daemon, which starts `pi-acp`, which starts `pi`.
 5. `pi` reads the instructions, calls the model, runs any tools, and streams events back up
    the relay. Those events become trace spans nested under the `/invoke` span (the
