@@ -2,11 +2,12 @@ import {useMemo, useState} from "react"
 
 import {useChat} from "@ai-sdk/react"
 import {Bubble, Sender} from "@ant-design/x"
-import {lastAssistantMessageIsCompleteWithApprovalResponses} from "ai"
-import {Alert, Tag, Typography} from "antd"
+import {lastAssistantMessageIsCompleteWithApprovalResponses, type UIMessage} from "ai"
+import {Alert, Modal, Tag, Typography} from "antd"
 
 import {useAgConfigStatus} from "../assets/agConfig"
 import {type AgentChatTrack, trackApi} from "../assets/constants"
+import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
 import {createAgentChatTransport} from "../assets/transport"
 
 import AgentMessage from "./AgentMessage"
@@ -71,6 +72,43 @@ const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: st
         setInput("")
     }
 
+    /**
+     * Rewind the conversation to `message` (truncate-in-place). A user turn drops it +
+     * everything after and prefills the composer with its text to edit/resend; an assistant
+     * turn re-runs via `regenerate`. Confirms first if the dropped range contains a tool that
+     * already ran with a side effect (a rewind can't undo it).
+     */
+    const handleRewind = (message: UIMessage) => {
+        if (busy) return
+        const idx = messages.findIndex((m) => m.id === message.id)
+        if (idx < 0) return
+        const isUser = message.role === "user"
+        const dropped = isUser ? messages.slice(idx) : messages.slice(idx + 1)
+        const sideEffects = sideEffectingToolsInRange(dropped)
+
+        const run = () => {
+            if (isUser) {
+                setMessages(messages.slice(0, idx))
+                setInput(messageText(message))
+            } else {
+                regenerate({messageId: message.id})
+            }
+        }
+
+        if (sideEffects.length > 0) {
+            Modal.confirm({
+                title: "Rewind past a tool that already ran?",
+                content: `${sideEffects.join(", ")} already executed. Rewinding re-runs the conversation from here but will NOT undo it.`,
+                okText: "Rewind anyway",
+                okButtonProps: {danger: true},
+                cancelText: "Cancel",
+                onOk: run,
+            })
+        } else {
+            run()
+        }
+    }
+
     return (
         <div className="flex h-full min-h-0 flex-col gap-3">
             <div className="flex items-start justify-between gap-2">
@@ -117,6 +155,7 @@ const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: st
                         isLast={i === messages.length - 1}
                         busy={busy}
                         onRegenerate={() => regenerate()}
+                        onRewind={() => handleRewind(message)}
                         onApprovalResponse={addToolApprovalResponse}
                     />
                 ))}

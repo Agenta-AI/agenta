@@ -3,7 +3,14 @@ import {memo} from "react"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
 import {Bubble} from "@ant-design/x"
-import {ArrowsClockwise, Copy, Robot, TreeStructure, User} from "@phosphor-icons/react"
+import {
+    ArrowsClockwise,
+    ArrowUUpLeft,
+    Copy,
+    Robot,
+    TreeStructure,
+    User,
+} from "@phosphor-icons/react"
 import type {ToolUIPart, UIMessage} from "ai"
 import {Avatar, Button, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -35,6 +42,7 @@ interface AgentMessageProps {
     isLast: boolean
     busy: boolean
     onRegenerate: () => void
+    onRewind: () => void
     onApprovalResponse: (args: {id: string; approved: boolean}) => void
 }
 
@@ -55,6 +63,7 @@ const AgentMessage = ({
     isLast,
     busy,
     onRegenerate,
+    onRewind,
     onApprovalResponse,
 }: AgentMessageProps) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
@@ -149,7 +158,22 @@ const AgentMessage = ({
 
     // Control toolbar — hidden until the message row is hovered/focused (group-hover on the
     // wrapper below), then revealed. Collapses its height when hidden so it reserves no gap.
-    const footer = isUser ? undefined : (
+    // User messages get a "Rewind here" action; assistant messages get the metrics + actions.
+    const footer = isUser ? (
+        <div className="flex max-h-0 items-center justify-end gap-1 overflow-hidden opacity-0 transition-all duration-150 focus-within:max-h-8 focus-within:opacity-100 group-hover:max-h-8 group-hover:opacity-100">
+            <Tooltip title="Rewind here — edit and re-run the conversation from this message">
+                <Button
+                    type="text"
+                    size="small"
+                    disabled={busy}
+                    icon={<ArrowUUpLeft size={14} />}
+                    onClick={onRewind}
+                >
+                    Rewind
+                </Button>
+            </Tooltip>
+        </div>
+    ) : (
         <div className="flex max-h-0 items-center gap-1 overflow-hidden opacity-0 transition-all duration-150 focus-within:max-h-9 focus-within:opacity-100 group-hover:max-h-9 group-hover:opacity-100">
             {traceId && <TraceMetrics traceId={traceId} />}
             <Tooltip title="Copy">
