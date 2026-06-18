@@ -380,9 +380,13 @@ async def run_turn(
 
     # Open a real Agenta span so the run is traced and we can surface its trace id.
     trace_id = None
+    answer_text = ""
     span_cm = _open_span("agent_chat")
     span = span_cm.__enter__() if span_cm else None
     try:
+        # Record the conversation on the parent span (children auto-capture their own data).
+        _set_span_data("inputs", {"messages": history})
+
         # 1) Resolve any pending approval decisions first (resume path).
         for tool in pending:
             tool_call_id = tool["toolCallId"]
@@ -423,6 +427,8 @@ async def run_turn(
                     _, text_buf, tool_calls = item
                 else:
                     yield item
+            if text_buf:
+                answer_text += text_buf
 
             assistant_msg: Dict[str, Any] = {
                 "role": "assistant",
@@ -513,6 +519,7 @@ async def run_turn(
             if approval_pending:
                 break  # pause the turn for human approval
 
+        _set_span_data("outputs", {"response": answer_text})
         trace_id = _trace_id_of(span)
     finally:
         if span_cm:
@@ -548,6 +555,23 @@ def _open_span(name: str):
         return ag.tracer.start_as_current_span(name)
     except Exception:
         return None
+
+
+def _set_span_data(key: str, value: Any) -> None:
+    """Set `inputs`/`outputs` on the active Agenta span (no-op if tracing isn't init'd).
+
+    The parent `agent_chat` span is a manual span, so it doesn't auto-capture data the way
+    `@ag.instrument()` children do — we populate it explicitly so the trace shows the
+    conversation in and the final answer out.
+    """
+    try:
+        import agenta as ag
+
+        span = ag.tracing.get_current_span()
+        if span is not None:
+            span.set_attributes({key: value}, namespace="data")
+    except Exception:
+        pass
 
 
 def _trace_id_of(span) -> Optional[str]:
