@@ -93,6 +93,7 @@ export function createAdapter<TSelection>(
             isSelectable: level.isSelectable ?? (() => index >= resolvedSelectableLevel),
             isDisabled: level.isDisabled,
             getDescription: level.getDescription,
+            getSuffixNode: level.getSuffixNode,
             // Lifecycle callbacks
             onBeforeLoad: level.onBeforeLoad,
             // Filtering

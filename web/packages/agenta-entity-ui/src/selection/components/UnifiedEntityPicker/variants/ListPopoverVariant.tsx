@@ -82,6 +82,7 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
         handleParentClick,
         handleChildSelect,
         autoSelectingParent,
+        clearAutoSelectingParent,
         isLoadingParents,
         parentsError,
         adapter: resolvedAdapter,
@@ -256,13 +257,12 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
                     parentLabel={autoSelectingParent.label}
                     parentLevelConfig={parentLevelConfig}
                     childLevelConfig={childLevelConfig}
+                    disabledChildIds={disabledChildIds}
                     createSelection={(path, entity) =>
                         resolvedAdapter.toSelection(path, entity) as TSelection
                     }
                     onSelect={onSelect}
-                    onComplete={() => {
-                        // The hook will handle clearing autoSelectingParent
-                    }}
+                    onComplete={clearAutoSelectingParent}
                 />
             )}
         </div>

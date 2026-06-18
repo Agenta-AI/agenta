@@ -33,6 +33,8 @@ export interface LevelQueryState {
     isError: boolean
     /** Error object if any */
     error: Error | null
+    /** Whether the backing query has completed at least once */
+    isFetched?: boolean
 }
 
 /**
@@ -185,6 +187,7 @@ export function useLevelData<T = unknown>(options: UseLevelDataOptions<T>): UseL
             isPending: queryState.isPending,
             isError: queryState.isError,
             error: queryState.error ?? null,
+            isFetched: queryState.isFetched,
         },
     }
 }

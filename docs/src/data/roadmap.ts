@@ -27,6 +27,42 @@ export const shippedFeatures: ShippedFeature[] = [
   // Integration: FFA500
   // Security: 000000
   {
+    id: "playground-evaluation-workbench",
+    title: "Evaluate While You Iterate in the Playground",
+    description:
+      "Attach evaluators to playground sessions and see scores inline as you iterate on prompts. Connect test sets to keep prompt iteration and data curation in one loop.",
+    changelogPath: "/docs/changelog/playground-evaluation-workbench",
+    shippedAt: "2026-06-09",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+      {
+        name: "Evaluation",
+        color: "86B7FF",
+      },
+    ],
+  },
+  {
+    id: "annotation-queues",
+    title: "Annotation Queues",
+    description:
+      "Build a review queue from traces or test set rows, attach a scoring schema, and route it to reviewers. Export finished queues as labeled test sets that feed straight into your evaluators.",
+    changelogPath: "/docs/changelog/annotation-queues",
+    shippedAt: "2026-05-18",
+    labels: [
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+      {
+        name: "Evaluation",
+        color: "86B7FF",
+      },
+    ],
+  },
+  {
     id: "deployment-webhooks",
     title: "Webhooks and GitHub Automations for Prompt Deployments",
     description:
@@ -469,36 +505,6 @@ export const inProgressFeatures: PlannedFeature[] = [
     ],
   },
   {
-    id: "evaluators-in-playground",
-    title: "Running Evaluators in the Playground",
-    description:
-      "Run evaluators directly in the playground to get immediate quality feedback on prompt changes. Evaluate outputs inline as you iterate on prompts. Scores, pass/fail results, and evaluator reasoning appear right next to the LLM response.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3702",
-    labels: [
-      {
-        name: "Playground",
-        color: "BCFF78",
-      },
-      {
-        name: "Evaluation",
-        color: "86B7FF",
-      },
-    ],
-  },
-  {
-    id: "annotation-queues-traces",
-    title: "Annotation Queues for Traces",
-    description:
-      "Annotation queues let you define a set of traces to review, assign them to team members, and track annotation progress — all from within Agenta.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/4009",
-    labels: [
-      {
-        name: "Observability",
-        color: "DE74FF",
-      },
-    ],
-  },
-  {
     id: "evaluator-playground-updates",
     title: "Updates to the Evaluator Playground",
     description:
@@ -525,9 +531,6 @@ export const inProgressFeatures: PlannedFeature[] = [
       },
     ],
   },
-];
-
-export const plannedFeatures: PlannedFeature[] = [
   {
     id: "annotation-queue-label-testsets",
     title: "Annotation Queue to Label Test Sets",
@@ -545,6 +548,9 @@ export const plannedFeatures: PlannedFeature[] = [
       },
     ],
   },
+];
+
+export const plannedFeatures: PlannedFeature[] = [
   {
     id: "trace-usage-limits",
     title: "Usage Limits for Traces (Hard and Soft Caps)",

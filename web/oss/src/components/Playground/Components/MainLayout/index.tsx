@@ -17,7 +17,7 @@ import ExecutionItems, {
 } from "@agenta/playground-ui/execution-items"
 import {Button, Splitter, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
@@ -108,7 +108,7 @@ const PlaygroundMainView = ({
     const status = useAtomValue(playgroundController.selectors.status())
     const urlAppId = useAtomValue(routerAppIdAtom)
     const {open: openEntitySelector} = useEntitySelector()
-    const setEntityIds = playgroundController.actions.setEntityIds
+    const setEntityIds = useSetAtom(playgroundController.actions.setEntityIds)
 
     const isEvaluatorMode = mode === "evaluator"
     const layoutEntityIds = selectedEntityIds.length > 0 ? selectedEntityIds : displayedEntities
@@ -137,9 +137,7 @@ const PlaygroundMainView = ({
             allowedTypes: ["workflow"],
         })
         if (selection) {
-            // Add the selected entity to the playground
-            const store = (await import("jotai")).getDefaultStore()
-            store.set(setEntityIds, [selection.id])
+            setEntityIds([selection.id])
         }
     }, [openEntitySelector, setEntityIds])
 
