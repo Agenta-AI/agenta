@@ -142,6 +142,7 @@ from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
 from oss.src.apis.fastapi.tools.router import ToolsRouter
+from oss.src.dbs.postgres.triggers.dao import TriggersDAO
 from oss.src.core.triggers.providers.composio import ComposioTriggersAdapter
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
 from oss.src.core.triggers.service import TriggersService
@@ -640,8 +641,12 @@ triggers_adapter_registry = TriggersGatewayRegistry(
     adapters=_composio_triggers_adapters,
 )
 
+triggers_dao = TriggersDAO(engine=_transactions_engine)
+
 triggers_service = TriggersService(
     adapter_registry=triggers_adapter_registry,
+    triggers_dao=triggers_dao,
+    connections_service=connections_service,
 )
 
 _t_services_done = time.perf_counter() - _t_services

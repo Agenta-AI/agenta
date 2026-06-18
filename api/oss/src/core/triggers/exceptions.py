@@ -17,6 +17,22 @@ class ProviderNotFoundError(TriggersError):
         super().__init__(f"Provider not found: {provider_key}")
 
 
+class SubscriptionNotFoundError(TriggersError):
+    """Raised when a subscription_id does not exist in the project."""
+
+    def __init__(self, *, subscription_id: str):
+        self.subscription_id = subscription_id
+        super().__init__(f"Trigger subscription not found: {subscription_id}")
+
+
+class ConnectionNotFoundError(TriggersError):
+    """Raised when a subscription references a connection that does not exist."""
+
+    def __init__(self, *, connection_id: str):
+        self.connection_id = connection_id
+        super().__init__(f"Connection not found: {connection_id}")
+
+
 class AdapterError(TriggersError):
     """Raised when an adapter operation fails."""
 
