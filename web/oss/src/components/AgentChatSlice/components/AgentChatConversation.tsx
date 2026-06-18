@@ -83,8 +83,9 @@ const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: st
         const idx = messages.findIndex((m) => m.id === message.id)
         if (idx < 0) return
         const isUser = message.role === "user"
-        const dropped = isUser ? messages.slice(idx) : messages.slice(idx + 1)
-        const sideEffects = sideEffectingToolsInRange(dropped)
+        // Everything from here on is dropped/re-run; already-executed side effects in this
+        // tail (incl. the assistant turn's own tools, which regenerate re-fires) won't undo.
+        const sideEffects = sideEffectingToolsInRange(messages.slice(idx))
 
         const run = () => {
             if (isUser) {
@@ -148,13 +149,11 @@ const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: st
                         Ask a question to start the agent conversation.
                     </div>
                 )}
-                {messages.map((message, i) => (
+                {messages.map((message) => (
                     <AgentMessage
                         key={message.id}
                         message={message}
-                        isLast={i === messages.length - 1}
                         busy={busy}
-                        onRegenerate={() => regenerate()}
                         onRewind={() => handleRewind(message)}
                         onApprovalResponse={addToolApprovalResponse}
                     />

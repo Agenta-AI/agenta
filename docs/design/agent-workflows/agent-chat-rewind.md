@@ -51,8 +51,8 @@ No server rewind endpoint is needed. The `useChat` primitives we use:
 - **Rewind to a user turn**: drop that user message and everything after it, prefill the
   composer with its text. The user edits or resends → a fresh turn streams into the
   now-shorter conversation. (This is the ChatGPT/GitHub "edit message" pattern.)
-- **Retry an assistant turn**: `regenerate({messageId})` re-runs it. (Today only the last
-  turn has Retry; v1 keeps that, v1.1 extends to any turn.)
+- **Rewind to an assistant turn**: `regenerate({messageId})` re-runs *that* turn (drops it +
+  everything after). Every assistant turn carries the "Rewind here" action, not just the last.
 - **Side-effect guard** (the agent-specific bit): before a rewind that drops a turn
   containing a **side-effecting tool result**, show a confirm naming what won't be undone
   (e.g. *"`send_summary_email` already ran — rewinding won't un-send it."*). Read-only tools

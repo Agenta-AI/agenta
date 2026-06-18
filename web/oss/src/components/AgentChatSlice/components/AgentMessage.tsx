@@ -3,14 +3,7 @@ import {memo} from "react"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
 import {Bubble} from "@ant-design/x"
-import {
-    ArrowsClockwise,
-    ArrowUUpLeft,
-    Copy,
-    Robot,
-    TreeStructure,
-    User,
-} from "@phosphor-icons/react"
+import {ArrowUUpLeft, Copy, Robot, TreeStructure, User} from "@phosphor-icons/react"
 import type {ToolUIPart, UIMessage} from "ai"
 import {Avatar, Button, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -39,9 +32,7 @@ const TraceMetrics = ({traceId}: {traceId: string}) => {
 
 interface AgentMessageProps {
     message: UIMessage
-    isLast: boolean
     busy: boolean
-    onRegenerate: () => void
     onRewind: () => void
     onApprovalResponse: (args: {id: string; approved: boolean}) => void
 }
@@ -58,14 +49,7 @@ const avatarFor = (isUser: boolean) => (
  * approvals, sources) for the bubble body, and puts the per-message action row in the
  * footer. While an assistant message has no content yet, the bubble shows the loading state.
  */
-const AgentMessage = ({
-    message,
-    isLast,
-    busy,
-    onRegenerate,
-    onRewind,
-    onApprovalResponse,
-}: AgentMessageProps) => {
+const AgentMessage = ({message, busy, onRewind, onApprovalResponse}: AgentMessageProps) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const isUser = message.role === "user"
 
@@ -184,17 +168,15 @@ const AgentMessage = ({
                     onClick={() => navigator.clipboard.writeText(fullText)}
                 />
             </Tooltip>
-            {isLast && (
-                <Tooltip title="Retry">
-                    <Button
-                        type="text"
-                        size="small"
-                        disabled={busy}
-                        icon={<ArrowsClockwise size={14} />}
-                        onClick={onRegenerate}
-                    />
-                </Tooltip>
-            )}
+            <Tooltip title="Rewind here — re-run this turn">
+                <Button
+                    type="text"
+                    size="small"
+                    disabled={busy}
+                    icon={<ArrowUUpLeft size={14} />}
+                    onClick={onRewind}
+                />
+            </Tooltip>
             {traceId && (
                 <Tooltip title="View trace">
                     <Button
