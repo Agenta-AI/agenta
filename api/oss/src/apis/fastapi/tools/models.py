@@ -2,6 +2,10 @@ from typing import List, Optional, Union
 
 from pydantic import BaseModel
 
+from oss.src.core.connections.dtos import (
+    Connection,
+    ConnectionCreate,
+)
 from oss.src.core.tools.dtos import (
     # Tool Catalog
     ToolCatalogAction,
@@ -10,9 +14,6 @@ from oss.src.core.tools.dtos import (
     ToolCatalogIntegrationDetails,
     ToolCatalogProvider,
     ToolCatalogProviderDetails,
-    # Tool Connections
-    ToolConnection,
-    ToolConnectionCreate,
     # Tool Calls
     ToolResult,
 )
@@ -67,17 +68,17 @@ class ToolCatalogActionsResponse(BaseModel):
 
 
 class ToolConnectionCreateRequest(BaseModel):
-    connection: ToolConnectionCreate
+    connection: ConnectionCreate
 
 
 class ToolConnectionResponse(BaseModel):
     count: int = 0
-    connection: Optional[ToolConnection] = None
+    connection: Optional[Connection] = None
 
 
 class ToolConnectionsResponse(BaseModel):
     count: int = 0
-    connections: List[ToolConnection] = []
+    connections: List[Connection] = []
 
 
 # ---------------------------------------------------------------------------

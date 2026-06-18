@@ -134,7 +134,10 @@ from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
 
 from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.apis.fastapi.accounts.router import PlatformAdminAccountsRouter
-from oss.src.dbs.postgres.tools.dao import ToolsDAO
+from oss.src.dbs.postgres.connections.dao import ConnectionsDAO
+from oss.src.core.connections.providers.composio import ComposioConnectionsAdapter
+from oss.src.core.connections.registry import ConnectionsGatewayRegistry
+from oss.src.core.connections.service import ConnectionsService
 from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
@@ -207,6 +210,9 @@ async def lifespan(*args, **kwargs):
     yield
 
     for adapter in _composio_adapters.values():
+        await adapter.close()
+
+    for adapter in _composio_connections_adapters.values():
         await adapter.close()
 
     await _transactions_engine.close()
@@ -439,7 +445,7 @@ environments_dao = GitDAO(
 evaluations_dao = EvaluationsDAO(engine=_transactions_engine)
 folders_dao = FoldersDAO(engine=_transactions_engine)
 
-tools_dao = ToolsDAO(engine=_transactions_engine)
+connections_dao = ConnectionsDAO(engine=_transactions_engine)
 
 # SERVICES ---------------------------------------------------------------------
 
@@ -574,6 +580,23 @@ simple_queues_service = SimpleQueuesService(
     simple_evaluations_service=simple_evaluations_service,
 )
 
+# Connections adapter + service (owns gateway_connections; consumed by tools)
+_composio_connections_adapters = {}
+if env.composio.enabled:
+    _composio_connections_adapters["composio"] = ComposioConnectionsAdapter(
+        api_key=env.composio.api_key,  # type: ignore[arg-type]  # guarded by .enabled
+        api_url=env.composio.api_url,
+    )
+
+connections_adapter_registry = ConnectionsGatewayRegistry(
+    adapters=_composio_connections_adapters,
+)
+
+connections_service = ConnectionsService(
+    connections_dao=connections_dao,
+    adapter_registry=connections_adapter_registry,
+)
+
 # Tools adapter + service
 _composio_adapters = {}
 if env.composio.enabled:
@@ -589,7 +612,7 @@ tools_adapter_registry = ToolsGatewayRegistry(
 )
 
 tools_service = ToolsService(
-    tools_dao=tools_dao,
+    connections_service=connections_service,
     adapter_registry=tools_adapter_registry,
 )
 

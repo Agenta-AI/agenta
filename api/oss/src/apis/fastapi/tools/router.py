@@ -50,7 +50,7 @@ from oss.src.core.tools.exceptions import (
 from oss.src.core.tools.service import (
     ToolsService,
 )
-from oss.src.core.tools.utils import decode_oauth_state
+from oss.src.core.connections.utils import decode_oauth_state
 from oss.src.utils.env import env
 
 _SLUG_SEGMENT_RE = re.compile(r"^[a-zA-Z0-9_-]+$")

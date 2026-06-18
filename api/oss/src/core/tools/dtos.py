@@ -5,11 +5,7 @@ from agenta.sdk.models.workflows import JsonSchemas
 from pydantic import BaseModel
 
 from oss.src.core.shared.dtos import (
-    Header,
     Identifier,
-    Lifecycle,
-    Metadata,
-    Slug,
     Json,
     Status,
 )
@@ -86,71 +82,6 @@ class ToolCatalogProviderDetails(ToolCatalogProvider):
 
 
 # ---------------------------------------------------------------------------
-# Tool Connections
-# ---------------------------------------------------------------------------
-
-
-class ToolConnectionStatus(BaseModel):
-    redirect_url: Optional[str] = None
-
-
-class ToolConnectionCreateData(BaseModel):
-    callback_url: Optional[str] = None
-    #
-    auth_scheme: Optional[ToolAuthScheme] = None
-
-
-class ToolConnection(
-    Identifier,
-    Slug,
-    Header,
-    Lifecycle,
-    Metadata,
-):
-    provider_key: ToolProviderKind
-    integration_key: str
-    #
-    data: Optional[Json] = None
-    #
-    status: Optional[ToolConnectionStatus] = None
-
-    @property
-    def provider_connection_id(self) -> Optional[str]:
-        """Get provider-specific connection ID from data."""
-        if self.data and isinstance(self.data, dict):
-            # For Composio, it's stored as "connected_account_id"
-            return self.data.get("connected_account_id") or self.data.get(
-                "provider_connection_id"
-            )
-        return None
-
-    @property
-    def is_active(self) -> bool:
-        """Check if connection is active (not deleted)."""
-        if self.flags and isinstance(self.flags, dict):
-            return self.flags.get("is_active", False)
-        return False
-
-    @property
-    def is_valid(self) -> bool:
-        """Check if connection is valid (authenticated)."""
-        if self.flags and isinstance(self.flags, dict):
-            return self.flags.get("is_valid", False)
-        return False
-
-
-class ToolConnectionCreate(
-    Slug,
-    Header,
-    Metadata,
-):
-    provider_key: ToolProviderKind
-    integration_key: str
-    #
-    data: Optional[ToolConnectionCreateData] = None
-
-
-# ---------------------------------------------------------------------------
 # Tool Calls
 # ---------------------------------------------------------------------------
 
@@ -189,32 +120,6 @@ class ToolResult(Identifier):
 
     status: Optional[Status] = None
     data: Optional[ToolResultData] = None
-
-
-# ---------------------------------------------------------------------------
-# Tool Connection (adapter-level DTOs)
-# ---------------------------------------------------------------------------
-
-
-class ToolConnectionRequest(BaseModel):
-    """Input DTO for initiating a provider connection via a gateway adapter."""
-
-    user_id: str
-    integration_key: str
-    auth_scheme: Optional[str] = None
-    callback_url: Optional[str] = None
-
-
-class ToolConnectionResponse(BaseModel):
-    """Output DTO from ToolsGatewayInterface.initiate_connection.
-
-    The adapter builds ``connection_data`` with provider-specific fields so the
-    service never needs to know which provider it is talking to.
-    """
-
-    provider_connection_id: str
-    redirect_url: Optional[str] = None
-    connection_data: Dict[str, Any] = {}
 
 
 # ---------------------------------------------------------------------------
