@@ -1,5 +1,8 @@
+import hashlib
+import hmac
 from functools import wraps
-from typing import Optional
+from json import JSONDecodeError, loads
+from typing import Any, Optional
 from uuid import UUID
 
 import httpx
@@ -10,6 +13,7 @@ from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.common import is_ee
+from oss.src.utils.env import env
 
 from oss.src.apis.fastapi.triggers.models import (
     TriggerCatalogEventResponse,
@@ -19,6 +23,7 @@ from oss.src.apis.fastapi.triggers.models import (
     TriggerDeliveriesResponse,
     TriggerDeliveryQueryRequest,
     TriggerDeliveryResponse,
+    TriggerEventAck,
     TriggerSubscriptionCreateRequest,
     TriggerSubscriptionEditRequest,
     TriggerSubscriptionQueryRequest,
@@ -70,15 +75,57 @@ def handle_adapter_exceptions():
     return decorator
 
 
+def _verify_composio_signature(
+    *,
+    body: bytes,
+    headers: Any,
+) -> bool:
+    """HMAC-SHA256 verify over ``{id}.{ts}.{body}`` with ``COMPOSIO_WEBHOOK_SECRET``.
+
+    Returns True when the secret is unset (no-op) or the signature matches.
+    """
+    secret = env.composio.webhook_secret
+    if not secret:
+        return True
+
+    signature = headers.get("webhook-signature") or headers.get("x-composio-signature")
+    webhook_id = headers.get("webhook-id") or ""
+    timestamp = headers.get("webhook-timestamp") or ""
+    if not signature:
+        return False
+
+    signed = f"{webhook_id}.{timestamp}.{body.decode('utf-8', errors='replace')}"
+    expected = hmac.new(
+        secret.encode("utf-8"),
+        signed.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    provided = signature.split(",")[-1].strip()
+    return hmac.compare_digest(expected, provided)
+
+
 class TriggersRouter:
     def __init__(
         self,
         *,
         triggers_service: TriggersService,
+        dispatch_task: Optional[Any] = None,
     ):
         self.triggers_service = triggers_service
+        self.dispatch_task = dispatch_task
 
         self.router = APIRouter()
+
+        # --- Trigger Ingress (inbound provider events) ---
+        self.router.add_api_route(
+            "/composio/events",
+            self.ingest_composio_event,
+            methods=["POST"],
+            operation_id="ingest_composio_event",
+            response_model=TriggerEventAck,
+            status_code=status.HTTP_202_ACCEPTED,
+        )
 
         # --- Trigger Catalog ---
         self.router.add_api_route(
@@ -705,3 +752,52 @@ class TriggersRouter:
             count=1,
             delivery=delivery,
         )
+
+    # -----------------------------------------------------------------------
+    # Trigger Ingress (inbound provider events)
+    # -----------------------------------------------------------------------
+
+    @intercept_exceptions()
+    async def ingest_composio_event(
+        self,
+        request: Request,
+    ) -> Any:
+        """Receive a Composio provider event; verify, demux, ack-fast, enqueue.
+
+        Public (no Agenta auth) — mirrors the Stripe events receiver. Scope and
+        attribution are recovered downstream from the resolved subscription row.
+        """
+        body = await request.body()
+
+        if not _verify_composio_signature(body=body, headers=request.headers):
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"status": "error", "detail": "Signature verification failed"},
+            )
+
+        try:
+            envelope = loads(body) if body else {}
+        except JSONDecodeError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid payload",
+            )
+
+        metadata = envelope.get("metadata") or {}
+        trigger_id = metadata.get("trigger_id") or metadata.get("nano_id")
+        event_id = metadata.get("id")
+
+        if not trigger_id or not event_id:
+            # Nothing to route — accept (no-op) so the provider does not retry.
+            return TriggerEventAck(
+                status="accepted", detail="No trigger_id/id to route"
+            )
+
+        if self.dispatch_task is not None:
+            await self.dispatch_task.kiq(
+                trigger_id=str(trigger_id),
+                event_id=str(event_id),
+                event=envelope,
+            )
+
+        return TriggerEventAck(status="accepted")
