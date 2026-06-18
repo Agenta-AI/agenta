@@ -1,4 +1,8 @@
+import {projectIdAtom} from "@agenta/shared/state"
 import {DefaultChatTransport, type UIMessage} from "ai"
+import {getDefaultStore} from "jotai"
+
+import {getJWT} from "@/oss/services/api"
 
 import {resolveAppAgConfig} from "./agConfig"
 import {type AgentChatTrack, trackApi} from "./constants"
@@ -9,12 +13,14 @@ import {toAgentaMessages} from "./toAgentaMessage"
  * **track**. Both tracks consume the same v6 UI Message Stream response — only the
  * outgoing request body shape differs (see ./constants and ./toAgentaMessage).
  *
- * Shared S3-contract passthrough: `ag_config` (workflow config) + `references`
- * (app/variant/revision refs) + `session_id` (the useChat chat id). When the page is
- * app-scoped and `appId` is given, these are resolved from the app's LATEST revision via
- * `resolveAppAgConfig` (real config); otherwise we fall back to `stubConfig()`. Query
- * params (`application_id`, `project_id`) and `Authorization` are still out of scope for
- * the slice — they ride the execution-item builder during full integration.
+ * The request is built the way the playground execution pipeline builds it, so the page
+ * can hit a real authenticated backend:
+ *  - **Auth:** `Authorization: Bearer <jwt>` from `getJWT()` (omitted when unauthenticated,
+ *    so the credential-free example backend still works).
+ *  - **Query params:** `application_id` (the app id) and `project_id` (the current
+ *    project, only sent alongside auth — mirroring `executionItems.ts`).
+ *  - **Body:** `ag_config` + `references` resolved from the app's LATEST revision via
+ *    `resolveAppAgConfig` (else a stub) + `session_id` (the useChat chat id).
  *
  * **Track A (`uimessage`)** — POST the `UIMessage[]` verbatim. The service speaks AI SDK
  * parts; the approval decision is inside the assistant message's tool part. Zero FE
@@ -54,16 +60,42 @@ const configFor = (appId?: string | null) => {
     }
 }
 
+const withQuery = (url: string, params: Record<string, string | undefined>): string => {
+    const qs = new URLSearchParams()
+    for (const [key, value] of Object.entries(params)) {
+        if (value) qs.set(key, value)
+    }
+    const suffix = qs.toString()
+    return suffix ? `${url}${url.includes("?") ? "&" : "?"}${suffix}` : url
+}
+
+/** Per-request auth header + URL (with `application_id`/`project_id` query params), built
+ * the way the playground pipeline builds them so the page can hit a real backend. */
+async function requestMeta(track: AgentChatTrack, appId?: string | null) {
+    const jwt = await getJWT()
+    const headers: Record<string, string> = jwt ? {Authorization: `Bearer ${jwt}`} : {}
+    const projectId = getDefaultStore().get(projectIdAtom) || undefined
+    const api = withQuery(trackApi(track), {
+        application_id: appId || undefined,
+        // Mirror executionItems.ts: project_id only travels alongside auth.
+        project_id: jwt ? projectId : undefined,
+    })
+    return {api, headers}
+}
+
 export function createAgentChatTransport(track: AgentChatTrack, appId?: string | null) {
     return new DefaultChatTransport<UIMessage>({
         api: trackApi(track),
-        prepareSendMessagesRequest: ({messages, id, body}) => {
+        prepareSendMessagesRequest: async ({messages, id, body}) => {
             const config = configFor(appId)
+            const {api, headers} = await requestMeta(track, appId)
 
             if (track === "agenta") {
                 // Track B: FE adapts down to the existing Agenta message contract.
                 const {messages: agentaMessages, tool_approvals} = toAgentaMessages(messages)
                 return {
+                    api,
+                    headers,
                     body: {
                         messages: agentaMessages,
                         tool_approvals,
@@ -76,6 +108,8 @@ export function createAgentChatTransport(track: AgentChatTrack, appId?: string |
 
             // Track A: post the UIMessage[] verbatim — the service speaks parts.
             return {
+                api,
+                headers,
                 body: {
                     messages,
                     ...config,
