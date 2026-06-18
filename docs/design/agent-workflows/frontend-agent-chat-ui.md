@@ -556,7 +556,12 @@ returns `{ body, headers?, api? }`. `session_id` is the `useChat` chat `id`. In 
 execution-item builder. The `messages` field above shows **Track A** — see the next section
 for the open A/B decision on its shape.
 
-### Request message contract — two tracks (open decision, built both ways)
+### Request message contract — two tracks (RESOLVED → Track A; analysis kept for the record)
+
+> **Resolved by the agent-protocol RFC (PR #4735): Track A wins.** The RFC's `/messages`
+> uses `data.messages` in the `UIMessage` (parts) shape and explicitly rejects
+> `{role, content}`. The slice now ships a single Track-A path (see "Running the slice").
+> The analysis below is retained to show how the decision was reached.
 
 The first cut of this doc was internally inconsistent on the `messages` shape: the
 "Transport / parallel lane" section adapts `UIMessage.parts → {role, content}`
@@ -657,31 +662,34 @@ exactly the points only a running stream reveals:
 
 ### Running the slice (handover)
 
-Credential-free — the mock has no Qdrant/OpenAI/Agenta dependency.
+> **UPDATE (2026-06-18).** The A/B question above is **resolved**: the agent-protocol RFC
+> (PR #4735, `agent-protocol-rfc.md`) mandates **Track A** — `data.messages` in the
+> `UIMessage` (parts) shape, explicitly **not** `{role, content}`. The slice has been
+> collapsed to a **single Track-A path** posting the RFC envelope to **`POST /messages`**;
+> Track B, the `toAgentaMessage` adapter, and the A/B toggle are removed. The two-tracks
+> analysis below is kept as the record of how the decision was reached. Two RFC-vs-slice
+> deltas remain open (raised for the PR): **approvals** (an Agenta extension, not yet in the
+> RFC part registry) and **`traceId` in `messageMetadata`** (the slice emits it; the RFC
+> should adopt it).
 
-**1. Service** (the contract mock):
+One command brings up the backend (real if `examples/python/RAG_QA_chatbot/.env` exists,
+else the credential-free mock) **and** the web app:
 
 ```bash
-cd examples/python/RAG_QA_chatbot
-python3 -m venv .venv && .venv/bin/pip install fastapi 'uvicorn[standard]'
-.venv/bin/uvicorn backend.contract_main:app --port 8000
-# POST /api/agent/chat emits the full v6 part set incl. tool + approval.
-# The real RAG_QA main.py also mounts this router (needs the full env to boot).
+./examples/python/RAG_QA_chatbot/run-agent-chat-slice.sh
+# real mode: backend.main:app on :8000 (real LLM + Qdrant + Agenta trace), uvicorn --reload
+# mock mode: backend.contract_main:app on :8000 (no creds)
+# web: NEXT_PUBLIC_AGENT_CHAT_SLICE=true, EE by default (APP=oss to switch)
 ```
 
-**2. Frontend** (the page):
-
-```bash
-cd web && NEXT_PUBLIC_AGENT_CHAT_SLICE=true pnpm --filter @agenta/oss dev
-# visit  …/w/<ws>/p/<project>/agent-chat
-```
-
-Flip the **A · UIMessage parts / B · Agenta {role,content}** toggle on the page (or set
-`NEXT_PUBLIC_AGENT_CHAT_TRACK=agenta` for the default) and watch the Network tab to compare
-the two request contracts on the same stream. Override `NEXT_PUBLIC_AGENT_CHAT_API` to
-re-point the same page at the real agent workflow for parity testing. Code:
+The page is **app-scoped**: visit `…/w/<ws>/p/<project>/apps/<app_id>/agent-chat` (needs the
+authenticated dev stack running + an app; the page resolves that app's latest revision for
+`ag_config`). The backend serves **`POST /messages`** (RFC envelope:
+`{session_id, references?, data:{messages, parameters}}`); the response is a v6 UI Message
+Stream that `useChat` consumes directly. Override `NEXT_PUBLIC_AGENT_CHAT_API` to point the
+same page at a real `/messages` backend for parity testing. Code:
 `web/oss/src/components/AgentChatSlice/` + route
-`web/oss/src/pages/w/[workspace_id]/p/[project_id]/agent-chat/index.tsx`.
+`web/oss/src/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/agent-chat/index.tsx`.
 
 ### Assignment
 

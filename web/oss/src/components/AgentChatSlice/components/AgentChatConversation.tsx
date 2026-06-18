@@ -6,7 +6,7 @@ import {lastAssistantMessageIsCompleteWithApprovalResponses} from "ai"
 import {Alert, Tag, Typography} from "antd"
 
 import {useAgConfigStatus} from "../assets/agConfig"
-import {type AgentChatTrack, trackApi} from "../assets/constants"
+import {agentChatApi} from "../assets/constants"
 import {createAgentChatTransport} from "../assets/transport"
 
 import AgentMessage from "./AgentMessage"
@@ -27,22 +27,17 @@ const ConfigBadge = ({appId}: {appId: string}) => {
 }
 
 /**
- * One `useChat` conversation for a single request-contract track, rendered with Ant Design X
- * (`Bubble` per message + `Sender` composer). The parent remounts this (via `key={track}`)
- * when the track changes, so each track gets a clean session and a fresh transport. The
- * streamed response + rendering are identical across tracks; only the outgoing request body
- * differs (watch the Network tab to compare).
- *
- * When `appId` is set (the page is app-scoped), the transport sends the real `ag_config` +
- * `references` resolved from that app's latest revision; otherwise it falls back to a stub.
+ * The `useChat` conversation, rendered with Ant Design X (`Bubble` per message + `Sender`
+ * composer). Posts the RFC `POST /messages` envelope; the response is a v6 UI Message
+ * Stream. When `appId` is set (the page is app-scoped), the transport sends the real
+ * `references` + agent config resolved from that app's latest revision; otherwise a stub.
  */
-const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: string | null}) => {
+const AgentChatConversation = ({appId}: {appId: string | null}) => {
     const [input, setInput] = useState("")
-    // Stable per-mount session id. The parent remounts per track (key={track}), so each
-    // track gets its own session; it's passed to useChat as the chat id and travels to the
-    // backend as `session_id`.
+    // Stable per-mount session id, passed to useChat as the chat id and sent to the backend
+    // as `session_id` (the server echoes it back on the stream's `start` part).
     const [sessionId] = useState(() => crypto.randomUUID())
-    const transport = useMemo(() => createAgentChatTransport(track, appId), [track, appId])
+    const transport = useMemo(() => createAgentChatTransport(appId), [appId])
 
     const {
         messages,
@@ -76,7 +71,7 @@ const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: st
             <div className="flex items-start justify-between gap-2">
                 <div className="flex min-w-0 flex-col">
                     <Text type="secondary" className="!text-xs">
-                        POST {trackApi(track)}
+                        POST {agentChatApi}
                     </Text>
                     <Text
                         type="secondary"

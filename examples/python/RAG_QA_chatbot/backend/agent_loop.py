@@ -273,10 +273,10 @@ def _parse_args(raw: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _messages_from_uimessage(body: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Track A: rebuild OpenAI messages from AI SDK ``UIMessage[]`` (parts)."""
+def _messages_from_uimessage(ui_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Rebuild OpenAI messages from the RFC ``data.messages`` (AI SDK ``UIMessage[]``)."""
     out: List[Dict[str, Any]] = []
-    for m in body.get("messages") or []:
+    for m in ui_messages:
         role = m.get("role")
         parts = m.get("parts") or []
         text = " ".join(
@@ -331,45 +331,29 @@ def _messages_from_uimessage(body: Dict[str, Any]) -> List[Dict[str, Any]]:
     return out
 
 
-def _messages_from_agenta(body: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Track B: the FE already sends OpenAI-shaped messages; pass through the fields the
-    model needs (role/content/tool_calls/tool_call_id/name), dropping UI-only extras."""
-    out: List[Dict[str, Any]] = []
-    for m in body.get("messages") or []:
-        msg: Dict[str, Any] = {"role": m.get("role"), "content": m.get("content")}
-        if m.get("tool_calls"):
-            msg["tool_calls"] = m["tool_calls"]
-        if m.get("tool_call_id"):
-            msg["tool_call_id"] = m["tool_call_id"]
-        if m.get("name"):
-            msg["name"] = m["name"]
-        out.append(msg)
-    return out
-
-
 # ---------------------------------------------------------------------------
 # The turn
 # ---------------------------------------------------------------------------
 
 
 async def run_turn(
-    body: Dict[str, Any],
-    track: str,
+    ui_messages: List[Dict[str, Any]],
     pending: List[Dict[str, Any]],
+    session_id: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
-    """Drive one agent turn, emitting v6 SSE strings. `pending` are approval decisions
-    detected from the request (toolCallId, toolName, input, approved)."""
+    """Drive one agent turn from the RFC ``data.messages``, emitting v6 SSE strings.
+    `pending` are approval decisions detected from the request (toolCallId, toolName, input,
+    approved). `session_id` is echoed on the `start` part per the RFC."""
     from .config import settings  # lazy: pulls python-dotenv only in real mode
 
     model = settings.LLM_MODEL
     message_id = str(uuid.uuid4())
-    yield _sse({"type": "start", "messageId": message_id})
+    start: Dict[str, Any] = {"type": "start", "messageId": message_id}
+    if session_id:
+        start["messageMetadata"] = {"sessionId": session_id}
+    yield _sse(start)
 
-    history = (
-        _messages_from_agenta(body)
-        if track == "agenta"
-        else _messages_from_uimessage(body)
-    )
+    history = _messages_from_uimessage(ui_messages)
     messages: List[Dict[str, Any]] = [
         {"role": "system", "content": AGENT_SYSTEM_PROMPT},
         *history,
