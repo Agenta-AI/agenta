@@ -75,6 +75,81 @@ of which branch name you used when staging. So:
   applied state. Don't panic if `git diff <branch> -- <file>` shows a delta while
   `git status` is clean — verify against `git show "<branch>:<file>"` and re-push.
 
+### Spreading a pile of edits back across an existing stack (the reliable way)
+
+When you have a working tree full of changes that belong to *many* lanes of an
+already-pushed stack (e.g. a review-pass that fixes files across wp0…wp4), do NOT try to
+assign-and-commit lane by lane against the live working tree — `but rub`/`but commit
+--only`/`but absorb` all route by **hunk dependency across the whole stack**, and they
+mis-route in three predictable ways that scramble the stack and waste hours:
+
+- **New (untracked) files ignore the target branch.** `but rub <newFileCliId> <lowerLane>`
+  dumps every untracked file into the **topmost** lane's staging group, not the one you
+  named. New files cannot be assigned to a lower lane at all.
+- **`but absorb` sends anything it can't attribute to the docs/top lane.** Renamed files,
+  new files, and hunks in line-regions the target lane's original commit never touched all
+  fall to the "last commit in the primary lane" fallback — silently the wrong lane.
+- **A multi-hunk file whose hunks belong to different commits won't commit whole.** `but
+  commit <lane>` / `-p <file>` commits the attributable hunks and **drops the rest**
+  ("Warning: Some selected changes could not be committed"), often leaving an empty
+  no-change commit. Splitting one file across lower+upper lanes is the §"Splitting one file
+  across two stacked lanes" case above.
+
+The technique that actually works — **git-stash isolation, one lane at a time:**
+
+1. `but oplog snapshot -m "pristine"` then `git stash push -u` everything. Working tree
+   clean, every lane back at its remote tip. This snapshot is your only safe recovery
+   point — `but oplog restore` it whenever a step scrambles the stack (it does, often).
+2. For each lane, restore **only that lane's files** into the clean tree:
+   tracked-modified from `git checkout 'stash@{0}' -- <paths>`; **untracked/new** files
+   from the stash's untracked parent `git checkout 'stash@{0}^3' -- <paths>`; reproduce
+   deletes/renames with `git rm`. Verify with `git status` that ONLY that lane's files are
+   present — nothing else.
+3. Land them: if every hunk dependency-attributes cleanly to existing commits in that lane
+   (and the lane below), a blanket `but absorb` (no source — the tree holds only this
+   lane's files, so there's nothing to mis-route) puts each hunk in the right commit. If
+   the lane needs **new** files, use `but commit <lane>` instead (the new files have only
+   this lane to land in because the tree is isolated).
+4. **Verify the lane's tip TREE, not the diff** (commit history within a lane doesn't
+   matter; the resulting tree does): `git show <lane>:<file>` for each touched file, plus
+   `git ls-tree -r <lane> <dir>` for moves/deletes. Then check the lanes *above* it for
+   resurrected deletes / phantom files (the rebase re-materializes deleted dirs as
+   untracked — `rm -rf` that residue; it's noise, the tip tree is authoritative).
+5. Next lane. Push at the very end with `but push <lane> -f` and confirm every lane's
+   `git rev-parse <lane>` == `git ls-remote origin <lane>`.
+
+Unrelated fixes that depend on nothing in the stack (e.g. a stale test for code already on
+main) go on their **own parallel lane**: isolate just that file, `but commit -c <newlane>`.
+
+### Stacks are linear; a fan-out is expressed through PR bases, not graph shape
+
+A GitButler **stack** is a linear series. `but branch new <name> --anchor <parent>` does NOT
+create a sibling of `<parent>` — it **inserts the new branch into the line** on top of it. So
+anchoring two branches on the same parent produces `parent → first → second`, not two children
+of `parent`. `but branch new <name>` with **no** anchor makes a separate parallel stack, but a
+parallel stack branches off the workspace base (main), so a branch that genuinely depends on an
+ancestor's commits can't live there with a clean diff.
+
+This matters when a design's dependency tree fans out (e.g. a web lane and an SDK lane that both
+depend on an API lane but not on each other). You cannot draw that fan-out in the git graph here.
+You don't need to. The clean per-PR diff is a **PR-base** property, not a graph-shape property:
+a stacked branch contains every commit below it, and GitHub shows only the delta against the base
+you set. So put everything in **one linear stack in dependency order** and set each PR's base to
+the branch directly below it. Order independent lanes however you like (sort by fewest conflicts);
+lanes that touch disjoint files (e.g. `web/**` vs `api/**`) can sit anywhere in the line.
+
+- Build the line with `but move <branch> <target-branch>` (stacks `<branch>` on top of `<target>`)
+  and `but move <branch> zz` (tears `<branch>` off into its own parallel stack). Use these to
+  reorder after the fact; take a `but oplog snapshot` first.
+- **Verify the line by diffing, not by eyeballing the tree.** For each branch, run
+  `git diff --name-only <base>..<branch>` where `<base>` is the branch below it. The file list
+  must be exactly that lane's files. If a lower lane's files appear, the order is wrong (a lane got
+  inserted into another's ancestry) — `but move` it out of the way and re-diff.
+- A branch torn off to its own parallel stack (base = main) gives a **wrong** diff against an
+  ancestor branch: `git diff <ancestor>..<torn-off>` reverses the ancestor's own changes (their
+  merge base is main). That's the tell that the branch needs to be stacked, not parallel.
+- Set PR bases to match: bottom lane `--base main`, every other lane `--base <branch-below-it>`.
+
 ### Hard-won gotchas (don't relearn these)
 
 - **GitButler series need linear history.** A stack of branches connected by
