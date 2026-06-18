@@ -22,10 +22,13 @@ def _build_simple_application_payload(
     app_slug: str,
     app_type: Optional[AppType],
     app_id: Optional[str] = None,
+    app_name: Optional[str] = None,
 ) -> dict:
     payload = {
         "slug": app_slug,
-        "name": app_slug,
+        # Use the explicit display name when provided; fall back to the slug
+        # so that SDK-created apps get a readable label in the UI (fixes #4663).
+        "name": app_name or app_slug,
     }
 
     if app_id:
@@ -52,6 +55,7 @@ class AppManager:
         cls,
         *,
         app_slug: str,
+        app_name: Optional[str] = None,
         template_key: Optional[AppType] = None,
         app_type: Optional[AppType] = DEFAULT_APP_TYPE,
     ) -> ReferencesResponse:
@@ -60,6 +64,7 @@ class AppManager:
             endpoint="/simple/applications/",
             json=_build_simple_application_payload(
                 app_slug=app_slug,
+                app_name=app_name,
                 app_type=template_key or app_type,
             ),
         )
@@ -73,6 +78,7 @@ class AppManager:
         cls,
         *,
         app_slug: str,
+        app_name: Optional[str] = None,
         template_key: Optional[AppType] = None,
         app_type: Optional[AppType] = DEFAULT_APP_TYPE,
     ) -> ReferencesResponse:
@@ -81,6 +87,7 @@ class AppManager:
             endpoint="/simple/applications/",
             json=_build_simple_application_payload(
                 app_slug=app_slug,
+                app_name=app_name,
                 app_type=template_key or app_type,
             ),
         )
@@ -120,12 +127,19 @@ class AppManager:
 
     @classmethod
     @handle_exceptions()
-    def update(cls, *, app_id: str, app_slug: str) -> ReferencesResponse:
+    def update(
+        cls,
+        *,
+        app_id: str,
+        app_slug: str,
+        app_name: Optional[str] = None,
+    ) -> ReferencesResponse:
         response = authed_api()(
             method="PUT",
             endpoint=f"/simple/applications/{app_id}",
             json=_build_simple_application_payload(
                 app_slug=app_slug,
+                app_name=app_name,
                 app_type=None,
                 app_id=app_id,
             ),
@@ -136,12 +150,19 @@ class AppManager:
 
     @classmethod
     @handle_exceptions()
-    async def aupdate(cls, *, app_id: str, app_slug: str) -> ReferencesResponse:
+    async def aupdate(
+        cls,
+        *,
+        app_id: str,
+        app_slug: str,
+        app_name: Optional[str] = None,
+    ) -> ReferencesResponse:
         response = await authed_async_api()(
             method="PUT",
             endpoint=f"/simple/applications/{app_id}",
             json=_build_simple_application_payload(
                 app_slug=app_slug,
+                app_name=app_name,
                 app_type=None,
                 app_id=app_id,
             ),

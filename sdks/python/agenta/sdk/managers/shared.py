@@ -748,21 +748,26 @@ class SharedManager:
         cls,
         *,
         variant_slug: str,
+        variant_name: Optional[str] = None,
         #
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
     ):
         application = cls._query_simple_application(app_id=app_id, app_slug=app_slug)
 
+        variant_payload: Dict[str, Any] = {
+            "application_id": application.get("id"),
+            "slug": variant_slug,
+        }
+        # Include a human-readable display name when the caller provides one
+        # so that SDK-created variants are not shown as NULL in the UI (#4663).
+        if variant_name is not None:
+            variant_payload["name"] = variant_name
+
         response = authed_api()(
             method="POST",
             endpoint="/applications/variants/",
-            json={
-                "application_variant": {
-                    "application_id": application.get("id"),
-                    "slug": variant_slug,
-                }
-            },
+            json={"application_variant": variant_payload},
         )
         _raise_for_status(response)
         variant = response.json().get("application_variant")
@@ -777,6 +782,7 @@ class SharedManager:
         cls,
         *,
         variant_slug: str,
+        variant_name: Optional[str] = None,
         #
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
@@ -786,15 +792,17 @@ class SharedManager:
             app_slug=app_slug,
         )
 
+        variant_payload: Dict[str, Any] = {
+            "application_id": application.get("id"),
+            "slug": variant_slug,
+        }
+        if variant_name is not None:
+            variant_payload["name"] = variant_name
+
         response = await authed_async_api()(
             method="POST",
             endpoint="/applications/variants/",
-            json={
-                "application_variant": {
-                    "application_id": application.get("id"),
-                    "slug": variant_slug,
-                }
-            },
+            json={"application_variant": variant_payload},
         )
         _raise_for_status(response)
         variant = response.json().get("application_variant")
@@ -1083,6 +1091,7 @@ class SharedManager:
         *,
         parameters: dict,
         variant_slug: str,
+        revision_name: Optional[str] = None,
         #
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
@@ -1093,19 +1102,23 @@ class SharedManager:
             variant_slug=variant_slug,
         )
 
+        revision_payload: Dict[str, Any] = {
+            "application_id": variant.get("application_id")
+            or variant.get("artifact_id"),
+            "application_variant_id": variant.get("application_variant_id")
+            or variant.get("id"),
+            "slug": uuid4().hex[:12],
+            "data": {"parameters": parameters},
+        }
+        # Attach a human-readable revision name when the caller supplies one
+        # so that committed revisions don't surface as NULL in the UI (#4663).
+        if revision_name is not None:
+            revision_payload["name"] = revision_name
+
         response = authed_api()(
             method="POST",
             endpoint="/applications/revisions/commit",
-            json={
-                "application_revision": {
-                    "application_id": variant.get("application_id")
-                    or variant.get("artifact_id"),
-                    "application_variant_id": variant.get("application_variant_id")
-                    or variant.get("id"),
-                    "slug": uuid4().hex[:12],
-                    "data": {"parameters": parameters},
-                }
-            },
+            json={"application_revision": revision_payload},
         )
         _raise_for_status(response)
 
@@ -1128,6 +1141,7 @@ class SharedManager:
         *,
         parameters: dict,
         variant_slug: str,
+        revision_name: Optional[str] = None,
         #
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
@@ -1138,19 +1152,21 @@ class SharedManager:
             variant_slug=variant_slug,
         )
 
+        revision_payload: Dict[str, Any] = {
+            "application_id": variant.get("application_id")
+            or variant.get("artifact_id"),
+            "application_variant_id": variant.get("application_variant_id")
+            or variant.get("id"),
+            "slug": uuid4().hex[:12],
+            "data": {"parameters": parameters},
+        }
+        if revision_name is not None:
+            revision_payload["name"] = revision_name
+
         response = await authed_async_api()(
             method="POST",
             endpoint="/applications/revisions/commit",
-            json={
-                "application_revision": {
-                    "application_id": variant.get("application_id")
-                    or variant.get("artifact_id"),
-                    "application_variant_id": variant.get("application_variant_id")
-                    or variant.get("id"),
-                    "slug": uuid4().hex[:12],
-                    "data": {"parameters": parameters},
-                }
-            },
+            json={"application_revision": revision_payload},
         )
         _raise_for_status(response)
 

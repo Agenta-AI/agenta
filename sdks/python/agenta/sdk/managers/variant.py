@@ -10,6 +10,8 @@ class VariantManager(SharedManager):
         *,
         parameters: dict,
         variant_slug: str,
+        variant_name: Optional[str] = None,
+        revision_name: Optional[str] = None,
         #
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
@@ -18,6 +20,7 @@ class VariantManager(SharedManager):
             app_id=app_id,
             app_slug=app_slug,
             variant_slug=variant_slug,
+            variant_name=variant_name,
         )
 
         if variant:
@@ -26,6 +29,7 @@ class VariantManager(SharedManager):
                 app_id=app_id,
                 app_slug=app_slug,
                 variant_slug=variant_slug,
+                revision_name=revision_name,
             )
 
         return variant
@@ -36,6 +40,8 @@ class VariantManager(SharedManager):
         *,
         parameters: dict,
         variant_slug: str,
+        variant_name: Optional[str] = None,
+        revision_name: Optional[str] = None,
         #
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
@@ -44,6 +50,7 @@ class VariantManager(SharedManager):
             app_id=app_id,
             app_slug=app_slug,
             variant_slug=variant_slug,
+            variant_name=variant_name,
         )
         if variant:
             variant = await SharedManager.acommit(
@@ -51,6 +58,7 @@ class VariantManager(SharedManager):
                 app_id=app_id,
                 app_slug=app_slug,
                 variant_slug=variant_slug,
+                revision_name=revision_name,
             )
 
         return variant
@@ -61,6 +69,7 @@ class VariantManager(SharedManager):
         *,
         parameters: dict,
         variant_slug: str,
+        revision_name: Optional[str] = None,
         #
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
@@ -70,6 +79,7 @@ class VariantManager(SharedManager):
             app_id=app_id,
             app_slug=app_slug,
             variant_slug=variant_slug,
+            revision_name=revision_name,
         )
         return variant
 
@@ -79,6 +89,7 @@ class VariantManager(SharedManager):
         *,
         parameters: dict,
         variant_slug: str,
+        revision_name: Optional[str] = None,
         #
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
@@ -88,6 +99,7 @@ class VariantManager(SharedManager):
             app_id=app_id,
             app_slug=app_slug,
             variant_slug=variant_slug,
+            revision_name=revision_name,
         )
         return variant
 
