@@ -181,28 +181,6 @@ Retrieve relevant documents for a query.
 
 Health check endpoint.
 
-### `POST /messages` (agent chat slice)
-
-The streaming **agent protocol** endpoint used by the Agenta frontend agent-chat slice —
-the RFC contract in `docs/design/agent-workflows/agent-protocol-rfc.md`. It takes the RFC
-envelope `{ session_id?, references?, data: { messages: UIMessage[], parameters? } }` and
-returns a v6 **UI Message Stream** (SSE, `x-vercel-ai-ui-message-stream: v1`) that the
-frontend `useChat` hook consumes directly: streamed text, tool calls (real `search_docs`
-retrieval + an approval-gated `send_summary_email`), and a trace id.
-
-- **Real mode** (default once `.env` has `OPENAI_API_KEY` + a real `QDRANT_URL`): a genuine
-  LLM function-calling loop (`backend/agent_loop.py`).
-- **Mock mode** (no creds): a canned stream with the identical part lifecycle
-  (`backend/contract_stream.py`), served standalone by `backend/contract_main.py`.
-
-Run the whole slice (this backend + the Agenta web app) with one command:
-
-```bash
-./run-agent-chat-slice.sh
-# real if .env exists, else credential-free mock; then the web app with the slice flag on.
-# Visit  …/w/<ws>/p/<project>/apps/<app_id>/agent-chat
-```
-
 ## Observability with Agenta
 
 This example integrates with [Agenta](https://agenta.ai) for:

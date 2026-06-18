@@ -6,9 +6,12 @@ export const processEnv = {
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
     // Feature flag for the agent chat streaming slice (contract v1) page.
     NEXT_PUBLIC_AGENT_CHAT_SLICE: process.env.NEXT_PUBLIC_AGENT_CHAT_SLICE,
-    // Streaming endpoint the agent chat slice points `useChat` at (RFC POST /messages).
-    // Defaults to the local RAG_QA contract mock when unset (see AgentChatSlice/assets/constants.ts).
+    // Streaming endpoint the agent chat slice points `useChat` at. Defaults to the
+    // local RAG_QA contract mock when unset (see AgentChatSlice/assets/constants.ts).
     NEXT_PUBLIC_AGENT_CHAT_API: process.env.NEXT_PUBLIC_AGENT_CHAT_API,
+    // Default request-contract track for the agent chat slice: "uimessage" (Track A) or
+    // "agenta" (Track B). The page also has a runtime toggle.
+    NEXT_PUBLIC_AGENT_CHAT_TRACK: process.env.NEXT_PUBLIC_AGENT_CHAT_TRACK,
     NEXT_PUBLIC_AGENTA_AUTHN_EMAIL: process.env.NEXT_PUBLIC_AGENTA_AUTHN_EMAIL,
     NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID:
         process.env.NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID,

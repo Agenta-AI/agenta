@@ -5,8 +5,8 @@ OpenAI, or Agenta credentials:
 
     uvicorn backend.contract_main:app --port 8000 --reload
 
-The frontend slice points `useChat` at POST /messages (the RFC agent protocol). The real
-RAG service in `backend/main.py` is unchanged and also mounts the same router (see main.py).
+The frontend slice points `useChat` at POST /api/agent/chat. The real RAG service in
+`backend/main.py` is unchanged and also mounts the same router (see main.py).
 """
 
 from fastapi import FastAPI

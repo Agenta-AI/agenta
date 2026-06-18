@@ -1,19 +1,28 @@
 import {DefaultChatTransport, type UIMessage} from "ai"
 
 import {resolveAppAgConfig} from "./agConfig"
-import {agentChatApi} from "./constants"
+import {type AgentChatTrack, trackApi} from "./constants"
+import {toAgentaMessages} from "./toAgentaMessage"
 
 /**
- * Transport for the agent chat slice — a client for the RFC `POST /messages` contract
- * (`docs/design/agent-workflows/agent-protocol-rfc.md`). It posts the RFC envelope:
+ * Transport for the agent chat slice (contract v1), parameterized by request-contract
+ * **track**. Both tracks consume the same v6 UI Message Stream response — only the
+ * outgoing request body shape differs (see ./constants and ./toAgentaMessage).
  *
- *   { session_id, references?, data: { messages: UIMessage[], parameters } }
+ * Shared S3-contract passthrough: `ag_config` (workflow config) + `references`
+ * (app/variant/revision refs) + `session_id` (the useChat chat id). When the page is
+ * app-scoped and `appId` is given, these are resolved from the app's LATEST revision via
+ * `resolveAppAgConfig` (real config); otherwise we fall back to `stubConfig()`. Query
+ * params (`application_id`, `project_id`) and `Authorization` are still out of scope for
+ * the slice — they ride the execution-item builder during full integration.
  *
- * `data.messages` is the `useChat` `UIMessage[]` posted verbatim (parts) — the RFC's chosen
- * shape. `references` + the resolved agent config (`data.parameters`) come from the app's
- * LATEST revision via `resolveAppAgConfig` when the page is app-scoped; otherwise a stub.
- * `session_id` is the useChat chat id. Query params (`application_id`, `project_id`) and
- * `Authorization` ride the execution-item builder during full integration.
+ * **Track A (`uimessage`)** — POST the `UIMessage[]` verbatim. The service speaks AI SDK
+ * parts; the approval decision is inside the assistant message's tool part. Zero FE
+ * translation (JP's "1:1 to UIMessage parts, no translation layer").
+ *
+ * **Track B (`agenta`)** — adapt to Agenta's `{role, content}` + `tool_calls` shape via
+ * `toAgentaMessages`, with the approval decision in a `tool_approvals` side field. Uniform
+ * backend contract across workflow types, at the cost of a FE translation layer.
  */
 const stubConfig = () => ({
     ag_config: {
@@ -24,7 +33,11 @@ const stubConfig = () => ({
         harness: "pi",
         sandbox: "local",
     },
-    references: null as Record<string, unknown> | null,
+    references: {
+        application: null,
+        application_variant: null,
+        application_revision: null,
+    },
 })
 
 /**
@@ -41,19 +54,32 @@ const configFor = (appId?: string | null) => {
     }
 }
 
-export function createAgentChatTransport(appId?: string | null) {
+export function createAgentChatTransport(track: AgentChatTrack, appId?: string | null) {
     return new DefaultChatTransport<UIMessage>({
-        api: agentChatApi,
+        api: trackApi(track),
         prepareSendMessagesRequest: ({messages, id, body}) => {
-            const {ag_config, references} = configFor(appId)
+            const config = configFor(appId)
+
+            if (track === "agenta") {
+                // Track B: FE adapts down to the existing Agenta message contract.
+                const {messages: agentaMessages, tool_approvals} = toAgentaMessages(messages)
+                return {
+                    body: {
+                        messages: agentaMessages,
+                        tool_approvals,
+                        ...config,
+                        session_id: id,
+                        ...body,
+                    },
+                }
+            }
+
+            // Track A: post the UIMessage[] verbatim — the service speaks parts.
             return {
                 body: {
+                    messages,
+                    ...config,
                     session_id: id,
-                    ...(references ? {references} : {}),
-                    data: {
-                        messages, // RFC data.messages — UIMessage[] verbatim (parts)
-                        parameters: ag_config,
-                    },
                     ...body,
                 },
             }

@@ -1,50 +1,65 @@
-"""`POST /messages` — the RFC agent protocol endpoint (real agent loop + mock fallback).
+"""Agent chat slice endpoints (contract v1) — real agent loop, with a mock fallback.
 
-Serves the **v6 UI Message Stream protocol** the frontend `useChat` hook consumes, behind
-the RFC envelope (`docs/design/agent-workflows/agent-protocol-rfc.md`):
-
-    { "session_id"?, "references"?, "data": { "messages": UIMessage[], "parameters"? } }
-
-The conversation is `data.messages` in the AI SDK `UIMessage[]` (parts) shape — the RFC's
-chosen contract (it rejects the `{role, content}` shape for `/messages`). `session_id` is
-echoed on the `start` part's `messageMetadata.sessionId`.
-
-Two execution modes behind the same wire contract:
+These two endpoints serve the **v6 UI Message Stream protocol** the frontend `useChat`
+hook consumes. There are two execution modes behind the same wire contract:
 
   * **Real** (default once creds exist) — a genuine LLM function-calling loop in
     `agent_loop.py`: real `search_docs` retrieval (Qdrant), a real approval-gated
     `send_summary_email`, real streamed tokens, and a real Agenta trace id.
   * **Mock** (credential-free fallback) — the canned generators below, which emit the
-    identical part lifecycle with NO dependency on litellm / qdrant / agenta.
+    identical part lifecycle with NO dependency on litellm / qdrant / agenta, so the
+    streaming contract can still be exercised end to end without any credentials.
 
 Mode is chosen by `_real_enabled()` (env `AGENT_CHAT_MODE=auto|real|mock`). When real is
 active the heavy deps are imported lazily, so `contract_main.py` stays self-contained.
 
 The mock mirrors the full part lifecycle the real agent loop emits:
 
-    start (messageMetadata.sessionId)
+    start
       → reasoning-start / -delta / -end
       → text-start / -delta / -end
       → source-url (x2)
       → tool-input-start / -input-available / -output-available   (auto tool, no approval)
       → tool-input-start / -input-available / -approval-request    (tool that needs approval)
-      → data-trace → finish (messageMetadata.traceId)
+      → data-trace
+      → finish
 
-On the follow-up request the FE re-POSTs the full history (`data.messages`) with the tool
-part in `approval-responded` state; we detect it and resume with
-`tool-output-available | tool-output-denied`, then a final answer.
+On the follow-up request (after the user approves/denies via
+`addToolApprovalResponse`), the FE re-POSTs the full history with the tool part in
+`approval-responded` state. We detect it and resume:
+
+    start
+      → tool-output-available | tool-output-denied   (per the user's decision)
+      → text-start / -delta / -end
+      → data-trace
+      → finish
 
 Wire framing: SSE, each event `data: <json>\\n\\n`, terminated by `data: [DONE]\\n\\n`,
 response header `x-vercel-ai-ui-message-stream: v1`.
 
-NOTE: approvals are an Agenta extension — they are not (yet) in the RFC part registry.
+Two request contracts share this identical response stream so the team can compare them:
+
+  * **Track A** — `POST /api/agent/chat`. Request `messages` is the AI SDK `UIMessage[]`
+    shape (`{role, parts: [...]}`). The FE sends what `useChat` produces verbatim; the
+    approval decision rides inside the assistant message's tool part
+    (`state: "approval-responded"`). Zero FE translation; the service must speak parts.
+
+  * **Track B** — `POST /api/agent/chat-agenta`. Request `messages` is the existing Agenta
+    `{role, content}` shape (OpenAI/ACP-style, same as `chat.py`/`completion.py`), with
+    tool calls as `tool_calls`/`tool` messages. Because the Agenta message contract has no
+    slot for an approval decision, Track B carries it in a `tool_approvals` side field.
+    This is the "FE adapts down to the uniform backend contract" option — it costs a FE
+    translation layer (`toAgentaMessage`) and a net-new approval encoding.
+
+The *response* is byte-for-byte identical between the two — only how the FE encodes the
+request (and how this mock reads it) differs.
 """
 
 import asyncio
 import json
 import os
 import uuid
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
@@ -80,7 +95,8 @@ def _trace_event() -> Dict[str, Any]:
 
 
 def _last_user_text(messages: List[Dict[str, Any]]) -> str:
-    """Last user text from the UIMessage `parts` (tolerates a `content` string too)."""
+    """Last user text. Tolerates both the UIMessage (`parts`) and Agenta (`content`)
+    message shapes, so it serves both tracks."""
     for msg in reversed(messages):
         if msg.get("role") != "user":
             continue
@@ -131,6 +147,44 @@ def _pending_approvals_uimessage(
     return pending
 
 
+# ---- Track B: approvals read from the `tool_approvals` side channel --------------------
+
+
+def _pending_approvals_agenta(body: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Track B: the Agenta `{role, content}` message contract has no slot for an approval
+    decision, so the FE adapter surfaces it in a top-level `tool_approvals` field:
+
+        "tool_approvals": [ { "tool_call_id": "call_x", "approved": true } ]
+
+    An entry is "pending" only while the matching tool call has no `tool` result message
+    yet — the same window Track A detects via `state == "approval-responded"`.
+    """
+    approvals = body.get("tool_approvals") or []
+    if not approvals:
+        return []
+
+    # tool_call_ids that already have a result (so they are no longer pending)
+    resolved: set = set()
+    for msg in body.get("messages") or []:
+        if msg.get("role") == "tool" and msg.get("tool_call_id"):
+            resolved.add(msg["tool_call_id"])
+
+    pending: List[Dict[str, Any]] = []
+    for entry in approvals:
+        tool_call_id = entry.get("tool_call_id")
+        if not tool_call_id or tool_call_id in resolved:
+            continue
+        pending.append(
+            {
+                "toolCallId": tool_call_id,
+                "toolName": entry.get("tool_name", "tool"),
+                "input": entry.get("input"),
+                "approved": bool(entry.get("approved")),
+            }
+        )
+    return pending
+
+
 async def _emit_text(text: str, *, prefix: str = "") -> AsyncGenerator[str, None]:
     """Stream `text` as text-start/-delta(word-chunked)/-end."""
     text_id = str(uuid.uuid4())
@@ -166,17 +220,9 @@ def _tokenize(text: str) -> List[str]:
     return out
 
 
-def _start_event(session_id: Optional[str]) -> Dict[str, Any]:
-    start: Dict[str, Any] = {"type": "start", "messageId": str(uuid.uuid4())}
-    if session_id:
-        start["messageMetadata"] = {"sessionId": session_id}
-    return start
-
-
-async def _initial_turn(
-    query: str, session_id: Optional[str] = None
-) -> AsyncGenerator[str, None]:
-    yield _sse(_start_event(session_id))
+async def _initial_turn(query: str) -> AsyncGenerator[str, None]:
+    message_id = str(uuid.uuid4())
+    yield _sse({"type": "start", "messageId": message_id})
 
     # 1) reasoning (v6 reasoning parts)
     async for ev in _emit_reasoning(
@@ -266,10 +312,9 @@ async def _initial_turn(
     yield "data: [DONE]\n\n"
 
 
-async def _resume_turn(
-    pending: List[Dict[str, Any]], session_id: Optional[str] = None
-) -> AsyncGenerator[str, None]:
-    yield _sse(_start_event(session_id))
+async def _resume_turn(pending: List[Dict[str, Any]]) -> AsyncGenerator[str, None]:
+    message_id = str(uuid.uuid4())
+    yield _sse({"type": "start", "messageId": message_id})
 
     any_approved = False
     any_denied = False
@@ -304,15 +349,15 @@ async def _resume_turn(
 
 
 async def _mock_turn(
-    pending: List[Dict[str, Any]], query: str, session_id: Optional[str] = None
+    pending: List[Dict[str, Any]], query: str
 ) -> AsyncGenerator[str, None]:
     """Canned, credential-free stream — the contract-proving fallback when no LLM/RAG
-    creds are present."""
+    creds are present. Both tracks share this identical response stream."""
     if pending:
-        async for ev in _resume_turn(pending, session_id):
+        async for ev in _resume_turn(pending):
             yield ev
     else:
-        async for ev in _initial_turn(query, session_id):
+        async for ev in _initial_turn(query):
             yield ev
 
 
@@ -337,26 +382,24 @@ def _real_enabled() -> bool:
     return has_creds
 
 
-@router.post("/messages")
-async def messages(request: Request) -> StreamingResponse:
-    """RFC `POST /messages`. The conversation is `data.messages` (AI SDK `UIMessage[]`);
-    `session_id`/`references` sit at the envelope top level; the agent config is
-    `data.parameters`. Picks the real agent loop or the credential-free mock, then frames
-    the response as a v6 UI Message Stream."""
-    body: Dict[str, Any] = await request.json()
-    data: Dict[str, Any] = body.get("data") or {}
-    ui_messages: List[Dict[str, Any]] = data.get("messages") or []
-    session_id: Optional[str] = body.get("session_id")
-    pending = _pending_approvals_uimessage(ui_messages)
+def _build_response(body: Dict[str, Any], track: str) -> StreamingResponse:
+    """Pick the real agent loop or the mock, then frame it as a v6 SSE response. The
+    response stream is identical across tracks; only request parsing differs."""
+    messages: List[Dict[str, Any]] = body.get("messages") or []
+    pending = (
+        _pending_approvals_agenta(body)
+        if track == "agenta"
+        else _pending_approvals_uimessage(messages)
+    )
 
     if _real_enabled():
         # Lazy import: pulls litellm / qdrant / agenta only in real mode, so the
         # credential-free contract_main stays self-contained.
         from . import agent_loop
 
-        generator = agent_loop.run_turn(ui_messages, pending, session_id)
+        generator = agent_loop.run_turn(body, track, pending)
     else:
-        generator = _mock_turn(pending, _last_user_text(ui_messages), session_id)
+        generator = _mock_turn(pending, _last_user_text(messages))
 
     return StreamingResponse(
         generator,
@@ -368,9 +411,23 @@ async def messages(request: Request) -> StreamingResponse:
     )
 
 
-@router.get("/messages/health")
-async def messages_health() -> Dict[str, str]:
+@router.post("/api/agent/chat")
+async def agent_chat(request: Request) -> StreamingResponse:
+    """Track A — request `messages` is the AI SDK `UIMessage[]` shape (`{role, parts}`)."""
+    return _build_response(await request.json(), track="uimessage")
+
+
+@router.post("/api/agent/chat-agenta")
+async def agent_chat_agenta(request: Request) -> StreamingResponse:
+    """Track B — request `messages` is the Agenta `{role, content}` shape; the approval
+    decision rides in the `tool_approvals` side field."""
+    return _build_response(await request.json(), track="agenta")
+
+
+@router.get("/api/agent/health")
+async def agent_health() -> Dict[str, str]:
     return {
         "status": "healthy",
-        "endpoint": "POST /messages (RFC agent protocol; UIMessage parts)",
+        "endpoint": "contract-stream-mock",
+        "tracks": "A=/api/agent/chat (UIMessage parts), B=/api/agent/chat-agenta (Agenta {role,content})",
     }

@@ -9,6 +9,8 @@
 #   2. The OSS web app (Next dev) with the slice flag on
 #
 # Then visit:  http://localhost:3000/w/<workspace>/p/<project>/apps/<app_id>/agent-chat
+# Flip the A · UIMessage parts / B · Agenta {role,content} toggle on the page, or set
+# AGENT_CHAT_TRACK=agenta below to default to Track B.
 #
 # Ctrl-C tears down both. No Qdrant/OpenAI/Agenta credentials needed.
 
@@ -16,6 +18,7 @@ set -euo pipefail
 
 # --- config (override via env) ---------------------------------------------
 BACKEND_PORT="${BACKEND_PORT:-8000}"
+AGENT_CHAT_TRACK="${AGENT_CHAT_TRACK:-}"   # "agenta" => default to Track B; empty => Track A default
 APP="${APP:-ee}"                           # which web app shell to serve: "ee" (default) or "oss"
 
 case "$APP" in
@@ -99,7 +102,8 @@ echo "==> Starting web dev server: $APP_FILTER (slice flag on)…"
 echo ""
 echo "    App:    $APP_FILTER   (override with APP=oss)"
 echo "    Visit:  http://localhost:3000/w/<workspace>/p/<project>/apps/<app_id>/agent-chat"
-echo "    API:    http://localhost:$BACKEND_PORT/messages"
+echo "    Mock:   http://localhost:$BACKEND_PORT/api/agent/chat"
+[ -n "$AGENT_CHAT_TRACK" ] && echo "    Track:  defaulting to '$AGENT_CHAT_TRACK' (page toggle still works)"
 echo ""
 echo "    NOTE: reaching the /w/../p/../apps/<app_id>/agent-chat route needs your authenticated dev"
 echo "          stack (backend + DB + auth) already running — this script only starts"
@@ -107,4 +111,6 @@ echo "          the contract mock and the web app."
 echo ""
 
 cd "$WEB_DIR"
-NEXT_PUBLIC_AGENT_CHAT_SLICE=true pnpm --filter "$APP_FILTER" dev
+NEXT_PUBLIC_AGENT_CHAT_SLICE=true \
+  ${AGENT_CHAT_TRACK:+NEXT_PUBLIC_AGENT_CHAT_TRACK="$AGENT_CHAT_TRACK"} \
+  pnpm --filter "$APP_FILTER" dev
