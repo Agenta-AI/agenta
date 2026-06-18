@@ -320,7 +320,7 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
         throw new Error(`App creation is not implemented for app type 'custom'.`)
     }
 
-    await page.goto(`${getProjectScopedBasePath(page)}/apps`, {waitUntil: "domcontentloaded"})
+    await page.goto("/apps", {waitUntil: "domcontentloaded"})
     await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
 
     const appName = `e2e-${type}-${Date.now()}`
@@ -431,7 +431,7 @@ export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
         method: "POST",
     })
 
-    await page.goto(`${getProjectScopedBasePath(page)}/apps`, {waitUntil: "domcontentloaded"})
+    await page.goto("/apps", {waitUntil: "domcontentloaded"})
     await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
 
     const data = await appsResponse
@@ -478,7 +478,7 @@ export const getAppById = async (page: Page, appId: string) => {
     // Trigger the API call by going to apps page if not already there
     const currentUrl = page.url()
     if (!currentUrl.includes("/apps")) {
-        await page.goto(`${getProjectScopedBasePath(page)}/apps`, {waitUntil: "domcontentloaded"})
+        await page.goto("/apps", {waitUntil: "domcontentloaded"})
         await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
     }
 
@@ -500,7 +500,7 @@ export const getTestsets = async (page: Page) => {
         method: "POST",
     })
 
-    await page.goto(`${getProjectScopedBasePath(page)}/testsets`, {waitUntil: "domcontentloaded"})
+    await page.goto("/testsets", {waitUntil: "domcontentloaded"})
     const response = await testsetsResponse
     const testsets = response.testsets
     expect(testsets.length).toBeGreaterThan(0)
@@ -612,19 +612,21 @@ export const createTestset = async (
 }
 
 export const getVariants = async (page: Page, appId: string) => {
-    await page.goto(`${getProjectScopedBasePath(page)}/apps`, {waitUntil: "domcontentloaded"})
-    const overviewPath = `${getProjectScopedBasePath(page)}/apps/${appId}/overview`
+    // Call the variants API directly rather than navigating to the overview page.
+    // UI navigation depends on React's TanStack Query cache being up-to-date, which
+    // races with Next.js page transitions — the cache update lands as a microtask
+    // AFTER Playwright captures the network response but BEFORE the new page mounts,
+    // so the overview can render "Workflow not found" with stale cache data.
+    // A direct API call avoids that race entirely.
+    const projectId = getProjectId(page)
+    const apiUrl = `${getApiURL(page)}/workflows/variants/query?project_id=${projectId}`
 
-    const variantsResponse = waitForApiResponse<{workflow_variants: ApiVariant[]; count: number}>(
-        page,
-        {
-            route: `/workflows/variants/query`,
-            method: "POST",
-        },
-    )
+    const response = await page.request.post(apiUrl, {
+        data: {workflow_refs: [{id: appId}]},
+    })
 
-    await page.goto(overviewPath, {waitUntil: "domcontentloaded"})
-    const data = await variantsResponse
+    expect(response.ok()).toBe(true)
+    const data = (await response.json()) as {workflow_variants: ApiVariant[]; count: number}
 
     const variants = data.workflow_variants || []
     const variantsCount = data.count || 0
@@ -649,7 +651,7 @@ export const getEvaluationRuns = async (page: Page) => {
         method: "POST",
     })
 
-    await page.goto(`${getProjectScopedBasePath(page)}/evaluations`, {
+    await page.goto("/evaluations", {
         waitUntil: "domcontentloaded",
     })
     const evaluationRuns = await evaluationRunsResponse
