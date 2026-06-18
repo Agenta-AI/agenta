@@ -1,7 +1,9 @@
 """RAG logic: retrieve and generate."""
 
+import re
 from dataclasses import dataclass
 from typing import AsyncGenerator, List, Optional, Tuple
+from urllib.parse import urlsplit, urlunsplit
 
 import agenta as ag
 from agenta.sdk.managers.shared import SharedManager
@@ -10,6 +12,27 @@ from litellm import acompletion, embedding
 from qdrant_client import QdrantClient
 
 from .config import settings
+
+_DOCUSAURUS_ORDER_PREFIX = re.compile(r"^\d+-")
+
+
+def normalize_doc_url(url: str) -> str:
+    """Strip Docusaurus numeric ordering prefixes (`NN-`) from each path segment.
+
+    The `.mdx` filenames carry sidebar-ordering prefixes (`01-architecture.mdx`) that the
+    public docs site drops from the URL (`/architecture`). Older ingests stored the URL with
+    the prefix, which 404s — this repairs them at read time so source links resolve.
+    """
+    if not url:
+        return url
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    new_path = "/".join(
+        _DOCUSAURUS_ORDER_PREFIX.sub("", seg) for seg in parts.path.split("/")
+    )
+    return urlunsplit(parts._replace(path=new_path))
 
 
 @dataclass
@@ -85,7 +108,7 @@ def retrieve(
             RetrievedDoc(
                 content=point.payload["content"],
                 title=point.payload["title"],
-                url=point.payload["url"],
+                url=normalize_doc_url(point.payload["url"]),
                 score=point.score,
             )
         )
