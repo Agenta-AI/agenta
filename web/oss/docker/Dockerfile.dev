@@ -2,7 +2,13 @@ FROM node:24-slim
 
 ENV TURBO_TELEMETRY_DISABLED=1 \
     PNPM_HOME="/pnpm" \
-    PATH="/pnpm:$PATH"
+    PATH="/pnpm:$PATH" \
+    PNPM_CONFIG_FETCH_TIMEOUT=3600000 \
+    PNPM_CONFIG_FETCH_RETRY_MINTIMEOUT=60000 \
+    PNPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=600000 \
+    PNPM_CONFIG_FETCH_RETRIES=10 \
+    PNPM_CONFIG_FETCH_MIN_SPEED_KI_BPS=0 \
+    PNPM_CONFIG_FETCH_WARN_TIMEOUT_MS=600000
 
 WORKDIR /app
 
@@ -48,15 +54,16 @@ COPY tests/package.json ./tests/
 COPY ./pnpm-workspace.yaml ./turbo.json ./
 RUN groupadd --gid 10001 agenta && \
     useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
+    mkdir -p /app/.turbo /app/oss/.next/cache && \
     chown -R agenta:agenta /app
 
 USER 10001
 
-RUN npm_config_fetch_timeout=600000 \
-    npm_config_fetch_retry_mintimeout=20000 \
-    npm_config_fetch_retry_maxtimeout=120000 \
-    npm_config_fetch_retries=5 \
-    pnpm i
+RUN --mount=type=cache,id=pnpm-oss-dev,target=/pnpm/store,uid=10001,gid=10001 \
+    pnpm fetch --frozen-lockfile
+
+RUN --mount=type=cache,id=pnpm-oss-dev,target=/pnpm/store,uid=10001,gid=10001 \
+    pnpm i --frozen-lockfile --offline
 
 COPY --chown=agenta:agenta tsconfig.json .
 

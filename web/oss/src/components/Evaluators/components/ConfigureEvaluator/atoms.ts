@@ -205,9 +205,16 @@ export const connectAppToEvaluatorAtom = atom(
             appLabel: string
             evaluatorRevisionId: string
             evaluatorLabel: string
+            persistSelection?: boolean
         },
     ) => {
-        const {appRevisionId, appLabel, evaluatorRevisionId, evaluatorLabel} = params
+        const {
+            appRevisionId,
+            appLabel,
+            evaluatorRevisionId,
+            evaluatorLabel,
+            persistSelection = true,
+        } = params
 
         // Replace primary node with the app FIRST — if the graph mutation
         // bails out (changePrimaryNode returns null when there's no current
@@ -247,14 +254,16 @@ export const connectAppToEvaluatorAtom = atom(
         // Persist only after both graph mutations succeeded. The picker
         // display label is derived from the depth-0 node's `label` via
         // `selectedAppLabelAtom`, so no extra write needed here.
-        set(persistedAppSelectionAtom, {appRevisionId, appLabel})
+        if (persistSelection) {
+            set(persistedAppSelectionAtom, {appRevisionId, appLabel})
 
-        // Pin the stored run-on mode to "app" too. While connected,
-        // `effectiveRunOnModeAtom` overrides to "app" regardless, but the
-        // stored mode is what we fall back to on disconnect — without this a
-        // user who connected an app from "data" mode would snap back to the
-        // testcase panel on disconnect instead of the "Select an app" state.
-        set(runOnModeAtom, "app")
+            // Pin the stored run-on mode to "app" too. While connected,
+            // `effectiveRunOnModeAtom` overrides to "app" regardless, but the
+            // stored mode is what we fall back to on disconnect — without this a
+            // user who connected an app from "data" mode would snap back to the
+            // testcase panel on disconnect instead of the "Select an app" state.
+            set(runOnModeAtom, "app")
+        }
 
         // Force the node-derived display atoms to re-settle after the two
         // sequential `playgroundNodesAtom` writes above (changePrimaryNode →

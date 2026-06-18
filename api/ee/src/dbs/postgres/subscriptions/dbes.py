@@ -1,6 +1,4 @@
-from sqlalchemy import PrimaryKeyConstraint
-from sqlalchemy.orm import relationship
-
+from sqlalchemy import ForeignKeyConstraint, PrimaryKeyConstraint
 
 from oss.src.dbs.postgres.shared.base import Base
 from ee.src.dbs.postgres.subscriptions.dbas import SubscriptionDBA
@@ -13,6 +11,9 @@ class SubscriptionDBE(Base, SubscriptionDBA):
         PrimaryKeyConstraint(
             "organization_id",
         ),
+        ForeignKeyConstraint(
+            ["organization_id"],
+            ["organizations.id"],
+            ondelete="CASCADE",
+        ),
     )
-
-    meters = relationship("MeterDBE", back_populates="subscription")

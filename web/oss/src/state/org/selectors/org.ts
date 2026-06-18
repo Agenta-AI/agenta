@@ -98,6 +98,26 @@ const resolveOrgId = (workspaceId: string | null): string | null => {
     return map[workspaceId] ?? null
 }
 
+// Org list carries no workspace id; translate org id -> default_workspace.id.
+export const resolveWorkspaceIdForOrg = async (
+    organizationId: string | null,
+): Promise<string | null> => {
+    if (!organizationId) return null
+    try {
+        const details =
+            queryClient.getQueryData<OrgDetails | null>(["selectedOrg", organizationId]) ??
+            (await queryClient.fetchQuery({
+                queryKey: ["selectedOrg", organizationId],
+                queryFn: () => fetchSingleOrg({organizationId}),
+            }))
+        const workspaceId = details?.default_workspace?.id ?? null
+        if (workspaceId) cacheWorkspaceOrgPair(workspaceId, organizationId)
+        return workspaceId
+    } catch {
+        return null
+    }
+}
+
 export const orgsQueryAtom = atomWithQuery<Org[]>((get) => {
     const userId = (get(userAtom) as User | null)?.id
     return {

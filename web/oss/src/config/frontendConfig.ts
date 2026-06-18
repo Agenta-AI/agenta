@@ -1,3 +1,5 @@
+import {sessionAtom} from "@agenta/shared/state"
+import {getDefaultStore} from "jotai"
 import Router from "next/router"
 import {SuperTokensConfig} from "supertokens-auth-react/lib/build/types"
 import EmailPassword from "supertokens-auth-react/recipe/emailpassword"
@@ -132,8 +134,21 @@ export const frontendConfig = (): SuperTokensConfig => {
         )
     }
 
-    // Session is always required
-    recipeList.push(SessionReact.init())
+    // Session is always required. onHandleEvent is the recovery net for a ghost
+    // session: when SuperTokens detects the session is gone (UNAUTHORISED, e.g. a
+    // failed refresh) or signs out, force the shared sessionAtom false so gated
+    // queries stop firing into a dead session and 401-storming. useSession's
+    // React effect normally syncs this, but it can lag a render; clearing here is
+    // immediate and covers paths that never mount useSession.
+    recipeList.push(
+        SessionReact.init({
+            onHandleEvent: (event) => {
+                if (event.action === "UNAUTHORISED" || event.action === "SIGN_OUT") {
+                    getDefaultStore().set(sessionAtom, false)
+                }
+            },
+        }),
+    )
 
     return {
         appInfo,

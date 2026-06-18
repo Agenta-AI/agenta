@@ -41,7 +41,7 @@ async def get_workspace(request: Request):
         HTTPException: If the user does not have permission to perform this action.
     """
 
-    workspaces_db = await db_manager.get_workspaces()
+    workspaces_db = await db_manager.get_user_workspaces(request.state.user_id)
     return [
         Workspace(
             id=str(workspace_db.id),
@@ -163,7 +163,7 @@ async def remove_user_from_workspace(
 
     else:
         delete_user_from_workspace = await db_manager.remove_user_from_workspace(
-            project_id=request.state.project_id,
+            workspace_id=workspace_id,
             email=email,
         )
 

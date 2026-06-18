@@ -50,8 +50,15 @@ axios.interceptors.request.use(async (config) => {
         config.headers.set("ngrok-skip-browser-warning", true)
     }
 
-    if (!isDemo()) return config
     const jwt = await getJWT()
+
+    // Attach the bearer token in every edition. The demo-mode (EE) project/user
+    // gating below stays demo-only, but OSS still needs the auth header or
+    // protected calls (e.g. invite/accept) go out unauthenticated and 401.
+    if (!isDemo()) {
+        if (jwt) config.headers.set("Authorization", `Bearer ${jwt}`)
+        return config
+    }
 
     const store = getDefaultStore()
 
