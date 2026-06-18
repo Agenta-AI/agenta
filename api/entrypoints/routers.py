@@ -142,6 +142,10 @@ from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
 from oss.src.apis.fastapi.tools.router import ToolsRouter
+from oss.src.core.triggers.providers.composio import ComposioTriggersAdapter
+from oss.src.core.triggers.registry import TriggersGatewayRegistry
+from oss.src.core.triggers.service import TriggersService
+from oss.src.apis.fastapi.triggers.router import TriggersRouter
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 
 
@@ -213,6 +217,9 @@ async def lifespan(*args, **kwargs):
         await adapter.close()
 
     for adapter in _composio_connections_adapters.values():
+        await adapter.close()
+
+    for adapter in _composio_triggers_adapters.values():
         await adapter.close()
 
     await _transactions_engine.close()
@@ -306,6 +313,11 @@ _OPENAPI_TAGS = [
     {
         "name": "Tools",
         "description": "External tool connections and OAuth integrations available to applications.",
+    },
+    # --
+    {
+        "name": "Triggers",
+        "description": "Inbound provider event triggers and their watchable event catalog.",
     },
     # --
     {
@@ -616,6 +628,22 @@ tools_service = ToolsService(
     adapter_registry=tools_adapter_registry,
 )
 
+# Triggers adapter + service
+_composio_triggers_adapters = {}
+if env.composio.enabled:
+    _composio_triggers_adapters["composio"] = ComposioTriggersAdapter(
+        api_key=env.composio.api_key,  # type: ignore[arg-type]  # guarded by .enabled
+        api_url=env.composio.api_url,
+    )
+
+triggers_adapter_registry = TriggersGatewayRegistry(
+    adapters=_composio_triggers_adapters,
+)
+
+triggers_service = TriggersService(
+    adapter_registry=triggers_adapter_registry,
+)
+
 _t_services_done = time.perf_counter() - _t_services
 print(f"[STARTUP] Service initialization completed (+{_t_services_done:.3f}s)")
 _t_routers = time.perf_counter()
@@ -728,6 +756,10 @@ simple_queues = SimpleQueuesRouter(
 
 tools = ToolsRouter(
     tools_service=tools_service,
+)
+
+triggers = TriggersRouter(
+    triggers_service=triggers_service,
 )
 
 simple_traces = SimpleTracesRouter(
@@ -1094,6 +1126,19 @@ app.include_router(
     router=tools.router,
     prefix="/preview/tools",
     tags=["Tools"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=triggers.router,
+    prefix="/triggers",
+    tags=["Triggers"],
+)
+
+app.include_router(
+    router=triggers.router,
+    prefix="/preview/triggers",
+    tags=["Triggers"],
     include_in_schema=False,
 )
 
