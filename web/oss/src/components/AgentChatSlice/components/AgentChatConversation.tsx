@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useMemo, useRef, useState} from "react"
 
 import {useChat} from "@ai-sdk/react"
 import {Bubble, Sender} from "@ant-design/x"
@@ -43,6 +43,7 @@ const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: st
     // track gets its own session; it's passed to useChat as the chat id and travels to the
     // backend as `session_id`.
     const [sessionId] = useState(() => crypto.randomUUID())
+    const senderRef = useRef<React.ComponentRef<typeof Sender>>(null)
     const transport = useMemo(() => createAgentChatTransport(track, appId), [track, appId])
 
     const {
@@ -91,6 +92,8 @@ const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: st
             if (isUser) {
                 setMessages(messages.slice(0, idx))
                 setInput(messageText(message))
+                // Focus the composer so the user can edit the restored text immediately.
+                requestAnimationFrame(() => senderRef.current?.focus())
             } else {
                 regenerate({messageId: message.id})
             }
@@ -164,6 +167,7 @@ const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: st
             </div>
 
             <Sender
+                ref={senderRef}
                 value={input}
                 onChange={setInput}
                 loading={busy}
