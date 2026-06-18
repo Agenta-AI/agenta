@@ -362,8 +362,11 @@ async def run_turn(
     from .config import settings  # lazy: pulls python-dotenv only in real mode
 
     model = settings.LLM_MODEL
-    message_id = str(uuid.uuid4())
-    yield _sse({"type": "start", "messageId": message_id})
+    # Echo the resolved session_id on the `start` part per the RFC (§6.2.4).
+    start: Dict[str, Any] = {"type": "start", "messageId": str(uuid.uuid4())}
+    if body.get("session_id"):
+        start["messageMetadata"] = {"sessionId": body["session_id"]}
+    yield _sse(start)
 
     history = (
         _messages_from_agenta(body)

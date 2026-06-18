@@ -65,9 +65,8 @@ class ChatRequest(BaseModel):
     model_config = {"extra": "ignore"}  # tolerate id, trigger, etc. from AI SDK v4+
 
 
-# Contract-proving mock stream for the agent chat slice (POST /api/agent/chat).
-# Self-contained (no Qdrant/OpenAI/Agenta), mirrors the full v6 part lifecycle
-# incl. tool calls + one approval round-trip. See backend/contract_stream.py.
+# Agent chat slice endpoints (POST /api/agent/chat[-agenta]) — the real agent loop over
+# the v6 UI Message Stream. Requires credentials. See backend/contract_stream.py.
 app.include_router(contract_router)
 
 
