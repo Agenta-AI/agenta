@@ -1,22 +1,23 @@
-import {useCallback, memo, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
+import type {SetStateAction} from "react"
 
 import {useVaultSecret} from "@agenta/entities/secret"
 import {extractSourceIdFromDraft, isLocalDraftId, isValidUUID} from "@agenta/entities/shared"
 import {
+    evaluatorsListDataAtom,
+    invalidateEvaluatorsListCache,
+    invalidateWorkflowsListCache,
     workflowMolecule,
     workflowRevisionsByWorkflowListDataAtomFamily,
 } from "@agenta/entities/workflow"
 import {
-    evaluatorConfigsListDataAtom,
-    evaluatorConfigsQueryStateAtom,
-    evaluatorTemplatesDataAtom,
-    evaluatorTemplatesQueryAtom,
-    evaluatorsListDataAtom,
-    evaluatorsListQueryAtom,
-    humanEvaluatorsListDataAtom,
-    invalidateWorkflowsListCache,
-    invalidateEvaluatorsListCache,
-} from "@agenta/entities/workflow"
+    assertValidStepConfig,
+    composeEvaluationStepPayload,
+    findFirstIncompleteRequiredStep,
+    findInitialEvaluationStep,
+    findNextEvaluationStep,
+    type EvaluationStepSlot,
+} from "@agenta/evaluations/core"
 import {usePreviewEvaluations} from "@agenta/evaluations/hooks"
 import {message} from "@agenta/ui/app-message"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -37,84 +38,154 @@ import {createEvaluation} from "@/oss/services/evaluations/api"
 import {useAppsData} from "@/oss/state/app/hooks"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {appIdentifiersAtom} from "@/oss/state/appState"
-import {testsetsListQueryAtomFamily} from "@/oss/state/entities/testset"
+import {getProjectValues} from "@/oss/state/project"
 
 import {buildEvaluationNavigationUrl} from "../../utils"
-import {DEFAULT_ADVANCE_SETTINGS} from "../assets/constants"
-import {newEvaluationActivePanelAtom} from "../state/panel"
 import {
-    selectedEvalConfigsAtom,
-    selectedTestsetIdAtom,
-    selectedTestsetNameAtom,
-    selectedTestsetRevisionIdAtom,
-    selectedTestsetVersionAtom,
-} from "../state/selection"
-import type {EvaluationConcurrencySettings, NewEvaluationModalInnerProps} from "../types"
+    EVAL_STEP_KINDS,
+    evalStepEngineRegistry,
+    evalStepRegistry,
+    getDefaultEvalSteps,
+} from "../evalSteps/registry"
+import {activeEvalStepAtom, evalStepsConfigAtom, evalStepValuesAtom} from "../evalSteps/state"
+import type {
+    ApplicationStepValue,
+    EvalStepContext,
+    EvalStepKind,
+    EvalStepRuntime,
+    EvalStepSlot,
+    EvalStepValueMap,
+} from "../evalSteps/types"
+import type {NewEvaluationModalInnerProps} from "../types"
 
 const NewEvaluationModalContent = dynamic(() => import("./NewEvaluationModalContent"), {
     ssr: false,
 })
 
-/**
- * Inner component that contains all the heavy logic for the NewEvaluationModal.
- * This component only mounts when the modal is open, preventing unnecessary
- * data fetching and state initialization when the modal is closed.
- */
-/** Determines which panel to show initially based on preselection and app scope */
-const getInitialPanel = (hasPreSelected: boolean, isAppScoped: boolean): string =>
-    hasPreSelected ? "testsetPanel" : isAppScoped ? "variantPanel" : "appPanel"
+const TOUR_PANEL_TO_STEP: Record<string, EvalStepKind> = {
+    appPanel: "application",
+    variantPanel: "revision",
+    testsetPanel: "testset",
+    evaluatorPanel: "evaluator",
+    advancedSettingsPanel: "advanced",
+}
+
+const cloneDefaultValue = <Kind extends EvalStepKind>(kind: Kind): EvalStepValueMap[Kind] =>
+    structuredClone(evalStepRegistry[kind].defaultValue)
+
+const resolveSlotValue = <Kind extends EvalStepKind>(
+    slot: EvalStepSlot & {kind: Kind},
+): EvalStepValueMap[Kind] =>
+    slot.preset === undefined
+        ? cloneDefaultValue(slot.kind)
+        : (structuredClone(slot.preset) as EvalStepValueMap[Kind])
 
 const NewEvaluationModalInner = ({
     onSuccess,
-    preview,
+    preview = false,
     evaluationType,
     onSubmitStateChange,
     preSelectedVariantIds,
     preSelectedAppId,
+    steps,
+    nameBuilder,
 }: NewEvaluationModalInnerProps) => {
-    // Use appIdentifiersAtom directly to get the URL-derived appId without fallback to stale values
-    const {appId} = useAtomValue(appIdentifiersAtom)
-    // Phase 6.1.3 defensive guard: if a preselect ID matches an evaluator
-    // workflow, ignore it. Belt-and-suspenders with the Phase 6.1.2 fix that
-    // hides RunEvaluationButton for evaluators — but covers any other call site
-    // (e.g., a stale cache or programmatic open) that might still pass an
-    // evaluator ID. Without this, the modal silently defaults to "no app
-    // selected" which is confusing.
+    const router = useRouter()
+    const {baseAppURL, projectURL} = useURL()
+    const projectId = getProjectValues().projectId ?? undefined
+    const {appId: routeAppId} = useAtomValue(appIdentifiersAtom)
     const evaluatorWorkflows = useAtomValue(evaluatorsListDataAtom)
-    const sanitizedPreSelectedAppId = useMemo(() => {
-        if (!preSelectedAppId) return undefined
-        const isEvaluator = evaluatorWorkflows.some((e) => e.id === preSelectedAppId)
-        if (isEvaluator) {
-            if (process.env.NODE_ENV !== "production") {
-                console.warn(
-                    `[NewEvaluationModal] preSelectedAppId resolves to an evaluator workflow (${preSelectedAppId}) — ignoring.`,
-                )
-            }
-            return undefined
-        }
-        return preSelectedAppId
-    }, [preSelectedAppId, evaluatorWorkflows])
-    // Consider pre-selected app ID from playground, fallback to URL-derived appId
-    const effectiveAppId = sanitizedPreSelectedAppId || appId || ""
-    const isAppScoped = Boolean(effectiveAppId)
     const {apps: availableApps = []} = useAppsData()
-    const [selectedAppId, setSelectedAppId] = useState<string>(effectiveAppId)
-    // Name/kind captured when the user picks a workflow from the table so the
-    // panel tag stays readable even for evaluators (not present in `availableApps`).
-    const [selectedWorkflowMeta, setSelectedWorkflowMeta] = useState<{
-        label?: string
-        isEvaluator?: boolean
-    } | null>(null)
+    const [stepValues, setStepValues] = useAtom(evalStepValuesAtom)
+    const stepValuesRef = useRef(stepValues)
+    const setActiveStep = useSetAtom(activeEvalStepAtom)
+    const setStepsConfig = useSetAtom(evalStepsConfigAtom)
     const setRegistryWorkflowIdOverride = useSetAtom(registryWorkflowIdOverrideAtom)
 
-    // Sync the registry store's workflow ID override with the modal's selected app.
-    // This allows the variant table to work on project-level pages where routerAppIdAtom is null.
+    const sanitizedPreSelectedAppId = useMemo(() => {
+        if (!preSelectedAppId) return undefined
+        if (!evaluatorWorkflows.some((workflow) => workflow.id === preSelectedAppId)) {
+            return preSelectedAppId
+        }
+        if (process.env.NODE_ENV !== "production") {
+            console.warn(
+                `[NewEvaluationModal] preSelectedAppId resolves to an evaluator workflow (${preSelectedAppId}) — ignoring.`,
+            )
+        }
+        return undefined
+    }, [evaluatorWorkflows, preSelectedAppId])
+
+    const effectiveAppId = sanitizedPreSelectedAppId || routeAppId || ""
+    const isAppScoped = Boolean(effectiveAppId)
+
+    const resolvedStepsRef = useRef<EvalStepSlot[] | null>(null)
+    if (!resolvedStepsRef.current) {
+        const configured = (steps ?? getDefaultEvalSteps()).map((slot) => ({...slot}))
+        const initialSteps = configured.map((slot) => {
+            if (slot.kind === "application" && effectiveAppId && slot.preset === undefined) {
+                return {
+                    ...slot,
+                    preset: {id: effectiveAppId},
+                    locked: true,
+                } satisfies EvalStepSlot
+            }
+            if (
+                slot.kind === "revision" &&
+                preSelectedVariantIds?.length &&
+                slot.preset === undefined
+            ) {
+                return {...slot, preset: [...preSelectedVariantIds]} satisfies EvalStepSlot
+            }
+            return slot
+        })
+        assertValidStepConfig(initialSteps, EVAL_STEP_KINDS)
+        resolvedStepsRef.current = initialSteps
+    }
+    const resolvedSteps = resolvedStepsRef.current
+
+    const updateStepValues = useCallback(
+        (update: SetStateAction<Partial<EvalStepValueMap>>) => {
+            const next = typeof update === "function" ? update(stepValuesRef.current) : update
+            stepValuesRef.current = next
+            setStepValues(next)
+        },
+        [setStepValues],
+    )
+
+    useLayoutEffect(() => {
+        const initialValues = Object.fromEntries(
+            EVAL_STEP_KINDS.values().map((kind) => [kind, cloneDefaultValue(kind)]),
+        ) as unknown as EvalStepValueMap
+        for (const slot of resolvedSteps) {
+            initialValues[slot.kind] = resolveSlotValue(slot) as never
+        }
+        stepValuesRef.current = initialValues
+        setStepValues(initialValues)
+        setStepsConfig(resolvedSteps)
+        return () => {
+            stepValuesRef.current = {}
+            setStepValues({})
+            setStepsConfig([])
+            setActiveStep(null)
+        }
+    }, [resolvedSteps, setActiveStep, setStepValues, setStepsConfig])
+
+    const application = (stepValues.application ??
+        evalStepRegistry.application.defaultValue) as ApplicationStepValue
+    const selectedAppId = application.id
+    const revisionIds = (stepValues.revision ?? evalStepRegistry.revision.defaultValue) as string[]
+    const testset = (stepValues.testset ??
+        evalStepRegistry.testset.defaultValue) as EvalStepValueMap["testset"]
+    const evaluatorIds = (stepValues.evaluator ??
+        evalStepRegistry.evaluator.defaultValue) as string[]
+    const advanceSettings = (stepValues.advanced ??
+        evalStepRegistry.advanced.defaultValue) as EvalStepValueMap["advanced"]
+
     useEffect(() => {
         setRegistryWorkflowIdOverride(selectedAppId || null)
-        return () => {
-            setRegistryWorkflowIdOverride(null)
-        }
+        return () => setRegistryWorkflowIdOverride(null)
     }, [selectedAppId, setRegistryWorkflowIdOverride])
+
     const appOptions = useMemo(() => {
         const options = availableApps.map((app) => ({
             label: app.name ?? app.slug ?? "",
@@ -127,195 +198,34 @@ const NewEvaluationModalInner = ({
             createdAt: app.created_at ?? null,
             updatedAt: app.updated_at ?? null,
         }))
-        if (selectedAppId && !options.some((opt) => opt.value === selectedAppId)) {
-            // Evaluators (and locally-picked workflows) aren't in useAppsData.
-            // When the user picked a row we have `selectedWorkflowMeta`; for an
-            // app-scoped EVALUATOR route there's no meta, so resolve the name
-            // (and kind) from the evaluators list — otherwise the Application
-            // panel renders the raw workflow id instead of its name.
-            const evaluatorWorkflow = evaluatorWorkflows.find((e) => e.id === selectedAppId)
-            const isEvaluator = selectedWorkflowMeta?.isEvaluator ?? Boolean(evaluatorWorkflow)
+        if (selectedAppId && !options.some((option) => option.value === selectedAppId)) {
+            const evaluator = evaluatorWorkflows.find((workflow) => workflow.id === selectedAppId)
             options.push({
-                label:
-                    selectedWorkflowMeta?.label ??
-                    evaluatorWorkflow?.name ??
-                    evaluatorWorkflow?.slug ??
-                    selectedAppId,
+                label: application.label ?? evaluator?.name ?? evaluator?.slug ?? selectedAppId,
                 value: selectedAppId,
-                type: isEvaluator ? "evaluator" : null,
+                type: (application.isEvaluator ?? Boolean(evaluator)) ? "evaluator" : null,
                 createdAt: null,
                 updatedAt: null,
             })
         }
         return options
-    }, [availableApps, selectedAppId, selectedWorkflowMeta, evaluatorWorkflows])
-    const router = useRouter()
-    const {baseAppURL, projectURL} = useURL()
-
-    // Workflow-based evaluator data
-    const templatesData = useAtomValue(evaluatorTemplatesDataAtom)
-    const templatesQuery = useAtomValue(evaluatorTemplatesQueryAtom)
-    const configsData = useAtomValue(evaluatorConfigsListDataAtom)
-    const configsQueryState = useAtomValue(evaluatorConfigsQueryStateAtom)
-
-    // Workflow-based evaluator list atoms (replace legacy useEvaluators hook).
-    // The `humanEvaluatorsListDataAtom` subscription already drives the human
-    // evaluators query; we don't separately read its query-state object (doing
-    // so only churned the derived-evaluators memo above), so it's not read here.
-    const humanEvaluatorsList = useAtomValue(humanEvaluatorsListDataAtom)
-    const evaluatorsList = useAtomValue(evaluatorsListDataAtom)
-    const evaluatorsQuery = useAtomValue(evaluatorsListQueryAtom)
-
-    // Derive evaluators, evaluatorConfigs, and loading flags based on preview flag
-    const {evaluators, evaluatorConfigs, loadingEvaluators, loadingEvaluatorConfigs} =
-        useMemo(() => {
-            if (preview) {
-                const data = evaluationType === "human" ? humanEvaluatorsList : evaluatorsList
-                return {
-                    evaluators: data || [],
-                    evaluatorConfigs: [],
-                    loadingEvaluators: evaluatorsQuery.isPending ?? false,
-                    loadingEvaluatorConfigs: false,
-                }
-            } else {
-                return {
-                    evaluators: templatesData || [],
-                    evaluatorConfigs: configsData || [],
-                    loadingEvaluators: templatesQuery.isPending ?? false,
-                    loadingEvaluatorConfigs: configsQueryState.isPending ?? false,
-                }
-            }
-            // Depend on the *values* the body reads, not the query result
-            // objects — `evaluatorsQuery`/`humanEvaluatorsQuery` change identity
-            // on every query tick (and `humanEvaluatorsQuery` isn't read at all),
-            // which recomputed this memo every render and churned the derived
-            // `evaluators`/`evaluatorConfigs` → `appOptions`/Tabs items downstream.
-        }, [
-            preview,
-            evaluationType,
-            humanEvaluatorsList,
-            evaluatorsList,
-            evaluatorsQuery.isPending,
-            templatesData,
-            configsData,
-            templatesQuery.isPending,
-            configsQueryState.isPending,
-        ])
-
-    const [selectedTestsetId, setSelectedTestsetId] = useAtom(selectedTestsetIdAtom)
-    const [selectedTestsetRevisionId, setSelectedTestsetRevisionId] = useAtom(
-        selectedTestsetRevisionIdAtom,
-    )
-    const [selectedTestsetName, setSelectedTestsetName] = useAtom(selectedTestsetNameAtom)
-    const [selectedTestsetVersion, setSelectedTestsetVersion] = useAtom(selectedTestsetVersionAtom)
-    const [selectedEvalConfigs, setSelectedEvalConfigs] = useAtom(selectedEvalConfigsAtom)
-
-    // Read evaluator rows from the paginated store for revision ID → {id, slug} lookup
-    const evaluatorStoreState = useAtomValue(
-        evaluatorsPaginatedStore.selectors.state({
-            scopeId: "evaluation-evaluator-selector",
-            pageSize: 50,
-        }),
-    )
-    const evaluatorRowsByRevisionId = useMemo(() => {
-        const map = new Map<string, {id: string; workflow_id: string; slug: string; name: string}>()
-        for (const row of evaluatorStoreState.rows) {
-            if (!row.__isSkeleton && row.revisionId) {
-                map.set(row.revisionId, {
-                    id: row.revisionId,
-                    workflow_id: row.workflowId,
-                    slug: row.slug,
-                    name: row.name,
-                })
-            }
-        }
-        return map
-    }, [evaluatorStoreState.rows])
-
-    // Reset testset selection on mount to match previous local state behavior
-    useEffect(() => {
-        setSelectedTestsetId("")
-        setSelectedTestsetRevisionId("")
-        setSelectedTestsetName("")
-        setSelectedTestsetVersion(null)
-        setSelectedEvalConfigs([])
     }, [
-        setSelectedEvalConfigs,
-        setSelectedTestsetId,
-        setSelectedTestsetName,
-        setSelectedTestsetRevisionId,
-        setSelectedTestsetVersion,
+        application.isEvaluator,
+        application.label,
+        availableApps,
+        evaluatorWorkflows,
+        selectedAppId,
     ])
-    // Initialize with pre-selected variants (e.g., from playground comparison mode)
-    const [selectedVariantRevisionIds, setSelectedVariantRevisionIds] = useState<string[]>(() =>
-        preSelectedVariantIds?.length ? [...preSelectedVariantIds] : [],
-    )
-    const activeTourId = useAtomValue(activeTourIdAtom)
-    const currentStepState = useAtomValue(currentStepStateAtom)
-    // If variants are pre-selected, start on testset panel; otherwise follow normal flow
-    const hasPreSelectedVariants = Boolean(preSelectedVariantIds?.length)
-    const [activePanel, setActivePanel] = useAtom(newEvaluationActivePanelAtom)
-    const [evaluationName, setEvaluationName] = useState("")
-    const [nameFocused, setNameFocused] = useState(false)
-    const [advanceSettings, setAdvanceSettings] =
-        useState<EvaluationConcurrencySettings>(DEFAULT_ADVANCE_SETTINGS)
-
-    const allowTestsetAutoAdvance = !(
-        activeTourId === FIRST_EVALUATION_TOUR_ID &&
-        currentStepState.step?.panelKey === "testsetPanel"
-    )
-
-    useLayoutEffect(() => {
-        if (activeTourId !== FIRST_EVALUATION_TOUR_ID) return
-        const panelKey = currentStepState.step?.panelKey
-        if (!panelKey || panelKey === activePanel) return
-        setActivePanel(panelKey)
-    }, [activePanel, activeTourId, currentStepState.step?.panelKey, setActivePanel])
 
     useEffect(() => {
-        if (isAppScoped) {
-            setSelectedAppId(effectiveAppId)
-        }
-    }, [effectiveAppId, isAppScoped])
-
-    useEffect(() => {
-        const initialPanel = getInitialPanel(hasPreSelectedVariants, isAppScoped)
-        setActivePanel(initialPanel)
-        return () => {
-            setActivePanel(null)
-        }
-    }, [hasPreSelectedVariants, isAppScoped, setActivePanel])
-
-    useEffect(() => {
-        if (!isAppScoped) return
-        if (!selectedAppId) return
-        if (activePanel !== "appPanel") return
-        setActivePanel("variantPanel")
-    }, [isAppScoped, selectedAppId, activePanel, setActivePanel])
-
-    const handleAppSelection = useCallback(
-        (value: string, meta?: {label?: string; isEvaluator?: boolean}) => {
-            if (value === selectedAppId) {
-                // Same workflow re-selected — refresh the meta so label/kind
-                // fallbacks stay current without resetting the rest of the
-                // wizard state.
-                if (value && meta) setSelectedWorkflowMeta(meta)
-                return
-            }
-            setSelectedAppId(value)
-            setSelectedWorkflowMeta(value ? (meta ?? null) : null)
-            setSelectedTestsetId("")
-            setSelectedTestsetRevisionId("")
-            setSelectedTestsetName("")
-            setSelectedTestsetVersion(null)
-            setSelectedVariantRevisionIds([])
-            setSelectedEvalConfigs([])
-            setEvaluationName("")
-            setActivePanel(value ? "variantPanel" : "appPanel")
-            setAdvanceSettings(DEFAULT_ADVANCE_SETTINGS)
-        },
-        [selectedAppId],
-    )
+        if (!selectedAppId || application.label) return
+        const option = appOptions.find((candidate) => candidate.value === selectedAppId)
+        if (!option?.label) return
+        updateStepValues((current) => ({
+            ...current,
+            application: {...application, label: option.label},
+        }))
+    }, [appOptions, application, selectedAppId, updateStepValues])
 
     const workflowRevisions = useAtomValue(
         useMemo(
@@ -323,174 +233,302 @@ const NewEvaluationModalInner = ({
             [selectedAppId],
         ),
     )
-    const filteredVariants = useMemo(() => {
-        if (!selectedAppId) return []
-        return workflowRevisions || []
-    }, [workflowRevisions, selectedAppId])
+    const filteredVariants = useMemo(
+        () => (selectedAppId ? workflowRevisions || [] : []),
+        [selectedAppId, workflowRevisions],
+    )
+
+    const getStepValue = useCallback(
+        <Kind extends EvalStepKind>(kind: Kind): EvalStepValueMap[Kind] =>
+            (stepValuesRef.current[kind] ??
+                evalStepRegistry[kind].defaultValue) as EvalStepValueMap[Kind],
+        [],
+    )
+
+    const isVisible = useCallback(
+        (slot: EvaluationStepSlot<EvalStepKind>) =>
+            !slot.hidden &&
+            (evalStepRegistry[slot.kind].isVisible?.({
+                projectId,
+                appId: getStepValue("application").id || undefined,
+                evaluationType,
+                preview,
+                getStepValue,
+                setStepValue: () => undefined,
+                advanceFrom: () => undefined,
+            }) ??
+                true),
+        [evaluationType, getStepValue, preview, projectId],
+    )
+
+    const baseContext = useMemo(
+        () => ({
+            projectId,
+            appId: selectedAppId || undefined,
+            evaluationType,
+            preview,
+        }),
+        [evaluationType, preview, projectId, selectedAppId],
+    )
+
+    const advanceFrom = useCallback(
+        (kind: EvalStepKind) => {
+            const context = {
+                ...baseContext,
+                getStepValue,
+                setStepValue: () => undefined,
+                advanceFrom: () => undefined,
+            } as EvalStepContext
+            const next = findNextEvaluationStep(
+                kind,
+                resolvedSteps,
+                evalStepEngineRegistry,
+                getStepValue,
+                context,
+                isVisible,
+            )
+            if (next) setActiveStep(next)
+        },
+        [baseContext, getStepValue, isVisible, resolvedSteps, setActiveStep],
+    )
+
+    const handleApplicationSelection = useCallback(
+        (nextApplication: ApplicationStepValue) => {
+            const nextValues = {...stepValuesRef.current, application: nextApplication}
+            const dependsOnApplication = (slot: EvalStepSlot): boolean => {
+                const dependencies = slot.dependsOn ?? []
+                return dependencies.some((dependency) => {
+                    if (dependency === "application") return true
+                    const dependencySlot = resolvedSteps.find(
+                        (candidate) => candidate.kind === dependency,
+                    )
+                    return dependencySlot ? dependsOnApplication(dependencySlot) : false
+                })
+            }
+            for (const slot of resolvedSteps) {
+                if (slot.kind === "application" || !dependsOnApplication(slot)) continue
+                nextValues[slot.kind] = resolveSlotValue(slot) as never
+            }
+            updateStepValues(nextValues)
+            const nextContext = {
+                ...baseContext,
+                appId: nextApplication.id || undefined,
+                getStepValue: <Kind extends EvalStepKind>(kind: Kind) =>
+                    (nextValues[kind] ??
+                        evalStepRegistry[kind].defaultValue) as EvalStepValueMap[Kind],
+                setStepValue: () => undefined,
+                advanceFrom: () => undefined,
+            } as EvalStepContext
+            const next = nextApplication.id
+                ? findNextEvaluationStep(
+                      "application",
+                      resolvedSteps,
+                      evalStepEngineRegistry,
+                      nextContext.getStepValue,
+                      nextContext,
+                      isVisible,
+                  )
+                : "application"
+            setActiveStep(next)
+            setEvaluationName("")
+        },
+        [baseContext, isVisible, resolvedSteps, setActiveStep, updateStepValues],
+    )
+
+    const setStepValue = useCallback(
+        <Kind extends EvalStepKind>(kind: Kind, action: SetStateAction<EvalStepValueMap[Kind]>) => {
+            const current = getStepValue(kind)
+            const value =
+                typeof action === "function"
+                    ? (action as (current: EvalStepValueMap[Kind]) => EvalStepValueMap[Kind])(
+                          current,
+                      )
+                    : action
+            if (kind === "application") {
+                handleApplicationSelection(value as ApplicationStepValue)
+                return
+            }
+            updateStepValues((existing) => ({...existing, [kind]: value}))
+        },
+        [getStepValue, handleApplicationSelection, updateStepValues],
+    )
+
+    const context = useMemo<EvalStepContext>(
+        () => ({
+            ...baseContext,
+            getStepValue,
+            setStepValue,
+            advanceFrom,
+        }),
+        [advanceFrom, baseContext, getStepValue, setStepValue],
+    )
+
+    useEffect(() => {
+        const initial = findInitialEvaluationStep(
+            resolvedSteps,
+            evalStepEngineRegistry,
+            getStepValue,
+            context,
+            isVisible,
+        )
+        setActiveStep(initial)
+    }, [context, getStepValue, isVisible, resolvedSteps, setActiveStep])
+
+    const activeTourId = useAtomValue(activeTourIdAtom)
+    const currentStepState = useAtomValue(currentStepStateAtom)
+    const allowTestsetAutoAdvance = !(
+        activeTourId === FIRST_EVALUATION_TOUR_ID &&
+        currentStepState.step?.panelKey === "testsetPanel"
+    )
+
+    useLayoutEffect(() => {
+        if (activeTourId !== FIRST_EVALUATION_TOUR_ID) return
+        const step = TOUR_PANEL_TO_STEP[currentStepState.step?.panelKey ?? ""]
+        if (step) setActiveStep(step)
+    }, [activeTourId, currentStepState.step?.panelKey, setActiveStep])
+
+    const evaluatorStoreState = useAtomValue(
+        evaluatorsPaginatedStore.selectors.state({
+            scopeId: "evaluation-evaluator-selector",
+            pageSize: 50,
+        }),
+    )
+    const evaluatorRowsByRevisionId = useMemo(() => {
+        const rows = new Map<
+            string,
+            {id: string; workflow_id: string; slug: string; name: string}
+        >()
+        for (const row of evaluatorStoreState.rows) {
+            if (!row.__isSkeleton && row.revisionId) {
+                rows.set(row.revisionId, {
+                    id: row.revisionId,
+                    workflow_id: row.workflowId,
+                    slug: typeof row.slug === "string" ? row.slug : "",
+                    name: typeof row.name === "string" ? row.name : "",
+                })
+            }
+        }
+        return rows
+    }, [evaluatorStoreState.rows])
 
     const isCustomApp = useAtomValue(currentAppContextAtom)?.appType === "custom"
     const {createNewRun: createPreviewEvaluationRun} = usePreviewEvaluations({
-        appId: selectedAppId || appId,
+        appId: selectedAppId || routeAppId || undefined,
         skip: false,
         isCustomApp,
     })
-    const testsetsQuery = useAtomValue(testsetsListQueryAtomFamily(null))
-    const testsets = testsetsQuery.data?.testsets ?? []
-    const testsetsLoading = testsetsQuery.isPending
-
     const {secrets} = useVaultSecret()
 
-    const handlePanelChange = useCallback((key: string | string[]) => {
-        setActivePanel(key as string)
-    }, [])
-
-    // Handler for when a new evaluator config is created via the inline drawer
-    const handleEvaluatorCreated = useCallback(async (configId?: string) => {
-        // Refetch evaluator configs to get the newly created one
-        invalidateWorkflowsListCache()
-        invalidateEvaluatorsListCache()
-        clearEvaluatorWorkflowCache()
-
-        // Auto-select the newly created evaluator config
-        if (configId) {
-            setSelectedEvalConfigs((prev) => [...prev, configId])
-        }
-    }, [])
-
-    // Track focus on any input within modal to avoid overriding user typing
-    useEffect(() => {
-        function handleFocusIn(e: FocusEvent) {
-            if ((e.target as HTMLElement).tagName === "INPUT") {
-                setNameFocused(true)
+    const handleEvaluatorCreated = useCallback(
+        async (configId?: string) => {
+            invalidateWorkflowsListCache()
+            invalidateEvaluatorsListCache()
+            clearEvaluatorWorkflowCache()
+            if (configId) {
+                setStepValue("evaluator", (current) => [...current, configId])
             }
-        }
-        function handleFocusOut(e: FocusEvent) {
-            if ((e.target as HTMLElement).tagName === "INPUT") {
-                setNameFocused(false)
-            }
-        }
-        document.addEventListener("focusin", handleFocusIn)
-        document.addEventListener("focusout", handleFocusOut)
-        return () => {
-            document.removeEventListener("focusin", handleFocusIn)
-            document.removeEventListener("focusout", handleFocusOut)
-        }
-    }, [])
+        },
+        [setStepValue],
+    )
 
-    // Variant display names live on the VARIANT (name, then slug): SDK-created
-    // variants and revisions may carry no `name` at all, and UI-created
-    // revisions are named after the variant.
-    const selectedSingleRevisionId =
-        selectedVariantRevisionIds.length === 1 ? selectedVariantRevisionIds[0] : ""
+    const selectedSingleRevisionId = revisionIds.length === 1 ? revisionIds[0] : ""
     const selectedVariantLabel = useAtomValue(
         useMemo(
             () => workflowMolecule.selectors.variantLabel(selectedSingleRevisionId),
             [selectedSingleRevisionId],
         ),
     )
-
-    // Memoised base (deterministic) part of generated name (without random suffix)
     const generatedNameBase = useMemo(() => {
-        if (!selectedVariantRevisionIds.length || !selectedTestsetName) return ""
-        if (selectedVariantRevisionIds.length > 1) {
-            return `${selectedVariantRevisionIds.length}-variants-${selectedTestsetName}`
-        }
-        const revision = filteredVariants?.find((v) => selectedVariantRevisionIds.includes(v.id))
+        if (nameBuilder) return nameBuilder(stepValues)
+        if (!revisionIds.length || !testset.name) return ""
+        if (revisionIds.length > 1) return `${revisionIds.length}-variants-${testset.name}`
+        const revision = filteredVariants.find((candidate) => candidate.id === revisionIds[0])
         if (!revision) return ""
-        const label = selectedVariantLabel ?? revision.name ?? "-"
-        return `${label}-v${revision.version ?? 0}-${selectedTestsetName}`
-    }, [selectedVariantRevisionIds, selectedTestsetName, filteredVariants, selectedVariantLabel])
+        return `${selectedVariantLabel ?? revision.name ?? "-"}-v${revision.version ?? 0}-${testset.name}`
+    }, [filteredVariants, nameBuilder, revisionIds, selectedVariantLabel, stepValues, testset.name])
 
-    // Auto-generate / update evaluation name intelligently to avoid loops
-    const lastAutoNameRef = useRef<string>("")
-    const lastBaseRef = useRef<string>("")
-    const randomWordRef = useRef<string>("")
-
-    // Generate a short, readable random suffix (stable per modal open)
-    const genRandomWord = () => {
-        // Prefer Web Crypto for better entropy
-        const n = globalThis.crypto?.getRandomValues?.(new Uint32Array(1))?.[0] ?? 0
-        if (n) return n.toString(36).slice(0, 5)
-        // Fallback to Math.random
-        return Math.random().toString(36).slice(2, 7)
-    }
+    const [evaluationName, setEvaluationName] = useState("")
+    const [nameFocused, setNameFocused] = useState(false)
+    const lastAutoNameRef = useRef("")
+    const lastBaseRef = useRef("")
+    const randomWordRef = useRef("")
 
     useEffect(() => {
-        // New random suffix on mount
-        randomWordRef.current = genRandomWord()
-        lastAutoNameRef.current = ""
-        lastBaseRef.current = ""
+        const value = globalThis.crypto?.getRandomValues?.(new Uint32Array(1))?.[0] ?? 0
+        randomWordRef.current = value
+            ? value.toString(36).slice(0, 5)
+            : Math.random().toString(36).slice(2, 7)
         return () => {
             randomWordRef.current = ""
         }
     }, [])
 
     useEffect(() => {
-        if (!generatedNameBase) return
-        if (nameFocused) return // user typing
+        const handleFocus = (event: FocusEvent) =>
+            setNameFocused((event.target as HTMLElement).tagName === "INPUT")
+        const handleBlur = (event: FocusEvent) => {
+            if ((event.target as HTMLElement).tagName === "INPUT") setNameFocused(false)
+        }
+        document.addEventListener("focusin", handleFocus)
+        document.addEventListener("focusout", handleBlur)
+        return () => {
+            document.removeEventListener("focusin", handleFocus)
+            document.removeEventListener("focusout", handleBlur)
+        }
+    }, [])
 
-        // When base (variant/testset) changed → generate new suggestion
+    useEffect(() => {
+        if (!generatedNameBase || nameFocused) return
         if (generatedNameBase !== lastBaseRef.current) {
-            // Ensure we have a random word for this session
-            if (!randomWordRef.current) randomWordRef.current = genRandomWord()
-            const randomWord = randomWordRef.current
-            const newName = `${generatedNameBase}-${randomWord}`
+            const nextName = `${generatedNameBase}-${randomWordRef.current}`
             const shouldUpdate = !evaluationName || evaluationName === lastAutoNameRef.current
             lastBaseRef.current = generatedNameBase
-            lastAutoNameRef.current = newName
-            if (shouldUpdate) {
-                setEvaluationName(newName)
-            }
-            return
-        }
-
-        // If user cleared the field (blur) → restore auto-name
-        if (!evaluationName) {
+            lastAutoNameRef.current = nextName
+            if (shouldUpdate) setEvaluationName(nextName)
+        } else if (!evaluationName) {
             setEvaluationName(lastAutoNameRef.current)
         }
-    }, [generatedNameBase, evaluationName, nameFocused, evaluationType])
+    }, [evaluationName, generatedNameBase, nameFocused])
 
     const validateSubmission = useCallback(async () => {
         if (!evaluationName) {
             message.error("Please enter evaluation name")
             return false
         }
-        if (!selectedTestsetId || !selectedTestsetRevisionId) {
-            message.error("Please select a testset revision")
-            return false
-        }
-        if (selectedVariantRevisionIds.length === 0) {
-            message.error("Please select a revision")
+        const incomplete = findFirstIncompleteRequiredStep(
+            resolvedSteps,
+            evalStepEngineRegistry,
+            getStepValue,
+            context,
+        )
+        if (incomplete) {
+            message.error(evalStepRegistry[incomplete].incompleteMessage)
             return false
         }
 
         const selectedRevisions = filteredVariants.filter((revision) =>
-            selectedVariantRevisionIds.includes(revision.id),
+            revisionIds.includes(revision.id),
         )
-        const hasUnresolvableLocalDraft = selectedRevisions.some((revision) => {
-            if (!isLocalDraftId(revision.id)) return false
-            const sourceRevisionId =
-                (revision as {sourceRevisionId?: string | null}).sourceRevisionId ??
-                extractSourceIdFromDraft(revision.id)
-            return !(sourceRevisionId && isValidUUID(sourceRevisionId))
-        })
-
-        if (hasUnresolvableLocalDraft) {
+        if (
+            selectedRevisions.some((revision) => {
+                if (!isLocalDraftId(revision.id)) return false
+                const sourceRevisionId =
+                    (revision as {sourceRevisionId?: string | null}).sourceRevisionId ??
+                    extractSourceIdFromDraft(revision.id)
+                return !(sourceRevisionId && isValidUUID(sourceRevisionId))
+            })
+        ) {
             message.error(
                 "Please commit selected local draft revisions before starting an evaluation.",
             )
             return false
         }
 
-        if (selectedEvalConfigs.length === 0) {
-            message.error("Please select evaluator configuration")
-            return false
-        }
         if (
             !preview &&
-            selectedEvalConfigs.some(
+            evaluatorIds.some(
                 (id) =>
-                    resolveEvaluatorKey(workflowMolecule.get.data(id) as any) ===
+                    resolveEvaluatorKey(workflowMolecule.get.data(id) as never) ===
                     "auto_ai_critique",
             ) &&
             (await redirectIfNoLLMKeys({secrets}))
@@ -498,246 +536,179 @@ const NewEvaluationModalInner = ({
             message.error("LLM keys are required for AI Critique configuration")
             return false
         }
-
-        // Variant / column validation is temporarily disabled
         return true
     }, [
+        context,
         evaluationName,
-        selectedTestsetId,
-        selectedTestsetRevisionId,
-        selectedVariantRevisionIds,
+        evaluatorIds,
         filteredVariants,
-        selectedEvalConfigs,
-        evaluatorConfigs,
+        getStepValue,
         preview,
+        resolvedSteps,
+        revisionIds,
         secrets,
     ])
 
     const onSubmit = useCallback(async () => {
         onSubmitStateChange?.(true)
         try {
-            if (!(await validateSubmission())) {
-                onSubmitStateChange?.(false)
-                return
-            }
-
-            const targetAppId = selectedAppId || appId
-            if (!targetAppId) {
-                message.error("Please select an application")
-                onSubmitStateChange?.(false)
-                return
-            }
-
-            const revisions = filteredVariants
+            if (!(await validateSubmission())) return
 
             if (preview) {
-                const selectedRevisions = revisions
-                    ?.filter((rev) => selectedVariantRevisionIds.includes(rev.id))
-                    .filter(Boolean)
+                const selectedRevisions = filteredVariants
+                    .filter((revision) => revisionIds.includes(revision.id))
                     .map((revision) => {
                         if (isValidUUID(revision.id)) return revision
-
                         const sourceRevisionId =
                             (revision as {sourceRevisionId?: string | null}).sourceRevisionId ??
                             (isLocalDraftId(revision.id)
                                 ? extractSourceIdFromDraft(revision.id)
                                 : null)
-
-                        if (sourceRevisionId && isValidUUID(sourceRevisionId)) {
-                            return {
-                                ...revision,
-                                id: sourceRevisionId,
-                            }
-                        }
-
-                        return revision
+                        return sourceRevisionId && isValidUUID(sourceRevisionId)
+                            ? {...revision, id: sourceRevisionId}
+                            : revision
                     })
-
-                const selectionTestset = selectedTestsetId
-                    ? ({
-                          _id: selectedTestsetId,
-                          revisionId: selectedTestsetRevisionId || undefined,
-                      } as any)
-                    : undefined
-
                 const selectionData = {
                     name: evaluationName,
                     revisions: selectedRevisions,
-                    testset: selectionTestset,
-                    evaluators: selectedEvalConfigs
+                    testset: testset.id
+                        ? {_id: testset.id, revisionId: testset.revisionId || undefined}
+                        : undefined,
+                    evaluators: evaluatorIds
                         .map((id) => evaluatorRowsByRevisionId.get(id))
                         .filter(Boolean),
                     concurrency: advanceSettings,
                 }
-
                 if (
-                    !selectionData.revisions?.length ||
+                    !selectedAppId ||
+                    !selectionData.revisions.length ||
                     !selectionData.testset ||
-                    !selectionData.evaluators?.length ||
-                    (evaluationType === "human" && !evaluationName)
+                    !selectionData.evaluators.length
                 ) {
                     message.error(
-                        `Please select a testset, revision, ${
-                            evaluationType === "human" ? "evaluation name, and" : " and"
-                        } evaluator configuration. Missing: ${
-                            !selectionData.revisions?.length ? "revision" : ""
-                        } ${!selectionData.testset ? "testset" : ""} ${
-                            !selectionData.evaluators?.length
-                                ? "evaluators"
-                                : evaluationType === "human" && !evaluationName
-                                  ? "evaluation name"
-                                  : ""
-                        }`,
+                        "Human evaluations require an application, revision, testset, and evaluator.",
                     )
-                    onSubmitStateChange?.(false)
                     return
                 }
-
-                const data = await createPreviewEvaluationRun(structuredClone(selectionData) as any)
-
-                const runId = data.runId
-                const scope = isAppScoped ? "app" : "project"
+                const data = await createPreviewEvaluationRun(
+                    structuredClone(selectionData) as never,
+                )
                 const targetPath = buildEvaluationNavigationUrl({
-                    scope,
+                    scope: isAppScoped ? "app" : "project",
                     baseAppURL,
                     projectURL,
-                    appId: targetAppId,
-                    path: `/evaluations/results/${runId}`,
+                    appId: selectedAppId,
+                    path: `/evaluations/results/${data.runId}`,
                 })
-
                 onSuccess?.()
-
                 router.push({
                     pathname: targetPath,
                     query: {type: "human", view: "focus"},
                 })
-            } else {
-                try {
-                    const response = await createEvaluation(targetAppId, {
-                        testset_id: selectedTestsetId,
-                        testset_revision_id: selectedTestsetRevisionId,
-                        revisions_ids: selectedVariantRevisionIds,
-                        evaluator_revision_ids: selectedEvalConfigs,
-                        concurrency: advanceSettings,
-                        name: evaluationName,
-                    })
-
-                    // One run is created per selected variant; link to the first.
-                    const runCount = response.runs?.length ?? 1
-                    const runId = response.data?.evaluation?.id
-                    if (runId) {
-                        const scope = isAppScoped ? "app" : "project"
-                        const resultsUrl = buildEvaluationNavigationUrl({
-                            scope,
-                            baseAppURL,
-                            projectURL,
-                            appId: targetAppId,
-                            path: `/evaluations/results/${runId}`,
-                        })
-
-                        message.success(
-                            <span>
-                                {runCount > 1
-                                    ? `${runCount} evaluations started.`
-                                    : "Evaluation started."}{" "}
-                                <a
-                                    href={resultsUrl}
-                                    onClick={(e) => {
-                                        e.preventDefault()
-                                        router.push(resultsUrl)
-                                    }}
-                                    className="underline font-medium"
-                                >
-                                    View progress
-                                </a>
-                            </span>,
-                        )
-                    } else {
-                        message.success(
-                            runCount > 1 ? `${runCount} evaluations started` : "Evaluation started",
-                        )
-                    }
-
-                    // Trigger revalidation and close modal after successful creation
-                    onSuccess?.()
-                } catch (error) {
-                    console.error("[NewEvaluationModal] Error creating auto evaluation:", error)
-                }
+                return
             }
+
+            const payload = await composeEvaluationStepPayload(
+                resolvedSteps,
+                evalStepEngineRegistry,
+                getStepValue,
+                context,
+            )
+            const response = await createEvaluation({
+                name: evaluationName,
+                data: payload,
+            })
+            const runCount = response.runs.length
+            const runId = response.data.evaluation?.id
+            if (runId) {
+                const resultsUrl = buildEvaluationNavigationUrl({
+                    scope:
+                        resolvedSteps.some((slot) => slot.kind === "application") && isAppScoped
+                            ? "app"
+                            : "project",
+                    baseAppURL,
+                    projectURL,
+                    appId: selectedAppId || undefined,
+                    path: `/evaluations/results/${runId}`,
+                })
+                message.success(
+                    <span>
+                        {runCount > 1 ? `${runCount} evaluations started.` : "Evaluation started."}{" "}
+                        <a
+                            href={resultsUrl}
+                            onClick={(event) => {
+                                event.preventDefault()
+                                router.push(resultsUrl)
+                            }}
+                            className="underline font-medium"
+                        >
+                            View progress
+                        </a>
+                    </span>,
+                )
+            } else {
+                message.success(
+                    runCount > 1 ? `${runCount} evaluations started` : "Evaluation started",
+                )
+            }
+            onSuccess?.()
         } catch (error) {
-            console.error(error)
+            console.error("[NewEvaluationModal] Error creating evaluation:", error)
+            message.error("Unable to start evaluation")
         } finally {
             onSubmitStateChange?.(false)
         }
     }, [
-        appId,
-        selectedAppId,
-        selectedTestsetId,
-        selectedTestsetRevisionId,
-        selectedVariantRevisionIds,
-        selectedEvalConfigs,
         advanceSettings,
-        evaluators,
-        evaluationName,
-        filteredVariants,
-        preview,
-        validateSubmission,
-        createPreviewEvaluationRun,
         baseAppURL,
-        projectURL,
-        onSuccess,
-        onSubmitStateChange,
+        context,
+        createPreviewEvaluationRun,
+        evaluationName,
+        evaluatorIds,
+        evaluatorRowsByRevisionId,
+        filteredVariants,
+        getStepValue,
         isAppScoped,
-        evaluationType,
+        onSubmitStateChange,
+        onSuccess,
+        preview,
+        projectURL,
+        resolvedSteps,
+        revisionIds,
         router,
+        selectedAppId,
+        testset,
+        validateSubmission,
     ])
 
-    // Expose submit handler to parent via a temporary window property
     useEffect(() => {
-        if (typeof window !== "undefined") {
-            ;(window as any).__newEvalModalSubmit = onSubmit
-        }
+        if (typeof window === "undefined") return
+        ;(
+            window as typeof window & {__newEvalModalSubmit?: () => Promise<void>}
+        ).__newEvalModalSubmit = onSubmit
         return () => {
-            if (typeof window !== "undefined") {
-                delete (window as any).__newEvalModalSubmit
-            }
+            delete (window as typeof window & {__newEvalModalSubmit?: () => Promise<void>})
+                .__newEvalModalSubmit
         }
     }, [onSubmit])
 
+    const runtime = useMemo<EvalStepRuntime>(
+        () => ({
+            appOptions,
+            allowTestsetAutoAdvance,
+            onSelectApplication: handleApplicationSelection,
+            onEvaluatorCreated: handleEvaluatorCreated,
+        }),
+        [allowTestsetAutoAdvance, appOptions, handleApplicationSelection, handleEvaluatorCreated],
+    )
+
     return (
         <NewEvaluationModalContent
-            evaluationType={evaluationType}
-            onSuccess={onSuccess}
-            handlePanelChange={handlePanelChange}
-            activePanel={activePanel}
-            selectedTestsetId={selectedTestsetId}
-            selectedTestsetRevisionId={selectedTestsetRevisionId}
-            selectedTestsetName={selectedTestsetName}
-            selectedTestsetVersion={selectedTestsetVersion}
-            setSelectedTestsetId={setSelectedTestsetId}
-            setSelectedTestsetRevisionId={setSelectedTestsetRevisionId}
-            setSelectedTestsetName={setSelectedTestsetName}
-            setSelectedTestsetVersion={setSelectedTestsetVersion}
-            selectedVariantRevisionIds={selectedVariantRevisionIds}
-            setSelectedVariantRevisionIds={setSelectedVariantRevisionIds}
-            selectedEvalConfigs={selectedEvalConfigs}
-            setSelectedEvalConfigs={setSelectedEvalConfigs}
             evaluationName={evaluationName}
             setEvaluationName={setEvaluationName}
-            preview={preview}
-            isLoading={loadingEvaluators || loadingEvaluatorConfigs || testsetsLoading}
-            isOpen={true} // Always true since this component only renders when modal is open
-            testsets={selectedAppId ? testsets || [] : []}
-            evaluators={evaluators}
-            evaluatorConfigs={evaluatorConfigs}
-            advanceSettings={advanceSettings}
-            setAdvanceSettings={setAdvanceSettings}
-            appOptions={appOptions}
-            selectedAppId={selectedAppId}
-            onSelectApp={handleAppSelection}
-            appSelectionDisabled={isAppScoped}
-            onEvaluatorCreated={handleEvaluatorCreated}
-            allowTestsetAutoAdvance={allowTestsetAutoAdvance}
+            steps={resolvedSteps}
+            context={context}
+            runtime={runtime}
         />
     )
 }

@@ -16,7 +16,7 @@
  * Wrap every OSS render site of the run-list view in `<EvalRunsViewHost>`.
  */
 
-import {memo, useEffect, useMemo, type ReactNode} from "react"
+import {memo, useEffect, useMemo, type ComponentProps, type ReactNode} from "react"
 
 import {registerEvalRunInjections, type InjectedReferenceResolver} from "@agenta/evaluations/state"
 import {clearMetricSelectionCache} from "@agenta/evaluations/state/runsTable"
@@ -38,6 +38,7 @@ import EmptyStateAllEvaluations from "@/oss/components/pages/evaluations/allEval
 import EmptyStateEvaluation from "@/oss/components/pages/evaluations/autoEvaluation/EmptyStateEvaluation"
 import EmptyStateHumanEvaluation from "@/oss/components/pages/evaluations/humanEvaluation/EmptyStateHumanEvaluation"
 import NewEvaluationModal from "@/oss/components/pages/evaluations/NewEvaluation"
+import type {EvalStepSlot} from "@/oss/components/pages/evaluations/NewEvaluation/evalSteps/types"
 import {fromFilteringPayload} from "@/oss/components/pages/evaluations/onlineEvaluation/assets/helpers"
 import FiltersPreview from "@/oss/components/pages/evaluations/onlineEvaluation/components/FiltersPreview"
 import EmptyStateOnlineEvaluation from "@/oss/components/pages/evaluations/onlineEvaluation/EmptyStateOnlineEvaluation"
@@ -81,6 +82,18 @@ import {
     workspaceMemberByIdFamily,
     workspaceMembersAtom,
 } from "@/oss/state/workspace/atoms/selectors"
+
+const EVALUATION_PAGE_STEPS: EvalStepSlot[] = [
+    {kind: "application", required: true},
+    {kind: "revision", required: true, dependsOn: ["application"]},
+    {kind: "testset", required: true, dependsOn: ["application"]},
+    {kind: "evaluator", required: true, dependsOn: ["application"]},
+    {kind: "advanced", required: true},
+]
+
+const EvaluationPageNewEvaluationModal = (props: ComponentProps<typeof NewEvaluationModal>) => (
+    <NewEvaluationModal {...props} steps={EVALUATION_PAGE_STEPS} />
+)
 
 /** Three entity-reference resolver families, bundled to match the injected shape. */
 const referenceResolver: InjectedReferenceResolver = {
@@ -185,7 +198,7 @@ const EvalRunsViewHost = ({children}: {children: ReactNode}) => {
                 EmptyStateOnlineEvaluation,
                 EmptyStateSdkEvaluation,
                 DeleteEvaluationModal,
-                NewEvaluationModal,
+                NewEvaluationModal: EvaluationPageNewEvaluationModal,
                 OnlineEvaluationDrawer,
                 SetupEvaluationModal,
                 EditEvaluationDrawer,

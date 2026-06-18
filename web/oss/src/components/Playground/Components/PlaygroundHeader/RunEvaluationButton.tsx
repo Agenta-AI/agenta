@@ -7,6 +7,7 @@ import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
+import type {EvalStepSlot} from "@/oss/components/pages/evaluations/NewEvaluation/evalSteps/types"
 import {currentAppAtom} from "@/oss/state/app"
 
 const NewEvaluationModal = dynamic(
@@ -17,6 +18,14 @@ const NewEvaluationModal = dynamic(
 interface RunEvaluationButtonProps {
     className?: string
 }
+
+const PLAYGROUND_EVALUATION_STEPS: EvalStepSlot[] = [
+    {kind: "application", required: true},
+    {kind: "revision", required: true, dependsOn: ["application"]},
+    {kind: "testset", required: true, dependsOn: ["application"]},
+    {kind: "evaluator", required: true, dependsOn: ["application"]},
+    {kind: "advanced", required: true},
+]
 
 /**
  * Button component that opens the NewEvaluationModal with pre-selected entities
@@ -64,6 +73,7 @@ const RunEvaluationButton: React.FC<RunEvaluationButtonProps> = ({className}) =>
                 preview={false}
                 preSelectedVariantIds={displayedEntities}
                 preSelectedAppId={currentApp?.id}
+                steps={PLAYGROUND_EVALUATION_STEPS}
             />
         </>
     )

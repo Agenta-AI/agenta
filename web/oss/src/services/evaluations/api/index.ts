@@ -1,10 +1,12 @@
 import {EvaluationStatus} from "@agenta/entities/evaluationRun"
+import {splitEvaluationPayloadByApplicationStep} from "@agenta/evaluations/core"
+import {getAgentaSdkClient} from "@agenta/sdk"
+import {getAgentaApiUrl} from "@agenta/shared/api"
 
-import type {EvaluationConcurrencySettings} from "@/oss/components/pages/evaluations/NewEvaluation/types"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {calcEvalDuration} from "@/oss/lib/evaluations/legacy"
 import {assertValidId, isValidId} from "@/oss/lib/helpers/serviceValidations"
-import {KeyValuePair, _Evaluation, _EvaluationScenario} from "@/oss/lib/Types"
+import {_Evaluation, _EvaluationScenario} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
 //Prefix convention:
@@ -141,79 +143,72 @@ export const fetchEvaluationStatus = async (evaluationId: string) => {
     return {status: run.status} as {status: _Evaluation["status"]}
 }
 
-export type CreateEvaluationData =
-    | {
-          testset_id: string
-          testset_revision_id?: string
-          variant_ids?: string[]
-          evaluator_revision_ids: string[]
-          concurrency?: EvaluationConcurrencySettings
-          lm_providers_keys?: KeyValuePair
-      }
-    | {
-          testset_id: string
-          testset_revision_id?: string
-          revisions_ids?: string[]
-          evaluator_revision_ids: string[]
-          concurrency?: EvaluationConcurrencySettings
-          lm_providers_keys?: KeyValuePair
-          name: string
-      }
-export const createEvaluation = async (appId: string, evaluation: CreateEvaluationData) => {
+type EvaluationStepTarget = string[] | Record<string, "custom" | "human" | "auto">
+
+interface SimpleEvaluationDataPayload {
+    status?: string | null
+    query_steps?: EvaluationStepTarget | null
+    testset_steps?: EvaluationStepTarget | null
+    application_steps?: EvaluationStepTarget | null
+    evaluator_steps?: EvaluationStepTarget | null
+    repeats?: number | null
+    concurrency?: {
+        batch_size: number
+        max_retries: number
+        retry_delay: number
+    } | null
+}
+
+export interface CreateEvaluationData {
+    name: string
+    data: Partial<SimpleEvaluationDataPayload>
+    flags?: {
+        is_live?: boolean | null
+        is_active?: boolean | null
+        is_closed?: boolean | null
+    }
+}
+
+interface SimpleEvaluationResponsePayload {
+    count?: number
+    evaluation?: {id?: string | null} | null
+}
+
+export interface CreateEvaluationResult {
+    data: SimpleEvaluationResponsePayload
+    runs: SimpleEvaluationResponsePayload[]
+    additionalRuns: SimpleEvaluationResponsePayload[]
+}
+
+export const createEvaluation = async ({
+    name,
+    data,
+    flags,
+}: CreateEvaluationData): Promise<CreateEvaluationResult> => {
     const {projectId} = getProjectValues()
-
-    // Determine which variant of the type we have and extract revision IDs
-    const revisionIds =
-        "revisions_ids" in evaluation
-            ? evaluation.revisions_ids
-            : "variant_ids" in evaluation
-              ? evaluation.variant_ids
-              : undefined
-    const name = "name" in evaluation ? evaluation.name : "Evaluation" // Default name for legacy variant
-
-    // One run per variant. A run carries exactly one application (invocation)
-    // step: a run with multiple application steps is classified `not_planned`
-    // (A/B comparisons must be separate evaluations) and never dispatches, so it
-    // hangs in RUNNING forever. Fan out here so each variant becomes its own
-    // supported testset -> application -> evaluator run.
-    const applicationRevisionIds = revisionIds?.length ? revisionIds : [undefined]
-
-    const evaluatorSteps = evaluation.evaluator_revision_ids.reduce(
-        (acc, id) => ({...acc, [id]: "auto"}),
-        {} as Record<string, "auto">,
-    )
-    const testsetSteps = evaluation.testset_revision_id
-        ? {[evaluation.testset_revision_id]: "auto" as const}
-        : undefined
-
+    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
+    const payloads = splitEvaluationPayloadByApplicationStep(data)
     const responses = await Promise.all(
-        applicationRevisionIds.map((revisionId) =>
-            // Frontend provides revision IDs directly.
-            axios.post(`/simple/evaluations/?project_id=${projectId}`, {
-                evaluation: {
-                    name,
-                    data: {
-                        // All steps use revision IDs directly.
-                        testset_steps: testsetSteps,
-                        application_steps: revisionId ? {[revisionId]: "auto"} : {},
-                        evaluator_steps: evaluatorSteps,
-                        concurrency: evaluation.concurrency ?? undefined,
-                    },
-                    flags: {
-                        is_live: false,
-                        is_active: true,
-                        is_closed: false,
+        payloads.map((runData) =>
+            client.evaluations.createSimpleEvaluation(
+                {
+                    evaluation: {
+                        name,
+                        data: runData as never,
+                        flags: (flags ?? {
+                            is_live: false,
+                            is_active: true,
+                            is_closed: false,
+                        }) as never,
                     },
                 },
-            }),
+                {queryParams: {project_id: projectId}},
+            ),
         ),
     )
-
-    // Callers read `.data.evaluation.id` off the result; return the first run so
-    // that single-variant flows are unchanged, and expose the rest for callers
-    // that want every created run.
     const [first, ...rest] = responses
-    return Object.assign(first, {runs: responses, additionalRuns: rest})
+    if (!first) throw new Error("Evaluation creation returned no runs")
+    return {data: first, runs: responses, additionalRuns: rest}
 }
 
 export const deleteEvaluations = async (evaluationsIds: string[]) => {
