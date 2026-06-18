@@ -268,6 +268,51 @@ services:
             retries: 3
             start_period: 20s
 
+    worker-triggers:
+        # === IMAGE ================================================ #
+        image: agenta-ee-dev-api:latest
+        # === EXECUTION ============================================ #
+        command: >
+            watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
+            --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
+            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
+            python -m entrypoints.worker_triggers
+        # === STORAGE ============================================== #
+        volumes:
+            - ../../../api/ee:/app/ee
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_triggers' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
+
     worker-events:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-api:latest
