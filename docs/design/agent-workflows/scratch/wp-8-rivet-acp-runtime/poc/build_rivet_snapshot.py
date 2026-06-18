@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["daytona"]
 # ///
-"""Build a Daytona snapshot for the WP-8 rivet agent runtime.
+"""Build a Daytona snapshot for the WP-8 sandbox-agent runtime.
 
 Bakes the `pi` CLI into rivet's `-full` image (which already ships the sandbox-agent
 daemon, the Claude CLI, and CA certs) so Daytona runs don't pay a ~150s per-invoke
@@ -12,6 +12,20 @@ daemon, the Claude CLI, and CA certs) so Daytona runs don't pay a ~150s per-invo
     AGENTA_RIVET_DAYTONA_INSTALL_PI=false
 
 Run: DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_rivet_snapshot.py [--force]
+
+Licensing (see services/agent/docker/README.md):
+    This script is the build recipe we ship, NOT a snapshot we distribute. Whoever
+    runs it builds the snapshot in their own Daytona account: Agenta Cloud builds
+    its own for internal use; self-hosters build their own. We never hand anyone a
+    Claude-containing image, so this is compliant even though the `-full` base bundles
+    Claude (Anthropic's Commercial Terms forbid us *distributing* Claude Code, not
+    building/using it).
+
+    Cleaner-provenance follow-up (needs a live Daytona build to verify): base on a
+    daemon-only rivet image and install Claude from Anthropic at build (npm
+    `@anthropic-ai/claude-code` or `claude.ai/install.sh`), so the snapshot's Claude
+    comes straight from Anthropic instead of from a third party's bundled image. Pin
+    that only after confirming the daemon-only tag also ships the ACP adapters.
 """
 
 import sys

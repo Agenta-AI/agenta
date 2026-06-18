@@ -450,8 +450,11 @@ services:
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
             DAYTONA_API_URL: ${DAYTONA_API_URL:-}
             DAYTONA_TARGET: ${DAYTONA_TARGET:-}
-            # Pre-baked snapshot (rivet daemon + Pi + Claude + certs) so Daytona runs skip
-            # the ~150s per-invoke `npm install pi`. Built by poc/build_rivet_snapshot.py.
+            # Pre-baked snapshot (rivet daemon + Pi + certs; Claude inherited from rivet's
+            # -full base) so Daytona runs skip the ~150s per-invoke `npm install pi`. We
+            # ship the builder (poc/build_rivet_snapshot.py), not the snapshot itself: each
+            # operator builds their own, so we never distribute a Claude-containing image.
+            # See services/agent/docker/README.md for the licensing posture.
             AGENTA_RIVET_DAYTONA_SNAPSHOT: ${AGENTA_RIVET_DAYTONA_SNAPSHOT:-agenta-rivet-pi}
             AGENTA_RIVET_DAYTONA_INSTALL_PI: ${AGENTA_RIVET_DAYTONA_INSTALL_PI:-false}
         # === STORAGE ============================================== #
