@@ -10,7 +10,7 @@ from agenta.sdk.types import PromptTemplate
 class CompletionConfig(BaseModel):
     prompt: PromptTemplate = Field(
         default=PromptTemplate(
-            system_prompt="You are an expert in geography",
+            system_prompt="you are psychietrist and you are talking to a patient",
             user_prompt="What is the capital of {{country}}?",
         )
     )
