@@ -231,7 +231,7 @@ const APIKeys: React.FC = () => {
                         icon={<Plus size={14} className="mt-0.2" />}
                         onClick={createKey}
                     >
-                        Generate API key
+                        Generate
                     </Button>
                 </div>
             ) : null}

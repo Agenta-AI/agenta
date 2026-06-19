@@ -67,7 +67,13 @@ log = get_module_logger(__name__)
 
 
 def handle_adapter_exceptions():
-    """Map unknown providers to 404 and upstream 401 failures to 424."""
+    """Map provider/adapter failures to HTTP, surfacing the upstream detail.
+
+    Unknown providers → 404. Any upstream failure (Composio 4xx such as a
+    rejected argument set, or a malformed response) → 424 carrying the
+    provider's own message so the client can show it instead of a generic 500.
+    A true upstream 5xx → 502.
+    """
 
     def decorator(func):
         @wraps(func)
@@ -80,17 +86,22 @@ def handle_adapter_exceptions():
                     detail=str(e),
                 ) from e
             except AdapterError as e:
+                detail = e.detail or e.message
                 cause = e.__cause__
-                if not (
-                    isinstance(cause, httpx.HTTPStatusError)
+                upstream_status = (
+                    cause.response.status_code
+                    if isinstance(cause, httpx.HTTPStatusError)
                     and cause.response is not None
-                    and cause.response.status_code == status.HTTP_401_UNAUTHORIZED
-                ):
-                    raise
-
+                    else None
+                )
+                if upstream_status is not None and upstream_status >= 500:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=detail,
+                    ) from e
                 raise HTTPException(
                     status_code=status.HTTP_424_FAILED_DEPENDENCY,
-                    detail=e.message,
+                    detail=detail,
                 ) from e
 
         return wrapper

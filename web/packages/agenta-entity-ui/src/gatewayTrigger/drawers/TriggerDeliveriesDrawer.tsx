@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import {
-    deliveriesDrawerAtom,
+    triggerDeliveriesDrawerAtom,
     useTriggerDeliveries,
     type TriggerDelivery,
 } from "@agenta/entities/gatewayTrigger"
@@ -36,7 +36,7 @@ function statusColor(type?: string | null): string {
 }
 
 export default function TriggerDeliveriesDrawer() {
-    const [state, setState] = useAtom(deliveriesDrawerAtom)
+    const [state, setState] = useAtom(triggerDeliveriesDrawerAtom)
     const open = !!state
 
     const {deliveries, isLoading} = useTriggerDeliveries(state?.subscriptionId)

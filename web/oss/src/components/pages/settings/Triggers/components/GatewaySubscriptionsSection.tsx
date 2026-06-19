@@ -1,8 +1,8 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {
-    deliveriesDrawerAtom,
-    subscriptionDrawerAtom,
+    triggerDeliveriesDrawerAtom,
+    triggerSubscriptionDrawerAtom,
     useTriggerConnectionsQuery,
     useTriggerSubscription,
     useTriggerSubscriptions,
@@ -11,6 +11,7 @@ import {
 import {TriggerDeliveriesDrawer, TriggerSubscriptionDrawer} from "@agenta/entity-ui/gatewayTrigger"
 import {MoreOutlined} from "@ant-design/icons"
 import {
+    ArrowClockwise,
     ArrowsClockwise,
     GearSix,
     ListChecks,
@@ -19,18 +20,28 @@ import {
     Trash,
     XCircle,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, Empty, Table, Tag, Typography, message} from "antd"
+import {Button, Dropdown, Empty, Table, Tag, Tooltip, Typography, message} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useSetAtom} from "jotai"
 
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 export default function GatewaySubscriptionsSection() {
-    const {subscriptions, isLoading} = useTriggerSubscriptions()
+    const {subscriptions, isLoading, refetch} = useTriggerSubscriptions()
     const {connections} = useTriggerConnectionsQuery()
     const {revoke, refresh, remove, isMutating} = useTriggerSubscription()
-    const openDrawer = useSetAtom(subscriptionDrawerAtom)
-    const openDeliveries = useSetAtom(deliveriesDrawerAtom)
+    const openDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
+    const openDeliveries = useSetAtom(triggerDeliveriesDrawerAtom)
+    const [reloading, setReloading] = useState(false)
+
+    const reloadAll = useCallback(async () => {
+        setReloading(true)
+        try {
+            await refetch()
+        } finally {
+            setReloading(false)
+        }
+    }, [refetch])
 
     const connectionLabel = useCallback(
         (connectionId?: string) => {
@@ -221,10 +232,7 @@ export default function GatewaySubscriptionsSection() {
     return (
         <>
             <section className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                    <Typography.Text className="text-sm font-medium">
-                        Trigger subscriptions
-                    </Typography.Text>
+                <div className="flex items-center gap-2">
                     <Button
                         type="primary"
                         size="small"
@@ -232,14 +240,19 @@ export default function GatewaySubscriptionsSection() {
                         onClick={handleCreate}
                         disabled={connections.length === 0}
                     >
-                        New subscription
+                        Subscribe
                     </Button>
+                    <Tooltip title="Reload all subscriptions">
+                        <Button
+                            icon={<ArrowClockwise size={14} />}
+                            type="text"
+                            size="small"
+                            aria-label="Reload all subscriptions"
+                            loading={reloading}
+                            onClick={reloadAll}
+                        />
+                    </Tooltip>
                 </div>
-
-                <Typography.Text type="secondary" className="text-xs">
-                    Bind a provider event to a workflow. Each subscription dispatches matching
-                    events to its bound workflow.
-                </Typography.Text>
 
                 <Table<TriggerSubscription>
                     className="ph-no-capture"

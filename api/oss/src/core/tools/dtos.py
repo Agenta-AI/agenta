@@ -4,6 +4,14 @@ from typing import Any, Dict, List, Optional
 from agenta.sdk.models.workflows import JsonSchemas
 from pydantic import BaseModel
 
+from oss.src.core.gateway.catalog.dtos import (
+    CatalogIntegration,
+    CatalogProvider,
+)
+from oss.src.core.gateway.connections.dtos import (
+    Connection,
+    ConnectionCreate,
+)
 from oss.src.core.shared.dtos import (
     Identifier,
     Json,
@@ -48,37 +56,37 @@ class ToolCatalogActionDetails(ToolCatalogAction):
     scopes: Optional[List[str]] = None
 
 
-class ToolCatalogIntegration(BaseModel):
-    key: str
-    #
-    name: str
-    description: Optional[str] = None
-    #
-    categories: List[str] = []
-    logo: Optional[str] = None
-    url: Optional[str] = None
-    #
-    actions_count: Optional[int] = None
-    #
-    auth_schemes: Optional[List[ToolAuthScheme]] = None
+# Providers + integrations are SHARED across tools and triggers — defined once
+# in gateway/catalog and inherited here so the tool-specific "details" leaves
+# (nested actions) can extend them without duplicating the base shape.
+class ToolCatalogIntegration(CatalogIntegration):
+    pass
 
 
 class ToolCatalogIntegrationDetails(ToolCatalogIntegration):
     actions: Optional[List[ToolCatalogAction]] = None
 
 
-class ToolCatalogProvider(BaseModel):
-    key: ToolProviderKind
-    #
-    name: str
-    description: Optional[str] = None
-    #
-    integrations_count: Optional[int] = None
-    #
+class ToolCatalogProvider(CatalogProvider):
+    pass
 
 
 class ToolCatalogProviderDetails(ToolCatalogProvider):
     integrations: Optional[List[ToolCatalogIntegration]] = None
+
+
+# ---------------------------------------------------------------------------
+# Tool Connections — shared `gateway_connections` rows, inherited here so the
+# tools router/models never reference the generic gateway DTOs directly.
+# ---------------------------------------------------------------------------
+
+
+class ToolConnection(Connection):
+    pass
+
+
+class ToolConnectionCreate(ConnectionCreate):
+    pass
 
 
 # ---------------------------------------------------------------------------

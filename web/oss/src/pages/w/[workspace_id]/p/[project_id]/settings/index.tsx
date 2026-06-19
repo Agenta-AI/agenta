@@ -52,12 +52,9 @@ const DeleteAccount = dynamic(
     {ssr: false},
 )
 
-const Automations = dynamic(
-    () => import("@/oss/components/pages/settings/Automations/Automations"),
-    {
-        ssr: false,
-    },
-)
+const Webhooks = dynamic(() => import("@/oss/components/pages/settings/Webhooks/Webhooks"), {
+    ssr: false,
+})
 
 interface SettingsProps {
     AuditLogComponent?: React.ComponentType
@@ -127,15 +124,15 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                         case "projects":
                             return "Projects"
                         case "secrets":
-                            return "Providers & Models"
+                            return "Models"
                         case "tools":
                             return "Tools"
                         case "triggers":
                             return "Triggers"
                         case "apiKeys":
                             return "API Keys"
-                        case "automations":
-                            return "Automations"
+                        case "webhooks":
+                            return "Webhooks"
                         case "auditLog":
                             return "Audit Log"
                         case "account":
@@ -182,7 +179,7 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                     ),
                 }
             case "secrets":
-                return {content: <Secrets />, title: "Providers & Models"}
+                return {content: <Secrets />, title: "Models"}
             case "tools":
                 return {content: <Tools />, title: "Tools"}
             case "triggers":
@@ -194,8 +191,8 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                     content: <Billing />,
                     title: billingEnabled ? "Usage & Billing" : "Usage",
                 }
-            case "automations":
-                return {content: <Automations />, title: "Automations"}
+            case "webhooks":
+                return {content: <Webhooks />, title: "Webhooks"}
             case "auditLog":
                 return {
                     content: AuditLogComponent ? <AuditLogComponent /> : <WorkspaceManage />,

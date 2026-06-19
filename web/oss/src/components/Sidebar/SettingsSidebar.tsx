@@ -99,7 +99,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                 : []),
             {
                 key: "secrets",
-                title: "Providers & Models",
+                title: "Models",
                 icon: <Sparkle size={16} className="mt-0.5" />,
             },
             ...(canShowTools
@@ -121,8 +121,8 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                   ]
                 : []),
             {
-                key: "automations",
-                title: "Automations",
+                key: "webhooks",
+                title: "Webhooks",
                 icon: <Link size={16} className="mt-0.5" />,
                 divider: true,
             },

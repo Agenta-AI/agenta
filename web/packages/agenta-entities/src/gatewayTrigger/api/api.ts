@@ -15,8 +15,11 @@ import {safeParseWithLogging} from "../../shared"
 import {
     triggerCatalogEventResponseSchema,
     triggerCatalogEventsResponseSchema,
+    triggerCatalogIntegrationResponseSchema,
+    triggerCatalogIntegrationsResponseSchema,
     triggerCatalogProviderResponseSchema,
     triggerCatalogProvidersResponseSchema,
+    triggerConnectionResponseSchema,
     triggerConnectionsResponseSchema,
     triggerDeliveriesResponseSchema,
     triggerDeliveryResponseSchema,
@@ -24,8 +27,12 @@ import {
     triggerSubscriptionsResponseSchema,
     type TriggerCatalogEventResponse,
     type TriggerCatalogEventsResponse,
+    type TriggerCatalogIntegrationResponse,
+    type TriggerCatalogIntegrationsResponse,
     type TriggerCatalogProviderResponse,
     type TriggerCatalogProvidersResponse,
+    type TriggerConnectionCreatePayload,
+    type TriggerConnectionResponse,
     type TriggerConnectionsResponse,
     type TriggerDeliveriesResponse,
     type TriggerDeliveryQuery,
@@ -108,6 +115,47 @@ export const fetchTriggerEvent = async (
     )
 }
 
+// --- Integrations (shared catalog with tools; browsed independently) ---
+
+export const fetchTriggerIntegrations = async (
+    providerKey: string,
+    params?: {search?: string; sort_by?: string; limit?: number; cursor?: string},
+): Promise<TriggerCatalogIntegrationsResponse> => {
+    const {data} = await axios.get(
+        `${triggersBaseUrl()}/catalog/providers/${providerKey}/integrations/`,
+        projectScopedParams({
+            search: params?.search,
+            sort_by: params?.sort_by,
+            limit: params?.limit,
+            cursor: params?.cursor,
+        }),
+    )
+    return (
+        safeParseWithLogging(
+            triggerCatalogIntegrationsResponseSchema,
+            data,
+            "[fetchTriggerIntegrations]",
+        ) ?? {count: 0, total: 0, cursor: null, integrations: []}
+    )
+}
+
+export const fetchTriggerIntegration = async (
+    providerKey: string,
+    integrationKey: string,
+): Promise<TriggerCatalogIntegrationResponse> => {
+    const {data} = await axios.get(
+        `${triggersBaseUrl()}/catalog/providers/${providerKey}/integrations/${integrationKey}`,
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(
+            triggerCatalogIntegrationResponseSchema,
+            data,
+            "[fetchTriggerIntegration]",
+        ) ?? {count: 0, integration: null}
+    )
+}
+
 // --- Connections (shared rows, WP0 view; F2) ---
 
 export const queryTriggerConnections = async (params?: {
@@ -128,6 +176,78 @@ export const queryTriggerConnections = async (params?: {
         "[queryTriggerConnections]",
     )
     return (validated as TriggerConnectionsResponse | null) ?? {count: 0, connections: []}
+}
+
+export const fetchTriggerConnection = async (
+    connectionId: string,
+): Promise<TriggerConnectionResponse> => {
+    const {data} = await axios.get(
+        `${triggersBaseUrl()}/connections/${connectionId}`,
+        projectScopedParams(),
+    )
+    return (
+        (safeParseWithLogging(
+            triggerConnectionResponseSchema,
+            data,
+            "[fetchTriggerConnection]",
+        ) as TriggerConnectionResponse | null) ?? {count: 0, connection: null}
+    )
+}
+
+export const createTriggerConnection = async (
+    payload: TriggerConnectionCreatePayload,
+): Promise<TriggerConnectionResponse> => {
+    const {data} = await axios.post(
+        `${triggersBaseUrl()}/connections/`,
+        payload,
+        projectScopedParams(),
+    )
+    return (
+        (safeParseWithLogging(
+            triggerConnectionResponseSchema,
+            data,
+            "[createTriggerConnection]",
+        ) as TriggerConnectionResponse | null) ?? {count: 0, connection: null}
+    )
+}
+
+export const deleteTriggerConnection = async (connectionId: string): Promise<void> => {
+    await axios.delete(`${triggersBaseUrl()}/connections/${connectionId}`, projectScopedParams())
+}
+
+export const refreshTriggerConnection = async (
+    connectionId: string,
+    force?: boolean,
+): Promise<TriggerConnectionResponse> => {
+    const {data} = await axios.post(
+        `${triggersBaseUrl()}/connections/${connectionId}/refresh`,
+        null,
+        projectScopedParams(force === undefined ? undefined : {force}),
+    )
+    return (
+        (safeParseWithLogging(
+            triggerConnectionResponseSchema,
+            data,
+            "[refreshTriggerConnection]",
+        ) as TriggerConnectionResponse | null) ?? {count: 0, connection: null}
+    )
+}
+
+export const revokeTriggerConnection = async (
+    connectionId: string,
+): Promise<TriggerConnectionResponse> => {
+    const {data} = await axios.post(
+        `${triggersBaseUrl()}/connections/${connectionId}/revoke`,
+        null,
+        projectScopedParams(),
+    )
+    return (
+        (safeParseWithLogging(
+            triggerConnectionResponseSchema,
+            data,
+            "[revokeTriggerConnection]",
+        ) as TriggerConnectionResponse | null) ?? {count: 0, connection: null}
+    )
 }
 
 // --- Subscriptions ---

@@ -8,6 +8,7 @@ the bound workflow, and records a single delivery row with the outcome.
 Self-contained so it can run inside its own TaskIQ worker process.
 """
 
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from uuid import UUID
 
@@ -15,7 +16,7 @@ import uuid_utils.compat as uuid_compat
 
 from oss.src.core.shared.dtos import Status
 from oss.src.core.triggers.dtos import (
-    TRIGGER_EVENT_FIELDS,
+    TRIGGER_CONTEXT_FIELDS,
     SUBSCRIPTION_CONTEXT_FIELDS,
     TriggerDeliveryCreate,
     TriggerDeliveryData,
@@ -23,6 +24,7 @@ from oss.src.core.triggers.dtos import (
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 from agenta.sdk.decorators.running import WorkflowServiceRequest
@@ -52,8 +54,19 @@ class TriggersDispatcher:
         project_id: UUID,
     ) -> Dict[str, Any]:
         sub_dump = subscription.model_dump(mode="json", exclude_none=True)
+        metadata = event.get("metadata") or {}
+        now = datetime.now(timezone.utc).isoformat()
+        normalized = {
+            "trigger_id": metadata.get("trigger_id"),
+            "trigger_type": metadata.get("trigger_slug"),
+            "timestamp": now,
+            "created_at": now,
+            "attributes": event.get("payload"),
+        }
         return {
-            "event": {k: v for k, v in event.items() if k in TRIGGER_EVENT_FIELDS},
+            "event": {
+                k: v for k, v in normalized.items() if k in TRIGGER_CONTEXT_FIELDS
+            },
             "subscription": {
                 k: v for k, v in sub_dump.items() if k in SUBSCRIPTION_CONTEXT_FIELDS
             },
@@ -73,9 +86,9 @@ class TriggersDispatcher:
         )
 
         if resolved is None:
-            log.info(
-                "[TRIGGERS DISPATCHER] Unknown trigger_id %s — skipping", trigger_id
-            )
+            # Unknown ti_* is normal isolation unless a target is configured.
+            level = log.warning if env.composio.webhook_target else log.info
+            level("[TRIGGERS DISPATCHER] Unknown trigger_id %s — skipping", trigger_id)
             return
 
         project_id, subscription = resolved
@@ -164,6 +177,7 @@ class TriggersDispatcher:
                 request=request,
             )
         except Exception as e:
+            log.error("[TRIGGERS DISPATCHER] invoke failed: %s", e, exc_info=True)
             await self._write_delivery(
                 project_id=project_id,
                 user_id=user_id,
@@ -218,6 +232,11 @@ class TriggersDispatcher:
                     }
                 }
             ),
+        )
+        log.info(
+            "[TRIGGERS DISPATCHER] dispatch complete subscription=%s event=%s status=200",
+            subscription.id,
+            event_id,
         )
 
     async def _write_delivery(

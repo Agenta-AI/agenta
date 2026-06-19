@@ -19,10 +19,15 @@ export type {
     TriggerCatalogEventDetails,
     TriggerCatalogEventResponse,
     TriggerCatalogEventsResponse,
+    TriggerCatalogIntegration,
+    TriggerCatalogIntegrationResponse,
+    TriggerCatalogIntegrationsResponse,
     TriggerCatalogProvider,
     TriggerCatalogProviderResponse,
     TriggerCatalogProvidersResponse,
     TriggerConnection,
+    TriggerConnectionCreatePayload,
+    TriggerConnectionResponse,
     TriggerConnectionsResponse,
     TriggerDelivery,
     TriggerDeliveriesResponse,
@@ -48,20 +53,28 @@ export {isConnectionActive, isConnectionValid} from "./core"
 // ---------------------------------------------------------------------------
 
 export {
+    createTriggerConnection,
     createTriggerSubscription,
+    deleteTriggerConnection,
     deleteTriggerSubscription,
     editTriggerSubscription,
+    fetchTriggerConnection,
     fetchTriggerDelivery,
     fetchTriggerEvent,
     fetchTriggerEvents,
+    fetchTriggerIntegration,
+    fetchTriggerIntegrations,
     fetchTriggerProvider,
     fetchTriggerProviders,
     fetchTriggerSubscription,
     queryTriggerConnections,
     queryTriggerDeliveries,
     queryTriggerSubscriptions,
+    refreshTriggerConnection,
     refreshTriggerSubscription,
+    revokeTriggerConnection,
     revokeTriggerSubscription,
+    triggerApiErrorMessage,
 } from "./api"
 
 // ---------------------------------------------------------------------------
@@ -69,11 +82,12 @@ export {
 // ---------------------------------------------------------------------------
 
 export {
-    deliveriesDrawerAtom,
-    eventsDrawerAtom,
-    eventSearchAtom,
-    selectedCatalogEventAtom,
-    subscriptionDrawerAtom,
+    triggerCatalogDrawerOpenAtom,
+    triggerDeliveriesDrawerAtom,
+    triggerEventsDrawerAtom,
+    triggerEventSearchAtom,
+    triggerSelectedCatalogEventAtom,
+    triggerSubscriptionDrawerAtom,
 } from "./state"
 export type {DeliveriesDrawerState, EventsDrawerState, SubscriptionDrawerState} from "./state"
 
@@ -82,16 +96,20 @@ export type {DeliveriesDrawerState, EventsDrawerState, SubscriptionDrawerState} 
 // ---------------------------------------------------------------------------
 
 export {
-    catalogEventsInfiniteFamily,
-    eventsSearchAtom,
+    triggerCatalogEventsInfiniteFamily,
+    triggerCatalogIntegrationsInfiniteAtom,
     triggerConnectionsQueryAtom,
     triggerConnectionSubscriptionsAtomFamily,
     triggerDeliveriesAtomFamily,
     triggerEventDetailQueryFamily,
+    triggerEventsSearchAtom,
     triggerIntegrationConnectionsAtomFamily,
+    triggerIntegrationsSearchAtom,
     triggerSubscriptionQueryAtomFamily,
     triggerSubscriptionsQueryAtom,
-    useCatalogEvents,
+    useTriggerCatalogEvents,
+    useTriggerCatalogIntegrations,
+    useTriggerConnectionActions,
     useTriggerConnectionsQuery,
     useTriggerConnectionSubscriptions,
     useTriggerDeliveries,

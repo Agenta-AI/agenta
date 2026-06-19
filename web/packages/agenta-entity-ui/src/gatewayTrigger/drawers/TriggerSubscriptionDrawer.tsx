@@ -1,7 +1,9 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
-    subscriptionDrawerAtom,
+    triggerApiErrorMessage,
+    triggerSubscriptionDrawerAtom,
+    useTriggerCatalogEvents,
     useTriggerConnectionsQuery,
     useTriggerEvent,
     useTriggerSubscription,
@@ -33,7 +35,7 @@ const DEFAULT_PROVIDER = "composio"
 // ---------------------------------------------------------------------------
 
 export default function TriggerSubscriptionDrawer() {
-    const [state, setState] = useAtom(subscriptionDrawerAtom)
+    const [state, setState] = useAtom(triggerSubscriptionDrawerAtom)
     const open = !!state
     const isEdit = !!state?.subscriptionId
 
@@ -62,7 +64,7 @@ export default function TriggerSubscriptionDrawer() {
 // ---------------------------------------------------------------------------
 
 function SubscriptionForm({onClose}: {onClose: () => void}) {
-    const [state] = useAtom(subscriptionDrawerAtom)
+    const [state] = useAtom(triggerSubscriptionDrawerAtom)
     const subscriptionId = state?.subscriptionId
     const isEdit = !!subscriptionId
 
@@ -195,8 +197,8 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                 message.success("Subscription created")
             }
             onClose()
-        } catch {
-            message.error("Failed to save subscription")
+        } catch (error) {
+            message.error(triggerApiErrorMessage(error, "Failed to save subscription"))
         }
     }, [
         connectionId,
@@ -250,11 +252,10 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                     </Form.Item>
 
                     <Form.Item label="Event" required>
-                        <Input
-                            placeholder="Event key (e.g. github_star_added_event)"
-                            prefix={<Lightning size={14} />}
+                        <EventSelect
+                            integrationKey={integrationKey}
                             value={eventKey}
-                            onChange={(e) => setEventKey(e.target.value)}
+                            onChange={setEventKey}
                             disabled={!connectionId}
                         />
                         <Typography.Text type="secondary" className="text-xs">
@@ -289,7 +290,11 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                         Trigger configuration
                     </Typography.Text>
                     <div className="mt-2 mb-4">
-                        {eventLoading ? (
+                        {!eventKey ? (
+                            <Typography.Text type="secondary" className="text-xs">
+                                Select an event to configure its trigger.
+                            </Typography.Text>
+                        ) : eventLoading ? (
                             <div className="flex items-center justify-center py-6">
                                 <Spin />
                             </div>
@@ -303,23 +308,16 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                         )}
                     </div>
 
-                    <Form.Item
-                        label="Inputs mapping"
-                        validateStatus={inputsError ? "error" : undefined}
-                        help={inputsError ?? "Maps event context to the workflow inputs (JSON)"}
-                    >
-                        <div className="rounded-lg border border-solid border-gray-300 dark:border-gray-700 overflow-hidden">
-                            <Editor
-                                initialValue={inputsText || "{}"}
-                                onChange={({textContent}) => setInputsText(textContent)}
-                                codeOnly
-                                showToolbar={false}
-                                language="json"
-                                dimensions={{width: "100%", height: 120}}
-                                disabled={isMutating}
-                            />
-                        </div>
-                    </Form.Item>
+                    <InputsMappingField
+                        value={inputsText}
+                        onChange={setInputsText}
+                        error={inputsError}
+                        onErrorChange={setInputsError}
+                        eventPayload={
+                            (eventDetail?.payload ?? null) as Record<string, unknown> | null
+                        }
+                        disabled={isMutating}
+                    />
 
                     <Form.Item label="Enabled">
                         <Switch checked={enabled} onChange={setEnabled} />
@@ -337,4 +335,305 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
             </div>
         </div>
     )
+}
+
+// ---------------------------------------------------------------------------
+// EventSelect — searchable dropdown of the connection's catalog events.
+//
+// The subscription data model binds ONE event (event_key: str), so this is a
+// single-select. It loads events for the chosen integration via the shared
+// catalog hook, with server-side search and scroll-to-load-more.
+// ---------------------------------------------------------------------------
+
+function EventSelect({
+    integrationKey,
+    value,
+    onChange,
+    disabled,
+}: {
+    integrationKey: string
+    value: string
+    onChange: (eventKey: string) => void
+    disabled?: boolean
+}) {
+    const {events, isLoading, isFetchingNextPage, hasNextPage, requestMore, setSearch} =
+        useTriggerCatalogEvents(integrationKey)
+
+    // Keep the selected value visible even if it isn't in the current
+    // (search-filtered / paginated) page — e.g. an edit prefilled event_key.
+    const options = useMemo(() => {
+        const opts = events.map((e) => ({
+            value: e.key,
+            label: e.name ? `${e.name} (${e.key})` : e.key,
+        }))
+        if (value && !opts.some((o) => o.value === value)) {
+            opts.unshift({value, label: value})
+        }
+        return opts
+    }, [events, value])
+
+    return (
+        <Select
+            showSearch
+            placeholder="Select an event"
+            suffixIcon={<Lightning size={14} />}
+            value={value || undefined}
+            onChange={onChange}
+            onSearch={setSearch}
+            filterOption={false}
+            loading={isLoading}
+            disabled={disabled}
+            notFoundContent={isLoading ? <Spin size="small" /> : null}
+            options={options}
+            onPopupScroll={(e) => {
+                const t = e.currentTarget
+                if (
+                    hasNextPage &&
+                    !isFetchingNextPage &&
+                    t.scrollTop + t.offsetHeight >= t.scrollHeight - 32
+                ) {
+                    requestMore()
+                }
+            }}
+        />
+    )
+}
+
+// ---------------------------------------------------------------------------
+// InputsMappingField — JSON editor with live selector validation + path hints.
+//
+// The mapping is arbitrary JSON; each leaf STRING is a selector resolved at
+// delivery time against the event payload (mirrors the backend
+// `resolve_target_fields`): `$...` = JSONPath, `/...` = JSON Pointer, anything
+// else is a literal. We validate JSON syntax + each selector live, and preview
+// what each selector resolves to against the event's sample payload.
+// ---------------------------------------------------------------------------
+
+function InputsMappingField({
+    value,
+    onChange,
+    error,
+    onErrorChange,
+    eventPayload,
+    disabled,
+}: {
+    value: string
+    onChange: (next: string) => void
+    error: string | null
+    onErrorChange: (next: string | null) => void
+    eventPayload: Record<string, unknown> | null
+    disabled?: boolean
+}) {
+    // Selectors resolve against the normalized context the backend builds
+    // (dispatcher `_build_context`), not the raw provider payload.
+    const context = useMemo(() => buildPreviewContext(eventPayload), [eventPayload])
+
+    // Parse + validate live; collect a per-leaf resolution preview.
+    const {leaves, parseError} = useMemo(() => analyzeMapping(value, context), [value, context])
+
+    useEffect(() => {
+        onErrorChange(parseError)
+    }, [parseError, onErrorChange])
+
+    const payloadKeys = useMemo(
+        () =>
+            Object.keys(
+                (context.event as {attributes?: Record<string, unknown>})?.attributes ?? {},
+            ).map((k) => `event.attributes.${k}`),
+        [context],
+    )
+
+    return (
+        <Form.Item
+            label="Inputs mapping"
+            validateStatus={error ? "error" : undefined}
+            help={error ?? "Maps event context to the workflow inputs (JSON)"}
+        >
+            <div className="rounded-lg border border-solid border-gray-300 dark:border-gray-700 overflow-hidden">
+                <Editor
+                    initialValue={value || "{}"}
+                    onChange={({textContent}) => onChange(textContent)}
+                    codeOnly
+                    showToolbar={false}
+                    language="json"
+                    dimensions={{width: "100%", height: 120}}
+                    disabled={disabled}
+                />
+            </div>
+
+            <Typography.Text type="secondary" className="!text-[11px] leading-snug block mt-1">
+                String values are selectors against the event payload: <code>$.path</code>{" "}
+                (JSONPath), <code>/path</code> (JSON Pointer), or a literal.
+            </Typography.Text>
+
+            {payloadKeys.length > 0 && (
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                    <Typography.Text type="secondary" className="!text-[11px]">
+                        Available:
+                    </Typography.Text>
+                    {payloadKeys.slice(0, 12).map((k) => (
+                        <code
+                            key={k}
+                            className="text-[11px] px-1 rounded bg-gray-100 dark:bg-gray-800"
+                        >
+                            $.{k}
+                        </code>
+                    ))}
+                    {payloadKeys.length > 12 && (
+                        <Typography.Text type="secondary" className="!text-[11px]">
+                            +{payloadKeys.length - 12} more
+                        </Typography.Text>
+                    )}
+                </div>
+            )}
+
+            {!parseError && leaves.length > 0 && (
+                <div className="mt-1.5 flex flex-col gap-0.5">
+                    {leaves.map((leaf, i) => (
+                        <div
+                            key={`${leaf.key}-${i}`}
+                            className="flex items-center gap-1.5 text-[11px] leading-snug"
+                        >
+                            <code className="text-gray-500">{leaf.key}</code>
+                            <span className="text-gray-400">→</span>
+                            {leaf.isSelector ? (
+                                leaf.resolved === undefined ? (
+                                    <Typography.Text type="warning" className="!text-[11px]">
+                                        no sample value
+                                    </Typography.Text>
+                                ) : (
+                                    <code className="text-green-600 dark:text-green-400 truncate max-w-[280px]">
+                                        {leaf.resolved}
+                                    </code>
+                                )
+                            ) : (
+                                <Typography.Text type="secondary" className="!text-[11px]">
+                                    literal
+                                </Typography.Text>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </Form.Item>
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Mapping analysis + lightweight selector resolution (preview only).
+//
+// Full JSONPath/Pointer evaluation happens server-side; here we resolve the
+// common dot/bracket and pointer forms just to show a "resolves to" preview.
+// Anything we can't resolve shows as "no sample value" (never a hard error).
+// ---------------------------------------------------------------------------
+
+interface MappingLeaf {
+    key: string
+    isSelector: boolean
+    resolved?: string
+}
+
+// Mirror of the backend dispatcher `_build_context`: the raw provider payload
+// becomes `event.attributes`, alongside the synthetic event fields. Selectors in
+// the mapping resolve against this shape, so previews match delivery.
+function buildPreviewContext(payload: Record<string, unknown> | null): Record<string, unknown> {
+    return {
+        event: {
+            trigger_id: "ti_…",
+            trigger_type: "…",
+            timestamp: "…",
+            created_at: "…",
+            attributes: payload ?? {},
+        },
+    }
+}
+
+function analyzeMapping(
+    text: string,
+    context: Record<string, unknown> | null,
+): {leaves: MappingLeaf[]; parseError: string | null} {
+    const trimmed = text.trim()
+    if (!trimmed) return {leaves: [], parseError: null}
+
+    let parsed: unknown
+    try {
+        parsed = JSON.parse(trimmed)
+    } catch (e) {
+        return {leaves: [], parseError: e instanceof Error ? e.message : "Invalid JSON"}
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        return {leaves: [], parseError: "Mapping must be a JSON object"}
+    }
+
+    const leaves: MappingLeaf[] = []
+    for (const [key, raw] of Object.entries(parsed as Record<string, unknown>)) {
+        if (typeof raw !== "string") {
+            leaves.push({key, isSelector: false})
+            continue
+        }
+        const isSelector = raw.startsWith("$") || raw.startsWith("/")
+        if (!isSelector) {
+            leaves.push({key, isSelector: false})
+            continue
+        }
+        const resolved = context ? resolveSelectorPreview(raw, context) : undefined
+        leaves.push({
+            key,
+            isSelector: true,
+            resolved: resolved === undefined ? undefined : previewValue(resolved),
+        })
+    }
+    return {leaves, parseError: null}
+}
+
+function previewValue(value: unknown): string {
+    if (typeof value === "string") return value
+    try {
+        return JSON.stringify(value)
+    } catch {
+        return String(value)
+    }
+}
+
+/** Best-effort resolution of `$.a.b[0]` / `$["a"]["b"]` / `/a/b/0`. */
+function resolveSelectorPreview(selector: string, data: Record<string, unknown>): unknown {
+    try {
+        if (selector === "$") return data
+        if (selector.startsWith("/")) {
+            const tokens = selector
+                .split("/")
+                .slice(1)
+                .map((t) => t.replace(/~1/g, "/").replace(/~0/g, "~"))
+            return walk(data, tokens)
+        }
+        if (selector.startsWith("$")) {
+            const tokens = selector
+                .slice(1)
+                .replace(/\[(\d+)\]/g, ".$1")
+                .replace(/\[["'](.*?)["']\]/g, ".$1")
+                .split(".")
+                .filter((t) => t.length > 0)
+            return walk(data, tokens)
+        }
+    } catch {
+        return undefined
+    }
+    return undefined
+}
+
+function walk(data: unknown, tokens: string[]): unknown {
+    let cur: unknown = data
+    for (const token of tokens) {
+        if (cur == null) return undefined
+        if (Array.isArray(cur)) {
+            const idx = Number(token)
+            if (!Number.isInteger(idx)) return undefined
+            cur = cur[idx]
+        } else if (typeof cur === "object") {
+            cur = (cur as Record<string, unknown>)[token]
+        } else {
+            return undefined
+        }
+    }
+    return cur
 }

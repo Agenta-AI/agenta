@@ -24,6 +24,14 @@ _requires_composio = pytest.mark.skipif(
     reason="needs live Composio credentials (COMPOSIO_API_KEY)",
 )
 
+# Minting a trigger instance needs an ACTIVE connected account, which a stub
+# OAuth connection never reaches in CI (no interactive auth). Gate the create
+# roundtrip on a pre-connected account being supplied.
+_requires_connected_account = pytest.mark.skipif(
+    not os.getenv("COMPOSIO_TEST_CONNECTED_ACCOUNT"),
+    reason="needs COMPOSIO_TEST_CONNECTED_ACCOUNT (an ACTIVE connected account)",
+)
+
 
 # ---------------------------------------------------------------------------
 # DB-only: reads, queries, 404s (no Composio needed)
@@ -87,6 +95,7 @@ class TestTriggerDeliveriesReads:
 
 
 @_requires_composio
+@_requires_connected_account
 class TestTriggerSubscriptionsLifecycle:
     def _create_connection(self, authed_api):
         slug = f"acc-{uuid4().hex[:8]}"
@@ -118,8 +127,8 @@ class TestTriggerSubscriptionsLifecycle:
                     "connection_id": connection_id,
                     "data": {
                         "event_key": "GITHUB_STAR_ADDED_EVENT",
-                        "trigger_config": {},
-                        "inputs_fields": {"repo": "$.event.data.repository"},
+                        "trigger_config": {"owner": "acme", "repo": "widgets"},
+                        "inputs_fields": {"repo": "$.event.attributes.repository"},
                         "references": {"workflow": {"slug": "triage"}},
                     },
                 }

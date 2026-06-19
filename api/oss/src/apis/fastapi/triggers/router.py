@@ -1,5 +1,3 @@
-import hashlib
-import hmac
 from functools import wraps
 from json import JSONDecodeError, loads
 from typing import Any, Optional
@@ -13,13 +11,17 @@ from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.common import is_ee
-from oss.src.utils.env import env
 
 from oss.src.apis.fastapi.triggers.models import (
     TriggerCatalogEventResponse,
     TriggerCatalogEventsResponse,
+    TriggerCatalogIntegrationResponse,
+    TriggerCatalogIntegrationsResponse,
     TriggerCatalogProviderResponse,
     TriggerCatalogProvidersResponse,
+    TriggerConnectionCreateRequest,
+    TriggerConnectionResponse,
+    TriggerConnectionsResponse,
     TriggerDeliveriesResponse,
     TriggerDeliveryQueryRequest,
     TriggerDeliveryResponse,
@@ -50,7 +52,13 @@ log = get_module_logger(__name__)
 
 
 def handle_adapter_exceptions():
-    """Map unknown providers to 404 and upstream 401 failures to 424."""
+    """Map provider/adapter failures to HTTP, surfacing the upstream detail.
+
+    Unknown providers → 404. Any upstream failure (Composio 4xx such as a
+    rejected ``trigger_config``, or a malformed response) → 424 carrying the
+    provider's own message so the client can show it instead of a generic 500.
+    A true upstream 5xx → 502.
+    """
 
     def decorator(func):
         @wraps(func)
@@ -63,52 +71,27 @@ def handle_adapter_exceptions():
                     detail=str(e),
                 ) from e
             except AdapterError as e:
+                detail = e.detail or e.message
                 cause = e.__cause__
-                if not (
-                    isinstance(cause, httpx.HTTPStatusError)
+                upstream_status = (
+                    cause.response.status_code
+                    if isinstance(cause, httpx.HTTPStatusError)
                     and cause.response is not None
-                    and cause.response.status_code == status.HTTP_401_UNAUTHORIZED
-                ):
-                    raise
-
+                    else None
+                )
+                if upstream_status is not None and upstream_status >= 500:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=detail,
+                    ) from e
                 raise HTTPException(
                     status_code=status.HTTP_424_FAILED_DEPENDENCY,
-                    detail=e.message,
+                    detail=detail,
                 ) from e
 
         return wrapper
 
     return decorator
-
-
-def _verify_composio_signature(
-    *,
-    body: bytes,
-    headers: Any,
-) -> bool:
-    """HMAC-SHA256 verify over ``{id}.{ts}.{body}`` with ``COMPOSIO_WEBHOOK_SECRET``.
-
-    Returns True when the secret is unset (no-op) or the signature matches.
-    """
-    secret = env.composio.webhook_secret
-    if not secret:
-        return True
-
-    signature = headers.get("webhook-signature") or headers.get("x-composio-signature")
-    webhook_id = headers.get("webhook-id") or ""
-    timestamp = headers.get("webhook-timestamp") or ""
-    if not signature:
-        return False
-
-    signed = f"{webhook_id}.{timestamp}.{body.decode('utf-8', errors='replace')}"
-    expected = hmac.new(
-        secret.encode("utf-8"),
-        signed.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-
-    provided = signature.split(",")[-1].strip()
-    return hmac.compare_digest(expected, provided)
 
 
 class TriggersRouter:
@@ -125,7 +108,7 @@ class TriggersRouter:
 
         # --- Trigger Ingress (inbound provider events) ---
         self.router.add_api_route(
-            "/composio/events",
+            "/composio/events/",
             self.ingest_composio_event,
             methods=["POST"],
             operation_id="ingest_composio_event",
@@ -151,6 +134,22 @@ class TriggersRouter:
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
+            "/catalog/providers/{provider_key}/integrations/",
+            self.list_integrations,
+            methods=["GET"],
+            operation_id="list_trigger_integrations",
+            response_model=TriggerCatalogIntegrationsResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/catalog/providers/{provider_key}/integrations/{integration_key}",
+            self.get_integration,
+            methods=["GET"],
+            operation_id="fetch_trigger_integration",
+            response_model=TriggerCatalogIntegrationResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
             "/catalog/providers/{provider_key}/integrations/{integration_key}/events/",
             self.list_events,
             methods=["GET"],
@@ -164,6 +163,56 @@ class TriggersRouter:
             methods=["GET"],
             operation_id="fetch_trigger_event",
             response_model=TriggerCatalogEventResponse,
+            response_model_exclude_none=True,
+        )
+
+        # --- Trigger Connections ---
+        # Shared `gateway_connections` rows; independent surface from tools.
+        self.router.add_api_route(
+            "/connections/query",
+            self.query_connections,
+            methods=["POST"],
+            operation_id="query_trigger_connections",
+            response_model=TriggerConnectionsResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/connections/",
+            self.create_connection,
+            methods=["POST"],
+            operation_id="create_trigger_connection",
+            response_model=TriggerConnectionResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/connections/{connection_id}",
+            self.get_connection,
+            methods=["GET"],
+            operation_id="fetch_trigger_connection",
+            response_model=TriggerConnectionResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/connections/{connection_id}",
+            self.delete_connection,
+            methods=["DELETE"],
+            operation_id="delete_trigger_connection",
+            status_code=status.HTTP_204_NO_CONTENT,
+        )
+        self.router.add_api_route(
+            "/connections/{connection_id}/refresh",
+            self.refresh_connection,
+            methods=["POST"],
+            operation_id="refresh_trigger_connection",
+            response_model=TriggerConnectionResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/connections/{connection_id}/revoke",
+            self.revoke_connection,
+            methods=["POST"],
+            operation_id="revoke_trigger_connection",
+            response_model=TriggerConnectionResponse,
             response_model_exclude_none=True,
         )
 
@@ -269,6 +318,193 @@ class TriggersRouter:
         )
 
     # -----------------------------------------------------------------------
+    # Trigger Connections
+    #
+    # Independent surface over the SAME shared ConnectionsService that tools
+    # uses; both read/write the `gateway_connections` rows, so a connection
+    # made from either side is visible from both. The OAuth callback stays on
+    # `/tools/connections/callback` by design (shared public contract).
+    # -----------------------------------------------------------------------
+
+    @intercept_exceptions()
+    async def query_connections(
+        self,
+        request: Request,
+        *,
+        provider_key: Optional[str] = Query(default=None),
+        integration_key: Optional[str] = Query(default=None),
+    ) -> TriggerConnectionsResponse:
+        if is_ee():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_TRIGGERS,
+            )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION
+
+        connections = await self.triggers_service.query_connections(
+            project_id=UUID(request.state.project_id),
+            provider_key=provider_key,
+            integration_key=integration_key,
+        )
+        return TriggerConnectionsResponse(
+            count=len(connections),
+            connections=connections,
+        )
+
+    @intercept_exceptions()
+    async def create_connection(
+        self,
+        request: Request,
+        *,
+        body: TriggerConnectionCreateRequest,
+    ) -> TriggerConnectionResponse:
+        if is_ee():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_TRIGGERS,
+            )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION
+
+        slug = body.connection.slug
+        if "." in slug or "__" in slug:
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "detail": (
+                        "Connection slug must not contain dots or "
+                        "consecutive underscores. "
+                        "Use single hyphens or underscores as separators."
+                    )
+                },
+            )
+
+        if isinstance(body.connection.data, dict):
+            body.connection.data = {
+                k: v
+                for k, v in body.connection.data.items()
+                if k not in {"callback_url", "auth_scheme"}
+            } or None
+
+        connection = await self.triggers_service.create_connection(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            connection_create=body.connection,
+        )
+
+        return TriggerConnectionResponse(
+            count=1,
+            connection=connection,
+        )
+
+    @intercept_exceptions()
+    async def get_connection(
+        self,
+        request: Request,
+        connection_id: UUID,
+    ) -> TriggerConnectionResponse:
+        if is_ee():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_TRIGGERS,
+            )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION
+
+        connection = await self.triggers_service.get_connection(
+            project_id=UUID(request.state.project_id),
+            connection_id=connection_id,
+        )
+        if not connection:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Connection not found"},
+            )
+
+        return TriggerConnectionResponse(
+            count=1,
+            connection=connection,
+        )
+
+    @intercept_exceptions()
+    async def delete_connection(
+        self,
+        request: Request,
+        connection_id: UUID,
+    ) -> None:
+        if is_ee():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_TRIGGERS,
+            )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION
+
+        await self.triggers_service.delete_connection(
+            project_id=UUID(request.state.project_id),
+            connection_id=connection_id,
+        )
+
+    @intercept_exceptions()
+    async def refresh_connection(
+        self,
+        request: Request,
+        connection_id: UUID,
+        *,
+        force: bool = Query(default=False),
+    ) -> TriggerConnectionResponse:
+        if is_ee():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_TRIGGERS,
+            )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION
+
+        connection = await self.triggers_service.refresh_connection(
+            project_id=UUID(request.state.project_id),
+            connection_id=connection_id,
+            force=force,
+        )
+
+        return TriggerConnectionResponse(
+            count=1,
+            connection=connection,
+        )
+
+    @intercept_exceptions()
+    async def revoke_connection(
+        self,
+        request: Request,
+        connection_id: UUID,
+    ) -> TriggerConnectionResponse:
+        if is_ee():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_TRIGGERS,
+            )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION
+
+        connection = await self.triggers_service.revoke_connection(
+            project_id=UUID(request.state.project_id),
+            connection_id=connection_id,
+        )
+
+        return TriggerConnectionResponse(
+            count=1,
+            connection=connection,
+        )
+
+    # -----------------------------------------------------------------------
     # Trigger Catalog
     # -----------------------------------------------------------------------
 
@@ -357,6 +593,128 @@ class TriggersRouter:
         await set_cache(
             project_id=None,
             namespace="triggers:catalog:provider",
+            key=cache_key,
+            value=response,
+            ttl=5 * 60,
+        )
+
+        return response
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def list_integrations(
+        self,
+        request: Request,
+        provider_key: str,
+        *,
+        search: Optional[str] = Query(default=None),
+        sort_by: Optional[str] = Query(default=None),
+        limit: Optional[int] = Query(default=None),
+        cursor: Optional[str] = Query(default=None),
+    ) -> TriggerCatalogIntegrationsResponse:
+        if is_ee():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_TRIGGERS,
+            )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION
+
+        cache_key = {
+            "provider_key": provider_key,
+            "search": search,
+            "sort_by": sort_by,
+            "limit": limit,
+            "cursor": cursor,
+        }
+        cached = await get_cache(
+            project_id=None,
+            namespace="triggers:catalog:integrations",
+            key=cache_key,
+            model=TriggerCatalogIntegrationsResponse,
+        )
+        if cached:
+            return cached
+
+        (
+            integrations,
+            next_cursor,
+            total,
+        ) = await self.triggers_service.list_integrations(
+            provider_key=provider_key,
+            search=search,
+            sort_by=sort_by,
+            limit=limit,
+            cursor=cursor,
+        )
+        items = list(integrations)
+
+        response = TriggerCatalogIntegrationsResponse(
+            count=len(items),
+            total=total,
+            cursor=next_cursor,
+            integrations=items,
+        )
+
+        await set_cache(
+            project_id=None,
+            namespace="triggers:catalog:integrations",
+            key=cache_key,
+            value=response,
+            ttl=5 * 60,
+        )
+
+        return response
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def get_integration(
+        self,
+        request: Request,
+        provider_key: str,
+        integration_key: str,
+    ) -> TriggerCatalogIntegrationResponse:
+        if is_ee():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_TRIGGERS,
+            )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION
+
+        cache_key = {
+            "provider_key": provider_key,
+            "integration_key": integration_key,
+        }
+        cached = await get_cache(
+            project_id=None,
+            namespace="triggers:catalog:integration",
+            key=cache_key,
+            model=TriggerCatalogIntegrationResponse,
+        )
+        if cached:
+            return cached
+
+        integration = await self.triggers_service.get_integration(
+            provider_key=provider_key,
+            integration_key=integration_key,
+        )
+        if not integration:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Integration not found"},
+            )
+
+        response = TriggerCatalogIntegrationResponse(
+            count=1,
+            integration=integration,
+        )
+
+        await set_cache(
+            project_id=None,
+            namespace="triggers:catalog:integration",
             key=cache_key,
             value=response,
             ttl=5 * 60,
@@ -775,7 +1133,9 @@ class TriggersRouter:
         """
         body = await request.body()
 
-        if not _verify_composio_signature(body=body, headers=request.headers):
+        if not await self.triggers_service.verify_signature(
+            body=body, headers=request.headers
+        ):
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 content={"status": "error", "detail": "Signature verification failed"},

@@ -1,6 +1,12 @@
 import {atom} from "jotai"
 
 // ---------------------------------------------------------------------------
+// Catalog drawer — browse integrations to connect (independent of tools)
+// ---------------------------------------------------------------------------
+
+export const triggerCatalogDrawerOpenAtom = atom(false)
+
+// ---------------------------------------------------------------------------
 // Events drawer state — opened against a connected integration
 // ---------------------------------------------------------------------------
 
@@ -10,11 +16,11 @@ export interface EventsDrawerState {
     integrationName?: string
     connectionId?: string
 }
-export const eventsDrawerAtom = atom<EventsDrawerState | null>(null)
+export const triggerEventsDrawerAtom = atom<EventsDrawerState | null>(null)
 
 // Drawer-local browsing state (reset on close)
-export const eventSearchAtom = atom("")
-export const selectedCatalogEventAtom = atom<string | null>(null)
+export const triggerEventSearchAtom = atom("")
+export const triggerSelectedCatalogEventAtom = atom<string | null>(null)
 
 // ---------------------------------------------------------------------------
 // Subscription drawer state — create (no id) or edit (existing subscription id)
@@ -28,11 +34,11 @@ export interface SubscriptionDrawerState {
     integrationKey?: string
     integrationName?: string
 }
-export const subscriptionDrawerAtom = atom<SubscriptionDrawerState | null>(null)
+export const triggerSubscriptionDrawerAtom = atom<SubscriptionDrawerState | null>(null)
 
 // Deliveries drawer state — opened against one subscription.
 export interface DeliveriesDrawerState {
     subscriptionId: string
     subscriptionName?: string
 }
-export const deliveriesDrawerAtom = atom<DeliveriesDrawerState | null>(null)
+export const triggerDeliveriesDrawerAtom = atom<DeliveriesDrawerState | null>(null)

@@ -16,7 +16,12 @@
 
 import {z} from "zod"
 
-import type {ToolConnection, ToolConnectionsResponse} from "../../gatewayTool/core/types"
+import type {
+    ToolConnection,
+    ToolConnectionCreatePayload,
+    ToolConnectionResponse,
+    ToolConnectionsResponse,
+} from "../../gatewayTool/core/types"
 
 // ---------------------------------------------------------------------------
 // Catalog
@@ -68,6 +73,44 @@ export const triggerCatalogProviderResponseSchema = z
     })
     .passthrough()
 export type TriggerCatalogProviderResponse = z.infer<typeof triggerCatalogProviderResponseSchema>
+
+// Integrations — SHARED catalog with tools (gateway/catalog); browsed
+// independently from `/triggers/catalog/.../integrations/`.
+export const triggerCatalogIntegrationSchema = z
+    .object({
+        key: z.string(),
+        name: z.string(),
+        description: z.string().nullish(),
+        categories: z.array(z.string()).default([]),
+        logo: z.string().nullish(),
+        url: z.string().nullish(),
+        actions_count: z.number().nullish(),
+        auth_schemes: z.array(z.string()).nullish(),
+    })
+    .passthrough()
+export type TriggerCatalogIntegration = z.infer<typeof triggerCatalogIntegrationSchema>
+
+export const triggerCatalogIntegrationsResponseSchema = z
+    .object({
+        count: z.number().default(0),
+        total: z.number().default(0),
+        cursor: z.string().nullish(),
+        integrations: z.array(triggerCatalogIntegrationSchema).default([]),
+    })
+    .passthrough()
+export type TriggerCatalogIntegrationsResponse = z.infer<
+    typeof triggerCatalogIntegrationsResponseSchema
+>
+
+export const triggerCatalogIntegrationResponseSchema = z
+    .object({
+        count: z.number().default(0),
+        integration: triggerCatalogIntegrationSchema.nullish(),
+    })
+    .passthrough()
+export type TriggerCatalogIntegrationResponse = z.infer<
+    typeof triggerCatalogIntegrationResponseSchema
+>
 
 export const triggerCatalogEventsResponseSchema = z
     .object({
@@ -125,8 +168,19 @@ export const triggerConnectionsResponseSchema = z
     })
     .passthrough()
 
+export const triggerConnectionResponseSchema = z
+    .object({
+        count: z.number().default(0),
+        connection: triggerConnectionSchema.nullish(),
+    })
+    .passthrough()
+
 export type TriggerConnection = ToolConnection
 export type TriggerConnectionsResponse = ToolConnectionsResponse
+// Write surface reuses the gatewayTool shapes — same shared `gateway_connections`
+// rows, byte-compatible (F2). Independent endpoint, identical payload.
+export type TriggerConnectionResponse = ToolConnectionResponse
+export type TriggerConnectionCreatePayload = ToolConnectionCreatePayload
 
 export {isConnectionActive, isConnectionValid} from "../../gatewayTool/core/types"
 

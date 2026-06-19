@@ -27,4 +27,23 @@ export function projectScopedParams(extra?: Record<string, unknown>) {
     }
 }
 
+/**
+ * Pull a human-readable message out of an axios error from the `/triggers/*`
+ * API. The backend surfaces upstream provider failures (e.g. a Composio 4xx
+ * rejecting a `trigger_config`) as a FastAPI `detail` — a plain string for
+ * domain/adapter errors, or `{message}` for an intercepted 500. Falls back to
+ * the axios message, then to `fallback`.
+ */
+export function triggerApiErrorMessage(error: unknown, fallback: string): string {
+    const detail = (error as {response?: {data?: {detail?: unknown}}})?.response?.data?.detail
+    if (typeof detail === "string" && detail.trim()) return detail
+    if (detail && typeof detail === "object") {
+        const message = (detail as {message?: unknown}).message
+        if (typeof message === "string" && message.trim()) return message
+    }
+    const axiosMessage = (error as {message?: unknown})?.message
+    if (typeof axiosMessage === "string" && axiosMessage.trim()) return axiosMessage
+    return fallback
+}
+
 export {axios}

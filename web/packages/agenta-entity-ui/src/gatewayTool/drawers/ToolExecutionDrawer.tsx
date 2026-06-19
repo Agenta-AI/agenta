@@ -1,12 +1,12 @@
 import React, {useCallback, useMemo, useRef, useState} from "react"
 
 import {
-    actionsSearchAtom,
-    executionDrawerAtom,
-    useActionDetail,
-    useCatalogActions,
-    useIntegrationDetail,
+    toolActionsSearchAtom,
+    toolExecutionDrawerAtom,
+    useToolActionDetail,
+    useToolCatalogActions,
     useToolExecution,
+    useToolIntegrationDetail,
     type ToolCatalogAction,
     type ToolCatalogActionDetails,
 } from "@agenta/entities/gatewayTool"
@@ -50,13 +50,13 @@ const DEFAULT_PROVIDER = "composio"
 // ---------------------------------------------------------------------------
 
 export default function ToolExecutionDrawer() {
-    const [state, setState] = useAtom(executionDrawerAtom)
+    const [state, setState] = useAtom(toolExecutionDrawerAtom)
     const open = !!state
     const [selectedAction, setSelectedAction] = useState<CatalogActionItem | null>(null)
-    const setActionsSearch = useSetAtom(actionsSearchAtom)
+    const setActionsSearch = useSetAtom(toolActionsSearchAtom)
 
     // Fetch integration info as fallback when name/logo not in state
-    const {integration} = useIntegrationDetail(state?.integrationKey ?? "")
+    const {integration} = useToolIntegrationDetail(state?.integrationKey ?? "")
     const integrationName = state?.integrationName ?? integration?.name
     const integrationLogo = state?.integrationLogo ?? integration?.logo
 
@@ -139,7 +139,7 @@ function ActionPickerStep({
     connectionSlug: string
     onSelectAction: (action: CatalogActionItem) => void
 }) {
-    const setAtom = useSetAtom(actionsSearchAtom)
+    const setAtom = useSetAtom(toolActionsSearchAtom)
     const search = useDebouncedAtomSearch(setAtom)
     const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -151,7 +151,7 @@ function ActionPickerStep({
         hasNextPage,
         isFetchingNextPage,
         requestMore,
-    } = useCatalogActions(integrationKey)
+    } = useToolCatalogActions(integrationKey)
 
     const sentinelIndex = useMemo(
         () => Math.max(0, actions.length - prefetchThreshold),
@@ -297,7 +297,7 @@ function ActionDetailStep({
     const [form] = Form.useForm()
     const schemaFormRef = useRef<SchemaFormHandle>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
-    const {action, isLoading: detailLoading} = useActionDetail(integrationKey, actionKey)
+    const {action, isLoading: detailLoading} = useToolActionDetail(integrationKey, actionKey)
     const {execute, isExecuting, result, error} = useToolExecution()
     const [viewMode, setViewMode] = useState<"form" | "json">("form")
 

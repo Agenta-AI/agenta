@@ -7,6 +7,8 @@
  * `gatewayTool`.
  */
 
+export {default as TriggerCatalogDrawer} from "./drawers/TriggerCatalogDrawer"
+export {default as TriggerConnectDrawer} from "./drawers/TriggerConnectDrawer"
 export {default as TriggerEventsDrawer} from "./drawers/TriggerEventsDrawer"
 export {default as TriggerSubscriptionDrawer} from "./drawers/TriggerSubscriptionDrawer"
 export {default as TriggerDeliveriesDrawer} from "./drawers/TriggerDeliveriesDrawer"

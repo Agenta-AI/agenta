@@ -1,17 +1,24 @@
 export {
+    createTriggerConnection,
     createTriggerSubscription,
+    deleteTriggerConnection,
     deleteTriggerSubscription,
     editTriggerSubscription,
+    fetchTriggerConnection,
     fetchTriggerDelivery,
     fetchTriggerEvent,
     fetchTriggerEvents,
+    fetchTriggerIntegration,
+    fetchTriggerIntegrations,
     fetchTriggerProvider,
     fetchTriggerProviders,
     fetchTriggerSubscription,
     queryTriggerConnections,
     queryTriggerDeliveries,
     queryTriggerSubscriptions,
+    refreshTriggerConnection,
     refreshTriggerSubscription,
+    revokeTriggerConnection,
     revokeTriggerSubscription,
 } from "./api"
-export {triggersBaseUrl, projectScopedParams} from "./client"
+export {triggersBaseUrl, projectScopedParams, triggerApiErrorMessage} from "./client"

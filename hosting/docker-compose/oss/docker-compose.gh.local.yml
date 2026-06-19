@@ -516,6 +516,37 @@ services:
             timeout: 5s
             retries: 5
 
+    # Dev tunnel for Composio trigger events (disable: run.sh --no-tunnel).
+    composio:
+        # === ACTIVATION =========================================== #
+        profiles:
+            - with-tunnel
+        # === IMAGE ================================================ #
+        image: python:3.13-slim-trixie
+        # === EXECUTION ============================================ #
+        command:
+            - bash
+            - -c
+            - "pip install --quiet --root-user-action=ignore composio httpx && python /app/dispatcher_composio.py"
+        # === STORAGE ============================================== #
+        volumes:
+            - ../../../api/entrypoints/dispatcher_composio.py:/app/dispatcher_composio.py:ro
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            AGENTA_INGRESS_URL: http://api:8000/triggers/composio/events/
+            PYTHONUNBUFFERED: "1"
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-oss-gh-network
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            api:
+                condition: service_started
+        # === LIFECYCLE ============================================ #
+        restart: always
+
 networks:
     agenta-oss-gh-network:
 

@@ -4,6 +4,14 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from oss.src.core.gateway.catalog.dtos import (
+    CatalogIntegration,
+    CatalogProvider,
+)
+from oss.src.core.gateway.connections.dtos import (
+    Connection,
+    ConnectionCreate,
+)
 from oss.src.core.shared.dtos import (
     Header,
     Identifier,
@@ -60,11 +68,28 @@ class TriggerCatalogEventDetails(TriggerCatalogEvent):
     payload: Optional[Dict[str, Any]] = None
 
 
-class TriggerCatalogProvider(BaseModel):
-    key: TriggerProviderKind
-    #
-    name: str
-    description: Optional[str] = None
+# Providers + integrations are SHARED across tools and triggers — defined once
+# in gateway/catalog and inherited here as the triggers-side subclasses.
+class TriggerCatalogProvider(CatalogProvider):
+    pass
+
+
+class TriggerCatalogIntegration(CatalogIntegration):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# Trigger Connections — shared `gateway_connections` rows, inherited here so the
+# triggers router/models never reference the generic gateway DTOs directly.
+# ---------------------------------------------------------------------------
+
+
+class TriggerConnection(Connection):
+    pass
+
+
+class TriggerConnectionCreate(ConnectionCreate):
+    pass
 
 
 # ---------------------------------------------------------------------------
@@ -75,11 +100,12 @@ class TriggerCatalogProvider(BaseModel):
 # ca_*/secrets/connection internals are never exposed.
 # ---------------------------------------------------------------------------
 
-TRIGGER_EVENT_FIELDS = {
-    "data",
-    "type",
+TRIGGER_CONTEXT_FIELDS = {
+    "trigger_id",
+    "trigger_type",
     "timestamp",
-    "metadata",
+    "created_at",
+    "attributes",
 }
 
 SUBSCRIPTION_CONTEXT_FIELDS = {

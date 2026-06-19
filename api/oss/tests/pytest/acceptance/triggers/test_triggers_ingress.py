@@ -1,82 +1,91 @@
 """Acceptance tests for POST /triggers/composio/events (inbound ingress).
 
 The ingress is the inbound dual of webhooks: a public (no Agenta auth) endpoint
-that Composio POSTs provider events to. It ACKs fast (202) and enqueues dispatch
-asynchronously; the actual workflow run + delivery write happen in a separate
-worker, so the unconditional paths here are DB-free:
+that Composio POSTs provider events to. It verifies the Composio HMAC signature
+(secret resolved from Composio, cached encrypted in Redis), ACKs fast (202), and
+enqueues dispatch asynchronously; the workflow run + delivery write happen in a
+separate worker. Unlike the Stripe receiver, an unsigned/forged event is NOT a
+no-op — verification is unconditional, so such requests are rejected with 401.
 
-  - an event for an unknown trigger id is a clean 202 no-op (nothing to route);
-  - an event with no routable metadata is a clean 202 no-op.
-
-The signature-rejection path only bites when COMPOSIO_WEBHOOK_SECRET is set
-(unset → 200/202 no-op, mirroring the Stripe receiver), so it is gated on that.
-The full signed-event -> workflow-invoked -> single-delivery roundtrip needs the
-live Composio adapter and a bound workflow, so it is gated on COMPOSIO_API_KEY.
+The signature-rejection path only fires when a webhook secret can be resolved,
+which needs Composio enabled (COMPOSIO_API_KEY). The full signed-event ->
+workflow-invoked -> single-delivery roundtrip also needs a bound workflow, so it
+too is gated on COMPOSIO_API_KEY.
 
 Requires a running API.
 """
 
+import hashlib
+import hmac
+import json
 import os
 from uuid import uuid4
 
+import httpx
 import pytest
 
 
 _COMPOSIO_ENABLED = bool(os.getenv("COMPOSIO_API_KEY"))
-_WEBHOOK_SECRET = os.getenv("COMPOSIO_WEBHOOK_SECRET")
+_COMPOSIO_API_URL = os.getenv(
+    "COMPOSIO_API_URL", "https://backend.composio.dev/api/v3"
+).rstrip("/")
+
+
+def _resolve_webhook_secret() -> str:
+    """Read the project's Composio webhook secret (same path the API uses)."""
+    api_key = os.getenv("COMPOSIO_API_KEY")
+    with httpx.Client(timeout=20, base_url=_COMPOSIO_API_URL) as client:
+        resp = client.get(
+            "/webhook_subscriptions",
+            headers={"x-api-key": api_key, "Content-Type": "application/json"},
+        )
+        resp.raise_for_status()
+        items = resp.json().get("items", [])
+    return items[0]["secret"] if items else ""
+
+
+def _sign(secret: str, webhook_id: str, timestamp: str, body: bytes) -> str:
+    signed = f"{webhook_id}.{timestamp}.{body.decode('utf-8')}"
+    return hmac.new(secret.encode(), signed.encode(), hashlib.sha256).hexdigest()
+
 
 _requires_composio = pytest.mark.skipif(
     not _COMPOSIO_ENABLED,
     reason="needs live Composio credentials (COMPOSIO_API_KEY)",
 )
-_requires_webhook_secret = pytest.mark.skipif(
-    not _WEBHOOK_SECRET,
-    reason="needs COMPOSIO_WEBHOOK_SECRET set to verify signature rejection",
+
+# Minting a trigger instance needs an ACTIVE connected account, which a stub
+# OAuth connection never reaches in CI (no interactive auth).
+_requires_connected_account = pytest.mark.skipif(
+    not os.getenv("COMPOSIO_TEST_CONNECTED_ACCOUNT"),
+    reason="needs COMPOSIO_TEST_CONNECTED_ACCOUNT (an ACTIVE connected account)",
 )
 
 
 # ---------------------------------------------------------------------------
-# DB-only: unknown trigger / no metadata are clean 202 no-ops
+# Signature verification is unconditional — unsigned/forged events are rejected.
+# Needs a resolvable webhook secret, which requires Composio enabled.
 # ---------------------------------------------------------------------------
 
 
-class TestTriggerIngressNoOps:
-    def test_unknown_trigger_id_is_accepted_noop(self, unauthed_api):
+@_requires_composio
+class TestTriggerIngressSignature:
+    def test_unsigned_event_is_rejected(self, unauthed_api):
         response = unauthed_api(
             "POST",
-            "/triggers/composio/events",
+            "/triggers/composio/events/",
             json={
                 "type": "github_star_added_event",
-                "metadata": {
-                    "trigger_id": f"ti_{uuid4().hex}",
-                    "id": uuid4().hex,
-                },
-                "data": {"repository": "acme/widgets"},
+                "metadata": {"trigger_id": f"ti_{uuid4().hex}", "id": uuid4().hex},
+                "payload": {"repository": "acme/widgets"},
             },
         )
-        assert response.status_code == 202, response.text
-        assert response.json()["status"] == "accepted"
+        assert response.status_code == 401, response.text
 
-    def test_no_routable_metadata_is_accepted_noop(self, unauthed_api):
-        response = unauthed_api(
-            "POST",
-            "/triggers/composio/events",
-            json={"type": "some_event", "data": {}},
-        )
-        assert response.status_code == 202, response.text
-        assert response.json()["status"] == "accepted"
-
-    def test_empty_body_is_accepted_noop(self, unauthed_api):
-        response = unauthed_api("POST", "/triggers/composio/events", data=b"")
-        assert response.status_code == 202, response.text
-
-
-@_requires_webhook_secret
-class TestTriggerIngressSignature:
     def test_forged_signature_is_rejected(self, unauthed_api):
         response = unauthed_api(
             "POST",
-            "/triggers/composio/events",
+            "/triggers/composio/events/",
             headers={
                 "webhook-id": "msg_1",
                 "webhook-timestamp": "1700000000",
@@ -88,6 +97,10 @@ class TestTriggerIngressSignature:
         )
         assert response.status_code == 401, response.text
 
+    def test_empty_unsigned_body_is_rejected(self, unauthed_api):
+        response = unauthed_api("POST", "/triggers/composio/events/", data=b"")
+        assert response.status_code == 401, response.text
+
 
 # ---------------------------------------------------------------------------
 # Dedup (needs Composio) — a duplicate metadata.id does not double-write a
@@ -96,6 +109,7 @@ class TestTriggerIngressSignature:
 
 
 @_requires_composio
+@_requires_connected_account
 class TestTriggerIngressDedup:
     def test_duplicate_event_id_writes_single_delivery(self, authed_api, unauthed_api):
         # Create a connection + subscription so an inbound ti_* resolves locally.
@@ -124,8 +138,8 @@ class TestTriggerIngressDedup:
                     "connection_id": connection_id,
                     "data": {
                         "event_key": "GITHUB_STAR_ADDED_EVENT",
-                        "trigger_config": {},
-                        "inputs_fields": {"repo": "$.event.data.repository"},
+                        "trigger_config": {"owner": "acme", "repo": "widgets"},
+                        "inputs_fields": {"repo": "$.event.attributes.repository"},
                         "references": {"workflow": {"slug": "triage"}},
                     },
                 }
@@ -140,12 +154,23 @@ class TestTriggerIngressDedup:
         envelope = {
             "type": "github_star_added_event",
             "metadata": {"trigger_id": ti_id, "id": event_id},
-            "data": {"repository": "acme/widgets"},
+            "payload": {"repository": "acme/widgets"},
+        }
+        body = json.dumps(envelope).encode()
+        timestamp = "1700000000"
+        secret = _resolve_webhook_secret()
+        headers = {
+            "Content-Type": "application/json",
+            "webhook-id": event_id,
+            "webhook-timestamp": timestamp,
+            "webhook-signature": _sign(secret, event_id, timestamp, body),
         }
 
-        # Post the same event twice (provider redelivery) — dedup must hold.
+        # Post the same signed event twice (provider redelivery) — dedup must hold.
         for _ in range(2):
-            ack = unauthed_api("POST", "/triggers/composio/events", json=envelope)
+            ack = unauthed_api(
+                "POST", "/triggers/composio/events/", data=body, headers=headers
+            )
             assert ack.status_code == 202, ack.text
 
         # The dispatch is async; the dedup guard means at most one delivery row

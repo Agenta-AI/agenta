@@ -82,6 +82,11 @@ class TriggersGatewayInterface(ABC):
         """Permanently delete the provider-side trigger instance."""
         ...
 
+    @abstractmethod
+    async def ensure_webhook_subscription(self, *, webhook_url: str) -> str:
+        """Idempotently ensure the project-level delivery webhook; return its secret."""
+        ...
+
 
 class TriggersDAOInterface(ABC):
     """Persistence contract for the triggers domain (subscriptions + deliveries)."""

@@ -31,7 +31,9 @@ export const useTriggerEvent = (integrationKey: string, eventKey: string) => {
 
     return {
         event: query.data?.event ?? null,
-        isLoading: query.isPending,
+        // `isPending` is true for a *disabled* query (no event selected yet), so
+        // gate on actual in-flight fetching to avoid a perpetual spinner.
+        isLoading: query.isFetching,
         error: query.error,
     }
 }

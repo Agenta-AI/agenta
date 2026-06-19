@@ -15,11 +15,11 @@ from oss.src.core.tools.dtos import (
 from oss.src.core.tools.interfaces import ToolsGatewayInterface
 from oss.src.core.tools.exceptions import AdapterError
 from oss.src.core.tools.providers.composio.catalog import ComposioCatalogClient
+from oss.src.core.gateway.providers.composio.errors import composio_error_detail
+from oss.src.utils.env import env
 
 
 log = get_module_logger(__name__)
-
-COMPOSIO_DEFAULT_API_URL = "https://backend.composio.dev/api/v3"
 
 
 class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
@@ -34,10 +34,10 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
         self,
         *,
         api_key: str,
-        api_url: str = COMPOSIO_DEFAULT_API_URL,
+        api_url: Optional[str] = None,
     ):
         self.api_key = api_key
-        self.api_url = api_url.rstrip("/")
+        self.api_url = (api_url or env.composio.api_url).rstrip("/")
         # Shared client — one connection pool for the adapter's lifetime.
         # Call close() on shutdown (wired in entrypoints/routers.py lifespan).
         self._client = httpx.AsyncClient(timeout=30.0)
@@ -128,13 +128,13 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
             raise AdapterError(
                 provider_key="composio",
                 operation="get_action",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
         except httpx.HTTPError as e:
             raise AdapterError(
                 provider_key="composio",
                 operation="get_action",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
 
         input_params = item.get("input_parameters")
@@ -180,17 +180,16 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
                 json=payload,
             )
         except httpx.HTTPStatusError as e:
-            body = e.response.text if e.response is not None else ""
             raise AdapterError(
                 provider_key="composio",
                 operation="execute",
-                detail=f"{e} — response: {body}",
+                detail=composio_error_detail(e),
             ) from e
         except httpx.HTTPError as e:
             raise AdapterError(
                 provider_key="composio",
                 operation="execute",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
 
         return ToolExecutionResponse(

@@ -10,11 +10,11 @@ from oss.src.core.gateway.connections.dtos import (
 )
 from oss.src.core.gateway.connections.interfaces import ConnectionsGatewayInterface
 from oss.src.core.gateway.connections.exceptions import AdapterError
+from oss.src.core.gateway.providers.composio.errors import composio_error_detail
+from oss.src.utils.env import env
 
 
 log = get_module_logger(__name__)
-
-COMPOSIO_DEFAULT_API_URL = "https://backend.composio.dev/api/v3"
 
 
 class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
@@ -29,10 +29,10 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
         self,
         *,
         api_key: str,
-        api_url: str = COMPOSIO_DEFAULT_API_URL,
+        api_url: Optional[str] = None,
     ):
         self.api_key = api_key
-        self.api_url = api_url.rstrip("/")
+        self.api_url = (api_url or env.composio.api_url).rstrip("/")
         # Shared client — one connection pool for the adapter's lifetime.
         # Call close() on shutdown (wired in entrypoints/routers.py lifespan).
         self._client = httpx.AsyncClient(timeout=30.0)
@@ -117,13 +117,13 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
             raise AdapterError(
                 provider_key="composio",
                 operation="initiate_connection.validate_toolkit",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
         except httpx.HTTPError as e:
             raise AdapterError(
                 provider_key="composio",
                 operation="initiate_connection.validate_toolkit",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
 
         # Step 2: create an auth config for this integration.
@@ -169,7 +169,7 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
             raise AdapterError(
                 provider_key="composio",
                 operation="initiate_connection.create_auth_config",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
 
         auth_config_id = (auth_config_result.get("auth_config") or {}).get("id")
@@ -200,7 +200,7 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
             raise AdapterError(
                 provider_key="composio",
                 operation="initiate_connection",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
 
         provider_connection_id = result.get("connected_account_id", "")
@@ -230,7 +230,7 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
             raise AdapterError(
                 provider_key="composio",
                 operation="get_connection_status",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
 
         return {
@@ -278,7 +278,7 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
             raise AdapterError(
                 provider_key="composio",
                 operation="refresh_connection",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
 
         return {
@@ -298,5 +298,5 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
             raise AdapterError(
                 provider_key="composio",
                 operation="revoke_connection",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e

@@ -140,6 +140,9 @@ from oss.src.core.gateway.connections.providers.composio import (
 )
 from oss.src.core.gateway.connections.registry import ConnectionsGatewayRegistry
 from oss.src.core.gateway.connections.service import ConnectionsService
+from oss.src.core.gateway.catalog.providers.composio import ComposioCatalogAdapter
+from oss.src.core.gateway.catalog.registry import CatalogGatewayRegistry
+from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
@@ -218,6 +221,15 @@ async def lifespan(*args, **kwargs):
     validate_required_env_vars()
 
     await _triggers_broker.startup()
+
+    # Best-effort: ingestion re-resolves on demand if this fails.
+    if env.composio.enabled:
+        try:
+            await triggers_service.ensure_webhook_registered()
+        except Exception as e:  # noqa: BLE001
+            log.warning(
+                "Composio trigger webhook registration failed at startup: %s", e
+            )
 
     yield
 
@@ -619,6 +631,22 @@ connections_service = ConnectionsService(
     adapter_registry=connections_adapter_registry,
 )
 
+# Shared catalog adapter + service (providers + integrations; tools AND triggers)
+_composio_catalog_adapters = {}
+if env.composio.enabled:
+    _composio_catalog_adapters["composio"] = ComposioCatalogAdapter(
+        api_key=env.composio.api_key,  # type: ignore[arg-type]  # guarded by .enabled
+        api_url=env.composio.api_url,
+    )
+
+catalog_adapter_registry = CatalogGatewayRegistry(
+    adapters=_composio_catalog_adapters,
+)
+
+catalog_service = CatalogService(
+    adapter_registry=catalog_adapter_registry,
+)
+
 # Tools adapter + service
 _composio_adapters = {}
 if env.composio.enabled:
@@ -635,6 +663,7 @@ tools_adapter_registry = ToolsGatewayRegistry(
 
 tools_service = ToolsService(
     connections_service=connections_service,
+    catalog_service=catalog_service,
     adapter_registry=tools_adapter_registry,
 )
 
@@ -654,8 +683,10 @@ triggers_dao = TriggersDAO(engine=_transactions_engine)
 
 triggers_service = TriggersService(
     adapter_registry=triggers_adapter_registry,
+    catalog_service=catalog_service,
     triggers_dao=triggers_dao,
     connections_service=connections_service,
+    workflows_service=workflows_service,
 )
 
 # Producer side of the inbound dispatch pipeline: the ingress route enqueues

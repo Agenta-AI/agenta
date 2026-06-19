@@ -1,9 +1,9 @@
 import React, {useCallback, useMemo, useRef, useState} from "react"
 
 import {
-    eventsDrawerAtom,
-    eventsSearchAtom,
-    useCatalogEvents,
+    triggerEventsDrawerAtom,
+    triggerEventsSearchAtom,
+    useTriggerCatalogEvents,
     useTriggerEvent,
     type TriggerCatalogEvent,
 } from "@agenta/entities/gatewayTrigger"
@@ -20,9 +20,9 @@ import SchemaForm from "../../gatewayTool/components/SchemaForm"
 // ---------------------------------------------------------------------------
 
 export default function TriggerEventsDrawer() {
-    const [state, setState] = useAtom(eventsDrawerAtom)
+    const [state, setState] = useAtom(triggerEventsDrawerAtom)
     const [selectedEvent, setSelectedEvent] = useState<TriggerCatalogEvent | null>(null)
-    const setEventsSearch = useSetAtom(eventsSearchAtom)
+    const setEventsSearch = useSetAtom(triggerEventsSearchAtom)
 
     const open = !!state
 
@@ -81,7 +81,7 @@ function EventsView({
     integrationKey: string
     onSelect: (event: TriggerCatalogEvent) => void
 }) {
-    const setAtom = useSetAtom(eventsSearchAtom)
+    const setAtom = useSetAtom(triggerEventsSearchAtom)
     const search = useDebouncedAtomSearch(setAtom)
     const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -93,7 +93,7 @@ function EventsView({
         hasNextPage,
         isFetchingNextPage,
         requestMore,
-    } = useCatalogEvents(integrationKey)
+    } = useTriggerCatalogEvents(integrationKey)
 
     const sentinelIndex = useMemo(
         () => Math.max(0, events.length - prefetchThreshold),

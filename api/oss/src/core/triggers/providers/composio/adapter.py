@@ -14,11 +14,13 @@ from oss.src.core.triggers.exceptions import AdapterError
 from oss.src.core.triggers.providers.composio.catalog import (
     ComposioTriggersCatalogClient,
 )
+from oss.src.core.gateway.providers.composio.errors import composio_error_detail
+from oss.src.utils.env import env
 
 
 log = get_module_logger(__name__)
 
-COMPOSIO_DEFAULT_API_URL = "https://backend.composio.dev/api/v3"
+_WEBHOOK_EVENT = "composio.trigger.message"
 
 
 class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInterface):
@@ -41,10 +43,10 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
         self,
         *,
         api_key: str,
-        api_url: str = COMPOSIO_DEFAULT_API_URL,
+        api_url: Optional[str] = None,
     ):
         self.api_key = api_key
-        self.api_url = api_url.rstrip("/")
+        self.api_url = (api_url or env.composio.api_url).rstrip("/")
         # Shared client — one connection pool for the adapter's lifetime.
         # Call close() on shutdown (wired in entrypoints/routers.py lifespan).
         self._client = httpx.AsyncClient(timeout=30.0)
@@ -58,6 +60,14 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
             "x-api-key": self.api_key,
             "Content-Type": "application/json",
         }
+
+    async def _get(self, path: str) -> Any:
+        resp = await self._client.get(
+            f"{self.api_url}{path}",
+            headers=self._headers(),
+        )
+        resp.raise_for_status()
+        return resp.json()
 
     async def _post(
         self,
@@ -116,6 +126,39 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
     # and satisfy the TriggersGatewayInterface catalog contract.
 
     # -----------------------------------------------------------------------
+    # Webhook subscription (project-level event delivery → Agenta ingress)
+    # -----------------------------------------------------------------------
+
+    async def ensure_webhook_subscription(self, *, webhook_url: str) -> str:
+        """GET-or-create-then-GET the delivery webhook; return its secret.
+
+        The one-per-project cap arbitrates the race: the 409 loser re-reads the
+        winner's secret.
+        """
+        try:
+            existing = await self._get("/webhook_subscriptions")
+            items = existing.get("items", []) if isinstance(existing, dict) else []
+            if items:
+                return items[0]["secret"]
+
+            resp = await self._client.post(
+                f"{self.api_url}/webhook_subscriptions",
+                headers=self._headers(),
+                json={"webhook_url": webhook_url, "enabled_events": [_WEBHOOK_EVENT]},
+            )
+            if resp.status_code == 409:
+                again = await self._get("/webhook_subscriptions")
+                return again["items"][0]["secret"]
+            resp.raise_for_status()
+            return resp.json()["secret"]
+        except httpx.HTTPError as e:
+            raise AdapterError(
+                provider_key="composio",
+                operation="ensure_webhook_subscription",
+                detail=composio_error_detail(e),
+            ) from e
+
+    # -----------------------------------------------------------------------
     # Subscriptions (provider-side trigger instances — ti_*) — consumed by WP3
     # -----------------------------------------------------------------------
 
@@ -141,7 +184,7 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
             raise AdapterError(
                 provider_key="composio",
                 operation="create_subscription",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
 
         trigger_id = result.get("trigger_id") or result.get("id")
@@ -169,7 +212,7 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
             raise AdapterError(
                 provider_key="composio",
                 operation="set_subscription_status",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
 
     async def delete_subscription(
@@ -183,5 +226,5 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
             raise AdapterError(
                 provider_key="composio",
                 operation="delete_subscription",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e

@@ -38,7 +38,57 @@ def _make_dao(*, resolved, seen=False):
     return dao
 
 
-_EVENT = {"type": "github.issue.opened", "data": {"issue": {"number": 7}}}
+# Raw provider envelope (Composio webhook shape): the message lives under
+# `payload`, the routing ids under `metadata`. The dispatcher normalizes this
+# into `event.attributes` + synthetic `event.trigger_*` before mapping.
+_EVENT = {
+    "metadata": {
+        "trigger_id": "ti_1",
+        "trigger_slug": "github.issue.opened",
+    },
+    "payload": {"issue": {"number": 7}},
+}
+
+
+def test_build_context_normalizes_provider_envelope():
+    project_id = uuid4()
+    subscription = _make_subscription()
+    dispatcher = TriggersDispatcher(
+        triggers_dao=MagicMock(), workflows_service=MagicMock()
+    )
+
+    context = dispatcher._build_context(
+        event=_EVENT,
+        subscription=subscription,
+        project_id=project_id,
+    )
+
+    event = context["event"]
+    assert event["trigger_id"] == "ti_1"
+    assert event["trigger_type"] == "github.issue.opened"
+    assert event["attributes"] == {"issue": {"number": 7}}
+    assert event["timestamp"] == event["created_at"]
+    # Raw provider keys never leak into the resolution context.
+    assert "payload" not in event
+    assert "metadata" not in event
+    assert context["scope"] == {"project_id": str(project_id)}
+
+
+def test_build_context_tolerates_missing_metadata_and_payload():
+    dispatcher = TriggersDispatcher(
+        triggers_dao=MagicMock(), workflows_service=MagicMock()
+    )
+
+    context = dispatcher._build_context(
+        event={},
+        subscription=_make_subscription(),
+        project_id=uuid4(),
+    )
+
+    event = context["event"]
+    assert event["trigger_id"] is None
+    assert event["trigger_type"] is None
+    assert event["attributes"] is None
 
 
 async def test_unknown_trigger_id_is_skipped():
@@ -98,7 +148,7 @@ async def test_happy_path_invokes_workflow_and_writes_success():
     reference = Reference(slug="wf-1")
     subscription = _make_subscription(
         references={"workflow": reference},
-        inputs_fields={"number": "$.event.data.issue.number"},
+        inputs_fields={"number": "$.event.attributes.issue.number"},
     )
     dao = _make_dao(resolved=(project_id, subscription))
 

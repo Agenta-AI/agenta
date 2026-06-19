@@ -3,7 +3,7 @@ from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.core.gateway.connections.dtos import Connection, ConnectionCreate
+from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.gateway.connections.service import ConnectionsService
 
 from oss.src.core.tools.dtos import (
@@ -11,6 +11,8 @@ from oss.src.core.tools.dtos import (
     ToolCatalogActionDetails,
     ToolCatalogIntegration,
     ToolCatalogProvider,
+    ToolConnection,
+    ToolConnectionCreate,
     ToolExecutionRequest,
     ToolExecutionResponse,
 )
@@ -25,35 +27,33 @@ class ToolsService:
         self,
         *,
         connections_service: ConnectionsService,
+        catalog_service: CatalogService,
         adapter_registry: ToolsGatewayRegistry,
     ):
         self.connections_service = connections_service
+        self.catalog_service = catalog_service
         self.adapter_registry = adapter_registry
 
     # -----------------------------------------------------------------------
-    # Catalog browse
+    # Catalog browse — providers + integrations come from the SHARED gateway
+    # catalog service; this layer narrows them to the tools subclass DTOs so the
+    # router only ever sees tools-domain types. Actions are the tools-specific
+    # leaf (via the tools adapter).
     # -----------------------------------------------------------------------
 
     async def list_providers(self) -> List[ToolCatalogProvider]:
-        """Return all providers across registered adapters."""
-        results: List[ToolCatalogProvider] = []
-        for _key, adapter in self.adapter_registry.items():
-            providers = await adapter.list_providers()
-            results.extend(providers)
-        return results
+        providers = await self.catalog_service.list_providers()
+        return [ToolCatalogProvider.model_validate(p.model_dump()) for p in providers]
 
     async def get_provider(
         self,
         *,
         provider_key: str,
     ) -> Optional[ToolCatalogProvider]:
-        """Return a single provider by key, or None if not found."""
-        adapter = self.adapter_registry.get(provider_key)
-        providers = await adapter.list_providers()
-        for p in providers:
-            if p.key == provider_key:
-                return p
-        return None
+        provider = await self.catalog_service.get_provider(provider_key=provider_key)
+        if not provider:
+            return None
+        return ToolCatalogProvider.model_validate(provider.model_dump())
 
     async def list_integrations(
         self,
@@ -65,15 +65,17 @@ class ToolsService:
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
     ) -> Tuple[List[ToolCatalogIntegration], Optional[str], int]:
-        """List integrations for a provider with optional filtering and pagination."""
-        adapter = self.adapter_registry.get(provider_key)
-        integrations, next_cursor, total = await adapter.list_integrations(
+        integrations, next_cursor, total = await self.catalog_service.list_integrations(
+            provider_key=provider_key,
             search=search,
             sort_by=sort_by,
             limit=limit,
             cursor=cursor,
         )
-        return integrations, next_cursor, total
+        items = [
+            ToolCatalogIntegration.model_validate(i.model_dump()) for i in integrations
+        ]
+        return items, next_cursor, total
 
     async def get_integration(
         self,
@@ -81,9 +83,13 @@ class ToolsService:
         provider_key: str,
         integration_key: str,
     ) -> Optional[ToolCatalogIntegration]:
-        """Return a single integration by key, or None if not found."""
-        adapter = self.adapter_registry.get(provider_key)
-        return await adapter.get_integration(integration_key=integration_key)
+        integration = await self.catalog_service.get_integration(
+            provider_key=provider_key,
+            integration_key=integration_key,
+        )
+        if not integration:
+            return None
+        return ToolCatalogIntegration.model_validate(integration.model_dump())
 
     async def list_actions(
         self,
@@ -126,6 +132,10 @@ class ToolsService:
     # Connection management (delegated to ConnectionsService — one-way dep)
     # -----------------------------------------------------------------------
 
+    @staticmethod
+    def _as_tool_connection(conn) -> Optional[ToolConnection]:
+        return ToolConnection.model_validate(conn.model_dump()) if conn else None
+
     async def query_connections(
         self,
         *,
@@ -134,13 +144,14 @@ class ToolsService:
         provider_key: Optional[str] = None,
         integration_key: Optional[str] = None,
         is_active: Optional[bool] = True,
-    ) -> List[Connection]:
-        return await self.connections_service.query_connections(
+    ) -> List[ToolConnection]:
+        conns = await self.connections_service.query_connections(
             project_id=project_id,
             provider_key=provider_key,
             integration_key=integration_key,
             is_active=is_active,
         )
+        return [ToolConnection.model_validate(c.model_dump()) for c in conns]
 
     async def list_connections(
         self,
@@ -148,43 +159,47 @@ class ToolsService:
         project_id: UUID,
         provider_key: str,
         integration_key: str,
-    ) -> List[Connection]:
-        return await self.connections_service.list_connections(
+    ) -> List[ToolConnection]:
+        conns = await self.connections_service.list_connections(
             project_id=project_id,
             provider_key=provider_key,
             integration_key=integration_key,
         )
+        return [ToolConnection.model_validate(c.model_dump()) for c in conns]
 
     async def get_connection(
         self,
         *,
         project_id: UUID,
         connection_id: UUID,
-    ) -> Optional[Connection]:
-        return await self.connections_service.get_connection(
+    ) -> Optional[ToolConnection]:
+        conn = await self.connections_service.get_connection(
             project_id=project_id,
             connection_id=connection_id,
         )
+        return self._as_tool_connection(conn)
 
     async def find_connection_by_provider_connection_id(
         self,
         *,
         provider_connection_id: str,
-    ) -> Optional[Connection]:
-        return await self.connections_service.find_connection_by_provider_connection_id(
+    ) -> Optional[ToolConnection]:
+        conn = await self.connections_service.find_connection_by_provider_connection_id(
             provider_connection_id=provider_connection_id,
         )
+        return self._as_tool_connection(conn)
 
     async def activate_connection_by_provider_connection_id(
         self,
         *,
         provider_connection_id: str,
         project_id: Optional[UUID] = None,
-    ) -> Optional[Connection]:
-        return await self.connections_service.activate_connection_by_provider_connection_id(
+    ) -> Optional[ToolConnection]:
+        conn = await self.connections_service.activate_connection_by_provider_connection_id(
             provider_connection_id=provider_connection_id,
             project_id=project_id,
         )
+        return self._as_tool_connection(conn)
 
     async def create_connection(
         self,
@@ -192,14 +207,15 @@ class ToolsService:
         project_id: UUID,
         user_id: UUID,
         #
-        connection_create: ConnectionCreate,
-    ) -> Connection:
-        return await self.connections_service.initiate_connection(
+        connection_create: ToolConnectionCreate,
+    ) -> ToolConnection:
+        conn = await self.connections_service.initiate_connection(
             project_id=project_id,
             user_id=user_id,
             #
             connection_create=connection_create,
         )
+        return ToolConnection.model_validate(conn.model_dump())
 
     async def delete_connection(
         self,
@@ -217,11 +233,12 @@ class ToolsService:
         *,
         project_id: UUID,
         connection_id: UUID,
-    ) -> Connection:
-        return await self.connections_service.revoke_connection(
+    ) -> ToolConnection:
+        conn = await self.connections_service.revoke_connection(
             project_id=project_id,
             connection_id=connection_id,
         )
+        return ToolConnection.model_validate(conn.model_dump())
 
     async def refresh_connection(
         self,
@@ -230,12 +247,13 @@ class ToolsService:
         connection_id: UUID,
         #
         force: bool = False,
-    ) -> Connection:
-        return await self.connections_service.refresh_connection(
+    ) -> ToolConnection:
+        conn = await self.connections_service.refresh_connection(
             project_id=project_id,
             connection_id=connection_id,
             force=force,
         )
+        return ToolConnection.model_validate(conn.model_dump())
 
     # -----------------------------------------------------------------------
     # Tool execution

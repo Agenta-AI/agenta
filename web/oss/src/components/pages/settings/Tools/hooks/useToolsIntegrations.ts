@@ -1,5 +1,5 @@
 import {
-    fetchIntegrations,
+    fetchToolIntegrations,
     type ToolCatalogIntegration,
     type ToolCatalogIntegrationDetails,
     type ToolCatalogIntegrationsResponse,
@@ -13,7 +13,7 @@ type CatalogIntegrationItem = ToolCatalogIntegration | ToolCatalogIntegrationDet
 
 export const integrationsQueryAtom = atomWithQuery<ToolCatalogIntegrationsResponse>(() => ({
     queryKey: ["tools", "integrations", DEFAULT_PROVIDER],
-    queryFn: () => fetchIntegrations(DEFAULT_PROVIDER),
+    queryFn: () => fetchToolIntegrations(DEFAULT_PROVIDER),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
 }))

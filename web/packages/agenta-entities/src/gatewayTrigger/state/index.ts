@@ -1,8 +1,9 @@
 export {
-    deliveriesDrawerAtom,
-    eventsDrawerAtom,
-    eventSearchAtom,
-    selectedCatalogEventAtom,
-    subscriptionDrawerAtom,
+    triggerCatalogDrawerOpenAtom,
+    triggerDeliveriesDrawerAtom,
+    triggerEventsDrawerAtom,
+    triggerEventSearchAtom,
+    triggerSelectedCatalogEventAtom,
+    triggerSubscriptionDrawerAtom,
 } from "./atoms"
 export type {DeliveriesDrawerState, EventsDrawerState, SubscriptionDrawerState} from "./atoms"

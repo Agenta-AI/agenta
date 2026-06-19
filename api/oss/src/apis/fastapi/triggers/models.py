@@ -6,7 +6,10 @@ from oss.src.core.shared.dtos import Windowing
 from oss.src.core.triggers.dtos import (
     TriggerCatalogEvent,
     TriggerCatalogEventDetails,
+    TriggerCatalogIntegration,
     TriggerCatalogProvider,
+    TriggerConnection,
+    TriggerConnectionCreate,
     TriggerDelivery,
     TriggerDeliveryQuery,
     TriggerSubscription,
@@ -17,7 +20,8 @@ from oss.src.core.triggers.dtos import (
 
 
 # ---------------------------------------------------------------------------
-# Trigger Catalog
+# Trigger Catalog — providers + integrations are SHARED (gateway/catalog);
+# events are the trigger-specific leaf.
 # ---------------------------------------------------------------------------
 
 
@@ -31,6 +35,18 @@ class TriggerCatalogProvidersResponse(BaseModel):
     providers: List[TriggerCatalogProvider] = Field(default_factory=list)
 
 
+class TriggerCatalogIntegrationResponse(BaseModel):
+    count: int = 0
+    integration: Optional[TriggerCatalogIntegration] = None
+
+
+class TriggerCatalogIntegrationsResponse(BaseModel):
+    count: int = 0
+    total: int = 0
+    cursor: Optional[str] = None
+    integrations: List[TriggerCatalogIntegration] = Field(default_factory=list)
+
+
 class TriggerCatalogEventResponse(BaseModel):
     count: int = 0
     event: Optional[TriggerCatalogEventDetails] = None
@@ -41,6 +57,29 @@ class TriggerCatalogEventsResponse(BaseModel):
     total: int = 0
     cursor: Optional[str] = None
     events: List[TriggerCatalogEvent] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Trigger Connections
+#
+# Connections are shared `gateway_connections` rows; triggers exposes an
+# independent `/triggers/connections/*` surface over the SAME ConnectionsService
+# that tools uses, so a connection made from either side is visible from both.
+# ---------------------------------------------------------------------------
+
+
+class TriggerConnectionCreateRequest(BaseModel):
+    connection: TriggerConnectionCreate
+
+
+class TriggerConnectionResponse(BaseModel):
+    count: int = 0
+    connection: Optional[TriggerConnection] = None
+
+
+class TriggerConnectionsResponse(BaseModel):
+    count: int = 0
+    connections: List[TriggerConnection] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

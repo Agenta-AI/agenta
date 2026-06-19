@@ -1,4 +1,13 @@
-export {catalogEventsInfiniteFamily, eventsSearchAtom, useCatalogEvents} from "./useCatalogEvents"
+export {
+    triggerCatalogEventsInfiniteFamily,
+    triggerEventsSearchAtom,
+    useTriggerCatalogEvents,
+} from "./useTriggerCatalogEvents"
+export {
+    triggerCatalogIntegrationsInfiniteAtom,
+    triggerIntegrationsSearchAtom,
+    useTriggerCatalogIntegrations,
+} from "./useTriggerCatalogIntegrations"
 export {triggerEventDetailQueryFamily, useTriggerEvent} from "./useTriggerEvent"
 export {
     triggerConnectionsQueryAtom,
@@ -6,6 +15,7 @@ export {
     useTriggerConnectionsQuery,
     useTriggerIntegrationConnections,
 } from "./useTriggerConnections"
+export {useTriggerConnectionActions} from "./useTriggerConnectionActions"
 export {
     triggerConnectionSubscriptionsAtomFamily,
     triggerSubscriptionsQueryAtom,
