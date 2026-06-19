@@ -320,7 +320,8 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
         throw new Error(`App creation is not implemented for app type 'custom'.`)
     }
 
-    await page.goto("/apps", {waitUntil: "domcontentloaded"})
+    const projectBasePath = getProjectScopedBasePath(page)
+    await page.goto(`${projectBasePath}/apps`, {waitUntil: "domcontentloaded"})
     await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
 
     const appName = `e2e-${type}-${Date.now()}`
@@ -431,7 +432,8 @@ export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
         method: "POST",
     })
 
-    await page.goto("/apps", {waitUntil: "domcontentloaded"})
+    const projectBasePath = getProjectScopedBasePath(page)
+    await page.goto(`${projectBasePath}/apps`, {waitUntil: "domcontentloaded"})
     await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
 
     const data = await appsResponse
@@ -478,7 +480,8 @@ export const getAppById = async (page: Page, appId: string) => {
     // Trigger the API call by going to apps page if not already there
     const currentUrl = page.url()
     if (!currentUrl.includes("/apps")) {
-        await page.goto("/apps", {waitUntil: "domcontentloaded"})
+        const projectBasePath = getProjectScopedBasePath(page)
+        await page.goto(`${projectBasePath}/apps`, {waitUntil: "domcontentloaded"})
         await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
     }
 

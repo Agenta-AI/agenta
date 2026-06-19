@@ -1,4 +1,5 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
+import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 import {expect} from "@agenta/web-tests/utils"
 import type {Locator, Page} from "@playwright/test"
 
@@ -119,7 +120,8 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
      */
     navigateToApps: async ({page, uiHelpers: _uiHelpers}, use) => {
         await use(async () => {
-            await page.goto("/apps")
+            const projectBasePath = getProjectScopedBasePath(page)
+            await page.goto(`${projectBasePath}/apps`)
             await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
             const appsHeading = page.getByRole("heading", {
                 name: /Applications|App Management/i,
