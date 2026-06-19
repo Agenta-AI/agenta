@@ -1,9 +1,10 @@
 # Status
 
-## Current State
+## Active-Stack State
 
-The design folder now separates current implementation facts from old build history.
-`ground-truth.md` is the source of truth for checked-in behavior. `trash/` contains the old
+The design folder now separates active-stack implementation facts from old build history.
+`ground-truth.md` is the source of truth for active-stack behavior. The docs PR commit is
+docs-only, so it does not contain every referenced code file. `trash/` contains the old
 work-package notes and superseded streaming/session RFCs.
 
 The code supports batch `/invoke`, Vercel-compatible `/messages` streaming, and a
@@ -14,17 +15,17 @@ history is not implemented. Harness session snapshots are not designed yet.
 
 - Moved historical `scratch/` material to `trash/`.
 - Moved old streaming/session RFCs to `trash/old-rfcs/`.
-- Added current `ground-truth.md`, `protocol.md`, and `implementation-review.md`.
+- Added active-stack `ground-truth.md`, `protocol.md`, and `implementation-review.md`.
 - Added meeting-alignment, agent-template, and triggers pages to capture the June 18 design
-  intent that was not reflected in the current docs.
+  intent that was not reflected in the active-stack docs.
 - Rewrote the top-level README, architecture, ports/adapters, and sessions pages around the
-  current code.
-- Updated stale live comments and docs that referred to old harness names, old file names,
-  or old work-package labels.
+  active-stack code.
+- Narrowed current-state docs so old work-package labels stay in archive pages or pending
+  cleanup notes.
 
 ## Decisions
 
-- Current top-level docs describe checked-in behavior only.
+- Top-level docs describe active-stack behavior, not the docs PR's isolated tree.
 - Future or blocked work must be labeled as planned, blocked, experimental, or not
   implemented.
 - Runtime/sandbox selection is still part of the POC request shape, but it is not durable

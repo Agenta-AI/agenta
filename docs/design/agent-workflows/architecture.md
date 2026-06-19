@@ -1,7 +1,8 @@
 # Architecture
 
-This page explains how the current agent workflow runs. It describes the checked-in code,
-not the older work-package plans in [trash/](trash/).
+This page explains how the active-stack agent workflow runs. It describes the code carried
+by the sibling implementation PRs, not only the docs PR commit and not the older
+work-package plans in [trash/](trash/).
 
 ## The Model
 
@@ -11,9 +12,9 @@ model, calls tools, observes the results, and loops until it has an answer.
 
 The implementation keeps two choices configurable:
 
-- **Harness:** which agent runs. Current values are `pi`, `claude`, and experimental
+- **Harness:** which agent runs. Supported values are `pi`, `claude`, and experimental
   `agenta`.
-- **Sandbox:** where the run happens. Current values are `local` and `daytona` on the
+- **Sandbox:** where the run happens. Supported values are `local` and `daytona` on the
   rivet path. The in-process Pi path is local only.
 
 The platform still exposes the agent through normal workflow routing. `/invoke` remains the
@@ -128,7 +129,7 @@ This cold model keeps isolation simple and makes `/invoke` and `/messages` share
 runtime. It also means durable server-owned history and warm `session/load` are still future
 work.
 
-## Current Gaps
+## Active-Stack Gaps
 
 - `LocalBackend` is a public adapter shape but does not run anything yet.
 - `/load-session` has the route contract but no default persistent store and no write path
@@ -138,5 +139,5 @@ work.
 - Pi system prompt overrides are not delivered on the rivet ACP path.
 - The agent is still registered as a custom workflow handler, not as a first-class builtin
   URI such as `agenta:builtin:agent:v0`.
-- Historical WP labels remain in several code comments. They should be cleaned in a
-  documentation and comment hygiene PR.
+- Historical work-package labels remain in several sibling code comments. They should be
+  cleaned in a documentation and comment hygiene PR.

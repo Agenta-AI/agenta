@@ -1,6 +1,6 @@
 # PR Stack
 
-This page proposes functional breakpoints for turning the current agent workflow work into
+This page proposes functional breakpoints for turning the active agent workflow work into
 reviewable stacked PRs. Each PR should leave the repo in a coherent state and should avoid
 mixing protocol, product policy, and runtime behavior unless the dependency is direct.
 
@@ -12,6 +12,24 @@ mixing protocol, product policy, and runtime behavior unless the dependency is d
 - Prefer one runtime axis per PR: sessions, tools, harness selection, or standalone SDK.
 - Each PR should include the smallest tests that prove its boundary.
 
+## Active PR Stack
+
+This is the active review map. It is not a claim that this docs branch contains every
+referenced code file. Docs-only PRs such as #4777 and #4779 describe behavior from sibling
+code PRs; use each code PR SHA when checking those files.
+
+| PR | Status | Scope | Notes |
+| --- | --- | --- | --- |
+| #4771 | Current | SDK agent runtime: ports, adapters, tools, messages protocol | Base for the service slice. |
+| #4772 | Current | Agent workflow service and tool-resolution API | Stacked on #4771. |
+| #4773 | Current | Runner wire protocol and tool execution | Base for the runner engine slice. |
+| #4778 | Current | Runner engines, server, tracing, and Docker image | Current fuller replacement for #4774. |
+| #4774 | Older overlapping | Runner engines, server, and tracing | Treat as superseded by #4778 for current review. |
+| #4775 | Current | Playground agent config UI | Independent frontend slice. |
+| #4776 | Current | Hosting compose wiring | Depends on runner sidecar/server assets from #4778, including `services/agent/docker/Dockerfile.dev` and `services/agent/src/server.ts`. |
+| #4779 | Current | Agent-workflows design docs, ground truth, and archived POCs | Current fuller docs replacement for #4777. Docs-only. |
+| #4777 | Older overlapping | Agent-workflows design and ground truth | Keep aligned only while it remains under review. Docs-only. |
+
 ## Proposed Stack
 
 ### 1. Documentation And Comment Hygiene
@@ -20,7 +38,7 @@ Purpose: make the ground truth readable before reviewers look at behavior.
 
 Scope:
 
-- Keep `docs/design/agent-workflows/` organized around current implementation facts.
+- Keep `docs/design/agent-workflows/` organized around active-stack implementation facts.
 - Keep `trash/` as historical material only.
 - Remove stale names such as old harness names, old file names, and work-package labels
   from live comments and docs.
