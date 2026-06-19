@@ -684,6 +684,12 @@ export interface RivetOtel {
   start(input: { prompt?: string; messages?: any[]; sessionId?: string }): void;
   /** Feed one ACP `session/update` payload (the `update` object). */
   handleUpdate(update: any): void;
+  /**
+   * Record an event the ACP stream does not carry (e.g. an `interaction_request` raised via
+   * the permission callback). Routes through the same choke point as stream events, so it
+   * lands in both the live sink and the batch `events()` log in build order.
+   */
+  emitEvent(event: AgentEvent): void;
   /** End all open spans. Returns the accumulated assistant text. */
   finish(): string;
   /** Flush this run's trace to Agenta (invoke_agent has a remote parent). */
@@ -981,6 +987,7 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
   return {
     start,
     handleUpdate,
+    emitEvent: record,
     finish,
     flush: () => flushTrace(runTraceId),
     traceId: () => runTraceId,

@@ -16,8 +16,11 @@
  * initialize, tools/list, tools/call; ignores notifications. stdout carries protocol
  * messages only; logs go to stderr.
  */
+import { randomUUID } from "node:crypto";
+
 import type { ResolvedToolSpec } from "../protocol.ts";
-import { EMPTY_OBJECT_SCHEMA, callAgentaTool } from "./client.ts";
+import { EMPTY_OBJECT_SCHEMA } from "./callback.ts";
+import { runResolvedTool } from "./dispatch.ts";
 
 const SPECS: ResolvedToolSpec[] = JSON.parse(process.env.AGENTA_TOOL_SPECS ?? "[]");
 const ENDPOINT = process.env.AGENTA_TOOL_CALLBACK_ENDPOINT ?? "";
@@ -58,7 +61,8 @@ async function handle(message: any): Promise<unknown | undefined> {
       jsonrpc: "2.0",
       id,
       result: {
-        tools: SPECS.map((s) => ({
+        // `client` tools are browser-fulfilled, so this server does not advertise them.
+        tools: SPECS.filter((s) => s.kind !== "client").map((s) => ({
           name: s.name,
           description: s.description ?? s.name,
           inputSchema: (s.inputSchema as Record<string, unknown>) ?? EMPTY_OBJECT_SCHEMA,
@@ -74,13 +78,14 @@ async function handle(message: any): Promise<unknown | undefined> {
       return { jsonrpc: "2.0", id, error: { code: -32602, message: `unknown tool: ${name}` } };
     }
     try {
-      const text = await callAgentaTool(
-        ENDPOINT,
-        AUTH,
-        spec.callRef,
-        `tool-${Date.now()}`,
-        params?.arguments,
-      );
+      // `code` runs the snippet locally (scoped secret env); everything else routes back to
+      // Agenta's /tools/call. A unique id per call so two parallel calls in the same
+      // millisecond don't collide (Date.now() would).
+      const text = await runResolvedTool(spec, params?.arguments, {
+        toolCallId: randomUUID(),
+        endpoint: ENDPOINT,
+        authorization: AUTH,
+      });
       return { jsonrpc: "2.0", id, result: { content: [{ type: "text", text }] } };
     } catch (err) {
       // Surface as an MCP tool error (isError) so the model can recover, not a crash.

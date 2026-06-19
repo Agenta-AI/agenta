@@ -43,7 +43,8 @@ import {
   type ToolCallbackContext,
   resolvePromptText,
 } from "../protocol.ts";
-import { EMPTY_OBJECT_SCHEMA, callAgentaTool } from "../tools/client.ts";
+import { EMPTY_OBJECT_SCHEMA } from "../tools/callback.ts";
+import { runResolvedTool } from "../tools/dispatch.ts";
 
 /** What the in-process Pi engine supports. Static (no daemon to probe, unlike rivet). */
 const PI_CAPABILITIES: HarnessCapabilities = {
@@ -140,43 +141,63 @@ function lastStopReason(messages: any[]): string | undefined {
 }
 
 /**
- * Turn resolved tool specs into Pi customTools. Each tool's `execute` does one POST back
- * through Agenta's /tools/call, so Pi runs the loop while the Composio key and connection
- * auth stay server-side. A failed call throws, which Pi turns into a tool-error result
- * (the loop continues) rather than a run failure.
+ * Turn resolved tool specs into Pi customTools, branching on the executor `kind`:
+ *  - `callback` (default): `execute` POSTs back through Agenta's /tools/call, so the Composio
+ *    key and connection auth stay server-side.
+ *  - `code`: `execute` runs the snippet in a sandbox subprocess with its scoped secret env.
+ *  - `client`: browser-fulfilled, so skipped on the in-process path (no browser to answer).
+ *
+ * A failed `execute` throws, which Pi turns into a tool-error result (the loop continues)
+ * rather than a run failure. Pi accepts a plain JSON Schema for `parameters` (non-TypeBox path).
  */
 export function buildCustomTools(
   specs: ResolvedToolSpec[],
   callback: ToolCallbackContext | undefined,
 ): any[] {
-  if (specs.length === 0) return [];
-  if (!callback?.endpoint) {
-    log(`skipping ${specs.length} custom tool(s): missing toolCallback endpoint`);
-    return [];
+  const tools: any[] = [];
+  for (const spec of specs) {
+    const base = {
+      name: spec.name,
+      label: spec.name,
+      description: spec.description ?? spec.name,
+      parameters: (spec.inputSchema as any) ?? EMPTY_OBJECT_SCHEMA,
+    };
+    if (spec.kind === "client") {
+      log(`skipping client tool '${spec.name}' (browser-fulfilled; not available in-process)`);
+      continue;
+    }
+    if (spec.kind === "code") {
+      tools.push({
+        ...base,
+        async execute(toolCallId: string, params: unknown, signal?: AbortSignal) {
+          const text = await runResolvedTool(spec, params, { toolCallId, signal });
+          return { content: [{ type: "text", text }], details: { kind: "code" } };
+        },
+      });
+      continue;
+    }
+    // callback (default): route back to Agenta's /tools/call.
+    if (!callback?.endpoint) {
+      log(`skipping callback tool '${spec.name}': missing toolCallback endpoint`);
+      continue;
+    }
+    tools.push({
+      ...base,
+      async execute(toolCallId: string, params: unknown, signal?: AbortSignal) {
+        const text = await runResolvedTool(spec, params, {
+          toolCallId,
+          endpoint: callback.endpoint,
+          authorization: callback.authorization,
+          signal,
+        });
+        return {
+          content: [{ type: "text", text }],
+          details: { callRef: spec.callRef },
+        };
+      },
+    });
   }
-
-  return specs.map((spec) => ({
-    name: spec.name,
-    label: spec.name,
-    description: spec.description ?? spec.name,
-    // Pi accepts a plain JSON Schema for `parameters` (its validator has a non-TypeBox
-    // path); the schema is resolved live from the provider catalog.
-    parameters: (spec.inputSchema as any) ?? EMPTY_OBJECT_SCHEMA,
-    async execute(toolCallId: string, params: unknown, signal?: AbortSignal) {
-      const text = await callAgentaTool(
-        callback.endpoint,
-        callback.authorization,
-        spec.callRef,
-        toolCallId,
-        params,
-        signal,
-      );
-      return {
-        content: [{ type: "text", text }],
-        details: { callRef: spec.callRef },
-      };
-    },
-  }));
+  return tools;
 }
 
 export async function runPi(
@@ -261,101 +282,114 @@ export async function runPi(
       log(`custom tools: ${customTools.map((t) => t.name).join(", ")}`);
     }
 
-    const { session } = await createAgentSession({
-      cwd,
-      model,
-      authStorage,
-      modelRegistry,
-      tools: toolAllowlist,
-      customTools,
-      sessionManager: SessionManager.inMemory(cwd),
-      settingsManager: SettingsManager.inMemory(),
-      resourceLoader: loader,
-    });
+    // Created before the prompt so a throw mid-run still flushes the partial trace and
+    // disposes the session (the inner finally below). Mirrors the rivet engine's pattern.
+    let session: Awaited<ReturnType<typeof createAgentSession>>["session"] | undefined;
+    try {
+      ({ session } = await createAgentSession({
+        cwd,
+        model,
+        authStorage,
+        modelRegistry,
+        tools: toolAllowlist,
+        customTools,
+        sessionManager: SessionManager.inMemory(cwd),
+        settingsManager: SettingsManager.inMemory(),
+        resourceLoader: loader,
+      }));
 
-    // Hand the session id + model to the extension so spans carry them.
-    otel.config.sessionId = session.sessionId;
-    otel.config.provider = model.provider;
-    otel.config.requestModel = model.id;
+      // Hand the session id + model to the extension so spans carry them.
+      otel.config.sessionId = session.sessionId;
+      otel.config.provider = model.provider;
+      otel.config.requestModel = model.id;
 
-    // Accumulate streamed text as the primary output channel. On the streaming path, flush
-    // each Pi `text_delta` as a `message_delta` live (Pi deltas are already pure, so they
-    // emit verbatim); the block opens on the first delta and closes after the run.
-    let streamed = "";
-    let piTextId: string | undefined;
-    session.subscribe((event: any) => {
-      if (
-        event.type === "message_update" &&
-        event.assistantMessageEvent?.type === "text_delta"
-      ) {
-        const delta = event.assistantMessageEvent.delta ?? "";
-        if (!delta) return;
-        streamed += delta;
-        if (emit) {
-          if (piTextId === undefined) {
-            piTextId = "msg-0";
-            emit({ type: "message_start", id: piTextId });
+      // Accumulate streamed text as the primary output channel. On the streaming path, flush
+      // each Pi `text_delta` as a `message_delta` live (Pi deltas are already pure, so they
+      // emit verbatim); the block opens on the first delta and closes after the run.
+      let streamed = "";
+      let piTextId: string | undefined;
+      session.subscribe((event: any) => {
+        if (
+          event.type === "message_update" &&
+          event.assistantMessageEvent?.type === "text_delta"
+        ) {
+          const delta = event.assistantMessageEvent.delta ?? "";
+          if (!delta) return;
+          streamed += delta;
+          if (emit) {
+            if (piTextId === undefined) {
+              piTextId = "msg-0";
+              emit({ type: "message_start", id: piTextId });
+            }
+            emit({ type: "message_delta", id: piTextId, delta });
           }
-          emit({ type: "message_delta", id: piTextId, delta });
         }
-      }
-    });
+      });
 
-    await session.prompt(prompt);
+      await session.prompt(prompt);
 
-    const output = streamed.trim() || extractAssistantText(session.messages);
-    const sessionId = session.sessionId;
-    const stopReason = lastStopReason(session.messages);
-    const usage = otel.usage();
-    session.dispose();
+      const output = streamed.trim() || extractAssistantText(session.messages);
+      const sessionId = session.sessionId;
+      const stopReason = lastStopReason(session.messages);
+      const usage = otel.usage();
 
-    // Ship this run's trace before the result is returned (and before the CLI process
-    // exits): invoke_agent has a remote parent, so the per-trace flush is what exports it.
-    await otel.flush();
+      // Ship this run's trace before the result is returned (and before the CLI process
+      // exits): invoke_agent has a remote parent, so the per-trace flush is what exports it.
+      await otel.flush();
 
-    // The structured stream is thinner here than on the rivet path: Pi's in-process tool
-    // events feed the trace spans, while the result-level event log carries the final
-    // message, usage, and stop reason (enough for the platform without double-plumbing).
-    //
-    // On the streaming path the events were flushed live via `emit`, so the result log stays
-    // empty; here we only close the open text block (or synthesize one when the text never
-    // streamed) and flush the tail usage/done events.
-    const events: AgentEvent[] = [];
-    const emitOrLog = (event: AgentEvent): void => {
-      if (emit) emit(event);
-      else events.push(event);
-    };
-    if (emit) {
-      if (piTextId !== undefined) {
-        emit({ type: "message_end", id: piTextId });
+      // The structured stream is thinner here than on the rivet path: Pi's in-process tool
+      // events feed the trace spans, while the result-level event log carries the final
+      // message, usage, and stop reason (enough for the platform without double-plumbing).
+      //
+      // On the streaming path the events were flushed live via `emit`, so the result log stays
+      // empty; here we only close the open text block (or synthesize one when the text never
+      // streamed) and flush the tail usage/done events.
+      const events: AgentEvent[] = [];
+      const emitOrLog = (event: AgentEvent): void => {
+        if (emit) emit(event);
+        else events.push(event);
+      };
+      if (emit) {
+        if (piTextId !== undefined) {
+          emit({ type: "message_end", id: piTextId });
+        } else if (output) {
+          emit({ type: "message_start", id: "msg-0" });
+          emit({ type: "message_delta", id: "msg-0", delta: output });
+          emit({ type: "message_end", id: "msg-0" });
+        }
       } else if (output) {
-        emit({ type: "message_start", id: "msg-0" });
-        emit({ type: "message_delta", id: "msg-0", delta: output });
-        emit({ type: "message_end", id: "msg-0" });
+        events.push({ type: "message", text: output });
       }
-    } else if (output) {
-      events.push({ type: "message", text: output });
+      if (usage.total > 0) emitOrLog({ type: "usage", ...usage });
+      emitOrLog({ type: "done", stopReason });
+
+      const messages: ChatMessage[] = output
+        ? [{ role: "assistant", content: output }]
+        : [];
+
+      return {
+        ok: true,
+        output,
+        messages,
+        events,
+        usage,
+        stopReason,
+        // `streamingDeltas` is only honest when a live sink carried the deltas end-to-end.
+        capabilities: { ...PI_CAPABILITIES, streamingDeltas: !!emit },
+        sessionId,
+        model: `${model.provider}/${model.id}`,
+        traceId: otel.config.traceId,
+      };
+    } catch (err) {
+      // Flush the partial trace before the error propagates so a failed run is still
+      // observable (the happy-path flush above never ran). Best-effort: never mask `err`.
+      await otel.flush().catch(() => {});
+      throw err;
+    } finally {
+      // Pi keeps the in-memory session alive until disposed; release it on every exit
+      // (success or throw). Guarded for the case where createAgentSession itself threw.
+      session?.dispose();
     }
-    if (usage.total > 0) emitOrLog({ type: "usage", ...usage });
-    emitOrLog({ type: "done", stopReason });
-
-    const messages: ChatMessage[] = output
-      ? [{ role: "assistant", content: output }]
-      : [];
-
-    return {
-      ok: true,
-      output,
-      messages,
-      events,
-      usage,
-      stopReason,
-      // `streamingDeltas` is only honest when a live sink carried the deltas end-to-end.
-      capabilities: { ...PI_CAPABILITIES, streamingDeltas: !!emit },
-      sessionId,
-      model: `${model.provider}/${model.id}`,
-      traceId: otel.config.traceId,
-    };
   } finally {
     try {
       rmSync(cwd, { recursive: true, force: true });

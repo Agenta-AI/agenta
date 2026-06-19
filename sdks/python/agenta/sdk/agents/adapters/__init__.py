@@ -3,6 +3,7 @@
 - Backend adapters: ``RivetBackend`` (rivet over ACP), ``InProcessPiBackend`` (in-process Pi,
   the reference backend), ``LocalBackend`` (standalone SDK runs; not yet implemented).
 - Harness adapters: ``PiHarness``, ``ClaudeHarness``, ``AgentaHarness`` (+ ``make_harness``).
+- HTTP/browser protocol adapters live in subpackages, e.g. ``adapters.vercel``.
 
 Shared plumbing for the runner-backed adapters lives in ``agents/utils``.
 """

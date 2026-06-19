@@ -84,7 +84,7 @@ live workflow span.
 Tools are resolved in the Python backend and arrive on the request as `customTools` plus a
 `toolCallback`. Delivery is capability-routed: the Pi extension registers them natively;
 other harnesses get them over MCP through `tools/mcp-bridge.ts` + `tools/mcp-server.ts`.
-Either way each call POSTs back to Agenta's `/tools/call` (`tools/client.ts`), so the
+Either way each call POSTs back to Agenta's `/tools/call` (`tools/callback.ts`), so the
 provider key and connection auth stay server-side.
 
 ## The extension bundle

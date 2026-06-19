@@ -20,6 +20,15 @@ from agenta.sdk.models.workflows import (
     WorkflowBaseResponse,
     WorkflowServiceResponseData,
 )
+from agenta.sdk.agents.adapters.vercel.routing import (
+    inject_stream_session_id,
+    register_agent_message_routes,
+    resolve_session_id,
+)
+from agenta.sdk.agents.adapters.vercel.sse import (
+    VERCEL_UI_MESSAGE_STREAM_HEADERS as _VERCEL_UI_MESSAGE_STREAM_HEADERS,
+    vercel_sse_stream as _vercel_sse_stream,
+)
 from agenta.sdk.middlewares.routing.cors import CORSMiddleware
 from agenta.sdk.middlewares.routing.auth import AuthMiddleware
 from agenta.sdk.middlewares.routing.otel import OTelMiddleware
@@ -29,12 +38,25 @@ from agenta.sdk.decorators.running import auto_workflow, inspect_workflow, Workf
 from agenta.sdk.engines.running.errors import ErrorStatus
 
 
+def _resolve_session_id(session_id: Optional[str]) -> Optional[str]:
+    """Compatibility wrapper for the Vercel adapter helper."""
+    return resolve_session_id(session_id)
+
+
+def _inject_stream_session_id(
+    response: WorkflowStreamingResponse,
+    session_id: str,
+) -> None:
+    """Compatibility wrapper for the Vercel adapter helper."""
+    inject_stream_session_id(response, session_id)
+
+
 # ---------------------------------------------------------------------------
 # Reserved path segments — may not appear anywhere in a route path.
 # These names are used by the per-route namespace triple itself.
 # ---------------------------------------------------------------------------
 
-_RESERVED_PATHS = {"invoke", "inspect"}
+_RESERVED_PATHS = {"invoke", "inspect", "messages", "load-session"}
 
 
 def _validate_path(path: str) -> None:
@@ -195,15 +217,27 @@ def _make_stream_response(
 ) -> StreamingResponse:
     aiter = response.iterator()
 
-    if wire_format == "sse":
-        media_type = "text/event-stream"
-        res = StreamingResponse(_sse_stream(aiter), media_type=media_type)
+    if wire_format == "vercel":
+        # The Vercel UI Message Stream: SSE framing terminated by `data: [DONE]`, plus the
+        # headers the AI SDK client and proxies require. Endpoint-selected (the agent
+        # `/messages` route passes "vercel"), not derived from Accept — a Vercel UI message
+        # stream and a plain SSE stream share the `text/event-stream` media type, so the
+        # choice cannot come from the Accept header alone.
+        res = StreamingResponse(
+            _vercel_sse_stream(aiter), media_type="text/event-stream"
+        )
+        for key, value in _VERCEL_UI_MESSAGE_STREAM_HEADERS.items():
+            res.headers.setdefault(key, value)
+    elif wire_format == "sse":
+        res = StreamingResponse(_sse_stream(aiter), media_type="text/event-stream")
     elif wire_format == "ndjson":
-        media_type = "application/x-ndjson"
-        res = StreamingResponse(_ndjson_stream(aiter), media_type=media_type)
+        res = StreamingResponse(
+            _ndjson_stream(aiter), media_type="application/x-ndjson"
+        )
     else:
-        media_type = "application/x-ndjson"
-        res = StreamingResponse(_ndjson_stream(aiter), media_type=media_type)
+        res = StreamingResponse(
+            _ndjson_stream(aiter), media_type="application/x-ndjson"
+        )
 
     return _set_common_headers(res, response)  # type: ignore
 
@@ -451,6 +485,10 @@ class route:
             except Exception as exception:
                 return await handle_inspect_failure(exception)
 
+        # Agent-only endpoints are Vercel/browser-protocol adapters. Keep their request
+        # folding, session id handling, and UI Message Stream details out of the generic
+        # workflow route decorator.
+
         invoke_responses: dict = {
             200: {
                 "description": "Negotiated response — format determined by Accept header",
@@ -489,6 +527,25 @@ class route:
             },
         }
 
+        agent_enabled = bool(self.flags and self.flags.get("is_agent"))
+
+        def _add_agent_routes(target: Any, prefix: str) -> None:
+            """Register the agent-only /messages + /load-session routes on a target
+            (sub-app / router / mount root), mirroring how /invoke + /inspect are added."""
+            register_agent_message_routes(
+                target,
+                prefix,
+                wf=wf,
+                invoke_responses=invoke_responses,
+                get_request_tracing_context=_get_request_tracing_context,
+                parse_accept=_parse_accept,
+                stream_media_types=STREAM_MEDIA_TYPES,
+                make_json_response=_make_json_response,
+                make_not_acceptable_response=_make_not_acceptable_response,
+                make_stream_response=_make_stream_response,
+                handle_failure=handle_invoke_failure,
+            )
+
         # ------------------------------------------------------------------
         # Legacy path: router= was provided.
         # Registers prefixed routes on the APIRouter without isolation.
@@ -506,6 +563,8 @@ class route:
                 methods=["POST"],
                 response_model=WorkflowInvokeRequest,
             )
+            if agent_enabled:
+                _add_agent_routes(self.router_fallback, self.path)
             return foo
 
         # ------------------------------------------------------------------
@@ -528,6 +587,8 @@ class route:
                 methods=["POST"],
                 response_model=WorkflowInvokeRequest,
             )
+            if agent_enabled:
+                _add_agent_routes(self.mount_root, "")
 
             return foo
 
@@ -545,6 +606,8 @@ class route:
             methods=["POST"],
             response_model=WorkflowInvokeRequest,
         )
+        if agent_enabled:
+            _add_agent_routes(sub_app, "")
 
         self.mount_root.mount(self.path, sub_app)
 

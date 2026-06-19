@@ -27,8 +27,8 @@ from agenta.sdk.agents import (
     SessionConfig,
     make_harness,
     to_messages,
-    ui_message_stream,
 )
+from agenta.sdk.agents.adapters.vercel import agent_run_to_vercel_parts
 
 from oss.src.agent.config import load_config, wrapper_dir
 from oss.src.agent.schemas import AGENT_SCHEMAS
@@ -113,7 +113,7 @@ async def _agent(
     # generator (the normalizer turns it into a streaming response). `/invoke` and the
     # `/messages` JSON path leave it unset and take the batch path below.
     if stream:
-        return _agent_stream(harness, session_config, msgs)
+        return _agent_vercel_stream(harness, session_config, msgs)
 
     await harness.setup()
     try:
@@ -125,7 +125,7 @@ async def _agent(
     return {"role": "assistant", "content": result.output}
 
 
-async def _agent_stream(harness, session_config, msgs):
+async def _agent_vercel_stream(harness, session_config, msgs):
     """Run one streaming turn and yield Vercel UI Message Stream parts.
 
     Owns the environment lifecycle (``setup`` / ``cleanup``); the per-turn session is torn
@@ -135,7 +135,7 @@ async def _agent_stream(harness, session_config, msgs):
     await harness.setup()
     try:
         run = await harness.stream(session_config, msgs)
-        async for part in ui_message_stream(run):
+        async for part in agent_run_to_vercel_parts(run):
             yield part
         try:
             record_usage(run.result().usage)

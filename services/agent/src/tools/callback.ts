@@ -1,5 +1,5 @@
 /**
- * Shared Agenta /tools/call client.
+ * Shared Agenta /tools/call callback transport.
  *
  * One implementation of the tool round-trip used by every delivery path:
  *  - engines/pi.ts buildCustomTools (in-process Pi customTools)

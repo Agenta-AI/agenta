@@ -88,7 +88,11 @@ from .tools import (
     parse_tool_config,
     parse_tool_configs,
 )
-from .ui_messages import from_ui_messages, to_ui_message, ui_message_stream
+from .adapters.vercel import (
+    from_ui_messages,
+    to_ui_message,
+    ui_message_stream,
+)
 
 __all__ = [
     # DTOs
@@ -107,7 +111,7 @@ __all__ = [
     "AgentEvent",
     "AgentResult",
     "AgentRun",
-    # UI message codec (the /messages egress adapter)
+    # Former flat Vercel adapter names (compatibility; new code uses adapters.vercel)
     "from_ui_messages",
     "to_ui_message",
     "ui_message_stream",

@@ -16,7 +16,7 @@
  * Local runs keep the direct path (the in-process / local-daemon extension reaches Agenta);
  * the relay is only wired when AGENTA_TOOL_RELAY_DIR is set (Daytona + Pi + tools).
  */
-import { callAgentaTool } from "./client.ts";
+import { callAgentaTool } from "./callback.ts";
 import type { ToolCallbackContext } from "../protocol.ts";
 
 export const RELAY_REQ_SUFFIX = ".req.json";

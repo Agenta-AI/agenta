@@ -45,14 +45,22 @@ import { local } from "sandbox-agent/local";
 import { daytona } from "sandbox-agent/daytona";
 
 import { createRivetOtel } from "../tracing/otel.ts";
-import { buildToolMcpServers } from "../tools/mcp-bridge.ts";
+import { buildToolMcpServers, type McpServerStdio } from "../tools/mcp-bridge.ts";
 import { startToolRelay } from "../tools/relay.ts";
+import {
+  PolicyResponder,
+  decisionToReply,
+  policyFromRequest,
+  type Responder,
+} from "../responder.ts";
 import {
   type AgentRunRequest,
   type AgentRunResult,
   type ChatMessage,
+  type ContentBlock,
   type EmitEvent,
   type HarnessCapabilities,
+  type McpServerConfig,
   type ResolvedToolSpec,
   type ToolCallbackContext,
   messageText,
@@ -252,24 +260,92 @@ function priorMessages(request: AgentRunRequest): ChatMessage[] {
   return lastMatch === -1 ? messages : messages.filter((_, i) => i !== lastMatch);
 }
 
+function safeJson(value: unknown): string {
+  if (value === undefined || value === null) return "";
+  try {
+    return typeof value === "string" ? value : JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+/**
+ * Render one message for the replayed transcript, INCLUDING resolved tool turns. Under the
+ * cold model the harness rebuilds context from this text, and ACP prompt content blocks
+ * cannot carry tool calls/results — so a resolved interaction (an approved tool that ran, a
+ * client-fulfilled tool) is encoded here as text, letting the model resume from the result
+ * instead of re-asking. This is the cross-turn HITL continuation substrate: the `/messages`
+ * egress folds inbound UIMessage tool/approval parts into `tool_call` / `tool_result` content
+ * blocks, and they survive into the replay here. Plain string / text blocks pass through;
+ * image/resource blocks are summarized.
+ */
+export function messageTranscript(content: string | ContentBlock[] | undefined): string {
+  if (!content) return "";
+  if (typeof content === "string") return content;
+  const parts: string[] = [];
+  for (const block of content) {
+    if (!block) continue;
+    if (block.type === "text" && typeof block.text === "string") {
+      parts.push(block.text);
+    } else if (block.type === "tool_call") {
+      parts.push(`[called ${block.toolName ?? "tool"}(${safeJson(block.input)})]`);
+    } else if (block.type === "tool_result") {
+      const body = safeJson(block.output);
+      parts.push(`[${block.toolName ?? "tool"} ${block.isError ? "error" : "returned"}: ${body}]`);
+    } else if (block.type === "image") {
+      parts.push("[image]");
+    } else if (block.type === "resource") {
+      parts.push(block.uri ? `[resource: ${block.uri}]` : "[resource]");
+    }
+  }
+  return parts.filter(Boolean).join("\n");
+}
+
 /**
  * The text sent over ACP for this turn. Each invoke is a cold sandbox, so prior turns
  * are replayed as transcript context ahead of the latest user message — this is the
  * "persisted message history replayed" model, with the client/playground holding the
  * history. Capped by AGENTA_AGENT_HISTORY_MAX_CHARS so replay tokens stay bounded.
  */
-function buildTurnText(request: AgentRunRequest): string {
+export function buildTurnText(request: AgentRunRequest): string {
   const latest = resolvePrompt(request);
-  const history = priorMessages(request).filter((m) => messageText(m.content));
+  const history = priorMessages(request).filter((m) => messageTranscript(m.content));
   if (history.length === 0) return latest;
 
   const maxChars = Number(process.env.AGENTA_AGENT_HISTORY_MAX_CHARS ?? 24000);
-  let transcript = history.map((m) => `${m.role}: ${messageText(m.content)}`).join("\n");
+  let transcript = history.map((m) => `${m.role}: ${messageTranscript(m.content)}`).join("\n");
   if (transcript.length > maxChars) transcript = transcript.slice(-maxChars);
   return (
     `Conversation so far:\n${transcript}\n\n` +
     `Continue the conversation. The user now says:\n${latest}`
   );
+}
+
+/**
+ * Convert user-declared MCP servers (already resolved server-side, secrets injected into
+ * `env`) into ACP stdio entries. Only `stdio` is delivered over ACP today; `http`/remote
+ * carries no auth on the wire by design and is skipped. The per-server `tools` allowlist is
+ * NOT enforced over ACP in v1 — the harness lists all of a server's tools — so it is dropped
+ * with a log rather than silently implying a filter that does not happen.
+ */
+export function toAcpMcpServers(servers: McpServerConfig[] | undefined): McpServerStdio[] {
+  const out: McpServerStdio[] = [];
+  for (const s of servers ?? []) {
+    if ((s.transport ?? "stdio") !== "stdio" || !s.command) {
+      log(`skipping non-stdio MCP server '${s?.name ?? "?"}' (remote transport deferred)`);
+      continue;
+    }
+    if (s.tools && s.tools.length > 0) {
+      log(`MCP server '${s.name}': per-server tool allowlist not enforced over ACP (v1)`);
+    }
+    out.push({
+      name: s.name,
+      command: s.command,
+      args: s.args ?? [],
+      env: Object.entries(s.env ?? {}).map(([name, value]) => ({ name, value: String(value) })),
+    });
+  }
+  return out;
 }
 
 /**
@@ -715,12 +791,25 @@ export async function runRivet(
     // forward MCP, Claude/Codex do).
     const capabilities = await probeCapabilities(sandbox, harness);
     const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];
+    const userMcpCount = request.mcpServers?.length ?? 0;
+    // MCP delivery is gated on `mcpTools`: pi-acp does not forward MCP, Claude/Codex do. The
+    // synthesized `agenta-tools` server (gateway/code tools) and the user-declared servers
+    // ride the same gate.
     const mcpServers =
       !isPi && capabilities.mcpTools
-        ? buildToolMcpServers(toolSpecs, request.toolCallback as ToolCallbackContext | undefined)
+        ? [
+            ...buildToolMcpServers(
+              toolSpecs,
+              request.toolCallback as ToolCallbackContext | undefined,
+            ),
+            ...toAcpMcpServers(request.mcpServers),
+          ]
         : [];
-    if (!isPi && toolSpecs.length > 0 && !capabilities.mcpTools) {
-      log(`harness '${harness}' lacks MCP tool support; ${toolSpecs.length} tool(s) not delivered`);
+    if (!isPi && (toolSpecs.length > 0 || userMcpCount > 0) && !capabilities.mcpTools) {
+      log(
+        `harness '${harness}' lacks MCP support; ${toolSpecs.length} tool(s) and ` +
+          `${userMcpCount} user MCP server(s) not delivered`,
+      );
     }
 
     const session = await sandbox.createSession({
@@ -759,19 +848,37 @@ export async function runRivet(
       if (update) run.handleUpdate(update);
     });
 
-    // Auto-approve permission requests so a permission-gating harness (e.g. Claude
-    // Code) does not block on tool use. Tools are backend-resolved and trusted; the run
-    // is headless so there is no human to prompt. The per-run `permissionPolicy` (or the
-    // AGENTA_RIVET_DENY_PERMISSIONS env) flips this to reject.
-    const denyPermissions =
-      request.permissionPolicy === "deny" ||
-      process.env.AGENTA_RIVET_DENY_PERMISSIONS === "true";
+    // Permission gating, behind the Responder seam. Pi never gates; a permission-gating
+    // harness (e.g. Claude) raises a request, which we (a) surface as an `interaction_request`
+    // event so the egress can project it (Vercel `tool-approval-request`) and the trace can
+    // record it, and (b) resolve via the responder. The headless `PolicyResponder` keeps the
+    // prior behavior: auto-allow trusted backend tools, or deny per `permissionPolicy` /
+    // AGENTA_RIVET_DENY_PERMISSIONS. A cross-turn responder (true HITL) slots in here later
+    // without touching the harness. Tools are backend-resolved and trusted; the run is headless.
+    const responder: Responder = new PolicyResponder(policyFromRequest(request.permissionPolicy));
     session.onPermissionRequest((req: any) => {
-      const replies: string[] = req?.availableReplies ?? [];
-      const reply = denyPermissions
-        ? "reject"
-        : replies.find((r) => r === "always") ?? replies.find((r) => r === "once") ?? "once";
-      if (req?.id) session.respondPermission(req.id, reply as any).catch(() => {});
+      const id = String(req?.id ?? "");
+      const availableReplies: string[] = req?.availableReplies ?? [];
+      run.emitEvent({
+        type: "interaction_request",
+        id, // ACP permission id -> Vercel approvalId
+        kind: "permission",
+        payload: {
+          // toolCallId of the gated tool, so the cross-turn approval reply correlates back to
+          // its tool call (and the #6 resume finds it). `toolCall` is the ACP ToolCallUpdate.
+          toolCallId: req?.toolCall?.toolCallId,
+          toolCall: req?.toolCall,
+          availableReplies,
+          options: req?.options,
+        },
+      });
+      void responder
+        .onPermission({ id, availableReplies, raw: req })
+        .then((decision) => {
+          if (!req?.id) return;
+          return session.respondPermission(req.id, decisionToReply(decision, availableReplies) as any);
+        })
+        .catch(() => {});
     });
 
     if (useToolRelay) {

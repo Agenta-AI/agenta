@@ -1,12 +1,13 @@
-"""Tests for the UI message codec (``agenta.sdk.agents.ui_messages``), the ``/messages``
-egress adapter between the Vercel ``UIMessage`` shape and the neutral runtime types.
+"""Tests for the Vercel UI message adapter, the ``/messages`` egress adapter between the
+Vercel ``UIMessage`` shape and the neutral runtime types.
 
 Three directions:
 
-- ``from_ui_messages`` — inbound parts -> ``Message``; tool/approval parts are preserved as
-  structured ``tool_call`` / ``tool_result`` content blocks (the HITL reply channel).
-- ``to_ui_message`` — outbound ``AgentResult`` / ``Message`` -> one ``UIMessage`` dict.
-- ``ui_message_stream`` — a live ``AgentRun`` -> Vercel UI Message Stream parts.
+- ``vercel_ui_messages_to_messages`` — inbound parts -> ``Message``; tool/approval parts are
+  preserved as structured ``tool_call`` / ``tool_result`` content blocks.
+- ``message_to_vercel_ui_message`` — outbound ``AgentResult`` / ``Message`` -> one
+  ``UIMessage`` dict.
+- ``agent_run_to_vercel_parts`` — a live ``AgentRun`` -> Vercel UI Message Stream parts.
 
 The stream tests fabricate an ``AgentRun`` from a fixed record list (the same trick
 ``test_streaming.py`` uses), so they are pure and need no backend.
@@ -17,10 +18,10 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from agenta.sdk.agents import AgentRun, AgentResult, Message
-from agenta.sdk.agents.ui_messages import (
-    from_ui_messages,
-    to_ui_message,
-    ui_message_stream,
+from agenta.sdk.agents.adapters.vercel import (
+    agent_run_to_vercel_parts,
+    message_to_vercel_ui_message,
+    vercel_ui_messages_to_messages,
 )
 
 
@@ -37,17 +38,17 @@ def _run(events: List[Dict[str, Any]], result: Dict[str, Any]) -> AgentRun:
 
 
 async def _collect(run: AgentRun, **kwargs) -> List[Dict[str, Any]]:
-    return [part async for part in ui_message_stream(run, **kwargs)]
+    return [part async for part in agent_run_to_vercel_parts(run, **kwargs)]
 
 
 # ---------------------------------------------------------------------------
-# from_ui_messages
+# vercel_ui_messages_to_messages
 # ---------------------------------------------------------------------------
 
 
 class TestFromUIMessages:
     def test_all_text_message_collapses_to_string(self):
-        msgs = from_ui_messages(
+        msgs = vercel_ui_messages_to_messages(
             [{"id": "m1", "role": "user", "parts": [{"type": "text", "text": "hi"}]}]
         )
         assert len(msgs) == 1
@@ -55,7 +56,7 @@ class TestFromUIMessages:
         assert msgs[0].content == "hi"
 
     def test_file_part_becomes_image_or_resource_block(self):
-        msgs = from_ui_messages(
+        msgs = vercel_ui_messages_to_messages(
             [
                 {
                     "id": "m1",
@@ -75,7 +76,7 @@ class TestFromUIMessages:
     def test_tool_part_is_preserved_as_structured_blocks(self):
         # A resolved tool part -> a tool_call block plus a tool_result block, keyed by
         # toolCallId, with the field names the runner transcript renders.
-        msgs = from_ui_messages(
+        msgs = vercel_ui_messages_to_messages(
             [
                 {
                     "id": "m2",
@@ -110,7 +111,7 @@ class TestFromUIMessages:
         ]
 
     def test_tool_error_part_sets_is_error(self):
-        msgs = from_ui_messages(
+        msgs = vercel_ui_messages_to_messages(
             [
                 {
                     "id": "m2",
@@ -134,7 +135,7 @@ class TestFromUIMessages:
 
     def test_approval_response_becomes_tool_result_keyed_by_call_id(self):
         # The cross-turn HITL reply: a tool_result keyed by toolCallId so the runtime resumes.
-        msgs = from_ui_messages(
+        msgs = vercel_ui_messages_to_messages(
             [
                 {
                     "id": "m3",
@@ -156,7 +157,7 @@ class TestFromUIMessages:
 
     def test_approval_request_part_is_dropped_on_replay(self):
         # The server's own request, echoed back; regenerated on replay, not model input.
-        msgs = from_ui_messages(
+        msgs = vercel_ui_messages_to_messages(
             [
                 {
                     "id": "m4",
@@ -172,18 +173,18 @@ class TestFromUIMessages:
 
     def test_plain_role_content_message_still_parses(self):
         # A non-parts {role, content} message in a mixed history falls back cleanly.
-        msgs = from_ui_messages([{"role": "user", "content": "hello"}])
+        msgs = vercel_ui_messages_to_messages([{"role": "user", "content": "hello"}])
         assert msgs[0].content == "hello"
 
 
 # ---------------------------------------------------------------------------
-# to_ui_message
+# message_to_vercel_ui_message
 # ---------------------------------------------------------------------------
 
 
 class TestToUIMessage:
     def test_agent_result_becomes_assistant_text_message(self):
-        ui = to_ui_message(AgentResult(output="Paris."), message_id="m9")
+        ui = message_to_vercel_ui_message(AgentResult(output="Paris."), message_id="m9")
         assert ui == {
             "id": "m9",
             "role": "assistant",
@@ -204,14 +205,14 @@ class TestToUIMessage:
                 ),
             ],
         )
-        ui = to_ui_message(msg)
+        ui = message_to_vercel_ui_message(msg)
         assert ui["role"] == "assistant"
         assert ui["parts"][0]["type"] == "tool-getWeather"
         assert ui["parts"][0]["toolCallId"] == "c1"
 
 
 # ---------------------------------------------------------------------------
-# ui_message_stream
+# agent_run_to_vercel_parts
 # ---------------------------------------------------------------------------
 
 
@@ -421,7 +422,7 @@ class TestUIMessageStream:
             {"kind": "result", "result": {"ok": False, "error": "kaboom"}},
         ]
         run = AgentRun(_from_list(records))
-        parts = [part async for part in ui_message_stream(run, session_id="s1")]
+        parts = [part async for part in agent_run_to_vercel_parts(run, session_id="s1")]
         types = [p["type"] for p in parts]
         assert types[0] == "start"
         assert "finish" not in types

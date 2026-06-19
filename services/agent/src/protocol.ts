@@ -11,11 +11,20 @@
 
 /** One piece of a message. `text` is all the playground sends today; the rest is plumbed. */
 export interface ContentBlock {
-  type: "text" | "image" | "resource" | string;
+  type: "text" | "image" | "resource" | "tool_call" | "tool_result" | string;
   text?: string;
   data?: string;
   mimeType?: string;
   uri?: string;
+  // Tool-turn carriers, used for structured-message continuation (cross-turn HITL): a
+  // resolved tool call replays as a `tool_call` block plus a `tool_result` block so the
+  // model resumes from the result instead of re-asking. The `/messages` egress folds the
+  // inbound UIMessage tool/approval parts into these (it must not drop them).
+  toolCallId?: string;
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
+  isError?: boolean;
 }
 
 export interface ChatMessage {
@@ -38,21 +47,53 @@ export interface TraceContext {
 }
 
 /**
- * A runnable tool the backend already resolved from the agent config: name + description +
- * JSON-Schema params for the model, plus the `callRef` slug the execution bridge sends back
- * to Agenta's /tools/call. The Composio key and connection auth stay server-side.
+ * A runnable tool the backend already resolved from the agent config.
+ *
+ * Three orthogonal axes:
+ *  - `kind` (executor): how the runner fulfils a call. `callback` POSTs back through Agenta's
+ *    /tools/call (gateway tools; the Composio key stays server-side); `code` runs `code` in a
+ *    sandbox subprocess with `env` (resolved secrets, scoped to the subprocess); `client` is
+ *    fulfilled by the browser across a turn boundary. Absent = `callback` (back-compat).
+ *  - `needsApproval`: gate the call on a human yes/no (mechanics owned by the run-event layer).
+ *  - `render`: a generative-UI hint (see `RenderHint`).
+ *
+ * `callRef` is set for `callback` tools (the slug the bridge sends back to /tools/call);
+ * `runtime`/`code`/`env` for `code` tools. The Composio key and connection auth stay
+ * server-side.
  */
 export interface ResolvedToolSpec {
   name: string;
   description?: string;
   inputSchema?: Record<string, unknown> | null;
-  callRef: string;
+  /** Set for `callback` (gateway) tools only; absent for `code` / `client`. */
+  callRef?: string;
+  kind?: "callback" | "code" | "client";
+  runtime?: "python" | "node";
+  code?: string;
+  env?: Record<string, string>;
+  needsApproval?: boolean;
+  render?: RenderHint;
 }
 
 /** Where and how to route a tool call back through Agenta. */
 export interface ToolCallbackContext {
   endpoint: string;
   authorization?: string;
+}
+
+/**
+ * A user-declared MCP server attached to the run. `stdio` launches `command`/`args` with
+ * `env` (secret env already resolved server-side); `tools` is an optional allowlist (empty =
+ * all). Remote (`http`) carries no auth on the wire by design.
+ */
+export interface McpServerConfig {
+  name: string;
+  transport?: "stdio" | "http";
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  tools?: string[];
 }
 
 /**
@@ -82,6 +123,18 @@ export interface HarnessCapabilities {
  * are emitted live on the streaming path; a consumer that sees the delta family for a block
  * never also sees a coalesced `message` for it (see `createRivetOtel.finish`).
  */
+/**
+ * A generative-UI hint stamped onto a tool's events so the frontend can render it. The
+ * tool-definition plan adds the matching `render?` field to `ResolvedToolSpec`; the runner
+ * copies it onto `tool_call` / `tool_result` so the egress can project it without a spec
+ * lookup. `component` is a prebuilt client component (no code execution); `source` ships
+ * code rendered in a sandbox; `spec` is a declarative UI tree (data, not code).
+ */
+export type RenderHint =
+  | { kind: "component"; component: string }
+  | { kind: "source"; runtime: "react" | "html"; source: string | string[] }
+  | { kind: "spec"; schema: string };
+
 export type AgentEvent =
   | { type: "message"; text: string }
   | { type: "thought"; text: string }
@@ -91,8 +144,29 @@ export type AgentEvent =
   | { type: "reasoning_start"; id: string }
   | { type: "reasoning_delta"; id: string; delta: string }
   | { type: "reasoning_end"; id: string }
-  | { type: "tool_call"; id?: string; name?: string; input?: unknown }
-  | { type: "tool_result"; id?: string; output?: string; isError?: boolean }
+  | { type: "tool_call"; id?: string; name?: string; input?: unknown; render?: RenderHint }
+  | {
+      type: "tool_result";
+      id?: string;
+      output?: string;
+      /** Structured output (object), used for generative UI; `output` stays the text form. */
+      data?: unknown;
+      isError?: boolean;
+      render?: RenderHint;
+    }
+  // A human-in-the-loop request the harness raised (ACP reverse-RPC). The egress projects
+  // it to a Vercel `tool-approval-request` (permission) or an input/data part (elicitation);
+  // the reply returns cross-turn in the next `/messages` message history, matched by `id`.
+  | {
+      type: "interaction_request";
+      id: string;
+      kind: "permission" | "input" | "client_tool";
+      payload?: unknown;
+    }
+  // One-way generative-UI payloads (not tied to a tool result). `data` -> Vercel `data-<name>`,
+  // `file` -> Vercel `file`.
+  | { type: "data"; name: string; data: unknown; transient?: boolean }
+  | { type: "file"; url: string; mediaType: string }
   | { type: "usage"; input?: number; output?: number; total?: number; cost?: number }
   | { type: "error"; message: string }
   | { type: "done"; stopReason?: string };
@@ -149,6 +223,8 @@ export interface AgentRunRequest {
   skills?: string[];
   /** Resolved runnable tools (WP-7). */
   customTools?: ResolvedToolSpec[];
+  /** User-declared MCP servers, resolved (secret env injected). Omitted when there are none. */
+  mcpServers?: McpServerConfig[];
   /** Where customTools route their calls back to. Required when customTools is set. */
   toolCallback?: ToolCallbackContext;
   /** How a permission-gating harness handles tool-use prompts: "auto" (default) | "deny". */

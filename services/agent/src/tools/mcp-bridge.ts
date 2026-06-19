@@ -49,26 +49,53 @@ export interface McpServerStdio {
 
 /**
  * Build the ACP `mcpServers` list that exposes the resolved tools to the harness.
- * Empty when there are no tools or no callback (the no-tools path stays untouched).
+ *
+ * Attachment is decided per tool kind, not on the callback endpoint alone (see protocol.ts
+ * `ResolvedToolSpec.kind`; absent kind means `callback` for back-compat):
+ *  - `client` tools are browser-fulfilled and not advertised by this server (mcp-server.ts
+ *    filters them from tools/list), so they never justify attaching the bridge on their own.
+ *  - "Executable here" = non-client (`code` and `callback`). With zero executable specs we
+ *    return [] (the no-tools path stays untouched).
+ *  - `code` tools run locally in mcp-server.ts (runCodeTool) and need NO callback endpoint, so
+ *    we attach `agenta-tools` whenever there is at least one executable spec.
+ *  - Only `callback` tools require `callback.endpoint`. If callback tools are present but the
+ *    endpoint is missing, we do NOT drop the whole server (that would silently lose the `code`
+ *    tools too): we still attach it and warn, naming the callback tools whose `tools/call` will
+ *    fail. The endpoint/auth env entries are pushed only when the endpoint actually exists.
  */
 export function buildToolMcpServers(
   specs: ResolvedToolSpec[],
   callback: ToolCallbackContext | undefined,
 ): McpServerStdio[] {
   if (!specs || specs.length === 0) return [];
-  if (!callback?.endpoint) {
+
+  // Absent kind defaults to `callback` (back-compat); `client` is the only non-executable kind.
+  const executable = specs.filter((s) => (s.kind ?? "callback") !== "client");
+  if (executable.length === 0) return [];
+
+  // The callback subset is the only thing that needs the endpoint to function.
+  const callbackSpecs = executable.filter((s) => (s.kind ?? "callback") === "callback");
+  const hasEndpoint = Boolean(callback?.endpoint);
+
+  if (callbackSpecs.length > 0 && !hasEndpoint) {
+    const names = callbackSpecs.map((s) => s.name).join(", ");
     process.stderr.write(
-      `[tool-bridge] skipping ${specs.length} tool(s): missing toolCallback endpoint\n`,
+      `[tool-bridge] missing toolCallback endpoint: ${callbackSpecs.length} callback tool(s) ` +
+        `will fail (${names}); still attaching server for the other tool(s)\n`,
     );
-    return [];
   }
 
+  // Pass every executable spec; mcp-server.ts dispatches per kind (code runs locally, callback
+  // routes to the endpoint).
   const env: EnvVariable[] = [
-    { name: "AGENTA_TOOL_SPECS", value: JSON.stringify(specs) },
-    { name: "AGENTA_TOOL_CALLBACK_ENDPOINT", value: callback.endpoint },
+    { name: "AGENTA_TOOL_SPECS", value: JSON.stringify(executable) },
   ];
-  if (callback.authorization) {
-    env.push({ name: "AGENTA_TOOL_CALLBACK_AUTH", value: callback.authorization });
+  // Only carry the callback env when there is an endpoint to call back to.
+  if (hasEndpoint) {
+    env.push({ name: "AGENTA_TOOL_CALLBACK_ENDPOINT", value: callback!.endpoint });
+    if (callback!.authorization) {
+      env.push({ name: "AGENTA_TOOL_CALLBACK_AUTH", value: callback!.authorization });
+    }
   }
 
   const { command, args } = bridgeLauncher();
