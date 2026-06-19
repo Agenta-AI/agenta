@@ -11,7 +11,7 @@
  */
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
-import {safeStringify} from "@agenta/shared/utils"
+import {isPlainObject, safeStringify} from "@agenta/shared/utils"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {MinusCircle} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"
@@ -32,10 +32,11 @@ export interface McpServerItemControlProps {
 
 function toServerObj(value: unknown): Record<string, unknown> {
     try {
-        if (typeof value === "string")
-            return value ? (JSON.parse(value) as Record<string, unknown>) : {}
-        if (value && typeof value === "object" && !Array.isArray(value))
-            return value as Record<string, unknown>
+        if (typeof value === "string") {
+            const parsed = value ? JSON.parse(value) : {}
+            return isPlainObject(parsed) ? parsed : {}
+        }
+        if (isPlainObject(value)) return value
     } catch {
         // fall through to empty object
     }
@@ -71,7 +72,8 @@ export const McpServerItemControl = memo(function McpServerItemControl({
             if (disabled) return
             setEditorText(text)
             try {
-                const parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {}
+                const parsed = text ? JSON.parse(text) : {}
+                if (!isPlainObject(parsed)) return
                 lastExternalRef.current = safeStringify(parsed)
                 onChange?.(parsed)
             } catch {
