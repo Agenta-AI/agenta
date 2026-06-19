@@ -25,6 +25,20 @@ from .messages import message_to_vercel_ui_message, vercel_ui_messages_to_messag
 # An opaque, project-scoped session id (RFC §4.1): bounded length, restricted charset.
 _SESSION_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
+VERCEL_MESSAGE_PROTOCOL = "vercel"
+VERCEL_MESSAGE_PROTOCOL_VERSION = "v1"
+VERCEL_MESSAGE_PROTOCOL_HEADERS = {
+    "x-ag-messages-format": VERCEL_MESSAGE_PROTOCOL,
+    "x-ag-messages-version": VERCEL_MESSAGE_PROTOCOL_VERSION,
+}
+
+
+def set_vercel_message_protocol_headers(response: Response) -> Response:
+    """Stamp the default agent ``/messages`` protocol identity on an HTTP response."""
+    for key, value in VERCEL_MESSAGE_PROTOCOL_HEADERS.items():
+        response.headers.setdefault(key, value)
+    return response
+
 
 def resolve_session_id(session_id: Optional[str]) -> Optional[str]:
     """Mint a new id when absent, echo a valid one, or return ``None`` when invalid."""
@@ -69,9 +83,13 @@ def make_messages_endpoint(
 
         session_id = resolve_session_id(request.session_id)
         if session_id is None:
-            return JSONResponse(
-                status_code=400,
-                content={"detail": "session_id violates the allowed charset/length"},
+            return set_vercel_message_protocol_headers(
+                JSONResponse(
+                    status_code=400,
+                    content={
+                        "detail": "session_id violates the allowed charset/length"
+                    },
+                )
             )
 
         try:
@@ -104,22 +122,28 @@ def make_messages_endpoint(
                 and response.status.code is not None
                 and response.status.code >= 400
             ):
-                return make_json_response(response)
+                return set_vercel_message_protocol_headers(make_json_response(response))
 
             if want_stream:
                 if not isinstance(response, WorkflowStreamingResponse):
-                    return make_not_acceptable_response(str(requested), response)
+                    return set_vercel_message_protocol_headers(
+                        make_not_acceptable_response(str(requested), response)
+                    )
                 inject_stream_session_id(response, session_id)
-                return make_stream_response(response, "vercel")
+                return set_vercel_message_protocol_headers(
+                    make_stream_response(response, "vercel")
+                )
 
             if not isinstance(response, WorkflowBatchResponse):
-                return make_not_acceptable_response(
-                    requested or "application/json", response
+                return set_vercel_message_protocol_headers(
+                    make_not_acceptable_response(
+                        requested or "application/json", response
+                    )
                 )
-            return make_json_response(response)
+            return set_vercel_message_protocol_headers(make_json_response(response))
 
         except Exception as exception:
-            return await handle_failure(exception)
+            return set_vercel_message_protocol_headers(await handle_failure(exception))
 
     return messages_endpoint
 
@@ -140,8 +164,8 @@ def make_load_session_endpoint(
                 for idx, message in enumerate(messages, start=1)
             ],
         )
-        return JSONResponse(
-            content=response.model_dump(mode="json"),
+        return set_vercel_message_protocol_headers(
+            JSONResponse(content=response.model_dump(mode="json"))
         )
 
     return load_session_endpoint

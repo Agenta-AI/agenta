@@ -20,6 +20,8 @@ from fastapi.testclient import TestClient
 
 from agenta.sdk.agents import Message
 from agenta.sdk.agents.adapters.vercel.routing import (
+    VERCEL_MESSAGE_PROTOCOL,
+    VERCEL_MESSAGE_PROTOCOL_VERSION,
     inject_stream_session_id,
     make_load_session_endpoint,
     resolve_session_id,
@@ -67,6 +69,11 @@ async def test_inject_stream_session_id_stamps_first_start_part():
 _UI_MESSAGE = {"role": "user", "parts": [{"type": "text", "text": "hello"}]}
 
 
+def _assert_vercel_message_protocol(response):
+    assert response.headers["x-ag-messages-format"] == VERCEL_MESSAGE_PROTOCOL
+    assert response.headers["x-ag-messages-version"] == VERCEL_MESSAGE_PROTOCOL_VERSION
+
+
 def _build_client() -> TestClient:
     app = FastAPI()
 
@@ -78,7 +85,13 @@ def _build_client() -> TestClient:
         return await call_next(request)
 
     @route("/", app=app, flags={"is_agent": True})
-    async def agent(messages=None, inputs=None, parameters=None, stream=None):
+    async def agent(
+        messages=None,
+        inputs=None,
+        parameters=None,
+        stream=None,
+        session_id=None,
+    ):
         if stream:
 
             async def gen():
@@ -89,7 +102,12 @@ def _build_client() -> TestClient:
                 yield {"type": "finish"}
 
             return gen()
-        return {"role": "assistant", "content": "hi", "echoed": messages}
+        return {
+            "role": "assistant",
+            "content": "hi",
+            "echoed": messages,
+            "session_id": session_id,
+        }
 
     return TestClient(app)
 
@@ -145,9 +163,11 @@ def client():
 def test_messages_json_mints_session_and_folds_conversation(client):
     res = client.post("/messages", json={"data": {"messages": [_UI_MESSAGE]}})
     assert res.status_code == 200
+    _assert_vercel_message_protocol(res)
     body = res.json()
     assert body["session_id"].startswith("sess_")
     assert body["data"]["outputs"]["content"] == "hi"
+    assert body["data"]["outputs"]["session_id"] == body["session_id"]
     # The Vercel UIMessage was folded to a neutral {role, content} message for the handler.
     assert body["data"]["outputs"]["echoed"] == [{"role": "user", "content": "hello"}]
 
@@ -158,7 +178,9 @@ def test_messages_echoes_supplied_session_id(client):
         json={"session_id": "sess_keep", "data": {"messages": [_UI_MESSAGE]}},
     )
     assert res.status_code == 200
+    _assert_vercel_message_protocol(res)
     assert res.json()["session_id"] == "sess_keep"
+    assert res.json()["data"]["outputs"]["session_id"] == "sess_keep"
 
 
 def test_messages_sse_streams_with_done_and_session_in_start(client):
@@ -168,6 +190,7 @@ def test_messages_sse_streams_with_done_and_session_in_start(client):
         json={"session_id": "sess_abc", "data": {"messages": [_UI_MESSAGE]}},
     )
     assert res.status_code == 200
+    _assert_vercel_message_protocol(res)
     assert res.headers["x-vercel-ai-ui-message-stream"] == "v1"
     text = res.text
     assert '"sessionId": "sess_abc"' in text  # stamped onto the start part
@@ -208,6 +231,7 @@ def test_messages_sse_preserves_json_error_before_stream():
         )
 
     assert response.status_code == 500
+    _assert_vercel_message_protocol(response)
     assert response.headers["content-type"].startswith("application/json")
     assert "x-vercel-ai-ui-message-stream" not in response.headers
     body = response.json()
@@ -222,11 +246,13 @@ def test_messages_rejects_invalid_session_id(client):
         "/messages", json={"session_id": "bad id!", "data": {"messages": []}}
     )
     assert res.status_code == 400
+    _assert_vercel_message_protocol(res)
 
 
 def test_load_session_returns_stub_history(client):
     res = client.post("/load-session", json={"session_id": "sess_abc"})
     assert res.status_code == 200
+    _assert_vercel_message_protocol(res)
     assert res.json() == {"session_id": "sess_abc", "messages": []}
 
 
@@ -244,6 +270,8 @@ async def test_load_session_uses_session_store_port():
     response = await endpoint(None, LoadSessionRequest(session_id="sess_abc"))
 
     assert response.status_code == 200
+    assert response.headers["x-ag-messages-format"] == VERCEL_MESSAGE_PROTOCOL
+    assert response.headers["x-ag-messages-version"] == VERCEL_MESSAGE_PROTOCOL_VERSION
     assert json.loads(response.body) == {
         "session_id": "sess_abc",
         "messages": [
