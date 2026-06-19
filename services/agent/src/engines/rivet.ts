@@ -65,6 +65,7 @@ import {
   type ToolCallbackContext,
   messageText,
   resolvePromptText,
+  resolveRunSessionId,
 } from "../protocol.ts";
 
 const require = createRequire(import.meta.url);
@@ -817,6 +818,7 @@ export async function runRivet(
       cwd,
       sessionInit: { cwd, mcpServers },
     });
+    const sessionId = resolveRunSessionId(request, session.id);
 
     // Resolve the model first: when the harness rejects the requested id and keeps its
     // own default (e.g. Claude ignores "gpt-5.5"), `model` is undefined and the chat span
@@ -838,7 +840,7 @@ export async function runRivet(
 
     run.start({
       prompt,
-      sessionId: session.id,
+      sessionId,
       messages: [...priorMessages(request), { role: "user", content: prompt }],
     });
 
@@ -922,7 +924,7 @@ export async function runRivet(
       // `streamingDeltas` advertises end-to-end live deltas, which is only true when a live
       // sink is wired. The one-shot path reports false even when the harness produces deltas.
       capabilities: { ...capabilities, streamingDeltas: !!emit && capabilities.streamingDeltas },
-      sessionId: session.id,
+      sessionId,
       model: model ?? request.model,
       traceId: run.traceId(),
     };

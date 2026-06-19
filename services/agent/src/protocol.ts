@@ -189,7 +189,7 @@ export interface AgentRunRequest {
   harness?: string;
   /** Sandbox for the rivet backend ("local" / "daytona"). */
   sandbox?: string;
-  /** Continue a prior run by replaying its history. */
+  /** External conversation id. The cold runtime still receives history in `messages`. */
   sessionId?: string;
   /** Provider API keys as env vars ({OPENAI_API_KEY,...}), resolved from the vault. */
   secrets?: Record<string, string>;
@@ -287,4 +287,9 @@ export function resolvePromptText(request: AgentRunRequest): string {
     }
   }
   return "";
+}
+
+/** Prefer the platform conversation id, falling back to the harness's ephemeral id. */
+export function resolveRunSessionId(request: AgentRunRequest, fallback: string): string {
+  return request.sessionId && request.sessionId.trim() ? request.sessionId : fallback;
 }

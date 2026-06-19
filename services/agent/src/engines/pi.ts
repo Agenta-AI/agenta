@@ -41,6 +41,7 @@ import {
   type HarnessCapabilities,
   type ResolvedToolSpec,
   type ToolCallbackContext,
+  resolveRunSessionId,
   resolvePromptText,
 } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA } from "../tools/callback.ts";
@@ -299,7 +300,8 @@ export async function runPi(
       }));
 
       // Hand the session id + model to the extension so spans carry them.
-      otel.config.sessionId = session.sessionId;
+      const sessionId = resolveRunSessionId(request, session.sessionId);
+      otel.config.sessionId = sessionId;
       otel.config.provider = model.provider;
       otel.config.requestModel = model.id;
 
@@ -329,7 +331,6 @@ export async function runPi(
       await session.prompt(prompt);
 
       const output = streamed.trim() || extractAssistantText(session.messages);
-      const sessionId = session.sessionId;
       const stopReason = lastStopReason(session.messages);
       const usage = otel.usage();
 

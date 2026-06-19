@@ -85,6 +85,18 @@ async def test_invoke_runs_backend_lifecycle(patched):
     assert backend.shutdown_calls == 1  # cleanup() tears the backend down
 
 
+async def test_messages_session_id_reaches_session_config(patched):
+    backend, _ = patched
+
+    await app._agent(
+        messages=[{"role": "user", "content": "hi"}],
+        parameters={"agent": {"harness": "pi"}},
+        session_id="sess_request",
+    )
+
+    assert backend.created_session_ids == ["sess_request"]
+
+
 async def test_invoke_cross_harness_same_body_divergent_configs(
     monkeypatch, fake_backend
 ):

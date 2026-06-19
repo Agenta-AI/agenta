@@ -11,7 +11,11 @@
 import assert from "node:assert/strict";
 
 import { messageTranscript, buildTurnText } from "../src/engines/rivet.ts";
-import type { AgentRunRequest, ContentBlock } from "../src/protocol.ts";
+import {
+  resolveRunSessionId,
+  type AgentRunRequest,
+  type ContentBlock,
+} from "../src/protocol.ts";
 
 // --- messageTranscript -------------------------------------------------------
 assert.equal(messageTranscript("hello"), "hello");
@@ -28,6 +32,13 @@ assert.equal(
   messageTranscript([{ type: "tool_result", toolName: "send", output: "boom", isError: true }]),
   "[send error: boom]",
 );
+
+// --- session id metadata ------------------------------------------------------
+assert.equal(
+  resolveRunSessionId({ sessionId: "sess_platform" }, "runner-ephemeral"),
+  "sess_platform",
+);
+assert.equal(resolveRunSessionId({}, "runner-ephemeral"), "runner-ephemeral");
 
 // --- buildTurnText keeps a resolved tool turn in the replay ------------------
 {

@@ -77,6 +77,7 @@ async def _agent(
     messages: Optional[List[Any]] = None,
     parameters: Optional[Dict] = None,
     stream: Optional[bool] = None,
+    session_id: Optional[str] = None,
 ):
     params = parameters or {}
 
@@ -98,6 +99,7 @@ async def _agent(
         secrets=await resolve_harness_secrets(),
         permission_policy=selection.permission_policy,
         trace=trace_context(),
+        session_id=session_id,
         builtin_names=resources.tools.builtin_names,
         tool_specs=resources.tools.tool_specs,
         tool_callback=resources.tools.tool_callback,

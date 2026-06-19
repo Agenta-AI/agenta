@@ -85,6 +85,7 @@ class FakeBackend(Backend):
         self.shutdown_calls = 0
         # Every harness-shaped config that reached the backend boundary, in call order.
         self.created_configs: list = []
+        self.created_session_ids: list[Optional[str]] = []
 
     async def setup(self) -> None:
         self.setup_calls += 1
@@ -99,6 +100,7 @@ class FakeBackend(Backend):
         self, sandbox, config, *, harness, secrets=None, trace=None, session_id=None
     ) -> _FakeSession:
         self.created_configs.append(config)
+        self.created_session_ids.append(session_id)
         return _FakeSession(self._result)
 
 
