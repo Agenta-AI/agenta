@@ -1,4 +1,4 @@
-"""OAuth state signing utilities for tool connection callbacks."""
+"""OAuth state signing utilities for connection callbacks."""
 
 import base64
 import hashlib

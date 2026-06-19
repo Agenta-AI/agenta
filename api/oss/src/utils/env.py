@@ -510,6 +510,7 @@ class ComposioConfig(BaseModel):
 
     api_key: str | None = os.getenv("COMPOSIO_API_KEY")
     api_url: str = os.getenv("COMPOSIO_API_URL", "https://backend.composio.dev/api/v3")
+    webhook_secret: str | None = os.getenv("COMPOSIO_WEBHOOK_SECRET")
 
     @property
     def enabled(self) -> bool:

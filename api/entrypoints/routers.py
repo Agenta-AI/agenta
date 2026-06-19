@@ -134,11 +134,24 @@ from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
 
 from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.apis.fastapi.accounts.router import PlatformAdminAccountsRouter
-from oss.src.dbs.postgres.tools.dao import ToolsDAO
+from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
+from oss.src.core.gateway.connections.providers.composio import (
+    ComposioConnectionsAdapter,
+)
+from oss.src.core.gateway.connections.registry import ConnectionsGatewayRegistry
+from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
 from oss.src.apis.fastapi.tools.router import ToolsRouter
+from oss.src.dbs.postgres.triggers.dao import TriggersDAO
+from oss.src.core.triggers.providers.composio import ComposioTriggersAdapter
+from oss.src.core.triggers.registry import TriggersGatewayRegistry
+from oss.src.core.triggers.service import TriggersService
+from oss.src.apis.fastapi.triggers.router import TriggersRouter
+from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
+from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
+from taskiq_redis import RedisStreamBroker
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 
 
@@ -204,9 +217,19 @@ async def lifespan(*args, **kwargs):
     warn_deprecated_env_vars()
     validate_required_env_vars()
 
+    await _triggers_broker.startup()
+
     yield
 
+    await _triggers_broker.shutdown()
+
     for adapter in _composio_adapters.values():
+        await adapter.close()
+
+    for adapter in _composio_connections_adapters.values():
+        await adapter.close()
+
+    for adapter in _composio_triggers_adapters.values():
         await adapter.close()
 
     await _transactions_engine.close()
@@ -300,6 +323,11 @@ _OPENAPI_TAGS = [
     {
         "name": "Tools",
         "description": "External tool connections and OAuth integrations available to applications.",
+    },
+    # --
+    {
+        "name": "Triggers",
+        "description": "Inbound provider event triggers and their watchable event catalog.",
     },
     # --
     {
@@ -439,7 +467,7 @@ environments_dao = GitDAO(
 evaluations_dao = EvaluationsDAO(engine=_transactions_engine)
 folders_dao = FoldersDAO(engine=_transactions_engine)
 
-tools_dao = ToolsDAO(engine=_transactions_engine)
+connections_dao = ConnectionsDAO(engine=_transactions_engine)
 
 # SERVICES ---------------------------------------------------------------------
 
@@ -574,6 +602,23 @@ simple_queues_service = SimpleQueuesService(
     simple_evaluations_service=simple_evaluations_service,
 )
 
+# Connections adapter + service (owns gateway_connections; consumed by tools)
+_composio_connections_adapters = {}
+if env.composio.enabled:
+    _composio_connections_adapters["composio"] = ComposioConnectionsAdapter(
+        api_key=env.composio.api_key,  # type: ignore[arg-type]  # guarded by .enabled
+        api_url=env.composio.api_url,
+    )
+
+connections_adapter_registry = ConnectionsGatewayRegistry(
+    adapters=_composio_connections_adapters,
+)
+
+connections_service = ConnectionsService(
+    connections_dao=connections_dao,
+    adapter_registry=connections_adapter_registry,
+)
+
 # Tools adapter + service
 _composio_adapters = {}
 if env.composio.enabled:
@@ -589,8 +634,48 @@ tools_adapter_registry = ToolsGatewayRegistry(
 )
 
 tools_service = ToolsService(
-    tools_dao=tools_dao,
+    connections_service=connections_service,
     adapter_registry=tools_adapter_registry,
+)
+
+# Triggers adapter + service
+_composio_triggers_adapters = {}
+if env.composio.enabled:
+    _composio_triggers_adapters["composio"] = ComposioTriggersAdapter(
+        api_key=env.composio.api_key,  # type: ignore[arg-type]  # guarded by .enabled
+        api_url=env.composio.api_url,
+    )
+
+triggers_adapter_registry = TriggersGatewayRegistry(
+    adapters=_composio_triggers_adapters,
+)
+
+triggers_dao = TriggersDAO(engine=_transactions_engine)
+
+triggers_service = TriggersService(
+    adapter_registry=triggers_adapter_registry,
+    triggers_dao=triggers_dao,
+    connections_service=connections_service,
+)
+
+# Producer side of the inbound dispatch pipeline: the ingress route enqueues
+# `triggers.dispatch` tasks here; entrypoints/worker_triggers.py consumes them.
+_triggers_broker = RedisStreamBroker(
+    url=env.redis.uri_durable,
+    queue_name="queues:triggers",
+    consumer_group_name="api-triggers-producer",
+    maxlen=100_000,
+    approximate=True,
+)
+
+_triggers_dispatcher = TriggersDispatcher(
+    triggers_dao=triggers_dao,
+    workflows_service=workflows_service,
+)
+
+_triggers_worker = TriggersWorker(
+    broker=_triggers_broker,
+    dispatcher=_triggers_dispatcher,
 )
 
 _t_services_done = time.perf_counter() - _t_services
@@ -705,6 +790,11 @@ simple_queues = SimpleQueuesRouter(
 
 tools = ToolsRouter(
     tools_service=tools_service,
+)
+
+triggers = TriggersRouter(
+    triggers_service=triggers_service,
+    dispatch_task=_triggers_worker.dispatch_trigger,
 )
 
 simple_traces = SimpleTracesRouter(
@@ -1071,6 +1161,19 @@ app.include_router(
     router=tools.router,
     prefix="/preview/tools",
     tags=["Tools"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=triggers.router,
+    prefix="/triggers",
+    tags=["Triggers"],
+)
+
+app.include_router(
+    router=triggers.router,
+    prefix="/preview/triggers",
+    tags=["Triggers"],
     include_in_schema=False,
 )
 

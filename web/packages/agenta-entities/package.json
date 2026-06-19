@@ -50,6 +50,7 @@
         "./event/state": "./src/event/state/index.ts",
         "./secret": "./src/secret/index.ts",
         "./gatewayTool": "./src/gatewayTool/index.ts",
+        "./gatewayTrigger": "./src/gatewayTrigger/index.ts",
         "./environment": "./src/environment/index.ts",
         "./simpleQueue": "./src/simpleQueue/index.ts",
         "./simpleQueue/etl": "./src/simpleQueue/etl/index.ts",

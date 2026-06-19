@@ -46,11 +46,12 @@ from oss.src.core.tools.exceptions import (
     ConnectionInactiveError,
     ConnectionInvalidError,
     ConnectionNotFoundError,
+    ProviderNotFoundError,
 )
 from oss.src.core.tools.service import (
     ToolsService,
 )
-from oss.src.core.tools.utils import decode_oauth_state
+from oss.src.core.gateway.connections.utils import decode_oauth_state
 from oss.src.utils.env import env
 
 _SLUG_SEGMENT_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
@@ -66,13 +67,18 @@ log = get_module_logger(__name__)
 
 
 def handle_adapter_exceptions():
-    """Convert only upstream 401 AdapterError failures to 424 Failed Dependency."""
+    """Map unknown providers to 404 and upstream 401 failures to 424."""
 
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
+            except ProviderNotFoundError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=str(e),
+                ) from e
             except AdapterError as e:
                 cause = e.__cause__
                 if not (

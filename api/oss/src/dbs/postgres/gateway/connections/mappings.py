@@ -2,12 +2,12 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from oss.src.core.tools.dtos import (
-    ToolConnection,
-    ToolConnectionCreate,
-    ToolConnectionStatus,
+from oss.src.core.gateway.connections.dtos import (
+    Connection,
+    ConnectionCreate,
+    ConnectionStatus,
 )
-from oss.src.dbs.postgres.tools.dbes import ToolConnectionDBE
+from oss.src.dbs.postgres.gateway.connections.dbes import ConnectionDBE
 
 
 def map_connection_create_to_dbe(
@@ -15,8 +15,8 @@ def map_connection_create_to_dbe(
     project_id: UUID,
     user_id: UUID,
     #
-    dto: ToolConnectionCreate,
-) -> ToolConnectionDBE:
+    dto: ConnectionCreate,
+) -> ConnectionDBE:
     # Serialize provider-specific data to dict if present
     data = None
     if dto.data:
@@ -30,7 +30,7 @@ def map_connection_create_to_dbe(
     flags.setdefault("is_active", True)
     flags.setdefault("is_valid", False)
 
-    return ToolConnectionDBE(
+    return ConnectionDBE(
         project_id=project_id,
         slug=dto.slug,
         name=dto.name,
@@ -50,17 +50,17 @@ def map_connection_create_to_dbe(
 
 def map_connection_dbe_to_dto(
     *,
-    dbe: ToolConnectionDBE,
-) -> ToolConnection:
+    dbe: ConnectionDBE,
+) -> Connection:
     # Keep provider data generic in core DTOs.
     data = dbe.data or None
 
     # Parse status
     status = None
     if dbe.status:
-        status = ToolConnectionStatus(**dbe.status)
+        status = ConnectionStatus(**dbe.status)
 
-    return ToolConnection(
+    return Connection(
         id=dbe.id,
         slug=dbe.slug,
         name=dbe.name,
