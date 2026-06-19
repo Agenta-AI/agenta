@@ -2,20 +2,25 @@
  * AgentConfigControl
  *
  * One composite control for the whole agent config, dispatched from
- * `x-ag-type: "agent_config"` (see SchemaPropertyRenderer). It reuses the existing
- * controls rather than inventing new ones: the model selector (GroupedChoiceControl), the
- * tool picker (ToolSelectorPopover + ToolItemControl), enum selects (harness, sandbox,
- * permission policy), and a textarea (instructions). The backend advertises the inline
- * schema and reads this value (services/oss/src/agent/schemas.py + inputs.py).
+ * `x-ag-type: "agent_config"` / `x-ag-type-ref: "agent_config"` (see SchemaPropertyRenderer).
+ * It reuses the existing controls rather than inventing new ones: the model selector
+ * (GroupedChoiceControl), the tool picker (ToolSelectorPopover + ToolItemControl), the MCP
+ * server editor (McpServerItemControl), enum selects (harness, sandbox, permission policy),
+ * and a textarea (agents_md). The field shape is the `agent_config` catalog type generated
+ * from the SDK model (AgentConfigSchema in agenta.sdk.utils.types); the agent service ships a
+ * thin `x-ag-type-ref` the playground resolves and reads back (services/oss/src/agent).
  */
 import {useCallback, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
+import {Plus} from "@phosphor-icons/react"
+import {Button, Typography} from "antd"
 
 import {EnumSelectControl} from "./EnumSelectControl"
 import {GroupedChoiceControl} from "./GroupedChoiceControl"
+import {McpServerItemControl} from "./McpServerItemControl"
 import {TextInputControl} from "./TextInputControl"
 import {ToolItemControl} from "./ToolItemControl"
 import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover"
@@ -110,14 +115,49 @@ export function AgentConfigControl({
         [tools],
     )
 
+    // MCP servers are a sibling of tools: a flat array on the agent config. Each entry is the
+    // open McpServer shape (name + stdio command/args/env or remote url, secret names), edited
+    // as JSON the backend resolver parses identically to `tools`.
+    const mcpServers = useMemo(
+        () => (Array.isArray(config.mcp_servers) ? (config.mcp_servers as unknown[]) : []),
+        [config.mcp_servers],
+    )
+    const setMcpServers = useCallback(
+        (next: unknown[]) => setField("mcp_servers", next),
+        [setField],
+    )
+    const handleAddMcpServer = useCallback(
+        () => setMcpServers([...mcpServers, {name: "", transport: "stdio", command: "", args: []}]),
+        [mcpServers, setMcpServers],
+    )
+    const handleMcpServerChange = useCallback(
+        (index: number, next: Record<string, unknown>) => {
+            const updated = [...mcpServers]
+            updated[index] = next
+            setMcpServers(updated)
+        },
+        [mcpServers, setMcpServers],
+    )
+    const handleMcpServerDelete = useCallback(
+        (index: number) => setMcpServers(mcpServers.filter((_, i) => i !== index)),
+        [mcpServers, setMcpServers],
+    )
+
+    // ``agents_md`` is the catalog-schema field; ``instructions`` is read as a fallback so an
+    // already-stored agent config (the legacy key) still populates the editor.
+    const agentsMd =
+        (config.agents_md as string | null | undefined) ??
+        (config.instructions as string | null | undefined) ??
+        null
+
     return (
         <div className={cn("flex flex-col gap-3", className)}>
             <TextInputControl
-                schema={props.instructions}
+                schema={props.agents_md}
                 label="Instructions"
-                value={(config.instructions as string | null) ?? null}
-                onChange={(v) => setField("instructions", v)}
-                description={props.instructions?.description as string | undefined}
+                value={agentsMd}
+                onChange={(v) => setField("agents_md", v)}
+                description={props.agents_md?.description as string | undefined}
                 withTooltip={withTooltip}
                 disabled={disabled}
                 multiline
@@ -172,6 +212,49 @@ export function AgentConfigControl({
                             selectedTools={tools as ToolObj[]}
                             existingToolCount={tools.length}
                         />
+                    </div>
+                )}
+            </div>
+
+            {/* MCP servers */}
+            <div className="flex flex-col gap-2">
+                <Typography.Text className="text-sm font-medium">MCP servers</Typography.Text>
+                {mcpServers.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                        {mcpServers.map((server, index) => {
+                            const control = (
+                                <McpServerItemControl
+                                    key={`mcp-${index}`}
+                                    value={server}
+                                    onChange={(v) => handleMcpServerChange(index, v)}
+                                    onDelete={
+                                        disabled ? undefined : () => handleMcpServerDelete(index)
+                                    }
+                                    disabled={disabled}
+                                />
+                            )
+                            return EditorProvider ? (
+                                <EditorProvider
+                                    key={`mcp-editor-${index}`}
+                                    codeOnly
+                                    language="json"
+                                    showToolbar={false}
+                                    enableTokens={false}
+                                    id={`agent-mcp-editor-${index}`}
+                                >
+                                    {control}
+                                </EditorProvider>
+                            ) : (
+                                control
+                            )
+                        })}
+                    </div>
+                )}
+                {!disabled && (
+                    <div>
+                        <Button size="small" icon={<Plus size={14} />} onClick={handleAddMcpServer}>
+                            Add MCP server
+                        </Button>
                     </div>
                 )}
             </div>

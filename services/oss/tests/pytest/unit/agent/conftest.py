@@ -59,7 +59,15 @@ class _FakeSession(Session):
 
 
 class FakeBackend(Backend):
-    """Echoes a fixed result, regardless of harness. Records lifecycle for assertions."""
+    """Echoes a fixed result, regardless of harness. Records lifecycle for assertions.
+
+    Crucially it also records the *harness-shaped* config each ``create_session`` receives
+    (the ``PiAgentConfig`` / ``ClaudeAgentConfig`` / ``AgentaAgentConfig`` the harness
+    produced). This is the backend boundary where per-harness translation surfaces, so a
+    handler test can assert the response body is identical across harnesses *and* that the
+    translated configs diverge as designed (Pi keeps built-ins and forces auto; Claude drops
+    built-ins and honors the policy; Agenta unions forced tools and carries skills).
+    """
 
     def __init__(
         self,
@@ -75,6 +83,8 @@ class FakeBackend(Backend):
         self._result = result if result is not None else AgentResult(output="echo")
         self.setup_calls = 0
         self.shutdown_calls = 0
+        # Every harness-shaped config that reached the backend boundary, in call order.
+        self.created_configs: list = []
 
     async def setup(self) -> None:
         self.setup_calls += 1
@@ -88,6 +98,7 @@ class FakeBackend(Backend):
     async def create_session(
         self, sandbox, config, *, harness, secrets=None, trace=None, session_id=None
     ) -> _FakeSession:
+        self.created_configs.append(config)
         return _FakeSession(self._result)
 
 

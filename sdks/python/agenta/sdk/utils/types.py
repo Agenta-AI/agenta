@@ -8,6 +8,8 @@ from pydantic import ConfigDict, BaseModel, HttpUrl, RootModel
 from pydantic import Field, model_validator, AliasChoices
 
 
+from agenta.sdk.agents.mcp import MCPServerConfig
+from agenta.sdk.agents.tools import ToolConfig
 from agenta.sdk.utils.assets import supported_llm_models, model_metadata
 from agenta.sdk.utils.helpers import _PLACEHOLDER_RE
 from agenta.sdk.utils.rendering import (
@@ -1052,6 +1054,81 @@ def _model_catalog_type() -> dict:
     }
 
 
+_DEFAULT_AGENT_MODEL = "gpt-5.5"
+_DEFAULT_AGENTS_MD = (
+    "You are a friendly hello-world agent running on the Agenta agent service.\n\n"
+    "- Greet the user warmly.\n"
+    "- Answer the user's message in one or two short sentences."
+)
+
+
+class AgentConfigSchema(AgSchemaMixin):
+    """The playground's editable agent config (the ``agent`` element), as one semantic type.
+
+    This is the schema-generation counterpart to the runtime :class:`agenta.sdk.agents.AgentConfig`
+    parser: it exists only to emit a rich JSON Schema for the ``agent_config`` control, so the
+    field shapes live in Pydantic (single source of truth) instead of a hand-written literal.
+    It deliberately composes the editable fields the control surfaces — the neutral config
+    (``agents_md``/``model``/``tools``/``mcp_servers``) plus the run selection
+    (``harness``/``sandbox``/``permission_policy``) — and types ``tools``/``mcp_servers`` with the
+    real tool-def models so the playground gets typed editors. The runtime ``AgentConfig`` stays
+    permissive (``List[Any]``) because its job is to coerce the loose shapes the playground emits;
+    this model is strict because its job is to describe them.
+    """
+
+    __ag_type__ = "agent_config"
+
+    agents_md: str = Field(
+        default=_DEFAULT_AGENTS_MD,
+        title="Instructions",
+        description="The agent's system prompt (its AGENTS.md).",
+        json_schema_extra={"x-ag-type": "textarea"},
+    )
+    model: str = Field(
+        default=_DEFAULT_AGENT_MODEL,
+        title="Model",
+        description="Model the agent runs on.",
+        json_schema_extra={"x-parameter": "grouped_choice"},
+    )
+    tools: List[ToolConfig] = Field(
+        default_factory=list,
+        title="Tools",
+        description=(
+            "Runnable tools the agent can call: harness built-ins, server-side gateway "
+            "actions (e.g. Composio), sandboxed code, or client-fulfilled tools."
+        ),
+    )
+    mcp_servers: List[MCPServerConfig] = Field(
+        default_factory=list,
+        title="MCP servers",
+        description=(
+            "Declared MCP servers exposed to the agent. The backend resolves each server's "
+            "secret env from the vault at run time; tokens never live in the config."
+        ),
+    )
+    harness: Literal["pi", "claude", "agenta"] = Field(
+        default="pi",
+        title="Harness",
+        description=(
+            "Coding agent to drive: pi, claude, or agenta (pi with Agenta's forced "
+            "skills, tools, and base instructions)."
+        ),
+    )
+    sandbox: Literal["local", "daytona"] = Field(
+        default="local",
+        title="Sandbox",
+        description="Where the agent runs: local daemon or a Daytona sandbox.",
+    )
+    permission_policy: Literal["auto", "deny"] = Field(
+        default="auto",
+        title="Permission policy",
+        description=(
+            "How a permission-gating harness (e.g. Claude Code) handles tool-use prompts "
+            "in this headless run: auto-approve or deny."
+        ),
+    )
+
+
 CATALOG_TYPES = {
     Message.ag_type(): _dereference_schema(Message.model_json_schema()),
     Messages.ag_type(): _dereference_schema(Messages.model_json_schema()),
@@ -1065,4 +1142,7 @@ CATALOG_TYPES = {
     AgPermissions.ag_type(): _dereference_schema(AgPermissions.model_json_schema()),
     AgResponse.ag_type(): _dereference_schema(AgResponse.model_json_schema()),
     PromptTemplate.ag_type(): _dereference_schema(PromptTemplate.model_json_schema()),
+    AgentConfigSchema.ag_type(): _dereference_schema(
+        AgentConfigSchema.model_json_schema()
+    ),
 }

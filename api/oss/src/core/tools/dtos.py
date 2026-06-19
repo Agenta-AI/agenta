@@ -1,6 +1,7 @@
 from enum import Enum
-from typing import Annotated, Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
+from agenta.sdk.agents.tools import BuiltinToolConfig, GatewayToolConfig
 from agenta.sdk.models.workflows import JsonSchemas
 from pydantic import BaseModel, Field
 
@@ -250,28 +251,9 @@ class ToolExecutionResponse(BaseModel):
 # them into model-ready specs at invoke time (see ToolsService.resolve_agent_tools).
 
 
-class AgentBuiltinTool(BaseModel):
-    """A Pi built-in tool, referenced by name (e.g. ``read``, ``bash``)."""
-
-    type: Literal["builtin"] = "builtin"
-    name: str
-
-
-class AgentComposioTool(BaseModel):
-    """A Composio action, carrying the slug segments ``/tools/call`` parses."""
-
-    type: Literal["composio"] = "composio"
-    integration: str
-    action: str
-    connection: str
-    # Function name shown to the model. Defaults to ``{integration}__{action}``.
-    name: Optional[str] = None
-
-
-AgentToolReference = Annotated[
-    Union[AgentBuiltinTool, AgentComposioTool],
-    Field(discriminator="type"),
-]
+AgentBuiltinTool = BuiltinToolConfig
+AgentComposioTool = GatewayToolConfig
+AgentToolReference = Union[BuiltinToolConfig, GatewayToolConfig]
 
 
 class ResolvedAgentTool(BaseModel):
@@ -294,5 +276,5 @@ class AgentToolsResolution(BaseModel):
     ``customTools`` whose ``execute`` routes through ``/tools/call``.
     """
 
-    builtins: List[str] = []
-    custom: List[ResolvedAgentTool] = []
+    builtins: List[str] = Field(default_factory=list)
+    custom: List[ResolvedAgentTool] = Field(default_factory=list)

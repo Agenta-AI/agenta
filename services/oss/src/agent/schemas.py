@@ -35,15 +35,17 @@ AGENT_INPUTS_SCHEMA = {
 }
 
 # The agent config element: one composite control the playground renders for the whole
-# agent config, instead of reusing `prompt-template` plus loose params. The
-# `x-ag-type: agent_config` marker is what the playground dispatches to the AgentConfigControl
-# (web/packages/agenta-entity-ui/.../AgentConfigControl.tsx). The schema is inline (not an
-# `x-ag-type-ref`), so it needs no `/ag-types` registration; the control reuses the existing
-# model selector, tool picker, and enum selects. agent.py reads this value (see inputs.py).
+# agent config, instead of reusing `prompt-template` plus loose params. The field shape is
+# the `agent_config` catalog type (AgentConfigSchema in agenta.sdk.utils.types), so this is a
+# thin `x-ag-type-ref` the playground resolves against `/workflows/catalog/types/agent_config`
+# and dispatches to the AgentConfigControl (web/packages/agenta-entity-ui/.../AgentConfigControl.tsx).
+# Generating the schema from the model keeps the typed tools/mcp_servers in one place; we only
+# carry the default here (what the playground pre-fills). agent.py reads this value (see inputs.py).
 _DEFAULT_AGENT_CONFIG = {
-    "instructions": _DEFAULT_AGENTS_MD,
+    "agents_md": _DEFAULT_AGENTS_MD,
     "model": _DEFAULT_MODEL,
     "tools": [],
+    "mcp_servers": [],
     "harness": "pi",
     "sandbox": "local",
     "permission_policy": "auto",
@@ -51,61 +53,9 @@ _DEFAULT_AGENT_CONFIG = {
 
 AGENT_CONFIG_SCHEMA = {
     "type": "object",
-    "x-ag-type": "agent_config",
+    "x-ag-type-ref": "agent_config",
     "title": "Agent",
-    "description": "The agent's instructions, model, tools, and runtime.",
-    "properties": {
-        "instructions": {
-            "type": "string",
-            "x-ag-type": "textarea",
-            "title": "Instructions",
-            "description": "The agent's system prompt (its AGENTS.md).",
-            "default": _DEFAULT_AGENTS_MD,
-        },
-        "model": {
-            "type": "string",
-            "x-parameter": "grouped_choice",
-            "title": "Model",
-            "default": _DEFAULT_MODEL,
-        },
-        "tools": {
-            "type": "array",
-            "title": "Tools",
-            "description": (
-                "Runnable tools the agent can call. Picked from connected providers "
-                "(e.g. Composio) and run server-side via /tools/call."
-            ),
-            "items": {"type": "object", "additionalProperties": True},
-            "default": [],
-        },
-        "harness": {
-            "type": "string",
-            "title": "Harness",
-            "enum": ["pi", "claude", "agenta"],
-            "default": "pi",
-            "description": (
-                "Coding agent to drive: pi, claude, or agenta (pi with Agenta's forced "
-                "skills, tools, and base instructions)."
-            ),
-        },
-        "sandbox": {
-            "type": "string",
-            "title": "Sandbox",
-            "enum": ["local", "daytona"],
-            "default": "local",
-            "description": "Where the agent runs: local daemon or a Daytona sandbox.",
-        },
-        "permission_policy": {
-            "type": "string",
-            "title": "Permission policy",
-            "enum": ["auto", "deny"],
-            "default": "auto",
-            "description": (
-                "How a permission-gating harness (e.g. Claude Code) handles tool-use "
-                "prompts in this headless run: auto-approve or deny."
-            ),
-        },
-    },
+    "description": "The agent's instructions, model, tools, MCP servers, and runtime.",
     "default": _DEFAULT_AGENT_CONFIG,
 }
 

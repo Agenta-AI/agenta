@@ -27,12 +27,13 @@ from agenta.sdk.agents import (
     SessionConfig,
     make_harness,
     to_messages,
+    ui_message_stream,
 )
 
 from oss.src.agent.config import load_config, wrapper_dir
 from oss.src.agent.schemas import AGENT_SCHEMAS
 from oss.src.agent.secrets import resolve_harness_secrets
-from oss.src.agent.tools import resolve_tools
+from oss.src.agent.tools import resolve_agent_resources
 from oss.src.agent.tracing import record_usage, trace_context
 
 
@@ -75,6 +76,7 @@ async def _agent(
     inputs: Optional[Dict[str, Any]] = None,
     messages: Optional[List[Any]] = None,
     parameters: Optional[Dict] = None,
+    stream: Optional[bool] = None,
 ):
     params = parameters or {}
 
@@ -86,22 +88,33 @@ async def _agent(
     )
 
     msgs = to_messages(messages or (inputs or {}).get("messages") or [])
-    builtins, custom_tools, tool_callback = await resolve_tools(agent_config.tools)
+    resources = await resolve_agent_resources(
+        tools=agent_config.tools,
+        mcp_servers=agent_config.mcp_servers,
+    )
 
     session_config = SessionConfig(
         agent=agent_config,
         secrets=await resolve_harness_secrets(),
         permission_policy=selection.permission_policy,
         trace=trace_context(),
-        builtin_tools=builtins,
-        custom_tools=custom_tools,
-        tool_callback=tool_callback,
+        builtin_names=resources.tools.builtin_names,
+        tool_specs=resources.tools.tool_specs,
+        tool_callback=resources.tools.tool_callback,
+        mcp_servers=resources.mcp_servers,
     )
 
     # The harness validates that the chosen backend can drive it; select_backend already
     # routes a claude harness or a non-local sandbox to rivet, so this never fails in
-    # practice. setup/cleanup own the backend lifecycle; prompt runs one cold turn.
+    # practice. setup/cleanup own the backend lifecycle; prompt/stream run one cold turn.
     harness = make_harness(selection.harness, Environment(select_backend(selection)))
+
+    # The `/messages` SSE path sets `stream`: return the Vercel UI Message Stream as an async
+    # generator (the normalizer turns it into a streaming response). `/invoke` and the
+    # `/messages` JSON path leave it unset and take the batch path below.
+    if stream:
+        return _agent_stream(harness, session_config, msgs)
+
     await harness.setup()
     try:
         result = await harness.prompt(session_config, msgs)
@@ -112,13 +125,34 @@ async def _agent(
     return {"role": "assistant", "content": result.output}
 
 
+async def _agent_stream(harness, session_config, msgs):
+    """Run one streaming turn and yield Vercel UI Message Stream parts.
+
+    Owns the environment lifecycle (``setup`` / ``cleanup``); the per-turn session is torn
+    down by the ``AgentRun``'s own cleanup hook when the stream drains. The ``session_id`` is
+    stamped onto the stream's ``start`` part by the endpoint, so it is not threaded here.
+    """
+    await harness.setup()
+    try:
+        run = await harness.stream(session_config, msgs)
+        async for part in ui_message_stream(run):
+            yield part
+        try:
+            record_usage(run.result().usage)
+        except Exception:  # result unavailable on a failed/aborted stream
+            pass
+    finally:
+        await harness.cleanup()
+
+
 def create_agent_app():
     app = ag.create_app()
     # No builtin URI yet: registering the agent as a first-class workflow type
     # (`agenta:builtin:agent:v0`) and its interface is WP-6. Here we register the handler
     # directly, so it gets an auto URI (`user:custom:...`) and runs locally.
     routed = ag.workflow(schemas=AGENT_SCHEMAS)(_agent)
-    ag.route("/", app=app, flags={"is_chat": True})(routed)
+    # is_agent gates the agent-only `/messages` + `/load-session` routes (next to /invoke).
+    ag.route("/", app=app, flags={"is_chat": True, "is_agent": True})(routed)
     return app
 
 
