@@ -411,8 +411,10 @@ services:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             # Agent workflow: reach the agent runner sidecar in-network.
             AGENTA_AGENT_PI_URL: http://agent-pi:8765
-            # Agent runtime (WP-8): drive the harness over ACP via a rivet daemon.
+            # Agent runtime: drive the harness over ACP via a rivet daemon.
             # Harness (pi/claude) and sandbox (local/daytona) are independent axes.
+            # The agent-pi sidecar files are introduced by PR #4778, so this compose
+            # wiring must land after #4778 or be reviewed with that branch applied.
             AGENTA_AGENT_RUNTIME: ${AGENTA_AGENT_RUNTIME:-rivet}
             AGENTA_AGENT_HARNESS: ${AGENTA_AGENT_HARNESS:-pi}
             AGENTA_AGENT_SANDBOX: ${AGENTA_AGENT_SANDBOX:-local}
@@ -437,6 +439,7 @@ services:
         # === IMAGE ================================================ #
         # Agent runner sidecar. The services container
         # calls it in-network at http://agent-pi:8765 (AGENTA_AGENT_PI_URL).
+        # The build context and Dockerfile come from PR #4778.
         build:
             context: ../../../services/agent
             dockerfile: docker/Dockerfile.dev
@@ -451,8 +454,8 @@ services:
         # Deliberately NO env_file: the Pi sandbox must not inherit the stack's
         # secrets (COMPOSIO_API_KEY, STRIPE/POSTHOG/GOOGLE keys, ...). Tools run
         # server-side via /tools/call, so the sandbox only needs its own port, the Pi
-        # login (mounted below), the OTLP export fallback, and — for the rivet `daytona`
-        # sandbox axis (WP-8) — the Daytona credentials the SDK reads to create sandboxes.
+        # login (mounted below), the OTLP export fallback, and the Daytona credentials
+        # the SDK reads for the rivet `daytona` sandbox axis.
         environment:
             PORT: "8765"
             PI_CODING_AGENT_DIR: /pi-agent
