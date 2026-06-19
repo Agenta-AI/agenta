@@ -25,6 +25,16 @@ class SubscriptionNotFoundError(TriggersError):
         super().__init__(f"Trigger subscription not found: {subscription_id}")
 
 
+class TriggerReferenceInvalid(TriggersError):
+    """Raised when a bound workflow reference cannot be resolved to a revision."""
+
+    def __init__(
+        self,
+        message: str = "Bound workflow reference could not be resolved.",
+    ):
+        super().__init__(message)
+
+
 class ConnectionNotFoundError(TriggersError):
     """Raised when a subscription references a connection that does not exist."""
 

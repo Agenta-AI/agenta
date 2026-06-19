@@ -218,6 +218,7 @@ class TriggersDAO(TriggersDAOInterface):
                 select(TriggerSubscriptionDBE)
                 .filter(
                     TriggerSubscriptionDBE.data["ti_id"].astext == trigger_id,
+                    TriggerSubscriptionDBE.deleted_at.is_(None),
                 )
                 .limit(1)
             )
@@ -243,6 +244,7 @@ class TriggersDAO(TriggersDAOInterface):
                 select(TriggerSubscriptionDBE)
                 .filter(
                     TriggerSubscriptionDBE.data["ti_id"].astext == trigger_id,
+                    TriggerSubscriptionDBE.deleted_at.is_(None),
                 )
                 .limit(1)
             )

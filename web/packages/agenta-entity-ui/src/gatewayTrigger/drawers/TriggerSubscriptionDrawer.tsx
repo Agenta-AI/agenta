@@ -12,6 +12,7 @@ import {
     type TriggerSubscriptionData,
     type TriggerSubscriptionEdit,
 } from "@agenta/entities/gatewayTrigger"
+import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {Editor} from "@agenta/ui/editor"
 import {Lightning} from "@phosphor-icons/react"
 import {Button, Divider, Drawer, Form, Input, Select, Spin, Switch, Typography, message} from "antd"
@@ -19,12 +20,18 @@ import {useAtom} from "jotai"
 
 import SchemaForm, {type SchemaFormHandle} from "../../gatewayTool/components/SchemaForm"
 import {
+    createWorkflowRevisionAdapter,
     EntityPicker,
-    workflowRevisionAdapter,
     type WorkflowRevisionSelectionResult,
 } from "../../selection"
 
 const DEFAULT_PROVIDER = "composio"
+
+// The bound reference is always `application_*` (see handleSubmit), so the picker
+// only offers application workflows (is_application=True).
+const applicationRevisionAdapter = createWorkflowRevisionAdapter({
+    workflowListAtom: appWorkflowsListQueryStateAtom,
+})
 
 // ---------------------------------------------------------------------------
 // TriggerSubscriptionDrawer (root) — create or edit a subscription.
@@ -82,6 +89,8 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
     const [eventKey, setEventKey] = useState("")
     const [enabled, setEnabled] = useState(true)
     const [workflowRevId, setWorkflowRevId] = useState<string | null>(null)
+    const [workflowSelection, setWorkflowSelection] =
+        useState<WorkflowRevisionSelectionResult | null>(null)
     const [workflowLabel, setWorkflowLabel] = useState<string | null>(null)
     const [inputsText, setInputsText] = useState("{}")
     const [inputsError, setInputsError] = useState<string | null>(null)
@@ -96,7 +105,10 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         setConnectionId(subscription.connection_id)
         setEventKey(subscription.data?.event_key ?? "")
         setEnabled(subscription.enabled ?? true)
-        const wfId = subscription.data?.references?.workflow_revision?.id ?? null
+        const wfId =
+            subscription.data?.references?.application_revision?.id ??
+            subscription.data?.references?.workflow_revision?.id ??
+            null
         setWorkflowRevId(wfId)
         setWorkflowLabel(wfId)
         setInputsText(JSON.stringify(subscription.data?.inputs_fields ?? {}, null, 2))
@@ -155,11 +167,22 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
             return
         }
 
+        // On a fresh pick, send the application family by the picker's ids (its
+        // leaf is the variant id). Without a re-pick (edit), resend the stored
+        // already-complete references. The BE completes the family either way.
+        const meta = workflowSelection?.metadata
+        const references = meta
+            ? {
+                  ...(meta.workflowId ? {application: {id: meta.workflowId}} : {}),
+                  application_variant: {id: workflowRevId},
+              }
+            : (subscription?.data?.references ?? {application_variant: {id: workflowRevId}})
+
         const data: TriggerSubscriptionData = {
             event_key: eventKey,
             trigger_config: triggerConfig,
             inputs_fields: inputsFields,
-            references: {workflow_revision: {id: workflowRevId}},
+            references,
         }
 
         try {
@@ -268,9 +291,10 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                         <div className="flex items-center gap-2">
                             <EntityPicker<WorkflowRevisionSelectionResult>
                                 variant="popover-cascader"
-                                adapter={workflowRevisionAdapter}
+                                adapter={applicationRevisionAdapter}
                                 onSelect={(selection) => {
                                     setWorkflowRevId(selection.id)
+                                    setWorkflowSelection(selection)
                                     setWorkflowLabel(selection.label)
                                 }}
                                 size="small"

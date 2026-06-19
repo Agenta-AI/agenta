@@ -25,10 +25,12 @@ from oss.src.core.triggers.dtos import (
 from oss.src.core.triggers.exceptions import (
     ConnectionNotFoundError,
     SubscriptionNotFoundError,
+    TriggerReferenceInvalid,
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
 from oss.src.core.triggers.utils import WebhookSecretResolver
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.workflows.service import WorkflowsService
 
@@ -273,40 +275,63 @@ class TriggersService:
         project_id: UUID,
         references: Optional[dict],
     ) -> None:
-        """Resolve the bound workflow ref to a runnable revision, in place.
+        """Complete the bound reference family in place, via the canonical retrieve.
 
-        The UI may send a variant id (or a bare/partial ref) under
-        ``workflow_revision``; resolve it to the actual workflow revision (by
-        revision id, else by variant id → latest) and rewrite id/slug/version so
-        the dispatcher's ``invoke_workflow`` finds the service uri (mirrors the
-        reference completion done on /deploy).
+        The FE sends a partial family under the proper prefix (``application`` /
+        ``evaluator``, or ``environment`` + ``application``). Delegate to
+        ``WorkflowsService.retrieve_workflow_revision`` (which resolves every
+        family, environment-backed included) and rebuild the completed family from
+        the resolved revision with ``build_retrieval_info`` — so the dispatcher's
+        ``invoke_workflow`` finds the service uri.
         """
         if not references or not self.workflows_service:
             return
 
-        ref = references.get("workflow_revision")
-        ref_id = getattr(ref, "id", None) if ref else None
-        if not ref_id:
+        def _ref(value):
+            if value is None:
+                return None
+            return value if isinstance(value, Reference) else Reference(**dict(value))
+
+        prefix = next(
+            (
+                p
+                for p in ("application", "evaluator", "workflow")
+                if any(references.get(k) for k in (p, f"{p}_variant", f"{p}_revision"))
+            ),
+            None,
+        )
+        environment_ref = _ref(references.get("environment"))
+        if prefix is None and environment_ref is None:
             return
 
-        revision = await self.workflows_service.fetch_workflow_revision(
+        key = None
+        if environment_ref is not None:
+            artifact = _ref(references.get("application") or references.get("workflow"))
+            artifact_slug = getattr(artifact, "slug", None)
+            key = f"{artifact_slug}.revision" if artifact_slug else None
+
+        revision, _, _ = await self.workflows_service.retrieve_workflow_revision(
             project_id=project_id,
-            workflow_revision_ref=Reference(id=ref_id),
+            environment_ref=environment_ref,
+            key=key,
+            workflow_ref=_ref(references.get(prefix)) if prefix else None,
+            workflow_variant_ref=(
+                _ref(references.get(f"{prefix}_variant")) if prefix else None
+            ),
+            workflow_revision_ref=(
+                _ref(references.get(f"{prefix}_revision")) if prefix else None
+            ),
         )
         if revision is None:
-            # Not a revision id — try it as a variant id (latest revision).
-            revision = await self.workflows_service.fetch_workflow_revision(
-                project_id=project_id,
-                workflow_variant_ref=Reference(id=ref_id),
+            raise TriggerReferenceInvalid(
+                "Bound workflow reference could not be resolved to a runnable revision."
             )
-        if revision is None:
-            return
 
-        references["workflow_revision"] = Reference(
-            id=revision.id,
-            slug=revision.slug,
-            version=revision.version,
-        )
+        entity_type = "application" if environment_ref is not None else prefix
+        info = build_retrieval_info(revision=revision, entity_type=entity_type)
+
+        references.clear()
+        references.update(info.references if info else {})
 
     async def create_subscription(
         self,
