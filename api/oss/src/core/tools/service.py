@@ -1,3 +1,4 @@
+import re
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
@@ -6,6 +7,11 @@ from oss.src.utils.env import env
 from oss.src.core.tools.utils import make_oauth_state
 
 from oss.src.core.tools.dtos import (
+    AgentBuiltinTool,
+    AgentComposioTool,
+    AgentToolReference,
+    AgentToolsResolution,
+    ResolvedAgentTool,
     ToolCatalogAction,
     ToolCatalogActionDetails,
     ToolCatalogIntegration,
@@ -15,15 +21,25 @@ from oss.src.core.tools.dtos import (
     ToolConnectionRequest,
     ToolExecutionRequest,
     ToolExecutionResponse,
+    ToolProviderKind,
 )
 from oss.src.core.tools.interfaces import (
     ToolsDAOInterface,
 )
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.exceptions import (
+    ActionNotFoundError,
     ConnectionInactiveError,
+    ConnectionInvalidError,
     ConnectionNotFoundError,
+    ToolSlugInvalidError,
 )
+
+
+# A slug segment is safe for the ``tools.{provider}.{integration}.{action}.{connection}``
+# call-ref. ``__`` is forbidden because ``/tools/call`` round-trips ``__`` <-> ``.`` when
+# parsing function names, so a ``__`` inside a segment would corrupt the split.
+_SLUG_SEGMENT_RE = re.compile(r"^[a-zA-Z0-9-]+(?:_[a-zA-Z0-9-]+)*$")
 
 
 log = get_module_logger(__name__)
@@ -407,4 +423,147 @@ class ToolsService:
                 user_id=user_id,
                 arguments=arguments,
             ),
+        )
+
+    # -----------------------------------------------------------------------
+    # Connection resolution (shared by the call endpoint and the agent resolver)
+    # -----------------------------------------------------------------------
+
+    async def resolve_connection_by_slug(
+        self,
+        *,
+        project_id: UUID,
+        provider_key: str,
+        integration_key: str,
+        connection_slug: str,
+    ) -> ToolConnection:
+        """Resolve a project-scoped connection slug to a usable connection row.
+
+        Raises a domain exception when the connection is missing, inactive, invalid,
+        or never finished its provider handshake. Shared by ``call_tool`` (execution)
+        and ``resolve_agent_tools`` (up-front validation).
+        """
+        # Query all (not active-only) so an inactive connection yields a precise
+        # "inactive" error instead of an indistinguishable "not found".
+        connections = await self.query_connections(
+            project_id=project_id,
+            provider_key=provider_key,
+            integration_key=integration_key,
+            is_active=None,
+        )
+
+        connection = next(
+            (c for c in connections if c.slug == connection_slug),
+            None,
+        )
+
+        if not connection:
+            raise ConnectionNotFoundError(
+                provider_key=provider_key,
+                integration_key=integration_key,
+                connection_slug=connection_slug,
+            )
+
+        if not connection.is_active:
+            raise ConnectionInactiveError(connection_id=connection_slug)
+
+        if not connection.is_valid:
+            raise ConnectionInvalidError(
+                connection_slug=connection_slug,
+                detail="Please refresh the connection.",
+            )
+
+        if not connection.provider_connection_id:
+            raise ConnectionNotFoundError(
+                provider_key=provider_key,
+                integration_key=integration_key,
+                connection_slug=connection_slug,
+            )
+
+        return connection
+
+    # -----------------------------------------------------------------------
+    # Agent tool resolution
+    # -----------------------------------------------------------------------
+
+    async def resolve_agent_tools(
+        self,
+        *,
+        project_id: UUID,
+        tools: List[AgentToolReference],
+    ) -> AgentToolsResolution:
+        """Resolve an agent's tool references into model-ready specs.
+
+        ``builtin`` references pass through as names. ``composio`` references are
+        validated against the project's connections up front and enriched from the
+        catalog (description + input schema), so the model never sees a stale schema
+        and the invoke fails fast on a missing/invalid connection rather than mid-loop.
+        """
+        builtins: List[str] = []
+        custom: List[ResolvedAgentTool] = []
+
+        for ref in tools:
+            if isinstance(ref, AgentBuiltinTool):
+                if ref.name:
+                    builtins.append(ref.name)
+                continue
+
+            if isinstance(ref, AgentComposioTool):
+                custom.append(
+                    await self._resolve_composio_tool(
+                        project_id=project_id,
+                        ref=ref,
+                    )
+                )
+
+        return AgentToolsResolution(builtins=builtins, custom=custom)
+
+    async def _resolve_composio_tool(
+        self,
+        *,
+        project_id: UUID,
+        ref: AgentComposioTool,
+    ) -> ResolvedAgentTool:
+        provider_key = ToolProviderKind.COMPOSIO.value
+
+        for segment in (ref.integration, ref.action, ref.connection):
+            if not _SLUG_SEGMENT_RE.match(segment):
+                raise ToolSlugInvalidError(
+                    slug=f"{provider_key}.{ref.integration}.{ref.action}.{ref.connection}",
+                    detail=f"Invalid slug segment: {segment!r}",
+                )
+
+        # Fail fast if the connection is missing/inactive/invalid for this project.
+        await self.resolve_connection_by_slug(
+            project_id=project_id,
+            provider_key=provider_key,
+            integration_key=ref.integration,
+            connection_slug=ref.connection,
+        )
+
+        action = await self.get_action(
+            provider_key=provider_key,
+            integration_key=ref.integration,
+            action_key=ref.action,
+        )
+        if not action:
+            raise ActionNotFoundError(
+                provider_key=provider_key,
+                integration_key=ref.integration,
+                action_key=ref.action,
+            )
+
+        input_schema = (
+            action.schemas.inputs if action.schemas and action.schemas.inputs else None
+        )
+        name = ref.name or f"{ref.integration}__{ref.action}"
+        call_ref = (
+            f"tools.{provider_key}.{ref.integration}.{ref.action}.{ref.connection}"
+        )
+
+        return ResolvedAgentTool(
+            name=name,
+            description=action.description,
+            input_schema=input_schema,
+            call_ref=call_ref,
         )
