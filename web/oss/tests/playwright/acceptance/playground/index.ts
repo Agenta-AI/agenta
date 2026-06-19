@@ -394,10 +394,11 @@ const playgroundTests = () => {
                     const loadDialog = page.getByRole("dialog", {name: "Load Testset"})
                     await expect(loadDialog).toBeVisible()
 
-                    // Search for the specific testset to force a fresh server-side query.
-                    // The testsets list atom may serve stale cached data (shared globally
-                    // across pages); typing a search string changes the queryKey and fires
-                    // a new request that includes the just-created testset.
+                    // Narrow the list to the testset we just created.
+                    // testsetsListQueryAtomFamily(null) has refetchOnMount:"always", so
+                    // the dialog fires a background refetch on mount. Filling the search
+                    // filters the client-side list so only the new testset is visible
+                    // once that refetch resolves.
                     await loadDialog
                         .getByPlaceholder("Search testset...")
                         .fill(connectedTestset.name)
@@ -408,7 +409,16 @@ const playgroundTests = () => {
                             exact: true,
                         })
                         .click()
-                    await expect(loadDialog.getByText("Germany", {exact: true})).toBeVisible()
+
+                    // Wait for testcase rows to appear inside the table body.
+                    // This is the authoritative signal that the table has finished loading
+                    // (EntityTable returns <TableLoadingState> — no thead/checkboxes —
+                    // while isFetching && rows.length === 0). Scoping to .ant-table-row
+                    // avoids matching "Germany" in the testset-option label or loading
+                    // skeleton that might be visible before the rows arrive.
+                    await expect(
+                        loadDialog.locator(".ant-table-row").filter({hasText: "Germany"}).first(),
+                    ).toBeVisible({timeout: 30000})
 
                     await loadDialog.locator(".ant-table-thead").getByRole("checkbox").check()
                     await loadDialog
@@ -510,10 +520,11 @@ const playgroundTests = () => {
 
                 const loadDialog = page.getByRole("dialog", {name: "Load Testset"})
                 await expect(loadDialog).toBeVisible()
-                // Search for the specific testset to force a fresh server-side query.
-                // The testsets list atom may serve stale cached data (shared globally
-                // across pages); typing a search string changes the queryKey and fires
-                // a new request that includes the just-created testset.
+                // Narrow the list to the testset we just created.
+                // testsetsListQueryAtomFamily(null) has refetchOnMount:"always", so
+                // the dialog fires a background refetch on mount. Filling the search
+                // filters the client-side list so only the new testset is visible
+                // once that refetch resolves.
                 await loadDialog.getByPlaceholder("Search testset...").fill(connectedTestset.name)
                 await loadDialog
                     .getByRole("option", {
@@ -521,7 +532,16 @@ const playgroundTests = () => {
                         exact: true,
                     })
                     .click()
-                await expect(loadDialog.getByText("Germany", {exact: true})).toBeVisible()
+
+                // Wait for testcase rows to appear inside the table body.
+                // This is the authoritative signal that the table has finished loading
+                // (EntityTable returns <TableLoadingState> — no thead/checkboxes —
+                // while isFetching && rows.length === 0). Scoping to .ant-table-row
+                // avoids matching "Germany" in the testset-option label or loading
+                // skeleton that might be visible before the rows arrive.
+                await expect(
+                    loadDialog.locator(".ant-table-row").filter({hasText: "Germany"}).first(),
+                ).toBeVisible({timeout: 30000})
                 for (const {country} of rows) {
                     await loadDialog
                         .locator(".ant-table-row")
