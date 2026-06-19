@@ -248,6 +248,10 @@ const ObservabilityHeader = ({
             ),
         [traces, selectedRowKeys],
     )
+    const handleEvaluationModalClose = useCallback(
+        () => setSelectedRowKeys([]),
+        [setSelectedRowKeys],
+    )
 
     useEffect(
         () => () => {
@@ -717,7 +721,10 @@ const ObservabilityHeader = ({
                                     onQueueSelected: onAddAllMatchingQueueSelected,
                                 }}
                             />
-                            <RunEvaluationDropdown selectedTraceIds={selectedTraceIds} />
+                            <RunEvaluationDropdown
+                                selectedTraceIds={selectedTraceIds}
+                                onModalClose={handleEvaluationModalClose}
+                            />
                         </Space>
                     </div>
                 ) : null}

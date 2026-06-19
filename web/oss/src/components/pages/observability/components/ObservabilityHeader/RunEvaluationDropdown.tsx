@@ -13,10 +13,15 @@ const NewEvaluationModal = dynamic(
 
 interface RunEvaluationDropdownProps {
     selectedTraceIds: string[]
+    onModalClose?: () => void
     size?: "small" | "middle"
 }
 
-const RunEvaluationDropdown = ({selectedTraceIds, size = "middle"}: RunEvaluationDropdownProps) => {
+const RunEvaluationDropdown = ({
+    selectedTraceIds,
+    onModalClose,
+    size = "middle",
+}: RunEvaluationDropdownProps) => {
     const [isModalOpen, setIsModalOpen] = useState(false)
     const isDisabled = selectedTraceIds.length === 0
 
@@ -48,6 +53,11 @@ const RunEvaluationDropdown = ({selectedTraceIds, size = "middle"}: RunEvaluatio
         [isDisabled],
     )
 
+    const handleModalClose = useCallback(() => {
+        setIsModalOpen(false)
+        onModalClose?.()
+    }, [onModalClose])
+
     return (
         <>
             <Tooltip title={isDisabled ? "Select traces to run an evaluation" : undefined}>
@@ -72,8 +82,8 @@ const RunEvaluationDropdown = ({selectedTraceIds, size = "middle"}: RunEvaluatio
 
             <NewEvaluationModal
                 open={isModalOpen}
-                onCancel={() => setIsModalOpen(false)}
-                onSuccess={() => setIsModalOpen(false)}
+                onCancel={handleModalClose}
+                onSuccess={handleModalClose}
                 evaluationType="auto"
                 preview={false}
                 steps={steps}
