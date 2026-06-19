@@ -420,7 +420,10 @@ const playgroundTests = () => {
                         loadDialog.locator(".ant-table-row").filter({hasText: "Germany"}).first(),
                     ).toBeVisible({timeout: 30000})
 
-                    await loadDialog.locator(".ant-table-thead").getByRole("checkbox").check()
+                    // AntD 6 renders the checkbox input with opacity:0, which Chrome's
+                    // accessibility tree excludes from getByRole("checkbox"). Use the
+                    // CSS class selector to bypass the ARIA tree entirely.
+                    await loadDialog.locator(".ant-table-thead .ant-checkbox-input").check()
                     await loadDialog
                         .getByRole("button", {name: "Load Selected", exact: true})
                         .click()
@@ -543,11 +546,14 @@ const playgroundTests = () => {
                     loadDialog.locator(".ant-table-row").filter({hasText: "Germany"}).first(),
                 ).toBeVisible({timeout: 30000})
                 for (const {country} of rows) {
+                    // AntD 6 renders the checkbox input with opacity:0, which Chrome's
+                    // accessibility tree excludes from getByRole("checkbox"). Use the
+                    // CSS class selector to bypass the ARIA tree entirely.
                     await loadDialog
                         .locator(".ant-table-row")
                         .filter({hasText: country})
                         .first()
-                        .getByRole("checkbox")
+                        .locator(".ant-checkbox-input")
                         .check()
                 }
                 await loadDialog.getByRole("button", {name: "Load Selected", exact: true}).click()
