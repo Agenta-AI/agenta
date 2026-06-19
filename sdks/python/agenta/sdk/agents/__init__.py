@@ -48,9 +48,47 @@ from .dtos import (
     TraceContext,
     to_messages,
 )
-from .errors import UnsupportedHarnessError
+from .errors import ToolResolutionError, UnsupportedHarnessError
 from .interfaces import Backend, Environment, Harness, Sandbox, Session
+from .mcp import (
+    MCPConfigurationError,
+    MCPError,
+    MCPResolver,
+    MCPServerConfig,
+    MissingMCPSecretError,
+    ResolvedMCPServer,
+)
 from .streaming import AgentRun
+from .tools import (
+    BuiltinToolConfig,
+    CallbackToolSpec,
+    ClientToolConfig,
+    ClientToolSpec,
+    CodeToolConfig,
+    CodeToolSpec,
+    DuplicateToolNameError,
+    EnvironmentToolSecretProvider,
+    GatewayToolResolver,
+    GatewayToolConfig,
+    GatewayToolResolution,
+    GatewayToolResolutionError,
+    MissingSecretPolicy,
+    MissingToolSecretError,
+    ResolvedToolSet,
+    ToolConfig,
+    ToolConfigError,
+    ToolConfigurationError,
+    ToolError,
+    ToolResolver,
+    ToolSecretProvider,
+    ToolSpec,
+    UnsupportedToolProviderError,
+    coerce_tool_config,
+    coerce_tool_configs,
+    parse_tool_config,
+    parse_tool_configs,
+)
+from .ui_messages import from_ui_messages, to_ui_message, ui_message_stream
 
 __all__ = [
     # DTOs
@@ -69,9 +107,48 @@ __all__ = [
     "AgentEvent",
     "AgentResult",
     "AgentRun",
+    # UI message codec (the /messages egress adapter)
+    "from_ui_messages",
+    "to_ui_message",
+    "ui_message_stream",
     "TraceContext",
     "ToolCallback",
     "PermissionPolicy",
+    # Canonical tools API
+    "ToolConfig",
+    "BuiltinToolConfig",
+    "GatewayToolConfig",
+    "CodeToolConfig",
+    "ClientToolConfig",
+    "ToolSpec",
+    "CallbackToolSpec",
+    "CodeToolSpec",
+    "ClientToolSpec",
+    "ResolvedToolSet",
+    "GatewayToolResolution",
+    "ToolResolver",
+    "ToolSecretProvider",
+    "GatewayToolResolver",
+    "EnvironmentToolSecretProvider",
+    "MissingSecretPolicy",
+    "parse_tool_config",
+    "parse_tool_configs",
+    "coerce_tool_config",
+    "coerce_tool_configs",
+    "ToolError",
+    "ToolConfigError",
+    "ToolConfigurationError",
+    "GatewayToolResolutionError",
+    "UnsupportedToolProviderError",
+    "MissingToolSecretError",
+    "DuplicateToolNameError",
+    # MCP is a sibling subsystem
+    "MCPServerConfig",
+    "ResolvedMCPServer",
+    "MCPResolver",
+    "MCPError",
+    "MCPConfigurationError",
+    "MissingMCPSecretError",
     # Interfaces (ports)
     "Backend",
     "Sandbox",
@@ -80,6 +157,7 @@ __all__ = [
     "Harness",
     # Errors
     "UnsupportedHarnessError",
+    "ToolResolutionError",
     # Adapters
     "RivetBackend",
     "InProcessPiBackend",

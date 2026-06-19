@@ -22,7 +22,8 @@
       "name": "get_user",
       "description": "Get a user",
       "inputSchema": {"type": "object", "properties": {}},
-      "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn"
+      "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
+      "kind": "callback"
     }
   ],
   "toolCallback": {

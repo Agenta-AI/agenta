@@ -7,7 +7,11 @@ defaults fall-through, the ``harness_options`` escape hatch, and the run-selecti
 
 from __future__ import annotations
 
-from agenta.sdk.agents import AgentConfig, RunSelection
+from agenta.sdk.agents import (
+    AgentConfig,
+    BuiltinToolConfig,
+    RunSelection,
+)
 
 _DEFAULTS = AgentConfig(instructions="default-md", model="default-model", tools=["d"])
 
@@ -29,7 +33,7 @@ def test_from_params_agent_element_shape():
     )
     assert config.instructions == "I"
     assert config.model == "M"
-    assert config.tools == [{"type": "builtin", "name": "read"}]
+    assert config.tools == [BuiltinToolConfig(name="read")]
     assert config.harness_options == {"pi": {"system": "S"}}
 
 
@@ -48,7 +52,7 @@ def test_from_params_prompt_template_shape():
     )
     assert config.instructions == "You are helpful."  # system message -> instructions
     assert config.model == "M"
-    assert config.tools == ["t"]
+    assert config.tools == [BuiltinToolConfig(name="t")]
 
 
 def test_from_params_prompt_template_joins_multiple_system_messages():
@@ -76,19 +80,19 @@ def test_from_params_flat_shape():
     )
     assert config.instructions == "A"
     assert config.model == "M"
-    assert config.tools == [{"name": "x"}]
+    assert config.tools == [BuiltinToolConfig(name="x")]
 
 
 def test_from_params_falls_back_to_defaults():
     config = AgentConfig.from_params({}, defaults=_DEFAULTS)
     assert config.instructions == "default-md"
     assert config.model == "default-model"
-    assert config.tools == ["d"]
+    assert config.tools == [BuiltinToolConfig(name="d")]
 
 
 def test_from_params_coerces_single_tool_dict_to_list():
     config = AgentConfig.from_params({"agent": {"tools": {"name": "solo"}}})
-    assert config.tools == [{"name": "solo"}]
+    assert config.tools == [BuiltinToolConfig(name="solo")]
 
 
 def test_harness_options_drops_malformed_and_lowercases_keys():

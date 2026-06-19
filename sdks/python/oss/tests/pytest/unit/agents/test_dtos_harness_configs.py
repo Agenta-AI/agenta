@@ -11,6 +11,7 @@ import pytest
 
 from agenta.sdk.agents import (
     ClaudeAgentConfig,
+    ClientToolSpec,
     HarnessAgentConfig,
     PiAgentConfig,
     ToolCallback,
@@ -22,12 +23,24 @@ _CALLBACK = ToolCallback(endpoint="https://api.example/tools/call", authorizatio
 def test_pi_wire_tools_is_native_and_never_gates():
     config = PiAgentConfig(
         builtin_tools=["read"],
-        custom_tools=[{"name": "t"}],
+        tool_specs=[
+            ClientToolSpec(
+                name="t",
+                description="t",
+            )
+        ],
         tool_callback=_CALLBACK,
     )
     assert config.wire_tools() == {
         "tools": ["read"],
-        "customTools": [{"name": "t"}],
+        "customTools": [
+            {
+                "name": "t",
+                "description": "t",
+                "inputSchema": {"type": "object", "properties": {}},
+                "kind": "client",
+            }
+        ],
         "toolCallback": {
             "endpoint": "https://api.example/tools/call",
             "authorization": "A",
@@ -52,13 +65,25 @@ def test_pi_wire_prompt_emits_only_set_overrides():
 
 def test_claude_wire_tools_has_no_builtins_and_carries_policy():
     config = ClaudeAgentConfig(
-        custom_tools=[{"name": "t"}],
+        tool_specs=[
+            ClientToolSpec(
+                name="t",
+                description="t",
+            )
+        ],
         tool_callback=_CALLBACK,
         permission_policy="deny",
     )
     wire = config.wire_tools()
     assert wire["tools"] == []  # Claude has no Pi built-ins
-    assert wire["customTools"] == [{"name": "t"}]
+    assert wire["customTools"] == [
+        {
+            "name": "t",
+            "description": "t",
+            "inputSchema": {"type": "object", "properties": {}},
+            "kind": "client",
+        }
+    ]
     assert wire["permissionPolicy"] == "deny"
 
 

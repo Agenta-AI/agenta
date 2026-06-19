@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .dtos import HarnessType
+from .tools.errors import ToolResolutionError
+
+__all__ = ["UnsupportedHarnessError", "ToolResolutionError"]
 
 if TYPE_CHECKING:
     from .interfaces import Backend

@@ -40,6 +40,7 @@ KNOWN_REQUEST_KEYS = {
     "trace",
     "tools",
     "customTools",
+    "mcpServers",
     "toolCallback",
     "permissionPolicy",
     "systemPrompt",
@@ -52,6 +53,7 @@ _CUSTOM_TOOL = {
     "description": "Get a user",
     "inputSchema": {"type": "object", "properties": {}},
     "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
+    "kind": "callback",
 }
 _CALLBACK = ToolCallback(
     endpoint="https://api.example/tools/call", authorization="Access tok-123"
@@ -222,3 +224,78 @@ def test_result_from_wire_minimal_ok():
     assert result.events == []
     assert result.capabilities is None
     assert result.session_id is None
+
+
+def test_request_to_wire_carries_code_client_and_mcp_specs():
+    # The three-axes surface reaches the wire intact: a code spec keeps its executor fields
+    # (kind/runtime/code/env) and the orthogonal axes (needsApproval/render); a client spec
+    # has no callRef; user MCP servers ride `mcpServers`.
+    config = PiAgentConfig(
+        custom_tools=[
+            {
+                "name": "calc",
+                "description": "calc",
+                "inputSchema": {"type": "object", "properties": {}},
+                "kind": "code",
+                "runtime": "python",
+                "code": "def main(): return 1",
+                "env": {"STRIPE_API_KEY": "sk"},
+                "needsApproval": True,
+                "render": {"kind": "component", "component": "Calc"},
+            },
+            {
+                "name": "pick",
+                "description": "pick",
+                "inputSchema": {"type": "object", "properties": {}},
+                "kind": "client",
+            },
+        ],
+        mcp_servers=[
+            {
+                "name": "github",
+                "transport": "stdio",
+                "command": "npx",
+                "env": {"GITHUB_TOKEN": "ghp"},
+                "tools": ["create_issue"],
+            }
+        ],
+    )
+    payload = request_to_wire(
+        engine="pi",
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    code = next(t for t in payload["customTools"] if t["name"] == "calc")
+    assert code["kind"] == "code"
+    assert code["runtime"] == "python"
+    assert code["code"] == "def main(): return 1"
+    assert code["env"] == {"STRIPE_API_KEY": "sk"}
+    assert code["needsApproval"] is True
+    assert code["render"] == {"kind": "component", "component": "Calc"}
+    client = next(t for t in payload["customTools"] if t["name"] == "pick")
+    assert client["kind"] == "client"
+    assert "callRef" not in client
+    assert payload["mcpServers"] == [
+        {
+            "name": "github",
+            "transport": "stdio",
+            "command": "npx",
+            "env": {"GITHUB_TOKEN": "ghp"},
+            "tools": ["create_issue"],
+        }
+    ]
+
+
+def test_request_to_wire_omits_mcp_servers_when_none():
+    # No declared servers -> no `mcpServers` key (keeps a tool-free payload byte-identical).
+    payload = request_to_wire(
+        engine="pi",
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=PiAgentConfig(),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "mcpServers" not in payload

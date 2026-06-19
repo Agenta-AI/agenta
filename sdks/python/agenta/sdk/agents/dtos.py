@@ -13,7 +13,16 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple, Union
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+
+from .mcp import (
+    MCPServerConfig,
+    ResolvedMCPServer,
+    mcp_servers_to_wire,
+    parse_mcp_server_configs,
+)
+from .tools import ToolCallback, ToolConfig, ToolSpec, coerce_tool_configs
+from .tools.models import coerce_tool_spec
 
 
 # ---------------------------------------------------------------------------
@@ -98,13 +107,26 @@ class ContentBlock(BaseModel):
     ``text`` is the only kind callers send today; ``image`` and ``resource`` are plumbed so
     an image-capable harness can take them. A bare string normalizes to a single ``text``
     block on the wire.
+
+    ``tool_call`` / ``tool_result`` carriers (``tool_call_id``/``tool_name``/``input``/
+    ``output``/``is_error``) hold a resolved tool turn for structured-message continuation:
+    the ``/messages`` egress folds inbound UIMessage tool/approval parts into these so a
+    cross-turn HITL reply replays as a real tool call plus its result, and the model resumes
+    from the result instead of re-asking. Mirrors ``ContentBlock`` in
+    ``services/agent/src/protocol.ts``.
     """
 
-    type: str  # "text" | "image" | "resource"
+    type: str  # "text" | "image" | "resource" | "tool_call" | "tool_result"
     text: Optional[str] = None
     data: Optional[str] = None  # base64 payload, used when type != "text"
     mime_type: Optional[str] = None
     uri: Optional[str] = None
+    # Tool-turn carriers (used by tool_call / tool_result blocks).
+    tool_call_id: Optional[str] = None
+    tool_name: Optional[str] = None
+    input: Optional[Any] = None
+    output: Optional[Any] = None
+    is_error: Optional[bool] = None
 
     def to_wire(self) -> Dict[str, Any]:
         block: Dict[str, Any] = {"type": self.type}
@@ -116,6 +138,16 @@ class ContentBlock(BaseModel):
             block["mimeType"] = self.mime_type
         if self.uri is not None:
             block["uri"] = self.uri
+        if self.tool_call_id is not None:
+            block["toolCallId"] = self.tool_call_id
+        if self.tool_name is not None:
+            block["toolName"] = self.tool_name
+        if self.input is not None:
+            block["input"] = self.input
+        if self.output is not None:
+            block["output"] = self.output
+        if self.is_error is not None:
+            block["isError"] = self.is_error
         return block
 
     @classmethod
@@ -132,6 +164,13 @@ class ContentBlock(BaseModel):
                 data=raw.get("data"),
                 mime_type=raw.get("mimeType") or raw.get("mime_type"),
                 uri=raw.get("uri"),
+                tool_call_id=raw.get("toolCallId") or raw.get("tool_call_id"),
+                tool_name=raw.get("toolName") or raw.get("tool_name"),
+                input=raw.get("input"),
+                output=raw.get("output"),
+                is_error=raw.get("isError")
+                if raw.get("isError") is not None
+                else raw.get("is_error"),
             )
         return cls(type="text", text=str(raw))
 
@@ -232,18 +271,6 @@ class TraceContext(BaseModel):
         }
 
 
-class ToolCallback(BaseModel):
-    """How a harness routes a tool call back through Agenta's ``/tools/call``. The provider
-    key and connection auth stay server-side. Empty for a standalone run with no
-    Agenta-resolved tools."""
-
-    endpoint: str  # full ``/tools/call`` URL
-    authorization: Optional[str] = None
-
-    def to_wire(self) -> Dict[str, Any]:
-        return {"endpoint": self.endpoint, "authorization": self.authorization}
-
-
 # ---------------------------------------------------------------------------
 # Run result
 # ---------------------------------------------------------------------------
@@ -282,10 +309,23 @@ class AgentConfig(BaseModel):
     ignores the rest; a key for a harness that is not running is simply never looked at.
     """
 
+    model_config = ConfigDict(populate_by_name=True)
+
     instructions: Optional[str] = None
     model: Optional[str] = None
-    tools: List[Any] = Field(default_factory=list)
+    tools: List[ToolConfig] = Field(default_factory=list)
+    mcp_servers: List[MCPServerConfig] = Field(default_factory=list)
     harness_options: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+
+    @field_validator("tools", mode="before")
+    @classmethod
+    def _coerce_tools(cls, value: Any) -> List[ToolConfig]:
+        return coerce_tool_configs(_as_list(value)).tool_configs
+
+    @field_validator("mcp_servers", mode="before")
+    @classmethod
+    def _coerce_mcp_servers(cls, value: Any) -> List[MCPServerConfig]:
+        return parse_mcp_server_configs(_as_list(value))
 
     @classmethod
     def from_params(
@@ -308,6 +348,7 @@ class AgentConfig(BaseModel):
             instructions=instructions,
             model=model,
             tools=_as_list(tools),
+            mcp_servers=_parse_mcp_servers_raw(params, base),
             harness_options=_parse_harness_options(params, base),
         )
 
@@ -354,11 +395,24 @@ class HarnessAgentConfig(BaseModel):
     fields for the ``/run`` payload.
     """
 
+    model_config = ConfigDict(populate_by_name=True)
+
     harness: ClassVar[HarnessType]
 
     agents_md: Optional[str] = None
     model: Optional[str] = None
     tool_callback: Optional[ToolCallback] = None
+    mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
+
+    @field_validator("mcp_servers", mode="before")
+    @classmethod
+    def _coerce_resolved_mcp_servers(cls, value: Any) -> List[ResolvedMCPServer]:
+        return [
+            item
+            if isinstance(item, ResolvedMCPServer)
+            else ResolvedMCPServer.model_validate(item)
+            for item in value or []
+        ]
 
     def wire_tools(self) -> Dict[str, Any]:
         """The tool + permission fields this harness contributes to the ``/run`` payload."""
@@ -368,6 +422,13 @@ class HarnessAgentConfig(BaseModel):
         """The system-prompt fields this harness contributes to the ``/run`` payload. Empty
         by default; a harness that exposes prompt overrides (Pi) emits them here."""
         return {}
+
+    def wire_mcp(self) -> Dict[str, Any]:
+        """The ``mcpServers`` field for the ``/run`` payload. Omitted when none are declared so
+        a tool-free run's payload is unchanged (the golden wire contract)."""
+        if not self.mcp_servers:
+            return {}
+        return {"mcpServers": mcp_servers_to_wire(self.mcp_servers)}
 
 
 class PiAgentConfig(HarnessAgentConfig):
@@ -385,15 +446,34 @@ class PiAgentConfig(HarnessAgentConfig):
 
     harness: ClassVar[HarnessType] = HarnessType.PI
 
-    builtin_tools: List[str] = Field(default_factory=list)
-    custom_tools: List[Dict[str, Any]] = Field(default_factory=list)
+    builtin_names: List[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("builtin_names", "builtin_tools"),
+    )
+    tool_specs: List[ToolSpec] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("tool_specs", "custom_tools"),
+    )
     system: Optional[str] = None
     append_system: Optional[str] = None
 
+    @field_validator("tool_specs", mode="before")
+    @classmethod
+    def _coerce_tool_specs(cls, value: Any) -> List[ToolSpec]:
+        return [coerce_tool_spec(item) for item in value or []]
+
+    @property
+    def builtin_tools(self) -> List[str]:
+        return list(self.builtin_names)
+
+    @property
+    def custom_tools(self) -> List[Dict[str, Any]]:
+        return [tool_spec.to_wire() for tool_spec in self.tool_specs]
+
     def wire_tools(self) -> Dict[str, Any]:
         return {
-            "tools": list(self.builtin_tools),
-            "customTools": list(self.custom_tools),
+            "tools": list(self.builtin_names),
+            "customTools": [tool_spec.to_wire() for tool_spec in self.tool_specs],
             "toolCallback": self.tool_callback.to_wire()
             if self.tool_callback
             else None,
@@ -415,13 +495,25 @@ class ClaudeAgentConfig(HarnessAgentConfig):
 
     harness: ClassVar[HarnessType] = HarnessType.CLAUDE
 
-    custom_tools: List[Dict[str, Any]] = Field(default_factory=list)
+    tool_specs: List[ToolSpec] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("tool_specs", "custom_tools"),
+    )
     permission_policy: PermissionPolicy = "auto"
+
+    @field_validator("tool_specs", mode="before")
+    @classmethod
+    def _coerce_tool_specs(cls, value: Any) -> List[ToolSpec]:
+        return [coerce_tool_spec(item) for item in value or []]
+
+    @property
+    def custom_tools(self) -> List[Dict[str, Any]]:
+        return [tool_spec.to_wire() for tool_spec in self.tool_specs]
 
     def wire_tools(self) -> Dict[str, Any]:
         return {
             "tools": [],  # Claude has no Pi built-in tools
-            "customTools": list(self.custom_tools),
+            "customTools": [tool_spec.to_wire() for tool_spec in self.tool_specs],
             "toolCallback": self.tool_callback.to_wire()
             if self.tool_callback
             else None,
@@ -460,14 +552,46 @@ class SessionConfig(BaseModel):
     empty for a bare standalone run). Sandbox is intentionally absent: it is a
     backend/environment concern."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     agent: AgentConfig
     secrets: Dict[str, str] = Field(default_factory=dict)
     permission_policy: PermissionPolicy = "auto"
     trace: Optional[TraceContext] = None
     session_id: Optional[str] = None
-    builtin_tools: List[str] = Field(default_factory=list)
-    custom_tools: List[Dict[str, Any]] = Field(default_factory=list)
+    builtin_names: List[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("builtin_names", "builtin_tools"),
+    )
+    tool_specs: List[ToolSpec] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("tool_specs", "custom_tools"),
+    )
     tool_callback: Optional[ToolCallback] = None
+    mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
+
+    @field_validator("tool_specs", mode="before")
+    @classmethod
+    def _coerce_tool_specs(cls, value: Any) -> List[ToolSpec]:
+        return [coerce_tool_spec(item) for item in value or []]
+
+    @field_validator("mcp_servers", mode="before")
+    @classmethod
+    def _coerce_resolved_mcp_servers(cls, value: Any) -> List[ResolvedMCPServer]:
+        return [
+            item
+            if isinstance(item, ResolvedMCPServer)
+            else ResolvedMCPServer.model_validate(item)
+            for item in value or []
+        ]
+
+    @property
+    def builtin_tools(self) -> List[str]:
+        return list(self.builtin_names)
+
+    @property
+    def custom_tools(self) -> List[Dict[str, Any]]:
+        return [tool_spec.to_wire() for tool_spec in self.tool_specs]
 
 
 # ---------------------------------------------------------------------------
@@ -481,6 +605,22 @@ def _as_list(raw: Any) -> List[Any]:
     if isinstance(raw, list):
         return raw
     return []
+
+
+def _parse_mcp_servers_raw(
+    params: Dict[str, Any],
+    defaults: AgentConfig,
+) -> List[Any]:
+    """Pull the raw ``mcp_servers`` list from a request/config dict, falling back to defaults.
+
+    Reads ``mcp_servers`` from the ``agent`` element when present, else the flat request.
+    Canonical validation happens on :class:`AgentConfig` construction."""
+    agent = params.get("agent")
+    source = agent if isinstance(agent, dict) else params
+    raw = source.get("mcp_servers")
+    if raw is None:
+        return list(defaults.mcp_servers)
+    return _as_list(raw)
 
 
 def _parse_harness_options(
@@ -530,8 +670,12 @@ def _parse_agent_fields(
     """Pull (instructions, model, tools) from a request/config dict, with fallbacks."""
     agent = params.get("agent")
     if isinstance(agent, dict):
+        # ``agents_md`` is the field the playground/catalog schema exposes; ``instructions`` is
+        # the legacy key kept as a fallback so already-stored agent configs still resolve.
         return (
-            agent.get("instructions") or defaults.instructions,
+            agent.get("agents_md")
+            or agent.get("instructions")
+            or defaults.instructions,
             agent.get("model") or defaults.model,
             agent.get("tools"),
         )

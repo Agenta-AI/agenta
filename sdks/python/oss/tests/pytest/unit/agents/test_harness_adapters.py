@@ -16,6 +16,7 @@ from agenta.sdk.agents import (
     AgentConfig,
     ClaudeAgentConfig,
     ClaudeHarness,
+    ClientToolSpec,
     HarnessType,
     PiAgentConfig,
     PiHarness,
@@ -204,11 +205,9 @@ def test_claude_no_warning_without_builtins(make_env, monkeypatch):
 # --------------------------------------------------------------- _normalize_tool_specs
 
 
-def test_normalize_tool_specs_fills_defaults_and_drops_malformed():
+def test_compat_normalize_tool_specs_returns_typed_specs():
     specs = [
         {"name": "keep", "callRef": "r1"},  # missing description + inputSchema
-        {"description": "no name"},  # dropped: no name
-        "not a dict",  # dropped: not a dict
         {
             "name": "full",
             "description": "d",
@@ -219,14 +218,21 @@ def test_normalize_tool_specs_fills_defaults_and_drops_malformed():
 
     out = _normalize_tool_specs(specs)
 
-    assert [s["name"] for s in out] == ["keep", "full"]
+    assert [spec.name for spec in out] == ["keep", "full"]
     # description falls back to the name; inputSchema falls back to an empty object schema.
-    assert out[0]["description"] == "keep"
-    assert out[0]["inputSchema"] == {"type": "object", "properties": {}}
-    assert out[0]["callRef"] == "r1"
+    assert out[0].description == "keep"
+    assert out[0].input_schema == {"type": "object", "properties": {}}
+    assert out[0].call_ref == "r1"
     # provided values are preserved.
-    assert out[1]["description"] == "d"
-    assert out[1]["inputSchema"]["properties"] == {"x": {}}
+    assert out[1].description == "d"
+    assert out[1].input_schema["properties"] == {"x": {}}
+
+
+def test_harness_accepts_typed_tool_specs_without_normalizing_dicts(make_env):
+    harness = PiHarness(make_env(supported=[HarnessType.PI]))
+    spec = ClientToolSpec(name="pick", description="Pick")
+    result = harness._to_harness_config(_session_config(tool_specs=[spec]))
+    assert result.tool_specs == [spec]
 
 
 def test_normalize_tool_specs_empty():

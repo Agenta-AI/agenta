@@ -28,6 +28,7 @@ from ..dtos import (
     SessionConfig,
 )
 from ..interfaces import Environment, Harness
+from ..tools.models import ToolSpec, coerce_tool_spec
 from .agenta_builtins import (
     AGENTA_FORCED_SKILLS,
     compose_append_system,
@@ -36,8 +37,6 @@ from .agenta_builtins import (
 )
 
 log = get_module_logger(__name__)
-
-_EMPTY_OBJECT_SCHEMA: Dict[str, Any] = {"type": "object", "properties": {}}
 
 
 def _opt_str(value: Any) -> Any:
@@ -48,29 +47,9 @@ def _opt_str(value: Any) -> Any:
     return None
 
 
-def _normalize_tool_specs(specs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Coerce resolved tool specs into the shape every harness expects.
-
-    Drops malformed entries (no name) and fills the defaults the harness runtimes need: a
-    description (falls back to the name) and a JSON-Schema ``inputSchema`` (an empty object
-    when none was resolved). ``callRef`` is preserved so the call routes back to Agenta.
-    """
-    normalized: List[Dict[str, Any]] = []
-    for spec in specs or []:
-        if not isinstance(spec, dict):
-            continue
-        name = spec.get("name")
-        if not name:
-            continue
-        normalized.append(
-            {
-                "name": name,
-                "description": spec.get("description") or name,
-                "inputSchema": spec.get("inputSchema") or dict(_EMPTY_OBJECT_SCHEMA),
-                "callRef": spec.get("callRef"),
-            }
-        )
-    return normalized
+def _normalize_tool_specs(specs: List[Dict[str, Any]]) -> List[ToolSpec]:
+    """Compatibility helper for callers still supplying runner dictionaries."""
+    return [coerce_tool_spec(spec) for spec in specs or []]
 
 
 class PiHarness(Harness):
@@ -85,9 +64,10 @@ class PiHarness(Harness):
         return PiAgentConfig(
             agents_md=config.agent.instructions,
             model=config.agent.model,
-            builtin_tools=list(config.builtin_tools),
-            custom_tools=_normalize_tool_specs(config.custom_tools),
+            builtin_names=list(config.builtin_names),
+            tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
+            mcp_servers=list(config.mcp_servers),
             system=_opt_str(pi_options.get("system")),
             append_system=_opt_str(pi_options.get("append_system")),
         )
@@ -100,16 +80,17 @@ class ClaudeHarness(Harness):
         # Claude has no Pi built-in tools; drop them rather than ship a name Claude cannot
         # honor. Tools go over MCP, and Claude gates tool use, so the permission policy is
         # carried through.
-        if config.builtin_tools:
+        if config.builtin_names:
             log.warning(
                 "ClaudeHarness ignores %d built-in tool(s); built-ins are a Pi concept",
-                len(config.builtin_tools),
+                len(config.builtin_names),
             )
         return ClaudeAgentConfig(
             agents_md=config.agent.instructions,
             model=config.agent.model,
-            custom_tools=_normalize_tool_specs(config.custom_tools),
+            tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
+            mcp_servers=list(config.mcp_servers),
             permission_policy=config.permission_policy,
         )
 
@@ -130,9 +111,10 @@ class AgentaHarness(Harness):
         return AgentaAgentConfig(
             agents_md=compose_instructions(config.agent.instructions),
             model=config.agent.model,
-            builtin_tools=force_tools(list(config.builtin_tools)),
-            custom_tools=_normalize_tool_specs(config.custom_tools),
+            builtin_names=force_tools(list(config.builtin_names)),
+            tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
+            mcp_servers=list(config.mcp_servers),
             system=_opt_str(pi_options.get("system")),
             append_system=compose_append_system(
                 _opt_str(pi_options.get("append_system"))

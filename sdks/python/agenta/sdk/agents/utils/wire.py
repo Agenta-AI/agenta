@@ -38,6 +38,8 @@ def request_to_wire(
     own (Pi: built-ins + native specs, no gating; Claude: MCP specs + permission policy).
     ``config.wire_prompt()`` adds any system-prompt overrides the harness exposes (Pi's
     ``systemPrompt`` / ``appendSystemPrompt``); it is empty for harnesses that have none.
+    ``config.wire_mcp()`` adds user-declared MCP servers, omitted when there are none so a
+    tool-free run's payload is unchanged.
     """
     return {
         "backend": engine,
@@ -51,6 +53,7 @@ def request_to_wire(
         "trace": trace.to_wire() if trace else None,
         **config.wire_tools(),
         **config.wire_prompt(),
+        **config.wire_mcp(),
     }
 
 
