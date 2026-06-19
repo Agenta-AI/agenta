@@ -77,7 +77,10 @@ const withQuery = (url: string, params: Record<string, string | undefined>): str
  * the way the playground pipeline builds them so the page can hit a real backend. */
 async function requestMeta(track: AgentChatTrack, appId?: string | null) {
     const jwt = await getJWT()
-    const headers: Record<string, string> = jwt ? {Authorization: `Bearer ${jwt}`} : {}
+    // `/messages` streams the Vercel UI Message Stream only when the client asks for SSE; without
+    // this header the server returns a batch JSON body that `useChat` cannot render as a stream.
+    const headers: Record<string, string> = {Accept: "text/event-stream"}
+    if (jwt) headers.Authorization = `Bearer ${jwt}`
     const projectId = getDefaultStore().get(projectIdAtom) || undefined
     const api = withQuery(trackApi(track), {
         application_id: appId || undefined,
