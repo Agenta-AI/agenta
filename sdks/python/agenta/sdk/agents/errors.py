@@ -7,7 +7,11 @@ from typing import TYPE_CHECKING
 from .dtos import HarnessType
 from .tools.errors import ToolResolutionError
 
-__all__ = ["UnsupportedHarnessError", "ToolResolutionError"]
+__all__ = [
+    "AgentRunnerConfigurationError",
+    "UnsupportedHarnessError",
+    "ToolResolutionError",
+]
 
 if TYPE_CHECKING:
     from .interfaces import Backend
@@ -24,3 +28,7 @@ class UnsupportedHarnessError(RuntimeError):
         )
         self.harness = harness
         self.backend = backend
+
+
+class AgentRunnerConfigurationError(RuntimeError):
+    """Raised when a runner-backed adapter lacks a usable transport configuration."""

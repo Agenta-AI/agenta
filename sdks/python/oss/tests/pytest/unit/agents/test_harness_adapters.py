@@ -159,7 +159,7 @@ def test_agenta_passes_through_user_pi_options(make_env):
 def test_agenta_is_in_process_pi_supported():
     from agenta.sdk.agents import InProcessPiBackend
 
-    assert InProcessPiBackend().supports(HarnessType.AGENTA)
+    assert InProcessPiBackend(url="http://runner").supports(HarnessType.AGENTA)
 
 
 # ------------------------------------------------------------------------- Claude

@@ -677,7 +677,7 @@ def _parse_agent_fields(
             or agent.get("instructions")
             or defaults.instructions,
             agent.get("model") or defaults.model,
-            agent.get("tools"),
+            agent.get("tools") if agent.get("tools") is not None else defaults.tools,
         )
 
     prompt_cfg = params.get("prompt")

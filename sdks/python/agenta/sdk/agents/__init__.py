@@ -48,7 +48,11 @@ from .dtos import (
     TraceContext,
     to_messages,
 )
-from .errors import ToolResolutionError, UnsupportedHarnessError
+from .errors import (
+    AgentRunnerConfigurationError,
+    ToolResolutionError,
+    UnsupportedHarnessError,
+)
 from .interfaces import (
     Backend,
     Environment,
@@ -170,6 +174,7 @@ __all__ = [
     "Environment",
     "Harness",
     # Errors
+    "AgentRunnerConfigurationError",
     "UnsupportedHarnessError",
     "ToolResolutionError",
     # Adapters

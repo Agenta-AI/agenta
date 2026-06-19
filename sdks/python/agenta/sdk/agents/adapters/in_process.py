@@ -32,8 +32,7 @@ from ..utils import (
     request_to_wire,
     result_from_wire,
 )
-
-_DEFAULT_COMMAND = ["pnpm", "exec", "tsx", "src/cli.ts"]
+from ._runner_config import resolve_runner_command
 
 
 class InProcessSandbox(Sandbox):
@@ -127,7 +126,12 @@ class InProcessPiBackend(Backend):
         timeout: float = float(os.getenv("AGENTA_AGENT_TIMEOUT", "180")),
     ) -> None:
         self._url = url
-        self._command: List[str] = list(command or _DEFAULT_COMMAND)
+        self._command: List[str] = resolve_runner_command(
+            backend_name=type(self).__name__,
+            url=url,
+            command=command,
+            cwd=cwd,
+        )
         self._cwd = cwd
         self._timeout = timeout
 

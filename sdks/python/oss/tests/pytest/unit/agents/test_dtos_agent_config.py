@@ -90,6 +90,26 @@ def test_from_params_falls_back_to_defaults():
     assert config.tools == [BuiltinToolConfig(name="d")]
 
 
+def test_from_params_agent_element_preserves_default_tools_when_absent():
+    config = AgentConfig.from_params(
+        {"agent": {"instructions": "I", "model": "M"}},
+        defaults=_DEFAULTS,
+    )
+
+    assert config.instructions == "I"
+    assert config.model == "M"
+    assert config.tools == [BuiltinToolConfig(name="d")]
+
+
+def test_from_params_agent_element_empty_tools_clears_defaults():
+    config = AgentConfig.from_params(
+        {"agent": {"tools": []}},
+        defaults=_DEFAULTS,
+    )
+
+    assert config.tools == []
+
+
 def test_from_params_coerces_single_tool_dict_to_list():
     config = AgentConfig.from_params({"agent": {"tools": {"name": "solo"}}})
     assert config.tools == [BuiltinToolConfig(name="solo")]
