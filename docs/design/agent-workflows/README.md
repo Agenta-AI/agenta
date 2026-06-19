@@ -1,19 +1,21 @@
 # Agent Workflows
 
-This workspace documents the current agent workflow implementation and the work still
-needed to make it production-ready.
+This workspace documents the active agent-workflows PR stack and the work still needed to
+make it production-ready.
 
 The source of truth is the code listed in [Ground Truth](ground-truth.md). Design pages at
-this level describe the current implementation unless they explicitly say "planned",
-"blocked", or "not implemented". Historical work-package notes and old RFCs live in
+this level describe the active-stack implementation unless they explicitly say "planned",
+"blocked", or "not implemented". The docs PR commit itself is docs-only and does not
+contain every referenced code file. Use [PR Stack](pr-stack.md) to map each code reference
+to the sibling PR that carries it. Historical work-package notes and old RFCs live in
 [trash/](trash/).
 
 ## Read In This Order
 
-1. [Ground Truth](ground-truth.md): what the current code does, what is wired, and what is
-   still missing.
-2. [Status](status.md): current cleanup state, decisions, blockers, and next steps.
-3. [Meeting Alignment](meeting-alignment.md): where the current work matches the June 18
+1. [Ground Truth](ground-truth.md): what the active-stack code does, what is wired, and
+   what is still missing.
+2. [Status](status.md): active-stack cleanup state, decisions, blockers, and next steps.
+3. [Meeting Alignment](meeting-alignment.md): where the active work matches the June 18
    design discussion, where it diverges, and what still needs to be done.
 4. [Architecture](architecture.md): the service, agent runner sidecar, harnesses, and
    sandboxes.
@@ -39,7 +41,7 @@ this level describe the current implementation unless they explicitly say "plann
     slicing notes.
 16. [Open Issues](open-issues.md): deferred decisions that need ownership.
 
-## Current State
+## Active-Stack State
 
 The agent workflow runs a coding harness as an Agenta workflow. It supports:
 

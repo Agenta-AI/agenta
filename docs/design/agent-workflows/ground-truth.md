@@ -1,11 +1,13 @@
 # Ground Truth
 
-This page is the current implementation map. If another design page disagrees with this
-page, treat this page and the referenced code as the source of truth.
+This page maps the active agent-workflows PR stack. It describes the code after the
+sibling code PRs are considered together. The docs PR commit itself is docs-only and does
+not contain every file listed below. If another design page disagrees with this page,
+treat this page and the referenced code as the source of truth.
 
 ## Code Surface
 
-| Area | Files | Current role |
+| Area | Files | Active-stack role |
 | --- | --- | --- |
 | Agent service handler | `services/oss/src/agent/app.py` | Parses agent config, resolves secrets and tools, chooses a backend, runs batch or streaming turns. |
 | Agent route wiring | `sdks/python/agenta/sdk/decorators/routing.py` | Registers `/invoke`, `/inspect`, and agent-only `/messages` plus `/load-session`. |
@@ -56,7 +58,7 @@ page, treat this page and the referenced code as the source of truth.
 - `AgentaHarness` ships placeholder Agenta preamble, persona, and skill set.
 - The agent is not registered as a first-class built-in workflow type.
 - Pi `systemPrompt` and `appendSystemPrompt` are not delivered on the rivet ACP path.
-- Remote MCP servers are skipped by the current runner path. Local stdio MCP is the path
+- Remote MCP servers are skipped by the active-stack runner path. Local stdio MCP is the path
   represented by the bridge.
 - Trigger lifecycle, Compose.io trigger integration, and event-to-agent mapping are not
   implemented in the agent workflow code.
@@ -74,7 +76,7 @@ page, treat this page and the referenced code as the source of truth.
 - Trigger integration needs a provider port, a Compose.io adapter, Agenta-owned trigger
   state, and event-to-agent mapping.
 - The old streaming RFCs are archived in [trash/old-rfcs/](trash/old-rfcs/). They explain
-  why the protocol exists but no longer describe the exact current state.
+  why the protocol exists but no longer describe the exact active-stack state.
 
 ## Verification Pointers
 

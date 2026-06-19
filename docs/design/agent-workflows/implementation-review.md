@@ -3,6 +3,9 @@
 This is a high-level cleanup review for splitting the agent workflow work into reviewable
 PRs. It avoids single-bug detail unless the detail points to a larger design risk.
 
+This review spans the active agent-workflows stack. The docs PR commit is docs-only and
+does not contain every implementation file named below.
+
 ## Scope Reviewed
 
 - `services/oss/src/agent/`
@@ -40,7 +43,7 @@ separate design decision.
 
 ### Agent Template Boundaries Are Not Stable Yet
 
-The current request shape mixes `AGENTS.md`, tools, MCP config, harness, sandbox, model,
+The active-stack request shape mixes `AGENTS.md`, tools, MCP config, harness, sandbox, model,
 and permissions. That is practical for the POC, but it does not yet define the persisted
 agent template.
 
@@ -78,7 +81,7 @@ vault adapters. That direction is healthy. The remaining runtime matrix is still
 - Code tools can run locally in the runner.
 - Callback tools need `/tools/call`.
 - MCP resolution is feature-gated.
-- Remote MCP servers are skipped by the current runner path.
+- Remote MCP servers are skipped by the active-stack runner path.
 - Client tools need a browser turn boundary and cannot run headlessly.
 - Named tool secrets depend on the vault resolve endpoint and failure policy.
 
@@ -97,7 +100,7 @@ a target agent/workflow, a mapping from event JSON to message or request, and li
 management through a provider adapter.
 
 There is no trigger port, Compose.io adapter, Agenta trigger state, or event-to-agent
-mapping in the current agent workflow code. This should become its own PR slice rather than
+mapping in the active-stack agent workflow code. This should become its own PR slice rather than
 being hidden inside tool or session work.
 
 ### MCP Is Visible Before It Is Fully Available
@@ -105,7 +108,7 @@ being hidden inside tool or session work.
 The agent config schema and playground controls expose MCP server configuration. The
 runtime path is narrower: service resolution is behind `AGENTA_AGENT_ENABLE_MCP`, Pi reports
 no MCP capability, rivet delivers MCP only for non-Pi harnesses, and remote MCP servers are
-not executed on the current runner path.
+not executed on the active-stack runner path.
 
 The UI should either surface those constraints or hide MCP controls until the selected
 harness/backend can honor them.
@@ -119,11 +122,11 @@ durable session store to hold a pending interaction across turns.
 Treat human approval, elicitation, and browser-fulfilled tools as protocol scaffolding until
 the cross-turn responder and session persistence land together.
 
-### Historical Work-Package Labels Add Noise
+### Historical Build Labels Add Noise
 
-Several implementation comments still refer to WP-2, WP-7, or WP-8. Those labels helped
-during the build, but they now make the current architecture harder to read. Replace them
-with current names such as "runner sidecar", "callback tools", "rivet backend", or
+Several implementation comments still use old work-package labels. Those labels helped
+during the build, but they now make the active-stack architecture harder to read. Replace them
+with stable names such as "runner sidecar", "callback tools", "rivet backend", or
 "Vercel messages route".
 
 ### Prompt Override Behavior Differs By Path
@@ -144,7 +147,7 @@ the warning and surface it to users.
 
 ## Suggested PR Slices
 
-1. Documentation and comment hygiene: current docs, trash archive, WP label cleanup.
+1. Documentation and comment hygiene: active-stack docs, trash archive, build-label cleanup.
 2. Protocol hardening: `/messages` and Vercel stream tests, error behavior, headers.
 3. Agent template contract: identity/config/runtime split, skills serialization, tool
    contract.
