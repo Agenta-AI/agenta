@@ -121,4 +121,28 @@ const ofType = <T extends AgentEvent["type"]>(events: AgentEvent[], t: T) =>
   assert.equal(ofType(events, "done").length, 1, "exactly one done");
 }
 
+// --- Scenario 3: span-less mode still records ACP events ---------------------
+{
+  const run = createRivetOtel({ harness: "pi", model: "openai-codex/x", emitSpans: false });
+  drive(run);
+  run.setUsage({ input: 4, output: 6, total: 10, cost: 0.02 });
+  const finalText = run.finish();
+  const events = run.events();
+
+  assert.equal(finalText, "Hello world It is sunny.");
+  assert.equal(ofType(events, "message").length, 1, "message present without spans");
+  assert.equal(ofType(events, "thought").length, 1, "thought present without spans");
+  assert.equal(ofType(events, "tool_call").length, 1, "tool_call present without spans");
+  assert.equal(ofType(events, "tool_result").length, 1, "tool_result present without spans");
+  const usageEvents = ofType(events, "usage");
+  assert.equal(usageEvents.length, 1, "usage present without spans");
+  assert.deepEqual(
+    usageEvents[0],
+    { type: "usage", input: 4, output: 6, total: 10, cost: 0.02 },
+    "final usage replaces stream-only usage before done",
+  );
+  assert.equal(ofType(events, "done").length, 1, "exactly one done without spans");
+  assert.ok(types(events).indexOf("usage") < types(events).indexOf("done"), "usage precedes done");
+}
+
 console.log("stream-events.test.ts: all assertions passed");

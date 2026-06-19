@@ -8,17 +8,15 @@
  * and we deliver tools the Pi-native way (`registerTool`), each routing back to Agenta's
  * /tools/call, rather than over MCP. Pi is highly customizable; this leans on that.
  *
- * Everything is read from the environment (injected at the daemon's birth), so nothing
- * run-specific is written to the agent-visible filesystem:
+ * Everything is read from the environment (injected at the daemon's birth). Tool env is
+ * intentionally public-only; execution relays back to the runner where private specs/auth
+ * remain in memory:
  *   AGENTA_TRACEPARENT            W3C traceparent of the caller's /invoke span
  *   AGENTA_OTLP_ENDPOINT          OTLP traces URL (e.g. https://host/api/otlp/v1/traces)
  *   AGENTA_OTLP_AUTHORIZATION     Authorization header for the OTLP export
  *   AGENTA_CAPTURE_CONTENT        "false" to drop prompt/completion/tool I/O from spans
- *   AGENTA_TOOL_SPECS             JSON [{ name, description, inputSchema, callRef }]
- *   AGENTA_TOOL_CALLBACK_ENDPOINT full /tools/call URL
- *   AGENTA_TOOL_CALLBACK_AUTH     Authorization header for the callback
- *   AGENTA_TOOL_RELAY_DIR         set on Daytona: relay tool calls through the runner via
- *                                 files here, since the sandbox can't reach Agenta directly
+ *   AGENTA_TOOL_PUBLIC_SPECS      JSON [{ name, description, inputSchema }]
+ *   AGENTA_TOOL_RELAY_DIR         relay tool calls through the runner via files here
  *
  * Bundled self-contained (esbuild) so its OpenTelemetry deps resolve wherever Pi loads
  * it (local, the docker sidecar, a Daytona snapshot). Default export is the Pi
@@ -37,31 +35,22 @@ function log(message: string): void {
   process.stderr.write(`[agenta-pi-ext] ${message}\n`);
 }
 
-/** Register the resolved tools (from env) as Pi tools that call back to Agenta. */
+/** Register public tool metadata as Pi tools whose execution relays to the runner. */
 function registerTools(pi: ExtensionAPI): void {
-  const raw = process.env.AGENTA_TOOL_SPECS;
-  const endpoint = process.env.AGENTA_TOOL_CALLBACK_ENDPOINT;
-  if (!raw || !endpoint) return;
+  const raw = process.env.AGENTA_TOOL_PUBLIC_SPECS;
+  const relayDir = process.env.AGENTA_TOOL_RELAY_DIR;
+  if (!raw || !relayDir) return;
 
   let specs: ResolvedToolSpec[] = [];
   try {
     specs = JSON.parse(raw);
   } catch (err) {
-    log(`bad AGENTA_TOOL_SPECS: ${(err as Error).message}`);
+    log(`bad AGENTA_TOOL_PUBLIC_SPECS: ${(err as Error).message}`);
     return;
   }
-  const authorization = process.env.AGENTA_TOOL_CALLBACK_AUTH;
-  // Daytona: the in-sandbox process can't reach Agenta, so tool calls are relayed through
-  // the runner via files in this dir. Unset for local runs (direct /tools/call).
-  const relayDir = process.env.AGENTA_TOOL_RELAY_DIR;
 
   let registered = 0;
   for (const spec of specs) {
-    // `client` tools are browser-fulfilled; there is no browser in the sandbox to answer.
-    if (spec.kind === "client") {
-      log(`skipping client tool '${spec.name}' (browser-fulfilled)`);
-      continue;
-    }
     pi.registerTool({
       name: spec.name,
       label: spec.name,
@@ -69,24 +58,20 @@ function registerTools(pi: ExtensionAPI): void {
       // Pi accepts plain JSON Schema here (non-TypeBox validation path).
       parameters: (spec.inputSchema as any) ?? EMPTY_OBJECT_SCHEMA,
       async execute(toolCallId: string, params: unknown, signal?: AbortSignal) {
-        // `code` runs the snippet locally in the sandbox (no relay, even on Daytona); the
-        // callback path relays through the runner on Daytona, else POSTs to /tools/call.
         const text = await runResolvedTool(spec, params, {
           toolCallId,
-          endpoint,
-          authorization,
           relayDir,
           signal,
         });
         return {
           content: [{ type: "text", text }],
-          details: spec.kind === "code" ? { kind: "code" } : { callRef: spec.callRef },
+          details: { toolName: spec.name },
         };
       },
     } as any);
     registered += 1;
   }
-  log(`registered ${registered} tool(s) -> ${relayDir ? `relay ${relayDir}` : endpoint}`);
+  log(`registered ${registered} tool(s) -> relay ${relayDir}`);
 }
 
 /** The Pi ExtensionFactory: tools + (env-driven) tracing + usage writeback. */
@@ -94,7 +79,7 @@ const factory = (pi: ExtensionAPI): void => {
   // Fully inert unless Agenta wired this run (so it is safe to install globally in a
   // shared Pi agent dir — a normal `pi` session with no Agenta env does nothing).
   const hasTracing = !!(process.env.AGENTA_TRACEPARENT || process.env.AGENTA_OTLP_ENDPOINT);
-  const hasTools = !!(process.env.AGENTA_TOOL_SPECS && process.env.AGENTA_TOOL_CALLBACK_ENDPOINT);
+  const hasTools = !!(process.env.AGENTA_TOOL_PUBLIC_SPECS && process.env.AGENTA_TOOL_RELAY_DIR);
   const usageOut = process.env.AGENTA_USAGE_OUT;
   if (!hasTracing && !hasTools && !usageOut) return;
 
