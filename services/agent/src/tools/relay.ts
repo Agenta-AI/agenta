@@ -1,23 +1,25 @@
 /**
  * Daytona tool relay.
  *
- * On Daytona the harness runs in a remote cloud sandbox that can reach the public internet
- * but NOT a firewalled / private Agenta backend (the same reason tracing is built from the
- * event stream there instead of in-sandbox OTLP). So the in-sandbox Pi extension cannot
- * POST tool calls to Agenta's /tools/call directly.
+ * Tool child processes do not receive private resolved specs, executable code, scoped env,
+ * callback endpoints, or callback auth. They receive only public tool metadata plus this
+ * relay directory, then ask the runner to execute each call.
  *
  * The runner CAN reach Agenta (it resolved the tools and holds the callback), and it can
  * reach the sandbox filesystem over the daemon API. So tool calls are relayed through the
  * runner via files in a sandbox dir:
  *
- *   extension: write `<id>.req.json` {callRef, args}  ──▶  poll `<id>.res.json`
- *   runner:    poll the dir, read `<id>.req.json` ──▶ /tools/call ──▶ write `<id>.res.json`
+ *   child:  write `<id>.req.json` {toolName, args} ──▶ poll `<id>.res.json`
+ *   runner: poll the dir, read `<id>.req.json` ──▶ execute private spec in memory
+ *           ──▶ write `<id>.res.json`
  *
- * Local runs keep the direct path (the in-process / local-daemon extension reaches Agenta);
- * the relay is only wired when AGENTA_TOOL_RELAY_DIR is set (Daytona + Pi + tools).
+ * The same loop supports local filesystem relays and Daytona sandbox filesystem relays.
  */
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+
 import { callAgentaTool } from "./callback.ts";
-import type { ToolCallbackContext } from "../protocol.ts";
+import { runCodeTool } from "./code.ts";
+import type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
 
 export const RELAY_REQ_SUFFIX = ".req.json";
 export const RELAY_RES_SUFFIX = ".res.json";
@@ -25,7 +27,7 @@ export const RELAY_POLL_MS = Number(process.env.AGENTA_TOOL_RELAY_POLL_MS ?? 300
 export const RELAY_TIMEOUT_MS = Number(process.env.AGENTA_TOOL_RELAY_TIMEOUT_MS ?? 60000);
 
 export interface RelayRequest {
-  callRef: string;
+  toolName: string;
   toolCallId: string;
   args: unknown;
 }
@@ -42,6 +44,74 @@ export function sanitizeRelayId(id: string): string {
 
 export const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
+export interface RelayHost {
+  list: (dir: string) => Promise<string[]>;
+  read: (path: string) => Promise<string>;
+  write: (path: string, contents: string) => Promise<void>;
+}
+
+/** Relay host for child processes running on the same filesystem as the runner. */
+export function localRelayHost(): RelayHost {
+  return {
+    list: async (dir) => {
+      if (!existsSync(dir)) return [];
+      return readdirSync(dir);
+    },
+    read: async (path) => readFileSync(path, "utf-8"),
+    write: async (path, contents) => {
+      mkdirSync(path.slice(0, path.lastIndexOf("/")), { recursive: true });
+      writeFileSync(path, contents, "utf-8");
+    },
+  };
+}
+
+/** Relay host for child processes running inside a Daytona sandbox. */
+export function sandboxRelayHost(sandbox: any): RelayHost {
+  return {
+    list: async (dir) => {
+      const ls = await sandbox.runProcess({
+        command: "ls",
+        args: ["-1", dir],
+        timeoutMs: 10_000,
+      });
+      return String(ls?.stdout ?? "")
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    },
+    read: async (path) => {
+      const bytes = await sandbox.readFsFile({ path });
+      return typeof bytes === "string" ? bytes : new TextDecoder().decode(bytes);
+    },
+    write: async (path, contents) => {
+      await sandbox.writeFsFile({ path }, contents);
+    },
+  };
+}
+
+async function executeRelayedTool(
+  spec: ResolvedToolSpec,
+  req: RelayRequest,
+  callback: ToolCallbackContext | undefined,
+): Promise<string> {
+  if (spec.kind === "client") {
+    throw new Error(`client tool '${spec.name}' is browser-fulfilled and cannot be executed`);
+  }
+  if (spec.kind === "code") {
+    return runCodeTool(spec.runtime, spec.code ?? "", spec.env, req.args);
+  }
+  if (!callback?.endpoint) {
+    throw new Error(`missing toolCallback endpoint for '${spec.name}'`);
+  }
+  return callAgentaTool(
+    callback.endpoint,
+    callback.authorization,
+    spec.callRef ?? "",
+    req.toolCallId,
+    req.args,
+  );
+}
+
 /**
  * Runner-side relay loop. Polls the sandbox relay dir for request files, executes each
  * against Agenta's /tools/call (which the runner can reach), and writes the response file
@@ -49,37 +119,35 @@ export const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeou
  * in-flight executions; call it once the prompt resolves.
  */
 export function startToolRelay(
-  sandbox: any,
+  host: RelayHost,
   relayDir: string,
-  callback: ToolCallbackContext,
+  specs: ResolvedToolSpec[],
+  callback: ToolCallbackContext | undefined,
 ): { stop: () => Promise<void> } {
   let active = true;
   const seen = new Set<string>();
   const inflight: Promise<void>[] = [];
+  const specsByName = new Map(specs.map((spec) => [spec.name, spec]));
 
   const handle = async (reqName: string): Promise<void> => {
     const id = reqName.slice(0, -RELAY_REQ_SUFFIX.length);
     let res: RelayResponse;
     try {
-      const bytes = await sandbox.readFsFile({ path: `${relayDir}/${reqName}` });
-      const raw = typeof bytes === "string" ? bytes : new TextDecoder().decode(bytes);
+      const raw = await host.read(`${relayDir}/${reqName}`);
       const req = JSON.parse(raw) as RelayRequest;
-      const text = await callAgentaTool(
-        callback.endpoint,
-        callback.authorization,
-        req.callRef,
-        req.toolCallId ?? id,
-        req.args,
+      const spec = specsByName.get(req.toolName);
+      if (!spec) throw new Error(`unknown tool '${req.toolName}'`);
+      const text = await executeRelayedTool(
+        spec,
+        { ...req, toolCallId: req.toolCallId ?? id },
+        callback,
       );
       res = { ok: true, text };
     } catch (err) {
       res = { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
     try {
-      await sandbox.writeFsFile(
-        { path: `${relayDir}/${id}${RELAY_RES_SUFFIX}` },
-        JSON.stringify(res),
-      );
+      await host.write(`${relayDir}/${id}${RELAY_RES_SUFFIX}`, JSON.stringify(res));
     } catch {
       // The extension will time out and surface a tool error; nothing else to do here.
     }
@@ -88,15 +156,7 @@ export function startToolRelay(
   const loop = (async () => {
     while (active) {
       try {
-        const ls = await sandbox.runProcess({
-          command: "ls",
-          args: ["-1", relayDir],
-          timeoutMs: 10_000,
-        });
-        const names = String(ls?.stdout ?? "")
-          .split("\n")
-          .map((s) => s.trim())
-          .filter(Boolean);
+        const names = await host.list(relayDir);
         for (const name of names) {
           if (!name.endsWith(RELAY_REQ_SUFFIX) || seen.has(name)) continue;
           seen.add(name);

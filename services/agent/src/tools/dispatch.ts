@@ -54,7 +54,7 @@ export interface RunResolvedToolOpts {
  */
 export async function relayToolCall(
   dir: string,
-  callRef: string,
+  toolName: string,
   toolCallId: string,
   params: unknown,
   signal?: AbortSignal,
@@ -67,7 +67,7 @@ export async function relayToolCall(
   } catch {
     // The runner also creates it; a race here is harmless.
   }
-  writeFileSync(reqPath, JSON.stringify({ callRef, toolCallId, args: params ?? {} }), "utf-8");
+  writeFileSync(reqPath, JSON.stringify({ toolName, toolCallId, args: params ?? {} }), "utf-8");
 
   const deadline = Date.now() + RELAY_TIMEOUT_MS;
   while (Date.now() < deadline) {
@@ -116,7 +116,7 @@ export async function runResolvedTool(
   }
   // callback (default): route back to Agenta's /tools/call (directly or via the Daytona relay).
   if (opts.relayDir) {
-    return relayToolCall(opts.relayDir, spec.callRef ?? "", opts.toolCallId, params, opts.signal);
+    return relayToolCall(opts.relayDir, spec.name, opts.toolCallId, params, opts.signal);
   }
   return callAgentaTool(
     opts.endpoint ?? "",
