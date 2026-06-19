@@ -51,6 +51,12 @@ const OPTIONS: CreateAppTypeOption[] = [
         description: "Single-shot prompt completion.",
         testId: "create-app-type-modal-completion",
     },
+    {
+        type: "agent",
+        label: "Agent",
+        description: "Agent that uses tools over multiple turns.",
+        testId: "create-app-type-modal-agent",
+    },
 ]
 
 interface CreateAppTypeModalProps {
