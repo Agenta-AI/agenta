@@ -1,196 +1,153 @@
-# Ports and adapters
+# Ports And Adapters
 
-The [architecture](architecture.md) page showed the relay of programs. This page shows the
-seam that keeps that relay swappable: the ports, where they live, and the adapters behind
-them.
+The agent runtime uses the same hexagonal vocabulary as the rest of Agenta. The SDK owns
+the neutral ports and data contracts. The service and runner plug adapters into them.
 
-## Where the runtime lives
+## Runtime Package
 
-The neutral runtime is part of the published Python SDK, at
-`sdks/python/agenta/sdk/agents/`. An SDK user gets it as `agenta.sdk.agents` (with the main
-types re-exported as `ag.AgentConfig`, `ag.RivetBackend`, and so on). The Agenta service
-(`services/oss/src/agent/`) is a thin consumer of it: it resolves tools and secrets
-server-side, threads a trace context, and runs a turn through the same ports. Nothing in the
-SDK runtime calls the Agenta API, so the same code runs an agent standalone, with no Agenta
-backend at all.
+The SDK runtime lives under `sdks/python/agenta/sdk/agents/`.
 
-The package follows Agenta's hexagonal vocabulary, the same words the `api/` domains use:
-
-| Layer | File | What it holds |
+| Layer | Files | Role |
 | --- | --- | --- |
-| DTOs | `dtos.py` | data contracts (Pydantic): `AgentConfig`, `SessionConfig`, `Message`, events, capabilities, the per-harness configs |
-| Ports | `interfaces.py` | the abstract contracts: `Backend`, `Environment`, `Sandbox`, `Session`, `Harness` |
-| Adapters | `adapters/` | the implementations: the backends and the harnesses |
-| Utils | `utils/` | shared plumbing for the runner-backed adapters (the `/run` wire and the transports) |
+| DTOs | `dtos.py` | `AgentConfig`, `RunSelection`, `SessionConfig`, messages, events, capabilities, and harness-specific config models. |
+| Ports | `interfaces.py` | `Backend`, `Environment`, `Sandbox`, `Session`, `Harness`, `SessionStore`. |
+| Backend adapters | `adapters/in_process.py`, `adapters/rivet.py`, `adapters/local.py` | Engines that can run a harness. |
+| Harness adapters | `adapters/harnesses.py` | Per-harness mapping from neutral session config to harness-specific config. |
+| Browser adapter | `adapters/vercel/` | Vercel `UIMessage` input and Vercel UI Message Stream output. |
+| Runner plumbing | `utils/wire.py`, `utils/ts_runner.py` | `/run` serialization and runner transports. |
+| Tools and MCP | `tools/`, `mcp/` | Canonical tool and MCP config, resolution, wire models, and errors. |
 
-## The three layers
+The service imports this package. The SDK must not import the service.
 
-The runtime is three ports stacked, lowest to highest.
+## Core Ports
 
-### Backend (the engine)
+### Backend
 
-A `Backend` is the engine. It declares which harnesses it can drive, owns the sandbox and
-session lifecycle, and is pure plumbing: it takes an already-harness-shaped config and
-launches it. It carries no "how this harness works" logic.
+A `Backend` is the engine. It declares `supported_harnesses`, creates sandboxes, and opens
+sessions. It does not know how Pi or Claude wants tools shaped.
 
-```python
-class Backend(ABC):
-    supported_harnesses: ClassVar[FrozenSet[HarnessType]] = frozenset()
-    def supports(self, harness) -> bool: ...
-    async def create_sandbox(self) -> Sandbox: ...
-    async def create_session(self, sandbox, config, *, harness, secrets, trace, session_id) -> Session: ...
-```
+Current backends:
 
-Each backend is its own class and hard-codes what makes it that engine. There is no shared
-base beyond the ABC. Three exist:
+- `InProcessPiBackend`: implemented, supports `pi` and `agenta`, local only.
+- `RivetBackend`: implemented, supports `pi` and `claude`, local or Daytona.
+- `LocalBackend`: planned, public class exists, methods raise.
 
-- **`RivetBackend`** drives a harness over ACP through the TypeScript rivet runner. It
-  supports Pi and Claude. Its `sandbox` axis (`local` or `daytona`) is a constructor
-  argument, because it is a real runtime choice.
-- **`InProcessPiBackend`** drives Pi in-process through the runner, with no rivet daemon. Pi
-  only, local only. It was the first backend and stays as the simplest one, the reference to
-  read when writing a new backend.
-- **`LocalBackend`** runs a harness on the user's own machine for standalone SDK use (Pi via
-  a bundled JS runner, Claude via the Python `claude-agent-sdk`). See
-  [`scratch/sdk-local-backend/status.md`](scratch/sdk-local-backend/status.md) for its build
-  state.
+### Environment
 
-`RivetBackend` and `InProcessPiBackend` are different engines that happen to share the
-`utils` wire and transport helpers; neither subclasses the other.
+`Environment` wraps a backend and owns sandbox policy. The default is one sandbox per
+session. That is the cold isolation model.
 
-### Environment (where it runs)
+### Harness
 
-An `Environment` wraps a backend and owns the sandbox policy: by default a fresh sandbox per
-session (the cold model, strong isolation). Share one `Environment` across harnesses to
-share its sandbox, or use one per harness to isolate them. The workflow handler builds an
-`Environment(backend)` and never touches the backend's sandbox calls directly.
+A `Harness` wraps an environment for one harness type. It validates that the backend can
+drive it, maps `SessionConfig` into a harness-specific config, provisions files, and runs a
+turn.
 
-### Harness (the conversation, per harness type)
+Current harnesses:
 
-A `Harness` wraps an `Environment` for one harness type (`PiHarness`, `ClaudeHarness`). It
-does two jobs. First, it validates at construction that the environment's backend can drive
-it; if not, it raises `UnsupportedHarnessError` immediately:
+- `PiHarness` keeps built-in tool names, resolved tool specs, Pi prompt overrides, and Pi
+  native tool delivery.
+- `ClaudeHarness` drops Pi built-ins, carries MCP-delivered specs, and carries the
+  permission policy.
+- `AgentaHarness` is Pi with forced Agenta policy layered on top.
 
-```python
-ClaudeHarness(Environment(InProcessPiBackend()))
-# UnsupportedHarnessError: InProcessPiBackend cannot drive harness 'claude'; it supports: pi
-```
+### Session
 
-Second, it holds the per-harness adaptation logic, the part that used to live in the
-TypeScript runner. `Harness._to_harness_config` maps the neutral `SessionConfig` into the
-harness's own config, and the two harnesses genuinely differ:
+`Session` represents one conversation from the SDK point of view. Today it is a cold
+wrapper around one `/run` call. It exposes both:
 
-- **`PiHarness`** keeps built-in tool names, delivers resolved tools natively (Pi has no
-  MCP), and forces the permission policy to `auto` because Pi does not gate tool use.
-- **`ClaudeHarness`** drops Pi built-ins (Claude has none), delivers tools over MCP, and
-  honors the permission policy because Claude gates tool use.
+- `prompt(...)`: one-shot path returning `AgentResult`.
+- `stream(...)`: live path returning `AgentRun`.
 
-Both normalize the resolved tool specs (a name, a description, a JSON-Schema `inputSchema`,
-the `callRef`). The backend below stays pure plumbing; this layer owns the harness knowledge.
+`AgentRun` yields live `AgentEvent` objects and exposes the terminal `AgentResult` after
+the stream drains.
 
-A `make_harness(harness_type, environment)` factory maps the playground's harness string to
-the right class.
+### SessionStore
 
-The workflow handler runs a turn through these ports:
+`SessionStore` is the durable-history port. It has `load` and `save_turn`. The only default
+adapter is `NoopSessionStore`, which returns no messages and discards writes.
 
-```python
-backend = select_backend(selection)          # RivetBackend or InProcessPiBackend
-harness = make_harness(selection.harness, Environment(backend))
-await harness.setup()
-result = await harness.prompt(session_config, messages)
-await harness.cleanup()
-```
+This is intentional scaffolding. Server-owned session history is not implemented yet.
 
-## The configs
+A separate future port is still needed for harness session snapshots. Durable message
+history can reload a transcript, but it cannot necessarily restore Rivet/ACP session state,
+tool state, or setup artifacts. That future port should be designed after we inspect the
+actual session representation and storage size.
 
-`AgentConfig` is the one neutral config the platform and playground speak: instructions
-(written as `AGENTS.md`), model, and provider-agnostic tool references.
-`AgentConfig.from_params` parses a downloaded config dict (the `agent` element, a `prompt`
-prompt-template, or a flat shape) so a standalone user runs exactly what the playground
-stores. `RunSelection` carries the run-time choices stored alongside it (harness, sandbox,
-permission policy); the caller reads it to pick a backend and a harness class.
+## Config Ownership
 
-`SessionConfig` bundles everything one run needs except where it runs: the `AgentConfig`,
-the provider secrets, the permission policy, the trace context, and the resolved tool
-delivery (built-in names, custom specs, the `/tools/call` callback). Sandbox is deliberately
-not in it; that is a backend and environment concern.
+`AgentConfig` describes the agent itself: instructions, model, tool references, MCP server
+config, and per-harness option bags. It does not choose a backend.
 
-The per-harness configs (`PiAgentConfig`, `ClaudeAgentConfig`) are what a backend plumbs.
-Each shapes its own tool and permission fields for the wire, so the difference between Pi's
-native tools and Claude's MCP tools lives in the config types, not in a runtime branch.
+`RunSelection` describes runtime choices: harness, sandbox, and permission policy.
 
-## How the service picks a backend
+This is the current POC shape. The long-term split should be stricter:
 
-The handler chooses on every request, in `services/oss/src/agent/app.py`. `select_backend`
-returns a backend instance: `InProcessPiBackend` for Pi running locally, and `RivetBackend`
-otherwise (any other harness, a non-local sandbox, or `AGENTA_AGENT_RUNTIME=rivet`). The
-in-process Pi engine only knows how to run Pi locally, so anything else routes to rivet
-rather than silently dropping the choice.
+- Generic agent identity: `AGENTS.md`, skills, tool references, and metadata.
+- Harness-specific config: harness id, model, option bags, and harness-specific
+  permissions.
+- Runtime infrastructure: local versus Daytona, runner sidecar URL, filesystem isolation,
+  and secret channels.
 
-The transport to the runner is a deployment detail each backend takes as a constructor
-argument: `AGENTA_AGENT_PI_URL` set (the Docker deployment) means HTTP to the sidecar; unset
-(a local checkout) means spawn the runner CLI from the wrapper directory.
+Sandbox is currently selectable through `RunSelection` so the POC can exercise local and
+Daytona paths. It should not become durable agent template identity unless product
+requirements explicitly need portable per-template runtime selection.
 
-## The wire contract: one `/run` shape
+`SessionConfig` describes one run: the neutral agent config plus resolved secrets, resolved
+tools, resolved MCP servers, trace context, and the session id.
 
-Both transports send the same camelCase JSON to the TypeScript runner and parse the same
-result back. The shape lives once in `utils/wire.py` on the Python side and `protocol.ts` on
-the TypeScript side. This contract is the actual boundary of the system.
+## Service Composition
 
-**Request** (the harness-shaped config plus the conversation):
+`services/oss/src/agent/app.py` is a thin consumer of the SDK ports:
 
-| Field | Meaning |
-| --- | --- |
-| `backend` | The engine the runner uses (`rivet` or `pi`), set by the backend |
-| `harness`, `sandbox` | The two swap axes |
-| `sessionId` | Continue a prior run by replaying its history |
-| `agentsMd` | The agent's instructions, written as `AGENTS.md` |
-| `model` | The requested model id |
-| `messages` | The conversation so far; the runner sends the latest turn and replays the rest |
-| `secrets` | Provider API keys as env vars, resolved from the project vault |
-| `tools`, `customTools`, `toolCallback` | The resolved runnable tools and where they call back |
-| `permissionPolicy` | `auto` or `deny` for a permission-gating harness |
-| `trace` | The Agenta trace context, so the run nests under the `/invoke` span |
+1. Parse `AgentConfig` and `RunSelection`.
+2. Resolve provider secrets.
+3. Resolve tools and, when enabled, MCP servers.
+4. Build `SessionConfig`.
+5. Choose a backend.
+6. Build the harness.
+7. Run `prompt` or `stream`.
 
-**Result** (the reply plus structured run metadata):
+Tool and MCP resolution are split cleanly:
 
-| Field | Meaning |
-| --- | --- |
-| `output` | The final assistant text (what the playground renders) |
-| `messages` | The structured assistant messages |
-| `events` | The structured event log for the turn (see below) |
-| `usage` | Token and cost totals, rolled onto the workflow span |
-| `stopReason` | Why the turn ended |
-| `capabilities` | What the harness was probed to support this run |
-| `sessionId`, `model`, `traceId` | Identifiers for the run |
+- The SDK owns canonical models, parsing, local secret provider interfaces, and generic
+  resolver behavior.
+- The service owns Agenta-specific HTTP adapters for gateway tools and vault secrets.
+- The TypeScript runner owns actual execution for callback, code, and MCP-delivered tools.
 
-## The shared vocabulary: capabilities, content blocks, events
+## Browser Protocol Adapter
 
-Three neutral types travel on that wire. They are ours, not any one engine's, so a non-rivet
-adapter implements them too.
+The Vercel adapter is not part of the generic workflow route. It is registered only for
+agent routes and lives in `sdks/python/agenta/sdk/agents/adapters/vercel/`.
 
-**Capabilities** describe what a harness can do: `mcp_tools`, `images`, `usage`,
-`streaming_deltas`, `permissions`, and the rest. The rivet runner probes them live from the
-daemon and returns them in the result. This is what removed the brittle `if harness == "pi"`
-branches in the runner: it now branches on a flag, where the live answer is. For example, it
-delivers tools over MCP only when the harness reports `mcp_tools`.
+It owns:
 
-**Content blocks** mirror ACP: a message's content is either a plain string or a list of
-`text` / `image` / `resource` blocks. Today the playground sends only text. The image and
-resource kinds are plumbed through the types so an image-capable harness can take them.
+- Vercel `UIMessage` to neutral `Message` conversion.
+- `session_id` validation and minting.
+- `/messages` stream negotiation.
+- Vercel stream-part encoding.
+- `/load-session` over `SessionStore`.
 
-**Events** are the structured stream. Each event is one of `message`, `thought`,
-`tool_call`, `tool_result`, `usage`, `error`, or `done`. The runner builds this log from the
-harness as the run proceeds and returns it on the result. An `on_event` sink can also
-receive them. Today the transports deliver the whole log at once after the run, since `/run`
-is request-and-response; live streaming over the HTTP edge is a documented follow-on.
+This keeps Vercel-specific names out of the runtime ports.
 
-## Why this shape
+## The `/run` Boundary
 
-The port mirrors rivet's vocabulary but keeps the types ours, so rivet is one adapter behind
-the seam, not the seam itself. The same ports carry two working engines (rivet over ACP,
-in-process Pi) and have room for a standalone local engine. Making the engine a real
-`Backend` class, rather than a string the transport carries, is what lets a backend hard-code
-its own identity and lets a standalone SDK user construct one directly. The cost of the
-flexibility is one extra hop and one wire contract to keep in sync across two languages, which
-the `utils/wire.py` and `protocol.ts` pairing contains in one place each.
+Runner-backed backends send the same `/run` wire shape whether they use HTTP or spawn the
+CLI. The Python and TypeScript sides intentionally duplicate the contract:
+
+- Python: `sdks/python/agenta/sdk/agents/utils/wire.py`
+- TypeScript: `services/agent/src/protocol.ts`
+
+Golden tests pin this boundary. Any change to request fields, event kinds, capabilities, or
+result fields should update both sides and the wire tests in the same PR.
+
+## Known Weak Points
+
+- `LocalBackend` appears in public exports but is not usable yet.
+- `SessionStore` has no production adapter and the current runtime does not call
+  `save_turn` after completed `/messages` turns.
+- `AgentaHarness` policy content is placeholder product copy.
+- `AgentaHarness` cannot run on rivet or Daytona.
+- MCP server resolution is disabled unless `AGENTA_AGENT_ENABLE_MCP` is truthy.
+- The code still has historical WP labels in comments. Those labels should not guide new
+  design decisions.

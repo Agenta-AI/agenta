@@ -106,9 +106,9 @@ async def _agent(
         mcp_servers=resources.mcp_servers,
     )
 
-    # The harness validates that the chosen backend can drive it; select_backend already
-    # routes a claude harness or a non-local sandbox to rivet, so this never fails in
-    # practice. setup/cleanup own the backend lifecycle; prompt/stream run one cold turn.
+    # The harness validates that the chosen backend can drive it. Unsupported combinations
+    # such as `agenta` on rivet fail here instead of silently changing runtime behavior.
+    # setup/cleanup own the backend lifecycle; prompt/stream run one cold turn.
     harness = make_harness(selection.harness, Environment(select_backend(selection)))
 
     # The `/messages` SSE path sets `stream`: return the Vercel UI Message Stream as an async
@@ -150,7 +150,7 @@ async def _agent_vercel_stream(harness, session_config, msgs):
 def create_agent_app():
     app = ag.create_app()
     # No builtin URI yet: registering the agent as a first-class workflow type
-    # (`agenta:builtin:agent:v0`) and its interface is WP-6. Here we register the handler
+    # (`agenta:builtin:agent:v0`) is still future work. Here we register the handler
     # directly, so it gets an auto URI (`user:custom:...`) and runs locally.
     routed = ag.workflow(schemas=AGENT_SCHEMAS)(_agent)
     # is_agent gates the agent-only `/messages` + `/load-session` routes (next to /invoke).

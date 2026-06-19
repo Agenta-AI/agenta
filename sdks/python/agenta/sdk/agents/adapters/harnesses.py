@@ -48,7 +48,7 @@ def _opt_str(value: Any) -> Any:
 
 
 def _normalize_tool_specs(specs: List[Dict[str, Any]]) -> List[ToolSpec]:
-    """Compatibility helper for callers still supplying runner dictionaries."""
+    """Compatibility helper for old tests/callers still supplying runner dictionaries."""
     return [coerce_tool_spec(spec) for spec in specs or []]
 
 

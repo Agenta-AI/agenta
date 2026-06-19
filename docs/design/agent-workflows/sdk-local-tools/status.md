@@ -14,7 +14,7 @@ configuration shapes are handled only at the explicit compatibility boundary in
 
 The prerequisite is also not done: `LocalBackend` is a stub that raises
 (`sdks/python/agenta/sdk/agents/adapters/local.py:30`). The sibling effort owns it
-([`../scratch/sdk-local-backend/status.md`](../scratch/sdk-local-backend/status.md)).
+([`../trash/sdk-local-backend/status.md`](../trash/sdk-local-backend/status.md)).
 
 ## Organization review (2026-06-19)
 

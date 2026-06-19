@@ -90,7 +90,7 @@ Runtime execution lives in:
   - dispatches resolved tools by executor kind.
 - `services/agent/src/tools/code.ts`
   - code-tool subprocess execution and environment isolation.
-- `services/agent/src/tools/client.ts`
+- `services/agent/src/tools/callback.ts`
   - calls the Agenta callback endpoint; despite the filename, this is not a client-fulfilled
     tool implementation.
 - `services/agent/src/tools/relay.ts`
@@ -484,8 +484,8 @@ targeted naming fixes:
 
 - rename `tools/execute.ts` to `tools/dispatch.ts`; the module selects an executor, while
   `code.ts` performs execution.
-- rename `tools/client.ts` to `tools/callback.ts` or `tools/agenta-callback.ts`; “client” is
-  confused with the `kind: "client"` tool that the browser fulfils.
+- keep the callback adapter named `tools/callback.ts`; “client” is confused with the
+  `kind: "client"` tool that the browser fulfils.
 
 Keep wire types in `protocol.ts` until the protocol itself is split. Moving only tool types
 would create cross-file protocol ownership without enough benefit.

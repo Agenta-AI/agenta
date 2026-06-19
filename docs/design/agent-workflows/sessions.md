@@ -1,94 +1,129 @@
-# Sessions: today and tomorrow
+# Sessions
 
-A session is how a multi-turn conversation holds together across runs. This page explains
-what a session is in the PoC today, why we built it the simple way on purpose, and the two
-paths open to us tomorrow.
+The agent runtime has session ids today. It does not have durable server-owned session
+history yet.
 
-## What a session is today
+## Today: Cold Replay
 
-Today a session is a `session_id` and the message history that goes with it. It is not a
-live process kept warm between turns. Every turn is a fresh, cold run: the runner starts the
-daemon, the adapter, and the harness, runs one turn, and tears all three down.
+Each turn is cold:
 
-Because nothing stays warm, the conversation has to be rebuilt on each turn. This works by
-**replay**. The playground holds the full message history and sends it back with every turn.
-The runner takes that history, flattens the prior turns into a short transcript, and puts
-the transcript in front of the new message before it prompts the harness:
+1. The service creates a harness session.
+2. The backend sends one `/run` request to the TypeScript runner.
+3. The runner starts the needed process tree.
+4. The harness completes one turn.
+5. The session is destroyed.
 
+Nothing warm is kept between turns. The model sees prior conversation only because the
+client sends message history again.
+
+On `/invoke`, that history is read from `data.inputs.messages`.
+
+On `/messages`, that history is read from `data.messages` in Vercel `UIMessage` shape, then
+converted to neutral runtime messages before the same handler runs.
+
+## What The Session Id Does
+
+`session_id` is an opaque conversation id. `/messages` accepts it at the top level. If the
+client omits it, the route mints one with a `sess_` prefix. If the client sends one, the
+route validates the charset and length and echoes it.
+
+The id flows into:
+
+- `WorkflowInvokeRequest.session_id`
+- `_agent(..., session_id=...)`
+- `SessionConfig.session_id`
+- the `/run` `sessionId` field
+- the runner result
+- the Vercel stream `start.messageMetadata.sessionId`
+- the batch `WorkflowBatchResponse.session_id`
+
+The id groups turns, but it does not make the server authoritative for context yet. The
+message history on the request is still what the model sees.
+
+## Intended Id Semantics
+
+The intended behavior is create-or-resume:
+
+- If the client omits `session_id`, the server creates one and returns it.
+- If the client supplies a known `session_id`, the server resumes that session.
+- If the client supplies an unknown but valid `session_id`, the server creates a session
+  using that id.
+
+The current implementation only validates and propagates the id. Because there is no
+durable store, it cannot distinguish known from unknown ids yet.
+
+There should not be a required `create-session` endpoint for the normal chat path. The same
+implicit creation pattern should cover pre-message operations too. For example, a file
+upload before the first typed message can create a session and return the id that later
+chat turns use.
+
+If a client already knows a session id and needs to render history, it should call
+`/load-session` before sending the first message.
+
+## Streaming
+
+Streaming is implemented without changing the cold lifecycle.
+
+The runner emits live NDJSON records internally. The Python `AgentRun` turns those records
+into live `AgentEvent` objects. The Vercel adapter projects each event into Vercel UI
+Message Stream parts and the route frames them as SSE.
+
+This means the browser can see text, reasoning, tool calls, tool results, data parts, files,
+errors, and finish metadata as they happen. It does not mean the session is warm or
+persisted.
+
+## `/load-session`
+
+The route exists and calls a `SessionStore` port. The default store is `NoopSessionStore`.
+It returns an empty list:
+
+```json
+{ "session_id": "sess_abc", "messages": [] }
 ```
-Conversation so far:
-user: what is the capital of France?
-assistant: Paris.
 
-Continue the conversation. The user now says:
-and of Germany?
-```
+That makes the protocol testable, but it does not restore history. A production store still
+needs to be selected and wired.
 
-The transcript is capped (by `AGENTA_AGENT_HISTORY_MAX_CHARS`) so the replayed tokens stay
-bounded on long conversations. The `session_id` rides along on the trace (as `session.id`
-and `gen_ai.conversation.id`) and comes back on the result, so a follow-up turn can carry
-it forward.
+## Missing Durable History
 
-## The session is already a first-class object
+To make sessions real, the platform needs:
 
-Even though the lifecycle is cold, the ports model a session as a real object. The workflow
-handler works through a `Harness` over an `Environment`:
+- A production `SessionStore` implementation.
+- A call to `save_turn` after each completed `/messages` turn.
+- Ownership checks keyed by project and caller.
+- A load path that returns persisted Vercel `UIMessage` history.
+- A policy for failed, cancelled, and partially streamed turns.
 
-```python
-harness = make_harness(harness_type, Environment(backend))
-session = await harness.create_session(config)
-result = await session.prompt(messages)
-await session.destroy()
-```
+Until that lands, clients must keep sending full history.
 
-`Session` is the conversation abstraction described on the
-[ports and adapters](ports-and-adapters.md) page. Under the cold model, `prompt` sends a
-fresh `/run` that replays history and `destroy` is a no-op. The abstraction is stable. Only
-the mechanism behind it is cold. This matters because it gives a future session store a clean
-place to attach, with no change to the handler above it.
+## Missing Session Snapshots
 
-## Why we kept it cold on purpose
+Durable chat history is only the MVP path. Stateful harnesses may also need their own
+session state saved before teardown and loaded during setup. This is separate from storing
+Vercel `UIMessage` history.
 
-Rivet can do real, warm sessions. Its SDK has `createSession`, `resumeSession`, and the ACP
-`session/load` call, all backed by a persistence driver. The usual way to continue a
-conversation is to keep one daemon warm and replay events into it with `session/load`.
+Examples of state that may not be recoverable from messages alone:
 
-We chose not to do that yet. A warm daemon shared across runs reopens hard questions that
-the cold model sidesteps: a per-session channel for secrets and trace context, and a
-filesystem jail so two tenants sharing a daemon cannot read each other's files. The cold
-model gives strong isolation for free, because each run is born and dies alone. For a PoC
-that proves the agent workflow end to end, that trade is the right one.
+- Rivet or ACP session blobs.
+- Tool or harness state created during setup.
+- Filesystem or process metadata needed to resume a warm-ish session after a cold restart.
 
-The cost is the replay above. Replay spends tokens re-sending history, and it cannot restore
-in-harness state that a transcript does not capture (a partly built plan, a tool's cached
-result). For short conversations this is invisible. For long or stateful ones it is the
-thing a warm model would fix.
+The interface is not designed yet. It likely needs explicit `save_session` and
+`load_session` semantics around harness cleanup/setup, plus a storage decision after we
+understand the size and shape of Rivet/ACP session data. Small JSON blobs may fit in
+Postgres. Large opaque blobs may need object storage.
 
-## Tomorrow: two paths
+Retention should be short by default, measured in days. Traces may have a different
+retention policy.
 
-There are two ways to grow past cold replay, and they are not the same.
+## Later: Warm Sessions
 
-**Path one: a server-side session store, still cold.** Keep one daemon per turn, but move
-the history out of the playground and into the platform. A `SessionStore` (backed by the
-backend database, or by a file for a standalone run) holds the event history. To continue,
-the service replays the persisted history into a fresh cold sandbox, exactly as today, but
-the platform owns the record instead of the client. This keeps the strong isolation of the
-cold model and still gives durable, server-owned sessions. It is the smaller step, and the
-`Session` object is already the place it attaches.
+Warm sessions are separate from durable cold history. A warm model would keep the daemon or
+harness state alive and use ACP `session/load` or equivalent state restoration. That can
+recover state a transcript cannot, but it also needs a filesystem jail, per-session secret
+channels, and clear multi-tenant isolation.
 
-**Path two: a warm daemon with `session/load`.** Keep a daemon alive between turns and use
-the ACP `session/load` call to restore the real in-harness session, no transcript replay.
-This is the richer model. It restores state a transcript cannot, and it opens the door to
-`session/fork` for trying several variations of a turn. It also requires the per-session
-secret channel and the filesystem jail we deferred, so it is the larger step.
+The likely order remains:
 
-The likely order is path one first, then path two if and when stateful, long-running agents
-need it. Path one is an additive feature behind the existing port. Path two is a change to
-the runtime model.
-
-## The open question
-
-Path one leaves one decision for the team: where the event history lives. The default
-assumption is the backend database on the platform and a file for a standalone run, which
-mirrors how the rest of Agenta splits platform storage from local runs. Settling that is the
-first step whenever session persistence moves from "documented" to "built."
+1. Add server-owned history while keeping cold replay.
+2. Add warm daemon sessions only if long-running stateful agents need them.

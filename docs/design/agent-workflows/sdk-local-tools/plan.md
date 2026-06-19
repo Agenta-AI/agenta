@@ -40,7 +40,7 @@ unless the user supplies a fulfiller. We document this as a limitation, not a bl
 service already imports the SDK's tool vocabulary
 (`services/oss/src/agent/tools.py:23`). When spec-building logic moves into the SDK, the
 service consumes it. The sibling effort locks the same rule
-([`../scratch/sdk-local-backend/status.md`](../scratch/sdk-local-backend/status.md),
+([`../trash/sdk-local-backend/status.md`](../trash/sdk-local-backend/status.md),
 "Dependency direction").
 
 ### Decision 2: How do code and MCP executors run locally? Settled: code reuses the Pi engine; MCP is out of scope, wired but flag-gated off.
@@ -119,7 +119,7 @@ The phases assume the settled decisions above.
 ### Phase 0 (prerequisite, owned elsewhere): `LocalBackend` runs a tool-free agent
 
 `LocalBackend` is a stub that raises (`sdks/python/agenta/sdk/agents/adapters/local.py:30`).
-The sibling effort ([`../scratch/sdk-local-backend/status.md`](../scratch/sdk-local-backend/status.md))
+The sibling effort ([`../trash/sdk-local-backend/status.md`](../trash/sdk-local-backend/status.md))
 must ship at least the Pi path (the bundled JS runner) before any tool work runs end to end.
 
 ### Phase 1: built-in tools, offline

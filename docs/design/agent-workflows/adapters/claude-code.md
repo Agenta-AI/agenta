@@ -31,7 +31,7 @@ something in particular.
 
 The mechanism is a small stdio MCP server (`tools/mcp-server.ts`) that the daemon launches
 and attaches to the session. Its tool bodies POST back to Agenta's `/tools/call` with the
-same WP-7 envelope the Pi path uses. The resolved specs and the callback endpoint reach the
+same callback-tool envelope the Pi path uses. The resolved specs and the callback endpoint reach the
 MCP server through its environment, so nothing tool-specific is written to a file the agent
 can read. The safety property is identical to Pi's: the provider key and the connection auth
 stay server-side, and the agent only ever asks Agenta to run a named tool.

@@ -11,11 +11,12 @@ rivet's `sandbox-agent`) are Node libraries with no Python SDK.
 Two entrypoints, same `/run` contract (see `src/protocol.ts`):
 
 - **`src/cli.ts`** — one JSON request on stdin, one result on stdout. The Python
-  `SubprocessHarness` spawns this for local runs. stdout is the result channel only; logs
-  go to stderr.
+  SDK adapters use this subprocess transport when `AGENTA_AGENT_PI_URL` is unset. stdout is
+  the result channel only; logs go to stderr.
 - **`src/server.ts`** — the same thing as a long-lived HTTP server on `:8765`
-  (`GET /health`, `POST /run`). This is the **dockerized sidecar** the Python `HttpHarness`
-  calls in-network. The dev image (`docker/Dockerfile.dev`) runs `tsx watch src/server.ts`.
+  (`GET /health`, `POST /run`). This is the dockerized agent runner sidecar the Python SDK
+  adapters call over HTTP when `AGENTA_AGENT_PI_URL` points at it. The dev image
+  (`docker/Dockerfile.dev`) runs `tsx watch src/server.ts`.
 
 Both route to an engine by the request's `backend` field.
 
@@ -27,12 +28,14 @@ src/
   server.ts           entrypoint: HTTP sidecar on :8765
   protocol.ts         the /run wire contract (request, result, events, capabilities)
   engines/
-    pi.ts             legacy engine: drive the Pi SDK in-process
+    pi.ts             engine: drive the Pi SDK in-process
     rivet.ts          engine: drive a harness over ACP via a rivet sandbox-agent daemon
   tracing/
     otel.ts           turn a run into OpenTelemetry spans nested under /invoke
   tools/
-    client.ts         the one /tools/call HTTP client
+    callback.ts       the one /tools/call HTTP client
+    code.ts           execute resolved code tools in a scoped subprocess
+    dispatch.ts       dispatch resolved tools by executor kind
     mcp-bridge.ts     build the MCP server config that exposes tools to a harness
     mcp-server.ts     the stdio MCP server itself (launched per session by the daemon)
   extensions/
@@ -41,14 +44,14 @@ src/
 
 ## Engines
 
-- **`pi`** (`engines/pi.ts`) — the legacy path. Drives the Pi SDK directly in-process.
+- **`pi`** (`engines/pi.ts`) — drives the Pi SDK directly in-process.
 - **`rivet`** (`engines/rivet.ts`) — drives any harness (`pi`, `claude`) over the Agent
   Client Protocol through a rivet `sandbox-agent` daemon, either local or in a Daytona
   sandbox. This is the default on the platform.
 
 The engine is a deployment choice (`backend` on the wire / `AGENT_BACKEND` env), not a
-harness. Harness choice (pi/claude) and sandbox (local/daytona) are per-run config the
-Python service sends.
+harness. Harness choice (`pi`, `claude`, or experimental `agenta`) and sandbox (`local` or
+`daytona`, where supported) are per-run config the Python service sends.
 
 ## Result
 

@@ -394,7 +394,7 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            # Agent workflow (WP-2): reach the harness wrapper sidecar in-network.
+            # Agent workflow: reach the agent runner sidecar in-network.
             AGENTA_AGENT_PI_URL: http://agent-pi:8765
             # Agent runtime (WP-8): drive the harness over ACP via a rivet daemon.
             # Harness (pi/claude) and sandbox (local/daytona) are independent axes.
@@ -420,7 +420,7 @@ services:
 
     agent-pi:
         # === IMAGE ================================================ #
-        # Pi harness sidecar for the agent workflow (WP-2). The services container
+        # Agent runner sidecar. The services container
         # calls it in-network at http://agent-pi:8765 (AGENTA_AGENT_PI_URL).
         build:
             context: ../../../services/agent
@@ -450,8 +450,11 @@ services:
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
             DAYTONA_API_URL: ${DAYTONA_API_URL:-}
             DAYTONA_TARGET: ${DAYTONA_TARGET:-}
-            # Pre-baked snapshot (rivet daemon + Pi + Claude + certs) so Daytona runs skip
-            # the ~150s per-invoke `npm install pi`. Built by poc/build_rivet_snapshot.py.
+            # Pre-baked snapshot (rivet daemon + Pi + certs; Claude inherited from rivet's
+            # -full base) so Daytona runs skip the ~150s per-invoke `npm install pi`. We
+            # ship the builder (poc/build_rivet_snapshot.py), not the snapshot itself: each
+            # operator builds their own, so we never distribute a Claude-containing image.
+            # See services/agent/docker/README.md for the licensing posture.
             AGENTA_RIVET_DAYTONA_SNAPSHOT: ${AGENTA_RIVET_DAYTONA_SNAPSHOT:-agenta-rivet-pi}
             AGENTA_RIVET_DAYTONA_INSTALL_PI: ${AGENTA_RIVET_DAYTONA_INSTALL_PI:-false}
         # === STORAGE ============================================== #

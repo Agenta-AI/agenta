@@ -39,8 +39,9 @@ AGENT_INPUTS_SCHEMA = {
 # the `agent_config` catalog type (AgentConfigSchema in agenta.sdk.utils.types), so this is a
 # thin `x-ag-type-ref` the playground resolves against `/workflows/catalog/types/agent_config`
 # and dispatches to the AgentConfigControl (web/packages/agenta-entity-ui/.../AgentConfigControl.tsx).
-# Generating the schema from the model keeps the typed tools/mcp_servers in one place; we only
-# carry the default here (what the playground pre-fills). agent.py reads this value (see inputs.py).
+# The catalog type keeps the typed tools/mcp_servers shape in one place; this schema only
+# carries the default that the playground pre-fills. The agent handler reads it from
+# `parameters.agent` in app.py.
 _DEFAULT_AGENT_CONFIG = {
     "agents_md": _DEFAULT_AGENTS_MD,
     "model": _DEFAULT_MODEL,

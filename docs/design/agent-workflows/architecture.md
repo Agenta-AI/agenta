@@ -1,183 +1,142 @@
 # Architecture
 
-This page explains how an agent runs inside Agenta, from the moment a request arrives
-to the moment the answer comes back. Read it first. The other pages go deeper into the
-[ports and adapters](ports-and-adapters.md), [sessions](sessions.md), and the two
-shipped adapters ([Pi](adapters/pi.md), [Claude Code](adapters/claude-code.md)).
+This page explains how the current agent workflow runs. It describes the checked-in code,
+not the older work-package plans in [trash/](trash/).
 
-## What an agent workflow is
+## The Model
 
-Agenta already runs prompt workflows: completion, chat, and the LLM judge. Each one calls
-a model once and returns one answer. An agent is different. It runs a loop. It reads its
-instructions, calls a model, runs a tool, reads the result, and calls the model again. It
-keeps going until the task is done, then returns the final answer.
+Agenta already runs prompt workflows that call a model once and return one answer. An
+agent workflow runs a coding harness instead. The harness reads instructions, calls a
+model, calls tools, observes the results, and loops until it has an answer.
 
-This PoC adds the agent as a new kind of workflow. It sits behind the same `/invoke`
-endpoint every other workflow uses, traces into the same spans, and reads its config from
-the same playground.
+The implementation keeps two choices configurable:
 
-The loop itself is not the hard part. Open-source coding agents already run the loop well.
-The hard part is running one of those agents *as an Agenta workflow*: behind the standard
-contract, traced into the standard spans, with the agent and the place it runs both
-swappable by config. That is the problem this architecture solves.
+- **Harness:** which agent runs. Current values are `pi`, `claude`, and experimental
+  `agenta`.
+- **Sandbox:** where the run happens. Current values are `local` and `daytona` on the
+  rivet path. The in-process Pi path is local only.
 
-## The core idea: a relay of programs
+The platform still exposes the agent through normal workflow routing. `/invoke` remains the
+batch contract. Agent routes also register `/messages` and `/load-session` for the browser
+chat protocol.
 
-The system is a relay. Each program starts the next one and passes work down the line. The
-prompt travels down the relay, and the answer travels back up.
+## Runtime Shape
 
-Here is the whole relay for a normal local run:
+The deployed local stack uses two containers.
 
 ```
- browser / playground
-     │   POST /invoke
-     ▼
- ┌───────────────────────────────────────────────────
- │ CONTAINER 1: "services"   (Python / FastAPI)
- │   the Agenta backend. Parses the request,
- │   gathers config, and calls the runner.
- └───────────────────────────────────────────────────
-     │   POST http://agent-pi:8765/run
-     ▼
- ┌───────────────────────────────────────────────────
- │ CONTAINER 2: "agent-pi"   (Node / TypeScript)
- │   the sidecar.  server.ts → engines/rivet.ts
- │
- │   rivet daemon                  (subprocess)
- │     └── ACP adapter: pi-acp     (subprocess)
- │           └── pi                (subprocess)   ← the harness
- └───────────────────────────────────────────────────
-     │   HTTPS
-     ▼
- OpenAI / Anthropic   (the model)
+browser / playground
+    |
+    | POST /invoke or POST /messages
+    v
+services container
+    Python workflow handler
+    services/oss/src/agent/app.py
+    |
+    | POST /run, or spawn the runner CLI in local checkout mode
+    v
+agent runner sidecar
+    compose service: agent-pi
+    Node HTTP server
+    services/agent/src/server.ts
+    |
+    +-- in-process Pi engine
+    |   services/agent/src/engines/pi.ts
+    |
+    +-- rivet engine
+        services/agent/src/engines/rivet.ts
+        |
+        +-- sandbox-agent daemon
+            |
+            +-- ACP adapter: pi-acp or claude-agent-acp
+                |
+                +-- harness CLI: pi or claude
 ```
 
-Two containers carry the request. Inside the second one, a small tree of processes does
-the work. Each box has a clear job, and the next sections name them.
+The `services` container owns Agenta concerns: workflow routing, config parsing, provider
+secret resolution, tool resolution, and trace context. The agent runner sidecar owns the
+agent run: it drives Pi directly or drives a harness over ACP through rivet. In Docker
+Compose this service is still named `agent-pi`, and the service reaches it through
+`AGENTA_AGENT_PI_URL`.
 
-## The two containers
+The sidecar deliberately does not inherit the full stack environment. Provider keys and
+tool credentials are resolved by the service and passed only in the scoped run payloads
+that need them.
 
-The deployment runs two containers that matter here. Both stay up all the time. You can
-see both in `hosting/docker-compose/ee/docker-compose.dev.yml`.
+## Backends
 
-The **`services`** container runs the Python backend. Every Agenta workflow lives here,
-including the agent. When you run an agent in the playground, the request lands in this
-container. The handler reads the config (which agent, which model, the instructions, the
-tools, the provider keys), builds one request, and calls the runner over HTTP.
+The SDK runtime models engines as `Backend` adapters.
 
-The **`agent-pi`** container is the sidecar. It runs a small Node web server on port 8765.
-Its only job is to receive a `POST /run`, drive the agent, and return the result. The
-`services` container reaches it on the internal network at `http://agent-pi:8765`.
+| Backend | Status | Harnesses | Sandbox support | Notes |
+| --- | --- | --- | --- | --- |
+| `InProcessPiBackend` | Implemented | `pi`, `agenta` | `local` only | Drives `services/agent/src/engines/pi.ts`. This is the simple local Pi path. |
+| `RivetBackend` | Implemented | `pi`, `claude` | `local`, `daytona` | Drives `services/agent/src/engines/rivet.ts`, which starts `sandbox-agent` and an ACP adapter. |
+| `LocalBackend` | Not implemented | Intended: `pi`, `claude` | Local machine | Public class exists, but `create_sandbox` and `create_session` raise `NotImplementedError`. |
 
-"Sidecar" just names a small helper container that runs next to a main one. Two reasons
-justify the split. The agent code is TypeScript and the backend is Python, so they want
-different runtimes. And the sidecar deliberately holds none of the stack's secrets (it has
-no `env_file`), so a sandboxed agent cannot read the platform's Stripe or Composio keys.
+`services/oss/src/agent/app.py` chooses the backend per request. Pi and `agenta` on local
+default to `InProcessPiBackend`. Claude, non-local sandboxes, or
+`AGENTA_AGENT_RUNTIME=rivet` select `RivetBackend`.
 
-## Inside the sidecar: the process tree
+## Harnesses
 
-The sidecar does not run the agent itself. When a `/run` request arrives, its TypeScript
-starts a chain of child processes, and each one starts the next.
+The SDK runtime models agent-specific behavior as `Harness` adapters.
 
-1. **The rivet daemon** (`sandbox-agent server`). Our code spawns it as a child process.
-   It is a binary from the open-source [`rivet-dev/sandbox-agent`](https://github.com/rivet-dev/sandbox-agent)
-   project (Apache-2.0). Think of it as a manager. You tell it "run agent `pi` with this
-   prompt," and it handles the work of launching the agent and streaming results back.
+| Harness | Status | Backend path | Notes |
+| --- | --- | --- | --- |
+| `PiHarness` | Implemented | In-process Pi or rivet | Native Pi tools, Pi prompt overrides, Pi tracing extension. |
+| `ClaudeHarness` | Implemented | Rivet only | MCP tools, permission policy, runner-built tracing. |
+| `AgentaHarness` | Experimental | In-process Pi only | Pi with forced tools, forced skill names, and placeholder Agenta prompt layers. |
 
-2. **The ACP adapter** (`pi-acp`, or `claude-agent-acp` for Claude). The daemon spawns it
-   as a child process. It is a translator. It speaks ACP on the side facing the daemon and
-   the agent's own protocol on the side facing the agent.
+`AgentaHarness` with `daytona` or any rivet path is intentionally unsupported today. It
+raises through the normal harness/backend compatibility check instead of silently running
+without its forced skills.
 
-3. **The harness** (`pi`, or the `claude` CLI). The adapter spawns it as a child process.
-   This is the real coding agent. It reads the instructions, calls the model, runs tools,
-   and loops until the task is done.
+## Request Flow
 
-All three run as processes inside the `agent-pi` container. They are not separate
-containers. They form a parent-child-grandchild tree.
+Batch `/invoke` follows this path:
 
-## The vocabulary, defined once
+1. The workflow route calls `_agent` in `services/oss/src/agent/app.py`.
+2. `_agent` parses `AgentConfig` and `RunSelection` from request parameters.
+3. The service resolves provider keys, tools, and MCP servers. MCP resolution is gated by
+   `AGENTA_AGENT_ENABLE_MCP`.
+4. The service builds `SessionConfig` and creates a harness over an environment and backend.
+5. The harness opens a cold session, sends one `/run` request to the TypeScript runner, and
+   destroys the session.
+6. The service records usage on the workflow span and returns one assistant message.
 
-| Term | What it is |
-| --- | --- |
-| **Harness** | The coding agent program. Pi, Claude Code, and Codex are harnesses. Each is a CLI that takes instructions, calls a model, runs tools, and loops. "Harness" is our umbrella word for "the agent engine." |
-| **ACP** (Agent Client Protocol) | A shared language for talking to any coding agent. Without it, each agent has its own API and you write custom glue per agent. With it, you speak one protocol and the agent on the far end is swappable. This is why one config value flips `pi` to `claude`. |
-| **ACP adapter** | The translator that makes one specific agent speak ACP. Pi does not speak ACP on its own, so `pi-acp` wraps it. Claude has `claude-agent-acp`. |
-| **rivet daemon** | The manager that starts the adapter and harness, hides *where* they run, and streams their events back over ACP. We use it; we did not write it. |
-| **Sandbox** | *Where* the agent's process tree runs. `local` means processes inside the sidecar. `daytona` means a throwaway cloud machine. |
-| **Sidecar** | The always-on helper container (`agent-pi`) that drives runs. Not the sandbox. The sidecar starts the sandbox. |
+Agent `/messages` follows the same runtime path after a browser-protocol adapter step:
 
-## Two axes you can change: harness and sandbox
+1. `sdks/python/agenta/sdk/agents/adapters/vercel/routing.py` validates or mints
+   `session_id`.
+2. It converts Vercel `UIMessage` parts into neutral agent `Message` objects.
+3. It sets `data.stream` from the `Accept` header.
+4. `_agent` either returns a batch message or streams an `AgentRun`.
+5. The Vercel adapter converts live `AgentEvent` objects into Vercel UI Message Stream
+   parts and the routing layer frames them as SSE.
 
-The whole point of the relay is that two pieces swap independently, by config, with no code
-change. The playground exposes both as dropdowns.
+`/load-session` is registered for agent routes, but the default store is
+`NoopSessionStore`. It returns an empty message list unless a real `SessionStore` is
+injected.
 
-- **Harness** chooses *which* agent runs: `pi` or `claude`. It becomes the rivet `agent`
-  value, which selects the ACP adapter.
-- **Sandbox** chooses *where* the agent's process tree runs: `local` or `daytona`.
+## Lifecycle
 
-The two are orthogonal. You can run `pi` locally, `claude` locally, or `pi` on Daytona, and
-each is one dropdown change. The request also carries a **permission policy** (`auto` or
-`deny`) that decides how a permission-gating harness like Claude handles tool prompts in a
-run with no human watching.
+The runtime is still cold. Each turn creates a fresh session and tears it down after the
+turn. Multi-turn context comes from replaying message history, not from a warm daemon or a
+persisted model session.
 
-## Local versus Daytona: the same tree, a different place
+This cold model keeps isolation simple and makes `/invoke` and `/messages` share the same
+runtime. It also means durable server-owned history and warm `session/load` are still future
+work.
 
-The relay above is `sandbox: local`. The daemon, adapter, and harness all run as processes
-inside the `agent-pi` container, on our own server.
+## Current Gaps
 
-Switch to `sandbox: daytona` and one thing changes. That same tree runs in a Daytona cloud
-sandbox instead. Daytona starts a throwaway remote machine, the daemon and adapter and
-harness run there, and the sidecar talks to them over HTTP. Everything else is identical.
-
-So the sidecar is not the sandbox. The sidecar is the always-on driver. The sandbox is the
-place the agent runs, which is either "processes inside the sidecar" (`local`) or "a cloud
-machine the sidecar talks to" (`daytona`).
-
-## The lifecycle: cold per run
-
-Nothing in the process tree stays alive between runs. Only the two containers stay up.
-Every invoke starts a fresh daemon, which starts a fresh adapter, which starts a fresh
-harness. The run does its work, returns its answer, and then the runner tears the whole
-tree down (`destroySandbox` and `dispose` in a `finally` block). The next invoke builds the
-tree again from scratch.
-
-This is the **cold** model. It is simple and well isolated, and it has one consequence
-worth stating up front: because no session is held between turns, a multi-turn conversation
-replays its history on every turn. [Sessions](sessions.md) covers what that means today and
-how a warm model could change it tomorrow.
-
-## The other engine: in-process Pi
-
-The relay above describes the **rivet engine**, the default in the deployed stack and the
-path the rest of these docs assume. The runner also ships a second engine: **in-process
-Pi**. It drives the Pi SDK directly inside the sidecar, with no daemon, adapter, or ACP in
-between. It exists for the simplest local case and as a fallback that does not depend on the
-rivet daemon.
-
-The two engines are the two backends behind the same SDK ports: `RivetBackend` and
-`InProcessPiBackend`. Both serve the same `/run` contract, so which one runs is a deployment
-detail, not a difference the workflow author sees. The
-[ports and adapters](ports-and-adapters.md) page explains the ports and the backends.
-
-## How a request flows, end to end
-
-Putting it together, a single agent run on `pi` / `local` goes like this:
-
-1. The playground sends `POST /invoke` to the `services` container.
-2. The Python handler (`agent/app.py`) reads the config, resolves the tools and provider
-   keys, and builds a neutral `AgentConfig` and `SessionConfig` from the SDK runtime
-   (`agenta.sdk.agents`).
-3. It picks a backend (`RivetBackend` here) from the harness and sandbox, wraps it in an
-   `Environment` and a `Harness`, and the harness sends one `POST /run` over the backend's
-   transport (HTTP to the sidecar).
-4. The sidecar's rivet engine starts the daemon, which starts `pi-acp`, which starts `pi`.
-5. `pi` reads the instructions, calls the model, runs any tools, and streams events back up
-   the relay. Those events become trace spans nested under the `/invoke` span (the
-   [Pi adapter](adapters/pi.md) page explains who emits them).
-6. The harness finishes. The runner reads the final text and the token usage, tears the
-   tree down, and returns one `/run` result.
-7. The Python handler records the usage on the workflow span and returns the assistant
-   message as the `/invoke` response.
-
-The next pages explain the seam that makes step 3 engine-agnostic, the session model behind
-steps 4 to 6, and exactly how each adapter implements step 5.
+- `LocalBackend` is a public adapter shape but does not run anything yet.
+- `/load-session` has the route contract but no default persistent store and no write path
+  from completed turns.
+- `AgentaHarness` uses placeholder preamble, persona, and skill content.
+- `AgentaHarness` is local in-process only.
+- Pi system prompt overrides are not delivered on the rivet ACP path.
+- The agent is still registered as a custom workflow handler, not as a first-class builtin
+  URI such as `agenta:builtin:agent:v0`.
+- Historical WP labels remain in several code comments. They should be cleaned in a
+  documentation and comment hygiene PR.

@@ -135,10 +135,9 @@ target to produce.
 - `SessionConfig` (`sdks/python/agenta/sdk/agents/dtos.py:498`) carries `builtin_tools`,
   `custom_tools`, `tool_callback`, and `mcp_servers` (`:512`-`:517`).
 - The harness adapters in `sdks/python/agenta/sdk/agents/adapters/harnesses.py` only *shape*
-  already-resolved specs; they never resolve. `_normalize_tool_specs` (`:65`) fills defaults
-  and passes the executor fields (`kind`, `runtime`, `code`, `env`, `callRef`) through to the
-  wire (`:54`, `_TOOL_SPEC_PASSTHROUGH`). `PiHarness` (`:93`) keeps built-ins and delivers
-  specs natively; `ClaudeHarness` (`:114`) drops built-ins and routes over MCP.
+  already-resolved specs; they never resolve. Typed `ToolSpec` models pass executor fields
+  (`kind`, `runtime`, `code`, `env`, `callRef`) through to the wire. `PiHarness` keeps
+  built-ins and delivers specs natively; `ClaudeHarness` drops built-ins and routes over MCP.
 
 So the local resolver's job is well defined: produce the same `builtin_tools` /
 `custom_tools` / `tool_callback` / `mcp_servers` shapes the service produces, from local data.

@@ -66,7 +66,7 @@ opt-in network call, and which stay out of reach for now.
 ## Non-goals
 
 - **Building `LocalBackend` itself.** The sibling effort
-  ([`../scratch/sdk-local-backend/status.md`](../scratch/sdk-local-backend/status.md)) owns
+  ([`../trash/sdk-local-backend/status.md`](../trash/sdk-local-backend/status.md)) owns
   the engine. This effort is the tool layer on top of it and assumes it exists.
 - **Moving gateway (Composio) execution off the server.** The provider key must stay
   server-side by design. A standalone gateway tool, if supported at all, calls back to

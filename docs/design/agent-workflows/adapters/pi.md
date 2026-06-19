@@ -38,7 +38,7 @@ extension reads the resolved tool specs from `AGENTA_TOOL_SPECS` and registers e
 Pi directly through `pi.registerTool`. Pi then sees them as native tools and runs the loop.
 
 Each registered tool's body does one thing: it POSTs the call back to Agenta's `/tools/call`
-with the tool's `callRef` (the WP-7 envelope). The model picks the tool and supplies the
+with the tool's `callRef` (the callback-tool envelope). The model picks the tool and supplies the
 arguments; Agenta runs the actual tool server-side. This is the key safety property: the
 Composio key and the connection auth never enter the sandbox. The agent only ever asks
 Agenta to run a named tool.

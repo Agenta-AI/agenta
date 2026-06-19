@@ -4,7 +4,7 @@ This folder plans one feature: letting a standalone Agenta Python SDK user run a
 **tools** during a fully local run, with no Agenta backend service and no rivet sidecar.
 
 It complements the sibling effort in
-[`../scratch/sdk-local-backend/status.md`](../scratch/sdk-local-backend/status.md). That one
+[`../trash/sdk-local-backend/status.md`](../trash/sdk-local-backend/status.md). That one
 moves the agent runtime into the SDK and builds `LocalBackend` (the engine that runs a
 harness on the user's own machine). This one builds the tool layer on top of that engine:
 resolving the agent's tool references into runnable specs, and supplying the secrets those
@@ -36,5 +36,5 @@ the agent locally **with its tools**: built-in, code, and (later) gateway, clien
 ## Prerequisite
 
 This work assumes `LocalBackend` exists. It does not yet; it is a stub that raises (see
-research.md). Read `../scratch/sdk-local-backend/status.md` for that effort's state. The
+research.md). Read `../trash/sdk-local-backend/status.md` for that effort's state. The
 phases here are sequenced so the first tool slice lands right after `LocalBackend` does.
