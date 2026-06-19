@@ -61,6 +61,12 @@ export type {ToolSelectorPopoverProps} from "./ToolSelectorPopover"
 export {TOOL_PROVIDERS_META, TOOL_SPECS} from "./toolUtils"
 export type {ToolObj, ToolFunction} from "./toolUtils"
 
+export {McpServerItemControl} from "./McpServerItemControl"
+export type {McpServerItemControlProps} from "./McpServerItemControl"
+
+export {AgentConfigControl} from "./AgentConfigControl"
+export type {AgentConfigControlProps} from "./AgentConfigControl"
+
 // ============================================================================
 // COMPOSITE CONTROLS
 // ============================================================================
