@@ -3,8 +3,8 @@ from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.core.connections.dtos import Connection, ConnectionCreate
-from oss.src.core.connections.service import ConnectionsService
+from oss.src.core.gateway.connections.dtos import Connection, ConnectionCreate
+from oss.src.core.gateway.connections.service import ConnectionsService
 
 from oss.src.core.tools.dtos import (
     ToolCatalogAction,
