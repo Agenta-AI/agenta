@@ -16,8 +16,8 @@ import type {NewEvaluationModalContentProps} from "../types"
 const tabsContainerClass =
     "h-full flex [&_.ant-tabs-content-holder]:pl-4 [&_.ant-tabs-content-holder]:flex-1 " +
     "[&_.ant-tabs-content-holder]:overflow-auto [&_.ant-tabs-tab]:text-colorTextSecondary " +
-    "[&_.ant-tabs-tab]:hover:bg-colorInfoBg [&_.ant-tabs-ink-bar]:hidden " +
-    "[&_.ant-tabs-tab-active]:bg-controlItemBgActive " +
+    "[&_.ant-tabs-tab:hover]:bg-colorInfoBg dark:[&_.ant-tabs-tab:hover]:bg-zinc-2 " +
+    "[&_.ant-tabs-ink-bar]:hidden " +
     "[&_.ant-tabs-tab-active]:[border-right:2px_solid_var(--ag-colorPrimary)] " +
     "[&_.ant-tabs-tab-active]:text-colorPrimary [&_.ant-tabs-tab-active]:!font-medium"
 
