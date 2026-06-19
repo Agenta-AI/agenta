@@ -11,18 +11,22 @@ Two layers:
   without ``ag.init()``.
 """
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from agenta.sdk.agents import Message
 from agenta.sdk.agents.adapters.vercel.routing import (
     inject_stream_session_id,
+    make_load_session_endpoint,
     resolve_session_id,
 )
 from agenta.sdk.decorators.routing import route
 from agenta.sdk.models.workflows import (
+    LoadSessionRequest,
     WorkflowBatchResponse,
     WorkflowServiceStatus,
     WorkflowStreamingResponse,
@@ -224,3 +228,29 @@ def test_load_session_returns_stub_history(client):
     res = client.post("/load-session", json={"session_id": "sess_abc"})
     assert res.status_code == 200
     assert res.json() == {"session_id": "sess_abc", "messages": []}
+
+
+@pytest.mark.asyncio
+async def test_load_session_uses_session_store_port():
+    class _Store:
+        async def load(self, session_id):
+            assert session_id == "sess_abc"
+            return [Message(role="user", content="hello")]
+
+        async def save_turn(self, session_id, *, messages, result=None):
+            raise AssertionError("load-session should only load")
+
+    endpoint = make_load_session_endpoint(session_store=_Store())
+    response = await endpoint(None, LoadSessionRequest(session_id="sess_abc"))
+
+    assert response.status_code == 200
+    assert json.loads(response.body) == {
+        "session_id": "sess_abc",
+        "messages": [
+            {
+                "id": "msg-1",
+                "role": "user",
+                "parts": [{"type": "text", "text": "hello"}],
+            }
+        ],
+    }

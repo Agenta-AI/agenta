@@ -12,13 +12,15 @@ from fastapi.responses import JSONResponse, Response
 from agenta.sdk.contexts.tracing import tracing_context_manager
 from agenta.sdk.models.workflows import (
     LoadSessionRequest,
+    LoadSessionResponse,
     WorkflowBatchResponse,
     WorkflowInvokeRequest,
     WorkflowRequestData,
     WorkflowStreamingResponse,
 )
 
-from .messages import vercel_ui_messages_to_messages
+from ...interfaces import NoopSessionStore, SessionStore
+from .messages import message_to_vercel_ui_message, vercel_ui_messages_to_messages
 
 # An opaque, project-scoped session id (RFC §4.1): bounded length, restricted charset.
 _SESSION_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
@@ -122,12 +124,24 @@ def make_messages_endpoint(
     return messages_endpoint
 
 
-def make_load_session_endpoint():
-    """Build the v1 ``POST /load-session`` stub endpoint."""
+def make_load_session_endpoint(
+    *,
+    session_store: Optional[SessionStore] = None,
+):
+    """Build the v1 ``POST /load-session`` endpoint over the session-store port."""
+    store = session_store or NoopSessionStore()
 
     async def load_session_endpoint(req: Request, request: LoadSessionRequest):
+        messages = await store.load(request.session_id)
+        response = LoadSessionResponse(
+            session_id=request.session_id,
+            messages=[
+                message_to_vercel_ui_message(message, message_id=f"msg-{idx}")
+                for idx, message in enumerate(messages, start=1)
+            ],
+        )
         return JSONResponse(
-            content={"session_id": request.session_id, "messages": []},
+            content=response.model_dump(mode="json"),
         )
 
     return load_session_endpoint
@@ -146,6 +160,7 @@ def register_agent_message_routes(
     make_not_acceptable_response: Callable[[str, Any], Response],
     make_stream_response: Callable[[WorkflowStreamingResponse, str], Response],
     handle_failure: Callable[[Exception], Any],
+    session_store: Optional[SessionStore] = None,
 ) -> None:
     """Register ``/messages`` and ``/load-session`` on a FastAPI app/router target."""
     target.add_api_route(
@@ -165,6 +180,6 @@ def register_agent_message_routes(
     )
     target.add_api_route(
         prefix + "/load-session",
-        make_load_session_endpoint(),
+        make_load_session_endpoint(session_store=session_store),
         methods=["POST"],
     )

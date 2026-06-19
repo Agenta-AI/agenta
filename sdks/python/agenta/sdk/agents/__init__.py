@@ -49,7 +49,15 @@ from .dtos import (
     to_messages,
 )
 from .errors import ToolResolutionError, UnsupportedHarnessError
-from .interfaces import Backend, Environment, Harness, Sandbox, Session
+from .interfaces import (
+    Backend,
+    Environment,
+    Harness,
+    NoopSessionStore,
+    Sandbox,
+    Session,
+    SessionStore,
+)
 from .mcp import (
     MCPConfigurationError,
     MCPError,
@@ -157,6 +165,8 @@ __all__ = [
     "Backend",
     "Sandbox",
     "Session",
+    "SessionStore",
+    "NoopSessionStore",
     "Environment",
     "Harness",
     # Errors
