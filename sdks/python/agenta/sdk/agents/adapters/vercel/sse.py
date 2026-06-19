@@ -23,8 +23,3 @@ def vercel_sse_stream(aiter: AsyncGenerator[Any, None]):
         yield "data: [DONE]\n\n"
 
     return gen()
-
-
-# Back-compat aliases for the former routing-private names.
-_VERCEL_UI_MESSAGE_STREAM_HEADERS = VERCEL_UI_MESSAGE_STREAM_HEADERS
-_vercel_sse_stream = vercel_sse_stream

@@ -20,11 +20,7 @@ from agenta.sdk.models.workflows import (
     WorkflowBaseResponse,
     WorkflowServiceResponseData,
 )
-from agenta.sdk.agents.adapters.vercel.routing import (
-    inject_stream_session_id,
-    register_agent_message_routes,
-    resolve_session_id,
-)
+from agenta.sdk.agents.adapters.vercel.routing import register_agent_message_routes
 from agenta.sdk.agents.adapters.vercel.sse import (
     VERCEL_UI_MESSAGE_STREAM_HEADERS as _VERCEL_UI_MESSAGE_STREAM_HEADERS,
     vercel_sse_stream as _vercel_sse_stream,
@@ -36,19 +32,6 @@ from agenta.sdk.middlewares.running.vault import invalidate_secrets_cache
 from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
 from agenta.sdk.decorators.running import auto_workflow, inspect_workflow, Workflow
 from agenta.sdk.engines.running.errors import ErrorStatus
-
-
-def _resolve_session_id(session_id: Optional[str]) -> Optional[str]:
-    """Compatibility wrapper for the Vercel adapter helper."""
-    return resolve_session_id(session_id)
-
-
-def _inject_stream_session_id(
-    response: WorkflowStreamingResponse,
-    session_id: str,
-) -> None:
-    """Compatibility wrapper for the Vercel adapter helper."""
-    inject_stream_session_id(response, session_id)
 
 
 # ---------------------------------------------------------------------------

@@ -168,8 +168,3 @@ def register_agent_message_routes(
         make_load_session_endpoint(),
         methods=["POST"],
     )
-
-
-# Back-compat aliases for the former routing-private helper names.
-_resolve_session_id = resolve_session_id
-_inject_stream_session_id = inject_stream_session_id
