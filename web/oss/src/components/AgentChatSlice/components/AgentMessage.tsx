@@ -2,14 +2,15 @@ import {memo} from "react"
 
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
-import {Bubble} from "@ant-design/x"
+import {Actions, Bubble, FileCard, type ActionsProps} from "@ant-design/x"
 import {ArrowUUpLeft, Copy, Robot, TreeStructure, User} from "@phosphor-icons/react"
-import type {ToolUIPart, UIMessage} from "ai"
-import {Avatar, Button, Tooltip, Typography} from "antd"
+import type {FileUIPart, ToolUIPart, UIMessage} from "ai"
+import {Avatar, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
+import {fileKind, filePartName} from "../assets/files"
 import Markdown from "../assets/markdown"
 import {getMessageTraceId} from "../assets/trace"
 
@@ -69,6 +70,7 @@ const AgentMessage = ({message, busy, onRewind, onApprovalResponse}: AgentMessag
             (p.type === "text" && (p as {text?: string}).text) ||
             (p.type === "reasoning" && (p as {text?: string}).text) ||
             isToolPart(p.type) ||
+            p.type === "file" ||
             p.type === "source-url",
     )
 
@@ -116,6 +118,34 @@ const AgentMessage = ({message, busy, onRewind, onApprovalResponse}: AgentMessag
                         />
                     )
                 }
+                // Multi-modality: render attachments (sent by the user or returned by the
+                // agent) as X `FileCard`s — images preview inline, other kinds show a typed
+                // file chip with a download link.
+                if (part.type === "file") {
+                    const file = part as FileUIPart
+                    const kind = fileKind(file.mediaType)
+                    return (
+                        <FileCard
+                            key={i}
+                            name={filePartName(file)}
+                            type={kind}
+                            src={file.url}
+                            size="small"
+                            className="max-w-full"
+                            description={
+                                kind === "file" ? (
+                                    <a
+                                        href={file.url}
+                                        download={filePartName(file)}
+                                        className="text-xs text-colorPrimary"
+                                    >
+                                        {file.mediaType}
+                                    </a>
+                                ) : undefined
+                            }
+                        />
+                    )
+                }
                 return null
             })}
 
@@ -140,59 +170,60 @@ const AgentMessage = ({message, busy, onRewind, onApprovalResponse}: AgentMessag
         </div>
     )
 
-    // Control toolbar — hidden until the message row is hovered/focused (group-hover on the
-    // wrapper below), then revealed. Collapses its height when hidden so it reserves no gap.
-    // User messages get a "Rewind here" action; assistant messages get the metrics + actions.
-    const footer = isUser ? (
-        <div className="flex max-h-0 items-center justify-end gap-1 overflow-hidden opacity-0 transition-all duration-150 focus-within:max-h-8 focus-within:opacity-100 group-hover:max-h-8 group-hover:opacity-100">
-            <Tooltip title="Rewind here — edit and re-run the conversation from this message">
-                <Button
-                    type="text"
-                    size="small"
-                    disabled={busy}
-                    icon={<ArrowUUpLeft size={14} />}
-                    onClick={onRewind}
-                >
-                    Rewind
-                </Button>
-            </Tooltip>
-        </div>
+    // Control toolbar — an X `Actions` row that FLOATS over the bubble's bottom edge. It is
+    // absolutely positioned (out of flow), so it adds no height: bubbles sit tight with no
+    // reserved lane, and revealing it only fades opacity — no layout shift either way.
+    // `pointer-events-none` while hidden keeps the invisible buttons unclickable. `Actions`
+    // items carry no `disabled`, so the busy guard lives in the handlers: `onRewind` →
+    // `handleRewind` early-returns while a stream is in flight (copy / view-trace are always
+    // safe). The item `label` renders as the hover tooltip.
+    const toolbarReveal =
+        "opacity-0 transition-opacity duration-150 pointer-events-none " +
+        "group-hover:opacity-100 group-hover:pointer-events-auto " +
+        "focus-within:opacity-100 focus-within:pointer-events-auto"
+    const rewindAction: ActionsProps["items"][number] = {
+        key: "rewind",
+        label: isUser
+            ? "Rewind here — edit and re-run the conversation from this message"
+            : "Rewind here — re-run this turn",
+        icon: <ArrowUUpLeft size={14} />,
+        onItemClick: () => onRewind(),
+    }
+
+    const toolbar = isUser ? (
+        <Actions variant="borderless" items={[rewindAction]} />
     ) : (
-        <div className="flex max-h-0 items-center gap-1 overflow-hidden opacity-0 transition-all duration-150 focus-within:max-h-9 focus-within:opacity-100 group-hover:max-h-9 group-hover:opacity-100">
+        <>
             {traceId && <TraceMetrics traceId={traceId} />}
-            <Tooltip title="Copy">
-                <Button
-                    type="text"
-                    size="small"
-                    icon={<Copy size={14} />}
-                    onClick={() => navigator.clipboard.writeText(fullText)}
-                />
-            </Tooltip>
-            <Tooltip title="Rewind here — re-run this turn">
-                <Button
-                    type="text"
-                    size="small"
-                    disabled={busy}
-                    icon={<ArrowUUpLeft size={14} />}
-                    onClick={onRewind}
-                />
-            </Tooltip>
-            {traceId && (
-                <Tooltip title="View trace">
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={<TreeStructure size={14} />}
-                        onClick={() => openTraceDrawer({traceId})}
-                    />
-                </Tooltip>
-            )}
-        </div>
+            <Actions
+                variant="borderless"
+                items={[
+                    {
+                        key: "copy",
+                        label: "Copy",
+                        icon: <Copy size={14} />,
+                        onItemClick: () => navigator.clipboard.writeText(fullText),
+                    },
+                    rewindAction,
+                    ...(traceId
+                        ? [
+                              {
+                                  key: "trace",
+                                  label: "View trace",
+                                  icon: <TreeStructure size={14} />,
+                                  onItemClick: () => openTraceDrawer({traceId}),
+                              },
+                          ]
+                        : []),
+                ]}
+            />
+        </>
     )
 
-    // `group` so the footer toolbar can reveal on hover/focus of the whole message row.
+    // `group relative` → the floating toolbar reveals on hover/focus of the whole message row
+    // and anchors to the bubble without consuming layout space.
     return (
-        <div className="group">
+        <div className="group relative">
             <Bubble<React.ReactNode>
                 placement={isUser ? "end" : "start"}
                 variant={isUser ? "filled" : "outlined"}
@@ -203,8 +234,14 @@ const AgentMessage = ({message, busy, onRewind, onApprovalResponse}: AgentMessag
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
                 content={body}
-                footer={footer}
             />
+            <div
+                className={`absolute top-full z-10 flex -translate-y-1/2 items-center gap-1 rounded-md border border-solid border-colorBorderSecondary bg-colorBgElevated px-1 shadow-sm ${
+                    isUser ? "right-2" : "left-10"
+                } ${toolbarReveal}`}
+            >
+                {toolbar}
+            </div>
         </div>
     )
 }

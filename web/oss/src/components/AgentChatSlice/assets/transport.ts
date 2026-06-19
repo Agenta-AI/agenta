@@ -19,8 +19,11 @@ import {toAgentaMessages} from "./toAgentaMessage"
  *    so the credential-free example backend still works).
  *  - **Query params:** `application_id` (the app id) and `project_id` (the current
  *    project, only sent alongside auth — mirroring `executionItems.ts`).
- *  - **Body:** `ag_config` + `references` resolved from the app's LATEST revision via
- *    `resolveAppAgConfig` (else a stub) + `session_id` (the useChat chat id).
+ *  - **Body:** the agent-protocol envelope — `session_id` + `references` at the top level,
+ *    and `data: {messages, parameters}` nested (the config resolved from the app's LATEST
+ *    revision via `resolveAppAgConfig`, else a stub). `parameters` is the stored workflow
+ *    config (what the backend reads as `data.parameters`); `references` lines up at the top
+ *    level. This matches Mahmoud's BE contract (2026-06-19).
  *
  * **Track A (`uimessage`)** — POST the `UIMessage[]` verbatim. The service speaks AI SDK
  * parts; the approval decision is inside the assistant message's tool part. Zero FE
@@ -31,7 +34,7 @@ import {toAgentaMessages} from "./toAgentaMessage"
  * backend contract across workflow types, at the cost of a FE translation layer.
  */
 const stubConfig = () => ({
-    ag_config: {
+    parameters: {
         prompt: {
             messages: [{role: "system", content: "You are a helpful agent."}],
             llm_config: {model: "gpt-4o-mini", tools: []},
@@ -48,14 +51,15 @@ const stubConfig = () => ({
 
 /**
  * Real config from the app's latest revision when `appId` is set and loaded; else the stub.
- * `harness`/`sandbox` (agent-specific, not part of a stored workflow config) are defaulted
- * but never override values the resolved config already carries.
+ * Returns `{parameters, references}`: `parameters` is the agent config the backend reads as
+ * `data.parameters`. `harness`/`sandbox` (agent-specific, not part of a stored workflow
+ * config) are defaulted but never override values the resolved config already carries.
  */
 const configFor = (appId?: string | null) => {
     const resolved = resolveAppAgConfig(appId)
     if (!resolved) return stubConfig()
     return {
-        ag_config: {harness: "pi", sandbox: "local", ...resolved.ag_config},
+        parameters: {harness: "pi", sandbox: "local", ...resolved.ag_config},
         references: resolved.references,
     }
 }
@@ -87,33 +91,35 @@ export function createAgentChatTransport(track: AgentChatTrack, appId?: string |
     return new DefaultChatTransport<UIMessage>({
         api: trackApi(track),
         prepareSendMessagesRequest: async ({messages, id, body}) => {
-            const config = configFor(appId)
+            const {parameters, references} = configFor(appId)
             const {api, headers} = await requestMeta(track, appId)
 
             if (track === "agenta") {
-                // Track B: FE adapts down to the existing Agenta message contract.
+                // Track B: FE adapts down to the existing Agenta message contract. Same
+                // envelope; the approval decision stays in the top-level `tool_approvals`
+                // side field (the Agenta message shape has no per-tool approval slot).
                 const {messages: agentaMessages, tool_approvals} = toAgentaMessages(messages)
                 return {
                     api,
                     headers,
                     body: {
-                        messages: agentaMessages,
-                        tool_approvals,
-                        ...config,
                         session_id: id,
+                        references,
+                        tool_approvals,
+                        data: {messages: agentaMessages, parameters},
                         ...body,
                     },
                 }
             }
 
-            // Track A: post the UIMessage[] verbatim — the service speaks parts.
+            // Track A: post the `UIMessage[]` verbatim — the service reads `data.messages`.
             return {
                 api,
                 headers,
                 body: {
-                    messages,
-                    ...config,
                     session_id: id,
+                    references,
+                    data: {messages, parameters},
                     ...body,
                 },
             }

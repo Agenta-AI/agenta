@@ -1,4 +1,6 @@
-import type {ToolUIPart, UIMessage} from "ai"
+import type {FileUIPart, ToolUIPart, UIMessage} from "ai"
+
+import {fileKind, filePartName} from "./files"
 
 /**
  * Track B adapter — the cost of keeping the request contract aligned with Agenta's
@@ -26,9 +28,20 @@ export interface AgentaToolCall {
     function: {name: string; arguments: string}
 }
 
+/**
+ * OpenAI-style multimodal content parts. A message with attachments serializes `content`
+ * as this array instead of a plain string (images → `image_url`, other files → `file` with
+ * the bytes inline as a data URL). Like `tool_approvals`, the exact multimodal shape Track B
+ * sends is a net-new convention to validate against the backend.
+ */
+export type AgentaContentPart =
+    | {type: "text"; text: string}
+    | {type: "image_url"; image_url: {url: string}}
+    | {type: "file"; file: {filename: string; file_data: string}}
+
 export interface AgentaMessage {
     role: string
-    content: string
+    content: string | AgentaContentPart[]
     tool_calls?: AgentaToolCall[]
     tool_call_id?: string
     name?: string
@@ -54,6 +67,23 @@ const textOf = (message: UIMessage): string =>
         .map((p) => (p as {text: string}).text)
         .join("")
 
+const filePartToContent = (part: FileUIPart): AgentaContentPart =>
+    fileKind(part.mediaType) === "image"
+        ? {type: "image_url", image_url: {url: part.url}}
+        : {type: "file", file: {filename: filePartName(part), file_data: part.url}}
+
+/**
+ * Message content for the Agenta request: a plain string when there are no attachments
+ * (the common case), or an OpenAI-style multimodal parts array when the message carries
+ * `file` parts (text first, then one entry per attachment).
+ */
+const contentOf = (message: UIMessage): string | AgentaContentPart[] => {
+    const files = message.parts.filter((p) => p.type === "file") as FileUIPart[]
+    const text = textOf(message)
+    if (files.length === 0) return text
+    return [...(text ? [{type: "text" as const, text}] : []), ...files.map(filePartToContent)]
+}
+
 /** Convert the `useChat` `UIMessage[]` into the Agenta `{role, content}` request shape. */
 export const toAgentaMessages = (uiMessages: UIMessage[]): AgentaRequestMessages => {
     const messages: AgentaMessage[] = []
@@ -73,7 +103,7 @@ export const toAgentaMessages = (uiMessages: UIMessage[]): AgentaRequestMessages
 
         messages.push({
             role: ui.role,
-            content: textOf(ui),
+            content: contentOf(ui),
             ...(toolCalls.length ? {tool_calls: toolCalls} : {}),
         })
 

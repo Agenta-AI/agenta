@@ -1,14 +1,18 @@
-import {useMemo, useRef, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {useChat} from "@ai-sdk/react"
-import {Bubble, Sender} from "@ant-design/x"
+import {Attachments, Bubble, Sender} from "@ant-design/x"
+import {Paperclip} from "@phosphor-icons/react"
 import {lastAssistantMessageIsCompleteWithApprovalResponses, type UIMessage} from "ai"
-import {Alert, Modal, Tag, Typography} from "antd"
+import {Alert, Button, Modal, Tag, Tooltip, Typography, type UploadFile} from "antd"
+import {useSetAtom, useStore} from "jotai"
 
 import {useAgConfigStatus} from "../assets/agConfig"
 import {type AgentChatTrack, trackApi} from "../assets/constants"
+import {filesToParts} from "../assets/files"
 import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
 import {createAgentChatTransport} from "../assets/transport"
+import {persistSessionMessagesAtom, sessionMessagesAtom} from "../state/sessions"
 
 import AgentMessage from "./AgentMessage"
 
@@ -37,13 +41,30 @@ const ConfigBadge = ({appId}: {appId: string}) => {
  * When `appId` is set (the page is app-scoped), the transport sends the real `ag_config` +
  * `references` resolved from that app's latest revision; otherwise it falls back to a stub.
  */
-const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: string | null}) => {
+const AgentChatConversation = ({
+    sessionId,
+    track,
+    appId,
+}: {
+    sessionId: string
+    track: AgentChatTrack
+    appId: string | null
+}) => {
+    const store = useStore()
+    const persistMessages = useSetAtom(persistSessionMessagesAtom)
     const [input, setInput] = useState("")
-    // Stable per-mount session id. The parent remounts per track (key={track}), so each
-    // track gets its own session; it's passed to useChat as the chat id and travels to the
-    // backend as `session_id`.
-    const [sessionId] = useState(() => crypto.randomUUID())
+    // Pending attachments for the next message. Kept client-side only: `beforeUpload`
+    // returns false so antd never uploads; we read each `originFileObj` into a data: URL at
+    // send time (see `filesToParts`).
+    const [files, setFiles] = useState<UploadFile[]>([])
+    const [attachmentsOpen, setAttachmentsOpen] = useState(false)
+    // Seed once from the persisted store (read imperatively so our own writes below don't
+    // feed back). The session id is owned by the tab and travels to the backend as
+    // `session_id`; the `:${track}` in the parent's key remounts on a dev track flip, which
+    // rehydrates from here with a fresh transport.
+    const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
     const senderRef = useRef<React.ComponentRef<typeof Sender>>(null)
+    const dropContainerRef = useRef<HTMLDivElement>(null)
     const transport = useMemo(() => createAgentChatTransport(track, appId), [track, appId])
 
     const {
@@ -57,6 +78,7 @@ const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: st
         error,
     } = useChat({
         id: sessionId,
+        messages: initialMessages,
         transport,
         sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
         onError: (err) => {
@@ -66,11 +88,33 @@ const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: st
 
     const busy = status === "submitted" || status === "streaming"
 
-    const handleSubmit = (text: string) => {
+    // Persist the conversation whenever its stream settles (skip mid-stream so we don't
+    // write on every token). Covers send (status "submitted"), finish/error ("ready"/
+    // "error"), and clear/rewind (setMessages → "ready").
+    useEffect(() => {
+        if (status === "streaming") return
+        persistMessages({id: sessionId, messages})
+    }, [messages, status, sessionId, persistMessages])
+
+    const handleSubmit = async (text: string) => {
         const trimmed = text.trim()
-        if (!trimmed || busy) return
-        sendMessage({text: trimmed})
+        const fileObjs = files
+            .map((f) => f.originFileObj as File | undefined)
+            .filter((f): f is File => Boolean(f))
+        if ((!trimmed && fileObjs.length === 0) || busy) return
+        // Read attachments into data: URL `file` parts; `sendMessage` adds them to the
+        // outgoing user message alongside the text part.
+        const fileParts = fileObjs.length ? await filesToParts(fileObjs) : undefined
+        sendMessage(
+            fileParts
+                ? trimmed
+                    ? {text: trimmed, files: fileParts}
+                    : {files: fileParts}
+                : {text: trimmed},
+        )
         setInput("")
+        setFiles([])
+        setAttachmentsOpen(false)
     }
 
     /**
@@ -146,7 +190,10 @@ const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: st
                 <Alert type="error" showIcon message="Stream error" description={error.message} />
             )}
 
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden rounded-md border border-solid border-colorBorderSecondary p-3">
+            <div
+                ref={dropContainerRef}
+                className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden rounded-md border border-solid border-colorBorderSecondary p-3"
+            >
                 {messages.length === 0 && (
                     <div className="m-auto text-center text-sm text-colorTextTertiary">
                         Ask a question to start the agent conversation.
@@ -173,6 +220,59 @@ const AgentChatConversation = ({track, appId}: {track: AgentChatTrack; appId: st
                 loading={busy}
                 onSubmit={handleSubmit}
                 onCancel={stop}
+                onPasteFile={(pasted) => {
+                    setFiles((prev) => [
+                        ...prev,
+                        ...Array.from(pasted).map((file) => ({
+                            uid: `${file.name}-${file.lastModified}-${file.size}`,
+                            name: file.name,
+                            status: "done" as const,
+                            originFileObj: file as UploadFile["originFileObj"],
+                        })),
+                    ])
+                    setAttachmentsOpen(true)
+                }}
+                prefix={
+                    <Tooltip title="Attach files">
+                        <Button
+                            type="text"
+                            size="small"
+                            icon={<Paperclip size={16} />}
+                            onClick={() => setAttachmentsOpen((open) => !open)}
+                        />
+                    </Tooltip>
+                }
+                header={
+                    // Own the collapse instead of `Sender.Header`: its `CSSMotion` hides via
+                    // `display:none`, so the *enter* can't paint a height:0 baseline and jumps
+                    // to full height (only leave animates). The grid 0fr→1fr trick animates
+                    // symmetrically to the exact content height and never uses display:none, so
+                    // `Attachments` stays mounted and drop-to-attach keeps working while closed.
+                    <div
+                        className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
+                            attachmentsOpen || files.length > 0
+                                ? "grid-rows-[1fr] opacity-100"
+                                : "grid-rows-[0fr] opacity-0"
+                        }`}
+                    >
+                        <div className="min-h-0 overflow-hidden">
+                            <div className="border-b border-solid border-colorBorderSecondary p-2">
+                                <Attachments
+                                    items={files}
+                                    // Never auto-upload — keep the File and send it inline as a data: URL.
+                                    beforeUpload={() => false}
+                                    onChange={({fileList}) => setFiles(fileList)}
+                                    getDropContainer={() => dropContainerRef.current}
+                                    placeholder={(type) => ({
+                                        title: type === "drop" ? "Drop files here" : "Attach files",
+                                        description:
+                                            "Click or drag — sent inline to the agent as data URLs.",
+                                    })}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                }
                 placeholder="Ask the agent… (Enter to send, Shift+Enter for newline)"
             />
         </div>

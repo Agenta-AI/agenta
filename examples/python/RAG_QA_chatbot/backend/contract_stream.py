@@ -9,6 +9,11 @@ request-contract track (the team is still comparing them — see
   * **Track B** — `POST /api/agent/chat-agenta`. `messages` is the Agenta `{role, content}`
     shape; the approval decision rides in a top-level `tool_approvals` side field.
 
+Request envelope (FE as of 2026-06-19): `session_id` + `references` (+ Track B
+`tool_approvals`) at the top level, with `data: {messages, parameters}` nested.
+`_normalize_envelope` lifts `data.*` back to flat keys so the parsing below stays simple,
+and it still accepts the older flat `{messages, ...}` shape.
+
 The response stream is identical across tracks. Both delegate to the real agent loop in
 `agent_loop.py` (real LLM function-calling, real `search_docs` retrieval, an approval-gated
 `send_summary_email`, a real Agenta trace). **Credentials are required** — set up
@@ -99,8 +104,30 @@ def _pending_approvals_agenta(body: Dict[str, Any]) -> List[Dict[str, Any]]:
     return pending
 
 
+def _normalize_envelope(body: Dict[str, Any]) -> Dict[str, Any]:
+    """Accept the agent-protocol envelope `{session_id, references, data: {messages,
+    parameters}}` (what the FE sends) while staying backward-compatible with the older flat
+    `{messages, ag_config, ...}` shape.
+
+    Lifts `data.messages` / `data.parameters` to the top level so the per-track parsing
+    below and `agent_loop.run_turn` can keep reading flat keys unchanged. `session_id` and
+    `tool_approvals` already travel at the top level, so they need no remapping.
+    """
+    data = body.get("data")
+    if not isinstance(data, dict):
+        return body
+    merged = dict(body)
+    if "messages" not in merged and "messages" in data:
+        merged["messages"] = data.get("messages")
+    if "parameters" in data:
+        merged.setdefault("parameters", data.get("parameters"))
+        merged.setdefault("ag_config", data.get("parameters"))  # legacy alias
+    return merged
+
+
 def _build_response(body: Dict[str, Any], track: str) -> StreamingResponse:
     """Parse the request per track, then stream the real agent loop as a v6 SSE response."""
+    body = _normalize_envelope(body)
     messages: List[Dict[str, Any]] = body.get("messages") or []
     pending = (
         _pending_approvals_agenta(body)
