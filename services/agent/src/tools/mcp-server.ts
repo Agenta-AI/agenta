@@ -3,14 +3,13 @@
  *
  * The harness only accepts tools over MCP when driven via ACP. This is a minimal,
  * dependency-free MCP stdio server that exposes the backend-resolved runnable tools
- * (WP-7) and routes each tool call back through Agenta's /tools/call — so the Composio
- * key and connection auth stay server-side, exactly as in the in-process Pi path.
+ * (WP-7) and relays each tool call back to the runner — so private specs/auth stay in
+ * runner memory, exactly as in the in-process Pi path.
  *
- * Launched by the rivet daemon as a session MCP server (see mcp-bridge.ts). It reads
- * everything from env so nothing tool-specific is written to the agent filesystem:
- *   AGENTA_TOOL_SPECS            JSON array of { name, description, inputSchema, callRef }
- *   AGENTA_TOOL_CALLBACK_ENDPOINT  full /tools/call URL
- *   AGENTA_TOOL_CALLBACK_AUTH      Authorization header value (optional)
+ * Launched by the rivet daemon as a session MCP server (see mcp-bridge.ts). Its env
+ * contains only public tool metadata and the relay dir:
+ *   AGENTA_TOOL_PUBLIC_SPECS     JSON array of { name, description, inputSchema }
+ *   AGENTA_TOOL_RELAY_DIR        directory watched by the runner for tool requests
  *
  * Protocol: JSON-RPC 2.0 over stdio, newline-delimited (the MCP stdio framing). Handles
  * initialize, tools/list, tools/call; ignores notifications. stdout carries protocol
@@ -22,9 +21,8 @@ import type { ResolvedToolSpec } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA } from "./callback.ts";
 import { runResolvedTool } from "./dispatch.ts";
 
-const SPECS: ResolvedToolSpec[] = JSON.parse(process.env.AGENTA_TOOL_SPECS ?? "[]");
-const ENDPOINT = process.env.AGENTA_TOOL_CALLBACK_ENDPOINT ?? "";
-const AUTH = process.env.AGENTA_TOOL_CALLBACK_AUTH;
+const SPECS: ResolvedToolSpec[] = JSON.parse(process.env.AGENTA_TOOL_PUBLIC_SPECS ?? "[]");
+const RELAY_DIR = process.env.AGENTA_TOOL_RELAY_DIR;
 const SPEC_BY_NAME = new Map(SPECS.map((s) => [s.name, s]));
 const DEFAULT_PROTOCOL = "2025-06-18";
 
@@ -78,13 +76,12 @@ async function handle(message: any): Promise<unknown | undefined> {
       return { jsonrpc: "2.0", id, error: { code: -32602, message: `unknown tool: ${name}` } };
     }
     try {
-      // `code` runs the snippet locally (scoped secret env); everything else routes back to
-      // Agenta's /tools/call. A unique id per call so two parallel calls in the same
-      // millisecond don't collide (Date.now() would).
+      if (!RELAY_DIR) throw new Error("missing AGENTA_TOOL_RELAY_DIR");
+      // The bridge only has public metadata. A unique id per call keeps parallel calls from
+      // colliding while the runner maps the tool name back to its private resolved spec.
       const text = await runResolvedTool(spec, params?.arguments, {
         toolCallId: randomUUID(),
-        endpoint: ENDPOINT,
-        authorization: AUTH,
+        relayDir: RELAY_DIR,
       });
       return { jsonrpc: "2.0", id, result: { content: [{ type: "text", text }] } };
     } catch (err) {
@@ -104,7 +101,7 @@ async function handle(message: any): Promise<unknown | undefined> {
 }
 
 function main(): void {
-  log(`serving ${SPECS.length} tool(s) -> ${ENDPOINT || "(no endpoint)"}`);
+  log(`serving ${SPECS.length} tool(s) -> relay ${RELAY_DIR || "(missing)"}`);
   let buffer = "";
   process.stdin.setEncoding("utf8");
   process.stdin.on("data", (chunk: string) => {

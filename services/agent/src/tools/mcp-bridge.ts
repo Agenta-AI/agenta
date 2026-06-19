@@ -3,20 +3,20 @@
  *
  * The Pi engine (engines/pi.ts) injected resolved runnable tools (WP-7) as in-process Pi
  * customTools. Over ACP the harness only accepts tools through MCP, so the same
- * resolved specs are exposed as an MCP server whose tool bodies POST back to Agenta's
- * /tools/call (the provider key and connection auth stay server-side, exactly as in
- * the Pi path). `buildToolMcpServers` returns the ACP `mcpServers` entry to attach to
- * the session.
+ * resolved specs are exposed as an MCP server whose tool bodies relay back to the runner.
+ * The runner keeps private specs/auth in memory and performs the actual execution.
+ * `buildToolMcpServers` returns the ACP `mcpServers` entry to attach to the session.
  *
- * Delivery: a stdio MCP bridge (mcp-server.ts) launched by the daemon. The specs and
- * callback are passed to it as env, so nothing tool-specific is written to the
- * agent-visible filesystem.
+ * Delivery: a stdio MCP bridge (mcp-server.ts) launched by the daemon. Its env carries
+ * only public tool metadata and the relay directory. It never receives scoped env, code,
+ * callback auth, or callback endpoints.
  */
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
+import { executableToolSpecs, publicToolSpecs } from "./public-spec.ts";
 
 export type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
 
@@ -56,47 +56,35 @@ export interface McpServerStdio {
  *    filters them from tools/list), so they never justify attaching the bridge on their own.
  *  - "Executable here" = non-client (`code` and `callback`). With zero executable specs we
  *    return [] (the no-tools path stays untouched).
- *  - `code` tools run locally in mcp-server.ts (runCodeTool) and need NO callback endpoint, so
- *    we attach `agenta-tools` whenever there is at least one executable spec.
- *  - Only `callback` tools require `callback.endpoint`. If callback tools are present but the
- *    endpoint is missing, we do NOT drop the whole server (that would silently lose the `code`
- *    tools too): we still attach it and warn, naming the callback tools whose `tools/call` will
- *    fail. The endpoint/auth env entries are pushed only when the endpoint actually exists.
+ *  - The bridge does not execute tools itself. It sends a request file to `relayDir`, and
+ *    the runner executes the private resolved spec in memory. That keeps scoped env, code,
+ *    callback auth, and callback endpoints out of child-process env.
  */
 export function buildToolMcpServers(
   specs: ResolvedToolSpec[],
-  callback: ToolCallbackContext | undefined,
+  _callbackOrRelayDir?: ToolCallbackContext | string,
+  relayDir?: string,
 ): McpServerStdio[] {
   if (!specs || specs.length === 0) return [];
 
   // Absent kind defaults to `callback` (back-compat); `client` is the only non-executable kind.
-  const executable = specs.filter((s) => (s.kind ?? "callback") !== "client");
+  const executable = executableToolSpecs(specs);
   if (executable.length === 0) return [];
 
-  // The callback subset is the only thing that needs the endpoint to function.
-  const callbackSpecs = executable.filter((s) => (s.kind ?? "callback") === "callback");
-  const hasEndpoint = Boolean(callback?.endpoint);
-
-  if (callbackSpecs.length > 0 && !hasEndpoint) {
-    const names = callbackSpecs.map((s) => s.name).join(", ");
+  const resolvedRelayDir =
+    typeof _callbackOrRelayDir === "string" ? _callbackOrRelayDir : relayDir;
+  if (!resolvedRelayDir) {
+    const names = executable.map((s) => s.name).join(", ");
     process.stderr.write(
-      `[tool-bridge] missing toolCallback endpoint: ${callbackSpecs.length} callback tool(s) ` +
-        `will fail (${names}); still attaching server for the other tool(s)\n`,
+      `[tool-bridge] missing tool relay directory: ${executable.length} tool(s) ` +
+        `will fail (${names})\n`,
     );
   }
 
-  // Pass every executable spec; mcp-server.ts dispatches per kind (code runs locally, callback
-  // routes to the endpoint).
   const env: EnvVariable[] = [
-    { name: "AGENTA_TOOL_SPECS", value: JSON.stringify(executable) },
+    { name: "AGENTA_TOOL_PUBLIC_SPECS", value: JSON.stringify(publicToolSpecs(executable)) },
   ];
-  // Only carry the callback env when there is an endpoint to call back to.
-  if (hasEndpoint) {
-    env.push({ name: "AGENTA_TOOL_CALLBACK_ENDPOINT", value: callback!.endpoint });
-    if (callback!.authorization) {
-      env.push({ name: "AGENTA_TOOL_CALLBACK_AUTH", value: callback!.authorization });
-    }
-  }
+  if (resolvedRelayDir) env.push({ name: "AGENTA_TOOL_RELAY_DIR", value: resolvedRelayDir });
 
   const { command, args } = bridgeLauncher();
   return [{ name: "agenta-tools", command, args, env }];
