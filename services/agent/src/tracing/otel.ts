@@ -692,6 +692,8 @@ export interface RivetOtel {
   emitEvent(event: AgentEvent): void;
   /** End all open spans. Returns the accumulated assistant text. */
   finish(): string;
+  /** Set final run usage before finish/flush so events and exported spans carry final totals. */
+  setUsage(usage: AgentUsage | undefined): void;
   /** Flush this run's trace to Agenta (invoke_agent has a remote parent). */
   flush(): Promise<void>;
   /** Trace id of the run (the caller's trace when a traceparent was passed). */
@@ -728,7 +730,7 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
   let reasoningAccumulated = "";
   let usage: AgentUsage | undefined;
   const events: AgentEvent[] = [];
-  const toolSpans = new Map<string, { span: Span; name: string }>();
+  const toolSpans = new Map<string, { span?: Span; name: string }>();
 
   // Live emission. `record` is the single choke point for every event: it appends to the
   // result log and, on the streaming path, flushes the event the moment it is built — so
@@ -743,6 +745,30 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
         // a downstream sink error must not break the agent run
       }
     }
+  }
+
+  function stampUsage(span: Span, u: AgentUsage | undefined): void {
+    if (!u) return;
+    span.setAttribute("gen_ai.usage.input_tokens", u.input);
+    span.setAttribute("gen_ai.usage.output_tokens", u.output);
+    span.setAttribute("gen_ai.usage.prompt_tokens", u.input);
+    span.setAttribute("gen_ai.usage.completion_tokens", u.output);
+    span.setAttribute("gen_ai.usage.total_tokens", u.total);
+    if (u.cost > 0) span.setAttribute("gen_ai.usage.cost", u.cost);
+  }
+
+  function setUsage(finalUsage: AgentUsage | undefined): void {
+    if (!finalUsage) return;
+    usage = finalUsage;
+    const event: AgentEvent = { type: "usage", ...finalUsage };
+    if (!sink) {
+      const index = events.findLastIndex((e) => e.type === "usage");
+      if (index !== -1) {
+        events[index] = event;
+        return;
+      }
+    }
+    record(event);
   }
 
   // Text/reasoning block lifecycle (streaming path only). At most one block of each kind is
@@ -870,23 +896,24 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
       return;
     }
 
-    if (!emitSpans) return; // output accumulated above; spans come from the harness
-
     if (kind === "tool_call") {
       const id = update.toolCallId;
-      if (!id || !turnCtx) return;
+      if (!id) return;
       // A tool call ends any open text/reasoning block (keeps streamed block boundaries
       // clean across text -> tool -> text interleaving). No-op on the one-shot path.
       closeText();
       closeReasoning();
       const name = update.title || update.kind || "tool";
-      const span = tracer.startSpan(`execute_tool ${name}`, undefined, turnCtx);
-      span.setAttribute("openinference.span.kind", "TOOL");
-      span.setAttribute("gen_ai.operation.name", "execute_tool");
-      span.setAttribute("gen_ai.tool.name", String(name));
-      span.setAttribute("gen_ai.tool.call.id", String(id));
-      if (update.rawInput != null)
-        setInputs(span, update.rawInput as Record<string, unknown>, capture);
+      let span: Span | undefined;
+      if (emitSpans && turnCtx) {
+        span = tracer.startSpan(`execute_tool ${name}`, undefined, turnCtx);
+        span.setAttribute("openinference.span.kind", "TOOL");
+        span.setAttribute("gen_ai.operation.name", "execute_tool");
+        span.setAttribute("gen_ai.tool.name", String(name));
+        span.setAttribute("gen_ai.tool.call.id", String(id));
+        if (update.rawInput != null)
+          setInputs(span, update.rawInput as Record<string, unknown>, capture);
+      }
       toolSpans.set(id, { span, name: String(name) });
       record({ type: "tool_call", id: String(id), name: String(name), input: update.rawInput });
       // A tool_call can arrive already completed (status set up front).
@@ -923,9 +950,11 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
     const status = update?.status;
     if (status !== "completed" && status !== "failed") return;
     const out = acpToolContentText(update.content) || acpToolContentText(update.rawOutput);
-    setOutput(entry.span, out, capture);
-    if (status === "failed") entry.span.setStatus({ code: SpanStatusCode.ERROR });
-    entry.span.end();
+    if (entry.span) {
+      setOutput(entry.span, out, capture);
+      if (status === "failed") entry.span.setStatus({ code: SpanStatusCode.ERROR });
+      entry.span.end();
+    }
     toolSpans.delete(id);
     record({ type: "tool_result", id, output: out, isError: status === "failed" });
   }
@@ -961,14 +990,11 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
         [{ role: "assistant", content: text }],
         capture,
       );
-      if (usage?.total != null) {
-        llmSpan.setAttribute("gen_ai.usage.total_tokens", usage.total);
-      }
-      if (usage?.cost != null) llmSpan.setAttribute("gen_ai.usage.cost", usage.cost);
+      stampUsage(llmSpan, usage);
       llmSpan.end();
       llmSpan = undefined;
     }
-    for (const { span } of toolSpans.values()) span.end();
+    for (const { span } of toolSpans.values()) span?.end();
     toolSpans.clear();
     if (turnSpan) {
       turnSpan.end();
@@ -976,6 +1002,7 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
     }
     if (agentSpan) {
       setOutput(agentSpan, text, capture);
+      stampUsage(agentSpan, usage);
       agentSpan.end();
       agentSpan = undefined;
     }
@@ -989,6 +1016,7 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
     handleUpdate,
     emitEvent: record,
     finish,
+    setUsage,
     flush: () => flushTrace(runTraceId),
     traceId: () => runTraceId,
     output: () => accumulated,

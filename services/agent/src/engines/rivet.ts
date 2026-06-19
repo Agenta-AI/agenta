@@ -46,7 +46,12 @@ import { daytona } from "sandbox-agent/daytona";
 
 import { createRivetOtel } from "../tracing/otel.ts";
 import { buildToolMcpServers, type McpServerStdio } from "../tools/mcp-bridge.ts";
-import { startToolRelay } from "../tools/relay.ts";
+import { executableToolSpecs, publicToolSpecs } from "../tools/public-spec.ts";
+import {
+  localRelayHost,
+  sandboxRelayHost,
+  startToolRelay,
+} from "../tools/relay.ts";
 import {
   PolicyResponder,
   decisionToReply,
@@ -141,13 +146,14 @@ const EXTENSION_BUNDLE =
 
 /**
  * Env the Agenta Pi extension reads. Propagating the trace context here is what makes Pi
- * emit its real spans under the caller's `/invoke` span; the tool spec + callback make Pi
- * register the resolved tools natively (no MCP). Empty keys are omitted so the extension
- * stays inert when nothing applies.
+ * emit its real spans under the caller's `/invoke` span. Tool env contains only public
+ * metadata plus the relay directory; private specs/auth stay in the runner. Empty keys are
+ * omitted so the extension stays inert when nothing applies.
  */
 function buildPiExtensionEnv(
   request: AgentRunRequest,
   tracing: boolean,
+  opts: { relayDir?: string; usageOutPath?: string } = {},
 ): Record<string, string> {
   const env: Record<string, string> = {};
   // Tracing env is omitted when the harness process can't reach Agenta's OTLP (Daytona):
@@ -159,14 +165,12 @@ function buildPiExtensionEnv(
   if (trace?.authorization) env.AGENTA_OTLP_AUTHORIZATION = trace.authorization;
   if (trace && trace.captureContent === false) env.AGENTA_CAPTURE_CONTENT = "false";
 
-  const specs = (request.customTools as ResolvedToolSpec[]) ?? [];
-  if (specs.length && request.toolCallback?.endpoint) {
-    env.AGENTA_TOOL_SPECS = JSON.stringify(specs);
-    env.AGENTA_TOOL_CALLBACK_ENDPOINT = request.toolCallback.endpoint;
-    if (request.toolCallback.authorization) {
-      env.AGENTA_TOOL_CALLBACK_AUTH = request.toolCallback.authorization;
-    }
+  const specs = publicToolSpecs((request.customTools as ResolvedToolSpec[]) ?? []);
+  if (specs.length && opts.relayDir) {
+    env.AGENTA_TOOL_PUBLIC_SPECS = JSON.stringify(specs);
+    env.AGENTA_TOOL_RELAY_DIR = opts.relayDir;
   }
+  if (opts.usageOutPath) env.AGENTA_USAGE_OUT = opts.usageOutPath;
   return env;
 }
 
@@ -697,13 +701,30 @@ export async function runRivet(
   const harnessKeyVar = harness === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
   const hasApiKey = !!secrets[harnessKeyVar];
 
+  // Session cwd holds AGENTS.md. Local: a host temp dir. Daytona: an in-sandbox path
+  // (the host path would not exist on the remote sandbox).
+  const cwd = isDaytona
+    ? `/home/sandbox/agenta-${randomBytes(6).toString("hex")}`
+    : mkdtempSync(join(tmpdir(), "agenta-rivet-"));
+  const agentsMd = request.agentsMd?.trim();
+
+  const toolSpecsForRun = (request.customTools as ResolvedToolSpec[]) ?? [];
+  const executableToolSpecsForRun = executableToolSpecs(toolSpecsForRun);
+  const relayDir = `${cwd}/.agenta-tools`;
+  const useToolRelay = executableToolSpecsForRun.length > 0;
+
+  // Pi writes its run totals here on agent_end; we read them back and return them so the
+  // caller can roll them onto the workflow span (separate OTLP batch, see piExtension).
+  const usageOutPath = isPi ? `${cwd}/.agenta-usage.json` : undefined;
+
   const env = buildDaemonEnv(harness);
   Object.assign(env, secrets); // local daemon inherits the provider keys
-  // Pi self-instruments locally: propagate the trace context + tools into Pi via the
-  // Agenta extension (real spans + native tools). On Daytona the in-sandbox process
-  // can't reach Agenta's OTLP, so the extension skips tracing (tools + usage only) and
-  // the runner traces from the ACP event stream instead — hence emitSpans on Daytona.
-  const piExtEnv = isPi ? buildPiExtensionEnv(request, !isDaytona) : {};
+  // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
+  // via the Agenta extension. Tool execution always relays back to this runner, which keeps
+  // private specs, scoped env, callback endpoints, and callback auth in memory.
+  const piExtEnv = isPi
+    ? buildPiExtensionEnv(request, !isDaytona, { relayDir, usageOutPath })
+    : {};
   Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
   // undefined is fine: the local provider runs its own resolution and errors clearly.
   const binaryPath = resolveDaemonBinary();
@@ -711,13 +732,6 @@ export async function runRivet(
   // For local Pi, install the extension into the agent dir Pi loads from.
   const localPiAgentDir = process.env.PI_CODING_AGENT_DIR;
   if (isPi && !isDaytona && localPiAgentDir) installPiExtensionLocal(localPiAgentDir);
-
-  // Session cwd holds AGENTS.md. Local: a host temp dir. Daytona: an in-sandbox path
-  // (the host path would not exist on the remote sandbox).
-  const cwd = isDaytona
-    ? `/home/sandbox/agenta-${randomBytes(6).toString("hex")}`
-    : mkdtempSync(join(tmpdir(), "agenta-rivet-"));
-  const agentsMd = request.agentsMd?.trim();
 
   // Pi's system-prompt overrides (systemPrompt / appendSystemPrompt) are honored on the
   // in-process Pi engine via the resource loader. The ACP path drives Pi through pi-acp,
@@ -727,22 +741,6 @@ export async function runRivet(
   if (isPi && (request.systemPrompt?.trim() || request.appendSystemPrompt?.trim())) {
     log("systemPrompt/appendSystemPrompt are not yet delivered on the ACP (rivet) Pi path; ignored");
   }
-
-  // Pi writes its run totals here on agent_end; we read them back and return them so the
-  // caller can roll them onto the workflow span (separate OTLP batch, see piExtension).
-  const usageOutPath = isPi ? `${cwd}/.agenta-usage.json` : undefined;
-  if (usageOutPath) {
-    env.AGENTA_USAGE_OUT = usageOutPath;
-    piExtEnv.AGENTA_USAGE_OUT = usageOutPath;
-  }
-
-  // Daytona can't reach a firewalled Agenta from inside the sandbox, so relay the Pi
-  // extension's tool calls through the runner via the sandbox filesystem (see tools/relay).
-  const toolSpecsForRun = (request.customTools as ResolvedToolSpec[]) ?? [];
-  const relayDir = `${cwd}/.agenta-tools`;
-  const useToolRelay =
-    isPi && isDaytona && toolSpecsForRun.length > 0 && !!request.toolCallback?.endpoint;
-  if (useToolRelay) piExtEnv.AGENTA_TOOL_RELAY_DIR = relayDir;
 
   log(`harness=${harness} sandbox=${sandboxId} cwd=${cwd}`);
 
@@ -782,8 +780,9 @@ export async function runRivet(
       await sandbox.mkdirFs({ path: cwd }).catch(() => {});
       if (useToolRelay) await sandbox.mkdirFs({ path: relayDir }).catch(() => {});
       if (agentsMd) await sandbox.writeFsFile({ path: `${cwd}/AGENTS.md` }, agentsMd);
-    } else if (agentsMd) {
-      writeFileSync(join(cwd, "AGENTS.md"), agentsMd, "utf-8");
+    } else {
+      if (useToolRelay) mkdirSync(relayDir, { recursive: true });
+      if (agentsMd) writeFileSync(join(cwd, "AGENTS.md"), agentsMd, "utf-8");
     }
 
     // Probe what this harness supports and branch on capabilities, not on the harness
@@ -802,6 +801,7 @@ export async function runRivet(
             ...buildToolMcpServers(
               toolSpecs,
               request.toolCallback as ToolCallbackContext | undefined,
+              relayDir,
             ),
             ...toAcpMcpServers(request.mcpServers),
           ]
@@ -884,7 +884,12 @@ export async function runRivet(
     });
 
     if (useToolRelay) {
-      toolRelay = startToolRelay(sandbox, relayDir, request.toolCallback as ToolCallbackContext);
+      toolRelay = startToolRelay(
+        isDaytona ? sandboxRelayHost(sandbox) : localRelayHost(),
+        relayDir,
+        toolSpecsForRun,
+        request.toolCallback as ToolCallbackContext | undefined,
+      );
     }
 
     const result = await session.prompt([{ type: "text", text: turnText }]);
@@ -892,12 +897,10 @@ export async function runRivet(
     const stopReason = (result as any)?.stopReason;
     log(`prompt stopReason=${stopReason}`);
 
-    const output = run.finish();
-    await run.flush();
-
     // Usage: Pi writes its totals to a file via the extension. Other harnesses report the
     // input/output token split on the PromptResponse and the cost on ACP `usage_update`,
-    // so combine the two (the stream alone carries no per-call token split).
+    // so combine the two (the stream alone carries no per-call token split). Read and stamp
+    // this before finish/flush so exported spans and final events carry the final usage.
     let usage = await readRunUsage(sandbox, usageOutPath, isDaytona);
     if (!usage) {
       const promptUsage = (result as any)?.usage;
@@ -911,6 +914,10 @@ export async function runRivet(
           ? { input: inputTokens, output: outputTokens, total, cost }
           : undefined;
     }
+    run.setUsage(usage);
+
+    const output = run.finish();
+    await run.flush();
 
     return {
       ok: true,

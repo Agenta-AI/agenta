@@ -95,11 +95,36 @@ function resolveSkillDirs(names: string[] | undefined): string[] {
   return dirs;
 }
 
-/** Apply vault-resolved provider keys to the process env so Pi's model auth can see them. */
-function applySecrets(secrets: Record<string, string> | undefined): void {
-  for (const [key, value] of Object.entries(secrets ?? {})) {
-    if (value) process.env[key] = value;
-  }
+// In-process Pi reads provider keys from process.env. Since process.env is process-global,
+// serialize Pi runs while applying request-scoped provider env, then restore the prior env
+// exactly so one request's vault keys cannot leak into the next request.
+let providerEnvQueue: Promise<void> = Promise.resolve();
+
+async function withRequestProviderEnv<T>(
+  secrets: Record<string, string> | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const run = providerEnvQueue.then(async () => {
+    const previous = new Map<string, string | undefined>();
+    for (const [key, value] of Object.entries(secrets ?? {})) {
+      previous.set(key, process.env[key]);
+      if (value) process.env[key] = value;
+      else delete process.env[key];
+    }
+    try {
+      return await fn();
+    } finally {
+      for (const [key, value] of previous) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+  providerEnvQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
 }
 
 /** Pick the requested model, else gpt-5.5, else a sensible non-mini default. */
@@ -205,12 +230,18 @@ export async function runPi(
   request: AgentRunRequest,
   emit?: EmitEvent,
 ): Promise<AgentRunResult> {
+  return withRequestProviderEnv(request.secrets, () => runPiWithEnv(request, emit));
+}
+
+async function runPiWithEnv(
+  request: AgentRunRequest,
+  emit?: EmitEvent,
+): Promise<AgentRunResult> {
   const prompt = resolvePromptText(request);
   if (!prompt) {
     return { ok: false, error: "No user message to send (prompt/messages empty)." };
   }
 
-  applySecrets(request.secrets);
   const cwd = mkdtempSync(join(tmpdir(), "agenta-agent-"));
 
   try {
