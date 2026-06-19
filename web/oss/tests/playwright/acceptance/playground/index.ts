@@ -420,10 +420,18 @@ const playgroundTests = () => {
                         loadDialog.locator(".ant-table-row").filter({hasText: "Germany"}).first(),
                     ).toBeVisible({timeout: 30000})
 
-                    // AntD 6 renders the checkbox input with opacity:0, which Chrome's
-                    // accessibility tree excludes from getByRole("checkbox"). Use the
-                    // CSS class selector to bypass the ARIA tree entirely.
-                    await loadDialog.locator(".ant-table-thead .ant-checkbox-input").check()
+                    // Select all testcases by clicking each row. The table wires
+                    // onRow.onClick to handleRowClick in TestsetPreviewPanelWrapper,
+                    // which toggles selection without requiring AntD checkboxes
+                    // to be present in the DOM (they depend on enableSelection /
+                    // rowSelection being set, which has proven unreliable here).
+                    for (const {country} of rows) {
+                        await loadDialog
+                            .locator(".ant-table-row")
+                            .filter({hasText: country})
+                            .first()
+                            .click()
+                    }
                     await loadDialog
                         .getByRole("button", {name: "Load Selected", exact: true})
                         .click()
@@ -546,15 +554,15 @@ const playgroundTests = () => {
                     loadDialog.locator(".ant-table-row").filter({hasText: "Germany"}).first(),
                 ).toBeVisible({timeout: 30000})
                 for (const {country} of rows) {
-                    // AntD 6 renders the checkbox input with opacity:0, which Chrome's
-                    // accessibility tree excludes from getByRole("checkbox"). Use the
-                    // CSS class selector to bypass the ARIA tree entirely.
+                    // Select each testcase by clicking its row. The table's
+                    // onRow.onClick handler (handleRowClick in TestsetPreviewPanelWrapper)
+                    // toggles multi-selection without requiring AntD checkboxes
+                    // to be present in the DOM.
                     await loadDialog
                         .locator(".ant-table-row")
                         .filter({hasText: country})
                         .first()
-                        .locator(".ant-checkbox-input")
-                        .check()
+                        .click()
                 }
                 await loadDialog.getByRole("button", {name: "Load Selected", exact: true}).click()
                 await expect(loadDialog).toBeHidden()
