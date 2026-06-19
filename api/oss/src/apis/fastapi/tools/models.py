@@ -2,7 +2,7 @@ from typing import List, Optional, Union
 
 from pydantic import BaseModel
 
-from oss.src.core.connections.dtos import (
+from oss.src.core.gateway.connections.dtos import (
     Connection,
     ConnectionCreate,
 )

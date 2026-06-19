@@ -134,10 +134,12 @@ from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
 
 from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.apis.fastapi.accounts.router import PlatformAdminAccountsRouter
-from oss.src.dbs.postgres.connections.dao import ConnectionsDAO
-from oss.src.core.connections.providers.composio import ComposioConnectionsAdapter
-from oss.src.core.connections.registry import ConnectionsGatewayRegistry
-from oss.src.core.connections.service import ConnectionsService
+from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
+from oss.src.core.gateway.connections.providers.composio import (
+    ComposioConnectionsAdapter,
+)
+from oss.src.core.gateway.connections.registry import ConnectionsGatewayRegistry
+from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService

@@ -2,12 +2,12 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from oss.src.core.connections.dtos import (
+from oss.src.core.gateway.connections.dtos import (
     Connection,
     ConnectionCreate,
     ConnectionStatus,
 )
-from oss.src.dbs.postgres.connections.dbes import ConnectionDBE
+from oss.src.dbs.postgres.gateway.connections.dbes import ConnectionDBE
 
 
 def map_connection_create_to_dbe(

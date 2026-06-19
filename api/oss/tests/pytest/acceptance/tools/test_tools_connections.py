@@ -68,4 +68,5 @@ class TestToolsConnectionsLifecycle:
         assert revoke.status_code == 200, revoke.text
         assert revoke.json()["connection"]["flags"]["is_valid"] is False
 
-        authed_api("DELETE", f"/tools/connections/{connection_id}")
+        delete = authed_api("DELETE", f"/tools/connections/{connection_id}")
+        assert delete.status_code == 204, delete.text

@@ -4,12 +4,12 @@ import httpx
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.core.connections.dtos import (
+from oss.src.core.gateway.connections.dtos import (
     ConnectionRequest,
     ConnectionResponse,
 )
-from oss.src.core.connections.interfaces import ConnectionsGatewayInterface
-from oss.src.core.connections.exceptions import AdapterError
+from oss.src.core.gateway.connections.interfaces import ConnectionsGatewayInterface
+from oss.src.core.gateway.connections.exceptions import AdapterError
 
 
 log = get_module_logger(__name__)

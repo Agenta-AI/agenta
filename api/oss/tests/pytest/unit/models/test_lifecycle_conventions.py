@@ -16,7 +16,7 @@ MODULES = [
     "oss.src.dbs.postgres.users.dbes",
     "oss.src.dbs.postgres.folders.dbes",
     "oss.src.dbs.postgres.secrets.dbes",
-    "oss.src.dbs.postgres.connections.dbes",
+    "oss.src.dbs.postgres.gateway.connections.dbes",
     "oss.src.dbs.postgres.events.dbes",
     "oss.src.dbs.postgres.webhooks.dbes",
     "oss.src.dbs.postgres.tracing.dbes",

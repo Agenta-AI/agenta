@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from oss.src.core.shared.dtos import (
     Header,
@@ -127,4 +127,4 @@ class ConnectionResponse(BaseModel):
 
     provider_connection_id: str
     redirect_url: Optional[str] = None
-    connection_data: Dict[str, Any] = {}
+    connection_data: Dict[str, Any] = Field(default_factory=dict)

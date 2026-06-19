@@ -1,7 +1,7 @@
 from typing import Dict, ItemsView
 
-from oss.src.core.connections.interfaces import ConnectionsGatewayInterface
-from oss.src.core.connections.exceptions import ProviderNotFoundError
+from oss.src.core.gateway.connections.interfaces import ConnectionsGatewayInterface
+from oss.src.core.gateway.connections.exceptions import ProviderNotFoundError
 
 
 class ConnectionsGatewayRegistry:

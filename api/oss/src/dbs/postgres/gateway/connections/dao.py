@@ -10,8 +10,8 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import suppress_exceptions
 
 from oss.src.core.shared.exceptions import EntityCreationConflict
-from oss.src.core.connections.interfaces import ConnectionsDAOInterface
-from oss.src.core.connections.dtos import (
+from oss.src.core.gateway.connections.interfaces import ConnectionsDAOInterface
+from oss.src.core.gateway.connections.dtos import (
     Connection,
     ConnectionCreate,
 )
@@ -20,8 +20,8 @@ from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
     get_transactions_engine,
 )
-from oss.src.dbs.postgres.connections.dbes import ConnectionDBE
-from oss.src.dbs.postgres.connections.mappings import (
+from oss.src.dbs.postgres.gateway.connections.dbes import ConnectionDBE
+from oss.src.dbs.postgres.gateway.connections.mappings import (
     map_connection_create_to_dbe,
     map_connection_dbe_to_dto,
 )

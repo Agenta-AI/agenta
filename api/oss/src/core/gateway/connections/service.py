@@ -4,19 +4,19 @@ from uuid import UUID
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 
-from oss.src.core.connections.dtos import (
+from oss.src.core.gateway.connections.dtos import (
     Connection,
     ConnectionCreate,
     ConnectionRequest,
     Usage,
 )
-from oss.src.core.connections.interfaces import ConnectionsDAOInterface
-from oss.src.core.connections.registry import ConnectionsGatewayRegistry
-from oss.src.core.connections.exceptions import (
+from oss.src.core.gateway.connections.interfaces import ConnectionsDAOInterface
+from oss.src.core.gateway.connections.registry import ConnectionsGatewayRegistry
+from oss.src.core.gateway.connections.exceptions import (
     ConnectionInactiveError,
     ConnectionNotFoundError,
 )
-from oss.src.core.connections.utils import make_oauth_state
+from oss.src.core.gateway.connections.utils import make_oauth_state
 
 
 log = get_module_logger(__name__)

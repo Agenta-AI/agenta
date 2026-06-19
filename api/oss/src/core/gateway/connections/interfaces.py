@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from oss.src.core.connections.dtos import (
+from oss.src.core.gateway.connections.dtos import (
     Connection,
     ConnectionCreate,
     ConnectionRequest,
