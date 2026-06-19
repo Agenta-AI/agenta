@@ -394,6 +394,14 @@ const playgroundTests = () => {
                     const loadDialog = page.getByRole("dialog", {name: "Load Testset"})
                     await expect(loadDialog).toBeVisible()
 
+                    // Search for the specific testset to force a fresh server-side query.
+                    // The testsets list atom may serve stale cached data (shared globally
+                    // across pages); typing a search string changes the queryKey and fires
+                    // a new request that includes the just-created testset.
+                    await loadDialog
+                        .getByPlaceholder("Search testset...")
+                        .fill(connectedTestset.name)
+
                     await loadDialog
                         .getByRole("option", {
                             name: connectedTestset.name,
@@ -502,6 +510,11 @@ const playgroundTests = () => {
 
                 const loadDialog = page.getByRole("dialog", {name: "Load Testset"})
                 await expect(loadDialog).toBeVisible()
+                // Search for the specific testset to force a fresh server-side query.
+                // The testsets list atom may serve stale cached data (shared globally
+                // across pages); typing a search string changes the queryKey and fires
+                // a new request that includes the just-created testset.
+                await loadDialog.getByPlaceholder("Search testset...").fill(connectedTestset.name)
                 await loadDialog
                     .getByRole("option", {
                         name: connectedTestset.name,
