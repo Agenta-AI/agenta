@@ -8,18 +8,34 @@ vs subprocess) follows ``AGENTA_AGENT_PI_URL``.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
-from agenta.sdk.agents import InProcessPiBackend, RivetBackend, RunSelection
+from agenta.sdk.agents import (
+    AgentRunnerConfigurationError,
+    InProcessPiBackend,
+    RivetBackend,
+    RunSelection,
+)
 
 from oss.src.agent.app import select_backend
 
 
+@pytest.fixture
+def runner_wrapper(tmp_path: Path) -> Path:
+    cli = tmp_path / "src" / "cli.ts"
+    cli.parent.mkdir()
+    cli.write_text("console.log('runner')\n", encoding="utf-8")
+    return tmp_path
+
+
 @pytest.fixture(autouse=True)
-def _clean_env(monkeypatch):
+def _clean_env(monkeypatch, runner_wrapper: Path):
     # Start every case from a known-empty deployment environment.
     monkeypatch.delenv("AGENTA_AGENT_RUNTIME", raising=False)
     monkeypatch.delenv("AGENTA_AGENT_PI_URL", raising=False)
+    monkeypatch.setenv("AGENTA_AGENT_WRAPPER_DIR", str(runner_wrapper))
 
 
 def _sel(harness="pi", sandbox="local"):
@@ -59,3 +75,12 @@ def test_pi_url_selects_http_transport(monkeypatch):
 def test_no_pi_url_uses_subprocess_transport():
     # Unset URL means the backend will spawn the runner CLI rather than POST to a sidecar.
     assert select_backend(_sel("pi", "local"))._url is None
+
+
+def test_no_pi_url_requires_runner_assets(monkeypatch, tmp_path: Path):
+    missing_wrapper = tmp_path / "missing-wrapper"
+    missing_wrapper.mkdir()
+    monkeypatch.setenv("AGENTA_AGENT_WRAPPER_DIR", str(missing_wrapper))
+
+    with pytest.raises(AgentRunnerConfigurationError, match="src/cli.ts"):
+        select_backend(_sel("pi", "local"))
