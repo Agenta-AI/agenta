@@ -18,8 +18,9 @@
  *
  * # Resolution rules
  *
- * - **input** — the step's result carries `testcase_id`; the path is applied
- *   to the joined testcase (e.g. `data.country` → `testcase.data.country`).
+ * - **input** — the source adapter selects storage from step references:
+ *   query-backed inputs carry `trace_id` and resolve against the source trace;
+ *   testset-backed inputs carry `testcase_id` and resolve against the testcase.
  * - **invocation** — the step's result carries `trace_id`; the path is applied
  *   to the trace's span tree (e.g. `attributes.ag.data.outputs`).
  * - **annotation** — same as invocation, with `metric.data[step.key][path]` as
@@ -41,6 +42,11 @@
 import type {EvaluationResult} from "@agenta/entities/evaluationRun"
 
 import type {HydratedScenarioRow, HydratableScenario} from "./hydrateScenariosTransform"
+import {
+    adaptInputSourceMappings,
+    getInputSourceAdapter,
+    normalizeInputSourceValue,
+} from "./inputSourceAdapter"
 
 // ============================================================================
 // Schema types (mirroring run.data.steps / run.data.mappings)
@@ -95,7 +101,7 @@ export type ResolveSource = string
  */
 export interface ColumnGroup {
     /** Source category — drives header rendering and ordering. */
-    kind: "testset" | "application" | "evaluator" | "metrics" | "other"
+    kind: "query" | "testset" | "application" | "evaluator" | "metrics" | "other"
     /**
      * Stable identity for the group within its kind. For testsets it's the
      * testset slug; for evaluators it's the evaluator slug; for metrics
@@ -429,6 +435,14 @@ export function computeColumnGroup(step: RunStep | null, path: string): ColumnGr
 
     switch (step.type) {
         case "input": {
+            const sourceAdapter = getInputSourceAdapter(step)
+            if (sourceAdapter) {
+                return {
+                    ...sourceAdapter.group(step),
+                    refs,
+                }
+            }
+
             // Prefer the testset's slug (stable across revisions); fall back
             // to testset_revision.slug then the step.key.
             const testsetSlug = refs?.testset?.slug ?? refs?.testset_revision?.slug ?? null
@@ -490,8 +504,8 @@ export function computeColumnGroup(step: RunStep | null, path: string): ColumnGr
 
 export const DEFAULT_STEP_RESOLVERS: Record<string, StepResolver> = {
     /**
-     * Input steps carry testcase references on their result. Mappings point
-     * at testcase fields via `data.<column>`.
+     * Legacy/unclassified input fallback. Source-backed inputs are resolved
+     * through inputSourceAdapter before this registry is consulted.
      */
     input: resolveFromTestcase,
 
@@ -546,15 +560,12 @@ export function resolveMappings<TScenario extends HydratableScenario>(
     schema: RunSchema,
     options: ResolveMappingsOptions = {},
 ): ResolvedColumn[] {
-    const resolvers: Record<string, StepResolver> = {
-        ...DEFAULT_STEP_RESOLVERS,
-        ...(options.customResolvers ?? {}),
-    }
-
     const stepByKey = new Map<string, RunStep>()
     for (const s of schema.steps) stepByKey.set(s.key, s)
 
-    return schema.mappings.map((m) => {
+    const mappings = adaptInputSourceMappings(schema.steps, schema.mappings) as RunMapping[]
+
+    return mappings.map((m) => {
         const kind = m.column?.kind ?? "?"
         const name = m.column?.name ?? "?"
         const stepKey = m.step?.key ?? ""
@@ -576,7 +587,19 @@ export function resolveMappings<TScenario extends HydratableScenario>(
         }
 
         const result = (row.results as EvaluationResult[]).find((r) => r.step_key === stepKey)
-        const resolver = resolvers[step.type] ?? options.fallbackResolver ?? null
+        const inputSourceAdapter = getInputSourceAdapter(step)
+        const sourceResolver =
+            inputSourceAdapter?.storage === "trace"
+                ? resolveFromTrace
+                : inputSourceAdapter?.storage === "testcase"
+                  ? resolveFromTestcase
+                  : undefined
+        const resolver =
+            options.customResolvers?.[step.type] ??
+            sourceResolver ??
+            DEFAULT_STEP_RESOLVERS[step.type] ??
+            options.fallbackResolver ??
+            null
 
         if (!resolver) {
             return {
@@ -615,7 +638,7 @@ export function resolveMappings<TScenario extends HydratableScenario>(
             stepKey,
             stepType: step.type,
             path,
-            value: out.value,
+            value: normalizeInputSourceValue(step, m, out.value),
             source: out.source,
             group,
         }
@@ -653,6 +676,7 @@ export function groupResolvedColumns(columns: ResolvedColumn[]): ResolvedColumnG
 
     // Kind ordering matches the UI's left-to-right layout in the screenshot.
     const kindOrder: ColumnGroup["kind"][] = [
+        "query",
         "testset",
         "application",
         "evaluator",
@@ -721,7 +745,9 @@ export function groupRunColumns(steps: RunStep[], mappings: RunMapping[]): RunCo
     const byKey = new Map<string, RunColumnGroup>()
     const firstAppearance = new Map<string, number>()
 
-    mappings.forEach((mapping, idx) => {
+    const adaptedMappings = adaptInputSourceMappings(steps, mappings) as RunMapping[]
+
+    adaptedMappings.forEach((mapping, idx) => {
         const columnName = mapping.column?.name
         if (typeof columnName !== "string" || !columnName) return
         // Internal dedup keys are not user-facing columns.
@@ -740,11 +766,12 @@ export function groupRunColumns(steps: RunStep[], mappings: RunMapping[]): RunCo
     })
 
     const kindOrder: Record<ColumnGroup["kind"], number> = {
-        testset: 0,
-        application: 1,
-        evaluator: 2,
-        metrics: 3,
-        other: 4,
+        query: 0,
+        testset: 1,
+        application: 2,
+        evaluator: 3,
+        metrics: 4,
+        other: 5,
     }
     return Array.from(byKey.values()).sort((a, b) => {
         const k = kindOrder[a.group.kind] - kindOrder[b.group.kind]

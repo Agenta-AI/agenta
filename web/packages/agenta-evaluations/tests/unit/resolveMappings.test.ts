@@ -631,6 +631,23 @@ describe("computeColumnGroup", () => {
         assert.equal(g.kind, "testset")
         assert.equal(g.slug, "rev-abc")
     })
+
+    it("query-backed input step → query group", () => {
+        const g = computeColumnGroup(
+            {
+                key: "query-source",
+                type: "input",
+                references: {
+                    query: {id: "q1", slug: "selected-traces"},
+                    query_revision: {id: "qr1", slug: "selected-traces-v1"},
+                },
+            },
+            "attributes.ag.data",
+        )
+        assert.equal(g.kind, "query")
+        assert.equal(g.slug, "selected-traces")
+        assert.equal(g.label, "Query selected-traces")
+    })
 })
 
 describe("groupResolvedColumns", () => {
@@ -782,6 +799,80 @@ describe("groupResolvedColumns", () => {
 })
 
 describe("edge cases", () => {
+    it("resolves query-backed input and output columns from the source trace", () => {
+        const traceId = "trace-1"
+        const schema: RunSchema = {
+            steps: [
+                {
+                    key: "query-source",
+                    type: "input",
+                    references: {
+                        query: {id: "q1", slug: "selected-traces"},
+                        query_revision: {id: "qr1", slug: "selected-traces-v1"},
+                    },
+                },
+            ],
+            mappings: [
+                {
+                    column: {kind: "query", name: "data"},
+                    step: {key: "query-source", path: "attributes.ag.data"},
+                },
+            ],
+        }
+        const row = makeRow({
+            results: [
+                {
+                    run_id: "run-1",
+                    scenario_id: "scen1",
+                    step_key: "query-source",
+                    status: "success",
+                    trace_id: traceId,
+                },
+            ],
+            traces: {
+                [traceId]: {
+                    spans: {
+                        root: {
+                            attributes: {
+                                ag: {
+                                    data: {
+                                        inputs: {inputs: {prompt: "hello"}},
+                                        outputs: {answer: "world"},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        })
+
+        const columns = resolveMappings(row, schema)
+
+        assert.deepEqual(
+            columns.map((column) => ({
+                name: column.name,
+                value: column.value,
+                source: column.source,
+                groupKind: column.group.kind,
+            })),
+            [
+                {
+                    name: "inputs",
+                    value: {prompt: "hello"},
+                    source: "trace",
+                    groupKind: "query",
+                },
+                {
+                    name: "outputs",
+                    value: {answer: "world"},
+                    source: "trace",
+                    groupKind: "query",
+                },
+            ],
+        )
+    })
+
     it("schema with no mappings → empty result", () => {
         const cols = resolveMappings(makeRow(), {steps: [], mappings: []})
         assert.deepEqual(cols, [])

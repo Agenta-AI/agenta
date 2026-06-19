@@ -327,3 +327,37 @@ describe("predicateToEntitySlices — group input", () => {
         assert.equal(slices.size, 0)
     })
 })
+
+describe("predicateToEntitySlices — query-backed inputs", () => {
+    it("hydrates results and traces for adapted query columns", () => {
+        const schema: RunSchema = {
+            steps: [
+                {
+                    key: "query-source",
+                    type: "input",
+                    references: {
+                        query: {id: "query-1", slug: "selected-traces"},
+                        query_revision: {id: "query-revision-1"},
+                    },
+                },
+            ],
+            mappings: [
+                {
+                    column: {kind: "query", name: "data"},
+                    step: {key: "query-source", path: "attributes.ag.data"},
+                },
+            ],
+        }
+
+        const result = predicateToEntitySlices(schema, {
+            groupKind: "query",
+            groupSlug: "selected-traces",
+            columnName: "inputs",
+            op: "eq",
+            value: "hello",
+        })
+
+        assert.deepEqual([...result.slices], ["results", "traces"])
+        assert.equal(result.fallbackToAll, false)
+    })
+})

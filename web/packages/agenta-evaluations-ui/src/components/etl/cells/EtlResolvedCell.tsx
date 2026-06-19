@@ -68,6 +68,7 @@ const MAX_LINES_BY_HEIGHT: Record<ScenarioRowHeight, number> = {
 
 /** Entity slices each column kind reads from. */
 const SLICES_BY_KIND: Record<ColumnKind, ("results" | "metrics" | "testcases" | "traces")[]> = {
+    query: ["results", "traces"],
     testset: ["results", "testcases"],
     application: ["results", "traces"],
     // Evaluator outputs come from metrics first, but string-typed outputs

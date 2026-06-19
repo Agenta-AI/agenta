@@ -10,7 +10,8 @@
  * Mapping is derived from the same step.type → entity convention
  * `resolveMappings` uses on the read side:
  *
- *   testset      step.type = "input"       → reads from testcase
+ *   query        input + query_revision    → reads from trace
+ *   testset      input + testset_revision  → reads from testcase
  *   application  step.type = "invocation"  → reads from trace (via result.trace_id)
  *   evaluator    step.type = "annotation"  → reads from result + metric
  *                                            (composeResolvers(metric, trace))
@@ -24,6 +25,7 @@
  *      shape, return the value from a hydrated row)
  */
 
+import {adaptInputSourceMappings} from "./inputSourceAdapter"
 import type {ColumnGroup, RunMapping, RunSchema, RunStep} from "./resolveMappings"
 import {computeColumnGroup} from "./resolveMappings"
 import type {PredicateGroup, RowPredicate} from "./rowPredicateFilter"
@@ -68,7 +70,8 @@ function sliceForPredicate(schema: RunSchema, predicate: RowPredicate): EntitySl
     let matchedMapping: RunMapping | null = null
     let matchedGroup: ColumnGroup | null = null
 
-    for (const m of schema.mappings) {
+    const mappings = adaptInputSourceMappings(schema.steps, schema.mappings) as RunMapping[]
+    for (const m of mappings) {
         const columnName = m.column?.name
         if (typeof columnName !== "string" || columnName !== predicate.columnName) continue
         const step = m.step?.key ? (stepByKey.get(m.step.key) ?? null) : null
@@ -91,6 +94,9 @@ function sliceForPredicate(schema: RunSchema, predicate: RowPredicate): EntitySl
 
     const slices: EntitySlice[] = []
     switch (matchedGroup.kind) {
+        case "query":
+            slices.push("results", "traces")
+            break
         case "testset":
             slices.push("results", "testcases")
             break

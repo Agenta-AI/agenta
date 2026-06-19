@@ -29,14 +29,9 @@ import {clearFocusDrawerQueryParams, patchFocusDrawerQueryParams} from "../../st
 
 import {buildEvaluationDrawerPayload} from "./drawerPayload"
 import EvaluatorMetricsAdapter, {useEvaluatorMetricDrawerData} from "./EvaluatorMetricsAdapter"
+import {useEvalInputDrawerData} from "./InputValuesAdapter"
 import InvocationOutputsAdapter, {useInvocationOutputDrawerData} from "./InvocationOutputsAdapter"
-import {
-    buildEvalDrawerItemIdentity,
-    extractEmbeddedInputValue,
-    mapEvalInputColumns,
-    mapEvalMetricSections,
-    mapEvalOutputSections,
-} from "./model"
+import {buildEvalDrawerItemIdentity, mapEvalMetricSections, mapEvalOutputSections} from "./model"
 
 const PAGE_SIZE = 50
 type PreviewPaginationRow = PreviewTableRow & Record<string, unknown>
@@ -111,7 +106,11 @@ const EvalTestcaseDrawerAdapter = () => {
             .filter((column): column is EvaluationTableColumn => Boolean(column))
     }, [columnResult])
 
-    const editorColumns = useMemo(() => mapEvalInputColumns(inputColumns), [inputColumns])
+    const inputData = useEvalInputDrawerData({
+        runId: runId ?? "",
+        scenarioId: scenarioId ?? "",
+        columns: inputColumns,
+    })
     const outputSections = useMemo(
         () =>
             mapEvalOutputSections({
@@ -164,8 +163,8 @@ const EvalTestcaseDrawerAdapter = () => {
             return entity
         }
 
-        return extractEmbeddedInputValue(stepsQuery.data?.steps ?? [], inputColumns)
-    }, [inputColumns, sourceTestcaseId, stepsQuery.data?.steps, testcaseData])
+        return inputData.value
+    }, [inputData.value, sourceTestcaseId, testcaseData])
     const drawerPayload = useMemo(
         () =>
             buildEvaluationDrawerPayload({
@@ -259,7 +258,7 @@ const EvalTestcaseDrawerAdapter = () => {
                 <div className="w-full [&_.drill-in-breadcrumb]:pl-4 [&_.drill-in-field-content]:px-4 [&_.drill-in-field-content]:pt-2">
                     <TestcaseDataEditor
                         value={inputValue}
-                        columns={editorColumns}
+                        columns={inputData.columns}
                         mode="view"
                         surface="drawer"
                         initialPath={initialPath}
@@ -291,7 +290,7 @@ const EvalTestcaseDrawerAdapter = () => {
         },
         [
             drawerPayload,
-            editorColumns,
+            inputData.columns,
             inputValue,
             metricSections,
             outputSections,

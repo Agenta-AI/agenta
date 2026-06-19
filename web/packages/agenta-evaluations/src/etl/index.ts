@@ -15,10 +15,9 @@ export type {
     HydrateFetchers,
 } from "./hydrateScenariosTransform"
 
-// Column resolver — declarative, driven by run.data.steps[].type and the
-// run's column mappings. Groups columns by source (testset / application /
-// evaluator / metrics) so the UI can mirror the screenshot's grouped header
-// layout with no name-collision risk across multiple evaluators.
+// Column resolver — declarative, driven by run steps, source references, and
+// column mappings. Groups columns by source (query / testset / application /
+// evaluator / metrics) with no name-collision risk across evaluators.
 export type {
     RunStep,
     RunMapping,
@@ -46,6 +45,18 @@ export {
     groupResolvedColumns,
     groupRunColumns,
 } from "./resolveMappings"
+
+export {
+    getInputSourceAdapter,
+    adaptInputSourceMappings,
+    normalizeInputSourceValue,
+    type InputSourceAdapter,
+    type InputSourceGroup,
+    type InputSourceKind,
+    type InputSourceMapping,
+    type InputSourceStep,
+    type InputSourceStorage,
+} from "./inputSourceAdapter"
 
 // Cache diagnostics — inspect the TanStack cache + atom family sizes
 export {

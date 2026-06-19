@@ -61,6 +61,7 @@ const isListOperator = (op: FilterOperator) => op === "in" || op === "nin"
  * Flip a kind to `true` here to enable it; no other change is needed.
  */
 const FILTERABLE_COLUMN_KINDS: Record<ColumnGroup["kind"], boolean> = {
+    query: false,
     evaluator: true,
     metrics: true,
     testset: false,
