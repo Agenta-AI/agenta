@@ -9,11 +9,12 @@
 
 import {projectIdAtom} from "@agenta/shared/state"
 import {isValidUUID} from "@agenta/shared/utils"
+import deepEqual from "fast-deep-equal"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
-import {retrieveQueryRevision} from "../api"
+import {queryMatchingTraces, retrieveQueryRevision} from "../api"
 import type {QueryRevision} from "../core"
 
 /** TanStack Query key prefix for the project-scoped SimpleQuery list. */
@@ -22,6 +23,17 @@ export const QUERY_LIST_KEY = "queries-list"
 export const QUERY_DETAIL_KEY = "query"
 /** TanStack Query key prefix for a query's head revision (molecule server data). */
 export const QUERY_HEAD_KEY = "query-head"
+/** TanStack Query key prefix for traces resolved from an explicit filter. */
+export const MATCHING_TRACES_KEY = "matching-traces"
+
+export const queryHeadQueryKey = (projectId: string | null | undefined, queryId: string) =>
+    [QUERY_HEAD_KEY, projectId, queryId] as const
+
+export interface MatchingTracesQueryParams {
+    projectId?: string | null
+    filtering?: unknown
+    limit?: number
+}
 
 /**
  * Server data for the molecule: a single query's head revision (carries `name`
@@ -32,7 +44,7 @@ export const queryHeadQueryAtomFamily = atomFamily((queryId: string) =>
         const projectId = get(projectIdAtom)
         const enabled = Boolean(projectId) && isValidUUID(queryId)
         return {
-            queryKey: [QUERY_HEAD_KEY, projectId, queryId],
+            queryKey: queryHeadQueryKey(projectId, queryId),
             queryFn: async () => {
                 if (!projectId || !queryId) return null
                 return retrieveQueryRevision({projectId, queryRef: {id: queryId}})
@@ -42,6 +54,23 @@ export const queryHeadQueryAtomFamily = atomFamily((queryId: string) =>
             refetchOnWindowFocus: false,
         }
     }),
+)
+
+export const matchingTracesQueryAtomFamily = atomFamily(
+    ({projectId, filtering, limit = 50}: MatchingTracesQueryParams) =>
+        atomWithQuery(() => ({
+            queryKey: [MATCHING_TRACES_KEY, projectId, filtering, limit],
+            queryFn: () =>
+                queryMatchingTraces({
+                    projectId: projectId as string,
+                    filtering,
+                    limit,
+                }),
+            enabled: Boolean(projectId && limit > 0),
+            staleTime: 60_000,
+            refetchOnWindowFocus: false,
+        })),
+    deepEqual,
 )
 
 /** Local edit draft for a query's head revision (null = no unsaved changes). */

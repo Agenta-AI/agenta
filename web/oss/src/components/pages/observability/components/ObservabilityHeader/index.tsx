@@ -36,6 +36,7 @@ import getFilterColumns from "../../assets/getFilterColumns"
 import {ObservabilityHeaderProps} from "../../assets/types"
 import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
+import RunEvaluationDropdown from "./RunEvaluationDropdown"
 import {useBatchAddTracesToQueue} from "./useBatchAddTracesToQueue"
 
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
@@ -716,6 +717,7 @@ const ObservabilityHeader = ({
                                     onQueueSelected: onAddAllMatchingQueueSelected,
                                 }}
                             />
+                            <RunEvaluationDropdown selectedTraceIds={selectedTraceIds} />
                         </Space>
                     </div>
                 ) : null}

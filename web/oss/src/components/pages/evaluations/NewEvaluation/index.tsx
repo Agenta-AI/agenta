@@ -32,12 +32,18 @@ const NewEvaluationModalInner = dynamic(() => import("./Components/NewEvaluation
  * - Remaining Ant Design `ModalProps` are forwarded to the modal.
  *
  * Each `steps` item supports:
- * - `kind`: `"application" | "revision" | "testset" | "evaluator" | "advanced"`.
+ * - `kind`: `"application" | "revision" | "testset" | "evaluator" | "advanced" |
+ *   "traces" | "query"`.
  * - `required`: Requires the step to be complete before submission.
  * - `dependsOn`: Disables the step until the listed steps are complete.
  * - `hidden`: Keeps the step in state and submission but removes its tab.
  * - `locked`: Shows the step as read-only.
  * - `preset`: Sets the step's initial value.
+ *
+ * Source presets:
+ * - `traces`: An array of trace IDs, for example `{kind: "traces", preset: traceIds}`.
+ * - `query`: A query reference, for example `{kind: "query", preset: {queryId}}`.
+ * - Configure only one source kind per modal.
  *
  * @example
  * <NewEvaluationModal

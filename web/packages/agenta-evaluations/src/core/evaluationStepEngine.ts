@@ -22,6 +22,7 @@ export type EvaluationStepDescriptorMap<Kind extends string, Context, Payload> =
 export const assertValidStepConfig = <Kind extends string>(
     slots: EvaluationStepSlot<Kind>[],
     knownKinds: ReadonlySet<Kind>,
+    mutuallyExclusiveGroups: readonly (readonly Kind[])[] = [],
 ) => {
     const configuredKinds = new Set<Kind>()
 
@@ -31,6 +32,15 @@ export const assertValidStepConfig = <Kind extends string>(
             throw new Error(`Duplicate evaluation step: ${slot.kind}`)
         }
         configuredKinds.add(slot.kind)
+    }
+
+    for (const group of mutuallyExclusiveGroups) {
+        const configuredGroup = group.filter((kind) => configuredKinds.has(kind))
+        if (configuredGroup.length > 1) {
+            throw new Error(
+                `Mutually exclusive evaluation steps configured: ${configuredGroup.join(", ")}`,
+            )
+        }
     }
 
     for (const slot of slots) {

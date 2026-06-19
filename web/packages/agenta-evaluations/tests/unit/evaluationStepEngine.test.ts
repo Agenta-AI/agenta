@@ -12,8 +12,8 @@ import {
     type EvaluationStepSlot,
 } from "../../src/core/evaluationStepEngine"
 
-type Kind = "application" | "revision" | "evaluator" | "advanced"
-type Values = Record<Kind, unknown>
+type Kind = "application" | "revision" | "evaluator" | "advanced" | "traces" | "query"
+type Values = Partial<Record<Kind, unknown>>
 interface Payload {
     application_steps?: Record<string, "auto">
     evaluator_steps?: Record<string, "auto">
@@ -50,13 +50,30 @@ const descriptors: EvaluationStepDescriptorMap<Kind, Values, Payload> = {
         defaultValue: {},
         isComplete: () => true,
     },
+    traces: {
+        kind: "traces",
+        defaultValue: [],
+        isComplete: (value) => Array.isArray(value) && value.length > 0,
+    },
+    query: {
+        kind: "query",
+        defaultValue: {},
+        isComplete: (value) => Boolean((value as {queryId?: string}).queryId),
+    },
 }
 
 const getValue = (values: Values) => (kind: Kind) => values[kind]
 
 describe("evaluation step engine", () => {
     it("validates missing, duplicate, and cyclic dependencies", () => {
-        const knownKinds = new Set<Kind>(["application", "revision", "evaluator", "advanced"])
+        const knownKinds = new Set<Kind>([
+            "application",
+            "revision",
+            "evaluator",
+            "advanced",
+            "traces",
+            "query",
+        ])
         expect(() =>
             assertValidStepConfig([{kind: "revision", dependsOn: ["application"]}], knownKinds),
         ).toThrow(/missing step/)
@@ -72,6 +89,36 @@ describe("evaluation step engine", () => {
                 knownKinds,
             ),
         ).toThrow(/Cyclic/)
+    })
+
+    it("validates mutually exclusive step groups", () => {
+        const knownKinds = new Set<Kind>([
+            "application",
+            "revision",
+            "evaluator",
+            "advanced",
+            "traces",
+            "query",
+        ])
+        const sourceGroups: Kind[][] = [["traces", "query"]]
+
+        expect(() =>
+            assertValidStepConfig(
+                [{kind: "traces"}, {kind: "query"}, {kind: "evaluator"}],
+                knownKinds,
+                sourceGroups,
+            ),
+        ).toThrow(/Mutually exclusive/)
+        expect(() =>
+            assertValidStepConfig(
+                [{kind: "traces"}, {kind: "evaluator"}],
+                knownKinds,
+                sourceGroups,
+            ),
+        ).not.toThrow()
+        expect(() =>
+            assertValidStepConfig([{kind: "query"}, {kind: "evaluator"}], knownKinds, sourceGroups),
+        ).not.toThrow()
     })
 
     it("gates steps only on declared dependencies", () => {

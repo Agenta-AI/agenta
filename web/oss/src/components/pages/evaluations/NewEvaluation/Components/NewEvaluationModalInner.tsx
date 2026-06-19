@@ -70,6 +70,8 @@ const TOUR_PANEL_TO_STEP: Record<string, EvalStepKind> = {
     advancedSettingsPanel: "advanced",
 }
 
+const MUTUALLY_EXCLUSIVE_STEP_GROUPS: EvalStepKind[][] = [["traces", "query"]]
+
 const cloneDefaultValue = <Kind extends EvalStepKind>(kind: Kind): EvalStepValueMap[Kind] =>
     structuredClone(evalStepRegistry[kind].defaultValue)
 
@@ -138,7 +140,7 @@ const NewEvaluationModalInner = ({
             }
             return slot
         })
-        assertValidStepConfig(initialSteps, EVAL_STEP_KINDS)
+        assertValidStepConfig(initialSteps, EVAL_STEP_KINDS, MUTUALLY_EXCLUSIVE_STEP_GROUPS)
         resolvedStepsRef.current = initialSteps
     }
     const resolvedSteps = resolvedStepsRef.current
@@ -440,12 +442,25 @@ const NewEvaluationModalInner = ({
     )
     const generatedNameBase = useMemo(() => {
         if (nameBuilder) return nameBuilder(stepValues)
+        if (resolvedSteps.some((slot) => slot.kind === "traces")) return "trace-eval"
+        if (resolvedSteps.some((slot) => slot.kind === "query")) {
+            const query = stepValues.query as EvalStepValueMap["query"] | undefined
+            return query?.name ? `${query.name}-eval` : "query-eval"
+        }
         if (!revisionIds.length || !testset.name) return ""
         if (revisionIds.length > 1) return `${revisionIds.length}-variants-${testset.name}`
         const revision = filteredVariants.find((candidate) => candidate.id === revisionIds[0])
         if (!revision) return ""
         return `${selectedVariantLabel ?? revision.name ?? "-"}-v${revision.version ?? 0}-${testset.name}`
-    }, [filteredVariants, nameBuilder, revisionIds, selectedVariantLabel, stepValues, testset.name])
+    }, [
+        filteredVariants,
+        nameBuilder,
+        resolvedSteps,
+        revisionIds,
+        selectedVariantLabel,
+        stepValues,
+        testset.name,
+    ])
 
     const [evaluationName, setEvaluationName] = useState("")
     const [nameFocused, setNameFocused] = useState(false)

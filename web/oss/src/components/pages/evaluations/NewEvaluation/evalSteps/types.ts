@@ -5,7 +5,14 @@ import type {EvaluationStepSlot as CoreEvaluationStepSlot} from "@agenta/evaluat
 import type {NewEvaluationAppOption} from "../types"
 import type {EvaluationConcurrencySettings} from "../types"
 
-export type EvalStepKind = "application" | "revision" | "testset" | "evaluator" | "advanced"
+export type EvalStepKind =
+    | "application"
+    | "revision"
+    | "testset"
+    | "evaluator"
+    | "advanced"
+    | "traces"
+    | "query"
 
 export interface ApplicationStepValue {
     id: string
@@ -20,17 +27,29 @@ export interface TestsetStepValue {
     version: number | null
 }
 
+export interface QueryStepValue {
+    queryId: string
+    name?: string
+}
+
 export interface EvalStepValueMap {
     application: ApplicationStepValue
     revision: string[]
     testset: TestsetStepValue
     evaluator: string[]
     advanced: EvaluationConcurrencySettings
+    traces: string[]
+    query: QueryStepValue
 }
 
-export interface EvalStepSlot extends CoreEvaluationStepSlot<EvalStepKind> {
-    preset?: EvalStepValueMap[EvalStepKind]
-}
+type EvalStepSlotBase = Omit<CoreEvaluationStepSlot<EvalStepKind>, "kind" | "preset">
+
+export type EvalStepSlot = {
+    [Kind in EvalStepKind]: EvalStepSlotBase & {
+        kind: Kind
+        preset?: EvalStepValueMap[Kind]
+    }
+}[EvalStepKind]
 
 export interface EvalStepContext {
     projectId?: string
