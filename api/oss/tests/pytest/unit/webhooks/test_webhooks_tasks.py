@@ -46,7 +46,7 @@ _RESOLVE_PATH = "agenta.sdk.utils.resolvers.resolve_json_selector"
 # ---------------------------------------------------------------------------
 
 
-class TestResolvePayloadFields:
+class TestResolveTargetFields:
     def test_dict_recurses_into_values(self):
         with patch(_RESOLVE_PATH, side_effect=lambda expr, ctx: f"resolved:{expr}"):
             result = resolve_target_fields(
