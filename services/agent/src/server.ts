@@ -1,0 +1,155 @@
+/**
+ * WP-2 Pi wrapper HTTP server: the HTTP transport for the Harness port.
+ *
+ * Same contract as the CLI, exposed over HTTP so the wrapper can run as its own
+ * container (a sidecar) that the Python service calls in-network:
+ *
+ *   GET  /health -> { status: "ok" }
+ *   POST /run    -> body is an AgentRunRequest, response is an AgentRunResult
+ *
+ * Uses Node's built-in http server (no framework dependency). Pi auth comes from
+ * PI_CODING_AGENT_DIR / ~/.pi/agent, mounted into the container.
+ */
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+
+import type {
+  AgentRunRequest,
+  AgentRunResult,
+  EmitEvent,
+  StreamRecord,
+} from "./protocol.ts";
+import { runPi } from "./engines/pi.ts";
+import { runRivet } from "./engines/rivet.ts";
+
+const PORT = Number(process.env.PORT ?? 8765);
+
+// Select the engine. `rivet` drives a harness over ACP via a rivet daemon; `pi` is the
+// legacy in-process Pi path. The request's explicit `backend` (set by the Python
+// transport) wins; the AGENT_BACKEND env is the sidecar default; `auto` falls back to the
+// request shape (a rivet request carries `harness`/`sandbox`).
+const DEFAULT_BACKEND = (process.env.AGENT_BACKEND ?? "auto").toLowerCase();
+
+function runAgent(
+  request: AgentRunRequest,
+  emit?: EmitEvent,
+  signal?: AbortSignal,
+): Promise<AgentRunResult> {
+  const backend = (request.backend ?? DEFAULT_BACKEND).toLowerCase();
+  if (backend === "rivet") return runRivet(request, emit, signal);
+  if (backend === "pi") return runPi(request, emit);
+  return request.harness || request.sandbox
+    ? runRivet(request, emit, signal)
+    : runPi(request, emit);
+}
+
+/**
+ * Stream a run as NDJSON: one `{kind:"event"}` line per event the moment it is built, then
+ * exactly one terminal `{kind:"result"}` line (success or failure). Selected by the caller
+ * with `Accept: application/x-ndjson`; the one-shot `/run` path is left untouched.
+ */
+async function runAndStream(
+  req: IncomingMessage,
+  res: ServerResponse,
+  request: AgentRunRequest,
+): Promise<void> {
+  res.writeHead(200, {
+    "content-type": "application/x-ndjson",
+    "cache-control": "no-cache",
+    "x-accel-buffering": "no",
+    connection: "keep-alive",
+  });
+
+  // A client disconnect aborts the in-flight run rather than letting it finish unobserved.
+  // Listen on the response, not the request: the request body is already fully read, so its
+  // `close` can fire early on a keep-alive connection. `res` `close` fires when the response
+  // connection ends — after a normal `res.end()` (harmless: the run is already done) or when
+  // the client drops mid-stream (the case we want to cancel).
+  const controller = new AbortController();
+  res.on("close", () => controller.abort());
+
+  const writeRecord = (record: StreamRecord): void => {
+    if (res.writableEnded) return;
+    res.write(JSON.stringify(record) + "\n");
+  };
+  const emit: EmitEvent = (event) => writeRecord({ kind: "event", event });
+
+  let result: AgentRunResult;
+  try {
+    result = await runAgent(request, emit, controller.signal);
+  } catch (err) {
+    const message = err instanceof Error ? err.stack ?? err.message : String(err);
+    result = { ok: false, error: message };
+  }
+  // Streaming delivered the events live, so don't echo them in the terminal record.
+  writeRecord({ kind: "result", result: { ...result, events: [] } });
+  res.end();
+}
+
+function send(res: ServerResponse, status: number, body: unknown): void {
+  const payload = JSON.stringify(body);
+  res.writeHead(status, {
+    "content-type": "application/json",
+    "content-length": Buffer.byteLength(payload),
+  });
+  res.end(payload);
+}
+
+async function readBody(req: IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+const server = createServer(async (req, res) => {
+  try {
+    if (req.method === "GET" && req.url === "/health") {
+      return send(res, 200, { status: "ok" });
+    }
+
+    if (req.method === "POST" && req.url === "/run") {
+      const raw = await readBody(req);
+      let request: AgentRunRequest;
+      try {
+        request = raw.trim() ? (JSON.parse(raw) as AgentRunRequest) : {};
+      } catch (err) {
+        return send(res, 400, { ok: false, error: `Invalid JSON: ${String(err)}` });
+      }
+
+      const wantsStream = (req.headers["accept"] ?? "").includes(
+        "application/x-ndjson",
+      );
+      if (wantsStream) {
+        await runAndStream(req, res, request);
+        return;
+      }
+
+      const result = await runAgent(request);
+      return send(res, result.ok ? 200 : 500, result);
+    }
+
+    return send(res, 404, { ok: false, error: "Not found" });
+  } catch (err) {
+    const message = err instanceof Error ? err.stack ?? err.message : String(err);
+    return send(res, 500, { ok: false, error: message });
+  }
+});
+
+// The rivet SDK can reject a background promise (e.g. an adapter install or the Daytona
+// preview SSE failing) outside any awaited path. Node's default turns that into an
+// uncaught exception that kills the whole process — taking every in-flight request with
+// it (the caller sees "Server disconnected"). Log and keep serving instead; the failing
+// run still returns its own error to its caller.
+process.on("unhandledRejection", (reason) => {
+  process.stderr.write(
+    `[pi-wrapper] unhandledRejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}\n`,
+  );
+});
+process.on("uncaughtException", (err) => {
+  process.stderr.write(`[pi-wrapper] uncaughtException: ${err.stack ?? err.message}\n`);
+});
+
+server.listen(PORT, () => {
+  process.stderr.write(`[pi-wrapper] http server listening on :${PORT}\n`);
+});
