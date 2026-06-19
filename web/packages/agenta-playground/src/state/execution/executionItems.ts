@@ -1,4 +1,5 @@
 import {loadableController, type RequestPayloadData} from "@agenta/entities/runnable"
+import {isLocalDraftId, isPlaceholderId} from "@agenta/entities/shared"
 import {
     stripAgentaMetadataDeep,
     stripEnhancedWrappers,
@@ -11,7 +12,6 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {getAgentaApiUrl} from "@agenta/shared/api/env"
 import {generateId} from "@agenta/shared/utils"
 import {atom, type Getter, type Setter} from "jotai"
-import {getDefaultStore} from "jotai/vanilla"
 
 import {entityIdsAtom} from "../atoms/playground"
 import {messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat/messageAtoms"
@@ -166,7 +166,7 @@ interface BuildExecutionItemBaseParams {
     requestPayload?: RequestPayloadData | null
     invocationUrl?: string | null
     variables?: string[]
-    variableValues?: Record<string, string>
+    variableValues?: Record<string, unknown>
     agConfigFallbacks?: AgConfigFallbackCandidate[]
     /** Runtime-resolved inputs (e.g. from chain upstream). Merged into rawBody.inputs when __rawBody is true. */
     inputValues?: Record<string, unknown>
@@ -208,6 +208,39 @@ const MODEL_ATTACHMENT_ALLOWLIST = ["gemini"]
 function asRecord(value: unknown): Record<string, unknown> | null {
     if (!value || typeof value !== "object" || Array.isArray(value)) return null
     return value as Record<string, unknown>
+}
+
+/**
+ * Strip reference `id`s that aren't real server UUIDs (local-draft or
+ * placeholder ids) from a request body's `references` map.
+ *
+ * The backend `/invoke` validator rejects a non-UUID reference id with a 422
+ * (QA 2026-06-05: an unsaved evaluator opened from the drawer shipped
+ * `references.evaluator_revision.id = "local-…"` → "Input should be a valid
+ * UUID"). This is the last line of defense, applied to the FINAL merged
+ * references regardless of which builder produced them (requestPayload
+ * references, executionRunner stage self/upstream references, or
+ * trace-span-extracted references). Slugs and versions are plain strings the
+ * backend accepts and are kept; a slot left with no fields is dropped.
+ */
+function sanitizeReferenceIds(references: unknown): Record<string, unknown> | null {
+    const refs = asRecord(references)
+    if (!refs) return null
+    let mutated = false
+    const out: Record<string, unknown> = {}
+    for (const [slot, value] of Object.entries(refs)) {
+        const ref = asRecord(value)
+        const id = ref?.id
+        if (ref && typeof id === "string" && (isLocalDraftId(id) || isPlaceholderId(id))) {
+            const rest = {...ref}
+            delete rest.id
+            mutated = true
+            if (Object.keys(rest).length > 0) out[slot] = rest
+        } else {
+            out[slot] = value
+        }
+    }
+    return mutated ? out : refs
 }
 
 function unwrapValue(value: unknown): unknown {
@@ -329,8 +362,7 @@ function cancelExecutionItemRun(
 
     if (existing.runId) {
         abortRun(existing.runId)
-        const store = getDefaultStore()
-        const adapter = store.get(executionAdapterAtom)
+        const adapter = get(executionAdapterAtom)
         adapter.cancel?.(existing.runId)
     }
 
@@ -352,34 +384,32 @@ function resolveVariableRowId(params: ResolveVariableRowIdParams): string | null
     return displayRowIds[0] ?? null
 }
 
-function stringifyValue(value: unknown): string {
-    if (value === undefined || value === null) return ""
-    if (typeof value === "string") return value
-    if (typeof value === "object") {
-        try {
-            return JSON.stringify(value)
-        } catch {
-            return String(value)
-        }
-    }
-    return String(value)
-}
-
-function resolveVariableValues(params: ResolveVariableValuesParams): Record<string, string> {
+/**
+ * Resolve testcase values to a dict for transport. Values are passed
+ * through NATIVE (object stays object, array stays array, number stays
+ * number) so the backend mustache / JSONPath resolver can navigate them
+ * (RFC: "native JSON stays native until template rendering").
+ *
+ * Prior implementation stringified via JSON.stringify for objects/arrays,
+ * which made `{{$.geo.region}}` fail at the backend with
+ * "Unreplaced variables in mustache template" because the JSONPath
+ * resolver can't navigate into a string.
+ */
+function resolveVariableValues(params: ResolveVariableValuesParams): Record<string, unknown> {
     const {allowedVariableKeys, sourceRowData} = params
     const source = sourceRowData ?? {}
 
     if (Array.isArray(allowedVariableKeys) && allowedVariableKeys.length > 0) {
-        const values: Record<string, string> = {}
+        const values: Record<string, unknown> = {}
         for (const key of allowedVariableKeys) {
-            values[key] = stringifyValue(source[key])
+            values[key] = source[key]
         }
         return values
     }
 
-    const values: Record<string, string> = {}
+    const values: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(source)) {
-        values[key] = stringifyValue(value)
+        values[key] = value
     }
     return values
 }
@@ -393,9 +423,14 @@ function buildCompletionInputRow(
     const keys = allowedVariableKeys.length > 0 ? allowedVariableKeys : Object.keys(sourceRowData)
     const enhanced: Record<string, unknown> = {__id: rowId}
 
+    // Pass values through NATIVE (RFC: "native JSON stays native until
+    // template rendering"). `extractInputValues` at the request-body layer
+    // already handles native object/array values without coercion. Prior
+    // `String(value)` wrap turned `{region: "..."}` into `"[object Object]"`
+    // which made even mustache `{{geo.region}}` resolve to empty.
     for (const key of keys) {
         const value = sourceRowData[key]
-        enhanced[key] = {value: value !== undefined && value !== null ? String(value) : ""}
+        enhanced[key] = {value: value === undefined || value === null ? "" : value}
     }
 
     return enhanced
@@ -986,7 +1021,7 @@ function buildRequestBody(
         chatHistory?: TransformMessage[]
         requestPayload: RequestPayloadData | null | undefined
         variables: string[]
-        variableValues: Record<string, string>
+        variableValues: Record<string, unknown>
         entityId: string
         agConfigFallbacks?: AgConfigFallbackCandidate[]
     },
@@ -1317,6 +1352,18 @@ function buildExecutionItem(
         requestBody.references = existingReferences
             ? {...existingReferences, ...params.references}
             : params.references
+    }
+
+    // Final guard: never ship a local-draft / placeholder id in a reference —
+    // the backend `/invoke` validator 422s on non-UUID reference ids (QA
+    // 2026-06-05). Covers every reference source after they're merged above.
+    if (requestBody.references !== undefined) {
+        const sanitized = sanitizeReferenceIds(requestBody.references)
+        if (sanitized && Object.keys(sanitized).length > 0) {
+            requestBody.references = sanitized
+        } else {
+            delete requestBody.references
+        }
     }
 
     const references: ExecutionItemReference = {

@@ -13,12 +13,14 @@ from oss.src.dbs.postgres.events.mappings import (
     map_event_dto_to_dbe,
     map_event_dbe_to_dto,
 )
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import AnalyticsEngine, get_analytics_engine
 
 
 class EventsDAO(EventsDAOInterface):
-    def __init__(self):
-        pass
+    def __init__(self, engine: AnalyticsEngine = None):
+        if engine is None:
+            engine = get_analytics_engine()
+        self.engine = engine
 
     ### EVENTS
 
@@ -32,7 +34,7 @@ class EventsDAO(EventsDAOInterface):
         if not events:
             return 0
 
-        async with engine.tracing_session() as session:
+        async with self.engine.session() as session:
             total_ingested = 0
 
             for event in events:
@@ -87,7 +89,7 @@ class EventsDAO(EventsDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Event]:
-        async with engine.tracing_session() as session:
+        async with self.engine.session() as session:
             # BASE
             stmt = select(EventDBE)
 
@@ -98,12 +100,14 @@ class EventsDAO(EventsDAOInterface):
 
             # FILTERING
             if event:
-                if event.request_id is not None:
-                    stmt = stmt.where(EventDBE.request_id == event.request_id)
                 if event.request_type is not None:
                     stmt = stmt.where(EventDBE.request_type == event.request_type)
+                if event.request_id is not None:
+                    stmt = stmt.where(EventDBE.request_id == event.request_id)
                 if event.event_type is not None:
                     stmt = stmt.where(EventDBE.event_type == event.event_type)
+                if event.event_id is not None:
+                    stmt = stmt.where(EventDBE.event_id == event.event_id)
 
             # WINDOWING
             if windowing:

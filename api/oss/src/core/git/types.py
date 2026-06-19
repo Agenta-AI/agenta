@@ -78,8 +78,8 @@ applications) reject it at the boundary.
 Exception registry
 ==================
 
-`VariantForkError`, `RetrieveRefsInsufficient`, and
-`RetrieveRefsInconsistent` are translated to HTTP responses by
+`InitialRevisionConflict`, `VariantForkError`, `RetrieveRefsInsufficient`,
+and `RetrieveRefsInconsistent` are translated to HTTP responses by
 `@handle_git_exceptions()` in
 `api/oss/src/apis/fastapi/git/exceptions.py`. Any new git-domain
 exception added here must also be registered there.
@@ -119,6 +119,35 @@ class RetrieveRefsInsufficient(GitError):
     `None` for that case rather than raising, matching the "nothing to look
     up" contract.
     """
+
+
+class InitialRevisionConflict(GitError):
+    """Raised when an initial revision already exists for a variant.
+
+    The `initial=True` guard in the DAO raises this exception when a
+    revision already exists for the variant, so routers can map it to
+    HTTP 409 via `@handle_git_exceptions()` without inspecting None.
+    """
+
+
+class InlineResolveInvalid(GitError):
+    """Raised when an inline resolve payload carries no `data` to resolve.
+
+    Carries the offending request field so routers can return a specific
+    client-facing 400 instead of collapsing the failure into a generic
+    "invalid inline resolve payload" message.
+    """
+
+    def __init__(
+        self,
+        *,
+        field_name: str,
+        message: Optional[str] = None,
+    ):
+        self.field_name = field_name
+        super().__init__(
+            message or f"Inline resolve payload `{field_name}` must include `data`."
+        )
 
 
 class RetrieveRefsInconsistent(GitError):

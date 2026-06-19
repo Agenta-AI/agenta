@@ -66,7 +66,7 @@ const ColumnValueView = ({column, scenarioId, runId}: ColumnValueViewProps) => {
     }
 
     return (
-        <pre className="whitespace-pre-wrap break-words bg-[#F8FAFC] rounded-lg p-3 max-h-80 overflow-auto border border-[#EAECF0]">
+        <pre className="whitespace-pre-wrap break-words bg-[var(--ag-c-F8FAFC)] rounded-lg p-3 max-h-80 overflow-auto border border-[var(--ag-c-EAECF0)]">
             {JSON.stringify(resolved, null, 2)}
         </pre>
     )

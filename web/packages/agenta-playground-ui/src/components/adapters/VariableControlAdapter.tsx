@@ -59,7 +59,7 @@ const VariableHeader: React.FC<{
 }> = ({name, headerActions, helpText, typeChip}) => (
     <div className="w-full flex items-start justify-between gap-2">
         <div className="flex items-center gap-1 min-w-0">
-            <Typography className="playground-property-control-label font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono truncate">
+            <Typography className="playground-property-control-label font-[500] text-[12px] leading-[20px] text-[var(--ag-c-1677FF)] font-mono truncate">
                 {name}
             </Typography>
             {typeChip}
@@ -392,7 +392,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                             : clsx(
                                   "p-[11px] rounded-lg border border-solid",
                                   viewType === "single" && view !== "focus"
-                                      ? "border-[#BDC7D1]"
+                                      ? "border-[var(--ag-c-BDC7D1)]"
                                       : "border-transparent bg-transparent",
                               ),
                         className,
@@ -430,7 +430,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                             : clsx(
                                   "p-[11px] rounded-lg border border-solid",
                                   viewType === "single" && view !== "focus"
-                                      ? "border-[#BDC7D1]"
+                                      ? "border-[var(--ag-c-BDC7D1)]"
                                       : "border-transparent bg-transparent",
                               ),
                         className,
@@ -522,7 +522,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 enableTokens={!editorProps?.codeOnly}
                 disabled={isEffectivelyDisabled}
             >
-                <MarkdownViewSynchronizer enabled={viewMode === "markdown"} />
+                <MarkdownViewSynchronizer enabled={viewMode === "text"} />
                 <SharedEditor
                     id={editorId}
                     noProvider

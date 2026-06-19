@@ -218,6 +218,9 @@ export {
     rowVariableValueAtomFamily,
     rowVariableKeysWithContextAtom,
     rowVariableKeysAtomFamily,
+    referencedVariableKeysAtomFamily,
+    playgroundInputsAtomFamily,
+    type PlaygroundInputsAtomKey,
     downstreamNodeQueriesAtom,
     activeSessionsWithContextAtom,
     isCompareModeWithContextAtom,
@@ -273,6 +276,13 @@ export type {RenderableExecutionItem, RenderableExecutionRow} from "./selectors"
 // ============================================================================
 
 export {executeStepForSessionWithExecutionItems} from "./executionRunner"
+
+// ============================================================================
+// VISIBILITY (pure split helper for playground inputs body)
+// ============================================================================
+
+export {filterUnreferencedColumnsForSource, splitInputsVisibility} from "./visibility"
+export type {InputsVisibility, SplitInputsVisibilityArgs, VariableEntry} from "./visibility"
 
 // ============================================================================
 // GENERATION SELECTORS (higher-level UI selectors)

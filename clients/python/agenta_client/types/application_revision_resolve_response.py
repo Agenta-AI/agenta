@@ -4,8 +4,9 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .application_revision import ApplicationRevision
+from .application_revision_output import ApplicationRevisionOutput
 from .resolution_info import ResolutionInfo
+from .retrieval_info import RetrievalInfo
 
 
 class ApplicationRevisionResolveResponse(UniversalBaseModel):
@@ -17,7 +18,7 @@ class ApplicationRevisionResolveResponse(UniversalBaseModel):
     `1` when a revision was resolved, `0` otherwise.
     """
     
-    application_revision: typing.Optional[ApplicationRevision] = pydantic.Field(default=None)
+    application_revision: typing.Optional[ApplicationRevisionOutput] = pydantic.Field(default=None)
     """
     The revision with embedded references inlined into `data`.
     """
@@ -25,6 +26,11 @@ class ApplicationRevisionResolveResponse(UniversalBaseModel):
     resolution_info: typing.Optional[ResolutionInfo] = pydantic.Field(default=None)
     """
     Diagnostic info about which references were resolved.
+    """
+    
+    retrieval_info: typing.Optional[RetrievalInfo] = pydantic.Field(default=None)
+    """
+    References (artifact / variant / revision) actually used to retrieve this revision.
     """
     
     

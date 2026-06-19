@@ -9,6 +9,7 @@ import {cn, textColors, bgColors, borderColors} from "@agenta/ui"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Button, Empty, Popover, Skeleton, Tabs, Tag, Typography} from "antd"
+import type {PopoverProps} from "antd"
 import {useAtomValue} from "jotai"
 
 import {
@@ -16,7 +17,7 @@ import {
     DEFAULT_TAB_KEY,
     filterEnabledEvaluators,
     filterEvaluatorsByTag,
-    getEvaluatorTagClassName,
+    getEvaluatorTagColor,
 } from "@/oss/components/Evaluators/assets/evaluatorFiltering"
 
 interface EvaluatorTemplateDropdownProps {
@@ -30,6 +31,8 @@ interface EvaluatorTemplateDropdownProps {
     open?: boolean
     /** Callback when open state changes (required when using controlled `open`) */
     onOpenChange?: (open: boolean) => void
+    /** Popover placement relative to the trigger. */
+    placement?: PopoverProps["placement"]
 }
 
 /**
@@ -42,6 +45,7 @@ const EvaluatorTemplateDropdown = ({
     className,
     open: controlledOpen,
     onOpenChange: controlledOnOpenChange,
+    placement = "bottomRight",
 }: EvaluatorTemplateDropdownProps) => {
     const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_KEY)
     const [internalOpen, setInternalOpen] = useState(false)
@@ -110,7 +114,7 @@ const EvaluatorTemplateDropdown = ({
         return (
             <div className="flex flex-col max-h-[320px] overflow-y-auto">
                 {filteredEvaluators.map((item) => {
-                    const tagClassnames = getEvaluatorTagClassName(item)
+                    const tagColor = getEvaluatorTagColor(item)
 
                     return (
                         <div
@@ -125,10 +129,7 @@ const EvaluatorTemplateDropdown = ({
                             )}
                         >
                             <div className="flex items-center gap-2">
-                                <Tag
-                                    variant="filled"
-                                    className={cn("w-fit text-xs", tagClassnames)}
-                                >
+                                <Tag variant="filled" color={tagColor} className="w-fit text-xs">
                                     {item.name}
                                 </Tag>
                                 <ArrowRight
@@ -186,7 +187,7 @@ const EvaluatorTemplateDropdown = ({
             onOpenChange={setOpen}
             trigger={["click"]}
             content={popoverContent}
-            placement="bottomRight"
+            placement={placement}
             arrow={false}
             styles={{container: {padding: 0}}}
         >

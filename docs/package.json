@@ -29,6 +29,7 @@
     "@docsearch/react": "^4.2.0",
     "@docusaurus/core": "^3.9.2",
     "@docusaurus/plugin-client-redirects": "^3.9.2",
+    "@docusaurus/plugin-content-blog": "^3.10.1",
     "@docusaurus/plugin-content-docs": "^3.9.2",
     "@docusaurus/plugin-ideal-image": "^3.9.2",
     "@docusaurus/preset-classic": "^3.9.2",
@@ -37,6 +38,7 @@
     "@mdx-js/react": "^3.0.0",
     "clsx": "^2.0.0",
     "docusaurus-plugin-image-zoom": "^2.0.0",
+    "docusaurus-plugin-llms-txt": "0.1.3",
     "docusaurus-plugin-openapi-docs": "^5.0.2",
     "docusaurus-theme-openapi-docs": "^5.0.2",
     "dotenv": "^16.4.5",
@@ -78,7 +80,10 @@
     "onlyBuiltDependencies": [
       "@parcel/watcher",
       "sharp"
-    ]
+    ],
+    "patchedDependencies": {
+      "docusaurus-plugin-llms-txt@0.1.3": "patches/docusaurus-plugin-llms-txt@0.1.3.patch"
+    }
   },
   "browserslist": {
     "production": [

@@ -20,7 +20,6 @@ import {v4 as uuidv4} from "uuid"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import getFilterColumns from "@/oss/components/pages/observability/assets/getFilterColumns"
-import {getColorPairFromStr} from "@/oss/lib/helpers/colors"
 import type {Filter} from "@/oss/lib/Types"
 
 import {
@@ -39,7 +38,6 @@ import {
     toWindowingPayload,
 } from "./assets/helpers"
 import {onlineEvalFiltersAtom, resetOnlineEvalFiltersAtom} from "./assets/state"
-import {useDrawerStyles} from "./assets/styles"
 import EvaluatorDetailsPreview from "./components/EvaluatorDetailsPreview"
 import EvaluatorTypeTag from "./components/EvaluatorTypeTag"
 import SamplingRateControl from "./components/SamplingRateControl"
@@ -58,11 +56,13 @@ const {Text, Link: TypographyLink} = Typography
 const {RangePicker} = DatePicker
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 
+const collapseClass =
+    "[&_.ant-collapse-item]:!border-none [&_.ant-collapse-item]:!rounded-[10px] [&_.ant-collapse-item]:overflow-hidden [&_.ant-collapse-item]:bg-colorBgContainer [&_.ant-collapse-item]:shadow-[0_1px_2px_rgba(15,23,42,0.06)] [&_.ant-collapse-item+.ant-collapse-item]:mt-2 [&_.ant-collapse-header]:!bg-[var(--ag-c-FAFAFB)] [&_.ant-collapse-header]:!border-b [&_.ant-collapse-header]:!border-solid [&_.ant-collapse-header]:!border-[var(--ag-colorSplit)] [&_.ant-collapse-header]:!p-[12px_16px] [&_.ant-collapse-content]:!border-t-0 [&_.ant-collapse-content]:!rounded-[0_0_10px_10px] [&_.ant-collapse-content>.ant-collapse-content-box]:!p-4"
+
 const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawerProps) => {
     const baseEvaluatorTemplatesQuery = useAtomValue(evaluatorTemplatesQueryAtom)
     const baseEvaluators = useAtomValue(evaluatorTemplatesDataAtom) ?? []
     const queryClient = useAtomValue(queryClientAtom)
-    const classes = useDrawerStyles()
     const [form] = Form.useForm()
     const filterColumns = useMemo(() => getFilterColumns(), [])
     const [filters, setFilters] = useAtom(onlineEvalFiltersAtom)
@@ -144,19 +144,12 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
 
     const hasParameters = evaluatorDetails.visibleParameters.length > 0
 
-    // Config-derived label/color with meta fallback
+    // Config-derived label/type with meta fallback
     const evaluatorReferenceForType = matchedPreviewEvaluator ?? selectedEvaluatorConfig
-    const {label: cfgLabel, color: cfgColor} = useEvaluatorTypeFromConfigs({
+    const {label: cfgLabel, typeKey: cfgTypeKey} = useEvaluatorTypeFromConfigs({
         evaluator: evaluatorReferenceForType,
     })
-    const evaluatorTypeColors = useMemo(
-        () =>
-            !cfgColor && evaluatorDetails.typeSlug
-                ? getColorPairFromStr(evaluatorDetails.typeSlug)
-                : undefined,
-        [cfgColor, evaluatorDetails.typeSlug],
-    )
-    const finalTypeColor = cfgColor ?? evaluatorDetails.typeColor
+    const finalTypeKey = cfgTypeKey ?? evaluatorDetails.typeKey ?? evaluatorDetails.typeSlug
     const finalTypeLabel = useMemo(() => {
         if (cfgLabel) return cfgLabel
         if (evaluatorDetails.typeLabel) return evaluatorDetails.typeLabel
@@ -401,15 +394,11 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
             selectedEvaluatorConfig.name || selectedEvaluatorConfig?.slug || "Evaluator"
         return (
             <div className="flex items-center gap-2">
-                <span className="text-xs text-[#1D2939] font-medium">{displayName}</span>
-                <EvaluatorTypeTag
-                    label={finalTypeLabel}
-                    color={finalTypeColor}
-                    fallback={evaluatorTypeColors}
-                />
+                <span className="text-xs text-[var(--ag-c-1D2939)] font-medium">{displayName}</span>
+                <EvaluatorTypeTag label={finalTypeLabel} typeKey={finalTypeKey} />
             </div>
         )
-    }, [selectedEvaluatorConfig, finalTypeLabel, finalTypeColor, evaluatorTypeColors])
+    }, [selectedEvaluatorConfig, finalTypeLabel, finalTypeKey])
 
     const querySummary = useMemo<ReactNode>(() => {
         const summaryParts: string[] = []
@@ -428,12 +417,12 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
             summaryParts.push(`Sampling ${rateValue}%`)
         }
         summaryParts.push("Live traffic")
-        return <span className="text-xs text-[#475467]">{summaryParts.join(" • ")}</span>
+        return <span className="text-xs text-[var(--ag-c-475467)]">{summaryParts.join(" • ")}</span>
     }, [filters.length, samplingRate])
 
     const buildPanelHeader = (title: string, summary?: ReactNode) => (
         <div className="flex w-full items-center justify-between gap-2">
-            <span className="text-[#101828] font-normal">{title}</span>
+            <span className="text-[var(--ag-c-101828)] font-normal">{title}</span>
             {summary ? <div className="flex items-center gap-2">{summary}</div> : null}
         </div>
     )
@@ -472,7 +461,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 <Collapse
                     defaultActiveKey={["general", "query", "evaluator"]}
                     bordered={false}
-                    className={classes.collapse}
+                    className={collapseClass}
                     items={[
                         {
                             key: "general",
@@ -671,13 +660,8 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                                     <EvaluatorDetailsPreview
                                         details={evaluatorDetails}
                                         typeLabel={finalTypeLabel}
-                                        typeColor={
-                                            typeof finalTypeColor === "string"
-                                                ? finalTypeColor
-                                                : undefined
-                                        }
+                                        typeKey={finalTypeKey}
                                         key={selectedEvaluatorRevisionId ?? "empty"}
-                                        fallbackColors={evaluatorTypeColors}
                                         showType={hasEvaluatorType}
                                     />
                                 </>

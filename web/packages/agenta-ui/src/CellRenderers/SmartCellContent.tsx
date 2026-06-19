@@ -42,12 +42,12 @@ interface SmartCellContentProps {
     /** Strategy for selecting chat messages in the truncated cell preview */
     chatPreviewStrategy?: ChatPreviewStrategy
     /**
-     * Force the JSON fallback path to use the beautified key/value renderer
-     * instead of raw JSON text. The dispatcher's beautified renderer is
+     * Force the JSON fallback path to use the pretty key/value renderer
+     * instead of raw JSON text. The dispatcher's pretty renderer is
      * separate and is driven by rule matches; this prop only affects the
      * fallback when no rule matches.
      */
-    beautifyJson?: boolean
+    prettyJson?: boolean
 }
 
 /**
@@ -58,7 +58,7 @@ interface SmartCellContentProps {
  * the renderer.
  *
  * Features:
- * - Auto-dispatch via extractPreview (chat, beautified, json)
+ * - Auto-dispatch via extractPreview (chat, pretty, json)
  * - Truncation for cell preview
  * - Full content in popover on hover
  * - Copy functionality in popover
@@ -72,7 +72,7 @@ const SmartCellContent = memo(
         showPopover = true,
         chatPreference,
         chatPreviewStrategy,
-        beautifyJson = false,
+        prettyJson = false,
     }: SmartCellContentProps) => {
         const rowHeightContext = useRowHeightContext()
         const maxLines = maxLinesProp ?? rowHeightContext.maxLines
@@ -127,11 +127,11 @@ const SmartCellContent = memo(
             )
         }
 
-        if (preview.renderer === "beautified") {
+        if (preview.renderer === "pretty") {
             const copyText = safeJsonStringify(preview.data)
             const cellContent = (
                 <div className={`cursor-pointer ${className}`}>
-                    <JsonCellContent value={preview.data} maxLines={maxLines} truncate beautified />
+                    <JsonCellContent value={preview.data} maxLines={maxLines} truncate pretty />
                 </div>
             )
 
@@ -139,9 +139,7 @@ const SmartCellContent = memo(
 
             return (
                 <CellContentPopover
-                    fullContent={
-                        <JsonCellContent value={preview.data} truncate={false} beautified />
-                    }
+                    fullContent={<JsonCellContent value={preview.data} truncate={false} pretty />}
                     copyText={copyText}
                 >
                     {cellContent}
@@ -161,7 +159,7 @@ const SmartCellContent = memo(
                         value={jsonCandidate}
                         maxLines={maxLines}
                         truncate
-                        beautified={beautifyJson}
+                        pretty={prettyJson}
                     />
                 </div>
             )
@@ -174,7 +172,7 @@ const SmartCellContent = memo(
                         <JsonCellContent
                             value={jsonCandidate}
                             truncate={false}
-                            beautified={beautifyJson}
+                            pretty={prettyJson}
                         />
                     }
                     copyText={copyText}

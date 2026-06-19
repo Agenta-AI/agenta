@@ -45,6 +45,7 @@ export const evaluationRunStepInputSchema = z.object({
 export const evaluationRunStepReferenceSchema = z.object({
     id: z.string(),
     slug: z.string().nullable().optional(),
+    version: z.coerce.number().nullable().optional(),
 })
 
 export const evaluationRunDataStepSchema = z.object({

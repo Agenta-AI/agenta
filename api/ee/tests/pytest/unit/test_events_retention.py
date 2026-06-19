@@ -13,14 +13,14 @@ from uuid import uuid4
 
 import pytest
 
-from ee.src.core.entitlements.types import (
+from ee.src.core.access.entitlements.types import (
     Counter,
     Period,
     Quota,
     Retention,
     Tracker,
 )
-from ee.src.core.events.service import EventsService
+from ee.src.core.events.service import EventsRetentionService
 
 
 def _plan_with_retention(retention: Retention | None) -> dict:
@@ -47,7 +47,7 @@ async def test_flush_skips_plans_without_events_retention(monkeypatch):
         fetch_projects_with_plan=AsyncMock(return_value=[]),
         delete_events_before_cutoff=AsyncMock(return_value=0),
     )
-    service = EventsService(events_dao=dao)
+    service = EventsRetentionService(events_retention_dao=dao)
 
     await service.flush_events()
 
@@ -68,7 +68,7 @@ async def test_flush_pages_projects_then_deletes(monkeypatch):
         fetch_projects_with_plan=AsyncMock(side_effect=fetch_calls),
         delete_events_before_cutoff=AsyncMock(return_value=42),
     )
-    service = EventsService(events_dao=dao)
+    service = EventsRetentionService(events_retention_dao=dao)
 
     await service.flush_events()
 
@@ -107,7 +107,7 @@ async def test_flush_continues_on_per_plan_failure(monkeypatch):
         fetch_projects_with_plan=AsyncMock(side_effect=fetch_side_effect),
         delete_events_before_cutoff=AsyncMock(return_value=7),
     )
-    service = EventsService(events_dao=dao)
+    service = EventsRetentionService(events_retention_dao=dao)
 
     # plan_a raises; plan_b must still run.
     await service.flush_events()
@@ -127,7 +127,7 @@ async def test_flush_empty_entitlements_skipped(monkeypatch):
         fetch_projects_with_plan=AsyncMock(),
         delete_events_before_cutoff=AsyncMock(),
     )
-    service = EventsService(events_dao=dao)
+    service = EventsRetentionService(events_retention_dao=dao)
 
     await service.flush_events()
 

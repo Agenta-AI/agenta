@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
+    fetchAllPreviewTraces,
     isSpansResponse,
     isTracesResponse,
     transformTracesResponseToTree,
@@ -17,11 +18,11 @@ import {
     traceDrawerBackTargetAtom,
     traceDrawerIsLinkedViewAtom,
 } from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import {fetchAllPreviewTraces} from "@/oss/services/tracing/api"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {useObservability} from "@/oss/state/newObservability"
 import buildTraceQueryParams from "@/oss/state/newObservability/utils/buildTraceQueryParams"
+import {getProjectValues} from "@/oss/state/project"
 
 import {getNodeTimestamp, getSpanIdFromNode, getTraceIdFromNode, toISOString} from "./assets/helper"
 import {NavSource, NavState, TraceHeaderProps} from "./assets/types"
@@ -177,7 +178,8 @@ const TraceHeader = ({
             }
 
             try {
-                const response = await fetchAllPreviewTraces(params, appId)
+                const {projectId} = getProjectValues()
+                const response = await fetchAllPreviewTraces(params, appId, projectId ?? "")
 
                 console.debug("[TraceNav] fetchRelative:response", {
                     direction,
@@ -482,7 +484,7 @@ const TraceHeader = ({
 
                     <Typography.Text className="text-sm font-medium">Trace</Typography.Text>
                     <TooltipWithCopyAction copyText={displayTraceId} title="Copy trace id">
-                        <Tag className="font-mono bg-[#0517290F]" variant="filled">
+                        <Tag className="font-mono bg-[var(--ag-c-0517290F)]" variant="filled">
                             # {displayTraceId || "-"}
                         </Tag>
                     </TooltipWithCopyAction>

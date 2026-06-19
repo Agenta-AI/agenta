@@ -175,6 +175,8 @@ export {inputVariableNamesAtom} from "./execution"
 // App-level mode selectors
 export {appTypeAtom, isChatModeAtom, type AppType} from "./execution"
 
+export {filterUnreferencedColumnsForSource} from "./execution"
+
 // Row run status
 export {isAnyRunningForRowAtomFamily} from "./execution"
 
@@ -201,6 +203,8 @@ export {
     schemaInputKeysAtom,
     type PlaygroundStatus,
 } from "./execution"
+
+export {playgroundStoreAtom} from "./atoms/playground"
 
 // Web worker integration
 export {
@@ -352,6 +356,7 @@ export {
 
 export type {
     BuildEncodedSnapshotResult,
+    ConnectToTestsetPayload,
     CreateSnapshotResult,
     HydrateFromUrlResult,
     HydrateSnapshotResult,
@@ -412,11 +417,16 @@ export {
     // Connection atoms
     outputConnectionsAtom,
     playgroundDispatchAtom,
+    // Mode override atoms (chat ⇄ completion behavior; see
+    // docs/design/playground-mode-switch/)
+    playgroundCapabilityModeAtom,
+    playgroundModeOverrideAtom,
     playgroundNodesAtom,
     primaryEntityIdAtom,
     primaryNodeAtom,
     selectedNodeIdAtom,
     testsetModalOpenAtom,
+    type PlaygroundMode,
 } from "./atoms"
 
 // ============================================================================

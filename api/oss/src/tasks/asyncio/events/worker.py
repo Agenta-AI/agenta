@@ -14,8 +14,8 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 if is_ee():
-    from ee.src.utils.entitlements import check_entitlements, scope_from
-    from ee.src.core.entitlements.types import Counter
+    from ee.src.core.access.entitlements.service import check_entitlements, scope_from
+    from ee.src.core.access.entitlements.types import Counter
 
 if TYPE_CHECKING:
     from oss.src.tasks.asyncio.webhooks.dispatcher import WebhooksDispatcher
@@ -267,10 +267,11 @@ class EventsWorker:
             if is_ee() and org_id and not org_allowed.get(org_id, True):
                 continue
 
-            total_ingested += await self.service.ingest(
-                project_id=project_batch["project_id"],
-                events=[msg.to_event() for msg in project_batch["events"]],
-            )
+            if is_ee():
+                total_ingested += await self.service.ingest(
+                    project_id=project_batch["project_id"],
+                    events=[msg.to_event() for msg in project_batch["events"]],
+                )
             allowed_batches.append(project_batch)
 
         return total_ingested, processed_ids, allowed_batches

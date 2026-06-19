@@ -56,6 +56,16 @@ async def my_application(capital: str, country: str):
     description="A simple workflow that returns the capital of a country",
     #
     parameters=dict(aloha="mahalo"),
+    #
+    schemas={
+        "outputs": {
+            "type": "object",
+            "properties": {
+                "score": {"type": "integer"},
+                "success": {"type": "boolean"},
+            },
+        },
+    },
 )
 async def my_match_evaluator(capital: str, outputs: str):
     _outputs = {
@@ -89,7 +99,7 @@ my_llm_as_a_judge_evaluator = builtin.auto_ai_critique(
     description="Use an LLM to judge if the previous answer is correct",
     #
     correct_answer_key="capital",
-    model="openai/gpt-4o-mini",
+    model="gpt-5.4-mini",
     prompt_template=[
         {
             "role": "system",

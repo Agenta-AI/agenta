@@ -14,12 +14,9 @@ import type {
 } from "../types"
 import {buildReferencePayload} from "../utils/referencePayload"
 
-import {
-    computeContextSignature,
-    evaluationRunsMetaContextSliceAtom,
-    evaluationRunsTableFetchEnabledAtom,
-} from "./context"
+import {computeContextSignature, evaluationRunsMetaContextSliceAtom} from "./context"
 import {fetchEvaluationRunsWindow} from "./fetchAutoEvaluationRuns"
+import {recordSubjectFilterPage, subjectFilterSignature} from "./subjectFilterMeter"
 
 import type {RunFlagsFilter} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/index"
 
@@ -35,6 +32,8 @@ export interface EvaluationRunsTableMeta {
     referenceFilters?: Record<string, string[]> | null
     evaluationTypeFilters?: ConcreteEvaluationRunKind[] | null
     dateRange?: {from?: string | null; to?: string | null} | null
+    /** Over-fetch to fill a full page of subject runs (fixed-size summaries). */
+    fillToLimit?: boolean
     /** Internal refresh trigger - incrementing this forces a refetch */
     _refreshTrigger?: number
 }
@@ -165,7 +164,6 @@ export const evaluationRunsTableMetaAtom = atom<
         const context = get(evaluationRunsMetaContextSliceAtom)
         const signature = computeContextSignature(context)
         const state = get(evaluationRunsMetaStateAtomFamily(signature))
-        const isEnabled = get(evaluationRunsTableFetchEnabledAtom)
         const refreshTrigger = get(evaluationRunsRefreshTriggerAtom)
 
         const previewFlags = state.previewFlags ?? context.derivedPreviewFlags
@@ -187,8 +185,14 @@ export const evaluationRunsTableMetaAtom = atom<
         const dateRange = state.dateRange ?? null
 
         const meta: EvaluationRunsTableMeta = {
-            projectId: isEnabled ? context.projectId : null,
-            appIds: isEnabled ? context.effectiveAppIds : [],
+            // Keep projectId/appIds stable regardless of the fetch-enabled flag.
+            // These are part of the query key; nulling them on `routeChangeStart`
+            // (when `setFetchEnabled(false)` fires while navigating away) switched
+            // react-query to a cold `projectId: null` cache entry, blanking the
+            // visible rows to skeletons mid-navigation. The query naturally pauses
+            // when the table unmounts; pausing via key mutation only caused the flash.
+            projectId: context.projectId,
+            appIds: context.effectiveAppIds,
             includePreview: context.includePreview,
             previewFlags,
             previewReferences,
@@ -198,6 +202,7 @@ export const evaluationRunsTableMetaAtom = atom<
             referenceFilters,
             evaluationTypeFilters,
             dateRange,
+            fillToLimit: context.fillToLimit,
             _refreshTrigger: refreshTrigger,
         }
 
@@ -376,7 +381,33 @@ const evaluationRunsDatasetStoreInternal = createInfiniteDatasetStore<
             statusFilters: meta.statusFilters ?? null,
             evaluationTypeFilters: meta.evaluationTypeFilters ?? null,
             dateRange: meta.dateRange ?? null,
+            fillToLimit: meta.fillToLimit ?? false,
         })
+
+        // Feed the run-list subject predicate's pass-ratio to the hit-ratio
+        // meter. A low rolling ratio means the scoped workflow is graded far
+        // more than it's evaluated — the v1→v2 escalation signal (the backend
+        // role-aware reference filter is warranted). Observation only today.
+        if (result.subjectFilterStats) {
+            const signature = subjectFilterSignature({
+                projectId: meta.projectId,
+                appIds: meta.appIds,
+                evaluationKind: meta.evaluationKind,
+            })
+            const regime = recordSubjectFilterPage({
+                signature,
+                page: offset,
+                scanned: result.subjectFilterStats.scanned,
+                matched: result.subjectFilterStats.matched,
+            })
+            if (process.env.NODE_ENV !== "production" && regime.state === "escalate") {
+                console.log(
+                    "[evaluationRunsTableStore] subject filter low hit-ratio —",
+                    regime.reason,
+                    {appIds: meta.appIds, kind: meta.evaluationKind},
+                )
+            }
+        }
 
         return {
             rows: result.rows,

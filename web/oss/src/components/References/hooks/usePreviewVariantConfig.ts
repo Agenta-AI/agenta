@@ -40,10 +40,20 @@ const usePreviewVariantConfig = (
     const data = useAtomValue(dataAtom, {store: defaultStore})
     const query = useAtomValue(queryAtom, {store: defaultStore})
 
+    // Resolve the VARIANT label, not the revision name. The default variant's
+    // revisions are historically named after the app ("completion-1"), so using
+    // the revision name renders the default variant as the app name instead of
+    // "default".
+    const variantLabelAtom = useMemo(
+        () => workflowMolecule.selectors.variantLabel(effectiveRevisionId),
+        [effectiveRevisionId],
+    )
+    const variantName = useAtomValue(variantLabelAtom, {store: defaultStore})
+
     const config: VariantConfig | null =
         enabled && revisionId && data
             ? {
-                  variantName: data.name ?? data.slug ?? null,
+                  variantName: variantName ?? data.name ?? data.slug ?? null,
                   revision: data.version ?? null,
               }
             : null

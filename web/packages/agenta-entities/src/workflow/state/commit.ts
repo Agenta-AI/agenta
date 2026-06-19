@@ -31,6 +31,7 @@ import {
 import {atom, getDefaultStore} from "jotai"
 
 import {flattenEvaluatorConfiguration} from "../../runnable/evaluatorTransforms"
+import {syncPromptInputKeysInParameters} from "../../runnable/utils"
 import {
     commitWorkflowRevisionApi,
     createWorkflow as createWorkflowApi,
@@ -77,7 +78,10 @@ function prepareCommitParameters(
     if (isEvaluator) {
         return flattenEvaluatorConfiguration(rawParams, flatParams)
     }
-    return rawParams
+    return (
+        (syncPromptInputKeysInParameters(rawParams) as Record<string, unknown> | undefined) ??
+        rawParams
+    )
 }
 
 /**

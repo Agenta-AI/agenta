@@ -13,12 +13,16 @@ import {loadableController, type RunnableType} from "@agenta/entities/runnable"
 import {projectIdAtom} from "@agenta/shared/state"
 import {isPlainObject} from "@agenta/shared/utils"
 import {atom} from "jotai"
-import {getDefaultStore} from "jotai/vanilla"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {outputConnectionsAtom} from "../atoms/connections"
 import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
 import {clearSessionResponsesAtom, messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat"
+import {
+    collectDownstreamReferencedColumns,
+    collectTestsetServerColumns,
+    reconcileRowDataForEntity,
+} from "../helpers/entityInputContract"
 
 import {executionConcurrencyAtom, repetitionCountAtom} from "./atoms"
 import {handleExecutionResultAtom} from "./executionItems"
@@ -52,10 +56,7 @@ import {extractTraceIdFromPayload} from "./trace"
 let _sharedLimiter: (<T>(fn: () => Promise<T>) => Promise<T>) | null = null
 let _sharedLimiterConcurrency = 0
 
-function getSharedConcurrencyLimiter(): <T>(fn: () => Promise<T>) => Promise<T> {
-    const store = getDefaultStore()
-    const concurrency = store.get(executionConcurrencyAtom)
-
+function getSharedConcurrencyLimiter(concurrency: number): <T>(fn: () => Promise<T>) => Promise<T> {
     // Re-create if concurrency changed or first call
     if (!_sharedLimiter || _sharedLimiterConcurrency !== concurrency) {
         _sharedLimiterConcurrency = concurrency
@@ -308,10 +309,54 @@ export const triggerExecutionAtom = atom(
         }
 
         // Get testcase row data from the loadable
-        const rowEntry = get(loadableController.selectors.row(loadableId, logicalRowId)) as {
+        const displayRowIds = get(loadableController.selectors.displayRowIds(loadableId))
+        const testcaseRowId =
+            isChat && Array.isArray(displayRowIds) && displayRowIds.length > 0
+                ? displayRowIds[0]
+                : logicalRowId
+        const rowEntry = get(loadableController.selectors.row(loadableId, testcaseRowId)) as {
             data?: Record<string, unknown>
         } | null
-        const testcaseData: Record<string, unknown> = rowEntry?.data ?? {}
+        const rawTestcaseData: Record<string, unknown> = rowEntry?.data ?? {}
+
+        // Reconcile the shared testcase row against the ROOT entity's input
+        // contract before execution (#4525 / AGE-3793). The testcase store is
+        // shared across loadables, so the row keeps every key a previous
+        // primary populated — chat `messages`/`context` after swapping the
+        // upstream app from chat to completion. Cleaning here:
+        //   (a) keeps stale keys out of the app request,
+        //   (b) keeps them out of the downstream evaluator's {inputs, outputs}
+        //       envelope (the evaluator reads this same row), and
+        //   (c) persists the cleaned row so the UI + future runs reflect it.
+        // This is path-agnostic: it fires no matter how the app was selected,
+        // unlike the swap-time prune which only covers setEntityIds positional
+        // swaps. Columns a downstream evaluator references via `<input>_key`
+        // settings (e.g. correct_answer_key → ground_truth) are protected so a
+        // strict clean against the app contract doesn't drop intentional eval
+        // inputs. The synced test set's own columns are protected too (#4647):
+        // a column the prompt doesn't reference is intentional test set data,
+        // not a stale leftover, and deleting it here emptied the "unused
+        // testcase columns" footer on Run. The protection is test-set-scoped
+        // (union across all server rows), not per-row, so rows that joined
+        // the test set locally — kept drafts, rows added while connected —
+        // keep their filled test set columns too.
+        const protectedColumns = collectDownstreamReferencedColumns(get, nodes)
+        for (const column of collectTestsetServerColumns(get)) {
+            protectedColumns.add(column)
+        }
+        const reconciledRow = reconcileRowDataForEntity(get, rootEntityId, rawTestcaseData, {
+            protectedKeys: protectedColumns,
+        })
+        const testcaseData: Record<string, unknown> = reconciledRow.data
+        if (reconciledRow.dropped.length > 0) {
+            const undefinedPatch: Record<string, unknown> = {}
+            for (const key of reconciledRow.dropped) {
+                undefinedPatch[key] = undefined
+            }
+            // Persist the cleaned row (deletes the dropped keys via the
+            // testcase store's undefined-means-delete semantics).
+            set(loadableController.actions.updateRow, loadableId, logicalRowId, undefinedPatch)
+        }
 
         // In comparison mode, filter nodes to only include the effective variant's
         // root + downstream nodes. Other depth-0 comparison variants are excluded
@@ -331,7 +376,7 @@ export const triggerExecutionAtom = atom(
                   )
                 : connections
 
-        const limiter = getSharedConcurrencyLimiter()
+        const limiter = getSharedConcurrencyLimiter(get(executionConcurrencyAtom))
         await limiter(() =>
             executeStepForSessionWithExecutionItems({
                 get,

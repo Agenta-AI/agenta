@@ -30,15 +30,12 @@ Target = Union[List[UUID], Dict[UUID, Origin]]
 
 CURRENT_VERSION = "2025-07-14"
 
-
-class EvaluationStatus(str, Enum):
-    PENDING = "pending"
-    QUEUED = "queued"
-    RUNNING = "running"
-    SUCCESS = "success"
-    FAILURE = "failure"
-    ERRORS = "errors"
-    CANCELLED = "cancelled"
+# Re-exported from the SDK so the engine and the API share ONE status enum
+# (identical members/values); the API's runtime types embed it, and the SDK
+# engine is the package that ships it. Importers keep using
+# `core.evaluations.types.EvaluationStatus` unchanged.
+from agenta.sdk.models.evaluations import EvaluationStatus  # noqa: E402
+from agenta.sdk.models.workflows import JsonSchemas  # noqa: E402
 
 
 class EvaluationClosedConflict(Exception):
@@ -75,6 +72,135 @@ class EvaluationClosedConflict(Exception):
         return _message
 
 
+class EvaluationScenarioNotFound(Exception):
+    """A result cell references a scenario that does not exist.
+
+    `evaluation_results` FKs to `evaluation_scenarios` on
+    (project_id, scenario_id); writing a result for an unminted scenario is a
+    client error (mint via `add_scenarios` first), so it surfaces as a 400 at
+    the router rather than a swallowed empty write or an opaque 500.
+    """
+
+    def __init__(
+        self,
+        message: str = "Cannot populate a result for a scenario that does not exist.",
+        scenario_ids: Optional[List[UUID]] = None,
+    ):
+        super().__init__(message)
+
+        self.message = message
+        self.scenario_ids = scenario_ids or []
+
+    def __str__(self):
+        _message = self.message
+
+        if self.scenario_ids:
+            ids = ", ".join(str(s) for s in self.scenario_ids)
+            _message += f" scenario_ids=[{ids}]"
+
+        return _message
+
+
+class EvaluationMetricsInvalid(Exception):
+    """Raised when a metric does not match any of the three valid shapes:
+    global (scenario_id IS NULL, timestamp IS NULL),
+    variational (scenario_id set, timestamp IS NULL),
+    temporal (scenario_id IS NULL, timestamp set).
+    """
+
+    def __init__(
+        self,
+        message: str = "Metric does not match a valid global/variational/temporal shape.",
+        run_id: Optional[UUID] = None,
+        scenario_id: Optional[UUID] = None,
+        timestamp: Optional[datetime] = None,
+    ):
+        super().__init__(message)
+
+        self.message = message
+        self.run_id = run_id
+        self.scenario_id = scenario_id
+        self.timestamp = timestamp
+
+    def __str__(self):
+        _message = self.message
+
+        if self.run_id:
+            _message += f" run_id={self.run_id}"
+        if self.scenario_id:
+            _message += f" scenario_id={self.scenario_id}"
+        if self.timestamp:
+            _message += f" timestamp={self.timestamp}"
+
+        return _message
+
+
+class DefaultQueueError(Exception):
+    """Base exception for default-queue policy violations."""
+
+    def __init__(self, message: str, queue_id: Optional[UUID] = None):
+        super().__init__(message)
+        self.message = message
+        self.queue_id = queue_id
+
+    def __str__(self):
+        _message = self.message
+        if self.queue_id:
+            _message += f" queue_id={self.queue_id}"
+        return _message
+
+
+class DefaultQueueDataInvalid(DefaultQueueError):
+    """Raised when a default queue carries scenario/step/assignment/batch filters."""
+
+    def __init__(
+        self,
+        message: str = (
+            "default queues cannot filter scenarios, steps, assignments, or batches"
+        ),
+        queue_id: Optional[UUID] = None,
+    ):
+        super().__init__(message, queue_id=queue_id)
+
+
+class DefaultQueueDemotionForbidden(DefaultQueueError):
+    """Raised when an edit attempts to demote a default queue."""
+
+    def __init__(
+        self,
+        message: str = "default queues cannot be demoted",
+        queue_id: Optional[UUID] = None,
+    ):
+        super().__init__(message, queue_id=queue_id)
+
+
+class DefaultQueueDeletionForbidden(DefaultQueueError):
+    """Raised when a hard delete targets a default queue (must be archived instead)."""
+
+    def __init__(
+        self,
+        message: str = "default queues must be archived, not hard deleted",
+        queue_id: Optional[UUID] = None,
+    ):
+        super().__init__(message, queue_id=queue_id)
+
+
+class DefaultQueueArchiveForbidden(DefaultQueueError):
+    """Raised when a user-facing archive targets a default queue.
+
+    Default queues are system-managed: their archive/unarchive lifecycle is
+    driven by run reconciliation, not by direct user action. (Internally,
+    reconcile archives via `force=True`.)
+    """
+
+    def __init__(
+        self,
+        message: str = "default queues are system-managed and cannot be archived directly",
+        queue_id: Optional[UUID] = None,
+    ):
+        super().__init__(message, queue_id=queue_id)
+
+
 # - EVALUATION RUN -------------------------------------------------------------
 
 
@@ -82,12 +208,14 @@ class EvaluationRunFlags(BaseModel):
     is_live: bool = False  # Indicates if the run has live queries
     is_active: bool = False  # Indicates if the run is currently active
     is_closed: bool = False  # Indicates if the run is modifiable
-    is_queue: bool = False  # Indicates this run belongs to a simple annotation queue
+    is_queue: bool = False  # Indicates active default queue + active human work
     is_cached: bool = False  # Indicates the run should reuse traces by hash
     is_split: bool = False  # Indicates repeats fan out at the application step
     #
-    has_queries: bool = False  # Indicates if the run has queries
-    has_testsets: bool = False  # Indicates if the run has testsets
+    has_queries: bool = False  # Indicates if the run has query-backed inputs
+    has_testsets: bool = False  # Indicates if the run has testset-backed inputs
+    has_traces: bool = False  # Indicates if the run has direct trace inputs
+    has_testcases: bool = False  # Indicates if the run has direct testcase inputs
     has_evaluators: bool = False  # Indicates if the run has evaluators
     #
     has_custom: bool = False  # Indicates if the run has custom evaluators
@@ -100,13 +228,19 @@ class EvaluationRunQueryFlags(BaseModel):
     is_active: Optional[bool] = None  # Indicates if the run is currently active
     is_closed: Optional[bool] = None  # Indicates if the run is modifiable
     is_queue: Optional[bool] = (
-        None  # Indicates this run belongs to a simple annotation queue
+        None  # Indicates active default queue + active human work
     )
     is_cached: Optional[bool] = None  # Indicates the run should reuse traces by hash
     is_split: Optional[bool] = None  # Indicates repeats fan out at the application step
     #
-    has_queries: Optional[bool] = None  # Indicates if the run has queries
-    has_testsets: Optional[bool] = None  # Indicates if the run has testsets
+    has_queries: Optional[bool] = None  # Indicates if the run has query-backed inputs
+    has_testsets: Optional[bool] = (
+        None  # Indicates if the run has testset-backed inputs
+    )
+    has_traces: Optional[bool] = None  # Indicates if the run has direct trace inputs
+    has_testcases: Optional[bool] = (
+        None  # Indicates if the run has direct testcase inputs
+    )
     has_evaluators: Optional[bool] = None  # Indicates if the run has evaluators
     #
     has_custom: Optional[bool] = None  # Indicates if the run has custom evaluators
@@ -114,7 +248,7 @@ class EvaluationRunQueryFlags(BaseModel):
     has_auto: Optional[bool] = None  # Indicates if the run has auto evaluators
 
 
-class EvaluationRunDataStepInput(BaseModel):
+class EvaluationRunDataStepInputKey(BaseModel):
     key: str
 
 
@@ -123,7 +257,11 @@ class EvaluationRunDataStep(BaseModel):
     type: Type
     origin: Origin
     references: Dict[str, Reference]
-    inputs: Optional[List[EvaluationRunDataStepInput]] = None
+    inputs: Optional[List[EvaluationRunDataStepInputKey]] = None
+    # Outputs schema inferred from traces when the evaluator declares none.
+    # Run-scoped (reflects this run's observed outputs), so the immutable
+    # evaluator revision is never rewritten. Only `outputs` is populated.
+    schemas: Optional[JsonSchemas] = None
 
 
 class EvaluationRunDataMappingColumn(BaseModel):
@@ -141,9 +279,16 @@ class EvaluationRunDataMapping(BaseModel):
     step: EvaluationRunDataMappingStep
 
 
+class EvaluationRunDataConcurrency(BaseModel):
+    batch_size: Optional[int] = None
+    max_retries: Optional[int] = None
+    retry_delay: Optional[float] = None
+
+
 class EvaluationRunData(BaseModel):
     steps: Optional[List[EvaluationRunDataStep]] = None
     repeats: Optional[int] = 1
+    concurrency: Optional[EvaluationRunDataConcurrency] = None
     mappings: Optional[List[EvaluationRunDataMapping]] = None
 
     @field_validator("repeats")
@@ -196,6 +341,8 @@ class EvaluationRunQuery(Header, Metadata):
 
 
 class EvaluationScenario(Version, Identifier, Lifecycle, Metadata):
+    flags: Optional[EvaluationRunFlags] = None  # type: ignore
+
     status: Optional[EvaluationStatus] = EvaluationStatus.PENDING
 
     interval: Optional[int] = None
@@ -205,6 +352,8 @@ class EvaluationScenario(Version, Identifier, Lifecycle, Metadata):
 
 class EvaluationScenarioCreate(Metadata):
     version: str = CURRENT_VERSION
+
+    flags: Optional[EvaluationRunFlags] = None  # type: ignore
 
     status: Optional[EvaluationStatus] = None
 
@@ -216,7 +365,16 @@ class EvaluationScenarioCreate(Metadata):
 class EvaluationScenarioEdit(Identifier, Metadata):
     version: str = CURRENT_VERSION
 
+    # The edit is a full PUT: every column is overwritten from this DTO, so it
+    # must carry EVERY persisted scenario field, not just status. Any field
+    # omitted here is wiped on write (a dropped `flags` is what leaves a scenario
+    # grey; dropped `interval`/`timestamp` would break temporal metrics).
+    flags: Optional[EvaluationRunFlags] = None  # type: ignore
+
     status: Optional[EvaluationStatus] = None
+
+    interval: Optional[int] = None
+    timestamp: Optional[datetime] = None
 
 
 class EvaluationScenarioQuery(Metadata):
@@ -387,10 +545,12 @@ class EvaluationMetricsSpecsRefresh(BaseModel):
 
 class EvaluationQueueFlags(BaseModel):
     is_sequential: bool = False
+    is_default: bool = False
 
 
 class EvaluationQueueQueryFlags(BaseModel):
     is_sequential: Optional[bool] = None
+    is_default: Optional[bool] = None
 
 
 class EvaluationQueueData(BaseModel):
@@ -466,6 +626,7 @@ class EvaluationQueueEdit(Identifier, Header, Metadata):
 
 class EvaluationQueueQuery(Header, Metadata):
     flags: Optional[EvaluationQueueQueryFlags] = None  # type: ignore
+    include_archived: Optional[bool] = None
 
     user_id: Optional[UUID] = None
     user_ids: Optional[List[UUID]] = None
@@ -500,6 +661,7 @@ class SimpleEvaluationData(BaseModel):
     evaluator_steps: Optional[Target] = None
 
     repeats: Optional[int] = None
+    concurrency: Optional[EvaluationRunDataConcurrency] = None
 
 
 class SimpleEvaluation(Version, Identifier, Lifecycle, Header, Metadata):
@@ -534,6 +696,8 @@ class SimpleEvaluationQuery(Header, Metadata):
 
 
 class SimpleQueueKind(str, Enum):
+    QUERIES = "queries"
+    TESTSETS = "testsets"
     TRACES = "traces"
     TESTCASES = "testcases"
 
@@ -592,8 +756,12 @@ class SimpleQueueData(BaseModel):
     evaluators: Optional[Target] = None
     """
     The evaluators to run on each scenario.
-    Either a list of evaluator revision UUIDs (all treated as 'human'),
-    or a dict mapping evaluator revision UUID -> origin ('human' | 'auto' | 'custom').
+    Either a list of evaluator revision UUIDs (origin-less; for a simple queue
+    these default to 'human'), or a dict mapping evaluator revision UUID ->
+    origin ('human' | 'auto' | 'custom'). A simple queue must resolve to at
+    least one 'human' evaluator; an explicit dict of only non-human evaluators
+    is rejected at the simple-queue endpoint (the underlying run itself has no
+    such restriction).
     """
 
     repeats: Optional[int] = None
@@ -603,6 +771,13 @@ class SimpleQueueData(BaseModel):
     Ordered assignment of users per annotation repeat.
     Each inner list is the set of user UUIDs assigned to that repeat index.
     Example: [[user_a, user_b], [user_c]] means repeat 0 → user_a & user_b, repeat 1 → user_c.
+    """
+
+    step_keys: Optional[List[str]] = None
+    """
+    Optional subset of annotation step keys the queue covers. Omitted means the
+    queue covers every annotation step (a default-shaped queue); set it only to
+    scope the queue to specific steps.
     """
 
     settings: Optional[SimpleQueueSettings] = None
@@ -631,6 +806,28 @@ class SimpleQueueData(BaseModel):
 
         if not has_kind and not has_queries and not has_testsets:
             raise ValueError("simple queue requires kind, queries, or testsets")
+
+        if has_queries and self.kind not in (None, SimpleQueueKind.QUERIES):
+            raise ValueError("query-backed queues must use kind='queries'")
+        if has_testsets and self.kind not in (None, SimpleQueueKind.TESTSETS):
+            raise ValueError("testset-backed queues must use kind='testsets'")
+        if self.kind == SimpleQueueKind.QUERIES and not has_queries:
+            raise ValueError("kind='queries' requires query sources")
+        if self.kind == SimpleQueueKind.TESTSETS and not has_testsets:
+            raise ValueError("kind='testsets' requires testset sources")
+
+        # Simple-queue constraint (endpoint-only, not a run-layer rule): a queue
+        # is human work, so it must resolve to at least one human evaluator.
+        # An evaluator is human when it is origin-less (defaults to human at
+        # build time) or explicitly origin="human". So:
+        #   - a bare list is all origin-less -> always valid.
+        #   - an explicit dict is valid only if at least one value is "human";
+        #     a dict with only non-human origins (any of auto/custom, or a mix
+        #     of them) has no human evaluator and is rejected.
+        # The underlying evaluation run has no such restriction.
+        if isinstance(self.evaluators, dict) and self.evaluators:
+            if not any(origin == "human" for origin in self.evaluators.values()):
+                raise ValueError("simple queues must have at least one human evaluator")
 
         return self
 

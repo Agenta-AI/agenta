@@ -17,7 +17,10 @@ from oss.src.core.webhooks.types import (
 )
 from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
 
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import (
+    TransactionsEngine,
+    get_transactions_engine,
+)
 from oss.src.dbs.postgres.shared.utils import apply_windowing
 from oss.src.dbs.postgres.webhooks.dbes import (
     WebhookSubscriptionDBE,
@@ -33,8 +36,10 @@ from oss.src.dbs.postgres.webhooks.mappings import (
 
 
 class WebhooksDAO(WebhooksDAOInterface):
-    def __init__(self):
-        pass
+    def __init__(self, engine: TransactionsEngine = None):
+        if engine is None:
+            engine = get_transactions_engine()
+        self.engine = engine
 
     # --- SUBSCRIPTIONS ------------------------------------------------------ #
 
@@ -57,7 +62,7 @@ class WebhooksDAO(WebhooksDAOInterface):
             secret_id=secret_id,
         )
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             session.add(subscription_dbe)
 
             await session.commit()
@@ -75,7 +80,7 @@ class WebhooksDAO(WebhooksDAOInterface):
         #
         subscription_id: UUID,
     ) -> Optional[WebhookSubscription]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(WebhookSubscriptionDBE).where(
                 WebhookSubscriptionDBE.project_id == project_id,
                 WebhookSubscriptionDBE.id == subscription_id,
@@ -102,7 +107,7 @@ class WebhooksDAO(WebhooksDAOInterface):
         #
         secret_id: UUID | None = None,
     ) -> Optional[WebhookSubscription]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(WebhookSubscriptionDBE).where(
                 WebhookSubscriptionDBE.id == subscription.id,
                 WebhookSubscriptionDBE.project_id == project_id,
@@ -140,7 +145,7 @@ class WebhooksDAO(WebhooksDAOInterface):
         #
         subscription_id: UUID,
     ) -> bool:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(WebhookSubscriptionDBE).where(
                 WebhookSubscriptionDBE.project_id == project_id,
                 WebhookSubscriptionDBE.id == subscription_id,
@@ -168,7 +173,7 @@ class WebhooksDAO(WebhooksDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[WebhookSubscription]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(WebhookSubscriptionDBE).filter(
                 WebhookSubscriptionDBE.project_id == project_id,
             )
@@ -234,7 +239,7 @@ class WebhooksDAO(WebhooksDAOInterface):
             delivery=delivery,
         )
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             values = {
                 c.name: getattr(delivery_dbe, c.name)
                 for c in WebhookDeliveryDBE.__table__.columns
@@ -275,7 +280,7 @@ class WebhooksDAO(WebhooksDAOInterface):
         #
         delivery_id: UUID,
     ) -> Optional[WebhookDelivery]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(WebhookDeliveryDBE).where(
                 WebhookDeliveryDBE.project_id == project_id,
                 WebhookDeliveryDBE.id == delivery_id,
@@ -301,7 +306,7 @@ class WebhooksDAO(WebhooksDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[WebhookDelivery]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(WebhookDeliveryDBE).filter(
                 WebhookDeliveryDBE.project_id == project_id,
             )

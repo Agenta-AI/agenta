@@ -39,7 +39,6 @@ import dynamic from "next/dynamic"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 
-import {BeautifiedJsonView} from "./BeautifiedJsonView"
 import {
     buildDecodedJsonOutput,
     normalizeEscapedLineBreaks,
@@ -47,6 +46,7 @@ import {
 } from "./decodedJsonHelpers"
 import type {DrillInContentProps} from "./DrillInContent"
 import {EntityDrillInView} from "./EntityDrillInView"
+import {PrettyJsonView} from "./PrettyJsonView"
 import {getDefaultJsonViewMode} from "./viewModes"
 const ImagePreview = dynamic(() => import("@agenta/ui").then((mod) => mod.ImagePreview), {
     ssr: false,
@@ -102,6 +102,8 @@ export interface TraceSpanDrillInViewProps extends Omit<
     defaultCollapsed?: boolean
     /** Optional override data for rootScope="span" rendering */
     spanDataOverride?: unknown
+    /** Sticky offset (px) for PrettyJsonView headers — should equal the tab nav bar height */
+    prettyJsonStickyOffset?: number
 }
 
 type RawSpanViewMode = "json" | "yaml"
@@ -117,22 +119,22 @@ type RawSpanViewMode = "json" | "yaml"
  * - `json` / `yaml`: faithful — data as stored, no cleanup.
  * - `decoded-json`: JSON editor, cleaned (unwrap nested stringified JSON,
  *   decode escaped newlines).
- * - `beautified-json`: custom component tree (chat bubbles, per-key fields,
+ * - `pretty-json`: custom component tree (chat bubbles, per-key fields,
  *   envelope unwrap, noise stripping). Default for structured JSON data.
  * - `text` / `markdown`: prose editor.
  */
-type RawSpanDisplayMode = RawSpanViewMode | "decoded-json" | "beautified-json" | "text" | "markdown"
+type RawSpanDisplayMode = RawSpanViewMode | "decoded-json" | "pretty-json" | "text" | "markdown"
 
 const RAW_SPAN_VIEW_MODE_LABELS: Record<RawSpanDisplayMode, string> = {
     json: "JSON",
     yaml: "YAML",
     "decoded-json": "Decoded JSON",
-    "beautified-json": "Beautified JSON",
+    "pretty-json": "Pretty JSON",
     text: "Text",
     markdown: "Markdown",
 }
 
-// Value-simplification and beautified rendering live in ./BeautifiedJsonView.
+// Value-simplification and pretty rendering live in ./PrettyJsonView.
 
 const LanguageAwareViewer = ({
     initialValue,
@@ -222,7 +224,7 @@ const TextModeViewer = ({
             showToolbar={false}
             enableTokens={false}
             readOnly
-            className="[&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-container]:!bg-transparent [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-4 [&_.editor-input]:!py-[6px] [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.editor-input.markdown-view_.editor-code]:!m-0 [&_.editor-input.markdown-view_.editor-code]:!p-0 [&_.editor-input.markdown-view_.editor-code]:!bg-transparent"
+            className="[&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-container]:!bg-transparent [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-4 [&_.editor-input]:!py-[6px] [&_.editor-input]:!text-[12.5px] [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.editor-input.markdown-view_.editor-code]:!m-0 [&_.editor-input.markdown-view_.editor-code]:!p-0 [&_.editor-input.markdown-view_.editor-code]:!bg-transparent"
         >
             <MarkdownModeSync isMarkdownView={mode === "text"} />
             <EditorWrapper
@@ -296,6 +298,7 @@ export const TraceSpanDrillInView = memo(
         allowSpanCollapse = true,
         defaultCollapsed = false,
         spanDataOverride,
+        prettyJsonStickyOffset = 0,
     }: TraceSpanDrillInViewProps) => {
         const spanEntityData = useAtomValue(traceSpanMolecule.selectors.data(spanId))
         const spanData = spanDataOverride !== undefined ? spanDataOverride : spanEntityData
@@ -354,7 +357,7 @@ export const TraceSpanDrillInView = memo(
             [sanitizedSpanData, parsedStructuredString],
         )
 
-        const beautifiedJsonSource = useMemo(() => {
+        const prettyJsonSource = useMemo(() => {
             if (isStringValue) return parsedStructuredString ?? sanitizedSpanData
             return sanitizedSpanData
         }, [isStringValue, parsedStructuredString, sanitizedSpanData])
@@ -367,7 +370,7 @@ export const TraceSpanDrillInView = memo(
             if (viewModePreset === "message") {
                 const modes: RawSpanDisplayMode[] = ["text", "markdown"]
                 if (hasStructuredValue) {
-                    modes.push("decoded-json", "beautified-json")
+                    modes.push("decoded-json", "pretty-json")
                 }
                 return modes
             }
@@ -378,7 +381,7 @@ export const TraceSpanDrillInView = memo(
                         "json",
                         "yaml",
                         "decoded-json",
-                        "beautified-json",
+                        "pretty-json",
                         "text",
                         "markdown",
                     ] as RawSpanDisplayMode[]
@@ -386,7 +389,7 @@ export const TraceSpanDrillInView = memo(
                 return ["text", "markdown"] as RawSpanDisplayMode[]
             }
 
-            return ["json", "yaml", "decoded-json", "beautified-json"] as RawSpanDisplayMode[]
+            return ["json", "yaml", "decoded-json", "pretty-json"] as RawSpanDisplayMode[]
         }, [viewModePreset, isStringValue, hasStructuredValue, parsedStructuredString])
         const [viewMode, setViewMode] = useState<RawSpanDisplayMode>(() =>
             getDefaultJsonViewMode(availableViewModes),
@@ -398,7 +401,7 @@ export const TraceSpanDrillInView = memo(
         }, [viewModeKey])
 
         const isCodeMode = viewMode === "json" || viewMode === "yaml" || viewMode === "decoded-json"
-        const isBeautifiedJson = viewMode === "beautified-json"
+        const isPrettyJson = viewMode === "pretty-json"
 
         const activeOutput =
             viewMode === "yaml"
@@ -407,8 +410,8 @@ export const TraceSpanDrillInView = memo(
                   ? jsonOutput
                   : viewMode === "decoded-json"
                     ? decodedJsonOutput
-                    : viewMode === "beautified-json"
-                      ? JSON.stringify(beautifiedJsonSource, null, 2)
+                    : viewMode === "pretty-json"
+                      ? JSON.stringify(prettyJsonSource, null, 2)
                       : textOutput
 
         const closeSearch = useCallback(() => {
@@ -466,9 +469,9 @@ export const TraceSpanDrillInView = memo(
         if (rootScope === "span") {
             const showTitle = Boolean(title)
             return (
-                <div className="rounded-md overflow-hidden bg-white">
+                <div className="rounded-md bg-[var(--ag-c-FFFFFF)]">
                     <div
-                        className={`drill-in-field-header rounded-md flex items-center justify-between py-2 px-3 bg-white border border-solid border-[rgba(5,23,41,0.06)] ${allowSpanCollapse ? "cursor-pointer" : ""}`}
+                        className={`drill-in-field-header rounded-md flex items-center justify-between py-2 px-3 bg-[var(--ag-c-FFFFFF)] border border-solid border-[var(--ag-rgba-051729-06)] ${allowSpanCollapse ? "cursor-pointer" : ""}`}
                         onClick={allowSpanCollapse ? toggleCollapsed : undefined}
                     >
                         <div className="flex items-center gap-2 text-gray-700 font-medium min-h-[16px]">
@@ -483,7 +486,7 @@ export const TraceSpanDrillInView = memo(
                             <Button
                                 size="small"
                                 type={isSearchOpen ? "primary" : "text"}
-                                className={`${isSearchOpen ? "!bg-[#17324D] !border-[#17324D]" : "text-gray-500"} !px-1 !h-6 text-xs`}
+                                className={`${isSearchOpen ? "!bg-[var(--ag-c-17324D)] !border-[var(--ag-c-17324D)]" : "text-gray-500"} !px-1 !h-6 text-xs`}
                                 icon={<MagnifyingGlassIcon size={14} />}
                                 onClick={() => setIsSearchOpen((prev) => !prev)}
                                 disabled={!isCodeMode}
@@ -509,9 +512,9 @@ export const TraceSpanDrillInView = memo(
                         </div>
                     </div>
                     {(!allowSpanCollapse || !isCollapsed) && (
-                        <div className="relative overflow-hidden">
+                        <div className="relative">
                             {isSearchOpen && isCodeMode && (
-                                <div className="absolute right-4 top-3 z-20 flex items-center gap-2 rounded-xl border border-[rgba(5,23,41,0.14)] bg-white px-2 py-2 shadow-[0_8px_24px_rgba(5,23,41,0.12)] max-w-[calc(100%-2rem)]">
+                                <div className="absolute right-4 top-3 z-20 flex items-center gap-2 rounded-xl border border-[var(--ag-rgba-051729-14)] bg-[var(--ag-c-FFFFFF)] px-2 py-2 shadow-[0_8px_24px_rgba(5,23,41,0.12)] max-w-[calc(100%-2rem)]">
                                     <Input
                                         className="w-[180px] min-w-[80px]"
                                         placeholder="Search..."
@@ -575,15 +578,14 @@ export const TraceSpanDrillInView = memo(
                                         />
                                     </EditorProvider>
                                 </DrillInProvider>
-                            ) : isBeautifiedJson ? (
-                                <div className="overflow-y-auto">
-                                    <BeautifiedJsonView
-                                        data={beautifiedJsonSource}
-                                        keyPrefix={`trace-span-${textViewerId}`}
-                                    />
-                                </div>
+                            ) : isPrettyJson ? (
+                                <PrettyJsonView
+                                    data={prettyJsonSource}
+                                    keyPrefix={`trace-span-${textViewerId}`}
+                                    stickyOffset={prettyJsonStickyOffset}
+                                />
                             ) : (
-                                <div className="mx-1 my-2 rounded-md bg-[#F6F8FB]">
+                                <div className="mx-1 my-2 rounded-md bg-[var(--ag-c-FFFFFF)]">
                                     <TextModeViewer
                                         editorId={`trace-span-${textViewerId}`}
                                         value={textOutput}
@@ -655,8 +657,8 @@ export const TraceSpanDrillInView = memo(
 
         // Type assertion needed because traceSpanMolecule.drillIn is optional in the general type
         // but we know it's configured for the trace entity
-        const entityWithDrillIn = traceSpan as typeof traceSpanMolecule & {
-            drillIn: NonNullable<typeof traceSpanMoleculeMolecule.drillIn>
+        const entityWithDrillIn = traceSpanMolecule as typeof traceSpanMolecule & {
+            drillIn: NonNullable<typeof traceSpanMolecule.drillIn>
         }
 
         return (

@@ -4,6 +4,7 @@ import type * as AgentaApi from "../index.js";
 
 export interface EnvironmentRevisionResponse {
     count?: number | undefined;
-    environment_revision?: (AgentaApi.EnvironmentRevision | null) | undefined;
+    environment_revision?: (AgentaApi.EnvironmentRevisionOutput | null) | undefined;
     resolution_info?: (AgentaApi.ResolutionInfo | null) | undefined;
+    retrieval_info?: (AgentaApi.RetrievalInfo | null) | undefined;
 }

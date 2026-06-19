@@ -273,11 +273,11 @@ async def _check_l1_events_quota(
 
     try:
         # Deferred import: EE-only symbols stay out of the OSS import graph.
-        from ee.src.utils.entitlements import (  # noqa: PLC0415
+        from ee.src.core.access.entitlements.service import (  # noqa: PLC0415
             check_entitlements,
             scope_from,
         )
-        from ee.src.core.entitlements.types import Counter  # noqa: PLC0415
+        from ee.src.core.access.entitlements.types import Counter  # noqa: PLC0415
 
         allowed, _, _ = await check_entitlements(
             key=Counter.EVENTS_INGESTED,
@@ -530,13 +530,14 @@ async def publish_testcase_queried(
 
 
 REVISION_EVENT_TYPES: Dict[str, Dict[str, EventType]] = {
-    "application": {
-        "retrieve": EventType.APPLICATIONS_REVISIONS_RETRIEVED,
-        "fetch": EventType.APPLICATIONS_REVISIONS_FETCHED,
-        "query": EventType.APPLICATIONS_REVISIONS_QUERIED,
-        "log": EventType.APPLICATIONS_REVISIONS_LOGGED,
-        "commit": EventType.APPLICATIONS_REVISIONS_COMMITTED,
-    },
+    # "application" commented out — applications emit as "workflow" events
+    # "application": {
+    #     "retrieve": EventType.APPLICATIONS_REVISIONS_RETRIEVED,
+    #     "fetch": EventType.APPLICATIONS_REVISIONS_FETCHED,
+    #     "query": EventType.APPLICATIONS_REVISIONS_QUERIED,
+    #     "log": EventType.APPLICATIONS_REVISIONS_LOGGED,
+    #     "commit": EventType.APPLICATIONS_REVISIONS_COMMITTED,
+    # },
     "query": {
         "retrieve": EventType.QUERIES_REVISIONS_RETRIEVED,
         "fetch": EventType.QUERIES_REVISIONS_FETCHED,
@@ -551,19 +552,27 @@ REVISION_EVENT_TYPES: Dict[str, Dict[str, EventType]] = {
         "log": EventType.TESTSETS_REVISIONS_LOGGED,
         "commit": EventType.TESTSETS_REVISIONS_COMMITTED,
     },
-    "evaluator": {
-        "retrieve": EventType.EVALUATORS_REVISIONS_RETRIEVED,
-        "fetch": EventType.EVALUATORS_REVISIONS_FETCHED,
-        "query": EventType.EVALUATORS_REVISIONS_QUERIED,
-        "log": EventType.EVALUATORS_REVISIONS_LOGGED,
-        "commit": EventType.EVALUATORS_REVISIONS_COMMITTED,
-    },
+    # "evaluator" commented out — evaluators emit as "workflow" events
+    # "evaluator": {
+    #     "retrieve": EventType.EVALUATORS_REVISIONS_RETRIEVED,
+    #     "fetch": EventType.EVALUATORS_REVISIONS_FETCHED,
+    #     "query": EventType.EVALUATORS_REVISIONS_QUERIED,
+    #     "log": EventType.EVALUATORS_REVISIONS_LOGGED,
+    #     "commit": EventType.EVALUATORS_REVISIONS_COMMITTED,
+    # },
     "environment": {
         "retrieve": EventType.ENVIRONMENTS_REVISIONS_RETRIEVED,
         "fetch": EventType.ENVIRONMENTS_REVISIONS_FETCHED,
         "query": EventType.ENVIRONMENTS_REVISIONS_QUERIED,
         "log": EventType.ENVIRONMENTS_REVISIONS_LOGGED,
         "commit": EventType.ENVIRONMENTS_REVISIONS_COMMITTED,
+    },
+    "workflow": {
+        "retrieve": EventType.WORKFLOWS_REVISIONS_RETRIEVED,
+        "fetch": EventType.WORKFLOWS_REVISIONS_FETCHED,
+        "query": EventType.WORKFLOWS_REVISIONS_QUERIED,
+        "log": EventType.WORKFLOWS_REVISIONS_LOGGED,
+        "commit": EventType.WORKFLOWS_REVISIONS_COMMITTED,
     },
 }
 
@@ -575,8 +584,8 @@ def _extract_revision_reference(
 ) -> Dict[str, Dict[str, Any]]:
     """Build a partial identity object for a single revision.
 
-    `domain` is `"application"`, `"query"`, `"testset"`, `"evaluator"`, or
-    `"environment"`. The returned dict uses keys like:
+    `domain` is `"workflow"`, `"query"`, `"testset"`, or `"environment"`.
+    The returned dict uses keys like:
 
         {
             "<domain>": {"id": "...", "slug": "..."},

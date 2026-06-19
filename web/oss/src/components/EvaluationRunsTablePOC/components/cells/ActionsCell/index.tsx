@@ -1,6 +1,7 @@
 import {memo, useMemo, useState, useCallback} from "react"
 
 import {message} from "@agenta/ui/app-message"
+import {SkeletonLine} from "@agenta/ui/table"
 import {MoreOutlined} from "@ant-design/icons"
 import {
     Database,
@@ -9,13 +10,13 @@ import {
     Trash,
     DownloadSimple,
     Play,
+    PencilSimple,
     Stop,
     Copy,
 } from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {Button, Dropdown, MenuProps, Tooltip} from "antd"
 
-import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 import {extractPrimaryInvocation} from "@/oss/components/pages/evaluations/utils"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {EvaluationStatus} from "@/oss/lib/Types"
@@ -44,6 +45,7 @@ interface RunActionsCellProps {
     onVariantNavigation: (params: {revisionId: string; appId?: string | null}) => void
     onTestsetNavigation: (testsetId: string, revisionId?: string | null) => void
     onRequestDelete: (record: EvaluationRunTableRow) => void
+    onEditEvaluation?: (record: EvaluationRunTableRow) => void
     resolveAppId: (record: EvaluationRunTableRow) => string | null
     isVisible?: boolean
     onExportRow?: (record: EvaluationRunTableRow) => void
@@ -56,6 +58,7 @@ const RunActionsCell = ({
     onVariantNavigation,
     onTestsetNavigation,
     onRequestDelete,
+    onEditEvaluation,
     resolveAppId,
     isVisible = true,
     onExportRow,
@@ -176,6 +179,18 @@ const RunActionsCell = ({
     )
     const showOnlineAction = canStopOnline || canResumeOnline
 
+    // Edit (v1: add evaluators) only on a finished, not-closed batch run. Online/live
+    // and still-running runs are out of scope. Requires a parent-provided handler so
+    // the drawer is owned by the table parent, not rendered inside this cell.
+    const canEditEvaluation = Boolean(
+        onEditEvaluation &&
+        runId &&
+        !record.__isSkeleton &&
+        !isBlocked &&
+        !isClosed &&
+        !isOnlineEvaluation,
+    )
+
     const invalidateRunQueries = useCallback(() => {
         if (!runId) return
         const projectKey = projectId ?? "none"
@@ -247,6 +262,18 @@ const RunActionsCell = ({
                     handleOnlineAction()
                 },
                 disabled: Boolean(onlineAction),
+            })
+        }
+
+        if (canEditEvaluation) {
+            menuItems.push({
+                key: "edit-evaluation",
+                label: "Edit evaluation",
+                icon: <PencilSimple size={16} />,
+                onClick: (event) => {
+                    event.domEvent.stopPropagation()
+                    onEditEvaluation?.(record)
+                },
             })
         }
 
@@ -330,6 +357,8 @@ const RunActionsCell = ({
         canStopOnline,
         onlineAction,
         handleOnlineAction,
+        canEditEvaluation,
+        onEditEvaluation,
     ])
 
     if (record.__isSkeleton) {

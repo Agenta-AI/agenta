@@ -529,7 +529,7 @@ class TestTracesQueryByRevisionRef:
             "POST",
             "/queries/revisions/commit",
             json={
-                "query_revision_commit": {
+                "query_revision": {
                     "slug": uuid4().hex[-12:],
                     "query_id": query["id"],
                     "query_variant_id": query["variant_id"],
@@ -589,7 +589,7 @@ class TestTracesQueryByRevisionRef:
             "POST",
             "/queries/revisions/commit",
             json={
-                "query_revision_commit": {
+                "query_revision": {
                     "slug": uuid4().hex[-12:],
                     "query_id": query["id"],
                     "query_variant_id": query["variant_id"],

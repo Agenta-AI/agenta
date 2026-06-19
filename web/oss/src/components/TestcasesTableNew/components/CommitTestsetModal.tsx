@@ -122,22 +122,22 @@ const CommitTestsetModal = ({
                 <div
                     className={`flex flex-col gap-4 ${hasDiffData ? "w-[320px] shrink-0" : "w-full"} overflow-y-auto`}
                 >
-                    <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                        <Text className="text-[#475569]">
+                    <div className="rounded-lg border border-[var(--ag-c-E2E8F0)] bg-[var(--ag-c-F8FAFC)] p-3">
+                        <Text className="text-[var(--ag-c-475569)]">
                             This will create a new revision of your testset.
                         </Text>
                         <div className="mt-2 flex items-center gap-2 text-sm">
                             <Text className="font-medium">Version</Text>
-                            <span className="rounded bg-[#E2E8F0] px-1.5 py-0.5 text-xs font-medium">
+                            <span className="rounded bg-[var(--ag-c-E2E8F0)] px-1.5 py-0.5 text-xs font-medium">
                                 v{displayVersion ?? "?"}
                             </span>
-                            <ArrowRight size={14} className="text-[#64748B]" />
-                            <span className="rounded bg-[#DBEAFE] px-1.5 py-0.5 text-xs font-medium text-[#1D4ED8]">
+                            <ArrowRight size={14} className="text-[var(--ag-c-64748B)]" />
+                            <span className="rounded bg-[var(--ag-c-DBEAFE)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-c-1D4ED8)]">
                                 v{targetVersion}
                             </span>
                         </div>
                         {changesDescription.length > 0 && (
-                            <div className="mt-2 text-xs text-[#64748B]">
+                            <div className="mt-2 text-xs text-[var(--ag-c-64748B)]">
                                 Changes: {changesDescription.join(", ")}
                             </div>
                         )}
@@ -156,12 +156,12 @@ const CommitTestsetModal = ({
                 </div>
 
                 {hasDiffData && (
-                    <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-[#E2E8F0] bg-[#FAFBFC]">
-                        <div className="flex items-center justify-between border-b border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 shrink-0">
-                            <Text className="text-xs font-semibold text-[#475569] uppercase tracking-wide">
+                    <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-[var(--ag-c-E2E8F0)] bg-[var(--ag-c-FAFBFC)]">
+                        <div className="flex items-center justify-between border-b border-[var(--ag-c-E2E8F0)] bg-[var(--ag-c-F8FAFC)] px-3 py-2 shrink-0">
+                            <Text className="text-xs font-semibold text-[var(--ag-c-475569)] uppercase tracking-wide">
                                 Changes preview
                             </Text>
-                            <Text className="text-xs text-[#94A3B8]">
+                            <Text className="text-xs text-[var(--ag-c-94A3B8)]">
                                 {displaySummary.modifiedCount || 0} change
                                 {(displaySummary.modifiedCount || 0) !== 1 ? "s" : ""}
                             </Text>

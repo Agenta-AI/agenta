@@ -8,6 +8,14 @@ from oss.src.core.evaluations.types import (
     EvaluationRunQuery,
 )
 
+# Source-family detection keys. An input step's family comes from the exact
+# reference key the resolvers read (`query_revision` / `testset_revision`), or —
+# for reference-less direct sources — from the exact step key.
+QUERY_REFERENCE_KEY = "query_revision"
+TESTSET_REFERENCE_KEY = "testset_revision"
+DIRECT_TRACE_STEP_KEYS = {"traces", "query-direct"}
+DIRECT_TESTCASE_STEP_KEYS = {"testcases", "testset-direct"}
+
 
 def _make_run_references(
     run: Optional[Union[EvaluationRun, EvaluationRunEdit]] = None,
@@ -91,8 +99,14 @@ def _make_run_flags(
     if not run.data or not run.data.steps:
         return flags
 
+    # `is_queue` is deliberately NOT recomputed here: it depends on the
+    # default-queue lifecycle (which the DAO does not load) and is owned by
+    # EvaluationsService._reconcile_default_queue. Writing it via the DAO without
+    # running reconcile leaves it stale. Only the `has_*` shape flags below.
     flags.has_queries = False
     flags.has_testsets = False
+    flags.has_traces = False
+    flags.has_testcases = False
     flags.has_evaluators = False
     #
     flags.has_custom = False
@@ -103,21 +117,22 @@ def _make_run_flags(
         if _step.type == "input":
             _references = _step.references or dict()
 
-            if flags.is_queue and not _references:
+            if not _references:
                 step_key = (_step.key or "").lower()
 
-                if "query" in step_key:
-                    flags.has_queries = True
-                if "testset" in step_key:
-                    flags.has_testsets = True
+                # Direct source inputs are explicit source families. Legacy
+                # direct keys remain recognized for old rows.
+                if step_key in DIRECT_TRACE_STEP_KEYS:
+                    flags.has_traces = True
+                if step_key in DIRECT_TESTCASE_STEP_KEYS:
+                    flags.has_testcases = True
 
-            for _key in _references.keys():
-                step_key = str(_key).lower()
-
-                if "query" in step_key:
-                    flags.has_queries = True
-                if "testset" in step_key:
-                    flags.has_testsets = True
+            # Match the exact reference key, not a substring: a substring rule
+            # misfires on incidental keys like `query_anchor` / `testset_metadata`.
+            if QUERY_REFERENCE_KEY in _references:
+                flags.has_queries = True
+            if TESTSET_REFERENCE_KEY in _references:
+                flags.has_testsets = True
 
         if _step.type == "annotation":
             flags.has_evaluators = True

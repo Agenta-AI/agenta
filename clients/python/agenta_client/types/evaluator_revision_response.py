@@ -4,8 +4,9 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .evaluator_revision import EvaluatorRevision
+from .evaluator_revision_output import EvaluatorRevisionOutput
 from .resolution_info import ResolutionInfo
+from .retrieval_info import RetrievalInfo
 
 
 class EvaluatorRevisionResponse(UniversalBaseModel):
@@ -17,7 +18,7 @@ class EvaluatorRevisionResponse(UniversalBaseModel):
     1 when a revision is returned, 0 otherwise.
     """
     
-    evaluator_revision: typing.Optional[EvaluatorRevision] = pydantic.Field(default=None)
+    evaluator_revision: typing.Optional[EvaluatorRevisionOutput] = pydantic.Field(default=None)
     """
     The evaluator revision, or null when none matched.
     """
@@ -25,6 +26,11 @@ class EvaluatorRevisionResponse(UniversalBaseModel):
     resolution_info: typing.Optional[ResolutionInfo] = pydantic.Field(default=None)
     """
     Embed-resolution metadata. Populated when `resolve=true` was requested.
+    """
+    
+    retrieval_info: typing.Optional[RetrievalInfo] = pydantic.Field(default=None)
+    """
+    References used to retrieve the top-level revision.
     """
     
     

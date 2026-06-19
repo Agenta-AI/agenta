@@ -12,7 +12,7 @@ const ComparisonVariantConfigSkeleton = ({
             key={`variant-config-skeleton-${index}`}
             className={
                 isComparisonView
-                    ? "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] relative"
+                    ? "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] relative"
                     : undefined
             }
         >

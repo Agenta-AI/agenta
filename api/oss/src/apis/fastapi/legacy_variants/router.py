@@ -18,8 +18,11 @@ from oss.src.utils.common import is_ee
 from oss.src.utils.exceptions import intercept_exceptions
 
 if is_ee():
-    from ee.src.models.shared_models import Permission
-    from ee.src.utils.permissions import FORBIDDEN_EXCEPTION, check_action_access
+    from ee.src.core.access.permissions.types import Permission
+    from ee.src.core.access.permissions.service import (
+        FORBIDDEN_EXCEPTION,
+        check_action_access,
+    )
 
 
 def _as_reference(ref: Optional[ReferenceRequestModel]) -> Optional[Reference]:
@@ -121,7 +124,11 @@ class LegacyVariantsRouter:
         current_application_ref = _as_reference(application_ref)
 
         if variant_ref.id:
-            revision, _ = await self.applications_service.retrieve_application_revision(
+            (
+                revision,
+                _,
+                _,
+            ) = await self.applications_service.retrieve_application_revision(
                 project_id=project_id,
                 application_revision_ref=Reference(id=variant_ref.id),
                 resolve=True,
@@ -129,7 +136,11 @@ class LegacyVariantsRouter:
             if revision:
                 return revision
 
-            revision, _ = await self.applications_service.retrieve_application_revision(
+            (
+                revision,
+                _,
+                _,
+            ) = await self.applications_service.retrieve_application_revision(
                 project_id=project_id,
                 application_ref=current_application_ref,
                 application_variant_ref=Reference(id=variant_ref.id),
@@ -138,7 +149,7 @@ class LegacyVariantsRouter:
             )
             return revision
 
-        revision, _ = await self.applications_service.retrieve_application_revision(
+        revision, _, _ = await self.applications_service.retrieve_application_revision(
             project_id=project_id,
             application_ref=current_application_ref,
             application_variant_ref=Reference(slug=variant_ref.slug),
@@ -186,6 +197,7 @@ class LegacyVariantsRouter:
                     (
                         revision,
                         _,
+                        _,
                     ) = await self.applications_service.retrieve_application_revision(
                         project_id=project_id,
                         environment_variant_ref=environment_variant_ref,
@@ -196,6 +208,7 @@ class LegacyVariantsRouter:
                     (
                         environment_revision,
                         _,
+                        _,
                     ) = await self.environments_service.retrieve_environment_revision(
                         project_id=project_id,
                         environment_variant_ref=environment_variant_ref,
@@ -205,7 +218,7 @@ class LegacyVariantsRouter:
 
         current_environment_ref = _as_reference(environment_ref)
 
-        revision, _ = await self.applications_service.retrieve_application_revision(
+        revision, _, _ = await self.applications_service.retrieve_application_revision(
             project_id=project_id,
             environment_ref=current_environment_ref,
             key=key,
@@ -213,6 +226,7 @@ class LegacyVariantsRouter:
         )
         (
             environment_revision,
+            _,
             _,
         ) = await self.environments_service.retrieve_environment_revision(
             project_id=project_id,
@@ -223,7 +237,7 @@ class LegacyVariantsRouter:
             return revision, environment_revision
 
         environment_revision_ref = Reference(id=environment_ref.id)
-        revision, _ = await self.applications_service.retrieve_application_revision(
+        revision, _, _ = await self.applications_service.retrieve_application_revision(
             project_id=project_id,
             environment_revision_ref=environment_revision_ref,
             key=key,
@@ -231,6 +245,7 @@ class LegacyVariantsRouter:
         )
         (
             environment_revision,
+            _,
             _,
         ) = await self.environments_service.retrieve_environment_revision(
             project_id=project_id,
@@ -297,7 +312,7 @@ class LegacyVariantsRouter:
             ),
             service_ref=None,
             variant_ref=ReferenceRequestModel(
-                slug=variant.slug if variant else revision.slug,
+                slug=(variant.slug if variant else revision.variant_slug),
                 version=revision.version,
                 id=variant_id,
                 commit_message=revision.message,

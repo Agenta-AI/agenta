@@ -9,13 +9,13 @@ from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.workspace_models import Workspace
 
 if is_ee():
-    from ee.src.utils.permissions import check_rbac_permission
-    from ee.src.models.shared_models import WorkspaceRole
-    from ee.src.services.selectors import get_user_org_and_workspace_id
+    from ee.src.core.access.permissions.service import check_rbac_permission
+    from ee.src.core.access.permissions.types import RequiredRole
+    from ee.src.services.db_manager_ee import get_user_org_and_workspace_id
     from ee.src.services import db_manager_ee, workspace_manager
-    from ee.src.core.entitlements.controls import get_roles
+    from ee.src.core.access.controls import get_roles
 
-    from ee.src.utils.entitlements import (
+    from ee.src.core.access.entitlements.service import (
         check_entitlements,
         scope_from,
         Gauge,
@@ -41,7 +41,7 @@ async def get_workspace(request: Request):
         HTTPException: If the user does not have permission to perform this action.
     """
 
-    workspaces_db = await db_manager.get_workspaces()
+    workspaces_db = await db_manager.get_user_workspaces(request.state.user_id)
     return [
         Workspace(
             id=str(workspace_db.id),
@@ -64,7 +64,7 @@ async def get_all_workspace_roles(request: Request) -> List[Dict[str, str]]:
     Returns a list of all available workspace roles.
 
     Returns:
-        List[WorkspaceRoleResponse]: A list of WorkspaceRole objects representing the available workspace roles.
+        List[WorkspaceRoleResponse]: A list of DefaultRole objects representing the available workspace roles.
 
     Raises:
         HTTPException: If an error occurs while retrieving the workspace roles.
@@ -117,7 +117,7 @@ async def remove_user_from_workspace(
         has_permission = await check_rbac_permission(
             user_org_workspace_data=user_org_workspace_data,
             project_id=str(project.id),
-            role=WorkspaceRole.ADMIN,
+            role=RequiredRole.ADMIN,
         )
         if not has_permission:
             return JSONResponse(
@@ -163,7 +163,7 @@ async def remove_user_from_workspace(
 
     else:
         delete_user_from_workspace = await db_manager.remove_user_from_workspace(
-            project_id=request.state.project_id,
+            workspace_id=workspace_id,
             email=email,
         )
 

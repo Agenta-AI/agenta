@@ -81,7 +81,7 @@ Annotations allow you to add structured feedback to your LLM application traces.
 2. **Annotation data**: The feedback you want to add (scores, comments, labels, etc.)
 3. **Evaluator slug**: A name for the type of evaluation you're performing
 
-The `evaluator_slug` can be any string; the annotation call accepts unknown slugs. To make the evaluator show up in the UI with aggregated stats, create it explicitly through `POST /api/simple/evaluators/` or from the Agenta UI.
+The `evaluator_slug` can be any string. Agenta creates the evaluator on the first annotation and infers its output schema from your data, so it shows up in the UI with aggregated stats. To control the schema (fixed labels, required fields, or value ranges), create the evaluator first through `POST /api/simple/evaluators/` or from the Agenta UI.
 
 
 ```python

@@ -13,12 +13,12 @@ from ..types.evaluator_catalog_templates_response import EvaluatorCatalogTemplat
 from ..types.evaluator_catalog_types_response import EvaluatorCatalogTypesResponse
 from ..types.evaluator_create import EvaluatorCreate
 from ..types.evaluator_edit import EvaluatorEdit
-from ..types.evaluator_fork import EvaluatorFork
 from ..types.evaluator_query import EvaluatorQuery
 from ..types.evaluator_response import EvaluatorResponse
 from ..types.evaluator_revision_commit import EvaluatorRevisionCommit
 from ..types.evaluator_revision_create import EvaluatorRevisionCreate
 from ..types.evaluator_revision_edit import EvaluatorRevisionEdit
+from ..types.evaluator_revision_input import EvaluatorRevisionInput
 from ..types.evaluator_revision_query import EvaluatorRevisionQuery
 from ..types.evaluator_revision_resolve_response import EvaluatorRevisionResolveResponse
 from ..types.evaluator_revision_response import EvaluatorRevisionResponse
@@ -27,6 +27,7 @@ from ..types.evaluator_revisions_response import EvaluatorRevisionsResponse
 from ..types.evaluator_templates_response import EvaluatorTemplatesResponse
 from ..types.evaluator_variant_create import EvaluatorVariantCreate
 from ..types.evaluator_variant_edit import EvaluatorVariantEdit
+from ..types.evaluator_variant_fork import EvaluatorVariantFork
 from ..types.evaluator_variant_response import EvaluatorVariantResponse
 from ..types.evaluator_variants_response import EvaluatorVariantsResponse
 from ..types.evaluators_response import EvaluatorsResponse
@@ -690,7 +691,7 @@ class EvaluatorsClient:
         _response = self._raw_client.query_evaluator_variants(evaluator_id=evaluator_id, evaluator_ids=evaluator_ids, evaluator_slug=evaluator_slug, evaluator_slugs=evaluator_slugs, evaluator_variant_id=evaluator_variant_id, evaluator_variant_ids=evaluator_variant_ids, evaluator_variant_slug=evaluator_variant_slug, evaluator_variant_slugs=evaluator_variant_slugs, name=name, description=description, flags=flags, tags=tags, meta=meta, include_archived=include_archived, next=next, newest=newest, oldest=oldest, limit=limit, order=order, request_options=request_options)
         return _response.data
     
-    def fork_evaluator_variant(self, *, evaluator: EvaluatorFork, evaluator_variant_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantResponse:
+    def fork_evaluator_variant(self, *, evaluator_variant: EvaluatorVariantFork, evaluator_variant_ref: Reference, evaluator_variant_id: typing.Optional[str] = None, evaluator_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantResponse:
         """
         Fork an evaluator variant into a new variant.
         
@@ -701,10 +702,16 @@ class EvaluatorsClient:
         
         Parameters
         ----------
-        evaluator : EvaluatorFork
-            Fork payload. References the source variant or revision and the target evaluator.
+        evaluator_variant : EvaluatorVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        evaluator_variant_ref : Reference
+            Source variant to fork from.
         
         evaluator_variant_id : typing.Optional[str]
+        
+        evaluator_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -716,16 +723,17 @@ class EvaluatorsClient:
         
         Examples
         --------
-        from agenta import AgentaApi, EvaluatorFork
+        from agenta import AgentaApi, EvaluatorVariantFork, Reference
         
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
         client.evaluators.fork_evaluator_variant(
-            evaluator=EvaluatorFork(),
+            evaluator_variant=EvaluatorVariantFork(),
+            evaluator_variant_ref=Reference(),
         )
         """
-        _response = self._raw_client.fork_evaluator_variant(evaluator=evaluator, evaluator_variant_id=evaluator_variant_id, request_options=request_options)
+        _response = self._raw_client.fork_evaluator_variant(evaluator_variant=evaluator_variant, evaluator_variant_ref=evaluator_variant_ref, evaluator_variant_id=evaluator_variant_id, evaluator_revision_ref=evaluator_revision_ref, request_options=request_options)
         return _response.data
     
     def retrieve_evaluator_revision(self, *, evaluator_ref: typing.Optional[Reference] = OMIT, evaluator_variant_ref: typing.Optional[Reference] = OMIT, evaluator_revision_ref: typing.Optional[Reference] = OMIT, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, key: typing.Optional[str] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
@@ -743,13 +751,13 @@ class EvaluatorsClient:
         Parameters
         ----------
         evaluator_ref : typing.Optional[Reference]
-            Retrieve the latest revision of this evaluator.
+            Evaluator artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of the evaluator's default variant.
         
         evaluator_variant_ref : typing.Optional[Reference]
-            Retrieve the latest revision on this variant.
+            Evaluator variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         evaluator_revision_ref : typing.Optional[Reference]
-            Retrieve this specific revision.
+            Evaluator revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with an `evaluator_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         environment_ref : typing.Optional[Reference]
             Environment to resolve through. Requires `key`.
@@ -845,11 +853,11 @@ class EvaluatorsClient:
     
     def create_evaluator_revision(self, *, evaluator_revision: EvaluatorRevisionCreate, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
-        Create a new revision on an evaluator variant.
+        Create and commit the initial revision for an evaluator variant.
         
         Prefer `/evaluators/revisions/commit` for the standard commit
-        flow. This endpoint exists for internal create paths that need
-        to insert a revision without the commit semantics.
+        flow. This endpoint commits an initial revision with the `initial`
+        guard, preventing duplicate initial revisions for the same variant.
         
         Parameters
         ----------
@@ -1014,14 +1022,13 @@ class EvaluatorsClient:
         _response = self._raw_client.unarchive_evaluator_revision(evaluator_revision_id, request_options=request_options)
         return _response.data
     
-    def query_evaluator_revisions(self, *, evaluator_revision: typing.Optional[EvaluatorRevisionQuery] = OMIT, evaluator_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, evaluator_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, evaluator_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionsResponse:
+    def query_evaluator_revisions(self, *, evaluator_revision: typing.Optional[EvaluatorRevisionQuery] = OMIT, evaluator_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, evaluator_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, evaluator_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionsResponse:
         """
         Query evaluator revisions with filters, reference scoping, and pagination.
         
         Returns revision payloads. Use `evaluator_refs`,
         `evaluator_variant_refs`, or `evaluator_revision_refs` to scope
-        the query. Pass `resolve=true` to expand embedded references on
-        each revision's `data`.
+        the query.
         
         Parameters
         ----------
@@ -1043,9 +1050,6 @@ class EvaluatorsClient:
         windowing : typing.Optional[Windowing]
             Cursor-based pagination controls.
         
-        resolve : typing.Optional[bool]
-            When true, resolve embedded references on each returned revision's `data`.
-        
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
         
@@ -1063,10 +1067,10 @@ class EvaluatorsClient:
         )
         client.evaluators.query_evaluator_revisions()
         """
-        _response = self._raw_client.query_evaluator_revisions(evaluator_revision=evaluator_revision, evaluator_refs=evaluator_refs, evaluator_variant_refs=evaluator_variant_refs, evaluator_revision_refs=evaluator_revision_refs, include_archived=include_archived, windowing=windowing, resolve=resolve, request_options=request_options)
+        _response = self._raw_client.query_evaluator_revisions(evaluator_revision=evaluator_revision, evaluator_refs=evaluator_refs, evaluator_variant_refs=evaluator_variant_refs, evaluator_revision_refs=evaluator_revision_refs, include_archived=include_archived, windowing=windowing, request_options=request_options)
         return _response.data
     
-    def commit_evaluator_revision(self, *, evaluator_revision_commit: EvaluatorRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
+    def commit_evaluator_revision(self, *, evaluator_revision: EvaluatorRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
         Commit a new revision on an evaluator variant.
         
@@ -1076,7 +1080,7 @@ class EvaluatorsClient:
         
         Parameters
         ----------
-        evaluator_revision_commit : EvaluatorRevisionCommit
+        evaluator_revision : EvaluatorRevisionCommit
             Commit payload carrying the `evaluator_variant_id`, optional commit `message`, and the revision `data`.
         
         request_options : typing.Optional[RequestOptions]
@@ -1095,13 +1099,13 @@ class EvaluatorsClient:
             api_key="YOUR_API_KEY",
         )
         client.evaluators.commit_evaluator_revision(
-            evaluator_revision_commit=EvaluatorRevisionCommit(),
+            evaluator_revision=EvaluatorRevisionCommit(),
         )
         """
-        _response = self._raw_client.commit_evaluator_revision(evaluator_revision_commit=evaluator_revision_commit, request_options=request_options)
+        _response = self._raw_client.commit_evaluator_revision(evaluator_revision=evaluator_revision, request_options=request_options)
         return _response.data
     
-    def log_evaluator_revisions(self, *, evaluator: EvaluatorRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionsResponse:
+    def log_evaluator_revisions(self, *, evaluator_revisions: EvaluatorRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionsResponse:
         """
         List the revision log of an evaluator variant.
         
@@ -1111,7 +1115,7 @@ class EvaluatorsClient:
         
         Parameters
         ----------
-        evaluator : EvaluatorRevisionsLog
+        evaluator_revisions : EvaluatorRevisionsLog
             Log request scoped to an evaluator / variant / revision by id, slug, or version.
         
         request_options : typing.Optional[RequestOptions]
@@ -1130,13 +1134,13 @@ class EvaluatorsClient:
             api_key="YOUR_API_KEY",
         )
         client.evaluators.log_evaluator_revisions(
-            evaluator=EvaluatorRevisionsLog(),
+            evaluator_revisions=EvaluatorRevisionsLog(),
         )
         """
-        _response = self._raw_client.log_evaluator_revisions(evaluator=evaluator, request_options=request_options)
+        _response = self._raw_client.log_evaluator_revisions(evaluator_revisions=evaluator_revisions, request_options=request_options)
         return _response.data
     
-    def resolve_evaluator_revision(self, *, evaluator_ref: typing.Optional[Reference] = OMIT, evaluator_variant_ref: typing.Optional[Reference] = OMIT, evaluator_revision_ref: typing.Optional[Reference] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResolveResponse:
+    def resolve_evaluator_revision(self, *, evaluator_ref: typing.Optional[Reference] = OMIT, evaluator_variant_ref: typing.Optional[Reference] = OMIT, evaluator_revision_ref: typing.Optional[Reference] = OMIT, evaluator_revision: typing.Optional[EvaluatorRevisionInput] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResolveResponse:
         """
         Resolve embedded references on an evaluator revision's `data`.
         
@@ -1155,6 +1159,9 @@ class EvaluatorsClient:
         
         evaluator_revision_ref : typing.Optional[Reference]
             Resolve this specific revision.
+        
+        evaluator_revision : typing.Optional[EvaluatorRevisionInput]
+            Resolve the references embedded in this revision payload directly, without fetching it first. Only `data` is used; id and metadata are ignored.
         
         max_depth : typing.Optional[int]
             Maximum recursion depth when following embedded references. Defaults to 10.
@@ -1182,7 +1189,7 @@ class EvaluatorsClient:
         )
         client.evaluators.resolve_evaluator_revision()
         """
-        _response = self._raw_client.resolve_evaluator_revision(evaluator_ref=evaluator_ref, evaluator_variant_ref=evaluator_variant_ref, evaluator_revision_ref=evaluator_revision_ref, max_depth=max_depth, max_embeds=max_embeds, error_policy=error_policy, request_options=request_options)
+        _response = self._raw_client.resolve_evaluator_revision(evaluator_ref=evaluator_ref, evaluator_variant_ref=evaluator_variant_ref, evaluator_revision_ref=evaluator_revision_ref, evaluator_revision=evaluator_revision, max_depth=max_depth, max_embeds=max_embeds, error_policy=error_policy, request_options=request_options)
         return _response.data
     
     def create_simple_evaluator(self, *, evaluator: SimpleEvaluatorCreate, evaluator_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> SimpleEvaluatorResponse:
@@ -2216,7 +2223,7 @@ class AsyncEvaluatorsClient:
         _response = await self._raw_client.query_evaluator_variants(evaluator_id=evaluator_id, evaluator_ids=evaluator_ids, evaluator_slug=evaluator_slug, evaluator_slugs=evaluator_slugs, evaluator_variant_id=evaluator_variant_id, evaluator_variant_ids=evaluator_variant_ids, evaluator_variant_slug=evaluator_variant_slug, evaluator_variant_slugs=evaluator_variant_slugs, name=name, description=description, flags=flags, tags=tags, meta=meta, include_archived=include_archived, next=next, newest=newest, oldest=oldest, limit=limit, order=order, request_options=request_options)
         return _response.data
     
-    async def fork_evaluator_variant(self, *, evaluator: EvaluatorFork, evaluator_variant_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantResponse:
+    async def fork_evaluator_variant(self, *, evaluator_variant: EvaluatorVariantFork, evaluator_variant_ref: Reference, evaluator_variant_id: typing.Optional[str] = None, evaluator_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorVariantResponse:
         """
         Fork an evaluator variant into a new variant.
         
@@ -2227,10 +2234,16 @@ class AsyncEvaluatorsClient:
         
         Parameters
         ----------
-        evaluator : EvaluatorFork
-            Fork payload. References the source variant or revision and the target evaluator.
+        evaluator_variant : EvaluatorVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        evaluator_variant_ref : Reference
+            Source variant to fork from.
         
         evaluator_variant_id : typing.Optional[str]
+        
+        evaluator_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2244,7 +2257,7 @@ class AsyncEvaluatorsClient:
         --------
         import asyncio
         
-        from agenta import AsyncAgentaApi, EvaluatorFork
+        from agenta import AsyncAgentaApi, EvaluatorVariantFork, Reference
         
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
@@ -2253,13 +2266,14 @@ class AsyncEvaluatorsClient:
         
         async def main() -> None:
             await client.evaluators.fork_evaluator_variant(
-                evaluator=EvaluatorFork(),
+                evaluator_variant=EvaluatorVariantFork(),
+                evaluator_variant_ref=Reference(),
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.fork_evaluator_variant(evaluator=evaluator, evaluator_variant_id=evaluator_variant_id, request_options=request_options)
+        _response = await self._raw_client.fork_evaluator_variant(evaluator_variant=evaluator_variant, evaluator_variant_ref=evaluator_variant_ref, evaluator_variant_id=evaluator_variant_id, evaluator_revision_ref=evaluator_revision_ref, request_options=request_options)
         return _response.data
     
     async def retrieve_evaluator_revision(self, *, evaluator_ref: typing.Optional[Reference] = OMIT, evaluator_variant_ref: typing.Optional[Reference] = OMIT, evaluator_revision_ref: typing.Optional[Reference] = OMIT, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, key: typing.Optional[str] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
@@ -2277,13 +2291,13 @@ class AsyncEvaluatorsClient:
         Parameters
         ----------
         evaluator_ref : typing.Optional[Reference]
-            Retrieve the latest revision of this evaluator.
+            Evaluator artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of the evaluator's default variant.
         
         evaluator_variant_ref : typing.Optional[Reference]
-            Retrieve the latest revision on this variant.
+            Evaluator variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         evaluator_revision_ref : typing.Optional[Reference]
-            Retrieve this specific revision.
+            Evaluator revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with an `evaluator_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         environment_ref : typing.Optional[Reference]
             Environment to resolve through. Requires `key`.
@@ -2395,11 +2409,11 @@ class AsyncEvaluatorsClient:
     
     async def create_evaluator_revision(self, *, evaluator_revision: EvaluatorRevisionCreate, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
-        Create a new revision on an evaluator variant.
+        Create and commit the initial revision for an evaluator variant.
         
         Prefer `/evaluators/revisions/commit` for the standard commit
-        flow. This endpoint exists for internal create paths that need
-        to insert a revision without the commit semantics.
+        flow. This endpoint commits an initial revision with the `initial`
+        guard, preventing duplicate initial revisions for the same variant.
         
         Parameters
         ----------
@@ -2604,14 +2618,13 @@ class AsyncEvaluatorsClient:
         _response = await self._raw_client.unarchive_evaluator_revision(evaluator_revision_id, request_options=request_options)
         return _response.data
     
-    async def query_evaluator_revisions(self, *, evaluator_revision: typing.Optional[EvaluatorRevisionQuery] = OMIT, evaluator_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, evaluator_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, evaluator_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionsResponse:
+    async def query_evaluator_revisions(self, *, evaluator_revision: typing.Optional[EvaluatorRevisionQuery] = OMIT, evaluator_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, evaluator_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, evaluator_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionsResponse:
         """
         Query evaluator revisions with filters, reference scoping, and pagination.
         
         Returns revision payloads. Use `evaluator_refs`,
         `evaluator_variant_refs`, or `evaluator_revision_refs` to scope
-        the query. Pass `resolve=true` to expand embedded references on
-        each revision's `data`.
+        the query.
         
         Parameters
         ----------
@@ -2632,9 +2645,6 @@ class AsyncEvaluatorsClient:
         
         windowing : typing.Optional[Windowing]
             Cursor-based pagination controls.
-        
-        resolve : typing.Optional[bool]
-            When true, resolve embedded references on each returned revision's `data`.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2661,10 +2671,10 @@ class AsyncEvaluatorsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.query_evaluator_revisions(evaluator_revision=evaluator_revision, evaluator_refs=evaluator_refs, evaluator_variant_refs=evaluator_variant_refs, evaluator_revision_refs=evaluator_revision_refs, include_archived=include_archived, windowing=windowing, resolve=resolve, request_options=request_options)
+        _response = await self._raw_client.query_evaluator_revisions(evaluator_revision=evaluator_revision, evaluator_refs=evaluator_refs, evaluator_variant_refs=evaluator_variant_refs, evaluator_revision_refs=evaluator_revision_refs, include_archived=include_archived, windowing=windowing, request_options=request_options)
         return _response.data
     
-    async def commit_evaluator_revision(self, *, evaluator_revision_commit: EvaluatorRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
+    async def commit_evaluator_revision(self, *, evaluator_revision: EvaluatorRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResponse:
         """
         Commit a new revision on an evaluator variant.
         
@@ -2674,7 +2684,7 @@ class AsyncEvaluatorsClient:
         
         Parameters
         ----------
-        evaluator_revision_commit : EvaluatorRevisionCommit
+        evaluator_revision : EvaluatorRevisionCommit
             Commit payload carrying the `evaluator_variant_id`, optional commit `message`, and the revision `data`.
         
         request_options : typing.Optional[RequestOptions]
@@ -2698,16 +2708,16 @@ class AsyncEvaluatorsClient:
         
         async def main() -> None:
             await client.evaluators.commit_evaluator_revision(
-                evaluator_revision_commit=EvaluatorRevisionCommit(),
+                evaluator_revision=EvaluatorRevisionCommit(),
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.commit_evaluator_revision(evaluator_revision_commit=evaluator_revision_commit, request_options=request_options)
+        _response = await self._raw_client.commit_evaluator_revision(evaluator_revision=evaluator_revision, request_options=request_options)
         return _response.data
     
-    async def log_evaluator_revisions(self, *, evaluator: EvaluatorRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionsResponse:
+    async def log_evaluator_revisions(self, *, evaluator_revisions: EvaluatorRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionsResponse:
         """
         List the revision log of an evaluator variant.
         
@@ -2717,7 +2727,7 @@ class AsyncEvaluatorsClient:
         
         Parameters
         ----------
-        evaluator : EvaluatorRevisionsLog
+        evaluator_revisions : EvaluatorRevisionsLog
             Log request scoped to an evaluator / variant / revision by id, slug, or version.
         
         request_options : typing.Optional[RequestOptions]
@@ -2741,16 +2751,16 @@ class AsyncEvaluatorsClient:
         
         async def main() -> None:
             await client.evaluators.log_evaluator_revisions(
-                evaluator=EvaluatorRevisionsLog(),
+                evaluator_revisions=EvaluatorRevisionsLog(),
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.log_evaluator_revisions(evaluator=evaluator, request_options=request_options)
+        _response = await self._raw_client.log_evaluator_revisions(evaluator_revisions=evaluator_revisions, request_options=request_options)
         return _response.data
     
-    async def resolve_evaluator_revision(self, *, evaluator_ref: typing.Optional[Reference] = OMIT, evaluator_variant_ref: typing.Optional[Reference] = OMIT, evaluator_revision_ref: typing.Optional[Reference] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResolveResponse:
+    async def resolve_evaluator_revision(self, *, evaluator_ref: typing.Optional[Reference] = OMIT, evaluator_variant_ref: typing.Optional[Reference] = OMIT, evaluator_revision_ref: typing.Optional[Reference] = OMIT, evaluator_revision: typing.Optional[EvaluatorRevisionInput] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> EvaluatorRevisionResolveResponse:
         """
         Resolve embedded references on an evaluator revision's `data`.
         
@@ -2769,6 +2779,9 @@ class AsyncEvaluatorsClient:
         
         evaluator_revision_ref : typing.Optional[Reference]
             Resolve this specific revision.
+        
+        evaluator_revision : typing.Optional[EvaluatorRevisionInput]
+            Resolve the references embedded in this revision payload directly, without fetching it first. Only `data` is used; id and metadata are ignored.
         
         max_depth : typing.Optional[int]
             Maximum recursion depth when following embedded references. Defaults to 10.
@@ -2804,7 +2817,7 @@ class AsyncEvaluatorsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.resolve_evaluator_revision(evaluator_ref=evaluator_ref, evaluator_variant_ref=evaluator_variant_ref, evaluator_revision_ref=evaluator_revision_ref, max_depth=max_depth, max_embeds=max_embeds, error_policy=error_policy, request_options=request_options)
+        _response = await self._raw_client.resolve_evaluator_revision(evaluator_ref=evaluator_ref, evaluator_variant_ref=evaluator_variant_ref, evaluator_revision_ref=evaluator_revision_ref, evaluator_revision=evaluator_revision, max_depth=max_depth, max_embeds=max_embeds, error_policy=error_policy, request_options=request_options)
         return _response.data
     
     async def create_simple_evaluator(self, *, evaluator: SimpleEvaluatorCreate, evaluator_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> SimpleEvaluatorResponse:

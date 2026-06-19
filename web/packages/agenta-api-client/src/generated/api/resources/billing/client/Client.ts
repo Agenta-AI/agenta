@@ -534,8 +534,8 @@ export class BillingClient {
     /**
      * Return the effective pricing map: plan slug -> normalized pricing.
      *
-     * Mirrors `AGENTA_BILLING_PRICING` after validation/normalization
-     * (see `ee.src.core.subscriptions.settings._normalize_pricing_entry`).
+     * Includes backend-resolved free/trial fallback markers so clients do
+     * not need to duplicate billing default rules.
      *
      * @param {BillingClient.RequestOptions} requestOptions - Request-specific configuration.
      *

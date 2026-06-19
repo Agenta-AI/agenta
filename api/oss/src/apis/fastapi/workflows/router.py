@@ -7,10 +7,12 @@ from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import invalidate_cache
+from oss.src.core.events.utils import publish_revision_event
 
 from oss.src.core.shared.dtos import (
     Reference,
 )
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.core.workflows.service import (
     WorkflowsService,
@@ -19,6 +21,7 @@ from oss.src.core.workflows.service import (
 from oss.src.core.environments.service import (
     EnvironmentsService,
 )
+from oss.src.core.workflows.dtos import WorkflowRevisionCommit
 from oss.src.core.environments.dtos import (
     EnvironmentRevisionCommit,
     EnvironmentRevisionDelta,
@@ -29,7 +32,7 @@ from oss.src.apis.fastapi.workflows.models import (
     WorkflowCreateRequest,
     WorkflowEditRequest,
     WorkflowQueryRequest,
-    WorkflowForkRequest,
+    WorkflowVariantForkRequest,
     WorkflowResponse,
     WorkflowsResponse,
     #
@@ -94,8 +97,11 @@ from oss.src.resources.workflows.catalog import (
 
 
 if is_ee():
-    from ee.src.models.shared_models import Permission
-    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
+    from ee.src.core.access.permissions.types import Permission
+    from ee.src.core.access.permissions.service import (
+        check_action_access,
+        FORBIDDEN_EXCEPTION,
+    )
 
 
 log = get_module_logger(__name__)
@@ -1150,7 +1156,7 @@ class WorkflowsRouter:
         self,
         request: Request,
         *,
-        workflow_fork_request: WorkflowForkRequest,
+        workflow_fork_request: WorkflowVariantForkRequest,
     ) -> WorkflowVariantResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1164,7 +1170,9 @@ class WorkflowsRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            workflow_fork=workflow_fork_request.workflow,
+            workflow_variant_fork=workflow_fork_request.workflow_variant,
+            workflow_variant_ref=workflow_fork_request.workflow_variant_ref,
+            workflow_revision_ref=workflow_fork_request.workflow_revision_ref,
         )
 
         # Invalidate legacy caches so the registry page reflects the forked variant
@@ -1180,6 +1188,7 @@ class WorkflowsRouter:
     # WORKFLOW REVISIONS -------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def create_workflow_revision(
         self,
         request: Request,
@@ -1194,11 +1203,19 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        workflow_revision = await self.workflows_service.create_workflow_revision(
+        workflow_revision = await self.workflows_service.commit_workflow_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            workflow_revision_create=workflow_revision_create_request.workflow_revision,
+            workflow_revision_commit=WorkflowRevisionCommit(
+                **workflow_revision_create_request.workflow_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
+            #
+            initial=True,
         )
 
         # Invalidate legacy caches so the registry page reflects the new revision
@@ -1231,6 +1248,14 @@ class WorkflowsRouter:
             project_id=UUID(request.state.project_id),
             #
             workflow_revision_ref=Reference(id=workflow_revision_id),
+        )
+
+        await publish_revision_event(
+            request=request,
+            domain="workflow",
+            action="fetch",
+            revision=workflow_revision,
+            count=1 if workflow_revision else 0,
         )
 
         workflow_revision_response = WorkflowRevisionResponse(
@@ -1396,6 +1421,14 @@ class WorkflowsRouter:
             order="descending",
         )
 
+        await publish_revision_event(
+            request=request,
+            domain="workflow",
+            action="query",
+            revisions=workflow_revisions,
+            count=len(workflow_revisions),
+        )
+
         workflow_revisions_response = WorkflowRevisionsResponse(
             count=len(workflow_revisions),
             workflow_revisions=workflow_revisions,
@@ -1462,7 +1495,15 @@ class WorkflowsRouter:
         workflow_revisions = await self.workflows_service.log_workflow_revisions(
             project_id=UUID(request.state.project_id),
             #
-            workflow_revisions_log=workflow_revisions_log_request.workflow,
+            workflow_revisions_log=workflow_revisions_log_request.workflow_revisions,
+        )
+
+        await publish_revision_event(
+            request=request,
+            domain="workflow",
+            action="log",
+            revisions=workflow_revisions,
+            count=len(workflow_revisions),
         )
 
         workflow_revisions_response = WorkflowRevisionsResponse(
@@ -1709,6 +1750,7 @@ class WorkflowsRouter:
         (
             workflow_revision,
             resolution_info,
+            retrieval_info,
         ) = await self.workflows_service.retrieve_workflow_revision(
             project_id=UUID(request.state.project_id),
             #
@@ -1730,10 +1772,19 @@ class WorkflowsRouter:
                 detail="Environment revision does not contain workflow references for the requested key.",
             )
 
+        await publish_revision_event(
+            request=request,
+            domain="workflow",
+            action="retrieve",
+            revision=workflow_revision,
+            count=1 if workflow_revision else 0,
+        )
+
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,
             workflow_revision=workflow_revision,
             resolution_info=resolution_info,
+            retrieval_info=retrieval_info,
         )
 
         return workflow_revision_response
@@ -1796,6 +1847,10 @@ class WorkflowsRouter:
             count=1 if workflow_revision else 0,
             workflow_revision=workflow_revision,
             resolution_info=resolution_info,
+            retrieval_info=build_retrieval_info(
+                revision=workflow_revision,
+                entity_type="workflow",
+            ),
         )
 
         return workflow_revision_resolve_response

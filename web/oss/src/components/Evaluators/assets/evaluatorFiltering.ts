@@ -6,7 +6,11 @@
  * and legacy EvaluatorPreview/Evaluator types (with `tags`).
  */
 
-import type {EvaluatorCatalogTemplate, Workflow} from "@agenta/entities/workflow"
+import {
+    getWorkflowTypeColor,
+    type EvaluatorCatalogTemplate,
+    type Workflow,
+} from "@agenta/entities/workflow"
 
 import {capitalize} from "@/oss/lib/helpers/utils"
 import {isDemo} from "@/oss/lib/helpers/utils"
@@ -52,23 +56,6 @@ export type EnabledEvaluatorKey = (typeof ENABLED_EVALUATORS)[number]
  * Default tab key for the "All templates" filter.
  */
 export const DEFAULT_TAB_KEY = "all"
-
-/**
- * Tailwind CSS class mappings for evaluator category badges.
- * Each category has a distinct color scheme.
- */
-export const TAG_CLASSNAME_MAP: Record<string, string> = {
-    rag: "bg-sky-100 text-sky-700",
-    classifiers: "bg-orange-100 text-orange-700",
-    similarity: "bg-blue-100 text-blue-700",
-    ai_llm: "bg-violet-100 text-violet-700",
-    functional: "bg-amber-100 text-amber-700",
-}
-
-/**
- * Default category styling when no specific mapping exists.
- */
-export const DEFAULT_TAG_CLASSNAME = "bg-slate-100 text-slate-700"
 
 /**
  * Returns the base evaluator category options for tab filtering.
@@ -128,13 +115,12 @@ export const getEvaluatorTagValues = (item: FilterableEvaluator): string[] => {
 }
 
 /**
- * Gets the CSS class name for an evaluator's primary category badge.
+ * Gets the Ant preset color name for an evaluator template badge.
  */
-export const getEvaluatorTagClassName = (item: FilterableEvaluator): string => {
+export const getEvaluatorTagColor = (item: FilterableEvaluator): string | undefined => {
+    const itemAny = item as {key?: string | null; data?: {uri?: string | null} | null}
     const primaryTag = getEvaluatorTagValues(item)[0]
-    return primaryTag
-        ? TAG_CLASSNAME_MAP[primaryTag] || DEFAULT_TAG_CLASSNAME
-        : DEFAULT_TAG_CLASSNAME
+    return getWorkflowTypeColor(itemAny.key ?? itemAny.data?.uri ?? primaryTag)?.name
 }
 
 /**

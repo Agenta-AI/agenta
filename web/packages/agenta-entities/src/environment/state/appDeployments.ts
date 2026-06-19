@@ -10,6 +10,7 @@ import {atom, getDefaultStore} from "jotai"
 import {selectAtom} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
+import type {Workflow} from "../../workflow/core"
 import {workflowMolecule} from "../../workflow/state/molecule"
 import {workflowVariantsListDataAtomFamily} from "../../workflow/state/store"
 import type {Environment, Reference} from "../core"
@@ -26,6 +27,8 @@ import {environmentsListQueryAtomFamily} from "./store"
  * This is the shape all deployment UI components consume.
  */
 export interface AppEnvironmentDeployment {
+    /** Environment slug (e.g., "production") */
+    slug: string
     /** Environment name (e.g., "production") */
     name: string
     /** Variant display name (app prefix stripped) */
@@ -74,7 +77,38 @@ function extractAppDeployment(env: Environment, appId: string): AppDeploymentInf
     return null
 }
 
-function toAppEnvironmentDeployment(env: Environment, appId: string): AppEnvironmentDeployment {
+/**
+ * Resolve the "last modified" date shown for a deployment.
+ *
+ * Prefers the deployed revision's own date, then falls back to the environment record's
+ * timestamp only when no revision date is available.
+ *
+ * On the revision side, `created_at` is preferred over `updated_at`: a revision is an
+ * immutable commit whose `created_at` is the commit/deploy moment, and the backend leaves
+ * `updated_at` NULL on commit. On the fallback side, the environment's
+ * `updated_at`/`created_at` track the environment artifact and do not change when a new
+ * revision is deployed, so they are a misleading "last modified" and used only as a last
+ * resort.
+ */
+export function resolveDeploymentLastModified(
+    revision: Pick<Workflow, "created_at" | "updated_at"> | null | undefined,
+    env: Pick<Environment, "updated_at" | "created_at">,
+): string | null {
+    return revision?.created_at ?? revision?.updated_at ?? env.updated_at ?? env.created_at ?? null
+}
+
+/**
+ * Build the flat deployment shape for one environment.
+ *
+ * `revisionData` is the deployed revision's workflow entity, resolved reactively by the
+ * caller (see {@link appEnvironmentsQueryAtomFamily}). It is the raw revision query data,
+ * used to backfill incomplete reference data and to source the deployment's date.
+ */
+function toAppEnvironmentDeployment(
+    env: Environment,
+    appId: string,
+    revisionData: Workflow | null,
+): AppEnvironmentDeployment {
     const dep = extractAppDeployment(env, appId)
     const appSlug = dep?.application?.slug
 
@@ -82,35 +116,32 @@ function toAppEnvironmentDeployment(env: Environment, appId: string): AppEnviron
     let revision = dep?.applicationRevision?.version ?? null
 
     // Fallback: resolve from workflow entity stores when reference data is incomplete
-    // (handles deployments made before slug/version were populated in references)
-    if ((!variantName || !revision) && dep?.applicationRevision?.id) {
-        const revisionId = dep.applicationRevision.id
-        const store = getDefaultStore()
-        const workflowData = workflowMolecule.get.data(revisionId)
-        if (workflowData) {
-            if (!revision && workflowData.version != null) {
-                revision = String(workflowData.version)
-            }
-            if (!variantName) {
-                const variantId = dep?.applicationVariant?.id
-                const workflowId = workflowData.workflow_id || appId
-                const variants = workflowId
-                    ? store.get(workflowVariantsListDataAtomFamily(workflowId))
-                    : []
-                const variantEntity = variants.find((v) => v.id === variantId)
-                variantName =
-                    variantEntity?.name || variantEntity?.slug || workflowData.slug || null
-            }
+    // (handles deployments made before slug/version were populated in references).
+    if ((!variantName || !revision) && revisionData) {
+        if (!revision && revisionData.version != null) {
+            revision = String(revisionData.version)
+        }
+        if (!variantName) {
+            const variantId = dep?.applicationVariant?.id
+            const workflowId = revisionData.workflow_id || appId
+            const variants = workflowId
+                ? getDefaultStore().get(workflowVariantsListDataAtomFamily(workflowId))
+                : []
+            const variantEntity = variants.find((v) => v.id === variantId)
+            variantName = variantEntity?.name || variantEntity?.slug || revisionData.slug || null
         }
     }
 
     return {
+        slug: env.slug ?? "",
         name: env.name ?? env.slug ?? "",
         deployedVariantName: variantName,
         deployedVariantId: dep?.applicationVariant?.id ?? null,
         deployedRevisionId: dep?.applicationRevision?.id ?? null,
         revision,
-        updatedAt: env.updated_at ?? env.created_at ?? null,
+        // "Last modified" reflects the deployed revision's commit date, not the environment
+        // record's own timestamp (see resolveDeploymentLastModified for the rationale).
+        updatedAt: resolveDeploymentLastModified(revisionData, env),
     }
 }
 
@@ -147,7 +178,17 @@ export const appEnvironmentsQueryAtomFamily = atomFamily((appId: string) =>
 
         const environments = listQuery.data?.environments ?? []
         const data = appId
-            ? environments.map((env) => toAppEnvironmentDeployment(env, appId))
+            ? environments.map((env) => {
+                  // Reactively resolve the deployed revision's entity so the deployment's
+                  // "last modified" date (and any reference backfill) re-derives when it
+                  // loads, instead of reading a stale imperative snapshot.
+                  const revisionId =
+                      extractAppDeployment(env, appId)?.applicationRevision?.id ?? null
+                  const revisionData = revisionId
+                      ? (get(workflowMolecule.atoms.query(revisionId)).data ?? null)
+                      : null
+                  return toAppEnvironmentDeployment(env, appId, revisionData)
+              })
             : ([] as AppEnvironmentDeployment[])
 
         return {

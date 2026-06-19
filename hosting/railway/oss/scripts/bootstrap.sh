@@ -7,6 +7,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+install_error_trap
+
 PROJECT_NAME="${RAILWAY_PROJECT_NAME:-agenta-oss-railway}"
 ENV_NAME="${RAILWAY_ENVIRONMENT_NAME:-staging}"
 SOURCE_COMPOSE_FILE="${RAILWAY_SOURCE_COMPOSE_FILE:-$(railway_source_compose_file "$ROOT_DIR")}"
@@ -37,9 +39,19 @@ require_railway_auth() {
 
     # Verify the token actually works. A revoked or invalid token will cause
     # every subsequent call to fail with a confusing "Unauthorized" error.
+    # Distinguish a genuine auth failure from rate-limiting / transient network
+    # errors (where the token is fine) so the log points at the real cause.
     local whoami_output
     whoami_output="$(railway_call whoami 2>&1)" || {
-        printf "Railway authentication failed. The token appears to be invalid or revoked.\n" >&2
+        if printf "%s" "$whoami_output" | grep -qiE "rate.?limit"; then
+            printf "Railway auth check could not complete: the API is rate-limiting requests (retries exhausted).\n" >&2
+            printf "This is throttling, not a bad token. Re-run once the rate-limit window clears.\n" >&2
+        elif printf "%s" "$whoami_output" | grep -qiE "timed out|error sending request|failed to fetch|connection (reset|refused|closed)|temporarily unavailable|service unavailable|bad gateway|gateway time-?out"; then
+            printf "Railway auth check could not complete: transient network error reaching the Railway API.\n" >&2
+            printf "The token is likely fine; this is usually temporary. Re-run.\n" >&2
+        else
+            printf "Railway authentication failed. The token appears to be invalid or revoked.\n" >&2
+        fi
         printf "Output: %s\n" "$whoami_output" >&2
         exit 1
     }
@@ -60,9 +72,24 @@ ensure_project_linked() {
             | head -n 1 || true)"
     fi
 
-    if [ -n "$existing_project" ]; then
-        railway_call link --project "$PROJECT_NAME" --json >/dev/null
-    else
+    if [ -z "$existing_project" ]; then
+        railway_call init --name "$PROJECT_NAME" --json >/dev/null
+        return
+    fi
+
+    # `project list` and `link --project` can disagree. `project list`
+    # enumerates projects across every workspace the token can see and can lag
+    # behind a just-deleted project, while `link --project` only resolves
+    # within the single workspace it selects. So a project the list still
+    # reports as existing may not actually be linkable — most visibly right
+    # after a preview is destroyed (PR converted to draft) and then rebuilt (PR
+    # marked ready for review). Treat a link failure as "needs to be
+    # (re)created" and fall back to init, instead of aborting the whole setup.
+    local link_status=0
+    railway_call link --project "$PROJECT_NAME" --json >/dev/null || link_status=$?
+    if [ "$link_status" -ne 0 ]; then
+        printf "railway link could not resolve existing project '%s'; recreating it.\n" \
+            "$PROJECT_NAME" >&2
         railway_call init --name "$PROJECT_NAME" --json >/dev/null
     fi
 }

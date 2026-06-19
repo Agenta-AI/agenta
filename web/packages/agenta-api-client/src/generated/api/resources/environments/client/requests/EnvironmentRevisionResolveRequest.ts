@@ -10,6 +10,8 @@ export interface EnvironmentRevisionResolveRequest {
     environment_ref?: AgentaApi.Reference | null;
     environment_variant_ref?: AgentaApi.Reference | null;
     environment_revision_ref?: AgentaApi.Reference | null;
+    /** Resolve the references embedded in this revision payload directly, without fetching it first. Only `data` is used; id and metadata are ignored. */
+    environment_revision?: AgentaApi.EnvironmentRevisionInput | null;
     max_depth?: number | null;
     max_embeds?: number | null;
     error_policy?: AgentaApi.ErrorPolicy | null;

@@ -6,6 +6,7 @@ import re
 import socket
 import ipaddress
 import traceback
+from inspect import isawaitable
 from difflib import SequenceMatcher
 from json import dumps, loads
 from typing import Any, Dict, List, Optional, Union, Tuple
@@ -60,6 +61,7 @@ from agenta.sdk.engines.running.errors import (
     WebhookServerV0Error,
     MatchV0Error,
     CodeV0Error,
+    MockV0Error,
     ConfigV0Error,
     FeedbackV0Error,
 )
@@ -200,7 +202,7 @@ def _format_with_template(
     structured renderers, which raise on Jinja failures.
     """
 
-    if format not in ("curly", "fstring", "jinja2"):
+    if format not in ("mustache", "curly", "fstring", "jinja2"):
         return content
 
     return render_template(template=content, mode=format, context=kwargs)
@@ -330,8 +332,7 @@ def auto_exact_match_v0(
     Returns:
         Evaluation result with success flag (True for match, False for mismatch)
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
     correct_answer_key = str(parameters.get("correct_answer_key", "correct_answer"))
 
@@ -372,8 +373,7 @@ def auto_regex_test_v0(
     Returns:
         Evaluation result with success flag
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
     if "regex_pattern" not in parameters:
         raise MissingConfigurationParameterV0Error(path="regex_pattern")
@@ -430,18 +430,14 @@ def field_match_test_v0(
     Returns:
         Evaluation result with success flag
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
     if "json_field" not in parameters:
         raise MissingConfigurationParameterV0Error(path="json_field")
 
     json_field = str(parameters["json_field"])
 
-    if "correct_answer_key" not in parameters:
-        raise MissingConfigurationParameterV0Error(path="correct_answer_key")
-
-    correct_answer_key = str(parameters["correct_answer_key"])
+    correct_answer_key = str(parameters.get("correct_answer_key", "correct_answer"))
 
     if inputs is None or not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)
@@ -526,8 +522,7 @@ def json_multi_field_match_v0(
         Dict with per-field scores and aggregate_score, e.g.:
         {"name": 1.0, "email": 0.0, "aggregate_score": 0.5}
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
     if "fields" not in parameters:
         raise MissingConfigurationParameterV0Error(path="fields")
@@ -541,10 +536,7 @@ def json_multi_field_match_v0(
             got=fields,
         )
 
-    if "correct_answer_key" not in parameters:
-        raise MissingConfigurationParameterV0Error(path="correct_answer_key")
-
-    correct_answer_key = str(parameters["correct_answer_key"])
+    correct_answer_key = str(parameters.get("correct_answer_key", "correct_answer"))
 
     if inputs is None or not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)
@@ -637,8 +629,7 @@ async def auto_webhook_test_v0(
     Returns:
         Evaluation result with score from the webhook
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
     if "webhook_url" not in parameters:
         raise MissingConfigurationParameterV0Error(path="webhook_url")
@@ -743,21 +734,22 @@ async def auto_custom_code_run_v0(
     """
     Custom code execution evaluator for running arbitrary code to evaluate outputs.
 
-    Supports two interface versions controlled by parameters["version"]:
-    - v1 (default/"1"): evaluate(app_params, inputs, output, correct_answer)
-    - v2 ("2"):         evaluate(inputs, outputs, trace)
+    Supports three interface versions controlled by parameters["version"]:
+    - v1 (default/"1"): evaluate(app_params, inputs, output, correct_answer) -> float
+    - v2 ("2"):         evaluate(inputs, outputs, trace) -> float
+    - v3 ("3"):         evaluate(inputs, outputs, trace) -> any JSON-serializable
+                        value; dict outputs become multiple metrics downstream
 
     Args:
         inputs: Testcase data / app inputs
         outputs: Output from the workflow execution
         parameters: Configuration for the evaluator with code to execute
-        trace: Full trace data with spans, metrics (v2 only)
+        trace: Full trace data with spans, metrics (v2+ only)
 
     Returns:
         Evaluation result with score from the custom code
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
     if "code" not in parameters:
         raise MissingConfigurationParameterV0Error(path="code")
@@ -799,9 +791,9 @@ async def auto_custom_code_run_v0(
             got=runtime,
         )
 
-    effective_version = declared_version if declared_version in {"1", "2"} else "1"
+    effective_version = declared_version if declared_version in {"1", "2", "3"} else "1"
 
-    def _run_v2() -> Any:
+    def _run_v2(version: str) -> Any:
         try:
             return execute_code_safely(
                 app_params={},
@@ -810,8 +802,8 @@ async def auto_custom_code_run_v0(
                 correct_answer=None,
                 code=code,
                 runtime=runtime,
-                templates=EVALUATOR_TEMPLATES.get("v1", {}),
-                version="2",
+                templates=EVALUATOR_TEMPLATES.get("v2" if version == "3" else "v1", {}),
+                version=version,
                 trace=trace,
             )
         except ErrorStatus:
@@ -823,10 +815,7 @@ async def auto_custom_code_run_v0(
             ) from e
 
     def _run_v1() -> Any:
-        if "correct_answer_key" not in parameters:
-            raise MissingConfigurationParameterV0Error(path="correct_answer_key")
-
-        correct_answer_key = str(parameters["correct_answer_key"])
+        correct_answer_key = str(parameters.get("correct_answer_key", "correct_answer"))
 
         if inputs is None or not isinstance(inputs, dict):
             raise InvalidInputsV0Error(expected="dict", got=inputs)
@@ -856,15 +845,19 @@ async def auto_custom_code_run_v0(
                 stacktrace=traceback.format_exc(),
             ) from e
 
-    _outputs = _run_v2() if effective_version == "2" else _run_v1()
+    _outputs = (
+        _run_v2(effective_version) if effective_version in ("2", "3") else _run_v1()
+    )
+
+    # bool before (int, float): bool is an int subclass and would otherwise be
+    # normalized into a score.
+    if isinstance(_outputs, bool):
+        return {"success": _outputs}
 
     if isinstance(_outputs, (int, float)):
         return {"score": _outputs, "success": _outputs >= threshold}
 
-    if isinstance(_outputs, bool):
-        return {"success": _outputs}
-
-    if isinstance(_outputs, dict) or isinstance(_outputs, str):
+    if isinstance(_outputs, (dict, list, str)):
         return _outputs
 
     raise InvalidOutputsV0Error(expected=["dict", "str"], got=_outputs)
@@ -888,8 +881,7 @@ async def auto_ai_critique_v0(
     Returns:
         Evaluation result with score from the AI
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
     correct_answer_key = parameters.get("correct_answer_key")
 
@@ -905,9 +897,19 @@ async def auto_ai_critique_v0(
             got=prompt_template,
         )
 
-    template_version = parameters.get("version") or "3"
+    template_version = str(parameters.get("version") or "3")
 
-    default_format = "fstring" if template_version == "2" else "curly"
+    # Per-version default template format. Existing versions are unchanged:
+    # v2 -> fstring, v3/v4 -> curly. v5 introduces mustache as the default so
+    # newly created auto_ai_critique evaluators render with mustache while old
+    # revisions keep their original behavior. An explicit ``template_format``
+    # always wins over the version default.
+    if template_version == "2":
+        default_format = "fstring"
+    elif template_version == "5":
+        default_format = "mustache"
+    else:
+        default_format = "curly"
 
     template_format = str(parameters.get("template_format") or default_format)
 
@@ -1099,8 +1101,7 @@ def auto_starts_with_v0(
     Returns:
         Evaluation result with success flag
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
     if "prefix" not in parameters:
         raise MissingConfigurationParameterV0Error(path="prefix")
@@ -1148,8 +1149,7 @@ def auto_ends_with_v0(
     Returns:
         Evaluation result with success flag
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
     if "suffix" not in parameters:
         raise MissingConfigurationParameterV0Error(path="suffix")
@@ -1197,8 +1197,7 @@ def auto_contains_v0(
     Returns:
         Evaluation result with success flag
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
     if "substring" not in parameters:
         raise MissingConfigurationParameterV0Error(path="substring")
@@ -1246,8 +1245,7 @@ def auto_contains_any_v0(
     Returns:
         Evaluation result with success flag
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
     if "substrings" not in parameters:
         raise MissingConfigurationParameterV0Error(path="substrings")
@@ -1304,8 +1302,7 @@ def auto_contains_all_v0(
     Returns:
         Evaluation result with success flag
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
     if "substrings" not in parameters:
         raise MissingConfigurationParameterV0Error(path="substrings")
@@ -1404,13 +1401,9 @@ def auto_json_diff_v0(
     Returns:
         Evaluation result with score only (no diff explanation)
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
-    if "correct_answer_key" not in parameters:
-        raise MissingConfigurationParameterV0Error(path="correct_answer_key")
-
-    correct_answer_key = str(parameters["correct_answer_key"])
+    correct_answer_key = str(parameters.get("correct_answer_key", "correct_answer"))
 
     if inputs is None or not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)
@@ -1425,9 +1418,14 @@ def auto_json_diff_v0(
             path=correct_answer_key, expected=["dict", "str"], got=correct_answer
         )
 
-    correct_answer_dict = (
-        correct_answer if isinstance(correct_answer, dict) else loads(correct_answer)
-    )
+    correct_answer_dict = correct_answer
+    if isinstance(correct_answer, str):
+        try:
+            correct_answer_dict = loads(correct_answer)
+        except json.JSONDecodeError as e:
+            raise InvalidInputV0Error(
+                path=correct_answer_key, expected="dict", got=correct_answer
+            ) from e
 
     if not isinstance(outputs, str) and not isinstance(outputs, dict):
         raise InvalidOutputsV0Error(expected=["dict", "str"], got=outputs)
@@ -1496,13 +1494,9 @@ def auto_levenshtein_distance_v0(
         Dictionary with normalized similarity score (0 to 1),
         or error message if evaluation fails.
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
-    if "correct_answer_key" not in parameters:
-        raise MissingConfigurationParameterV0Error(path="correct_answer_key")
-
-    correct_answer_key = str(parameters["correct_answer_key"])
+    correct_answer_key = str(parameters.get("correct_answer_key", "correct_answer"))
 
     case_sensitive = parameters.get("case_sensitive", True) is True
 
@@ -1601,13 +1595,9 @@ def auto_similarity_match_v0(
     Returns:
         Evaluation result with similarity score
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
-    if "correct_answer_key" not in parameters:
-        raise MissingConfigurationParameterV0Error(path="correct_answer_key")
-
-    correct_answer_key = str(parameters["correct_answer_key"])
+    correct_answer_key = str(parameters.get("correct_answer_key", "correct_answer"))
 
     case_sensitive = parameters.get("case_sensitive", True) is True
 
@@ -1694,13 +1684,9 @@ async def auto_semantic_similarity_v0(
     Returns:
         Evaluation result with cosine similarity score
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
-    if "correct_answer_key" not in parameters:
-        raise MissingConfigurationParameterV0Error(path="correct_answer_key")
-
-    correct_answer_key = str(parameters["correct_answer_key"])
+    correct_answer_key = str(parameters.get("correct_answer_key", "correct_answer"))
 
     embedding_model = parameters.get("embedding_model", "text-embedding-3-small")
 
@@ -2128,7 +2114,7 @@ async def completion_v0(
         required_keys = set(config.prompt.input_keys)
         provided_keys = set(_variables.keys())
 
-        if required_keys != provided_keys:
+        if not required_keys.issubset(provided_keys):
             raise InvalidInputsV0Error(
                 expected=sorted(required_keys),
                 got=sorted(provided_keys),
@@ -2202,7 +2188,7 @@ async def chat_v0(
         required_keys = set(config.prompt.input_keys) - {"messages"}
         provided_keys = set(_variables.keys())
 
-        if required_keys != provided_keys:
+        if not required_keys.issubset(provided_keys):
             raise InvalidInputsV0Error(
                 expected=sorted(required_keys),
                 got=sorted(provided_keys),
@@ -2835,14 +2821,20 @@ async def code_v0(
                    or ``"typescript"``.
         threshold: Score threshold for success when the code returns a number.
                    Defaults to 0.5.
+        version:   Evaluator interface version — ``"2"`` (default, float-only
+                   return) or ``"3"`` (any JSON-serializable return; dict
+                   outputs become multiple metrics downstream).
 
     Returns:
         ``{"score": float, "success": bool}``  when code returns a number.
         ``{"success": bool}``                  when code returns a bool.
-        The raw dict / str                     when code returns one of those.
+        The raw dict / list / str              when code returns one of those.
     """
     if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+        raise InvalidConfigurationParametersV0Error(
+            expected="dict",
+            got=parameters,
+        )
 
     if "code" not in parameters:
         raise MissingConfigurationParameterV0Error(path="code")
@@ -2859,6 +2851,9 @@ async def code_v0(
 
     threshold = float(parameters.get("threshold") or 0.5)
 
+    declared_version = str(parameters.get("version") or "").strip()
+    version = declared_version if declared_version in ("2", "3") else "2"
+
     if outputs is not None and not isinstance(outputs, (str, dict)):
         raise InvalidOutputsV0Error(expected=["dict", "str", "None"], got=outputs)
 
@@ -2870,8 +2865,8 @@ async def code_v0(
             correct_answer=None,
             code=code,
             runtime=runtime,
-            templates=EVALUATOR_TEMPLATES.get("v1", {}),
-            version="2",
+            templates=EVALUATOR_TEMPLATES.get("v2" if version == "3" else "v1", {}),
+            version=version,
             trace=trace,
         )
     except ErrorStatus:
@@ -2889,7 +2884,7 @@ async def code_v0(
         score = float(_result)
         return {"score": score, "success": score >= threshold}
 
-    if isinstance(_result, (dict, str)):
+    if isinstance(_result, (dict, list, str)):
         return _result
 
     raise InvalidOutputsV0Error(
@@ -2916,6 +2911,143 @@ async def config_v0(
     raise ConfigV0Error(
         message="agenta:custom:config:v0 is not runnable.",
     )
+
+
+# ---------------------------------------------------------------------------
+# mock_v0 — deterministic, LLM-free, sandbox-free workflow for testing
+# ---------------------------------------------------------------------------
+#
+# A single handler that stands in for BOTH an application (invocation step,
+# returns workflow outputs) and an evaluator (annotation step, returns
+# {"score", "success"}). The behavior is selected by name so evaluations can
+# run end-to-end through the real worker without any LLM call or code sandbox.
+#
+# Parameter contract (mirrors the LLM `MOCKS[key](**kwargs)` selector pattern):
+#   parameters = {"key": "<selector>", "kwargs": {...}}
+#
+# App-role selectors return outputs; evaluator-role selectors return a result.
+
+
+def _mock_echo(*, inputs=None, **_) -> Any:
+    # App-role: echo the inputs back as the workflow output.
+    return inputs or {}
+
+
+def _mock_static(*, output=None, **_) -> Any:
+    # App-role: return a fixed payload supplied via kwargs.
+    return output if output is not None else {}
+
+
+def _mock_pass(**_) -> Any:
+    # Evaluator-role: always passing result.
+    return {"score": 1.0, "success": True}
+
+
+def _mock_fail(**_) -> Any:
+    # Evaluator-role: always failing result.
+    return {"score": 0.0, "success": False}
+
+
+def _mock_score(*, score=0.0, threshold=0.5, **_) -> Any:
+    # Evaluator-role: explicit score with threshold-based success.
+    _score = float(score)
+    return {"score": _score, "success": _score >= float(threshold)}
+
+
+def _mock_reflect(*, outputs=None, **_) -> Any:
+    # Evaluator-role, contamination-sensitive: score 1.0 iff it received a real
+    # application output under `outputs` (a non-empty dict that is NOT an
+    # evaluator result). A sibling evaluator's leaked {"score","success"} dict
+    # scores 0.0, so this catches evaluator-order cross-contamination.
+    is_app_output = (
+        isinstance(outputs, dict)
+        and bool(outputs)
+        and "score" not in outputs
+        and "success" not in outputs
+    )
+    return {"score": 1.0 if is_app_output else 0.0, "success": is_app_output}
+
+
+def _mock_error(*, message="mock_v0 error behavior", **_) -> Any:
+    # Failure path (shared by app and evaluator roles).
+    raise MockV0Error(message=str(message))
+
+
+async def _mock_delay(*, seconds=0.1, then="pass", inputs=None, **kwargs) -> Any:
+    # Sleep then defer to another (synchronous) behavior. Useful to exercise
+    # RUNNING/timing without an LLM. `then` must name a non-delay behavior.
+    await asyncio.sleep(float(seconds))
+    behavior = MOCK_V0_BEHAVIORS.get(str(then), _mock_pass)
+    if behavior is _mock_delay:
+        behavior = _mock_pass
+    return behavior(inputs=inputs, **kwargs)
+
+
+MOCK_V0_BEHAVIORS = {
+    # app-role
+    "echo": _mock_echo,
+    "static": _mock_static,
+    # evaluator-role
+    "pass": _mock_pass,
+    "fail": _mock_fail,
+    "score": _mock_score,
+    "reflect": _mock_reflect,
+    # shared
+    "error": _mock_error,
+    "delay": _mock_delay,
+}
+
+
+@instrument()
+async def mock_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+    parameters: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
+) -> Any:
+    """
+    Deterministic mock workflow (agenta:custom:mock:v0).
+
+    Selects a predefined behavior by name — no LLM, no code sandbox. Serves as
+    both an application (invocation) and an evaluator (annotation) depending on
+    the selected behavior.
+
+    Parameters:
+        key:    selector name — one of MOCK_V0_BEHAVIORS
+                (echo, static, pass, fail, score, reflect, error, delay).
+        kwargs: structured args for the selected behavior (optional).
+
+    Returns:
+        The behavior's output (workflow outputs for app-role selectors, or
+        {"score", "success"} for evaluator-role selectors).
+    """
+    parameters = parameters or {}
+
+    if "key" not in parameters:
+        raise MissingConfigurationParameterV0Error(path="key")
+
+    key = str(parameters["key"])
+    if key not in MOCK_V0_BEHAVIORS:
+        raise InvalidConfigurationParameterV0Error(
+            path="key",
+            expected=list(MOCK_V0_BEHAVIORS.keys()),
+            got=key,
+        )
+
+    kwargs = parameters.get("kwargs") or {}
+    if not isinstance(kwargs, dict):
+        raise InvalidConfigurationParameterV0Error(
+            path="kwargs", expected="dict", got=kwargs
+        )
+
+    behavior = MOCK_V0_BEHAVIORS[key]
+    result = behavior(inputs=inputs, outputs=outputs, trace=trace, **kwargs)
+    if isawaitable(result):
+        result = await result
+    return result
 
 
 async def match_v0(
@@ -2955,8 +3087,7 @@ async def match_v0(
     Returns:
         {key: result_node, ..., "score": float, "success": bool}  — flat result dict
     """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
     if "matchers" not in parameters:
         raise MissingConfigurationParameterV0Error(path="matchers")
@@ -3420,7 +3551,8 @@ async def llm_v0(
         llms:            Ordered list of LLM configs. Runtime tries each in order on
                          auth / rate-limit / availability errors.
         messages:        System/initial messages. Template substitution applied.
-        template_format: "curly" (default), "fstring", or "jinja2".
+        template_format: "mustache" (default for new apps), "curly" (legacy),
+                         "fstring", or "jinja2".
         loop:            null → single LLM call (prompt mode).
                          dict → agent loop config with max_iterations etc.
         tools:           {"internal": [...], "external": [...]}. null → no tools.
@@ -3445,8 +3577,7 @@ async def llm_v0(
     from agenta.sdk.engines.running.errors import LLMUnavailableV0Error
 
     # --- Validate parameters
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+    parameters = parameters or {}
 
     llms = parameters.get("llms")
     if not llms or not isinstance(llms, list):

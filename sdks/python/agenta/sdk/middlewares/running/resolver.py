@@ -26,6 +26,58 @@ _EMBEDS_ERROR_POLICY = "exception"
 _AG_EMBED_MARKER = "@ag.embed"
 
 
+def _raise_bad_request(message: str) -> None:
+    error = ValueError(message)
+    error.status_code = 400  # type: ignore[attr-defined]
+    raise error
+
+
+def _has_reference_identity(ref: Any) -> bool:
+    if ref is None:
+        return False
+
+    if hasattr(ref, "model_dump"):
+        return bool(ref.model_dump(mode="json", exclude_none=True))
+
+    if isinstance(ref, dict):
+        return any(value is not None for value in ref.values())
+
+    return True
+
+
+def _validate_executable_reference_families(refs: Dict[str, Any]) -> None:
+    families = {
+        "workflow": (
+            "workflow",
+            "workflow_variant",
+            "workflow_revision",
+        ),
+        "application": (
+            "application",
+            "application_variant",
+            "application_revision",
+        ),
+        "evaluator": (
+            "evaluator",
+            "evaluator_variant",
+            "evaluator_revision",
+        ),
+    }
+
+    populated = [
+        family_name
+        for family_name, family_keys in families.items()
+        if any(_has_reference_identity(refs.get(key)) for key in family_keys)
+    ]
+
+    if len(populated) > 1:
+        _raise_bad_request(
+            "Competing execution target references are not allowed. "
+            "Provide exactly one of workflow, application, or evaluator "
+            f"references; got {', '.join(populated)}."
+        )
+
+
 def _has_embed_markers(config: Any, _depth: int = 0) -> bool:
     """Check if a configuration contains any @ag.embed markers.
 
@@ -119,11 +171,39 @@ async def resolve_handler(
     return handler
 
 
-async def resolve_references(
+def _merge_tracing_references(references: Optional[Dict[str, Any]]) -> None:
+    if not references:
+        return
+
+    tracing_ctx = TracingContext.get()
+    tracing_ctx.references = {
+        **(tracing_ctx.references or {}),
+        **references,
+    }
+    TracingContext.set(tracing_ctx)
+
+
+def _merge_tracing_selector(selector: Optional[Dict[str, Any]]) -> None:
+    if not selector:
+        return
+
+    tracing_ctx = TracingContext.get()
+    tracing_ctx.selector = {
+        **(tracing_ctx.selector or {}),
+        **selector,
+    }
+    TracingContext.set(tracing_ctx)
+
+
+async def resolve_references_with_info(
     *,
     request: WorkflowInvokeRequest,
     credentials: Optional[str] = None,
-) -> Optional[WorkflowRevisionData]:
+) -> tuple[
+    Optional[WorkflowRevisionData],
+    Optional[Dict[str, Any]],
+    Optional[Dict[str, Any]],
+]:
     """Resolve environment/workflow references by calling the API retrieve endpoint.
 
     When the request has references but no data.revision, calls
@@ -135,14 +215,19 @@ async def resolve_references(
         credentials: API key for authentication
 
     Returns:
-        Resolved WorkflowRevisionData, or None if resolution fails/not applicable
+        A tuple of (resolved WorkflowRevisionData, retrieval references, selector
+        dictionary). The selector dictionary is the `retrieval_info.selector` returned by the API
+        (the environment slot that selected the target); it is None for direct,
+        non-environment-backed retrievals.
     """
     if not request.references:
-        return None
+        return None, None, None
+
+    _validate_executable_reference_families(request.references)
 
     try:
         if not ag.async_api:
-            return None
+            return None, None, None
 
         api_url = ag.async_api._client_wrapper._base_url
 
@@ -203,6 +288,42 @@ async def resolve_references(
             )
         )
 
+        def _request_retrieval_references() -> Dict[str, Any]:
+            keys = [
+                ref_key
+                for _, ref_key in (
+                    application_mapping
+                    + evaluator_mapping
+                    + environment_mapping
+                    + workflow_mapping
+                )
+            ]
+            return {key: value for key in keys if (value := _ref_dict(key))}
+
+        def _revision_from_result(
+            result: Dict[str, Any],
+            response_key: str,
+        ) -> tuple[
+            Optional[WorkflowRevisionData],
+            Optional[Dict[str, Any]],
+            Optional[Dict[str, Any]],
+        ]:
+            revision = result.get(response_key)
+            if not revision or not revision.get("data"):
+                return None, None, None
+
+            retrieval_info = result.get("retrieval_info") or {}
+            retrieval_references = retrieval_info.get("references") or {}
+            retrieval_selector = retrieval_info.get("selector")
+            if not retrieval_references and has_environment_refs:
+                retrieval_references = _request_retrieval_references()
+
+            return (
+                WorkflowRevisionData(**revision["data"]),
+                retrieval_references,
+                retrieval_selector,
+            )
+
         environment_backed_application_lookup = (
             has_application_refs
             and has_environment_refs
@@ -250,9 +371,12 @@ async def resolve_references(
             response.raise_for_status()
             result = response.json()
 
-            revision = result.get(response_key)
-            if revision and revision.get("data"):
-                return WorkflowRevisionData(**revision["data"])
+            revision, retrieval_references, retrieval_selector = _revision_from_result(
+                result,
+                response_key,
+            )
+            if revision:
+                return revision, retrieval_references, retrieval_selector
             if has_application_refs:
                 # Compatibility fallback for deployments where application retrieve
                 # does not resolve but equivalent workflow retrieve does.
@@ -280,9 +404,11 @@ async def resolve_references(
                 )
                 fallback_response.raise_for_status()
                 fallback_result = fallback_response.json()
-                fallback_revision = fallback_result.get("workflow_revision")
-                if fallback_revision and fallback_revision.get("data"):
-                    return WorkflowRevisionData(**fallback_revision["data"])
+                revision, retrieval_references, retrieval_selector = (
+                    _revision_from_result(fallback_result, "workflow_revision")
+                )
+                if revision:
+                    return revision, retrieval_references, retrieval_selector
             if has_evaluator_refs:
                 # Compatibility fallback for deployments where evaluator retrieve
                 # does not resolve but equivalent workflow retrieve does.
@@ -310,14 +436,28 @@ async def resolve_references(
                 )
                 fallback_response.raise_for_status()
                 fallback_result = fallback_response.json()
-                fallback_revision = fallback_result.get("workflow_revision")
-                if fallback_revision and fallback_revision.get("data"):
-                    return WorkflowRevisionData(**fallback_revision["data"])
+                revision, retrieval_references, retrieval_selector = (
+                    _revision_from_result(fallback_result, "workflow_revision")
+                )
+                if revision:
+                    return revision, retrieval_references, retrieval_selector
 
-        return None
+        return None, None, None
 
     except Exception:
         raise
+
+
+async def resolve_references(
+    *,
+    request: WorkflowInvokeRequest,
+    credentials: Optional[str] = None,
+) -> Optional[WorkflowRevisionData]:
+    revision, _, _ = await resolve_references_with_info(
+        request=request,
+        credentials=credentials,
+    )
+    return revision
 
 
 async def resolve_embeds(
@@ -418,10 +558,16 @@ class ResolverMiddleware:
         # Resolve references (env/workflow/application refs → revision) when needed
         if needs_reference_hydration:
             existing_revision = revision
-            hydrated_revision = await resolve_references(
+            (
+                hydrated_revision,
+                retrieval_references,
+                retrieval_selector,
+            ) = await resolve_references_with_info(
                 request=request,
                 credentials=ctx.credentials or request.credentials,
             )
+            _merge_tracing_references(retrieval_references)
+            _merge_tracing_selector(retrieval_selector)
             revision = hydrated_revision or existing_revision
 
         # Resolve embeds in parameters if enabled (via flags.resolve)

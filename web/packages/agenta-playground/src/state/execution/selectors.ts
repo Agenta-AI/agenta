@@ -8,15 +8,20 @@
  */
 
 import {loadableStateAtomFamily} from "@agenta/entities/loadable"
-import {loadableController, type RunnablePort} from "@agenta/entities/runnable"
+import {
+    extractInputPortsFromSchema,
+    loadableController,
+    syncPromptInputKeysInParameters,
+    type RunnablePort,
+} from "@agenta/entities/runnable"
 import {testcaseMolecule, isSystemField} from "@agenta/entities/testcase"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {atom, type Getter} from "jotai"
 import {selectAtom} from "jotai/utils"
-import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
-import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
+import {playgroundIsChatBehaviorAtom} from "../atoms/modeOverride"
+import {entityIdsAtom, playgroundNodesAtom, playgroundStoreAtom} from "../atoms/playground"
 import {addUserMessageAtom} from "../chat"
 import {sharedMessageIdsAtomFamily} from "../chat/messageSelectors"
 
@@ -36,7 +41,75 @@ import {
 import {displayedEntityIdsAtom} from "./displayedEntities"
 import {createExecutionItemHandle, type ExecutionItemLifecycleSnapshot} from "./executionItems"
 import type {RunStatus} from "./types"
+import {splitInputsVisibility} from "./visibility"
 
+interface WorkflowDataForInputKeys {
+    data?: {
+        parameters?: Record<string, unknown> | null
+        schemas?: {
+            inputs?: unknown
+        } | null
+    } | null
+}
+
+function collectCommittedInputKeys(serverData: WorkflowDataForInputKeys | null): string[] | null {
+    if (!serverData) return null
+
+    const keys: string[] = []
+    const seen = new Set<string>()
+    const add = (key: unknown) => {
+        if (typeof key !== "string" || !key || seen.has(key)) return
+        seen.add(key)
+        keys.push(key)
+    }
+
+    for (const port of extractInputPortsFromSchema(serverData.data?.schemas?.inputs)) {
+        add(port.key)
+    }
+
+    const parameters = serverData.data?.parameters
+    if (parameters && typeof parameters === "object" && !Array.isArray(parameters)) {
+        const synced = syncPromptInputKeysInParameters(parameters)
+        if (!synced || typeof synced !== "object" || Array.isArray(synced)) return keys
+
+        const stack: unknown[] = [synced]
+        while (stack.length > 0) {
+            const current = stack.pop()
+            if (!current || typeof current !== "object" || Array.isArray(current)) continue
+
+            const record = current as Record<string, unknown>
+            const inputKeys = record.input_keys
+            if (Array.isArray(inputKeys)) {
+                for (const key of inputKeys) add(key)
+            }
+
+            for (const value of Object.values(record)) {
+                if (value && typeof value === "object" && !Array.isArray(value)) {
+                    stack.push(value)
+                }
+            }
+        }
+    }
+
+    return keys
+}
+
+/**
+ * UI-display helper. Converts a cell value to a string for rendering inside
+ * a text-mode editor.
+ *
+ * ⚠️ MUST NOT be used to build invocation payloads. Native JSON must reach
+ * the runtime as native JSON (RFC: "native JSON stays native until template
+ * rendering"). The invocation path reads testcase data directly from
+ * `loadableController.selectors.row(...).data` — preserves native types.
+ *
+ * This helper feeds only the controller-surface atoms
+ * (`rowVariableValueAtomFamily`, `testcaseCellValueAtomFamily`) that hand
+ * string output to React components for the text-mode SharedEditor. When the
+ * V2 input UX adds Form / JSON / YAML modes (Step 3), those modes consume
+ * the native value directly via `testcaseMolecule.atoms.cell(...)` — they
+ * do not route through this helper.
+ */
 const toDisplayString = (value: unknown): string => {
     if (value === undefined || value === null) return ""
     if (typeof value === "string") return value
@@ -293,36 +366,36 @@ const evaluatorExpectedColumnsAtom = atom<string[]>((get) => {
  * a Jotai issue where module-level derived atoms don't re-evaluate when
  * playgroundNodesAtom changes in disconnect→reconnect flows.
  */
-const rowVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
+/**
+ * Schema-referenced variable keys: prompt template input ports + downstream
+ * evaluator expected columns. Excludes testcase-only extras.
+ *
+ * This is the "what does the prompt actually reference" view used by the
+ * variable-visibility rule (`playgroundInputsAtomFamily` below): referenced
+ * keys feed expanded variable cards; testcase columns NOT in this set get
+ * collapsed under the "unused columns" footer.
+ *
+ * `rowVariableKeysAtomFamily` (below) wraps this with the testcase-extras
+ * merge for callers that want the full "what's available" view.
+ */
+const referencedVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
     atom<string[]>((get) => {
         const loadableId = get(derivedLoadableIdAtom)
         if (!loadableId) return []
-        const isChat = get(isChatModeAtom) === true
+        // isChatModeAtom returns undefined while the entity query is in-flight.
+        // Treating undefined as false (completion) would expose `messages` as a
+        // variable card during the loading window. Return empty until the mode
+        // is known so nothing flashes before data arrives.
+        const isChatMode = get(isChatModeAtom)
+        if (isChatMode === undefined) return []
+        const isChat = isChatMode
         const columns = get(loadableController.selectors.columns(loadableId))
         const primaryKeys = columns.map((column) => column.key)
-
         const evaluatorKeys = get(evaluatorExpectedColumnsAtom)
-
-        // In connected mode (testset loaded), include extra columns from
-        // testcase entity data that aren't in the template (e.g. "expected_output").
-        // In local mode, the template's input ports are the sole authority —
-        // testcase data may contain stale keys from a previous template or app.
-        const mode = get(loadableController.selectors.mode(loadableId))
-        const testcaseKeys: string[] = []
-        if (mode === "connected") {
-            const testcaseColumns = get(testcaseMolecule.atoms.columns) as {key: string}[]
-            if (testcaseColumns) {
-                for (const c of testcaseColumns) {
-                    if (!isSystemField(c.key)) {
-                        testcaseKeys.push(c.key)
-                    }
-                }
-            }
-        }
 
         const keySet = new Set(primaryKeys)
         const merged = [...primaryKeys]
-        for (const key of [...evaluatorKeys, ...testcaseKeys]) {
+        for (const key of evaluatorKeys) {
             if (key && !keySet.has(key)) {
                 keySet.add(key)
                 merged.push(key)
@@ -330,6 +403,34 @@ const rowVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
         }
         if (!isChat) return merged
         return merged.filter((key) => key !== "messages" && key !== "outputs")
+    }),
+)
+
+const rowVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
+    atom<string[]>((get) => {
+        const loadableId = get(derivedLoadableIdAtom)
+        if (!loadableId) return []
+        const referencedKeys = get(referencedVariableKeysAtomFamily(downstreamKey))
+
+        // In connected mode (testset loaded), include extra columns from
+        // testcase entity data that aren't in the template (e.g. "expected_output").
+        // In local mode, the template's input ports are the sole authority —
+        // testcase data may contain stale keys from a previous template or app.
+        const mode = get(loadableController.selectors.mode(loadableId))
+        if (mode !== "connected") return referencedKeys
+
+        const testcaseColumns = get(testcaseMolecule.atoms.columns) as {key: string}[]
+        if (!testcaseColumns) return referencedKeys
+
+        const keySet = new Set(referencedKeys)
+        const merged = [...referencedKeys]
+        for (const c of testcaseColumns) {
+            if (!isSystemField(c.key) && !keySet.has(c.key)) {
+                keySet.add(c.key)
+                merged.push(c.key)
+            }
+        }
+        return merged
     }),
 )
 
@@ -341,7 +442,136 @@ const rowVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
  */
 export const rowVariableKeysWithContextAtom = rowVariableKeysAtomFamily("")
 
-export {rowVariableKeysAtomFamily}
+export {referencedVariableKeysAtomFamily, rowVariableKeysAtomFamily}
+
+const draftReferencedVariableKeysAtom = atom<string[]>((get) => {
+    const rootNodes = get(playgroundNodesAtom).filter((node) => node.depth === 0)
+
+    const currentKeys = new Set<string>()
+    const committedKeys = new Set<string>()
+    let hasCommittedBaseline = false
+
+    for (const node of rootNodes) {
+        const serverData = get(workflowMolecule.selectors.serverData(node.entityId))
+        const committed = collectCommittedInputKeys(serverData as WorkflowDataForInputKeys | null)
+        if (!committed) continue
+
+        hasCommittedBaseline = true
+        for (const key of committed) committedKeys.add(key)
+
+        const currentPorts = get(
+            workflowMolecule.selectors.inputPorts(node.entityId),
+        ) as RunnablePort[]
+        for (const port of currentPorts) {
+            if (port.key) currentKeys.add(port.key)
+        }
+    }
+
+    if (!hasCommittedBaseline) return []
+    return [...currentKeys].filter((key) => !committedKeys.has(key))
+})
+
+// ============================================================================
+// PLAYGROUND INPUTS VISIBILITY (Step 4 of the playground mustache + input UX)
+// ============================================================================
+
+/**
+ * The visibility view that `PlaygroundInputsBody` consumes: referenced
+ * variables (with `undefined` values for those missing from the testcase) +
+ * unreferenced testcase columns.
+ *
+ * Reactivity:
+ *   referencedVariableKeysAtomFamily(downstreamKey)
+ *        │
+ *        ├──▶ playgroundInputsAtomFamily({testcaseId, downstreamKey})
+ *        │       = atom((get) => splitInputsVisibility({
+ *        │           referencedKeys: get(referenced...),
+ *        │           testcaseData:   get(testcaseMolecule.atoms.data),
+ *        │         }))
+ *        │
+ *   testcaseMolecule.atoms.data(testcaseId)
+ *
+ * System fields (`__id__`, etc.) are stripped from `testcaseData` before
+ * the split so they don't bleed into the unused-columns footer.
+ */
+export interface PlaygroundInputsAtomKey {
+    testcaseId: string
+    /** Downstream-evaluator context key — pass the same string the caller
+     *  uses with `rowVariableKeysAtomFamily` (`""` is the default). */
+    downstreamKey?: string
+}
+
+export const playgroundInputsAtomFamily = atomFamily(
+    ({testcaseId, downstreamKey = ""}: PlaygroundInputsAtomKey) =>
+        atom((get) => {
+            const referencedKeys = get(referencedVariableKeysAtomFamily(downstreamKey))
+            const draftKeys = get(draftReferencedVariableKeysAtom)
+            // isChatModeAtom is undefined while the entity query is in-flight.
+            // Treating undefined as false would prevent `messages` / `outputs`
+            // from being stripped from the testcase data during the loading
+            // window, causing them to flash in the unreferenced-columns footer.
+            // Return empty visibility until the mode is resolved.
+            const isChatMode = get(isChatModeAtom)
+            if (isChatMode === undefined) return {inputs: [], unreferencedColumns: []}
+            const isChat = isChatMode
+            // `testcaseMolecule.data(id)` returns the testcase ENTITY
+            // (`{id, data, flags, tags, meta, ...}`), not the row data
+            // dict. The actual column values live at `entity.data` — see
+            // `testcaseDataAtomFamily` below for the canonical pattern.
+            const entity = get(testcaseMolecule.data(testcaseId)) as {
+                data?: Record<string, unknown>
+            } | null
+            const raw = entity?.data ?? {}
+
+            // Strip system fields up-front so the unused-columns footer
+            // doesn't expose `__id__` and friends to the user.
+            //
+            // In chat mode we ALSO strip `messages` and `outputs` — those are
+            // implicitly used by the chat UI (`messageIdsAtomFamily`) and the
+            // run-output panel respectively, not by a `{{messages}}` template
+            // token. `referencedVariableKeysAtomFamily` filters them out of
+            // `referencedKeys` (so they don't render as input cards), but the
+            // testcase entity still carries them as data, so without this
+            // strip they leak into the unreferenced-columns footer ("1 unused
+            // testcase column hidden — `messages`"). Mahmoud reported this
+            // confusion in QA on 2026-06-01.
+            const testcaseData: Record<string, unknown> = {}
+            for (const [key, value] of Object.entries(raw)) {
+                if (isSystemField(key)) continue
+                if (isChat && (key === "messages" || key === "outputs")) continue
+                testcaseData[key] = value
+            }
+
+            // In connected mode, surface the test set's columns even when
+            // this row doesn't carry them yet — a draft kept through "Keep
+            // and load" or a row added while connected starts with only its
+            // own keys. The drawer already offers these via the registry
+            // merge in `rowVariableKeysAtomFamily`; without the same merge
+            // here the grid hides exactly those fields. Same system/chat
+            // strips as `testcaseData` above.
+            let testsetColumnKeys: string[] | undefined
+            const loadableId = get(derivedLoadableIdAtom)
+            const mode = loadableId ? get(loadableController.selectors.mode(loadableId)) : null
+            if (mode === "connected") {
+                const registry = get(testcaseMolecule.atoms.columns) as {key: string}[] | null
+                testsetColumnKeys = (registry ?? [])
+                    .map((column) => column.key)
+                    .filter(
+                        (key) =>
+                            !isSystemField(key) &&
+                            !(isChat && (key === "messages" || key === "outputs")),
+                    )
+            }
+
+            return splitInputsVisibility({
+                referencedKeys,
+                draftKeys,
+                testcaseData,
+                testsetColumnKeys,
+            })
+        }),
+    (a, b) => a.testcaseId === b.testcaseId && (a.downstreamKey ?? "") === (b.downstreamKey ?? ""),
+)
 
 // ============================================================================
 // DIRECT TESTCASE ENTITY SELECTORS
@@ -737,7 +967,7 @@ export const generationRowIdsAtom = atom<string[]>((get) => {
         const rowIds = get(sharedMessageIdsAtomFamily(loadableId))
         if (rowIds.length === 0) {
             // Bootstrap first blank user message for chat mode
-            getDefaultStore().set(addUserMessageAtom, {loadableId, userMessage: null})
+            get(playgroundStoreAtom).set(addUserMessageAtom, {loadableId, userMessage: null})
             return get(sharedMessageIdsAtomFamily(loadableId))
         }
         return rowIds
@@ -990,18 +1220,19 @@ export const outputPortSchemaMapAtom = atom<
 // ============================================================================
 
 /**
- * App-level chat mode detection.
+ * Playground-level chat behavior.
  *
- * Derives from the primary node's entity ID via `workflowMolecule.selectors.executionMode`.
- * Returns `true` for chat apps, `false` for completion apps, `undefined` while loading.
+ * Combines the app's capability (the primary node's
+ * `workflowMolecule.selectors.executionMode`) with the user's playground
+ * mode override (`playgroundModeOverrideAtom`). Completion apps cannot run
+ * conversations, so the override only applies to chat-capable apps.
+ * Returns `true` for chat behavior, `false` for completion behavior,
+ * `undefined` while the playground has no root node.
  *
+ * Request shapes follow the capability, not this atom (see
+ * docs/design/playground-mode-switch/).
  */
-export const isChatModeAtom = atom<boolean | undefined>((get) => {
-    const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
-    if (!rootNode) return undefined
-    const mode = get(workflowMolecule.selectors.executionMode(rootNode.entityId))
-    return mode === "chat"
-})
+export const isChatModeAtom = atom<boolean | undefined>((get) => get(playgroundIsChatBehaviorAtom))
 
 /**
  * App-level type derived from chat mode.

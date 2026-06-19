@@ -69,7 +69,8 @@ evaluators = [
                         },
                         "strict": True,
                     },
-                    "version": "4",
+                    "version": "5",
+                    "template_format": "mustache",
                 },
             },
             {
@@ -114,7 +115,8 @@ evaluators = [
                         },
                         "strict": True,
                     },
-                    "version": "4",
+                    "version": "5",
+                    "template_format": "mustache",
                 },
             },
             {
@@ -158,7 +160,8 @@ evaluators = [
                         },
                         "strict": True,
                     },
-                    "version": "4",
+                    "version": "5",
+                    "template_format": "mustache",
                 },
             },
             {
@@ -203,7 +206,8 @@ evaluators = [
                         },
                         "strict": True,
                     },
-                    "version": "4",
+                    "version": "5",
+                    "template_format": "mustache",
                 },
             },
         ],
@@ -284,10 +288,17 @@ evaluators = [
                 "x-ag-ui-advanced": False,
                 "description": "Select a response format to structure how your evaluation results are returned.",
             },
+            "template_format": {
+                "label": "Template Format",
+                "type": "hidden",
+                "default": "mustache",
+                "description": "The template format used to render the prompt",  # ignored by the FE
+                "x-ag-ui-advanced": False,
+            },
             "version": {
                 "label": "Version",
                 "type": "hidden",
-                "default": "4",
+                "default": "5",
                 "description": "The version of the evaluator",  # ignore by the FE
                 "x-ag-ui-advanced": False,
             },
@@ -308,8 +319,8 @@ evaluators = [
                     "requires_llm_api_keys": False,
                     "runtime": "python",
                     "correct_answer_key": "correct_answer",
-                    "version": "2",
-                    "code": 'from typing import Dict, Any\n\n\ndef evaluate(\n    inputs: Dict[str, Any],\n    outputs: Any,\n    trace: Dict[str, Any],\n) -> float:\n    if outputs == inputs.get("correct_answer"):\n        return 1.0\n    return 0.0\n',
+                    "version": "3",
+                    "code": 'from typing import Dict, Any\n\n\ndef evaluate(\n    inputs: Dict[str, Any],\n    outputs: Any,\n    trace: Dict[str, Any],\n) -> dict:\n    success = outputs == inputs.get("correct_answer")\n    return {\n        "score": 1.0 if success else 0.0,\n        "success": success,\n    }\n',
                 },
                 "description": "Exact match evaluator implemented in Python.",
             },
@@ -320,8 +331,8 @@ evaluators = [
                     "requires_llm_api_keys": False,
                     "runtime": "javascript",
                     "correct_answer_key": "correct_answer",
-                    "version": "2",
-                    "code": 'function evaluate(inputs, outputs, trace) {\n  const outputStr =\n    typeof outputs === "string" ? outputs : JSON.stringify(outputs)\n\n  return outputStr === String(inputs.correct_answer || "") ? 1.0 : 0.0\n}\n',
+                    "version": "3",
+                    "code": 'function evaluate(inputs, outputs, trace) {\n  const norm = (v) => (typeof v === "string" ? v : JSON.stringify(v))\n\n  const success = norm(outputs) === norm(inputs.correct_answer)\n\n  return {score: success ? 1.0 : 0.0, success: success}\n}\n',
                 },
                 "description": "Exact match evaluator implemented in JavaScript.",
             },
@@ -332,8 +343,8 @@ evaluators = [
                     "requires_llm_api_keys": False,
                     "runtime": "typescript",
                     "correct_answer_key": "correct_answer",
-                    "version": "2",
-                    "code": 'function evaluate(\n  inputs: Record<string, any>,\n  outputs: any,\n  trace: Record<string, any>\n): number {\n  const outputStr =\n    typeof outputs === "string" ? outputs : JSON.stringify(outputs)\n\n  return outputStr === String(inputs.correct_answer || "") ? 1.0 : 0.0\n}\n',
+                    "version": "3",
+                    "code": 'function evaluate(\n  inputs: Record<string, any>,\n  outputs: any,\n  trace: Record<string, any>\n): {score: number; success: boolean} {\n  const norm = (v: any) => (typeof v === "string" ? v : JSON.stringify(v))\n\n  const success = norm(outputs) === norm(inputs.correct_answer)\n\n  return {score: success ? 1.0 : 0.0, success: success}\n}\n',
                 },
                 "description": "Exact match evaluator implemented in TypeScript.",
             },
@@ -350,7 +361,7 @@ evaluators = [
             "code": {
                 "label": "Evaluation Code",
                 "type": "code",
-                "default": 'from typing import Dict, Any\n\n\ndef evaluate(\n    inputs: Dict[str, Any],\n    outputs: Any,\n    trace: Dict[str, Any],\n) -> float:\n    if outputs == inputs.get("correct_answer"):\n        return 1.0\n    return 0.0\n',
+                "default": 'from typing import Dict, Any\n\n\ndef evaluate(\n    inputs: Dict[str, Any],\n    outputs: Any,\n    trace: Dict[str, Any],\n) -> dict:\n    success = outputs == inputs.get("correct_answer")\n    return {\n        "score": 1.0 if success else 0.0,\n        "success": success,\n    }\n',
                 "description": "Code for evaluating submissions",
                 "required": True,
             },
@@ -373,7 +384,7 @@ evaluators = [
             "version": {
                 "label": "Version",
                 "type": "hidden",
-                "default": "2",
+                "default": "3",
                 "description": "The version of the evaluator interface",
             },
         },
@@ -855,7 +866,8 @@ _SCORE_AND_SUCCESS_OUTPUT_SCHEMA = {
 }
 
 _FIXED_OUTPUT_SCHEMA_BY_KEY = {
-    "auto_custom_code_run": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+    # auto_custom_code_run has no fixed schema: v3 code evaluators return
+    # arbitrary JSON and their metrics are inferred from traces.
     "field_match_test": _SUCCESS_ONLY_OUTPUT_SCHEMA,
     "auto_json_diff": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
     "auto_semantic_similarity": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,

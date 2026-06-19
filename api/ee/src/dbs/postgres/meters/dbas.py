@@ -3,12 +3,13 @@ from sqlalchemy.dialects.postgresql import UUID
 
 from ee.src.core.meters.types import Meters
 
-from oss.src.dbs.postgres.shared.dbas import ScopeDBA, PeriodDBA
+from oss.src.dbs.postgres.shared.dbas import LifecycleDBA, PeriodDBA, ScopeDBA
 
 
 class MeterDBA(
     ScopeDBA,
     PeriodDBA,
+    LifecycleDBA,
 ):
     __abstract__ = True
 

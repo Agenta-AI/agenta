@@ -8,32 +8,28 @@
  * PlaygroundMainView between configOnly and full viewMode — no component
  * tree swap, no remounting.
  */
-import {memo, useCallback, useEffect, useMemo, useRef} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, type ReactNode} from "react"
 
 import {loadableStateAtomFamily} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {
     registerWorkflowCommitCallbacks,
     getWorkflowCommitCallbacks,
-    hasFullPagePlaygroundUX,
     parseEvaluatorKeyFromUri,
     evaluatorTemplatesMapAtom,
     workflowMolecule,
     discardLocalServerDataAtom,
 } from "@agenta/entities/workflow"
-import {EntityPicker} from "@agenta/entity-ui"
 import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
-import {
-    createWorkflowRevisionAdapter,
-    type WorkflowRevisionSelectionResult,
-} from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus, VariantNameCell} from "@agenta/entity-ui/variant"
 import {playgroundController} from "@agenta/playground"
 import {
     clearAllRunsMutationAtom,
     connectedTestsetAtom,
     derivedLoadableIdAtom,
+    executionAdapterAtom,
     playgroundInitializedAtom,
+    playgroundStoreAtom,
 } from "@agenta/playground/state"
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {
@@ -45,16 +41,32 @@ import {
     workflowRevisionDrawerCallbackAtom,
     workflowRevisionDrawerEntityIdAtom,
     workflowRevisionDrawerExpandedAtom,
+    workflowRevisionDrawerInitialAppSelectionAtom,
+    workflowRevisionDrawerIsolatedPlaygroundAtom,
     workflowRevisionDrawerOpenAtom,
+    workflowRevisionDrawerPostCreateNavigationAtom,
+    workflowRevisionDrawerScopedDirtyAtom,
     workflowRevisionDrawerViewModeAtom,
     WorkflowRevisionDrawer,
     suppressDrawerCloseUrlCleanupAtom,
     type DrawerProviders,
+    type DrawerInitialAppSelection,
 } from "@agenta/playground-ui/workflow-revision-drawer"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {EnvironmentTag} from "@agenta/ui"
 import {Rocket} from "@phosphor-icons/react"
-import {Button, Typography, message} from "antd"
-import {getDefaultStore, useAtom, useAtomValue, useSetAtom} from "jotai"
+import {Button, message} from "antd"
+import {
+    Provider,
+    createStore,
+    getDefaultStore,
+    useAtom,
+    useAtomValue,
+    useSetAtom,
+    useStore,
+    type PrimitiveAtom,
+} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
@@ -64,14 +76,17 @@ import {
     connectAppToEvaluatorAtom,
     persistedAppSelectionAtom,
     persistedTestsetSelectionAtom,
-    selectedAppLabelAtom,
 } from "@/oss/components/Evaluators/components/ConfigureEvaluator/atoms"
 import EvaluatorPlaygroundHeader from "@/oss/components/Evaluators/components/ConfigureEvaluator/EvaluatorPlaygroundHeader"
+import SelectAppEmptyState from "@/oss/components/Evaluators/components/ConfigureEvaluator/SelectAppEmptyState"
+import {useEvaluatorRunControls} from "@/oss/components/Evaluators/components/ConfigureEvaluator/useEvaluatorRunControls"
 import {clearEvaluatorWorkflowCache} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
 import {invalidateAppManagementWorkflowQueries} from "@/oss/components/pages/app-management/store"
+import {invalidatePromptsWorkflowQueries} from "@/oss/components/pages/prompts/store"
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "@/oss/components/Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
 import PlaygroundTestcaseEditor from "@/oss/components/Playground/Components/PlaygroundTestcaseEditor"
+import WebWorkerProvider from "@/oss/components/Playground/Components/WebWorkerProvider"
 import {OSSPlaygroundShell} from "@/oss/components/Playground/OSSPlaygroundShell"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
@@ -81,6 +96,11 @@ import {EVALUATOR_FULL_PAGE_NAV_ENABLED} from "@/oss/state/workflow"
 
 const PlaygroundMainView = dynamic(
     () => import("@/oss/components/Playground/Components/MainLayout"),
+    {ssr: false},
+)
+
+const TestsetDropdown = dynamic(
+    () => import("@/oss/components/Playground/Components/TestsetDropdown"),
     {ssr: false},
 )
 
@@ -159,6 +179,8 @@ const DrawerAppPlayground = memo(({entityId}: {entityId: string}) => {
         [],
     )
 
+    const renderTestsetActions = useCallback(() => <TestsetDropdown />, [])
+
     return (
         <OSSPlaygroundShell providers={providers}>
             <PlaygroundMainView
@@ -167,6 +189,7 @@ const DrawerAppPlayground = memo(({entityId}: {entityId: string}) => {
                 embedded
                 configViewMode={configViewMode}
                 onConfigViewModeChange={setConfigViewMode}
+                renderTestsetActions={renderTestsetActions}
             />
         </OSSPlaygroundShell>
     )
@@ -180,9 +203,30 @@ const DrawerAppPlayground = memo(({entityId}: {entityId: string}) => {
  * Key difference from ConfigureEvaluatorPage: no playgroundSyncAtom (URL-driven),
  * instead uses setEntityIds + playgroundInitializedAtom for drawer-based init.
  */
-const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
-    const isExpanded = useAtomValue(workflowRevisionDrawerExpandedAtom)
-    const [configViewMode, setConfigViewMode] = useAtom(workflowRevisionDrawerViewModeAtom)
+const DrawerEvaluatorPlayground = memo(function DrawerEvaluatorPlayground({
+    entityId,
+    isExpanded,
+    configViewMode,
+    onConfigViewModeChange,
+    onScopedDirtyChange,
+    initialAppSelection,
+}: {
+    entityId: string
+    isExpanded: boolean
+    configViewMode: "form" | "json" | "yaml"
+    onConfigViewModeChange: (mode: "form" | "json" | "yaml") => void
+    onScopedDirtyChange?: (isDirty: boolean) => void
+    initialAppSelection?: DrawerInitialAppSelection | null
+}) {
+    const store = useStore()
+    const isDirty = useAtomValue(
+        useMemo(() => workflowMolecule.atoms.isDirty(entityId), [entityId]),
+    )
+
+    useEffect(() => {
+        onScopedDirtyChange?.(isDirty)
+        return () => onScopedDirtyChange?.(false)
+    }, [isDirty, onScopedDirtyChange])
 
     // Initialize playground with the evaluator entity via addPrimaryNode
     // (same path as playgroundSyncAtom). This properly links the loadable,
@@ -191,7 +235,6 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
     const resetAll = useSetAtom(playgroundController.actions.resetAll)
     const clearAllRuns = useSetAtom(clearAllRunsMutationAtom)
     const setInitialized = useSetAtom(playgroundInitializedAtom)
-    const setSelectedAppLabel = useSetAtom(selectedAppLabelAtom)
     const setConnectedTestset = useSetAtom(connectedTestsetAtom)
     const connectApp = useSetAtom(connectAppToEvaluatorAtom)
     const setPersistedTestset = useSetAtom(persistedTestsetSelectionAtom)
@@ -200,17 +243,25 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
             addPrimaryNode({type: "workflow", id: entityId, label: "Evaluator"})
             setInitialized(true)
 
-            const store = getDefaultStore()
-
-            // Restore persisted app selection (survives drawer close/reopen and commits)
-            const persisted = store.get(persistedAppSelectionAtom)
-            if (persisted) {
-                setSelectedAppLabel(persisted.appLabel)
+            // Prefer the caller's current app revision, then fall back to the
+            // persisted evaluator selection used by existing entry points.
+            // `selectedAppLabelAtom` is derived from the node graph now — the
+            // `connectApp` call below seeds the depth-0 node with the selected
+            // label, which the derived atom picks up automatically.
+            const persistedAppSelection = store.get(persistedAppSelectionAtom)
+            const appSelection = initialAppSelection
+                ? {
+                      appRevisionId: initialAppSelection.revisionId,
+                      appLabel: initialAppSelection.label,
+                  }
+                : persistedAppSelection
+            if (appSelection) {
                 connectApp({
-                    appRevisionId: persisted.appRevisionId,
-                    appLabel: persisted.appLabel,
+                    appRevisionId: appSelection.appRevisionId,
+                    appLabel: appSelection.appLabel,
                     evaluatorRevisionId: entityId,
                     evaluatorLabel: "Evaluator",
+                    persistSelection: !initialAppSelection,
                 })
             }
 
@@ -230,8 +281,6 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
             }
         }
         return () => {
-            const store = getDefaultStore()
-
             // Clear execution results BEFORE resetting nodes
             // (derivedLoadableIdAtom reads from nodes to resolve the loadableId)
             clearAllRuns()
@@ -263,7 +312,8 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
 
             resetAll()
             setInitialized(false)
-            setSelectedAppLabel(null)
+            // `selectedAppLabelAtom` is derived from the node graph — `resetAll`
+            // above clears the nodes, which flips the label back to `null`.
             setConnectedTestset(null)
         }
     }, [
@@ -272,16 +322,15 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
         resetAll,
         clearAllRuns,
         setInitialized,
-        setSelectedAppLabel,
         setConnectedTestset,
         connectApp,
+        initialAppSelection,
     ])
 
     // Save testset connection to localStorage whenever the user connects a testset
     const connectedTestset = useAtomValue(connectedTestsetAtom)
     useEffect(() => {
         if (!connectedTestset) return
-        const store = getDefaultStore()
         const loadableId = store.get(derivedLoadableIdAtom)
         if (!loadableId) return
         const loadableState = store.get(loadableStateAtomFamily(loadableId))
@@ -289,7 +338,7 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
         const rowIds = store.get(testcaseMolecule.atoms.displayRowIds)
         const testcases = rowIds
             .map((id) => {
-                const entity = testcaseMolecule.get.data(id)
+                const entity = store.get(testcaseMolecule.data(id))
                 return entity ? ({...entity, id} as {id: string} & Record<string, unknown>) : null
             })
             .filter((t): t is {id: string} & Record<string, unknown> => t !== null)
@@ -302,60 +351,28 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
         })
     }, [connectedTestset, setPersistedTestset])
 
-    const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
+    // Shared run controls — the same hook the full page and the creation drawer
+    // use, so every evaluator surface gates runs identically (run-on aware) and
+    // can't drift apart again. (This drawer previously hardcoded
+    // `runDisabled={!hasAppConnected}`, which ignored the run-on mode and forced
+    // an app even in test-case mode.)
+    const {appWorkflowAdapter, handleAppSelect, selectedAppLabel, runDisabled} =
+        useEvaluatorRunControls()
 
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
-    const evaluatorNode = useMemo(() => {
-        const downstream = nodes.find((n) => n.depth > 0)
-        if (downstream) return downstream
-        return nodes[0] ?? null
-    }, [nodes])
-
-    // Derive from nodes directly (single source of truth, no atom indirection)
-    const hasAppConnected = useMemo(() => nodes.some((n) => n.depth > 0), [nodes])
     const configEntityIds = useMemo(() => {
         const downstream = nodes.filter((n) => n.depth > 0)
         if (downstream.length > 0) return downstream.map((n) => n.entityId)
         return nodes.map((n) => n.entityId)
     }, [nodes])
 
-    const appWorkflowAdapter = useMemo(
-        () =>
-            createWorkflowRevisionAdapter({
-                skipVariantLevel: true,
-                excludeRevisionZero: true,
-                flags: {is_evaluator: false, is_feedback: false},
-            }),
-        [],
-    )
-
-    const handleAppSelect = useCallback(
-        (selection: WorkflowRevisionSelectionResult) => {
-            if (!evaluatorNode) return
-            connectApp({
-                appRevisionId: selection.id,
-                appLabel: selection.label,
-                evaluatorRevisionId: evaluatorNode.entityId,
-                evaluatorLabel: evaluatorNode.label ?? "Evaluator",
-            })
-        },
-        [connectApp, evaluatorNode],
-    )
-
     const runDisabledContent = useMemo(
         () => (
-            <>
-                <Typography.Text type="secondary" className="text-sm">
-                    Select an app to run the evaluator chain
-                </Typography.Text>
-                <EntityPicker<WorkflowRevisionSelectionResult>
-                    variant="popover-cascader"
-                    adapter={appWorkflowAdapter}
-                    onSelect={handleAppSelect}
-                    size="middle"
-                    placeholder={selectedAppLabel ?? "Select app"}
-                />
-            </>
+            <SelectAppEmptyState
+                adapter={appWorkflowAdapter}
+                onSelect={handleAppSelect}
+                selectedAppLabel={selectedAppLabel}
+            />
         ),
         [appWorkflowAdapter, handleAppSelect, selectedAppLabel],
     )
@@ -373,20 +390,15 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
     return (
         <OSSPlaygroundShell providers={providers}>
             <div className="flex flex-col w-full h-full overflow-hidden">
-                {isExpanded && (
-                    <EvaluatorPlaygroundHeader
-                        appWorkflowAdapter={appWorkflowAdapter}
-                        onAppSelect={handleAppSelect}
-                    />
-                )}
+                {isExpanded && <EvaluatorPlaygroundHeader />}
                 <PlaygroundMainView
                     mode="evaluator"
                     viewMode={isExpanded ? "full" : "configOnly"}
                     embedded
                     configViewMode={configViewMode}
-                    onConfigViewModeChange={setConfigViewMode}
+                    onConfigViewModeChange={onConfigViewModeChange}
                     configEntityIdsOverride={configEntityIds}
-                    runDisabled={!hasAppConnected}
+                    runDisabled={runDisabled}
                     runDisabledContent={runDisabledContent}
                 />
             </div>
@@ -396,14 +408,93 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
 
 const DrawerPlayground = memo(({entityId}: {entityId: string}) => {
     const {context} = useAtomValue(workflowRevisionDrawerAtom)
+    const isolatedPlayground = useAtomValue(workflowRevisionDrawerIsolatedPlaygroundAtom)
+    const initialAppSelection = useAtomValue(workflowRevisionDrawerInitialAppSelectionAtom)
+    const isExpanded = useAtomValue(workflowRevisionDrawerExpandedAtom)
+    const [configViewMode, setConfigViewMode] = useAtom(workflowRevisionDrawerViewModeAtom)
+    const setScopedDirty = useSetAtom(workflowRevisionDrawerScopedDirtyAtom)
     const isEvaluator = context === "evaluator-view" || context === "evaluator-create"
 
-    return isEvaluator ? (
-        <DrawerEvaluatorPlayground entityId={entityId} />
+    if (!isEvaluator) return <DrawerAppPlayground entityId={entityId} />
+
+    const evaluatorPlayground = (
+        <DrawerEvaluatorPlayground
+            entityId={entityId}
+            isExpanded={isExpanded}
+            configViewMode={configViewMode}
+            onConfigViewModeChange={setConfigViewMode}
+            onScopedDirtyChange={isolatedPlayground ? setScopedDirty : undefined}
+            initialAppSelection={initialAppSelection}
+        />
+    )
+
+    return isolatedPlayground ? (
+        <IsolatedDrawerPlaygroundSession
+            entityId={entityId}
+            initialAppSelection={initialAppSelection}
+        >
+            {evaluatorPlayground}
+        </IsolatedDrawerPlaygroundSession>
     ) : (
-        <DrawerAppPlayground entityId={entityId} />
+        evaluatorPlayground
     )
 })
+
+const IsolatedDrawerPlaygroundSession = ({
+    entityId,
+    initialAppSelection,
+    children,
+}: {
+    entityId: string
+    initialAppSelection?: DrawerInitialAppSelection | null
+    children: ReactNode
+}) => {
+    const parentStore = useStore()
+    const scopedStore = useMemo(() => {
+        const store = createStore()
+        store.set(playgroundStoreAtom, store)
+        store.set(projectIdAtom, parentStore.get(projectIdAtom))
+        store.set(sessionAtom, parentStore.get(sessionAtom))
+        store.set(queryClientAtom, parentStore.get(queryClientAtom))
+        store.set(executionAdapterAtom, parentStore.get(executionAdapterAtom))
+
+        const entity = parentStore.get(workflowMolecule.selectors.data(entityId))
+        if (entity) {
+            workflowMolecule.set.seedEntity(entityId, entity, {store})
+        }
+
+        if (initialAppSelection) {
+            const appEntity = parentStore.get(
+                workflowMolecule.selectors.data(initialAppSelection.revisionId),
+            )
+            if (appEntity) {
+                workflowMolecule.set.seedEntity(initialAppSelection.revisionId, appEntity, {store})
+            }
+        }
+
+        return store
+    }, [entityId, initialAppSelection, parentStore])
+
+    useEffect(() => {
+        const mirrorAtom = <Value,>(targetAtom: PrimitiveAtom<Value>) =>
+            parentStore.sub(targetAtom, () => {
+                scopedStore.set(targetAtom, parentStore.get(targetAtom))
+            })
+        const unsubs = [
+            mirrorAtom(projectIdAtom),
+            mirrorAtom(sessionAtom),
+            mirrorAtom(queryClientAtom),
+            mirrorAtom(executionAdapterAtom),
+        ]
+        return () => unsubs.forEach((unsubscribe) => unsubscribe())
+    }, [parentStore, scopedStore])
+
+    return (
+        <Provider store={scopedStore}>
+            <WebWorkerProvider>{children}</WebWorkerProvider>
+        </Provider>
+    )
+}
 
 // ================================================================
 // COMMIT CALLBACK (evaluator + app create modes)
@@ -420,6 +511,8 @@ const DrawerPlayground = memo(({entityId}: {entityId: string}) => {
 
 const useDrawerCreateCommitCallback = () => {
     const {context} = useAtomValue(workflowRevisionDrawerAtom)
+    const isolatedPlayground = useAtomValue(workflowRevisionDrawerIsolatedPlaygroundAtom)
+    const postCreateNavigation = useAtomValue(workflowRevisionDrawerPostCreateNavigationAtom)
     const drawerCallback = useAtomValue(workflowRevisionDrawerCallbackAtom)
     const drawerCallbackRef = useRef(drawerCallback)
     drawerCallbackRef.current = drawerCallback
@@ -450,7 +543,9 @@ const useDrawerCreateCommitCallback = () => {
                 if (isEvaluator) {
                     clearEvaluatorWorkflowCache()
                 }
-                await previousOnNewRevision?.(result, params)
+                if (!isolatedPlayground) {
+                    await previousOnNewRevision?.(result, params)
+                }
 
                 if (isEvaluatorCreate) {
                     const newWorkflow = result.workflow as
@@ -470,9 +565,15 @@ const useDrawerCreateCommitCallback = () => {
                         configId: newRevisionId,
                         newAppId,
                         newRevisionId,
+                        workflow: result.workflow,
                     })
 
                     message.success("Evaluator created successfully")
+
+                    if (postCreateNavigation === "stay") {
+                        closeDrawerRef.current()
+                        return
+                    }
 
                     // Close the drawer immediately and fire-and-forget the
                     // navigation. We pass `skipUrlCleanup: true` so the
@@ -483,23 +584,18 @@ const useDrawerCreateCommitCallback = () => {
                     // (`Router.pathname` only flips on `routeChangeComplete`,
                     // so a synchronous close after `router.push` would patch
                     // the still-current `/evaluators` URL and push back to it.)
+                    //
                     // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the
-                    // flag is off, post-create stays in the drawer flow even
-                    // for evaluators whose classifier supports full-page UX.
-                    let eligibleForPlayground = false
-                    if (
-                        EVALUATOR_FULL_PAGE_NAV_ENABLED &&
-                        newAppId &&
-                        newRevisionId &&
-                        newWorkflow
-                    ) {
-                        eligibleForPlayground = hasFullPagePlaygroundUX({
-                            flags: newWorkflow.flags ?? null,
-                            data: newWorkflow.data ?? null,
-                            meta: newWorkflow.meta ?? null,
-                            slug: newWorkflow.slug ?? null,
-                        })
-                    }
+                    // flag is off, post-create stays in the drawer flow. When
+                    // on, every freshly committed evaluator (regardless of
+                    // template type) lands on `/apps/<id>/playground` —
+                    // mirroring app-create's post-commit navigation. The
+                    // earlier classifier-only gate was removed so declarative
+                    // evaluators get the same surface (variants, traces,
+                    // sidebar context) as LLM/code ones.
+                    const eligibleForPlayground = Boolean(
+                        EVALUATOR_FULL_PAGE_NAV_ENABLED && newAppId && newRevisionId,
+                    )
 
                     if (eligibleForPlayground && newAppId && newRevisionId) {
                         const url = `${baseAppURLRef.current}/${encodeURIComponent(
@@ -525,6 +621,13 @@ const useDrawerCreateCommitCallback = () => {
                     // (commit.ts:590) doesn't cover the app-management
                     // paginated store.
                     void invalidateAppManagementWorkflowQueries()
+
+                    // Same problem on the Prompts page: it reads its own
+                    // ["prompts-workflows"] query, which neither the shared
+                    // invalidation nor the app-management one touches. Without
+                    // this the new prompt is missing from the list until a
+                    // manual reload.
+                    void invalidatePromptsWorkflowQueries()
 
                     drawerCallbackRef.current?.({
                         newAppId,
@@ -566,7 +669,7 @@ const useDrawerCreateCommitCallback = () => {
                 onNewRevision: previousOnNewRevision,
             })
         }
-    }, [isEvaluator, isEvaluatorCreate, isAppCreate])
+    }, [isEvaluator, isEvaluatorCreate, isAppCreate, isolatedPlayground, postCreateNavigation])
 }
 
 // ================================================================
@@ -640,12 +743,15 @@ const useUnsavedDrawerWarning = () => {
     const isOpen = useAtomValue(workflowRevisionDrawerOpenAtom)
     const context = useAtomValue(workflowRevisionDrawerContextAtom)
     const entityId = useAtomValue(workflowRevisionDrawerEntityIdAtom)
+    const isolatedPlayground = useAtomValue(workflowRevisionDrawerIsolatedPlaygroundAtom)
+    const scopedDirty = useAtomValue(workflowRevisionDrawerScopedDirtyAtom)
     const isDirty = useAtomValue(
         useMemo(() => workflowMolecule.atoms.isDirty(entityId ?? "__none__"), [entityId]),
     )
+    const effectiveDirty = isolatedPlayground ? scopedDirty : isDirty
 
     useEffect(() => {
-        if (!isOpen || !isCreateContext(context) || !isDirty) return
+        if (!isOpen || !isCreateContext(context) || !effectiveDirty) return
         const handler = (e: BeforeUnloadEvent) => {
             e.preventDefault()
             // Modern browsers ignore the message, but setting returnValue
@@ -654,7 +760,7 @@ const useUnsavedDrawerWarning = () => {
         }
         window.addEventListener("beforeunload", handler)
         return () => window.removeEventListener("beforeunload", handler)
-    }, [isOpen, context, isDirty])
+    }, [isOpen, context, effectiveDirty])
 }
 
 const WorkflowRevisionDrawerWrapper = () => {

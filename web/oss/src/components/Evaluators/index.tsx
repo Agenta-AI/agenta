@@ -3,7 +3,6 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 import {
     createEvaluatorFromTemplate,
     type EvaluatorCatalogTemplate,
-    hasFullPagePlaygroundUX,
     invalidateEvaluatorsListCache,
     workflowMolecule,
 } from "@agenta/entities/workflow"
@@ -12,7 +11,7 @@ import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {PageLayout} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {PlusOutlined} from "@ant-design/icons"
-import {ChartDonutIcon, ListChecksIcon, Tray} from "@phosphor-icons/react"
+import {ArrowLeft, ChartDonutIcon, ListChecksIcon, Tray} from "@phosphor-icons/react"
 import {Button, Input, Space} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -40,7 +39,7 @@ import {
     getEvaluatorsTableState,
     invalidateEvaluatorManagementQueries,
 } from "./store/evaluatorsPaginatedStore"
-import EvaluatorsTable from "./Table/EvaluatorsTable"
+import EvaluatorsTable, {type EvaluatorsTableSelection} from "./Table/EvaluatorsTable"
 
 const isValidEvaluatorTab = (value: string): value is EvaluatorCategory => {
     return EVALUATOR_TABS.some(({key}) => key === value)
@@ -105,6 +104,9 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
         [isArchived],
     )
     const evalTableState = useAtomValue(tableState.paginatedStore.selectors.state(controllerParams))
+    const setSelectedKeys = useSetAtom(
+        tableState.paginatedStore.selectors.selection(controllerParams),
+    )
 
     useEffect(() => {
         if (isArchived) return
@@ -260,22 +262,18 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
                 return
             }
 
-            // Only prompt/code-authored evaluators open in the full-page
-            // playground. Declarative classifiers (match, contains, regex,
-            // json_multi_field_match, …) fall back to the drawer-edit flow —
-            // their config is a handful of form fields and the playground
-            // page would surface misleading envelope variable inputs.
+            // All non-archived automatic evaluators open in the full-page
+            // playground. Earlier this was gated on classifier type
+            // (`hasFullPagePlaygroundUX`) so declarative classifiers stayed in
+            // the drawer-edit flow, but in practice that meant whole evaluator
+            // types had no UI path into the per-evaluator pages (variants,
+            // traces). Drawer stays available as a secondary affordance via
+            // the row context menu's Configure action.
             //
             // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the flag is
-            // off, every row click resolves to the drawer regardless of the
-            // evaluator's classifier (the new flow stays code-complete but
-            // hidden until follow-up fixes land).
-            const entity = record.revisionId ? workflowMolecule.get.data(record.revisionId) : null
+            // off, every row click resolves to the drawer.
             const shouldNavigateToFullPage = Boolean(
-                EVALUATOR_FULL_PAGE_NAV_ENABLED &&
-                record.workflowId &&
-                entity &&
-                hasFullPagePlaygroundUX(entity as Parameters<typeof hasFullPagePlaygroundUX>[0]),
+                EVALUATOR_FULL_PAGE_NAV_ENABLED && record.workflowId,
             )
 
             const navigated =
@@ -324,9 +322,22 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
                 if (!canDelete) return
             }
 
+            // Capture the row keys of the archived workflows before the cache
+            // invalidation removes them from the table data, so the selection
+            // can be pruned regardless of which flow (bulk button or row menu)
+            // triggered the archive.
+            const archivedRowKeys = new Set(
+                evalTableState.rows
+                    .filter((row) => deleteTargetIds.includes(row.workflowId))
+                    .map((row) => String(row.key)),
+            )
+
             await Promise.all(
                 deleteTargetIds.map((id) => workflowMolecule.lifecycle.archive(id, {projectId})),
             )
+            setSelectedKeys((prev) => prev.filter((key) => !archivedRowKeys.has(String(key))))
+            await invalidateEvaluatorManagementQueries()
+            refetchAll()
 
             message.success(
                 deleteTargetIds.length === 1
@@ -342,7 +353,7 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
             setDeleteTargetIds([])
             setDeleteTargetRevisionIds([])
         }
-    }, [activeTab, deleteTargetIds])
+    }, [activeTab, deleteTargetIds, evalTableState.rows, refetchAll, setSelectedKeys])
 
     const columnActions = useMemo(
         () =>
@@ -426,43 +437,93 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
         [searchTerm, setSearchTerm],
     )
 
-    const primaryActions = useMemo(() => {
-        if (isArchived) return undefined
+    const archivedTitle = useMemo(() => {
+        if (!isArchived) return undefined
 
         return (
-            <Space>
+            <span className="inline-flex items-center gap-2">
                 <Button
-                    icon={<Tray size={14} />}
-                    onClick={() =>
-                        router.push(`${projectURL}/evaluators/archived?tab=${activeTab}`)
-                    }
                     type="text"
-                >
-                    Archived
-                </Button>
-                {activeTab === "human" ? (
-                    <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenHumanDrawer}>
-                        Create new
-                    </Button>
-                ) : (
-                    <EvaluatorTemplateDropdown
-                        onSelect={handleSelectTemplate}
-                        trigger={
-                            <Button type="primary" icon={<PlusOutlined />}>
-                                Create new
-                            </Button>
-                        }
-                    />
-                )}
-            </Space>
+                    size="small"
+                    icon={<ArrowLeft size={16} />}
+                    onClick={() => router.push(`${projectURL}/evaluators`)}
+                    className="!px-1"
+                    aria-label="Back to evaluators"
+                />
+                <span>Archived Evaluators</span>
+            </span>
         )
-    }, [activeTab, handleOpenHumanDrawer, handleSelectTemplate, isArchived, projectURL, router])
+    }, [isArchived, projectURL, router])
+
+    const renderPrimaryActions = useCallback(
+        ({selectedRowKeys, selectedRecords}: EvaluatorsTableSelection) => {
+            if (isArchived) return undefined
+
+            const handleBulkArchive = () => {
+                const selectedEvaluators = Array.from(
+                    new Map(
+                        selectedRecords
+                            .filter((record) => record.workflowId)
+                            .map((record) => [record.workflowId, record]),
+                    ).values(),
+                )
+                if (!selectedEvaluators.length) return
+
+                setDeleteTargetIds(selectedEvaluators.map((record) => record.workflowId))
+                setDeleteTargetRevisionIds(
+                    selectedEvaluators
+                        .map((record) => record.revisionId)
+                        .filter((revisionId): revisionId is string => Boolean(revisionId)),
+                )
+                setIsDeleteModalOpen(true)
+            }
+
+            return (
+                <Space>
+                    {selectedRowKeys.length > 0 ? (
+                        <Button danger icon={<Tray size={14} />} onClick={handleBulkArchive}>
+                            Archive
+                        </Button>
+                    ) : (
+                        <Button
+                            icon={<Tray size={14} />}
+                            onClick={() =>
+                                router.push(`${projectURL}/evaluators/archived?tab=${activeTab}`)
+                            }
+                            type="text"
+                        >
+                            Archived
+                        </Button>
+                    )}
+                    {activeTab === "human" ? (
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={handleOpenHumanDrawer}
+                        >
+                            Create new
+                        </Button>
+                    ) : (
+                        <EvaluatorTemplateDropdown
+                            onSelect={handleSelectTemplate}
+                            trigger={
+                                <Button type="primary" icon={<PlusOutlined />}>
+                                    Create new
+                                </Button>
+                            }
+                        />
+                    )}
+                </Space>
+            )
+        },
+        [activeTab, handleOpenHumanDrawer, handleSelectTemplate, isArchived, projectURL, router],
+    )
 
     return (
         <PageLayout
-            title={isArchived ? undefined : "Evaluators"}
+            title={isArchived ? archivedTitle : "Evaluators"}
             headerTabsProps={isArchived ? undefined : headerTabsProps}
-            className={isArchived ? "h-full grow !min-h-0 overflow-hidden !pl-0" : "grow min-h-0"}
+            className="grow min-h-0"
         >
             <EvaluatorsTable
                 mode={isArchived ? "archived" : "active"}
@@ -471,7 +532,7 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
                 actions={columnActions}
                 searchDeps={[searchTerm]}
                 filters={filters}
-                primaryActions={isArchived ? undefined : primaryActions}
+                renderPrimaryActions={isArchived ? undefined : renderPrimaryActions}
                 displayMode="grouped"
             />
 

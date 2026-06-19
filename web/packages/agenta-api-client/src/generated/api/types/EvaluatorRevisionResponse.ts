@@ -9,7 +9,9 @@ export interface EvaluatorRevisionResponse {
     /** 1 when a revision is returned, 0 otherwise. */
     count?: number | undefined;
     /** The evaluator revision, or null when none matched. */
-    evaluator_revision?: (AgentaApi.EvaluatorRevision | null) | undefined;
+    evaluator_revision?: (AgentaApi.EvaluatorRevisionOutput | null) | undefined;
     /** Embed-resolution metadata. Populated when `resolve=true` was requested. */
     resolution_info?: (AgentaApi.ResolutionInfo | null) | undefined;
+    /** References used to retrieve the top-level revision. */
+    retrieval_info?: (AgentaApi.RetrievalInfo | null) | undefined;
 }

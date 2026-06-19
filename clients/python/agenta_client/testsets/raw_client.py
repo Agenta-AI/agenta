@@ -32,6 +32,7 @@ from ..types.testset_revisions_log import TestsetRevisionsLog
 from ..types.testset_revisions_response import TestsetRevisionsResponse
 from ..types.testset_variant_create import TestsetVariantCreate
 from ..types.testset_variant_edit import TestsetVariantEdit
+from ..types.testset_variant_fork import TestsetVariantFork
 from ..types.testset_variant_query import TestsetVariantQuery
 from ..types.testset_variant_response import TestsetVariantResponse
 from ..types.testset_variants_response import TestsetVariantsResponse
@@ -679,13 +680,76 @@ class RawTestsetsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    def fork_testset_variant(self, *, testset_variant: TestsetVariantFork, testset_variant_ref: Reference, testset_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[TestsetVariantResponse]:
+        """
+        Fork an existing testset variant into a new variant.
+        
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `testset_revision_ref` is provided). Provide `slug`
+        and `name` in the fork body to identify the new variant.
+        
+        Parameters
+        ----------
+        testset_variant : TestsetVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        testset_variant_ref : Reference
+            Source variant to fork from.
+        
+        testset_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[TestsetVariantResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "testsets/variants/fork",method="POST",
+            json={
+                "testset_variant": convert_and_respect_annotation_metadata(object_=testset_variant, annotation=TestsetVariantFork, direction="write"),
+                "testset_variant_ref": convert_and_respect_annotation_metadata(object_=testset_variant_ref, annotation=Reference, direction="write"),
+                "testset_revision_ref": convert_and_respect_annotation_metadata(object_=testset_revision_ref, annotation=typing.Optional[Reference], direction="write"),
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    TestsetVariantResponse,
+                    parse_obj_as(
+                        type_ =TestsetVariantResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     def create_testset_revision(self, *, testset_revision: TestsetRevisionCreate, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[TestsetRevisionResponse]:
         """
-        Create a new revision on an existing variant.
+        Create and commit the initial revision for a testset variant.
         
-        Creates a revision row without committing content. Most callers
-        instead use `/testsets/revisions/commit`, which writes the
-        testcases and the revision together.
+        Most callers instead use `/testsets/revisions/commit`, which writes
+        the testcases and the revision together. This endpoint commits an
+        initial revision with the `initial` guard, preventing duplicate
+        initial revisions for the same variant.
         
         Parameters
         ----------
@@ -1096,11 +1160,11 @@ class RawTestsetsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def commit_testset_revision(self, *, testset_revision_commit: TestsetRevisionCommit, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[TestsetRevisionResponse]:
+    def commit_testset_revision(self, *, testset_revision: TestsetRevisionCommit, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[TestsetRevisionResponse]:
         """
         Parameters
         ----------
-        testset_revision_commit : TestsetRevisionCommit
+        testset_revision : TestsetRevisionCommit
             New revision to commit. Pass either `data` (full replacement of the testcase list) or `delta` (add/remove/replace operations against the base revision) — not both.
         
         include_testcases : typing.Optional[bool]
@@ -1117,7 +1181,7 @@ class RawTestsetsClient:
         _response = self._client_wrapper.httpx_client.request(
             "testsets/revisions/commit",method="POST",
             json={
-                "testset_revision_commit": convert_and_respect_annotation_metadata(object_=testset_revision_commit, annotation=TestsetRevisionCommit, direction="write"),
+                "testset_revision": convert_and_respect_annotation_metadata(object_=testset_revision, annotation=TestsetRevisionCommit, direction="write"),
                 "include_testcases": include_testcases,
             }
             ,
@@ -1153,13 +1217,13 @@ class RawTestsetsClient:
         Parameters
         ----------
         testset_ref : typing.Optional[Reference]
-            Testset reference. If only the testset is provided, the latest revision on its default variant is returned.
+            Testset artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of an arbitrary variant of this testset.
         
         testset_variant_ref : typing.Optional[Reference]
-            Variant reference. Returns the latest revision on that variant.
+            Testset variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         testset_revision_ref : typing.Optional[Reference]
-            Revision reference. Returns that specific revision.
+            Testset revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with a `testset_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         include_testcase_ids : typing.Optional[bool]
             Include the ordered list of testcase IDs. Defaults to true (opt-out).
@@ -1216,11 +1280,11 @@ class RawTestsetsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def log_testset_revisions(self, *, testset_revision: TestsetRevisionsLog, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[TestsetRevisionsResponse]:
+    def log_testset_revisions(self, *, testset_revisions: TestsetRevisionsLog, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[TestsetRevisionsResponse]:
         """
         Parameters
         ----------
-        testset_revision : TestsetRevisionsLog
+        testset_revisions : TestsetRevisionsLog
             Scope for the log: one of `testset_id`, `testset_variant_id`, or `testset_revision_id`. Optional `depth` limits how far back to walk.
         
         include_testcases : typing.Optional[bool]
@@ -1237,7 +1301,7 @@ class RawTestsetsClient:
         _response = self._client_wrapper.httpx_client.request(
             "testsets/revisions/log",method="POST",
             json={
-                "testset_revision": convert_and_respect_annotation_metadata(object_=testset_revision, annotation=TestsetRevisionsLog, direction="write"),
+                "testset_revisions": convert_and_respect_annotation_metadata(object_=testset_revisions, annotation=TestsetRevisionsLog, direction="write"),
                 "include_testcases": include_testcases,
             }
             ,
@@ -2366,13 +2430,76 @@ class AsyncRawTestsetsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    async def fork_testset_variant(self, *, testset_variant: TestsetVariantFork, testset_variant_ref: Reference, testset_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[TestsetVariantResponse]:
+        """
+        Fork an existing testset variant into a new variant.
+        
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `testset_revision_ref` is provided). Provide `slug`
+        and `name` in the fork body to identify the new variant.
+        
+        Parameters
+        ----------
+        testset_variant : TestsetVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        testset_variant_ref : Reference
+            Source variant to fork from.
+        
+        testset_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[TestsetVariantResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "testsets/variants/fork",method="POST",
+            json={
+                "testset_variant": convert_and_respect_annotation_metadata(object_=testset_variant, annotation=TestsetVariantFork, direction="write"),
+                "testset_variant_ref": convert_and_respect_annotation_metadata(object_=testset_variant_ref, annotation=Reference, direction="write"),
+                "testset_revision_ref": convert_and_respect_annotation_metadata(object_=testset_revision_ref, annotation=typing.Optional[Reference], direction="write"),
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    TestsetVariantResponse,
+                    parse_obj_as(
+                        type_ =TestsetVariantResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     async def create_testset_revision(self, *, testset_revision: TestsetRevisionCreate, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[TestsetRevisionResponse]:
         """
-        Create a new revision on an existing variant.
+        Create and commit the initial revision for a testset variant.
         
-        Creates a revision row without committing content. Most callers
-        instead use `/testsets/revisions/commit`, which writes the
-        testcases and the revision together.
+        Most callers instead use `/testsets/revisions/commit`, which writes
+        the testcases and the revision together. This endpoint commits an
+        initial revision with the `initial` guard, preventing duplicate
+        initial revisions for the same variant.
         
         Parameters
         ----------
@@ -2783,11 +2910,11 @@ class AsyncRawTestsetsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def commit_testset_revision(self, *, testset_revision_commit: TestsetRevisionCommit, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[TestsetRevisionResponse]:
+    async def commit_testset_revision(self, *, testset_revision: TestsetRevisionCommit, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[TestsetRevisionResponse]:
         """
         Parameters
         ----------
-        testset_revision_commit : TestsetRevisionCommit
+        testset_revision : TestsetRevisionCommit
             New revision to commit. Pass either `data` (full replacement of the testcase list) or `delta` (add/remove/replace operations against the base revision) — not both.
         
         include_testcases : typing.Optional[bool]
@@ -2804,7 +2931,7 @@ class AsyncRawTestsetsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "testsets/revisions/commit",method="POST",
             json={
-                "testset_revision_commit": convert_and_respect_annotation_metadata(object_=testset_revision_commit, annotation=TestsetRevisionCommit, direction="write"),
+                "testset_revision": convert_and_respect_annotation_metadata(object_=testset_revision, annotation=TestsetRevisionCommit, direction="write"),
                 "include_testcases": include_testcases,
             }
             ,
@@ -2840,13 +2967,13 @@ class AsyncRawTestsetsClient:
         Parameters
         ----------
         testset_ref : typing.Optional[Reference]
-            Testset reference. If only the testset is provided, the latest revision on its default variant is returned.
+            Testset artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of an arbitrary variant of this testset.
         
         testset_variant_ref : typing.Optional[Reference]
-            Variant reference. Returns the latest revision on that variant.
+            Testset variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         testset_revision_ref : typing.Optional[Reference]
-            Revision reference. Returns that specific revision.
+            Testset revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with a `testset_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         include_testcase_ids : typing.Optional[bool]
             Include the ordered list of testcase IDs. Defaults to true (opt-out).
@@ -2903,11 +3030,11 @@ class AsyncRawTestsetsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def log_testset_revisions(self, *, testset_revision: TestsetRevisionsLog, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[TestsetRevisionsResponse]:
+    async def log_testset_revisions(self, *, testset_revisions: TestsetRevisionsLog, include_testcases: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[TestsetRevisionsResponse]:
         """
         Parameters
         ----------
-        testset_revision : TestsetRevisionsLog
+        testset_revisions : TestsetRevisionsLog
             Scope for the log: one of `testset_id`, `testset_variant_id`, or `testset_revision_id`. Optional `depth` limits how far back to walk.
         
         include_testcases : typing.Optional[bool]
@@ -2924,7 +3051,7 @@ class AsyncRawTestsetsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "testsets/revisions/log",method="POST",
             json={
-                "testset_revision": convert_and_respect_annotation_metadata(object_=testset_revision, annotation=TestsetRevisionsLog, direction="write"),
+                "testset_revisions": convert_and_respect_annotation_metadata(object_=testset_revisions, annotation=TestsetRevisionsLog, direction="write"),
                 "include_testcases": include_testcases,
             }
             ,

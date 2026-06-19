@@ -14,7 +14,6 @@ import {
     evaluatorsListDataAtom,
     evaluatorsListQueryAtom,
     humanEvaluatorsListDataAtom,
-    humanEvaluatorsListQueryAtom,
     invalidateWorkflowsListCache,
     invalidateEvaluatorsListCache,
 } from "@agenta/entities/workflow"
@@ -49,7 +48,7 @@ import {
     selectedTestsetRevisionIdAtom,
     selectedTestsetVersionAtom,
 } from "../state/selection"
-import type {LLMRunRateLimitWithCorrectAnswer, NewEvaluationModalInnerProps} from "../types"
+import type {EvaluationConcurrencySettings, NewEvaluationModalInnerProps} from "../types"
 
 const NewEvaluationModalContent = dynamic(() => import("./NewEvaluationModalContent"), {
     ssr: false,
@@ -128,18 +127,27 @@ const NewEvaluationModalInner = ({
             updatedAt: app.updated_at ?? null,
         }))
         if (selectedAppId && !options.some((opt) => opt.value === selectedAppId)) {
-            // Evaluators (and locally-picked workflows) aren't in useAppsData —
-            // fall back to the captured meta so the tag renders a real name.
+            // Evaluators (and locally-picked workflows) aren't in useAppsData.
+            // When the user picked a row we have `selectedWorkflowMeta`; for an
+            // app-scoped EVALUATOR route there's no meta, so resolve the name
+            // (and kind) from the evaluators list — otherwise the Application
+            // panel renders the raw workflow id instead of its name.
+            const evaluatorWorkflow = evaluatorWorkflows.find((e) => e.id === selectedAppId)
+            const isEvaluator = selectedWorkflowMeta?.isEvaluator ?? Boolean(evaluatorWorkflow)
             options.push({
-                label: selectedWorkflowMeta?.label ?? selectedAppId,
+                label:
+                    selectedWorkflowMeta?.label ??
+                    evaluatorWorkflow?.name ??
+                    evaluatorWorkflow?.slug ??
+                    selectedAppId,
                 value: selectedAppId,
-                type: selectedWorkflowMeta?.isEvaluator ? "evaluator" : null,
+                type: isEvaluator ? "evaluator" : null,
                 createdAt: null,
                 updatedAt: null,
             })
         }
         return options
-    }, [availableApps, selectedAppId, selectedWorkflowMeta])
+    }, [availableApps, selectedAppId, selectedWorkflowMeta, evaluatorWorkflows])
     const router = useRouter()
     const {baseAppURL, projectURL} = useURL()
 
@@ -149,9 +157,11 @@ const NewEvaluationModalInner = ({
     const configsData = useAtomValue(evaluatorConfigsListDataAtom)
     const configsQueryState = useAtomValue(evaluatorConfigsQueryStateAtom)
 
-    // Workflow-based evaluator list atoms (replace legacy useEvaluators hook)
+    // Workflow-based evaluator list atoms (replace legacy useEvaluators hook).
+    // The `humanEvaluatorsListDataAtom` subscription already drives the human
+    // evaluators query; we don't separately read its query-state object (doing
+    // so only churned the derived-evaluators memo above), so it's not read here.
     const humanEvaluatorsList = useAtomValue(humanEvaluatorsListDataAtom)
-    const humanEvaluatorsQuery = useAtomValue(humanEvaluatorsListQueryAtom)
     const evaluatorsList = useAtomValue(evaluatorsListDataAtom)
     const evaluatorsQuery = useAtomValue(evaluatorsListQueryAtom)
 
@@ -174,13 +184,17 @@ const NewEvaluationModalInner = ({
                     loadingEvaluatorConfigs: configsQueryState.isPending ?? false,
                 }
             }
+            // Depend on the *values* the body reads, not the query result
+            // objects — `evaluatorsQuery`/`humanEvaluatorsQuery` change identity
+            // on every query tick (and `humanEvaluatorsQuery` isn't read at all),
+            // which recomputed this memo every render and churned the derived
+            // `evaluators`/`evaluatorConfigs` → `appOptions`/Tabs items downstream.
         }, [
             preview,
             evaluationType,
             humanEvaluatorsList,
-            humanEvaluatorsQuery,
             evaluatorsList,
-            evaluatorsQuery,
+            evaluatorsQuery.isPending,
             templatesData,
             configsData,
             templatesQuery.isPending,
@@ -243,7 +257,7 @@ const NewEvaluationModalInner = ({
     const [evaluationName, setEvaluationName] = useState("")
     const [nameFocused, setNameFocused] = useState(false)
     const [advanceSettings, setAdvanceSettings] =
-        useState<LLMRunRateLimitWithCorrectAnswer>(DEFAULT_ADVANCE_SETTINGS)
+        useState<EvaluationConcurrencySettings>(DEFAULT_ADVANCE_SETTINGS)
 
     const allowTestsetAutoAdvance = !(
         activeTourId === FIRST_EVALUATION_TOUR_ID &&
@@ -360,16 +374,29 @@ const NewEvaluationModalInner = ({
         }
     }, [])
 
+    // Variant display names live on the VARIANT (name, then slug): SDK-created
+    // variants and revisions may carry no `name` at all, and UI-created
+    // revisions are named after the variant.
+    const selectedSingleRevisionId =
+        selectedVariantRevisionIds.length === 1 ? selectedVariantRevisionIds[0] : ""
+    const selectedVariantLabel = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.variantLabel(selectedSingleRevisionId),
+            [selectedSingleRevisionId],
+        ),
+    )
+
     // Memoised base (deterministic) part of generated name (without random suffix)
     const generatedNameBase = useMemo(() => {
         if (!selectedVariantRevisionIds.length || !selectedTestsetName) return ""
         if (selectedVariantRevisionIds.length > 1) {
             return `${selectedVariantRevisionIds.length}-variants-${selectedTestsetName}`
         }
-        const variant = filteredVariants?.find((v) => selectedVariantRevisionIds.includes(v.id))
-        if (!variant) return ""
-        return `${variant.name || "-"}-v${variant.version ?? 0}-${selectedTestsetName}`
-    }, [selectedVariantRevisionIds, selectedTestsetName, filteredVariants])
+        const revision = filteredVariants?.find((v) => selectedVariantRevisionIds.includes(v.id))
+        if (!revision) return ""
+        const label = selectedVariantLabel ?? revision.name ?? "-"
+        return `${label}-v${revision.version ?? 0}-${selectedTestsetName}`
+    }, [selectedVariantRevisionIds, selectedTestsetName, filteredVariants, selectedVariantLabel])
 
     // Auto-generate / update evaluation name intelligently to avoid loops
     const lastAutoNameRef = useRef<string>("")
@@ -499,7 +526,6 @@ const NewEvaluationModalInner = ({
             }
 
             const revisions = filteredVariants
-            const {correct_answer_column, ...rateLimitValues} = advanceSettings
 
             if (preview) {
                 const selectedRevisions = revisions
@@ -538,8 +564,7 @@ const NewEvaluationModalInner = ({
                     evaluators: selectedEvalConfigs
                         .map((id) => evaluatorRowsByRevisionId.get(id))
                         .filter(Boolean),
-                    rate_limit: rateLimitValues,
-                    correctAnswerColumn: correct_answer_column,
+                    concurrency: advanceSettings,
                 }
 
                 if (
@@ -590,12 +615,12 @@ const NewEvaluationModalInner = ({
                         testset_revision_id: selectedTestsetRevisionId,
                         revisions_ids: selectedVariantRevisionIds,
                         evaluator_revision_ids: selectedEvalConfigs,
-                        rate_limit: rateLimitValues,
-                        correct_answer_column: correct_answer_column,
+                        concurrency: advanceSettings,
                         name: evaluationName,
                     })
 
-                    // Extract run ID from response and build link to results
+                    // One run is created per selected variant; link to the first.
+                    const runCount = response.runs?.length ?? 1
                     const runId = response.data?.evaluation?.id
                     if (runId) {
                         const scope = isAppScoped ? "app" : "project"
@@ -609,7 +634,9 @@ const NewEvaluationModalInner = ({
 
                         message.success(
                             <span>
-                                Evaluation started.{" "}
+                                {runCount > 1
+                                    ? `${runCount} evaluations started.`
+                                    : "Evaluation started."}{" "}
                                 <a
                                     href={resultsUrl}
                                     onClick={(e) => {
@@ -623,7 +650,9 @@ const NewEvaluationModalInner = ({
                             </span>,
                         )
                     } else {
-                        message.success("Evaluation started")
+                        message.success(
+                            runCount > 1 ? `${runCount} evaluations started` : "Evaluation started",
+                        )
                     }
 
                     // Trigger revalidation and close modal after successful creation

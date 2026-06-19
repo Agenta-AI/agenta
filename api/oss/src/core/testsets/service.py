@@ -4,11 +4,13 @@ from uuid import UUID, uuid4
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.interfaces import GitDAOInterface
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.git.types import (
+    VariantForkError,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     needs_default_variant_resolution,
-    validate_retrieve_refs_consistent,  # noqa: F401  HOTFIX: re-enable with PR <stack>
+    validate_retrieve_refs_consistent,
 )
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.shared.dtos import Reference, Windowing
@@ -16,6 +18,8 @@ from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
     ArtifactQuery,
+    ArtifactFork,
+    RetrievalInfo,
     #
     VariantCreate,
     VariantEdit,
@@ -31,6 +35,7 @@ from oss.src.core.testsets.dtos import (
     TestsetEdit,
     TestsetQuery,
     TestsetRevisionsLog,
+    TestsetVariantFork,
     #
     TestsetVariant,
     TestsetVariantCreate,
@@ -483,6 +488,54 @@ class TestsetsService:
 
         return testset_variant
 
+    async def fork_testset_variant(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        testset_variant_fork: TestsetVariantFork,
+        testset_variant_ref: Reference,
+        testset_revision_ref: Optional[Reference] = None,
+    ) -> Optional[TestsetVariant]:
+        source_variant = await self.fetch_testset_variant(
+            project_id=project_id,
+            testset_variant_ref=testset_variant_ref,
+        )
+        if not source_variant:
+            raise VariantForkError("Fork source variant could not be resolved.")
+
+        source_revision_id: Optional[UUID] = None
+        if testset_revision_ref is not None:
+            source_revision = await self.fetch_testset_revision(
+                project_id=project_id,
+                testset_variant_ref=testset_variant_ref,
+                testset_revision_ref=testset_revision_ref,
+            )
+            if not source_revision:
+                raise VariantForkError("Fork source revision could not be resolved.")
+            source_revision_id = source_revision.id
+
+        _artifact_fork = ArtifactFork(
+            variant_id=source_variant.id,
+            revision_id=source_revision_id,
+            variant=testset_variant_fork,
+        )
+
+        variant = await self.testsets_dao.fork_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            artifact_fork=_artifact_fork,
+        )
+
+        if not variant:
+            return None
+
+        return TestsetVariant(
+            **variant.model_dump(mode="json"),
+        )
+
     async def archive_testset_variant(
         self,
         *,
@@ -703,28 +756,25 @@ class TestsetsService:
         if not revision:
             return None
 
-        # HOTFIX: env-stored refs may carry stale slugs.
-        # Re-enable once the web write paths are fixed and the historical rows
-        # are backfilled.
-        # validate_retrieve_refs_consistent(
-        #     artifact_ref=_original_testset_ref,
-        #     variant_ref=_original_testset_variant_ref,
-        #     revision_ref=testset_revision_ref,
-        #     resolved_artifact_ref=Reference(
-        #         id=revision.artifact_id,
-        #         slug=revision.artifact_slug,
-        #     ),
-        #     resolved_variant_ref=Reference(
-        #         id=revision.variant_id,
-        #         slug=revision.variant_slug,
-        #     ),
-        #     resolved_revision_ref=Reference(
-        #         id=revision.id,
-        #         slug=revision.slug,
-        #         version=revision.version,
-        #     ),
-        #     entity_type="testset",
-        # )
+        validate_retrieve_refs_consistent(
+            artifact_ref=_original_testset_ref,
+            variant_ref=_original_testset_variant_ref,
+            revision_ref=testset_revision_ref,
+            resolved_artifact_ref=Reference(
+                id=revision.artifact_id,
+                slug=revision.artifact_slug,
+            ),
+            resolved_variant_ref=Reference(
+                id=revision.variant_id,
+                slug=revision.variant_slug,
+            ),
+            resolved_revision_ref=Reference(
+                id=revision.id,
+                slug=revision.slug,
+                version=revision.version,
+            ),
+            entity_type="testset",
+        )
 
         testset_revision = TestsetRevision(
             **revision.model_dump(
@@ -744,6 +794,40 @@ class TestsetsService:
         )
 
         return testset_revision
+
+    async def retrieve_testset_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        testset_ref: Optional[Reference] = None,
+        testset_variant_ref: Optional[Reference] = None,
+        testset_revision_ref: Optional[Reference] = None,
+        #
+        include_testcase_ids: Optional[bool] = None,
+        include_testcases: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> tuple[Optional[TestsetRevision], Optional[RetrievalInfo]]:
+        testset_revision = await self.fetch_testset_revision(
+            project_id=project_id,
+            #
+            testset_ref=testset_ref,
+            testset_variant_ref=testset_variant_ref,
+            testset_revision_ref=testset_revision_ref,
+            #
+            include_testcase_ids=include_testcase_ids,
+            include_testcases=include_testcases,
+            #
+            windowing=windowing,
+        )
+
+        retrieval_info = build_retrieval_info(
+            revision=testset_revision,
+            entity_type="testset",
+        )
+
+        return testset_revision, retrieval_info
 
     async def edit_testset_revision(
         self,
@@ -911,6 +995,8 @@ class TestsetsService:
         #
         testset_revision_commit: TestsetRevisionCommit,
         #
+        initial: bool = False,
+        #
         include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
         if testset_revision_commit.delta and not testset_revision_commit.data:
@@ -955,6 +1041,8 @@ class TestsetsService:
             user_id=user_id,
             #
             revision_commit=revision_commit,
+            #
+            initial=initial,
         )
 
         if not revision:
@@ -997,7 +1085,7 @@ class TestsetsService:
         testset_revisions_log: TestsetRevisionsLog,
         #
         include_testcases: Optional[bool] = None,
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> List[TestsetRevision]:
         revisions = await self.testsets_dao.log_revisions(
             project_id=project_id,
@@ -1267,7 +1355,7 @@ class SimpleTestsetsService:
 
         testset_revision_slug = uuid4().hex[-12:]
 
-        testset_revision_create = TestsetRevisionCreate(
+        testset_revision_commit = TestsetRevisionCommit(
             slug=testset_revision_slug,
             #
             name=simple_testset_create.name,
@@ -1277,17 +1365,21 @@ class SimpleTestsetsService:
             tags=simple_testset_create.tags,
             meta=simple_testset_create.meta,
             #
+            data=None,
+            #
+            message="Initial commit",
+            #
             testset_id=testset.id,
             testset_variant_id=testset_variant.id,
         )
 
         testset_revision: Optional[
             TestsetRevision
-        ] = await self.testsets_service.create_testset_revision(
+        ] = await self.testsets_service.commit_testset_revision(
             project_id=project_id,
             user_id=user_id,
             #
-            testset_revision_create=testset_revision_create,
+            testset_revision_commit=testset_revision_commit,
         )
 
         if testset_revision is None:

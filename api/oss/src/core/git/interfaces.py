@@ -294,6 +294,8 @@ class GitDAOInterface(ABC):
         user_id: UUID,
         #
         revision_commit: RevisionCommit,
+        #
+        initial: bool = False,
     ) -> Optional[Revision]:
         raise NotImplementedError
 
@@ -305,7 +307,7 @@ class GitDAOInterface(ABC):
         #
         revisions_log: RevisionsLog,
         #
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> List[Revision]:
         raise NotImplementedError
 

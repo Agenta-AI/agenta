@@ -1420,25 +1420,26 @@ export class EvaluatorsClient {
      * The returned variant has a fresh id and slug but inherits
      * lineage metadata from its source.
      *
-     * @param {AgentaApi.EvaluatorForkRequest} request
+     * @param {AgentaApi.EvaluatorVariantForkRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
      *     await client.evaluators.forkEvaluatorVariant({
-     *         evaluator: {}
+     *         evaluator_variant: {},
+     *         evaluator_variant_ref: {}
      *     })
      */
     public forkEvaluatorVariant(
-        request: AgentaApi.EvaluatorForkRequest,
+        request: AgentaApi.EvaluatorVariantForkRequest,
         requestOptions?: EvaluatorsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EvaluatorVariantResponse> {
         return core.HttpResponsePromise.fromPromise(this.__forkEvaluatorVariant(request, requestOptions));
     }
 
     private async __forkEvaluatorVariant(
-        request: AgentaApi.EvaluatorForkRequest,
+        request: AgentaApi.EvaluatorVariantForkRequest,
         requestOptions?: EvaluatorsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EvaluatorVariantResponse>> {
         const { evaluator_variant_id: evaluatorVariantId, ..._body } = request;
@@ -1657,11 +1658,11 @@ export class EvaluatorsClient {
     }
 
     /**
-     * Create a new revision on an evaluator variant.
+     * Create and commit the initial revision for an evaluator variant.
      *
      * Prefer `/evaluators/revisions/commit` for the standard commit
-     * flow. This endpoint exists for internal create paths that need
-     * to insert a revision without the commit semantics.
+     * flow. This endpoint commits an initial revision with the `initial`
+     * guard, preventing duplicate initial revisions for the same variant.
      *
      * @param {AgentaApi.EvaluatorRevisionCreateRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2058,8 +2059,7 @@ export class EvaluatorsClient {
      *
      * Returns revision payloads. Use `evaluator_refs`,
      * `evaluator_variant_refs`, or `evaluator_revision_refs` to scope
-     * the query. Pass `resolve=true` to expand embedded references on
-     * each revision's `data`.
+     * the query.
      *
      * @param {AgentaApi.EvaluatorRevisionQueryRequest} request
      * @param {EvaluatorsClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -2143,7 +2143,7 @@ export class EvaluatorsClient {
      *
      * @example
      *     await client.evaluators.commitEvaluatorRevision({
-     *         evaluator_revision_commit: {}
+     *         evaluator_revision: {}
      *     })
      */
     public commitEvaluatorRevision(
@@ -2220,7 +2220,7 @@ export class EvaluatorsClient {
      *
      * @example
      *     await client.evaluators.logEvaluatorRevisions({
-     *         evaluator: {}
+     *         evaluator_revisions: {}
      *     })
      */
     public logEvaluatorRevisions(

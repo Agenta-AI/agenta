@@ -27,10 +27,38 @@ const simpleTraceResponseSchema = z.object({
     trace: annotationSchema.nullable().optional(),
 })
 
+// `traces` is parsed as raw items and filtered to valid annotations by
+// `parseAnnotationTraces` — see that function for why we can't use
+// `z.array(annotationSchema)` directly.
 const simpleTracesResponseSchema = z.object({
     count: z.number().optional().default(0),
-    traces: z.array(annotationSchema).default([]),
+    traces: z.array(z.unknown()).optional().default([]),
 })
+
+/**
+ * Filter a raw `/simple/traces/query` `traces` array down to valid annotations.
+ *
+ * The endpoint returns every simple-trace that references the queried entity —
+ * for a testcase filter that includes the application *invocation* trace
+ * alongside the annotations. Invocation traces are not annotation-shaped
+ * (`data.outputs` is a plain string, `references.evaluator` is absent), so a
+ * strict `z.array(annotationSchema)` failed the whole array on the first
+ * non-annotation element and `queryAnnotations` then silently returned zero
+ * annotations. Parsing element-by-element keeps the valid annotations and drops
+ * the rest, instead of dropping everything.
+ */
+export function parseAnnotationTraces(items: unknown): Annotation[] {
+    if (!Array.isArray(items)) return []
+
+    const annotations: Annotation[] = []
+    for (const item of items) {
+        const parsed = annotationSchema.safeParse(item)
+        if (parsed.success) {
+            annotations.push(parsed.data)
+        }
+    }
+    return annotations
+}
 
 // ============================================================================
 // CREATE
@@ -194,9 +222,14 @@ export async function queryAnnotations({
         response.data,
         "[queryAnnotations]",
     )
+    // `parseAnnotationTraces` drops non-annotation rows (e.g. the invocation
+    // trace the testcase query returns alongside annotations), so derive `count`
+    // from the filtered list rather than the unfiltered backend payload — else
+    // `count > annotations.length` and annotation-oriented callers break.
+    const annotations = parseAnnotationTraces(validated?.traces)
     return {
-        count: validated?.count ?? 0,
-        annotations: validated?.traces ?? [],
+        count: annotations.length,
+        annotations,
     }
 }
 

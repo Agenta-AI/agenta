@@ -116,19 +116,51 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
 
     const fields = useMemo(
         () =>
-            buildFilterSchema(schema, {resolveValueType}).fields.filter(
-                (f) => FILTERABLE_COLUMN_KINDS[f.groupKind],
-            ),
+            buildFilterSchema(schema, {resolveValueType}).fields.filter((f) => {
+                if (!FILTERABLE_COLUMN_KINDS[f.groupKind]) return false
+                // String-typed evaluator outputs are excluded for the same
+                // reason they are hidden from the scenario table: their
+                // per-scenario value is a `{type: "string", count: …}` stats
+                // blob that `unwrapStatsForCompare` does not unwrap, so any
+                // filter comparison would compare against a raw object and
+                // never match. See `useEtlColumns.tsx`.
+                //
+                // Scoped to `evaluator` kind: `buildColumnValueTypeResolver`
+                // has a column-name-only fallback, so a same-named metrics
+                // column could otherwise inherit an evaluator's string
+                // `metricType` and be incorrectly dropped.
+                if (f.groupKind === "evaluator" && f.valueType === "string") return false
+                return true
+            }),
         [schema, resolveValueType],
     )
     const fieldByKey = useMemo(() => new Map(fields.map((f) => [encodeField(f), f])), [fields])
+
+    // The filter-schema group label is a humanified slug (e.g. "Rubic
+    // Zn3a"). The table column headers resolve the evaluator's configured
+    // name onto every column as `evaluatorName` — reuse that here, keyed by
+    // evaluator slug, so filter options read as evaluator names not slugs.
+    const evaluatorNameBySlug = useMemo(() => {
+        const map = new Map<string, string>()
+        for (const col of columnResult?.columns ?? []) {
+            if (col.evaluatorSlug && col.evaluatorName) {
+                map.set(col.evaluatorSlug, col.evaluatorName)
+            }
+        }
+        return map
+    }, [columnResult])
+
     const fieldOptions = useMemo(
         () =>
-            fields.map((f) => ({
-                value: encodeField(f),
-                label: `${f.groupLabel} · ${f.label}`,
-            })),
-        [fields],
+            fields.map((f) => {
+                const groupLabel =
+                    (f.groupSlug ? evaluatorNameBySlug.get(f.groupSlug) : undefined) ?? f.groupLabel
+                return {
+                    value: encodeField(f),
+                    label: `${groupLabel} · ${f.label}`,
+                }
+            }),
+        [fields, evaluatorNameBySlug],
     )
 
     // Run graph carries no filterable columns — hide the bar entirely.
@@ -321,7 +353,9 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
             >
                 <span
                     className={`rounded-full px-1.5 text-[10px] font-medium ${
-                        appliedCount > 0 ? "bg-zinc-700 text-white" : "bg-zinc-100 text-zinc-500"
+                        appliedCount > 0
+                            ? "bg-zinc-700 text-white"
+                            : "bg-zinc-100 dark:bg-[var(--ag-rgba-051729-06)] text-zinc-500"
                     }`}
                 >
                     {appliedCount}

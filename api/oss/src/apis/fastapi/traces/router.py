@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request, status, Response, HTTPException
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
+from oss.src.core.events.utils import publish_trace_fetched, publish_trace_queried
 
 from oss.src.core.tracing.service import SimpleTracesService
 
@@ -19,8 +20,11 @@ from oss.src.apis.fastapi.traces.models import (
 )
 
 if is_ee():
-    from ee.src.models.shared_models import Permission
-    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
+    from ee.src.core.access.permissions.types import Permission
+    from ee.src.core.access.permissions.service import (
+        check_action_access,
+        FORBIDDEN_EXCEPTION,
+    )
 
 
 log = get_module_logger(__name__)
@@ -183,6 +187,12 @@ class SimpleTracesRouter:
             trace_id=trace_id,
         )
 
+        await publish_trace_fetched(
+            request=request,
+            count=1 if trace else 0,
+            trace_id=trace_id,
+        )
+
         return SimpleTraceResponse(
             count=1 if trace else 0,
             trace=trace,
@@ -301,6 +311,14 @@ class SimpleTracesRouter:
             trace_query=trace_query_request.trace,
             trace_links=trace_query_request.links,
             windowing=trace_query_request.windowing,
+        )
+
+        trace_ids = [getattr(t, "trace_id", None) for t in traces]
+        trace_ids = [t for t in trace_ids if t is not None]
+        await publish_trace_queried(
+            request=request,
+            count=len(traces),
+            trace_ids=trace_ids,
         )
 
         return SimpleTracesResponse(

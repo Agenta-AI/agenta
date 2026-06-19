@@ -8,10 +8,15 @@ Tests cover:
 """
 
 import pytest
+import agenta as ag
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
-from agenta.sdk.middlewares.running.resolver import _has_embed_markers
+from agenta.sdk.middlewares.running.resolver import (
+    _has_embed_markers,
+    _validate_executable_reference_families,
+    resolve_references_with_info,
+)
 
 
 class TestHasEmbedMarkers:
@@ -290,6 +295,179 @@ class TestResolverMiddlewareEmbedGate:
 
         mock_resolve_embeds.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_stores_retrieval_references_on_tracing_context(self):
+        from agenta.sdk.contexts.tracing import TracingContext
+        from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
+        from agenta.sdk.models.workflows import (
+            WorkflowInvokeRequest,
+            WorkflowRevisionData,
+        )
+
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            references={"environment": {"slug": "production"}},
+        )
+        retrieval_references = {
+            "environment": {"id": "env-id", "slug": "production"},
+            "environment_revision": {"id": "env-rev-id", "version": "7"},
+            "application_revision": {"id": "app-rev-id", "version": "3"},
+        }
+        revision = WorkflowRevisionData(
+            uri="test://uri",
+            parameters={"model": "gpt-4"},
+        )
+
+        token = TracingContext.set(TracingContext())
+        try:
+            with (
+                patch(
+                    "agenta.sdk.middlewares.running.resolver.resolve_handler",
+                    new_callable=AsyncMock,
+                    return_value=MagicMock(),
+                ),
+                patch(
+                    "agenta.sdk.middlewares.running.resolver."
+                    "resolve_references_with_info",
+                    new_callable=AsyncMock,
+                    return_value=(revision, retrieval_references, None),
+                ),
+            ):
+                mw = ResolverMiddleware()
+                call_next = AsyncMock(return_value="result")
+                await mw(request, call_next)
+
+            assert TracingContext.get().references == retrieval_references
+        finally:
+            TracingContext.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_stores_retrieval_selector_on_tracing_context(self):
+        from agenta.sdk.contexts.tracing import TracingContext
+        from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
+        from agenta.sdk.models.workflows import (
+            WorkflowInvokeRequest,
+            WorkflowRevisionData,
+        )
+
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            references={"environment": {"slug": "production"}},
+        )
+        retrieval_references = {
+            "environment": {"id": "env-id", "slug": "production"},
+            "application_revision": {"id": "app-rev-id", "version": "3"},
+        }
+        # The selector is the env slot that selected the target, as a dict.
+        retrieval_selector = {"key": "demo.revision"}
+        revision = WorkflowRevisionData(uri="test://uri", parameters={"model": "x"})
+
+        token = TracingContext.set(TracingContext())
+        try:
+            with (
+                patch(
+                    "agenta.sdk.middlewares.running.resolver.resolve_handler",
+                    new_callable=AsyncMock,
+                    return_value=MagicMock(),
+                ),
+                patch(
+                    "agenta.sdk.middlewares.running.resolver."
+                    "resolve_references_with_info",
+                    new_callable=AsyncMock,
+                    return_value=(revision, retrieval_references, retrieval_selector),
+                ),
+            ):
+                mw = ResolverMiddleware()
+                call_next = AsyncMock(return_value="result")
+                await mw(request, call_next)
+
+            assert TracingContext.get().selector == {"key": "demo.revision"}
+        finally:
+            TracingContext.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_direct_lookup_leaves_selector_unset(self):
+        from agenta.sdk.contexts.tracing import TracingContext
+        from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
+        from agenta.sdk.models.workflows import (
+            WorkflowInvokeRequest,
+            WorkflowRevisionData,
+        )
+
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            references={"application": {"slug": "my-app"}},
+        )
+        revision = WorkflowRevisionData(uri="test://uri", parameters={"model": "x"})
+
+        token = TracingContext.set(TracingContext())
+        try:
+            with (
+                patch(
+                    "agenta.sdk.middlewares.running.resolver.resolve_handler",
+                    new_callable=AsyncMock,
+                    return_value=MagicMock(),
+                ),
+                patch(
+                    "agenta.sdk.middlewares.running.resolver."
+                    "resolve_references_with_info",
+                    new_callable=AsyncMock,
+                    return_value=(revision, {}, None),
+                ),
+            ):
+                mw = ResolverMiddleware()
+                call_next = AsyncMock(return_value="result")
+                await mw(request, call_next)
+
+            # Direct (non-environment-backed) retrieval has no selector.
+            assert TracingContext.get().selector is None
+        finally:
+            TracingContext.reset(token)
+
+
+class TestResolverReferenceValidation:
+    @pytest.mark.asyncio
+    async def test_rejects_competing_application_and_evaluator_refs(self):
+        from agenta.sdk.models.workflows import WorkflowInvokeRequest
+
+        request = WorkflowInvokeRequest(
+            references={
+                "application": {"slug": "my-app"},
+                "evaluator": {"slug": "my-eval"},
+            },
+        )
+
+        with pytest.raises(ValueError, match="Competing execution target references"):
+            await resolve_references_with_info(
+                request=request,
+                credentials="test-creds",
+            )
+
+    @pytest.mark.asyncio
+    async def test_ignores_empty_reference_objects(self):
+        from agenta.sdk.models.workflows import WorkflowInvokeRequest
+
+        request = WorkflowInvokeRequest(
+            references={
+                "application": {},
+                "evaluator": {"slug": "my-eval"},
+            },
+        )
+
+        with patch.object(ag, "async_api", None):
+            assert await resolve_references_with_info(
+                request=request,
+                credentials="test-creds",
+            ) == (None, None, None)
+
+    def test_ignores_none_reference_values(self):
+        _validate_executable_reference_families(
+            {
+                "application": None,
+                "evaluator": {"slug": "my-eval"},
+            },
+        )
+
 
 class TestResolverMiddlewareTracingParameters:
     """Tests that ResolverMiddleware mirrors the resolved parameters onto
@@ -424,9 +602,9 @@ class TestResolverMiddlewareTracingParameters:
 
         with (
             patch(
-                "agenta.sdk.middlewares.running.resolver.resolve_references",
+                "agenta.sdk.middlewares.running.resolver.resolve_references_with_info",
                 new_callable=AsyncMock,
-                return_value=hydrated_revision,
+                return_value=(hydrated_revision, {}, None),
             ) as mock_resolve_references,
             patch(
                 "agenta.sdk.middlewares.running.resolver.resolve_handler",

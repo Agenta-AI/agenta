@@ -17,13 +17,14 @@ log() {
 usage() {
   cat <<'EOF'
 Usage:
-  generate.sh [--language python|typescript|all] [--live] [--local] [--file FILE]
+  generate.sh [--language python|typescript|all] [--live] [--local] [--file FILE] [--url URL]
 
 Modes (pick one):
   (default)  Fetch from http://localhost/api/openapi.json
   --live     Fetch from https://eu.cloud.agenta.ai/api/openapi.json
   --local    Fetch from http://localhost/api/openapi.json
   --file     Use an explicit local file path
+  --url      Fetch from an arbitrary URL
 
 Examples:
   ./clients/scripts/generate.sh
@@ -31,6 +32,7 @@ Examples:
   ./clients/scripts/generate.sh --live
   ./clients/scripts/generate.sh --local
   ./clients/scripts/generate.sh --file /path/to/openapi.json
+  ./clients/scripts/generate.sh --url http://staging.example.com/api/openapi.json
 EOF
 }
 
@@ -53,6 +55,11 @@ while [[ $# -gt 0 ]]; do
     --file)
       OPENAPI_FILE="${2:-}"
       OPENAPI_URL=""
+      shift 2
+      ;;
+    --url)
+      OPENAPI_URL="${2:-}"
+      OPENAPI_FILE=""
       shift 2
       ;;
     -h|--help)
@@ -487,6 +494,15 @@ generate_typescript() {
   cp -R "${fern_output_dir}" "${target_dir}"
 
   log "generated TypeScript client in ${target_dir}"
+
+  # Rebuild the compiled dist/ that consumers (@agenta/sdk, web/oss, ...) import
+  # from. tsc does not delete stale outputs, so wipe dist first — otherwise types
+  # dropped from the spec (e.g. a renamed/removed model) linger as orphan .js/.d.ts.
+  local pkg_dir="${REPO_ROOT}/web/packages/agenta-api-client"
+  log "rebuilding compiled client dist (clean) at ${pkg_dir}/dist"
+  rm -rf "${pkg_dir}/dist"
+  (cd "${REPO_ROOT}/web" && pnpm --filter @agentaai/api-client build)
+  log "rebuilt TypeScript client dist"
 }
 
 case "${LANGUAGE}" in

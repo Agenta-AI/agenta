@@ -192,7 +192,7 @@ export function canShowTextMode(
 }
 
 /**
- * Get the beautified text value for text mode display
+ * Get the pretty text value for text mode display
  * For strings: show the string content without outer quotes
  * For messages: handled separately by ChatMessageList
  */

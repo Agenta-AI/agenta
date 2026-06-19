@@ -9,7 +9,12 @@
         "build": "pnpm run types:check",
         "types:check": "tsc --noEmit",
         "lint": "eslint --config ../eslint.config.mjs src/ --max-warnings 0",
-        "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 0 --fix"
+        "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 0 --fix",
+        "test": "pnpm run test:unit",
+        "test:unit": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "check": "pnpm run types:check && pnpm run lint"
     },
     "exports": {
         ".": "./src/index.ts",
@@ -29,9 +34,11 @@
         "uuid": "^11.1.1"
     },
     "devDependencies": {
-        "@types/node": "^20.8.10",
+        "@types/node": "^20.19.20",
         "@types/react": "^19.0.10",
-        "typescript": "5.8.3"
+        "@vitest/coverage-v8": "^4.1.4",
+        "typescript": "^5.9.3",
+        "vitest": "^4.1.4"
     },
     "peerDependencies": {
         "@tanstack/react-query": ">=5.0.0",

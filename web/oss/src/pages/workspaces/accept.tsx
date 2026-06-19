@@ -2,26 +2,27 @@ import {useEffect, useRef, useState, type FC} from "react"
 
 import {message} from "@agenta/ui/app-message"
 import {Button, Card, Typography} from "antd"
-import {getDefaultStore, useAtomValue} from "jotai"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
 import {useLocalStorage} from "usehooks-ts"
 
 import ContentSpinner from "@/oss/components/Spinner/ContentSpinner"
-import {normalizeInviteError} from "@/oss/lib/helpers/authMessages"
+import {inviteErrorMessageFromCode} from "@/oss/lib/helpers/authMessages"
 import {isEE} from "@/oss/lib/helpers/isEE"
+import {getJWT} from "@/oss/services/api"
 import {acceptWorkspaceInvite} from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {useProjectData} from "@/oss/state/project"
-import {jwtReadyAtom} from "@/oss/state/session/jwt"
+import {clearInvite, persistInviteToStorage} from "@/oss/state/url/auth"
 import {buildPostLoginPath} from "@/oss/state/url/postLoginRedirect"
 import {activeInviteAtom} from "@/oss/state/url/test"
 
 const processedTokens = new Set<string>()
 
 const Accept: FC = () => {
-    const [invite, , removeInvite] = useLocalStorage<any>("invite", {})
+    const [invite] = useLocalStorage<any>("invite", {})
     const inviteFromState = useAtomValue(activeInviteAtom)
     const {refetch: refetchOrganization, loading: _loadingOrgs} = useOrgData()
     const {refetch: refetchProject, isLoading: _loadingProjects} = useProjectData()
@@ -60,21 +61,34 @@ const Accept: FC = () => {
         if (!accept.current) {
             accept.current = true
             processedTokens.add(token)
-            const store = getDefaultStore()
-            try {
-                await new Promise<void>((resolve) => {
-                    let unsub: () => void = () => {}
-                    const check = () => {
-                        const ready = (store.get(jwtReadyAtom) as any)?.data ?? false
-                        if (ready) {
-                            unsub()
-                            resolve()
-                        }
-                    }
-                    unsub = store.sub(jwtReadyAtom, check)
-                    check()
-                })
 
+            // Source of truth is a real access token, not sessionExistsAtom (which
+            // can read stale-true and render an authed UI without a usable token).
+            // No token => unauthenticated: send to /auth with the invite params at
+            // top level (matching the emailed invite link) so the invite screen
+            // renders with the email pre-filled.
+            const accessToken = await getJWT()
+            if (!accessToken) {
+                accept.current = false
+                processedTokens.delete(token)
+                persistInviteToStorage({
+                    token,
+                    email,
+                    organization_id: organizationId,
+                    workspace_id: workspaceId,
+                    project_id: projectId,
+                    survey: isSurvey ? "true" : undefined,
+                })
+                const query: Record<string, string> = {token, organization_id: organizationId}
+                if (email) query.email = email
+                if (workspaceId) query.workspace_id = workspaceId
+                if (projectId) query.project_id = projectId
+                if (isSurvey) query.survey = "true"
+                await router.replace({pathname: "/auth", query})
+                return
+            }
+
+            try {
                 try {
                     await acceptWorkspaceInvite(
                         {
@@ -87,15 +101,14 @@ const Accept: FC = () => {
                         true,
                     )
 
-                    message.success("Joined workspace!")
+                    message.success("You joined a new workspace!")
 
                     await refetchOrganization()
                     await refetchProject()
 
                     const targetWorkspace = workspaceId || organizationId
                     cacheWorkspaceOrgPair(targetWorkspace, organizationId)
-                    store.set(activeInviteAtom, null)
-                    removeInvite()
+                    clearInvite()
                     if (isSurvey) {
                         const redirect = encodeURIComponent(`/w/${targetWorkspace}`)
                         const targetPath = isEE()
@@ -118,64 +131,69 @@ const Accept: FC = () => {
                         await router.replace("/w")
                     }
                 } catch (error: any) {
-                    if (error?.response?.status === 409) {
-                        message.error("You're already a member of this workspace")
+                    const status = error?.response?.status
+                    const detailObj = error?.response?.data?.detail
+                    const isObj = detailObj && typeof detailObj === "object"
+                    const code = isObj ? detailObj.error : undefined
+
+                    // INVITE_ALREADY_ACCEPTED: OSS consumes the invite at signup, so a
+                    // re-accept by this same user is success. Key on the typed code;
+                    // fall back to bare 409 only when the code is missing.
+                    const alreadyAccepted =
+                        code === "INVITE_ALREADY_ACCEPTED" || (code === undefined && status === 409)
+                    if (alreadyAccepted) {
+                        message.success("You already joined this workspace.")
                         const targetWorkspace = workspaceId || organizationId
                         cacheWorkspaceOrgPair(targetWorkspace, organizationId)
-                        store.set(activeInviteAtom, null)
-                        removeInvite()
+                        clearInvite()
 
-                        console.log("Redirect to", {
-                            targetWorkspace,
-                            projectId,
-                            route: `/w/${encodeURIComponent(targetWorkspace)}/p/${encodeURIComponent(projectId)}/apps`,
-                        })
                         const nextPath = buildPostLoginPath({
                             workspaceId: targetWorkspace,
                             projectId,
                         })
                         await router.replace(nextPath)
                     } else {
-                        // Show error state instead of staying stuck on loading
+                        // Genuine failure (mismatch / not found / expired): show the error card.
                         const detailRaw =
-                            (error?.response?.data?.detail as string | undefined) ||
+                            (isObj ? detailObj.message : detailObj) ||
                             (error?.message as string | undefined) ||
                             "Failed to accept invite"
-                        const errorMessage = normalizeInviteError(detailRaw)
+                        const errorMessage = inviteErrorMessageFromCode(code, detailRaw)
 
-                        console.error("[invite] accept failed", error)
-                        store.set(activeInviteAtom, null)
-                        removeInvite()
+                        // Known, typed outcomes (mismatch/expired/not-found) are
+                        // expected; only log the genuinely unexpected ones.
+                        if (!code) console.error("[invite] accept failed", error)
+                        // Do NOT clearInvite() here: stripping the invite makes
+                        // syncAuthStateFromUrl treat the accept route as "empty invite"
+                        // and bounce to /w, hiding this card. The card's buttons clear it.
                         setError(errorMessage)
                     }
                 }
             } catch (error: any) {
                 // Treat idempotent scenarios (already a member / already accepted) as success
+                const detailObj = error?.response?.data?.detail
+                const isObj = detailObj && typeof detailObj === "object"
+                const code = isObj ? detailObj.error : undefined
                 const alreadyMember =
-                    error?.response?.status === 409 ||
-                    /already a member/i.test(error?.response?.data?.detail || "") ||
-                    /already a member/i.test(error?.message || "") ||
-                    /already accepted/i.test(error?.response?.data?.detail || "")
+                    code === "INVITE_ALREADY_ACCEPTED" ||
+                    (code === undefined && error?.response?.status === 409) ||
+                    /already a member/i.test(error?.message || "")
 
                 const detailRaw =
-                    (error?.response?.data?.detail as string | undefined) ||
+                    (isObj ? detailObj.message : detailObj) ||
                     (error?.message as string | undefined) ||
                     "Failed to accept invite"
-                const detailMessage = normalizeInviteError(
-                    detailRaw,
-                    "We couldn't finish joining this workspace, but you may already be a member.",
-                )
+                const detailMessage = inviteErrorMessageFromCode(code, detailRaw)
 
                 if (alreadyMember) {
-                    message.info("You are already a member of this workspace")
+                    message.info("You already joined this workspace.")
                     cacheWorkspaceOrgPair(workspaceId || organizationId, organizationId)
                 } else {
-                    console.error("[invite] accept failed", error)
+                    if (!code) console.error("[invite] accept failed", error)
                     message.error(detailMessage)
                 }
 
-                store.set(activeInviteAtom, null)
-                removeInvite()
+                clearInvite()
                 if (isSurvey) {
                     const redirect = encodeURIComponent(`/w/${workspaceId || organizationId || ""}`)
                     const targetPath = isEE()
@@ -202,6 +220,7 @@ const Accept: FC = () => {
 
     if (error) {
         const handleSignInDifferentAccount = async () => {
+            clearInvite()
             try {
                 await signOut()
             } catch {
@@ -210,19 +229,22 @@ const Accept: FC = () => {
             router.replace("/auth")
         }
 
+        const handleGoBack = () => {
+            clearInvite()
+            router.replace("/w")
+        }
+
         return (
-            <main className="flex flex-col grow h-full overflow-hidden items-center justify-center bg-[#f5f7fa]">
+            <main className="flex flex-col grow h-full overflow-hidden items-center justify-center bg-[var(--ag-c-F5F7FA)]">
                 <Card className="max-w-[520px] w-[90%] text-center">
                     <Typography.Title level={3} className="!mb-2">
                         Unable to accept invitation
                     </Typography.Title>
-                    <Typography.Paragraph className="text-[#586673] !mb-6">
+                    <Typography.Paragraph className="text-[var(--ag-c-586673)] !mb-6">
                         {error}
                     </Typography.Paragraph>
                     <div className="flex gap-3 justify-center flex-wrap">
-                        <Button onClick={() => router.replace("/w")}>
-                            Go back to your workspaces
-                        </Button>
+                        <Button onClick={handleGoBack}>Go back to your workspaces</Button>
                         <Button type="primary" onClick={handleSignInDifferentAccount}>
                             Sign in with a different account
                         </Button>

@@ -19,12 +19,14 @@ from ..types.environment_response import EnvironmentResponse
 from ..types.environment_revision_commit import EnvironmentRevisionCommit
 from ..types.environment_revision_create import EnvironmentRevisionCreate
 from ..types.environment_revision_edit import EnvironmentRevisionEdit
+from ..types.environment_revision_input import EnvironmentRevisionInput
 from ..types.environment_revision_resolve_response import EnvironmentRevisionResolveResponse
 from ..types.environment_revision_response import EnvironmentRevisionResponse
 from ..types.environment_revisions_log import EnvironmentRevisionsLog
 from ..types.environment_revisions_response import EnvironmentRevisionsResponse
 from ..types.environment_variant_create import EnvironmentVariantCreate
 from ..types.environment_variant_edit import EnvironmentVariantEdit
+from ..types.environment_variant_fork import EnvironmentVariantFork
 from ..types.environment_variant_response import EnvironmentVariantResponse
 from ..types.environment_variants_response import EnvironmentVariantsResponse
 from ..types.environments_response import EnvironmentsResponse
@@ -627,15 +629,80 @@ class RawEnvironmentsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    def fork_environment_variant(self, *, environment_variant: EnvironmentVariantFork, environment_variant_ref: Reference, environment_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EnvironmentVariantResponse]:
+        """
+        Fork an existing environment variant into a new variant.
+        
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `environment_revision_ref` is provided). Provide
+        `slug` and `name` in the fork body to identify the new variant.
+        
+        Parameters
+        ----------
+        environment_variant : EnvironmentVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        environment_variant_ref : Reference
+            Source variant to fork from.
+        
+        environment_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[EnvironmentVariantResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "environments/variants/fork",method="POST",
+            json={
+                "environment_variant": convert_and_respect_annotation_metadata(object_=environment_variant, annotation=EnvironmentVariantFork, direction="write"),
+                "environment_variant_ref": convert_and_respect_annotation_metadata(object_=environment_variant_ref, annotation=Reference, direction="write"),
+                "environment_revision_ref": convert_and_respect_annotation_metadata(object_=environment_revision_ref, annotation=typing.Optional[Reference], direction="write"),
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    EnvironmentVariantResponse,
+                    parse_obj_as(
+                        type_ =EnvironmentVariantResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     def retrieve_environment_revision(self, *, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EnvironmentRevisionResponse]:
         """
         Parameters
         ----------
         environment_ref : typing.Optional[Reference]
+            Environment artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of an arbitrary variant of this environment.
         
         environment_variant_ref : typing.Optional[Reference]
+            Environment variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         environment_revision_ref : typing.Optional[Reference]
+            Environment revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with an `environment_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         resolve : typing.Optional[bool]
         
@@ -987,11 +1054,11 @@ class RawEnvironmentsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def commit_environment_revision(self, *, environment_revision_commit: EnvironmentRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EnvironmentRevisionResponse]:
+    def commit_environment_revision(self, *, environment_revision: EnvironmentRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EnvironmentRevisionResponse]:
         """
         Parameters
         ----------
-        environment_revision_commit : EnvironmentRevisionCommit
+        environment_revision : EnvironmentRevisionCommit
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1004,7 +1071,7 @@ class RawEnvironmentsClient:
         _response = self._client_wrapper.httpx_client.request(
             "environments/revisions/commit",method="POST",
             json={
-                "environment_revision_commit": convert_and_respect_annotation_metadata(object_=environment_revision_commit, annotation=EnvironmentRevisionCommit, direction="write"),
+                "environment_revision": convert_and_respect_annotation_metadata(object_=environment_revision, annotation=EnvironmentRevisionCommit, direction="write"),
             }
             ,
             headers={"content-type": "application/json", }
@@ -1034,11 +1101,11 @@ class RawEnvironmentsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def log_environment_revisions(self, *, environment: EnvironmentRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EnvironmentRevisionsResponse]:
+    def log_environment_revisions(self, *, environment_revisions: EnvironmentRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EnvironmentRevisionsResponse]:
         """
         Parameters
         ----------
-        environment : EnvironmentRevisionsLog
+        environment_revisions : EnvironmentRevisionsLog
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1051,7 +1118,7 @@ class RawEnvironmentsClient:
         _response = self._client_wrapper.httpx_client.request(
             "environments/revisions/log",method="POST",
             json={
-                "environment": convert_and_respect_annotation_metadata(object_=environment, annotation=EnvironmentRevisionsLog, direction="write"),
+                "environment_revisions": convert_and_respect_annotation_metadata(object_=environment_revisions, annotation=EnvironmentRevisionsLog, direction="write"),
             }
             ,
             headers={"content-type": "application/json", }
@@ -1081,7 +1148,7 @@ class RawEnvironmentsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def resolve_environment_revision(self, *, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EnvironmentRevisionResolveResponse]:
+    def resolve_environment_revision(self, *, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, environment_revision: typing.Optional[EnvironmentRevisionInput] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EnvironmentRevisionResolveResponse]:
         """
         Resolve embedded references in an environment revision configuration.
         
@@ -1097,6 +1164,9 @@ class RawEnvironmentsClient:
         environment_variant_ref : typing.Optional[Reference]
         
         environment_revision_ref : typing.Optional[Reference]
+        
+        environment_revision : typing.Optional[EnvironmentRevisionInput]
+            Resolve the references embedded in this revision payload directly, without fetching it first. Only `data` is used; id and metadata are ignored.
         
         max_depth : typing.Optional[int]
         
@@ -1118,6 +1188,7 @@ class RawEnvironmentsClient:
                 "environment_ref": convert_and_respect_annotation_metadata(object_=environment_ref, annotation=typing.Optional[Reference], direction="write"),
                 "environment_variant_ref": convert_and_respect_annotation_metadata(object_=environment_variant_ref, annotation=typing.Optional[Reference], direction="write"),
                 "environment_revision_ref": convert_and_respect_annotation_metadata(object_=environment_revision_ref, annotation=typing.Optional[Reference], direction="write"),
+                "environment_revision": convert_and_respect_annotation_metadata(object_=environment_revision, annotation=typing.Optional[EnvironmentRevisionInput], direction="write"),
                 "max_depth": max_depth,
                 "max_embeds": max_embeds,
                 "error_policy": error_policy,
@@ -2089,15 +2160,80 @@ class AsyncRawEnvironmentsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    async def fork_environment_variant(self, *, environment_variant: EnvironmentVariantFork, environment_variant_ref: Reference, environment_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EnvironmentVariantResponse]:
+        """
+        Fork an existing environment variant into a new variant.
+        
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `environment_revision_ref` is provided). Provide
+        `slug` and `name` in the fork body to identify the new variant.
+        
+        Parameters
+        ----------
+        environment_variant : EnvironmentVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        environment_variant_ref : Reference
+            Source variant to fork from.
+        
+        environment_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[EnvironmentVariantResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "environments/variants/fork",method="POST",
+            json={
+                "environment_variant": convert_and_respect_annotation_metadata(object_=environment_variant, annotation=EnvironmentVariantFork, direction="write"),
+                "environment_variant_ref": convert_and_respect_annotation_metadata(object_=environment_variant_ref, annotation=Reference, direction="write"),
+                "environment_revision_ref": convert_and_respect_annotation_metadata(object_=environment_revision_ref, annotation=typing.Optional[Reference], direction="write"),
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    EnvironmentVariantResponse,
+                    parse_obj_as(
+                        type_ =EnvironmentVariantResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     async def retrieve_environment_revision(self, *, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EnvironmentRevisionResponse]:
         """
         Parameters
         ----------
         environment_ref : typing.Optional[Reference]
+            Environment artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of an arbitrary variant of this environment.
         
         environment_variant_ref : typing.Optional[Reference]
+            Environment variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         environment_revision_ref : typing.Optional[Reference]
+            Environment revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with an `environment_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         resolve : typing.Optional[bool]
         
@@ -2449,11 +2585,11 @@ class AsyncRawEnvironmentsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def commit_environment_revision(self, *, environment_revision_commit: EnvironmentRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EnvironmentRevisionResponse]:
+    async def commit_environment_revision(self, *, environment_revision: EnvironmentRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EnvironmentRevisionResponse]:
         """
         Parameters
         ----------
-        environment_revision_commit : EnvironmentRevisionCommit
+        environment_revision : EnvironmentRevisionCommit
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2466,7 +2602,7 @@ class AsyncRawEnvironmentsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "environments/revisions/commit",method="POST",
             json={
-                "environment_revision_commit": convert_and_respect_annotation_metadata(object_=environment_revision_commit, annotation=EnvironmentRevisionCommit, direction="write"),
+                "environment_revision": convert_and_respect_annotation_metadata(object_=environment_revision, annotation=EnvironmentRevisionCommit, direction="write"),
             }
             ,
             headers={"content-type": "application/json", }
@@ -2496,11 +2632,11 @@ class AsyncRawEnvironmentsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def log_environment_revisions(self, *, environment: EnvironmentRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EnvironmentRevisionsResponse]:
+    async def log_environment_revisions(self, *, environment_revisions: EnvironmentRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EnvironmentRevisionsResponse]:
         """
         Parameters
         ----------
-        environment : EnvironmentRevisionsLog
+        environment_revisions : EnvironmentRevisionsLog
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2513,7 +2649,7 @@ class AsyncRawEnvironmentsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "environments/revisions/log",method="POST",
             json={
-                "environment": convert_and_respect_annotation_metadata(object_=environment, annotation=EnvironmentRevisionsLog, direction="write"),
+                "environment_revisions": convert_and_respect_annotation_metadata(object_=environment_revisions, annotation=EnvironmentRevisionsLog, direction="write"),
             }
             ,
             headers={"content-type": "application/json", }
@@ -2543,7 +2679,7 @@ class AsyncRawEnvironmentsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def resolve_environment_revision(self, *, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EnvironmentRevisionResolveResponse]:
+    async def resolve_environment_revision(self, *, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, environment_revision: typing.Optional[EnvironmentRevisionInput] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EnvironmentRevisionResolveResponse]:
         """
         Resolve embedded references in an environment revision configuration.
         
@@ -2559,6 +2695,9 @@ class AsyncRawEnvironmentsClient:
         environment_variant_ref : typing.Optional[Reference]
         
         environment_revision_ref : typing.Optional[Reference]
+        
+        environment_revision : typing.Optional[EnvironmentRevisionInput]
+            Resolve the references embedded in this revision payload directly, without fetching it first. Only `data` is used; id and metadata are ignored.
         
         max_depth : typing.Optional[int]
         
@@ -2580,6 +2719,7 @@ class AsyncRawEnvironmentsClient:
                 "environment_ref": convert_and_respect_annotation_metadata(object_=environment_ref, annotation=typing.Optional[Reference], direction="write"),
                 "environment_variant_ref": convert_and_respect_annotation_metadata(object_=environment_variant_ref, annotation=typing.Optional[Reference], direction="write"),
                 "environment_revision_ref": convert_and_respect_annotation_metadata(object_=environment_revision_ref, annotation=typing.Optional[Reference], direction="write"),
+                "environment_revision": convert_and_respect_annotation_metadata(object_=environment_revision, annotation=typing.Optional[EnvironmentRevisionInput], direction="write"),
                 "max_depth": max_depth,
                 "max_embeds": max_embeds,
                 "error_policy": error_policy,

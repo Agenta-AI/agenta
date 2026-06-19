@@ -244,7 +244,7 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
     else:
         cleaned_ag["user"] = None
 
-    for key in ["flags", "tags", "meta", "exception", "hashes"]:
+    for key in ["flags", "tags", "meta", "exception", "hashes", "selector"]:
         cleaned_ag[key] = ag.get(key, None)
 
     if "meta" in cleaned_ag and cleaned_ag["meta"] is not None:
@@ -264,7 +264,8 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
     cleaned_ag["unsupported"] = unsupported or None
     try:
         cleaned_ag = AgAttributes(**cleaned_ag).model_dump(
-            mode="json", exclude_none=True
+            mode="json",
+            exclude_none=True,
         )
     except ValidationError as e:
         try:

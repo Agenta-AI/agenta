@@ -9,7 +9,9 @@ export interface ApplicationRevisionResponse {
     /** `1` when a revision was found, `0` otherwise. */
     count?: number | undefined;
     /** The application revision, including its `data` payload (prompt, model parameters, schemas, URL). */
-    application_revision?: (AgentaApi.ApplicationRevision | null) | undefined;
+    application_revision?: (AgentaApi.ApplicationRevisionOutput | null) | undefined;
     /** Present only when the request set `resolve: true`. Describes which embedded references were resolved and any errors that occurred. */
     resolution_info?: (AgentaApi.ResolutionInfo | null) | undefined;
+    /** References used to retrieve the top-level revision. */
+    retrieval_info?: (AgentaApi.RetrievalInfo | null) | undefined;
 }

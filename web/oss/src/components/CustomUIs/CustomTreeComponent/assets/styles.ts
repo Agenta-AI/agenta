@@ -42,7 +42,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         borderRadius: theme.borderRadius,
         cursor: "pointer",
         "&:hover": {
-            backgroundColor: "rgba(5, 23, 41, 0.06)",
+            backgroundColor: theme.colorFillSecondary,
         },
     },
 }))

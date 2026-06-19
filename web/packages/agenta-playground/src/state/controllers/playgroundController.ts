@@ -24,7 +24,7 @@
 
 import {loadableStateAtomFamily} from "@agenta/entities/loadable"
 import {loadableController, snapshotAdapterRegistry} from "@agenta/entities/runnable"
-import {fetchTestcasesPage} from "@agenta/entities/testcase"
+import {fetchTestcasesPage, testcaseMolecule} from "@agenta/entities/testcase"
 import type {TraceSpan, TraceSpanNode} from "@agenta/entities/trace"
 import {extractAgData, extractInputs, extractOutputs} from "@agenta/entities/trace"
 import {
@@ -39,7 +39,7 @@ import {
 } from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
-import {getDefaultStore} from "jotai/vanilla"
+import type {Getter, Setter} from "jotai"
 
 import type {SnapshotLoadableConnection, SnapshotLocalTestset} from "../../snapshot"
 import {outputConnectionsAtom} from "../atoms/connections"
@@ -50,17 +50,21 @@ import {
     extraColumnsAtom,
     hasMultipleNodesAtom,
     mappingModalOpenAtom,
+    playgroundStoreAtom,
     playgroundDispatchAtom,
     playgroundNodesAtom,
     selectedNodeIdAtom,
     testsetModalOpenAtom,
 } from "../atoms/playground"
-import {duplicateSessionResponsesWithContextAtom} from "../chat"
+import {executionByMessageIdAtomFamily, messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat"
+import type {ChatMessage} from "../chat"
 import type {
     AppRevisionCommitPayload,
     AppRevisionCreateVariantPayload,
     AppRevisionCrudResult,
 } from "../context"
+import {createInitialExecutionState, executionStateAtomFamily} from "../execution"
+import type {ExecutionSession, RunResult} from "../execution"
 import {
     displayedEntityIdsAtom,
     isComparisonViewAtom,
@@ -78,6 +82,13 @@ import {
     newTestcaseCountAtom,
     newTestcaseDataHashAtom,
 } from "../execution/selectors"
+import {pruneDanglingConnections} from "../helpers/connectionGraph"
+import {
+    collectDownstreamReferencedColumns,
+    collectTestsetServerColumns,
+    reconcileRowDataForEntity,
+    resolveEntityInputContract,
+} from "../helpers/entityInputContract"
 import {extractAndLoadChatMessagesAtom} from "../helpers/extractAndLoadChatMessages"
 import {normalizeTestcaseRowsForLoad} from "../helpers/testcaseRowNormalization"
 import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
@@ -94,7 +105,7 @@ import {getRunnableTypeResolver} from "./urlSnapshotController"
 /**
  * Payload for connecting to a testset (load mode)
  */
-interface ConnectToTestsetPayload {
+export interface ConnectToTestsetPayload {
     loadableId: string
     revisionId: string
     testcases: ({id?: string} & Record<string, unknown>)[]
@@ -351,7 +362,7 @@ const connectDownstreamNodeAtom = atom(
         // For downstream entities, eagerly subscribe to the molecule's query atom
         // so the per-ID fetch fires immediately.
         if (entity.type === "workflow") {
-            const store = getDefaultStore()
+            const store = get(playgroundStoreAtom)
             const unsub = store.sub(workflowMolecule.selectors.data(entity.id), () => {})
             // Unsubscribe after a generous window — the query cache keeps the data alive.
             setTimeout(() => unsub(), 60_000)
@@ -408,8 +419,17 @@ const changePrimaryNodeAtom = atom(null, (get, set, entity: EntitySelection) => 
         label: entity.label,
     }
 
-    set(playgroundNodesAtom, [updatedNode, ...nodes.slice(1)])
-    set(outputConnectionsAtom, [])
+    const nextNodes = [updatedNode, ...nodes.slice(1)]
+    set(playgroundNodesAtom, nextNodes)
+
+    // Preserve downstream connections instead of clearing them. The primary
+    // node is updated in place, so its `id` is unchanged and any chain sourced
+    // from it (e.g. app → evaluator) stays valid. Clearing unconditionally
+    // orphaned the downstream evaluator on app-revision re-selection:
+    // connectDownstreamNode then no-ops because the evaluator node is still
+    // present, so the edge was never recreated and the evaluator silently
+    // stopped running. Only drop connections whose endpoints no longer exist.
+    set(outputConnectionsAtom, pruneDanglingConnections(get(outputConnectionsAtom), nextNodes))
 
     // Update local testset name if not connected to a remote testset
     const currentTestset = get(connectedTestsetAtom)
@@ -526,10 +546,27 @@ const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayl
     const normalizedRows = normalizeTestcaseRowsForLoad(testcases)
 
     // Ensure testcases have IDs and store them in nested testcase formatat
-    const testcasesWithIds = normalizedRows.map((row, index) => {
+    const allTestcasesWithIds = normalizedRows.map((row, index) => {
         const id = row.id ?? `testcase-${Date.now()}-${index}`
         return {id, data: row.data}
     })
+
+    // Chat-mode single-row gate. Per Mahmoud's QA on 2026-06-01
+    // (Slack #release-v100), chat playgrounds must load ONE testcase only —
+    // multi-row sync concatenates all rows' messages into a single shared
+    // thread (see `extractAndLoadChatMessagesAtom` iteration over
+    // `datasetMessages`), which produces a nonsensical "row 1 user → row 1
+    // assistant → row 2 user → row 2 assistant → …" stream. The legacy OSS
+    // `LoadTestsetButton` flow enforced this by construction; the new
+    // package-resident path generalised to N rows and lost the gate.
+    //
+    // Slicing here is the source of truth for the constraint — both
+    // `connectToSource` (the loadable row list) and
+    // `extractAndLoadChatMessagesAtom` (the chat message seed) receive the
+    // narrowed list. The defensive isChat check inside the seed atom is a
+    // backup for entrypoints that bypass this controller.
+    const isChat = get(isChatModeAtom) ?? false
+    const testcasesWithIds = isChat ? allTestcasesWithIds.slice(0, 1) : allTestcasesWithIds
     const flatRows = testcasesWithIds.map(({id, data}) => ({id, ...data}))
 
     // Connect to source via loadable controller
@@ -551,7 +588,6 @@ const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayl
     // The entity layer stores `messages` as a regular data column, but the
     // playground chat UI reads from messageIdsAtomFamily/messagesByIdAtomFamily.
     // Without this step, inputPorts load correctly but chat messages are lost.
-    const isChat = get(isChatModeAtom) ?? false
     if (isChat) {
         set(extractAndLoadChatMessagesAtom, {
             loadableId,
@@ -573,7 +609,13 @@ const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayl
 const importTestcasesAtom = atom(null, (get, set, payload: ImportTestcasesPayload) => {
     const {loadableId, testcases} = payload
     const normalizedRows = normalizeTestcaseRowsForLoad(testcases)
-    const flatRows = normalizedRows.map(({id, data}) => (id ? {id, ...data} : {...data}))
+    const allFlatRows = normalizedRows.map(({id, data}) => (id ? {id, ...data} : {...data}))
+
+    // Same chat-mode single-row gate as `connectToTestsetAtom` — see that
+    // atom's comments for the full rationale. Import mode shares the chat
+    // seed pathway, so the gate must mirror.
+    const isChat = get(isChatModeAtom) ?? false
+    const flatRows = isChat ? allFlatRows.slice(0, 1) : allFlatRows
 
     // Import rows via loadable controller (stays in local mode)
     set(loadableController.actions.importRows, loadableId, flatRows)
@@ -581,7 +623,6 @@ const importTestcasesAtom = atom(null, (get, set, payload: ImportTestcasesPayloa
     // Extract chat messages from imported testcase rows if in chat mode.
     // Same reasoning as connectToTestsetAtom — the entity layer stores `messages`
     // as data but the chat UI needs them in the message atom system.
-    const isChat = get(isChatModeAtom) ?? false
     if (isChat) {
         set(extractAndLoadChatMessagesAtom, {
             loadableId,
@@ -590,6 +631,41 @@ const importTestcasesAtom = atom(null, (get, set, payload: ImportTestcasesPayloa
         })
     }
 })
+
+/**
+ * Connect to a testset while keeping the current local draft rows.
+ *
+ * `connectToSource` clears all local entities, so rows created manually or
+ * from a trace are destroyed by a plain connect. This action captures the
+ * meaningful local rows first, connects, then re-imports the captured rows
+ * as unsaved additions (`newEntityIdsAtom`), which turns on hasLocalChanges
+ * and lets the user sync them into the test set via the commit flow.
+ *
+ * Chat playgrounds load a single testcase (see the gate in
+ * `connectToTestsetAtom`), so kept rows cannot be appended there; this
+ * action falls back to a plain connect in chat mode. Callers should warn
+ * instead of offering "keep" for chat.
+ */
+const connectToTestsetKeepingLocalRowsAtom = atom(
+    null,
+    (get, set, payload: ConnectToTestsetPayload) => {
+        const isChat = get(isChatModeAtom) ?? false
+        const captured = isChat
+            ? []
+            : get(loadableController.selectors.meaningfulLocalRows(payload.loadableId))
+
+        set(connectToTestsetAtom, payload)
+
+        if (captured.length > 0) {
+            // Strip the old local IDs so importRows creates fresh entities
+            // instead of dedup-checking against IDs the connect just cleared.
+            set(importTestcasesAtom, {
+                loadableId: payload.loadableId,
+                testcases: captured.map(({data}) => ({...data})),
+            })
+        }
+    },
+)
 
 // ============================================================================
 // WP2: ROW WITH INIT COMPOUND ACTION
@@ -1822,6 +1898,67 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
             depth: 0,
         }
     })
+
+    // Re-link loadable-scoped state for any entity that was REPLACED in place
+    // (e.g., a revision committed → new revision ID at the same position).
+    // Detection is POSITIONAL: only treat index `i` as a swap when both
+    // `currentIds[i]` is no longer in the new selection and `newIds[i]` was
+    // not in the previous selection. Pure reorders (`[A,B] → [B,A]`),
+    // additions, and removals produce no swap pair.
+    //
+    // Why here (and not in switchEntityAtom)? `setEntityIdsAtom` is the single
+    // chokepoint that EVERY entity-change path funnels through — switchEntity,
+    // URL hydration, applyPlaygroundSelection, SUB 4 validation, removeEntity.
+    // Putting the re-link at this level fixes commit, drawer-mode commit, and
+    // any future caller that swaps an entity, with one change.
+    if (currentRootNodes.length > 0 && newRootNodes.length > 0) {
+        const currentIdSet = new Set(currentIds)
+        const newIdSet = new Set(newIds)
+        const positionalSwaps = currentIds.flatMap((oldEntityId, index) => {
+            const newEntityId = newIds[index]
+            if (!newEntityId || oldEntityId === newEntityId) return []
+            // Guard against reorders: only a true swap when the old ID is gone
+            // from the new selection AND the new ID wasn't already selected.
+            if (newIdSet.has(oldEntityId) || currentIdSet.has(newEntityId)) return []
+            return [{oldEntityId, newEntityId, isAnchorSwap: index === 0}]
+        })
+
+        if (positionalSwaps.length > 0) {
+            const oldLoadableId = get(derivedLoadableIdAtom)
+            const newAnchorNode = newRootNodes[0]
+            const newAnchorLoadableId = `testset:${newAnchorNode.entityType}:${newAnchorNode.entityId}`
+
+            // Process non-anchor swaps first. The anchor swap MOVES data away
+            // from `oldLoadableId` and clears it, so any non-anchor rewrites
+            // that target `oldLoadableId` must run before that clear.
+            for (const swap of positionalSwaps) {
+                if (swap.isAnchorSwap) continue
+                relinkLoadableSessions(get, set, {
+                    oldEntityId: swap.oldEntityId,
+                    newEntityId: swap.newEntityId,
+                    oldLoadableId,
+                    newLoadableId: oldLoadableId,
+                })
+            }
+            const anchorSwap = positionalSwaps.find((swap) => swap.isAnchorSwap)
+            if (anchorSwap) {
+                relinkLoadableSessions(get, set, {
+                    oldEntityId: anchorSwap.oldEntityId,
+                    newEntityId: anchorSwap.newEntityId,
+                    oldLoadableId,
+                    newLoadableId: newAnchorLoadableId,
+                })
+                // After the loadable re-link, the testcase row store is still
+                // carrying every key the *previous* primary populated (chat
+                // `messages`, old completion variables, etc.). Reconcile each
+                // row against the NEW primary's input schema so the UI shows
+                // only the relevant variables and execution doesn't have to
+                // strip them later (#4525 / AGE-3793).
+                pruneTestcaseRowsForEntity(get, set, anchorSwap.newEntityId)
+            }
+        }
+    }
+
     // Preserve downstream nodes (e.g. evaluators at depth > 0) when updating root selection.
     // If root selection is cleared entirely, downstream nodes are also removed.
     set(playgroundNodesAtom, newRootNodes.length > 0 ? [...newRootNodes, ...downstreamNodes] : [])
@@ -1896,9 +2033,265 @@ const removeEntityAtom = atom(null, (get, set, entityId: string) => {
 })
 
 /**
+ * Re-link loadable-scoped state from one entity to another.
+ *
+ * Called when an entity in the playground is replaced (e.g., after committing
+ * a workflow revision). The committed revision gets a new ID, so any state
+ * keyed by `loadableId` (= `testset:<type>:<entityId>`) and any session-tagged
+ * data (`sess:<entityId>` in messages and execution sessions) needs to follow
+ * the rename. Without this, chat history and execution sessions get orphaned
+ * at the old loadableId and the UI appears to reset.
+ *
+ * Two cases:
+ *  - Anchor commit: the swapped entity is the loadableId anchor → loadableId
+ *    changes, so chat + execution state is moved to the new loadableId and
+ *    `sess:<old>` references are rewritten to `sess:<new>`.
+ *  - Non-anchor commit (compare mode): loadableId stays the same, but the
+ *    per-revision session ID still needs rewriting in place so the new
+ *    revision's column finds its responses.
+ */
+function relinkLoadableSessions(
+    get: Getter,
+    set: Setter,
+    {
+        oldEntityId,
+        newEntityId,
+        oldLoadableId,
+        newLoadableId,
+    }: {
+        oldEntityId: string
+        newEntityId: string
+        oldLoadableId: string
+        newLoadableId: string
+    },
+) {
+    const oldSessionId = `sess:${oldEntityId}`
+    const newSessionId = `sess:${newEntityId}`
+    const moves = oldLoadableId !== newLoadableId
+
+    // --- Chat: rewrite per-revision sessionId in messages; move atom families
+    // if the loadableId changed. Shared (user/system) messages are untouched.
+    const messageIds = get(messageIdsAtomFamily(oldLoadableId))
+    const messagesById = get(messagesByIdAtomFamily(oldLoadableId))
+    const executionByMessageId = get(executionByMessageIdAtomFamily(oldLoadableId))
+
+    let chatRewrote = false
+    const rewrittenMessagesById: Record<string, ChatMessage> = {}
+    for (const [id, msg] of Object.entries(messagesById)) {
+        if (msg.sessionId === oldSessionId) {
+            rewrittenMessagesById[id] = {...msg, sessionId: newSessionId}
+            chatRewrote = true
+        } else {
+            rewrittenMessagesById[id] = msg
+        }
+    }
+
+    if (moves) {
+        set(messageIdsAtomFamily(newLoadableId), [...messageIds])
+        set(messagesByIdAtomFamily(newLoadableId), rewrittenMessagesById)
+        set(executionByMessageIdAtomFamily(newLoadableId), {...executionByMessageId})
+        set(messageIdsAtomFamily(oldLoadableId), [])
+        set(messagesByIdAtomFamily(oldLoadableId), {})
+        set(executionByMessageIdAtomFamily(oldLoadableId), {})
+    } else if (chatRewrote) {
+        set(messagesByIdAtomFamily(oldLoadableId), rewrittenMessagesById)
+    }
+
+    // --- Execution state: rewrite the per-revision session in sessionsById,
+    // activeSessionIds and resultsByKey (key = `${stepId}:${sessionId}`). Other
+    // variants' sessions in compare mode are left untouched.
+    const execState = get(executionStateAtomFamily(oldLoadableId))
+
+    let execRewrote = false
+    const rewrittenSessionsById: Record<string, ExecutionSession> = {}
+    for (const [id, session] of Object.entries(execState.sessionsById)) {
+        if (id === oldSessionId) {
+            rewrittenSessionsById[newSessionId] = {
+                ...session,
+                id: newSessionId,
+                runnableId: newEntityId,
+            }
+            execRewrote = true
+        } else {
+            rewrittenSessionsById[id] = session
+        }
+    }
+
+    const rewrittenActiveSessionIds = execState.activeSessionIds.map((id) => {
+        if (id === oldSessionId) {
+            execRewrote = true
+            return newSessionId
+        }
+        return id
+    })
+
+    const rewrittenResultsByKey: Record<string, RunResult> = {}
+    const oldKeySuffix = `:${oldSessionId}`
+    for (const [key, result] of Object.entries(execState.resultsByKey)) {
+        if (result.sessionId === oldSessionId) {
+            const newKey = key.endsWith(oldKeySuffix)
+                ? `${key.slice(0, -oldKeySuffix.length)}:${newSessionId}`
+                : key
+            rewrittenResultsByKey[newKey] = {...result, sessionId: newSessionId}
+            execRewrote = true
+        } else {
+            rewrittenResultsByKey[key] = result
+        }
+    }
+
+    const nextExecState = {
+        ...execState,
+        sessionsById: rewrittenSessionsById,
+        activeSessionIds: rewrittenActiveSessionIds,
+        resultsByKey: rewrittenResultsByKey,
+    }
+
+    if (moves) {
+        set(executionStateAtomFamily(newLoadableId), nextExecState)
+        set(executionStateAtomFamily(oldLoadableId), createInitialExecutionState())
+
+        // The loadable ID is anchored to the primary revision, so an anchor
+        // commit must move the whole loadable context. Migrating only execution
+        // results drops connectedSourceId and makes the connected testset appear
+        // disconnected under the new revision.
+        const oldLoadableStateAtom = loadableStateAtomFamily(oldLoadableId)
+        const oldLoadableState = get(oldLoadableStateAtom)
+        set(loadableStateAtomFamily(newLoadableId), {
+            ...oldLoadableState,
+            linkedRunnableId: newEntityId,
+            hiddenTestcaseIds: new Set(oldLoadableState.hiddenTestcaseIds),
+            disabledOutputMappingRowIds: new Set(oldLoadableState.disabledOutputMappingRowIds),
+        })
+
+        // Evict the old family key so future lookups receive fresh default state.
+        // Reset the captured atom as well for any subscribers that still hold it.
+        loadableStateAtomFamily.remove(oldLoadableId)
+        set(oldLoadableStateAtom, get(loadableStateAtomFamily(oldLoadableId)))
+    } else if (execRewrote) {
+        set(executionStateAtomFamily(oldLoadableId), nextExecState)
+    }
+}
+
+type PruneStatus = "acted" | "noop" | "unresolved"
+
+/**
+ * Reconcile every testcase row against the given entity's input contract.
+ *
+ * Why this exists: the testcase row store (`testcaseMolecule`) is shared
+ * across loadables. When the user swaps the primary app in the LLM-as-a-
+ * judge playground, the row data keeps every key the *previous* primary
+ * populated — chat `messages`, completion template variables that the new
+ * app doesn't declare, etc. Without reconciliation, those stale keys leak
+ * into the new app's request body and the downstream evaluator's envelope.
+ *
+ * Allow-list source is `inputPorts` (via `resolveEntityInputContract`), NOT
+ * `inputSchema.properties` — completion apps surface their variables as
+ * prompt template placeholders through `inputPorts` and have an EMPTY static
+ * input schema, so schema-based filtering keeps everything. Policy:
+ *   - App with a resolved contract → strict: keep only declared (or
+ *     downstream-evaluator-protected) keys.
+ *   - Evaluator → chat-transport only: evaluators spread extra testcase
+ *     columns, so we never strict-filter them.
+ *   - Unresolved contract (ports mid-hydration) → no-op; returns
+ *     `"unresolved"` so the caller can retry once the contract resolves. The
+ *     run-time reconciliation in `webWorkerIntegration` is the backstop.
+ *
+ * Columns referenced by downstream evaluator `<input>_key` settings (e.g.
+ * `correct_answer_key → ground_truth`) are protected so a strict clean
+ * against the app contract doesn't drop intentional evaluation inputs.
+ *
+ * Mutations go through `testcaseMolecule.actions.batchUpdate` setting stale
+ * keys to `undefined`, which the store's update reducer interprets as a
+ * delete. Drafts are created as needed (one per affected row).
+ */
+function pruneTestcaseRowsForEntity(get: Getter, set: Setter, entityId: string): PruneStatus {
+    const contract = resolveEntityInputContract(get, entityId)
+
+    // Unresolved, non-evaluator contract → we can't strict-filter safely yet.
+    // The evaluator path is always "resolved enough" (chat-transport strip
+    // works without a variable list), so only bail for non-evaluator apps.
+    if (!contract.isEvaluator && !contract.resolved) {
+        return "unresolved"
+    }
+
+    const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+    if (!Array.isArray(displayRowIds) || displayRowIds.length === 0) return "noop"
+
+    const protectedColumns = collectDownstreamReferencedColumns(get, get(playgroundNodesAtom))
+    // The synced test set's own columns are intentional data, not stale
+    // leftovers — keep them through the swap clean (#4647). Test-set-scoped
+    // (union across all server rows), so rows that joined the test set
+    // locally are covered too; same value for every row, hence hoisted.
+    for (const column of collectTestsetServerColumns(get)) {
+        protectedColumns.add(column)
+    }
+
+    const updates: {id: string; updates: {data: Record<string, unknown>}}[] = []
+
+    for (const rowId of displayRowIds) {
+        const row = get(testcaseMolecule.data(rowId))
+        const data = (row as {data?: Record<string, unknown>} | null)?.data
+        if (!data || typeof data !== "object") continue
+
+        const {dropped} = reconcileRowDataForEntity(get, entityId, data, {
+            protectedKeys: protectedColumns,
+        })
+        if (dropped.length === 0) continue
+
+        const undefinedData: Record<string, unknown> = {}
+        for (const key of dropped) {
+            undefinedData[key] = undefined
+        }
+        updates.push({id: rowId, updates: {data: undefinedData}})
+    }
+
+    if (updates.length === 0) return "noop"
+
+    set(testcaseMolecule.actions.batchUpdate, updates)
+    return "acted"
+}
+
+/**
+ * Reconcile all testcase rows against the CURRENT primary (depth-0) entity's
+ * input contract, on demand — call this right after a primary swap so the
+ * shared row is cleaned the instant the app changes, without waiting for a
+ * run. The run-time reconciliation in `webWorkerIntegration` is the backstop.
+ *
+ * Hydration handling: the new primary's input ports may not be resolved at
+ * call time (the workflow is still loading). When the prune reports
+ * `"unresolved"` AND the entity isn't loaded yet, we subscribe to its
+ * `inputPorts` and retry once they resolve, then unsubscribe. If the entity
+ * is already loaded but has no resolvable variables, there's nothing to wait
+ * for, so we don't subscribe (avoids a dangling subscription).
+ */
+const reconcileRowsToPrimaryAtom = atom(null, (get, set) => {
+    const nodes = get(playgroundNodesAtom)
+    const primary = nodes.find((node) => node.depth === 0)
+    if (!primary) return
+    const entityId = primary.entityId
+
+    const status = pruneTestcaseRowsForEntity(get, set, entityId)
+    if (status !== "unresolved") return
+
+    // Unresolved: either the workflow is still loading, or it's a genuinely
+    // no-variable app. Only wait if it hasn't loaded yet.
+    const entityLoaded = get(workflowMolecule.selectors.data(entityId)) != null
+    if (entityLoaded) return
+
+    const store = get(playgroundStoreAtom)
+    const unsub = store.sub(workflowMolecule.selectors.inputPorts(entityId), () => {
+        const retryStatus = pruneTestcaseRowsForEntity(store.get, store.set, entityId)
+        const nowLoaded = store.get(workflowMolecule.selectors.data(entityId)) != null
+        if (retryStatus !== "unresolved" || nowLoaded) unsub()
+    })
+})
+
+/**
  * Switch one entity for another in the displayed selection.
- * Handles both single and comparison mode. Duplicates chat history
- * from the old entity to the new one.
+ * Handles both single and comparison mode. The loadable-scoped re-link
+ * (chat history, execution sessions, results) happens inside setEntityIdsAtom
+ * via positional swap detection, so this just computes the updated array
+ * and delegates.
  */
 const switchEntityAtom = atom(
     null,
@@ -1909,10 +2302,6 @@ const switchEntityAtom = atom(
                 ? current.map((id) => (id === currentEntityId ? newEntityId : id))
                 : [newEntityId]
 
-        set(duplicateSessionResponsesWithContextAtom, {
-            sourceRevisionId: currentEntityId,
-            targetRevisionId: newEntityId,
-        })
         set(setEntityIdsAtom, updated)
         _onSelectionChange?.(updated, [currentEntityId])
     },
@@ -2018,6 +2407,13 @@ export const playgroundController = {
         /** Change the primary node */
         changePrimaryNode: changePrimaryNodeAtom,
 
+        /**
+         * Reconcile all testcase rows against the current primary entity's
+         * input contract. Call after a primary swap to clean stale keys from a
+         * previous app off the shared row immediately (#4525 / AGE-3793).
+         */
+        reconcileRowsToPrimary: reconcileRowsToPrimaryAtom,
+
         /** Disconnect from testset and reset to local mode */
         disconnectAndResetToLocal: disconnectAndResetToLocalAtom,
 
@@ -2027,6 +2423,9 @@ export const playgroundController = {
 
         /** Import testcases (import mode - no connection) */
         importTestcases: importTestcasesAtom,
+
+        /** Connect to a testset, re-importing local draft rows as unsaved additions */
+        connectToTestsetKeepingLocalRows: connectToTestsetKeepingLocalRowsAtom,
 
         // WP2: Row with init action
         /** Add a row with local testset initialization */
@@ -2067,9 +2466,6 @@ export const playgroundController = {
 
         /** Reset playground state and clear all output connections */
         resetAll: resetAllAtom,
-
-        /** Duplicate session responses from one entity to another */
-        duplicateSessionResponses: duplicateSessionResponsesWithContextAtom,
 
         /** Restore a testset connection from a URL snapshot (call after primary node is set) */
         restoreLoadableConnection: restoreLoadableConnectionAtom,

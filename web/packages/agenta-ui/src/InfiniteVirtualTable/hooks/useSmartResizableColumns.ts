@@ -221,13 +221,31 @@ export const useSmartResizableColumns = <RowType>({
                     result[col.key] = col.width
                 }
             } else {
-                // Enough space - distribute proportionally
-                for (const col of nonResizedFlexCols) {
+                // Enough space - distribute proportionally.
+                //
+                // Widths MUST be integers. The virtual body positions cells by
+                // the raw width values while the header <table>'s <colgroup>
+                // rounds each column independently; fractional widths make the
+                // two diverge and the header/body dividers drift apart left-to-
+                // right. We floor each column and hand the accumulated rounding
+                // remainder to the last column so the total still fills exactly.
+                let distributed = 0
+                nonResizedFlexCols.forEach((col, index) => {
+                    if (index === nonResizedFlexCols.length - 1) {
+                        // Last column absorbs the remainder to keep the sum exact.
+                        const remainder = remainingForNonResized - distributed
+                        result[col.key] = Math.max(Math.round(remainder), col.width)
+                        return
+                    }
                     const proportion = col.width / totalDefaultWeight
-                    const computedWidth = remainingForNonResized * proportion
                     // Use default width as floor, not minWidth
-                    result[col.key] = Math.max(computedWidth, col.width)
-                }
+                    const computedWidth = Math.max(
+                        Math.floor(remainingForNonResized * proportion),
+                        col.width,
+                    )
+                    result[col.key] = computedWidth
+                    distributed += computedWidth
+                })
             }
 
             return result

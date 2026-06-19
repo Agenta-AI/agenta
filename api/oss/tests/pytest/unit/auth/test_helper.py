@@ -5,7 +5,7 @@ import pytest
 
 from oss.src.core.auth import helper as auth_helper
 from oss.src.core.auth.supertokens import overrides
-from oss.src.services.exceptions import UnauthorizedException
+from oss.src.utils.exceptions import UnauthorizedException
 from supertokens_python.recipe.thirdparty.interfaces import SignInUpNotAllowed
 
 
@@ -13,7 +13,6 @@ from supertokens_python.recipe.thirdparty.interfaces import SignInUpNotAllowed
 async def test_ensure_auth_info_not_blocked_rejects_explicitly_blocked_email(
     monkeypatch,
 ):
-    monkeypatch.setattr(auth_helper, "is_ee", lambda: True)
     monkeypatch.setattr(
         auth_helper,
         "get_blocked_emails",
@@ -38,7 +37,6 @@ async def test_ensure_auth_info_not_blocked_rejects_explicitly_blocked_email(
 
 @pytest.mark.asyncio
 async def test_ensure_auth_info_not_blocked_rejects_disallowed_domain(monkeypatch):
-    monkeypatch.setattr(auth_helper, "is_ee", lambda: True)
     monkeypatch.setattr(
         auth_helper,
         "get_blocked_emails",
@@ -74,7 +72,7 @@ async def test_get_blocked_domains_accepts_string_posthog_payload(monkeypatch):
                     allowed_domains=set(),
                 ),
             ),
-            posthog=SimpleNamespace(enabled=True),
+            posthog=SimpleNamespace(enabled=True, api_key="posthog-key"),
         ),
     )
     monkeypatch.setattr(
@@ -88,9 +86,11 @@ async def test_get_blocked_domains_accepts_string_posthog_payload(monkeypatch):
         AsyncMock(),
     )
     monkeypatch.setattr(
-        auth_helper.posthog,
-        "get_feature_flag_payload",
-        lambda feature_flag, distinct_id: "agenta.dev",
+        auth_helper,
+        "_load_posthog",
+        lambda: SimpleNamespace(
+            get_feature_flag_payload=lambda feature_flag, distinct_id: "agenta.dev",
+        ),
     )
 
     blocked_domains = await auth_helper.get_blocked_domains()
@@ -100,6 +100,47 @@ async def test_get_blocked_domains_accepts_string_posthog_payload(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_get_blocked_domains_splits_comma_separated_posthog_payload(monkeypatch):
+    monkeypatch.setattr(
+        auth_helper,
+        "env",
+        SimpleNamespace(
+            agenta=SimpleNamespace(
+                access=SimpleNamespace(
+                    blocked_domains=set(),
+                    blocked_emails=set(),
+                    allowed_domains=set(),
+                ),
+            ),
+            posthog=SimpleNamespace(enabled=True, api_key="posthog-key"),
+        ),
+    )
+    monkeypatch.setattr(
+        auth_helper,
+        "get_cache",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        auth_helper,
+        "set_cache",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        auth_helper,
+        "_load_posthog",
+        lambda: SimpleNamespace(
+            get_feature_flag_payload=(
+                lambda feature_flag, distinct_id: "spica.asia, agenta.ai , yopmail.com"
+            ),
+        ),
+    )
+
+    blocked_domains = await auth_helper.get_blocked_domains()
+
+    assert blocked_domains == {"spica.asia", "agenta.ai", "yopmail.com"}
+
+
+@pytest.mark.asyncio
+async def test_get_blocked_emails_treats_posthog_errors_as_empty(monkeypatch):
     monkeypatch.setattr(
         auth_helper,
         "env",
@@ -121,18 +162,15 @@ async def test_get_blocked_domains_splits_comma_separated_posthog_payload(monkey
     )
     monkeypatch.setattr(
         auth_helper,
-        "set_cache",
-        AsyncMock(),
-    )
-    monkeypatch.setattr(
-        auth_helper.posthog,
-        "get_feature_flag_payload",
-        lambda feature_flag, distinct_id: "spica.asia, agenta.ai , yopmail.com",
+        "_load_posthog",
+        lambda: SimpleNamespace(
+            get_feature_flag_payload=lambda feature_flag, distinct_id: (
+                _ for _ in ()
+            ).throw(ValueError("API key is required")),
+        ),
     )
 
-    blocked_domains = await auth_helper.get_blocked_domains()
-
-    assert blocked_domains == {"spica.asia", "agenta.ai", "yopmail.com"}
+    assert await auth_helper.get_blocked_emails() == set()
 
 
 @pytest.mark.asyncio

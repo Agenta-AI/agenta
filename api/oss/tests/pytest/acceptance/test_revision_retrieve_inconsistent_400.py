@@ -19,17 +19,6 @@ Each test creates its own fixture so the tests don't share global state.
 
 from uuid import uuid4
 
-import pytest
-
-# HOTFIX: the `validate_retrieve_refs_consistent` guardrail is commented out in
-# the *_revision service paths ("env-stored refs may carry stale slugs"), so
-# inconsistent refs currently resolve to 200 instead of 400. Remove this marker
-# when the guardrail is re-enabled (web write paths fixed + historical backfill).
-_HOTFIX_GUARDRAIL_DISABLED = pytest.mark.xfail(
-    reason="HOTFIX: validate_retrieve_refs_consistent disabled until backfill",
-    strict=True,
-)
-
 
 def _assert_inconsistent_400(response):
     assert response.status_code == 400, response.text
@@ -77,7 +66,6 @@ def _create_workflow_stack(authed_api):
     return workflow, variant, revision
 
 
-@_HOTFIX_GUARDRAIL_DISABLED
 def test_workflows_retrieve_artifact_slug_disagrees_with_revision_id_returns_400(
     authed_api,
 ):
@@ -122,7 +110,7 @@ def _create_application_stack(authed_api):
         "POST",
         "/applications/revisions/commit",
         json={
-            "application_revision_commit": {
+            "application_revision": {
                 "application_id": app["id"],
                 "application_variant_id": variant["id"],
                 "data": {"parameters": {"model": "test-model"}},
@@ -134,7 +122,6 @@ def _create_application_stack(authed_api):
     return app, variant, revision
 
 
-@_HOTFIX_GUARDRAIL_DISABLED
 def test_applications_retrieve_artifact_slug_disagrees_with_revision_id_returns_400(
     authed_api,
 ):
@@ -179,7 +166,7 @@ def _create_evaluator_stack(authed_api):
         "POST",
         "/evaluators/revisions/commit",
         json={
-            "evaluator_revision_commit": {
+            "evaluator_revision": {
                 "evaluator_id": evaluator["id"],
                 "evaluator_variant_id": variant["id"],
                 "data": {"parameters": {"model": "test-model"}},
@@ -191,7 +178,6 @@ def _create_evaluator_stack(authed_api):
     return evaluator, variant, revision
 
 
-@_HOTFIX_GUARDRAIL_DISABLED
 def test_evaluators_retrieve_artifact_slug_disagrees_with_revision_id_returns_400(
     authed_api,
 ):
@@ -234,7 +220,7 @@ def _create_testset_stack(authed_api):
         "POST",
         "/testsets/revisions/commit",
         json={
-            "testset_revision_commit": {
+            "testset_revision": {
                 "testset_id": testset["id"],
                 "testset_variant_id": variant["id"],
                 "data": {"testcases": []},
@@ -246,7 +232,6 @@ def _create_testset_stack(authed_api):
     return testset, variant, revision
 
 
-@_HOTFIX_GUARDRAIL_DISABLED
 def test_testsets_retrieve_artifact_slug_disagrees_with_revision_id_returns_400(
     authed_api,
 ):
@@ -282,7 +267,7 @@ def _create_query_stack(authed_api):
         "POST",
         "/queries/revisions/commit",
         json={
-            "query_revision_commit": {
+            "query_revision": {
                 "query_id": query["id"],
                 "query_variant_id": query["variant_id"],
                 "data": {"windowing": {"limit": 50}},
@@ -294,7 +279,6 @@ def _create_query_stack(authed_api):
     return query, revision
 
 
-@_HOTFIX_GUARDRAIL_DISABLED
 def test_queries_retrieve_artifact_slug_disagrees_with_revision_id_returns_400(
     authed_api,
 ):
@@ -337,7 +321,7 @@ def _create_environment_stack(authed_api):
         "POST",
         "/environments/revisions/commit",
         json={
-            "environment_revision_commit": {
+            "environment_revision": {
                 "environment_id": environment["id"],
                 "environment_variant_id": variant["id"],
                 "data": {"references": {}},
@@ -349,7 +333,6 @@ def _create_environment_stack(authed_api):
     return environment, variant, revision
 
 
-@_HOTFIX_GUARDRAIL_DISABLED
 def test_environments_retrieve_artifact_slug_disagrees_with_revision_id_returns_400(
     authed_api,
 ):

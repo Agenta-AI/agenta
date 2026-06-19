@@ -78,3 +78,8 @@ body {
         }
     }
 }
+
+/* === Dark theme === */
+.dark body {
+    --not-available-stripe: #2a2a2a;
+}

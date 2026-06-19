@@ -9,5 +9,5 @@ export interface EvaluatorRevisionsResponse {
     /** Number of revisions in `evaluator_revisions`. */
     count?: number | undefined;
     /** Matching evaluator revisions. */
-    evaluator_revisions?: AgentaApi.EvaluatorRevision[] | undefined;
+    evaluator_revisions?: AgentaApi.EvaluatorRevisionOutput[] | undefined;
 }

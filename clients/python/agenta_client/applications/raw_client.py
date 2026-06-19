@@ -20,12 +20,12 @@ from ..types.application_catalog_templates_response import ApplicationCatalogTem
 from ..types.application_catalog_types_response import ApplicationCatalogTypesResponse
 from ..types.application_create import ApplicationCreate
 from ..types.application_edit import ApplicationEdit
-from ..types.application_fork import ApplicationFork
 from ..types.application_query import ApplicationQuery
 from ..types.application_response import ApplicationResponse
 from ..types.application_revision_commit import ApplicationRevisionCommit
 from ..types.application_revision_create import ApplicationRevisionCreate
 from ..types.application_revision_edit import ApplicationRevisionEdit
+from ..types.application_revision_input import ApplicationRevisionInput
 from ..types.application_revision_query import ApplicationRevisionQuery
 from ..types.application_revision_resolve_response import ApplicationRevisionResolveResponse
 from ..types.application_revision_response import ApplicationRevisionResponse
@@ -33,6 +33,7 @@ from ..types.application_revisions_log import ApplicationRevisionsLog
 from ..types.application_revisions_response import ApplicationRevisionsResponse
 from ..types.application_variant_create import ApplicationVariantCreate
 from ..types.application_variant_edit import ApplicationVariantEdit
+from ..types.application_variant_fork import ApplicationVariantFork
 from ..types.application_variant_response import ApplicationVariantResponse
 from ..types.application_variants_response import ApplicationVariantsResponse
 from ..types.applications_response import ApplicationsResponse
@@ -939,7 +940,7 @@ class RawApplicationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def fork_application_variant(self, *, application: ApplicationFork, application_variant_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationVariantResponse]:
+    def fork_application_variant(self, *, application_variant: ApplicationVariantFork, application_variant_ref: Reference, application_variant_id: typing.Optional[str] = None, application_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationVariantResponse]:
         """
         Fork an existing variant into a new variant on the same application.
         
@@ -954,10 +955,16 @@ class RawApplicationsClient:
         
         Parameters
         ----------
-        application : ApplicationFork
-            Fork payload. Must include the source `application_variant_id` (or `application_revision_id`) plus a `variant` object describing the new branch and a `revision` object for the new tip commit.
+        application_variant : ApplicationVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        application_variant_ref : Reference
+            Source variant to fork from.
         
         application_variant_id : typing.Optional[str]
+        
+        application_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -972,7 +979,9 @@ class RawApplicationsClient:
             params={"application_variant_id": application_variant_id, }
             ,
             json={
-                "application": convert_and_respect_annotation_metadata(object_=application, annotation=ApplicationFork, direction="write"),
+                "application_variant": convert_and_respect_annotation_metadata(object_=application_variant, annotation=ApplicationVariantFork, direction="write"),
+                "application_variant_ref": convert_and_respect_annotation_metadata(object_=application_variant_ref, annotation=Reference, direction="write"),
+                "application_revision_ref": convert_and_respect_annotation_metadata(object_=application_revision_ref, annotation=typing.Optional[Reference], direction="write"),
             }
             ,
             headers={"content-type": "application/json", }
@@ -1016,13 +1025,13 @@ class RawApplicationsClient:
         Parameters
         ----------
         application_ref : typing.Optional[Reference]
-            Application reference. When only an application is supplied, the latest revision of its default variant is returned.
+            Application artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of the application's default variant.
         
         application_variant_ref : typing.Optional[Reference]
-            Variant reference. Returns the latest revision on that variant.
+            Application variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         application_revision_ref : typing.Optional[Reference]
-            Revision reference. Returns that exact revision.
+            Application revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with an `application_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         environment_ref : typing.Optional[Reference]
             Environment reference. Returns the revision currently deployed to that environment under the given `key`.
@@ -1173,7 +1182,7 @@ class RawApplicationsClient:
     
     def create_application_revision(self, *, application_revision: ApplicationRevisionCreate, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionResponse]:
         """
-        Create a revision row directly, without the commit workflow.
+        Create and commit the initial revision for an application variant.
         
         Advanced use only. For normal development loops prefer
         `POST /applications/revisions/commit`, which commits the new revision
@@ -1415,7 +1424,7 @@ class RawApplicationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def query_application_revisions(self, *, application_revision: typing.Optional[ApplicationRevisionQuery] = OMIT, application_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionsResponse]:
+    def query_application_revisions(self, *, application_revision: typing.Optional[ApplicationRevisionQuery] = OMIT, application_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionsResponse]:
         """
         Query revisions across one or more applications or variants.
         
@@ -1423,8 +1432,6 @@ class RawApplicationsClient:
         query, or filter on commit metadata (`author`, `date`, `message`) via
         the `application_revision` object. For the ordered history of a
         single variant, `POST /applications/revisions/log` is more direct.
-        Set `resolve: true` to inline embedded references in each revision's
-        `data`.
         
         Parameters
         ----------
@@ -1446,9 +1453,6 @@ class RawApplicationsClient:
         windowing : typing.Optional[Windowing]
             Cursor pagination and time-range controls.
         
-        resolve : typing.Optional[bool]
-            When `true`, resolve embedded references in each returned revision's `data` (for example, snippet references). Defaults to `false`.
-        
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
         
@@ -1466,7 +1470,6 @@ class RawApplicationsClient:
                 "application_revision_refs": convert_and_respect_annotation_metadata(object_=application_revision_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(object_=windowing, annotation=typing.Optional[Windowing], direction="write"),
-                "resolve": resolve,
             }
             ,
             headers={"content-type": "application/json", }
@@ -1496,7 +1499,7 @@ class RawApplicationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def commit_application_revision(self, *, application_revision_commit: ApplicationRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionResponse]:
+    def commit_application_revision(self, *, application_revision: ApplicationRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionResponse]:
         """
         Commit a new revision on a variant.
         
@@ -1507,7 +1510,7 @@ class RawApplicationsClient:
         
         Parameters
         ----------
-        application_revision_commit : ApplicationRevisionCommit
+        application_revision : ApplicationRevisionCommit
             Commit payload. Must include `application_variant_id` and `data`. `message` is a human-readable commit message. `slug` is optional; if omitted, the server generates one.
         
         request_options : typing.Optional[RequestOptions]
@@ -1521,7 +1524,7 @@ class RawApplicationsClient:
         _response = self._client_wrapper.httpx_client.request(
             "applications/revisions/commit",method="POST",
             json={
-                "application_revision_commit": convert_and_respect_annotation_metadata(object_=application_revision_commit, annotation=ApplicationRevisionCommit, direction="write"),
+                "application_revision": convert_and_respect_annotation_metadata(object_=application_revision, annotation=ApplicationRevisionCommit, direction="write"),
             }
             ,
             headers={"content-type": "application/json", }
@@ -1551,7 +1554,7 @@ class RawApplicationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def log_application_revisions(self, *, application: ApplicationRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionsResponse]:
+    def log_application_revisions(self, *, application_revisions: ApplicationRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionsResponse]:
         """
         Return the ordered revision log for a variant.
         
@@ -1562,7 +1565,7 @@ class RawApplicationsClient:
         
         Parameters
         ----------
-        application : ApplicationRevisionsLog
+        application_revisions : ApplicationRevisionsLog
             Filter for the log. Typically set `application_variant_id` to list the revision history of a single variant; optionally set `application_revision_id` + `depth` to walk back a bounded number of commits from a specific revision.
         
         request_options : typing.Optional[RequestOptions]
@@ -1576,7 +1579,7 @@ class RawApplicationsClient:
         _response = self._client_wrapper.httpx_client.request(
             "applications/revisions/log",method="POST",
             json={
-                "application": convert_and_respect_annotation_metadata(object_=application, annotation=ApplicationRevisionsLog, direction="write"),
+                "application_revisions": convert_and_respect_annotation_metadata(object_=application_revisions, annotation=ApplicationRevisionsLog, direction="write"),
             }
             ,
             headers={"content-type": "application/json", }
@@ -1606,7 +1609,7 @@ class RawApplicationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def resolve_application_revision(self, *, application_ref: typing.Optional[Reference] = OMIT, application_variant_ref: typing.Optional[Reference] = OMIT, application_revision_ref: typing.Optional[Reference] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionResolveResponse]:
+    def resolve_application_revision(self, *, application_ref: typing.Optional[Reference] = OMIT, application_variant_ref: typing.Optional[Reference] = OMIT, application_revision_ref: typing.Optional[Reference] = OMIT, application_revision: typing.Optional[ApplicationRevisionInput] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ApplicationRevisionResolveResponse]:
         """
         Fetch a revision with embedded references inlined.
         
@@ -1626,6 +1629,9 @@ class RawApplicationsClient:
         
         application_revision_ref : typing.Optional[Reference]
             Revision reference; resolves that exact revision.
+        
+        application_revision : typing.Optional[ApplicationRevisionInput]
+            Resolve the references embedded in this revision payload directly, without fetching it first. Only `data` is used; id and metadata are ignored.
         
         max_depth : typing.Optional[int]
             Maximum nesting depth for embedded references. Protects against runaway recursion. Defaults to `10`.
@@ -1650,6 +1656,7 @@ class RawApplicationsClient:
                 "application_ref": convert_and_respect_annotation_metadata(object_=application_ref, annotation=typing.Optional[Reference], direction="write"),
                 "application_variant_ref": convert_and_respect_annotation_metadata(object_=application_variant_ref, annotation=typing.Optional[Reference], direction="write"),
                 "application_revision_ref": convert_and_respect_annotation_metadata(object_=application_revision_ref, annotation=typing.Optional[Reference], direction="write"),
+                "application_revision": convert_and_respect_annotation_metadata(object_=application_revision, annotation=typing.Optional[ApplicationRevisionInput], direction="write"),
                 "max_depth": max_depth,
                 "max_embeds": max_embeds,
                 "error_policy": error_policy,
@@ -2896,7 +2903,7 @@ class AsyncRawApplicationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def fork_application_variant(self, *, application: ApplicationFork, application_variant_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationVariantResponse]:
+    async def fork_application_variant(self, *, application_variant: ApplicationVariantFork, application_variant_ref: Reference, application_variant_id: typing.Optional[str] = None, application_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationVariantResponse]:
         """
         Fork an existing variant into a new variant on the same application.
         
@@ -2911,10 +2918,16 @@ class AsyncRawApplicationsClient:
         
         Parameters
         ----------
-        application : ApplicationFork
-            Fork payload. Must include the source `application_variant_id` (or `application_revision_id`) plus a `variant` object describing the new branch and a `revision` object for the new tip commit.
+        application_variant : ApplicationVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        application_variant_ref : Reference
+            Source variant to fork from.
         
         application_variant_id : typing.Optional[str]
+        
+        application_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2929,7 +2942,9 @@ class AsyncRawApplicationsClient:
             params={"application_variant_id": application_variant_id, }
             ,
             json={
-                "application": convert_and_respect_annotation_metadata(object_=application, annotation=ApplicationFork, direction="write"),
+                "application_variant": convert_and_respect_annotation_metadata(object_=application_variant, annotation=ApplicationVariantFork, direction="write"),
+                "application_variant_ref": convert_and_respect_annotation_metadata(object_=application_variant_ref, annotation=Reference, direction="write"),
+                "application_revision_ref": convert_and_respect_annotation_metadata(object_=application_revision_ref, annotation=typing.Optional[Reference], direction="write"),
             }
             ,
             headers={"content-type": "application/json", }
@@ -2973,13 +2988,13 @@ class AsyncRawApplicationsClient:
         Parameters
         ----------
         application_ref : typing.Optional[Reference]
-            Application reference. When only an application is supplied, the latest revision of its default variant is returned.
+            Application artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of the application's default variant.
         
         application_variant_ref : typing.Optional[Reference]
-            Variant reference. Returns the latest revision on that variant.
+            Application variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         application_revision_ref : typing.Optional[Reference]
-            Revision reference. Returns that exact revision.
+            Application revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with an `application_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         environment_ref : typing.Optional[Reference]
             Environment reference. Returns the revision currently deployed to that environment under the given `key`.
@@ -3130,7 +3145,7 @@ class AsyncRawApplicationsClient:
     
     async def create_application_revision(self, *, application_revision: ApplicationRevisionCreate, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionResponse]:
         """
-        Create a revision row directly, without the commit workflow.
+        Create and commit the initial revision for an application variant.
         
         Advanced use only. For normal development loops prefer
         `POST /applications/revisions/commit`, which commits the new revision
@@ -3372,7 +3387,7 @@ class AsyncRawApplicationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def query_application_revisions(self, *, application_revision: typing.Optional[ApplicationRevisionQuery] = OMIT, application_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionsResponse]:
+    async def query_application_revisions(self, *, application_revision: typing.Optional[ApplicationRevisionQuery] = OMIT, application_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, application_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT, include_archived: typing.Optional[bool] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionsResponse]:
         """
         Query revisions across one or more applications or variants.
         
@@ -3380,8 +3395,6 @@ class AsyncRawApplicationsClient:
         query, or filter on commit metadata (`author`, `date`, `message`) via
         the `application_revision` object. For the ordered history of a
         single variant, `POST /applications/revisions/log` is more direct.
-        Set `resolve: true` to inline embedded references in each revision's
-        `data`.
         
         Parameters
         ----------
@@ -3403,9 +3416,6 @@ class AsyncRawApplicationsClient:
         windowing : typing.Optional[Windowing]
             Cursor pagination and time-range controls.
         
-        resolve : typing.Optional[bool]
-            When `true`, resolve embedded references in each returned revision's `data` (for example, snippet references). Defaults to `false`.
-        
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
         
@@ -3423,7 +3433,6 @@ class AsyncRawApplicationsClient:
                 "application_revision_refs": convert_and_respect_annotation_metadata(object_=application_revision_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(object_=windowing, annotation=typing.Optional[Windowing], direction="write"),
-                "resolve": resolve,
             }
             ,
             headers={"content-type": "application/json", }
@@ -3453,7 +3462,7 @@ class AsyncRawApplicationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def commit_application_revision(self, *, application_revision_commit: ApplicationRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionResponse]:
+    async def commit_application_revision(self, *, application_revision: ApplicationRevisionCommit, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionResponse]:
         """
         Commit a new revision on a variant.
         
@@ -3464,7 +3473,7 @@ class AsyncRawApplicationsClient:
         
         Parameters
         ----------
-        application_revision_commit : ApplicationRevisionCommit
+        application_revision : ApplicationRevisionCommit
             Commit payload. Must include `application_variant_id` and `data`. `message` is a human-readable commit message. `slug` is optional; if omitted, the server generates one.
         
         request_options : typing.Optional[RequestOptions]
@@ -3478,7 +3487,7 @@ class AsyncRawApplicationsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "applications/revisions/commit",method="POST",
             json={
-                "application_revision_commit": convert_and_respect_annotation_metadata(object_=application_revision_commit, annotation=ApplicationRevisionCommit, direction="write"),
+                "application_revision": convert_and_respect_annotation_metadata(object_=application_revision, annotation=ApplicationRevisionCommit, direction="write"),
             }
             ,
             headers={"content-type": "application/json", }
@@ -3508,7 +3517,7 @@ class AsyncRawApplicationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def log_application_revisions(self, *, application: ApplicationRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionsResponse]:
+    async def log_application_revisions(self, *, application_revisions: ApplicationRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionsResponse]:
         """
         Return the ordered revision log for a variant.
         
@@ -3519,7 +3528,7 @@ class AsyncRawApplicationsClient:
         
         Parameters
         ----------
-        application : ApplicationRevisionsLog
+        application_revisions : ApplicationRevisionsLog
             Filter for the log. Typically set `application_variant_id` to list the revision history of a single variant; optionally set `application_revision_id` + `depth` to walk back a bounded number of commits from a specific revision.
         
         request_options : typing.Optional[RequestOptions]
@@ -3533,7 +3542,7 @@ class AsyncRawApplicationsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "applications/revisions/log",method="POST",
             json={
-                "application": convert_and_respect_annotation_metadata(object_=application, annotation=ApplicationRevisionsLog, direction="write"),
+                "application_revisions": convert_and_respect_annotation_metadata(object_=application_revisions, annotation=ApplicationRevisionsLog, direction="write"),
             }
             ,
             headers={"content-type": "application/json", }
@@ -3563,7 +3572,7 @@ class AsyncRawApplicationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def resolve_application_revision(self, *, application_ref: typing.Optional[Reference] = OMIT, application_variant_ref: typing.Optional[Reference] = OMIT, application_revision_ref: typing.Optional[Reference] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionResolveResponse]:
+    async def resolve_application_revision(self, *, application_ref: typing.Optional[Reference] = OMIT, application_variant_ref: typing.Optional[Reference] = OMIT, application_revision_ref: typing.Optional[Reference] = OMIT, application_revision: typing.Optional[ApplicationRevisionInput] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ApplicationRevisionResolveResponse]:
         """
         Fetch a revision with embedded references inlined.
         
@@ -3583,6 +3592,9 @@ class AsyncRawApplicationsClient:
         
         application_revision_ref : typing.Optional[Reference]
             Revision reference; resolves that exact revision.
+        
+        application_revision : typing.Optional[ApplicationRevisionInput]
+            Resolve the references embedded in this revision payload directly, without fetching it first. Only `data` is used; id and metadata are ignored.
         
         max_depth : typing.Optional[int]
             Maximum nesting depth for embedded references. Protects against runaway recursion. Defaults to `10`.
@@ -3607,6 +3619,7 @@ class AsyncRawApplicationsClient:
                 "application_ref": convert_and_respect_annotation_metadata(object_=application_ref, annotation=typing.Optional[Reference], direction="write"),
                 "application_variant_ref": convert_and_respect_annotation_metadata(object_=application_variant_ref, annotation=typing.Optional[Reference], direction="write"),
                 "application_revision_ref": convert_and_respect_annotation_metadata(object_=application_revision_ref, annotation=typing.Optional[Reference], direction="write"),
+                "application_revision": convert_and_respect_annotation_metadata(object_=application_revision, annotation=typing.Optional[ApplicationRevisionInput], direction="write"),
                 "max_depth": max_depth,
                 "max_embeds": max_embeds,
                 "error_policy": error_policy,

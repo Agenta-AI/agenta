@@ -7,62 +7,45 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import acquire_lock, release_lock
-from oss.src.utils.common import env
+from oss.src.utils.locking import acquire_lock, release_lock
 
 from oss.src.services import db_manager
 from oss.src.utils.common import is_ee
-from ee.src.services.db_manager_ee import (
-    create_organization,
+from oss.src.services.db_manager import (
     add_user_to_organization,
     add_user_to_workspace,
     add_user_to_project,
 )
-from ee.src.core.organizations.types import CreateOrganization
+from oss.src.services.commoners import (
+    can_create_organization,  # noqa: F401 — moved OSS-ward, re-exported
+    create_organization,
+)
 from oss.src.services.user_service import (
     create_new_user,
     delete_user,
 )
 from oss.src.models.db_models import OrganizationDB
-from ee.src.services.email_helper import (
-    add_contact_to_loops,
-)
+from oss.src.utils import emailing
 
 from oss.src.core.auth.service import AuthService
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.subscriptions.types import get_default_plan
-from ee.src.dbs.postgres.meters.dao import MetersDAO
-from ee.src.core.meters.service import MetersService
-from ee.src.utils.entitlements import check_entitlements, scope_from, Gauge
+from ee.src.core.access.entitlements.service import (
+    check_entitlements,
+    scope_from,
+    Gauge,
+)
 from ee.src.core.organizations.exceptions import OrganizationCreationNotAllowedError
 
 log = get_module_logger(__name__)
 
 subscription_service = SubscriptionsService(
     subscriptions_dao=SubscriptionsDAO(),
-    meters_service=MetersService(
-        meters_dao=MetersDAO(),
-    ),
 )
 
 DEMOS = "AGENTA_DEMOS"
 DEMO_ROLE = "viewer"
-
-
-def can_create_organization(email: str) -> bool:
-    """Check if a user is allowed to create organizations.
-
-    When AGENTA_ACCESS_ALLOWED_OWNER_EMAILS is set, only listed emails can create orgs.
-    When not set (None), anyone can create orgs (default behavior).
-    """
-
-    allowlist = env.agenta.access.allowed_owner_emails
-
-    if allowlist is None:
-        return True
-
-    return email.strip().lower() in allowlist
 
 
 class Demo(BaseModel):
@@ -247,7 +230,7 @@ async def create_accounts(
         if is_ee():
             try:
                 # Adds contact to loops for marketing emails. TODO: Add opt-in checkbox to supertokens
-                add_contact_to_loops(user_dict["email"])  # type: ignore
+                emailing.add_contact(user_dict["email"])  # type: ignore
             except ConnectionError as ex:
                 log.warn("error adding contact to loops %s", ex)
 
@@ -283,18 +266,11 @@ async def create_organization_for_signup(
     if not user:
         raise ValueError(f"User {user_id} not found")
 
-    # Prepare payload to create organization
-    create_org_payload = CreateOrganization(
+    # Create organization, owner memberships, default workspace and project
+    organization = await create_organization(
+        user=user,
         name=organization_name,
         description=organization_description,
-        is_demo=False,
-        owner_id=user_id,
-    )
-
-    # Create organization and workspace
-    organization = await create_organization(
-        payload=create_org_payload,
-        user=user,
     )
 
     if not isinstance(organization, OrganizationDB):
@@ -304,7 +280,7 @@ async def create_organization_for_signup(
 
     # Provision the initial signup subscription for the organization
     try:
-        await subscription_service.provision_signup_subscription(
+        await subscription_service.provision_subscription(
             organization_id=str(organization.id),
             organization_name=organization.name,
             organization_email=organization_email,
@@ -344,16 +320,10 @@ async def create_organization_for_user(
     if not can_create_organization(user.email):
         raise OrganizationCreationNotAllowedError(email=user.email)
 
-    create_org_payload = CreateOrganization(
+    organization = await create_organization(
+        user=user,
         name=organization_name,
         description=organization_description,
-        is_demo=False,
-        owner_id=user_id,
-    )
-
-    organization = await create_organization(
-        payload=create_org_payload,
-        user=user,
     )
 
     if not isinstance(organization, OrganizationDB):

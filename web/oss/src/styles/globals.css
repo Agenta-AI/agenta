@@ -1,3 +1,4 @@
+@import "./theme-variables.css";
 @import "./animations.css";
 @import "./editor-theme.css";
 @import "./code-editor-styles.css";
@@ -35,17 +36,12 @@ body {
     text-decoration: none;
 }
 
-.dark-mode {
-    background-color: #141414;
-}
-
-.light-mode {
-    background-color: #ffffff;
-    color: #000;
-
-    .next-error-h1 {
-        border-right: 1px solid #000;
-    }
+/* Authenticated pages paint their own surface via the app Layout, but bare
+   routes (auth, callback, onboarding) render straight on <body>. Without a
+   dark body background those pages show white behind dark antd controls in
+   dark mode. Light mode is unaffected (rule is scoped to .dark). */
+.dark body {
+    background-color: var(--ag-colorBgContainer);
 }
 
 .evaluationContainer {
@@ -188,6 +184,13 @@ body {
 
     > .editor-input.markdown-view > .editor-code {
         background-color: transparent;
+        /* Text mode shows the raw source as plain prose, not code. Use the
+           editor's proportional font instead of the monospace code face, and
+           drop the code-block padding/margins so the text aligns with the
+           rich-text (markdown) view's left edge and top. */
+        font-family: inherit;
+        padding: 0;
+        margin: 0;
     }
     > .editor-input:not(.markdown-view) > .editor-code {
         &:after {
@@ -201,6 +204,30 @@ body {
             color: rgba(0, 0, 0, 0.5);
         }
     }
+}
+
+/* Align the message text with the first character of the role label above it,
+   with the same symmetric horizontal inset on the role, the text, and the
+   placeholder. The single inset value lives in --ag-message-inline-pad.
+
+   Notes:
+   - The role label is an antd Button whose default padding is wider than the
+     inset (Tailwind's px-2 on it loses to antd), so it is pinned with !important.
+   - The text is padded here in CSS rather than via an editor prop because
+     ChatMessageEditor renders the Editor with `noProvider`, a mode where
+     `className`/`editorClassName` is currently dropped (known bug, tracked
+     separately). JSON/code editors are excluded; they have a line-number gutter. */
+.agenta-chat-message-editor {
+    --ag-message-inline-pad: 8px;
+}
+.agenta-chat-message-editor .message-user-select {
+    padding-inline: var(--ag-message-inline-pad) !important;
+}
+.agenta-chat-message-editor .editor-input:not(.code-only) {
+    padding-inline: var(--ag-message-inline-pad);
+}
+.agenta-chat-message-editor .editor-placeholder {
+    left: var(--ag-message-inline-pad);
 }
 
 /** Align the input search with the search box **/
@@ -489,4 +516,40 @@ body {
 /* Hide loading spinner on parent items - show loading in child panel instead */
 .ant-cascader-menu-item-loading-icon {
     display: none !important;
+}
+
+/* === Dark theme overrides for the hardcoded light rules above === */
+.dark .evaluation-filters .ant-segmented-item {
+    background: #141414;
+    color: rgba(255, 255, 255, 0.65);
+}
+.dark .editor-inner:not(.code-editor) .editor-code {
+    background-color: #1f1f1f;
+}
+.dark .editor-inner:not(.code-editor) > .editor-input:not(.markdown-view) > .editor-code:after {
+    color: rgba(255, 255, 255, 0.5);
+}
+.dark .agenta-rich-text-editor .code-action-menu {
+    background: #1f1f1f;
+}
+.dark .comparison-table .ant-table-tbody > tr.ant-table-expanded-row .ant-table-tbody > tr > td {
+    border-bottom-color: #303030 !important;
+}
+.dark .comparison-table .ant-table-tbody > tr[data-row-key*="-comp-"] {
+    background-color: #1a1a1a !important;
+}
+.dark .comparison-table .ant-table-tbody > tr[data-row-key*="-comp-"]:hover {
+    background-color: #2a2a2a !important;
+}
+.dark .comparison-table .ant-table-tbody > tr[data-row-key*="-comp-"] > td {
+    border-left-color: #15395b !important;
+}
+.dark .comparison-table .ant-table-row.comparison .ant-table-cell {
+    background-color: #4a1d1d;
+}
+.dark .auth-locked-input.ant-input-disabled,
+.dark .auth-locked-input.ant-input:disabled {
+    color: rgba(255, 255, 255, 0.65);
+    background-color: #1f1f1f;
+    border-color: #424242;
 }

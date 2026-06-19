@@ -1,5 +1,8 @@
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from uuid import UUID, uuid4
+
+if TYPE_CHECKING:
+    from oss.src.core.embeds.service import EmbedsService
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.events.utils import publish_revision_event
@@ -7,7 +10,7 @@ from oss.src.core.workflows.dtos import (
     WorkflowCreate,
     WorkflowEdit,
     WorkflowQuery,
-    WorkflowFork,
+    WorkflowVariantFork,
     #
     WorkflowVariantCreate,
     WorkflowVariantEdit,
@@ -21,10 +24,13 @@ from oss.src.core.workflows.dtos import (
     #
 )
 from oss.src.core.shared.dtos import Windowing, Reference
+from oss.src.core.git.dtos import RetrievalInfo
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.git.types import (
+    InlineResolveInvalid,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
-    validate_retrieve_refs_consistent,  # noqa: F401  HOTFIX: re-enable with PR <stack>
+    validate_retrieve_refs_consistent,
 )
 from oss.src.core.workflows.service import WorkflowsService
 
@@ -45,7 +51,7 @@ from oss.src.core.applications.dtos import (
     ApplicationRevisionsLog,
     ApplicationCreate,
     ApplicationEdit,
-    ApplicationFork,
+    ApplicationVariantFork,
     #
     ApplicationVariant,
     ApplicationVariantCreate,
@@ -73,7 +79,7 @@ class ApplicationsService:
         self,
         workflows_service: WorkflowsService,
     ):
-        self.embeds_service = None  # Will be set later
+        self.embeds_service: Optional["EmbedsService"] = None  # Will be set later
         self.workflows_service = workflows_service
 
     # applications -------------------------------------------------------------
@@ -483,19 +489,21 @@ class ApplicationsService:
         project_id: UUID,
         user_id: UUID,
         #
-        application_fork: ApplicationFork,
+        application_variant_fork: ApplicationVariantFork,
+        application_variant_ref: Reference,
+        application_revision_ref: Optional[Reference] = None,
     ) -> Optional[ApplicationVariant]:
-        workflow_fork = WorkflowFork(
-            **application_fork.model_dump(
-                mode="json",
-            )
+        workflow_variant_fork = WorkflowVariantFork(
+            **application_variant_fork.model_dump(mode="json"),
         )
 
         workflow_variant = await self.workflows_service.fork_workflow_variant(
             project_id=project_id,
             user_id=user_id,
             #
-            workflow_fork=workflow_fork,
+            workflow_variant_fork=workflow_variant_fork,
+            workflow_variant_ref=application_variant_ref,
+            workflow_revision_ref=application_revision_ref,
         )
 
         if not workflow_variant:
@@ -601,15 +609,25 @@ class ApplicationsService:
         application_revision_ref: Optional[Reference] = None,
         #
         resolve: bool = False,
-    ) -> tuple[Optional[ApplicationRevision], Optional[ResolutionInfo]]:
-        if environment_ref or environment_variant_ref or environment_revision_ref:
+    ) -> tuple[
+        Optional[ApplicationRevision],
+        Optional[ResolutionInfo],
+        Optional[RetrievalInfo],
+    ]:
+        environment_retrieval_info: Optional[RetrievalInfo] = None
+        is_environment_backed = bool(
+            environment_ref or environment_variant_ref or environment_revision_ref
+        )
+
+        if is_environment_backed:
             environments_service = self.workflows_service.environments_service
             if not environments_service:
-                return None, None
+                return None, None, None
 
             (
-                env_revision,
+                environment_revision,
                 _,
+                environment_retrieval_info,
             ) = await environments_service.retrieve_environment_revision(
                 project_id=project_id,
                 #
@@ -619,8 +637,8 @@ class ApplicationsService:
             )
 
             references_by_key = (
-                env_revision.data.references
-                if env_revision and env_revision.data
+                environment_revision.data.references
+                if environment_revision and environment_revision.data
                 else None
             )
             application_references = (
@@ -628,7 +646,7 @@ class ApplicationsService:
             )
 
             if not application_references:
-                return None, None
+                return None, None, None
 
             env_application_ref = application_references.get("application")
             env_application_variant_ref = application_references.get(
@@ -638,18 +656,15 @@ class ApplicationsService:
                 "application_revision"
             )
 
-            # HOTFIX: env-stored refs may carry stale slugs.
-            # Re-enable once the web write paths are fixed and the historical
-            # rows are backfilled.
-            # validate_retrieve_refs_consistent(
-            #     artifact_ref=application_ref,
-            #     variant_ref=application_variant_ref,
-            #     revision_ref=application_revision_ref,
-            #     resolved_artifact_ref=env_application_ref,
-            #     resolved_variant_ref=env_application_variant_ref,
-            #     resolved_revision_ref=env_application_revision_ref,
-            #     entity_type="application",
-            # )
+            validate_retrieve_refs_consistent(
+                artifact_ref=application_ref,
+                variant_ref=application_variant_ref,
+                revision_ref=application_revision_ref,
+                resolved_artifact_ref=env_application_ref,
+                resolved_variant_ref=env_application_variant_ref,
+                resolved_revision_ref=env_application_revision_ref,
+                entity_type="application",
+            )
 
             application_ref = env_application_ref
             application_variant_ref = env_application_variant_ref
@@ -663,16 +678,36 @@ class ApplicationsService:
                 application_variant_ref=application_variant_ref,
                 application_revision_ref=application_revision_ref,
             )
-            return result if result else (None, None)
+            application_revision, resolution_info = result if result else (None, None)
+        else:
+            application_revision = await self.fetch_application_revision(
+                project_id=project_id,
+                #
+                application_ref=application_ref,
+                application_variant_ref=application_variant_ref,
+                application_revision_ref=application_revision_ref,
+            )
+            resolution_info = None
 
-        application_revision = await self.fetch_application_revision(
-            project_id=project_id,
-            #
-            application_ref=application_ref,
-            application_variant_ref=application_variant_ref,
-            application_revision_ref=application_revision_ref,
-        )
-        return application_revision, None
+        if is_environment_backed:
+            environment_references = (
+                environment_retrieval_info.references
+                if environment_retrieval_info
+                else None
+            )
+            retrieval_info = build_retrieval_info(
+                revision=application_revision,
+                entity_type="application",
+                environment_references=environment_references,
+                selector_key=key,
+            )
+        else:
+            retrieval_info = build_retrieval_info(
+                revision=application_revision,
+                entity_type="application",
+            )
+
+        return application_revision, resolution_info, retrieval_info
 
     async def edit_application_revision(
         self,
@@ -818,6 +853,8 @@ class ApplicationsService:
         user_id: UUID,
         #
         application_revision_commit: ApplicationRevisionCommit,
+        #
+        initial: bool = False,
     ) -> Optional[ApplicationRevision]:
         workflow_revision_commit = WorkflowRevisionCommit(
             **application_revision_commit.model_dump(
@@ -830,6 +867,10 @@ class ApplicationsService:
             user_id=user_id,
             #
             workflow_revision_commit=workflow_revision_commit,
+            #
+            initial=initial,
+            #
+            emit=False,
         )
 
         if not workflow_revision:
@@ -844,10 +885,10 @@ class ApplicationsService:
         # Write-action emission lives in the SERVICE layer (read actions live
         # in the router). Every caller of commit_application_revision — direct
         # commit route, simple-service create/edit, deploy paths — therefore
-        # emits exactly one `applications.revisions.committed` event. See
+        # emits exactly one `workflows.revisions.committed` event. See
         # core/events/utils.py for the read-vs-write split rationale.
         await publish_revision_event(
-            domain="application",
+            domain="workflow",
             action="commit",
             project_id=project_id,
             user_id=user_id,
@@ -864,7 +905,7 @@ class ApplicationsService:
         #
         application_revisions_log: ApplicationRevisionsLog,
         #
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> List[ApplicationRevision]:
         workflow_revisions_log = WorkflowRevisionsLog(
             **application_revisions_log.model_dump(
@@ -903,6 +944,8 @@ class ApplicationsService:
         application_variant_ref: Optional[Reference] = None,
         application_revision_ref: Optional[Reference] = None,
         #
+        application_revision: Optional["ApplicationRevision"] = None,
+        #
         max_depth: int = 10,
         max_embeds: int = 100,
         error_policy: str = "exception",
@@ -912,24 +955,31 @@ class ApplicationsService:
         """
         Fetch and resolve an application revision with embedded references.
 
-        Applications are workflows with is_application=True. This method
-        delegates to WorkflowsService.resolve_workflow_revision and converts
-        the result to Application types for backward compatibility.
-
-        Args:
-            project_id: Project scope
-            user_id: User performing resolution
-            application_ref: Application reference
-            application_variant_ref: Variant reference
-            application_revision_ref: Revision reference
-            max_depth: Maximum nesting depth for embeds
-            max_embeds: Maximum total embeds allowed
-            error_policy: How to handle errors (exception, placeholder, keep)
-            include_archived: Include archived entities
-
-        Returns:
-            Tuple of (ApplicationRevision with resolved configuration, ResolutionInfo metadata)
+        When `application_revision` is provided, resolves its data inline without
+        fetching from DB. Only `data` is used; id and metadata are ignored.
         """
+        if not self.embeds_service:
+            raise RuntimeError("EmbedsService not initialized")
+
+        if application_revision is not None:
+            if not application_revision.data:
+                raise InlineResolveInvalid(
+                    field_name="application_revision",
+                )
+            (
+                resolved_data,
+                resolution_info,
+            ) = await self.embeds_service.resolve_configuration(
+                project_id=project_id,
+                configuration=application_revision.data.model_dump(mode="json"),
+                max_depth=max_depth,
+                max_embeds=max_embeds,
+                error_policy=ErrorPolicy(error_policy),
+                include_archived=include_archived,
+            )
+            application_revision.data = ApplicationRevisionData(**resolved_data)
+            return (application_revision, resolution_info)
+
         # Fetch the application revision
         revision = await self.fetch_application_revision(
             project_id=project_id,
@@ -945,9 +995,6 @@ class ApplicationsService:
             return None
 
         # Use embeds service for resolution
-        if not self.embeds_service:
-            raise RuntimeError("EmbedsService not initialized")
-
         (
             revision_data,
             resolution_info,
@@ -960,7 +1007,6 @@ class ApplicationsService:
             include_archived=include_archived,
         )
 
-        # Update revision with resolved configuration
         revision.data = ApplicationRevisionData(**revision_data)
 
         return (revision, resolution_info)

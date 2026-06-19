@@ -72,9 +72,6 @@ const EmailPasswordSignIn = ({
             if (turnstileEnabled) {
                 setPendingTurnstileToken(turnstileToken)
             }
-            console.log("[emailpassword-signin] submit", {
-                email: values.email,
-            })
             const response = await signIn({
                 formFields: [
                     {id: "email", value: values.email},
@@ -140,7 +137,7 @@ const EmailPasswordSignIn = ({
                     }
                     console.log("[emailpassword-signin] signup fallback ok", {
                         hasUser: Boolean(user),
-                        loginMethods: user?.loginMethods,
+                        loginMethodsCount: user?.loginMethods?.length ?? 0,
                     })
                     await handleAuthSuccess({user})
                 } catch (signUpError) {
@@ -158,7 +155,7 @@ const EmailPasswordSignIn = ({
                 }
                 console.log("[emailpassword-signin] signin ok", {
                     hasUser: Boolean(user),
-                    loginMethods: user?.loginMethods,
+                    loginMethodsCount: user?.loginMethods?.length ?? 0,
                 })
                 await handleAuthSuccess({user})
             }

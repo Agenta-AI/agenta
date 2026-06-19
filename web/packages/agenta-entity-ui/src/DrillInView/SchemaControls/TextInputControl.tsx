@@ -131,6 +131,7 @@ export const TextInputControl = memo(function TextInputControl({
             description={tooltipText}
             withTooltip={withTooltip && !!label}
             direction="vertical"
+            gap={isMultiline ? "sm" : "xs"}
             className={cn(className)}
         >
             {inputContent}

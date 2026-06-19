@@ -466,7 +466,7 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
 
     return (
         <>
-            <div className="flex flex-col gap-3 min-w-[320px] min-h-[0] text-gray-700 bg-white px-5 py-4 rounded-[20px] shadow-[0_20px_45px_rgba(15,23,42,0.12)]">
+            <div className="flex flex-col gap-3 min-w-[320px] min-h-[0] text-gray-700 bg-[var(--ag-c-FFFFFF)] px-5 py-4 rounded-[20px] shadow-[0_20px_45px_rgba(15,23,42,0.12)]">
                 <div className="grid grid-cols-2 gap-3">
                     <Section title="Status">
                         <Select

@@ -52,16 +52,16 @@ function CollapsibleSection({
     )
 
     return (
-        <div className="flex flex-col bg-white rounded-lg border border-solid border-[rgba(5,23,41,0.06)] overflow-hidden">
+        <div className="flex flex-col bg-[var(--ag-c-FFFFFF)] rounded-lg border border-solid border-[var(--ag-rgba-051729-06)] overflow-hidden">
             <div
-                className="flex items-center justify-between px-4 h-11 cursor-pointer bg-[rgba(5,23,41,0.02)]"
+                className="flex items-center justify-between px-4 h-11 cursor-pointer bg-[var(--ag-rgba-051729-02)]"
                 style={{borderBottom: collapsed ? undefined : "1px solid rgba(5,23,41,0.06)"}}
                 role="button"
                 tabIndex={0}
                 onClick={toggle}
                 onKeyDown={handleKeyDown}
             >
-                <Text className="text-sm font-semibold text-[#344054]">{title}</Text>
+                <Text className="text-sm font-semibold text-[var(--ag-c-344054)]">{title}</Text>
                 <Button
                     type="text"
                     size="small"
@@ -222,7 +222,7 @@ function deriveTypeLabel(uri: string | null | undefined): string | null {
 function ReadOnlyBox({children, className}: PropsWithChildren<{className?: string}>) {
     return (
         <div
-            className={`rounded border border-solid border-[#E4E7EC] bg-[#F9FAFB] px-2.5 py-1.5 ${className ?? ""}`}
+            className={`rounded border border-solid border-[var(--ag-c-E4E7EC)] bg-[var(--ag-c-F9FAFB)] px-2.5 py-1.5 ${className ?? ""}`}
         >
             {children}
         </div>
@@ -246,8 +246,11 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
 
     const query = useAtomValue(workflowMolecule.selectors.query(evaluatorId))
     const evaluator = useAtomValue(workflowMolecule.selectors.data(evaluatorId))
+    // Entity display name lives on the artifact; the revision's own `name`
+    // carries the variant name ("default").
+    const artifactName = useAtomValue(workflowMolecule.selectors.artifactName(evaluatorId))
 
-    const displayName = evaluator?.name || evaluator?.slug || evaluatorId.slice(0, 8)
+    const displayName = artifactName || evaluator?.slug || evaluatorId.slice(0, 8)
     const isHuman = evaluator?.flags?.is_feedback ?? false
     const isCustom = evaluator?.flags?.is_custom ?? false
     const version = evaluator?.version
@@ -318,7 +321,7 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
         <SectionCard className="!gap-0 !p-0 overflow-hidden">
             {/* Evaluator header */}
             <div
-                className="flex h-10 items-center justify-between gap-2 bg-[rgba(5,23,41,0.02)] px-3"
+                className="flex h-10 items-center justify-between gap-2 bg-[var(--ag-rgba-051729-02)] px-3"
                 style={{
                     borderBottom:
                         "var(--Components-Collapse-Global-lineWidth, 1px) solid var(--Colors-Neutral-Border-colorSplit, rgba(5, 23, 41, 0.06))",
@@ -327,19 +330,19 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
                 <div className="flex min-w-0 items-center gap-2">
                     {evaluatorHref ? (
                         <Tag
-                            className="!m-0 !bg-[#F2F4F7] !border-[#D0D5DD] !text-[#1D2939] cursor-pointer"
+                            className="!m-0 !bg-[var(--ag-c-F2F4F7)] !border-[var(--ag-c-D0D5DD)] !text-[var(--ag-c-1D2939)] cursor-pointer"
                             icon={<ArrowSquareOut size={12} className="mr-1" />}
                             onClick={() => window.open(evaluatorHref, "_blank")}
                         >
                             {displayName}
                         </Tag>
                     ) : (
-                        <Tag className="!m-0 !bg-[#F2F4F7] !border-[#D0D5DD] !text-[#1D2939]">
+                        <Tag className="!m-0 !bg-[var(--ag-c-F2F4F7)] !border-[var(--ag-c-D0D5DD)] !text-[var(--ag-c-1D2939)]">
                             {displayName}
                         </Tag>
                     )}
                     {version ? (
-                        <span className="rounded-full bg-[#F2F4F7] px-2 py-0.5 text-xs font-medium text-[#475467]">
+                        <span className="rounded-full bg-[var(--ag-c-F2F4F7)] px-2 py-0.5 text-xs font-medium text-[var(--ag-c-475467)]">
                             V{version}
                         </span>
                     ) : null}
@@ -381,7 +384,7 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
             {!collapsed && (
                 <div className="flex flex-col gap-4 p-3">
                     {view === "json" && hasEvaluatorJson ? (
-                        <div className="rounded-md border border-solid border-[#E4E7EC] bg-[#F8FAFC]">
+                        <div className="rounded-md border border-solid border-[var(--ag-c-E4E7EC)] bg-[var(--ag-c-F8FAFC)]">
                             <Editor
                                 key={evaluatorJsonKey}
                                 initialValue={evaluatorJson}
@@ -424,11 +427,11 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
                                 >
                                     <ReadOnlyBox>
                                         {param.isMultiline ? (
-                                            <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-[#1D2939]">
+                                            <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-[var(--ag-c-1D2939)]">
                                                 {param.displayValue}
                                             </pre>
                                         ) : (
-                                            <span className="text-[#1D2939] break-words">
+                                            <span className="text-[var(--ag-c-1D2939)] break-words">
                                                 {param.displayValue}
                                             </span>
                                         )}
@@ -446,7 +449,7 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
                                 >
                                     <ReadOnlyBox>
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <span className="font-semibold text-[#475467]">
+                                            <span className="font-semibold text-[var(--ag-c-475467)]">
                                                 {metric.name}
                                             </span>
                                             <Tag className="!m-0" bordered={false}>
@@ -465,8 +468,8 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
                                                     className="!m-0"
                                                     bordered={false}
                                                     style={{
-                                                        backgroundColor: "#F2F4F7",
-                                                        color: "#475467",
+                                                        backgroundColor: "var(--ag-c-F2F4F7)",
+                                                        color: "var(--ag-c-475467)",
                                                     }}
                                                 >
                                                     Optional
@@ -474,7 +477,7 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
                                             )}
                                         </div>
                                         {metric.description && (
-                                            <div className="mt-1 text-[#475467]">
+                                            <div className="mt-1 text-[var(--ag-c-475467)]">
                                                 {metric.description}
                                             </div>
                                         )}
@@ -505,7 +508,7 @@ const EvaluatorsSection = memo(function EvaluatorsSection() {
     }
 
     return (
-        <div className="flex flex-col divide-y divide-[rgba(5,23,41,0.06)]">
+        <div className="flex flex-col divide-y divide-[var(--ag-rgba-051729-06)]">
             {evaluatorIds.map((id) => (
                 <EvaluatorCard key={id} evaluatorId={id} />
             ))}
@@ -524,6 +527,8 @@ interface ConfigurationViewProps {
 const kindLabels: Record<string, string> = {
     traces: "Traces",
     testcases: "Test cases",
+    testsets: "Test set",
+    queries: "Queries",
 }
 
 const COMPACT_FORM_ITEM_CLASS = "!mb-0"
@@ -653,10 +658,12 @@ const DeleteSection = memo(function DeleteSection({
 
     return (
         <>
-            <div className="flex flex-col gap-4 p-4 rounded-lg border border-solid border-[#FEE4E2] bg-[#FFFBFA]">
+            <div className="flex flex-col gap-4 p-4 rounded-lg border border-solid border-[var(--ag-c-FEE4E2)] bg-[var(--ag-c-FFFBFA)] dark:border-[var(--ant-red-3)] dark:bg-[var(--ant-red-1)]">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div className="flex flex-col gap-1">
-                        <Text className="text-sm font-semibold text-[#B42318]">Delete queue</Text>
+                        <Text className="text-sm font-semibold text-[var(--ag-c-B42318)]">
+                            Delete queue
+                        </Text>
                         <Text type="secondary">
                             Permanently remove this annotation queue and return to the queue list.
                         </Text>
@@ -697,7 +704,7 @@ const ConfigurationView = memo(function ConfigurationView({queueId}: Configurati
     }
 
     return (
-        <div className="flex flex-col flex-1 overflow-y-auto bg-[#f5f7fa] py-6">
+        <div className="flex flex-col flex-1 overflow-y-auto bg-[var(--ag-c-F5F7FA)] py-6">
             <div className="w-full max-w-[560px] mx-auto flex flex-col gap-4 px-4">
                 {/* ── General ── */}
                 <CollapsibleSection title="General">

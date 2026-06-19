@@ -12,7 +12,6 @@ import {
 import {LoadingOutlined} from "@ant-design/icons"
 import {Popover, Tag} from "antd"
 import clsx from "clsx"
-import {atom} from "jotai"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {TurnMessageAdapter} from "@agenta/playground-ui/adapters"
@@ -21,6 +20,7 @@ import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {useExecutionCell} from "../../../../hooks/useExecutionCell"
 import {EvaluatorFieldGrid} from "../../../shared/EvaluatorFieldGrid"
 import {extractDisplayEntries} from "../../../shared/EvaluatorFieldGrid/utils"
+import {usePlaygroundNodeLabels} from "../ExecutionRow/shared"
 import {ClickRunPlaceholder} from "../ResultPlaceholder"
 import TypingIndicator from "../TypingIndicator"
 
@@ -111,7 +111,7 @@ const EvaluatorResultPopover = ({
     // Build popover content
     const popoverContent = useMemo(() => {
         if (!fullResult || status === "idle" || status === "cancelled") {
-            return <span className="text-[#bdc7d1] text-xs">Pending run</span>
+            return <span className="text-[var(--ag-c-BDC7D1)] text-xs">Pending run</span>
         }
         if (status === "running" || status === "pending") {
             return <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} loading />
@@ -316,22 +316,7 @@ const ChatTurnView = ({
         | null
     const isChain = (nodes?.length ?? 0) > 1
 
-    const nodeNamesAtom = useMemo(
-        () =>
-            atom((get) => {
-                if (!nodes) return {} as Record<string, string>
-                const names: Record<string, string> = {}
-                for (const node of nodes) {
-                    const data = get(workflowMolecule.selectors.data(node.entityId))
-                    if (data?.name) {
-                        names[node.id] = data.name
-                    }
-                }
-                return names
-            }),
-        [nodes],
-    )
-    const nodeNames = useAtomValue(nodeNamesAtom)
+    const {nodeNames} = usePlaygroundNodeLabels(nodes)
 
     const downstreamNodes = useMemo(() => {
         if (!isChain || !nodes) return []
@@ -384,7 +369,7 @@ const ChatTurnView = ({
                                             rowId={turnId}
                                             kind="assistant"
                                             className="w-full"
-                                            headerClassName="border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
+                                            headerClassName="border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]"
                                             messageProps={messageProps}
                                             messageOverride={msg}
                                             repetitionProps={
@@ -432,7 +417,7 @@ const ChatTurnView = ({
                                 rowId={turnId}
                                 kind="assistant"
                                 className="w-full"
-                                headerClassName="border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
+                                headerClassName="border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]"
                                 messageProps={messageProps}
                                 messageOverride={displayedAssistantMessage ?? messageOverride}
                                 repetitionProps={repetitionProps}

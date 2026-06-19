@@ -23,8 +23,8 @@ const VariantGroupTitle = ({parent, defaultNode}: VariantGroupTitleProps) => {
         return (
             <div className="flex items-center justify-between pr-0 grow">
                 <div className="flex items-center gap-1.5">
-                    <PencilSimpleLine size={14} className="text-[#9254de]" />
-                    <Typography.Text className="font-medium text-[#9254de]">
+                    <PencilSimpleLine size={14} className="text-[var(--ag-c-9254DE)]" />
+                    <Typography.Text className="font-medium text-[var(--ag-c-9254DE)]">
                         {defaultNode ?? parent.variantName ?? parent.name ?? "Local Drafts"}
                     </Typography.Text>
                 </div>

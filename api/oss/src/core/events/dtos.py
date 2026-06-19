@@ -21,7 +21,8 @@ class Event(RequestID, EventID, Lifecycle):
 
 
 class EventQuery(BaseModel):
+    request_type: Optional[RequestType] = None
     request_id: Optional[UUID] = None
 
-    request_type: Optional[RequestType] = None
     event_type: Optional[EventType] = None
+    event_id: Optional[UUID] = None

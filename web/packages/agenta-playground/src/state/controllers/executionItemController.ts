@@ -93,6 +93,9 @@ import {
     setTestcaseCellValueAtom,
     downstreamNodeQueriesAtom,
     rowVariableKeysAtomFamily,
+    referencedVariableKeysAtomFamily,
+    playgroundInputsAtomFamily,
+    type PlaygroundInputsAtomKey,
 } from "../execution"
 import {buildAssistantMessage} from "../helpers/messageFactory"
 
@@ -206,6 +209,34 @@ export const executionItemController = {
 
         /** Direct testcase entity data — full data record */
         testcaseData: (testcaseId: string) => testcaseDataAtomFamily(testcaseId),
+
+        /**
+         * Schema-referenced variable keys for the current row.
+         *
+         * Distinct from `variableKeys`/`variableKeysForDownstream` — those
+         * include testcase-only extras (e.g. `expected_output`) merged in
+         * for connected testsets. This one returns ONLY what the prompt
+         * template + downstream evaluators reference. Used to drive the
+         * referenced-vs-unreferenced split in `inputsVisibility` below.
+         */
+        referencedVariableKeys: (downstreamKey: string) =>
+            referencedVariableKeysAtomFamily(downstreamKey),
+
+        /**
+         * Playground inputs visibility: the three-way split that the new
+         * PlaygroundInputsBody consumes.
+         *
+         * Returns `{inputs, unreferencedColumns}`:
+         *   - `inputs`              : referenced variables, each with its
+         *                             testcase value, or `undefined` when
+         *                             referenced but absent.
+         *   - `unreferencedColumns` : testcase columns the prompt does NOT
+         *                             reference (collapsed under footer).
+         *
+         * Wraps `referencedVariableKeys` + `testcaseMolecule.atoms.data`
+         * with the pure `splitInputsVisibility` rule.
+         */
+        inputsVisibility: (params: PlaygroundInputsAtomKey) => playgroundInputsAtomFamily(params),
 
         // ----------------------------------------------------------------
         // Per-item messages (chat mode)

@@ -83,15 +83,23 @@ export {
     parseWorkflowKeyFromUri,
     buildWorkflowUri,
     generateSlug,
+    // Workflow type utilities
+    WORKFLOW_TYPE_COLOR_MAP,
+    getWorkflowTypeColor,
+    getWorkflowTypeLabel,
+    normalizeWorkflowTypeKey,
+    type WorkflowTypeColor,
     // Evaluator-specific utilities (for evaluator-type workflows)
-    getEvaluatorColor,
-    type EvaluatorColor,
-    getAppTypeColor,
     parseEvaluatorKeyFromUri,
     buildEvaluatorUri,
     isOnlineCapableEvaluator,
     hasFullPagePlaygroundUX,
     collectEvaluatorCandidates,
+    // Observability defaults
+    defaultTraceTypeForWorkflow,
+    type TraceTypeDefault,
+    type ObservabilityTab,
+    type WorkflowKindForTraceDefault,
     // Output schema utilities
     resolveInputSchema,
     resolveOutputSchema,
@@ -232,6 +240,11 @@ export {
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    // Artifact (workflow-level container — entity display name)
+    workflowArtifactQueryAtomFamily,
+    workflowArtifactScopedQueryAtomFamily,
+    workflowVariantsScopedQueryAtomFamily,
+    primeWorkflowArtifactCacheImperative,
     // Commit / Archive
     commitWorkflowRevisionAtom,
     commitWorkflowRevision,
@@ -281,6 +294,7 @@ export {
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
     fullPagePlaygroundEvaluatorsAtom,
+    nonHumanEvaluatorsAtom,
     // Templates
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,
@@ -292,6 +306,14 @@ export {
     evaluatorPresetsAtomFamily,
     // Key map
     evaluatorKeyMapAtom,
+    // Workflow display metadata (version count + last modified)
+    evaluatorWorkflowMetaMapAtom,
+    type EvaluatorWorkflowMeta,
+    // Parent evaluator name lookup per revision
+    evaluatorNameByRevisionAtomFamily,
+    // Feedback metric schemas (observability annotation filter)
+    evaluatorFeedbackSchemasAtom,
+    type EvaluatorFeedbackSchema,
     // Evaluator configs (non-human, non-custom)
     evaluatorConfigsListDataAtom,
     evaluatorConfigsQueryStateAtom,

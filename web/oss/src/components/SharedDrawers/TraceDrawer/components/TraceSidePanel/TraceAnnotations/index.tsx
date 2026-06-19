@@ -9,12 +9,15 @@ import {useAtomValue} from "jotai"
 
 import CustomAntdTag from "@/oss/components/CustomUIs/CustomAntdTag"
 import EvaluatorDetailsPopover from "@/oss/components/SharedDrawers/TraceDrawer/components/EvaluatorDetailsPopover"
+import {booleanValueColorClass} from "@/oss/lib/helpers/colors"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {groupAnnotationsByReferenceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 
-import {useStyles} from "./assets/styles"
 import NoTraceAnnotations from "./components/NoTraceAnnotations"
+
+const annotationPopoverClass =
+    "w-[300px] [&_.ant-popover-container]:!p-0 [&_.ant-popover-title]:p-2 [&_.ant-popover-title]:border-b [&_.ant-popover-title]:border-solid [&_.ant-popover-title]:border-[var(--ag-colorSplit)] [&_.ant-popover-content]:p-2 [&_.ant-popover-content]:max-h-[200px] [&_.ant-popover-content]:overflow-y-auto"
 
 interface TraceAnnotationsProps {
     annotations: AnnotationDto[]
@@ -25,6 +28,7 @@ type AnnotationCategory = "metric" | "note" | "extra"
 interface AnnotationChipEntry {
     annotations: {value: any; user: string}[]
     average?: number
+    latest?: boolean
     category: AnnotationCategory
 }
 
@@ -35,7 +39,6 @@ interface AnnotationGroup {
 }
 
 const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
-    const classes = useStyles()
     const [isAnnotationsPopoverOpen, setIsAnnotationsPopoverOpen] = useState<string | null>(null)
     const getPopoverKey = (refId: string, key: string) => `${refId}-${key}`
     const evaluators = useAtomValue(evaluatorsListDataAtom)
@@ -61,6 +64,7 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                 metricsBucket[metricName] = {
                     annotations: (metricValue.annotations || []) as {value: any; user: string}[],
                     average: metricValue.average,
+                    latest: metricValue.latest,
                     category: "metric",
                 }
             }
@@ -127,6 +131,9 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
 
     const getSummaryValue = (metric: AnnotationChipEntry) => {
         if (metric.category === "metric") {
+            if (metric.latest !== undefined) {
+                return metric.latest ? "True" : "False"
+            }
             if (metric.average !== undefined) {
                 return `μ ${metric.average}`
             }
@@ -174,13 +181,29 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
 
                         {filteredMetrics.map(([key, metric]) => {
                             const summaryValue = getSummaryValue(metric)
+                            const booleanColorClass =
+                                metric.latest !== undefined
+                                    ? booleanValueColorClass(metric.latest)
+                                    : undefined
                             const popoverTitle =
-                                metric.category === "metric" && metric.average !== undefined ? (
+                                metric.category === "metric" &&
+                                (metric.average !== undefined || metric.latest !== undefined) ? (
                                     <div className="flex items-center justify-between">
                                         <Space className="truncate overflow-hidden">
-                                            <Typography.Text>Total mean:</Typography.Text>
+                                            <Typography.Text>
+                                                {metric.latest !== undefined
+                                                    ? "Value:"
+                                                    : "Total mean:"}
+                                            </Typography.Text>
                                             <CustomAntdTag
-                                                value={`μ ${metric.average}`}
+                                                value={
+                                                    metric.latest !== undefined
+                                                        ? metric.latest
+                                                            ? "True"
+                                                            : "False"
+                                                        : `μ ${metric.average}`
+                                                }
+                                                className={booleanColorClass}
                                                 bordered={false}
                                             />
                                         </Space>
@@ -210,7 +233,7 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                             return (
                                 <div key={key}>
                                     <Popover
-                                        overlayClassName={classes.annotationPopover}
+                                        overlayClassName={annotationPopoverClass}
                                         open={
                                             isAnnotationsPopoverOpen ===
                                             getPopoverKey(group.refId, key)
@@ -252,7 +275,7 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                             className={clsx(
                                                 "flex items-center flex-wrap gap-1 justify-between",
                                                 "py-1 px-3 cursor-pointer",
-                                                "rounded-lg border border-[#BDC7D1] border-solid",
+                                                "rounded-lg border border-[var(--ag-c-BDC7D1)] border-solid",
                                             )}
                                         >
                                             <Typography.Text className="truncate overflow-hidden text-ellipsis flex-1">
@@ -260,8 +283,13 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                             </Typography.Text>
                                             {summaryValue ? (
                                                 <Typography.Text
-                                                    type="secondary"
-                                                    className="truncate overflow-hidden text-ellipsis"
+                                                    type={
+                                                        booleanColorClass ? undefined : "secondary"
+                                                    }
+                                                    className={clsx(
+                                                        "truncate overflow-hidden text-ellipsis",
+                                                        booleanColorClass,
+                                                    )}
                                                 >
                                                     {summaryValue}
                                                 </Typography.Text>

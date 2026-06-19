@@ -1,12 +1,10 @@
-from datetime import datetime, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.exc import NoResultFound
 
-from ee.src.models.shared_models import WorkspaceRole
 from ee.src.services import db_manager_ee
+from oss.src.services import db_manager
 
 
 class _ScalarsResult:
@@ -45,10 +43,14 @@ class _SessionContext:
 
 
 def _patch_core_session(monkeypatch, memberships):
+    # db_manager_ee calls get_transactions_engine() — patch where it's called
+    mock_engine = type(
+        "MockEngine", (), {"session": lambda self: _SessionContext(memberships)}
+    )()
     monkeypatch.setattr(
-        db_manager_ee.engine,
-        "core_session",
-        lambda: _SessionContext(memberships),
+        db_manager_ee,
+        "get_transactions_engine",
+        lambda: mock_engine,
     )
 
 
@@ -80,68 +82,6 @@ class _PendingInviteSessionContext:
 
 
 @pytest.mark.asyncio
-async def test_get_default_workspace_id_prefers_owner_membership(monkeypatch):
-    owner_workspace_id = uuid4()
-    editor_workspace_id = uuid4()
-
-    _patch_core_session(
-        monkeypatch,
-        [
-            SimpleNamespace(
-                workspace_id=editor_workspace_id,
-                role=WorkspaceRole.EDITOR,
-                created_at=datetime(2026, 4, 9, tzinfo=timezone.utc),
-            ),
-            SimpleNamespace(
-                workspace_id=owner_workspace_id,
-                role=WorkspaceRole.OWNER,
-                created_at=datetime(2026, 4, 10, tzinfo=timezone.utc),
-            ),
-        ],
-    )
-
-    workspace_id = await db_manager_ee.get_default_workspace_id(str(uuid4()))
-
-    assert workspace_id == str(owner_workspace_id)
-
-
-@pytest.mark.asyncio
-async def test_get_default_workspace_id_falls_back_to_oldest_membership(monkeypatch):
-    oldest_workspace_id = uuid4()
-    newer_workspace_id = uuid4()
-
-    _patch_core_session(
-        monkeypatch,
-        [
-            SimpleNamespace(
-                workspace_id=newer_workspace_id,
-                role=WorkspaceRole.EDITOR,
-                created_at=datetime(2026, 4, 10, tzinfo=timezone.utc),
-            ),
-            SimpleNamespace(
-                workspace_id=oldest_workspace_id,
-                role=WorkspaceRole.VIEWER,
-                created_at=datetime(2026, 4, 9, tzinfo=timezone.utc),
-            ),
-        ],
-    )
-
-    workspace_id = await db_manager_ee.get_default_workspace_id(str(uuid4()))
-
-    assert workspace_id == str(oldest_workspace_id)
-
-
-@pytest.mark.asyncio
-async def test_get_default_workspace_id_raises_when_user_has_no_memberships(
-    monkeypatch,
-):
-    _patch_core_session(monkeypatch, [])
-
-    with pytest.raises(NoResultFound, match="No workspace membership found"):
-        await db_manager_ee.get_default_workspace_id(str(uuid4()))
-
-
-@pytest.mark.asyncio
 async def test_remove_user_from_workspace_deletes_pending_invitation_without_user(
     monkeypatch,
 ):
@@ -161,32 +101,25 @@ async def test_remove_user_from_workspace_deletes_pending_invitation_without_use
     async def fetch_projects_by_workspace(workspace_id):
         return [SimpleNamespace(id=project_id)]
 
-    async def fail_if_nested_invitation_delete_is_used(invitation_id):
-        raise AssertionError(f"unexpected nested invitation delete: {invitation_id}")
-
+    monkeypatch.setattr(db_manager, "get_user_with_email", get_user_with_email)
+    monkeypatch.setattr(db_manager, "get_workspace", get_workspace)
     monkeypatch.setattr(
-        db_manager_ee.db_manager,
-        "get_user_with_email",
-        get_user_with_email,
-    )
-    monkeypatch.setattr(db_manager_ee.db_manager, "get_workspace", get_workspace)
-    monkeypatch.setattr(
-        db_manager_ee.db_manager,
+        db_manager,
         "fetch_projects_by_workspace",
         fetch_projects_by_workspace,
     )
+    mock_engine = type(
+        "MockEngine",
+        (),
+        {"session": lambda self: _PendingInviteSessionContext(session)},
+    )()
     monkeypatch.setattr(
-        db_manager_ee,
-        "delete_invitation",
-        fail_if_nested_invitation_delete_is_used,
-    )
-    monkeypatch.setattr(
-        db_manager_ee.engine,
-        "core_session",
-        lambda: _PendingInviteSessionContext(session),
+        db_manager,
+        "get_transactions_engine",
+        lambda: mock_engine,
     )
 
-    result = await db_manager_ee.remove_user_from_workspace(
+    result = await db_manager.remove_user_from_workspace(
         str(workspace_id),
         "pending@test.agenta.ai",
     )

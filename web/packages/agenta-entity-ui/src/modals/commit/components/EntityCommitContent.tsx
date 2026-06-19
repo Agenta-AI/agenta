@@ -25,6 +25,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {
     commitModalEntityNameAtom,
+    commitModalOriginalEntityNameAtom,
     commitModalEntitySlugAtom,
     commitModalMessageAtom,
     commitModalErrorAtom,
@@ -88,6 +89,7 @@ export function EntityCommitContent({
     entityNameLabel = "Name",
 }: EntityCommitContentProps) {
     const entityName = useAtomValue(commitModalEntityNameAtom)
+    const originalEntityName = useAtomValue(commitModalOriginalEntityNameAtom)
     const entitySlug = useAtomValue(commitModalEntitySlugAtom)
     const message = useAtomValue(commitModalMessageAtom)
     const error = useAtomValue(commitModalErrorAtom)
@@ -257,15 +259,15 @@ export function EntityCommitContent({
                             {selectedMode === "variant"
                                 ? "This will create a new variant from "
                                 : "This will create a new revision of "}
-                            <span className="font-medium">{entityName}</span>.
+                            <span className="font-medium">{originalEntityName}</span>.
                         </Text>
                         <div className="mt-2 flex items-center gap-2 min-w-0">
                             <span className="flex items-center gap-1 min-w-0">
                                 <span
                                     className={cn("truncate", textColors.secondary)}
-                                    title={entityName}
+                                    title={originalEntityName}
                                 >
-                                    {entityName}
+                                    {originalEntityName}
                                 </span>
                                 <VersionBadge
                                     version={context.versionInfo.currentVersion}
@@ -278,9 +280,9 @@ export function EntityCommitContent({
                                 <span className="flex items-center gap-1 min-w-0">
                                     <span
                                         className="truncate text-blue-7"
-                                        title={modeLabel || "new variant"}
+                                        title={modeLabel || entityName || "new variant"}
                                     >
-                                        {modeLabel || "new variant"}
+                                        {modeLabel || entityName || "new variant"}
                                     </span>
                                     <span className="shrink-0 rounded bg-blue-1 px-1.5 py-0.5 text-xs font-medium text-blue-7">
                                         v1
@@ -290,9 +292,9 @@ export function EntityCommitContent({
                                 <span className="flex items-center gap-1 min-w-0">
                                     <span
                                         className={cn("truncate", textColors.secondary)}
-                                        title={entityName}
+                                        title={originalEntityName}
                                     >
-                                        {entityName}
+                                        {originalEntityName}
                                     </span>
                                     <span className="shrink-0 rounded bg-blue-1 px-1.5 py-0.5 text-xs font-medium text-blue-7">
                                         v{context.versionInfo.targetVersion}
@@ -382,7 +384,7 @@ export function EntityCommitContent({
                                             }
                                         />
                                         {(slugFieldError || slugValidationError) && (
-                                            <div className="mt-0.5 flex items-start gap-1 text-[#ff4d4f]">
+                                            <div className="mt-0.5 flex items-start gap-1 text-[var(--ag-c-FF4D4F)]">
                                                 <WarningCircle
                                                     size={16}
                                                     className="mt-0.5 shrink-0"

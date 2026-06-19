@@ -33,6 +33,7 @@ from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.core.shared.dtos import (
     Reference,
 )
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.testcases.dtos import (
     Testcase,
 )
@@ -58,6 +59,7 @@ from oss.src.core.testsets.utils import (
 from oss.src.apis.fastapi.testsets.models import (
     TestsetCreateRequest,
     TestsetEditRequest,
+    TestsetVariantForkRequest,
     TestsetQueryRequest,
     TestsetResponse,
     TestsetsResponse,
@@ -90,8 +92,11 @@ from oss.src.apis.fastapi.testsets.utils import (
 )
 
 if is_ee():
-    from ee.src.models.shared_models import Permission
-    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
+    from ee.src.core.access.permissions.types import Permission
+    from ee.src.core.access.permissions.service import (
+        check_action_access,
+        FORBIDDEN_EXCEPTION,
+    )
 
 
 log = get_module_logger(__name__)
@@ -265,7 +270,11 @@ class TestsetsRouter:
         has_traces=False,
     )
 
-    def __init__(self, *, testsets_service: TestsetsService):
+    def __init__(
+        self,
+        *,
+        testsets_service: TestsetsService,
+    ):
         self.testsets_service = testsets_service
 
         self.router = APIRouter()
@@ -391,6 +400,16 @@ class TestsetsRouter:
             operation_id="query_testset_variants",
             status_code=status.HTTP_200_OK,
             response_model=TestsetVariantsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/variants/fork",
+            self.fork_testset_variant,
+            methods=["POST"],
+            operation_id="fork_testset_variant",
+            status_code=status.HTTP_200_OK,
+            response_model=TestsetVariantResponse,
             response_model_exclude_none=True,
         )
 
@@ -966,20 +985,19 @@ class TestsetsRouter:
 
         return testset_variant_response
 
-    # TESTSET REVISIONS --------------------------------------------------------
-
     @intercept_exceptions()
-    async def create_testset_revision(
+    @handle_git_exceptions()
+    async def fork_testset_variant(
         self,
         request: Request,
         *,
-        testset_revision_create_request: TestsetRevisionCreateRequest,
-    ) -> TestsetRevisionResponse:
-        """Create a new revision on an existing variant.
+        testset_fork_request: TestsetVariantForkRequest,
+    ) -> TestsetVariantResponse:
+        """Fork an existing testset variant into a new variant.
 
-        Creates a revision row without committing content. Most callers
-        instead use `/testsets/revisions/commit`, which writes the
-        testcases and the revision together.
+        The new variant starts from the source variant's head revision (or a
+        pinned revision if `testset_revision_ref` is provided). Provide `slug`
+        and `name` in the fork body to identify the new variant.
         """
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -989,12 +1007,59 @@ class TestsetsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        testset_revision = await self.testsets_service.create_testset_revision(
+        testset_variant = await self.testsets_service.fork_testset_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            testset_revision_create=testset_revision_create_request.testset_revision,
+            testset_variant_fork=testset_fork_request.testset_variant,
+            testset_variant_ref=testset_fork_request.testset_variant_ref,
+            testset_revision_ref=testset_fork_request.testset_revision_ref,
+        )
+
+        return TestsetVariantResponse(
+            count=1 if testset_variant else 0,
+            testset_variant=testset_variant,
+        )
+
+    # TESTSET REVISIONS --------------------------------------------------------
+
+    @intercept_exceptions()
+    @handle_git_exceptions()
+    async def create_testset_revision(
+        self,
+        request: Request,
+        *,
+        testset_revision_create_request: TestsetRevisionCreateRequest,
+    ) -> TestsetRevisionResponse:
+        """Create and commit the initial revision for a testset variant.
+
+        Most callers instead use `/testsets/revisions/commit`, which writes
+        the testcases and the revision together. This endpoint commits an
+        initial revision with the `initial` guard, preventing duplicate
+        initial revisions for the same variant.
+        """
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_TESTSETS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        testset_revision = await self.testsets_service.commit_testset_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            testset_revision_commit=TestsetRevisionCommit(
+                **testset_revision_create_request.testset_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
             include_testcases=testset_revision_create_request.include_testcases,
+            #
+            initial=True,
         )
 
         testset_revision_response = TestsetRevisionResponse(
@@ -1338,7 +1403,7 @@ class TestsetsRouter:
             )
 
         testset_revision_commit_request = TestsetRevisionCommitRequest(
-            testset_revision_commit=TestsetRevisionCommit(
+            testset_revision=TestsetRevisionCommit(
                 testset_id=base_revision.testset_id,
                 testset_variant_id=base_revision.testset_variant_id,
                 testset_revision_id=testset_revision_id,
@@ -1413,7 +1478,7 @@ class TestsetsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        commit = testset_revision_commit_request.testset_revision_commit
+        commit = testset_revision_commit_request.testset_revision
         if commit.data and commit.delta:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1498,8 +1563,16 @@ class TestsetsRouter:
             else None
         )
 
-        if not testset_revision:
-            testset_revision = await self.testsets_service.fetch_testset_revision(
+        if testset_revision:
+            retrieval_info = build_retrieval_info(
+                revision=testset_revision,
+                entity_type="testset",
+            )
+        else:
+            (
+                testset_revision,
+                retrieval_info,
+            ) = await self.testsets_service.retrieve_testset_revision(
                 project_id=UUID(request.state.project_id),
                 #
                 testset_ref=testset_revision_retrieve_request.testset_ref,
@@ -1524,6 +1597,7 @@ class TestsetsRouter:
         testset_revision_response = TestsetRevisionResponse(
             count=1 if testset_revision else 0,
             testset_revision=testset_revision,
+            retrieval_info=retrieval_info,
         )
 
         await publish_revision_event(
@@ -1555,7 +1629,7 @@ class TestsetsRouter:
         testset_revisions = await self.testsets_service.log_testset_revisions(
             project_id=UUID(request.state.project_id),
             #
-            testset_revisions_log=testset_revisions_log_request.testset_revision,
+            testset_revisions_log=testset_revisions_log_request.testset_revisions,
             include_testcases=testset_revisions_log_request.include_testcases,
         )
 

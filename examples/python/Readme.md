@@ -1,5 +1,11 @@
 # Agenta Examples
 
+## Use cases
+
+| Example                                                                                          | Description                                                                                                                                                  |
+| :----------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [CV screening](https://github.com/Agenta-AI/agenta/tree/main/examples/python/cv-screening/) | Classify CVs against a job spec with structured output (scores + classification), including a ready-made test set of real Markdown CVs and a PDF-upload demo UI. |
+
 ## Custom workflows
 
 | Example                                                                                                               | Description                                                                                                                                                                  |

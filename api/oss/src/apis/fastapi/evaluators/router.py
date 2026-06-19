@@ -10,13 +10,13 @@ from oss.src.utils.caching import invalidate_cache
 
 from oss.src.core.events.utils import publish_revision_event
 
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.core.shared.dtos import (
     Reference,
 )
 from oss.src.core.evaluators.dtos import (
-    EvaluatorRevisionData,
-    #
+    EvaluatorRevisionCommit,
     SimpleEvaluatorQuery,
     SimpleEvaluatorQueryFlags,
 )
@@ -36,7 +36,7 @@ from oss.src.apis.fastapi.evaluators.models import (
     EvaluatorCreateRequest,
     EvaluatorEditRequest,
     EvaluatorQueryRequest,
-    EvaluatorForkRequest,
+    EvaluatorVariantForkRequest,
     EvaluatorRevisionsLogRequest,
     EvaluatorResponse,
     EvaluatorsResponse,
@@ -97,8 +97,11 @@ from oss.src.resources.workflows.catalog import (
 )
 
 if is_ee():
-    from ee.src.models.shared_models import Permission
-    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
+    from ee.src.core.access.permissions.types import Permission
+    from ee.src.core.access.permissions.service import (
+        check_action_access,
+        FORBIDDEN_EXCEPTION,
+    )
 
 
 log = get_module_logger(__name__)
@@ -1065,7 +1068,7 @@ class EvaluatorsRouter:
         *,
         evaluator_variant_id: Optional[UUID] = None,
         #
-        evaluator_variant_fork_request: EvaluatorForkRequest,
+        evaluator_variant_fork_request: EvaluatorVariantForkRequest,
     ):
         """Fork an evaluator variant into a new variant.
 
@@ -1082,23 +1085,26 @@ class EvaluatorsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        fork_request = evaluator_variant_fork_request.evaluator
-
+        evaluator_variant_ref = evaluator_variant_fork_request.evaluator_variant_ref
         if evaluator_variant_id:
             if (
-                fork_request.evaluator_variant_id
-                and fork_request.evaluator_variant_id != evaluator_variant_id
+                evaluator_variant_ref.id
+                and evaluator_variant_ref.id != evaluator_variant_id
             ):
-                return EvaluatorVariantResponse()
-
-            if not fork_request.evaluator_variant_id:
-                fork_request.evaluator_variant_id = evaluator_variant_id
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Evaluator variant ID in path does not match evaluator_variant_ref.id in request body.",
+                )
+            if not evaluator_variant_ref.id:
+                evaluator_variant_ref = Reference(id=evaluator_variant_id)
 
         evaluator_variant = await self.evaluators_service.fork_evaluator_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluator_fork=fork_request,
+            evaluator_variant_fork=evaluator_variant_fork_request.evaluator_variant,
+            evaluator_variant_ref=evaluator_variant_ref,
+            evaluator_revision_ref=evaluator_variant_fork_request.evaluator_revision_ref,
         )
 
         evaluator_variant_response = EvaluatorVariantResponse(
@@ -1369,6 +1375,7 @@ class EvaluatorsRouter:
         (
             evaluator_revision,
             resolution_info,
+            retrieval_info,
         ) = await self.evaluators_service.retrieve_evaluator_revision(
             project_id=UUID(request.state.project_id),
             #
@@ -1394,11 +1401,12 @@ class EvaluatorsRouter:
             count=1 if evaluator_revision else 0,
             evaluator_revision=evaluator_revision,
             resolution_info=resolution_info,
+            retrieval_info=retrieval_info,
         )
 
         await publish_revision_event(
             request=request,
-            domain="evaluator",
+            domain="workflow",
             action="retrieve",
             revision=evaluator_revision_response.evaluator_revision,
             count=evaluator_revision_response.count,
@@ -1407,17 +1415,18 @@ class EvaluatorsRouter:
         return evaluator_revision_response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     async def create_evaluator_revision(
         self,
         request: Request,
         *,
         evaluator_revision_create_request: EvaluatorRevisionCreateRequest,
     ) -> EvaluatorRevisionResponse:
-        """Create a new revision on an evaluator variant.
+        """Create and commit the initial revision for an evaluator variant.
 
         Prefer `/evaluators/revisions/commit` for the standard commit
-        flow. This endpoint exists for internal create paths that need
-        to insert a revision without the commit semantics.
+        flow. This endpoint commits an initial revision with the `initial`
+        guard, preventing duplicate initial revisions for the same variant.
         """
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1427,11 +1436,19 @@ class EvaluatorsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        evaluator_revision = await self.evaluators_service.create_evaluator_revision(
+        evaluator_revision = await self.evaluators_service.commit_evaluator_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluator_revision_create=evaluator_revision_create_request.evaluator_revision,
+            evaluator_revision_commit=EvaluatorRevisionCommit(
+                **evaluator_revision_create_request.evaluator_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+                message="Initial revision",
+            ),
+            #
+            initial=True,
         )
 
         return EvaluatorRevisionResponse(
@@ -1475,7 +1492,7 @@ class EvaluatorsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="evaluator",
+            domain="workflow",
             action="fetch",
             revision=response.evaluator_revision,
             count=response.count,
@@ -1595,8 +1612,7 @@ class EvaluatorsRouter:
 
         Returns revision payloads. Use `evaluator_refs`,
         `evaluator_variant_refs`, or `evaluator_revision_refs` to scope
-        the query. Pass `resolve=true` to expand embedded references on
-        each revision's `data`.
+        the query.
         """
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1620,23 +1636,6 @@ class EvaluatorsRouter:
             windowing=evaluator_revision_query_request.windowing,
         )
 
-        # Optionally resolve embeds for all revisions if requested
-        if evaluator_revisions and evaluator_revision_query_request.resolve:
-            embeds_service = self.evaluators_service.embeds_service
-
-            for revision in evaluator_revisions:
-                if revision and revision.data:
-                    try:
-                        resolved_config, _ = await embeds_service.resolve_configuration(
-                            project_id=UUID(request.state.project_id),
-                            configuration=revision.data.model_dump(),
-                        )
-                        revision.data = EvaluatorRevisionData(**resolved_config)
-                    except Exception as e:
-                        log.error(
-                            f"Failed to resolve embeds for revision {revision.id}: {e}"
-                        )
-
         response = EvaluatorRevisionsResponse(
             count=len(evaluator_revisions),
             evaluator_revisions=evaluator_revisions,
@@ -1644,7 +1643,7 @@ class EvaluatorsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="evaluator",
+            domain="workflow",
             action="query",
             revisions=response.evaluator_revisions or [],
             count=response.count,
@@ -1677,7 +1676,7 @@ class EvaluatorsRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluator_revision_commit=evaluator_revision_commit_request.evaluator_revision_commit,
+            evaluator_revision_commit=evaluator_revision_commit_request.evaluator_revision,
         )
 
         response = EvaluatorRevisionResponse(
@@ -1713,7 +1712,7 @@ class EvaluatorsRouter:
         evaluator_revisions = await self.evaluators_service.log_evaluator_revisions(
             project_id=UUID(request.state.project_id),
             #
-            evaluator_revisions_log=evaluator_revisions_log_request.evaluator,
+            evaluator_revisions_log=evaluator_revisions_log_request.evaluator_revisions,
         )
 
         revisions_response = EvaluatorRevisionsResponse(
@@ -1723,7 +1722,7 @@ class EvaluatorsRouter:
 
         await publish_revision_event(
             request=request,
-            domain="evaluator",
+            domain="workflow",
             action="log",
             revisions=revisions_response.evaluator_revisions or [],
             count=revisions_response.count,
@@ -1761,6 +1760,8 @@ class EvaluatorsRouter:
             evaluator_variant_ref=evaluator_revision_resolve_request.evaluator_variant_ref,
             evaluator_revision_ref=evaluator_revision_resolve_request.evaluator_revision_ref,
             #
+            evaluator_revision=evaluator_revision_resolve_request.evaluator_revision,
+            #
             max_depth=evaluator_revision_resolve_request.max_depth or 10,
             max_embeds=evaluator_revision_resolve_request.max_embeds or 100,
             error_policy=evaluator_revision_resolve_request.error_policy.value
@@ -1772,11 +1773,18 @@ class EvaluatorsRouter:
             return EvaluatorRevisionResolveResponse()
 
         evaluator_revision, resolution_info = result
+        retrieval_info = None
+        if evaluator_revision_resolve_request.evaluator_revision is None:
+            retrieval_info = build_retrieval_info(
+                revision=evaluator_revision,
+                entity_type="evaluator",
+            )
 
         return EvaluatorRevisionResolveResponse(
             count=1,
             evaluator_revision=evaluator_revision,
             resolution_info=resolution_info,
+            retrieval_info=retrieval_info,
         )
 
 
@@ -2142,7 +2150,7 @@ class SimpleEvaluatorsRouter:
         self,
         request: Request,
         *,
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> EvaluatorTemplatesResponse:
         """List the legacy built-in evaluator templates.
 

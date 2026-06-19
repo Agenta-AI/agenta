@@ -27,7 +27,11 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
 import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
-import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
+import {PlaygroundInputsBodyHost} from "@agenta/playground-ui/playground-inputs-body"
+import {
+    openPlaygroundFocusDrawerAtom,
+    useNewPlaygroundInputsBodyAtom,
+} from "@agenta/playground-ui/state"
 
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
@@ -76,7 +80,7 @@ const SectionBlock: React.FC<{
     <div
         role="group"
         aria-label={ariaLabel}
-        className="flex flex-col gap-2 pl-3 border-0 border-l-2 border-solid border-[#1677FF22]"
+        className="flex flex-col gap-2 pl-3 border-0 border-l-2 border-solid border-[var(--ag-c-1677FF22)]"
     >
         {children}
     </div>
@@ -138,7 +142,10 @@ const RowHeaderActions = ({
                 icon={<ArrowsOutLineHorizontalIcon size={12} />}
                 size="small"
                 type="text"
-                onClick={() => openFocusDrawer({rowId, entityId})}
+                onClick={(e) => {
+                    e.stopPropagation()
+                    openFocusDrawer({rowId, entityId})
+                }}
                 tooltipProps={{title: tooltipTitle}}
             />
             <EnhancedButton
@@ -165,7 +172,7 @@ const RowHeaderActions = ({
 const StepTag = ({icon, name}: {icon: React.ReactNode; name: string}) => (
     <Tag
         variant="filled"
-        className="flex items-center gap-1 !m-0 self-start whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium bg-[#0517290F] text-[#344054] border border-solid border-transparent"
+        className="flex items-center gap-1 !m-0 self-start whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium bg-[var(--ag-c-0517290F)] text-[var(--ag-c-344054)] border border-solid border-transparent"
     >
         {icon}
         {name}
@@ -246,7 +253,24 @@ const DownstreamNodeCard = ({
                 }),
             [rowId, scopedEntityId],
         ),
-    ) as {status?: string; output?: unknown; error?: {message: string} | null} | null
+    ) as {
+        status?: string
+        output?: unknown
+        error?: {message: string} | null
+        traceId?: string | null
+    } | null
+
+    // Trace-link affordance for the downstream (evaluator) result — surfaced in
+    // the card legend so users can open the evaluator's own trace to debug a
+    // grade, the same way the primary app row exposes its trace (QA 2026-06-05:
+    // "show the trace links (icon) for evaluators too").
+    const providers = usePlaygroundUIOptional()
+    const SharedGenerationResultUtils = providers?.SharedGenerationResultUtils
+    const nodeTraceId = fullResult?.traceId ?? null
+    const traceActions =
+        nodeTraceId && SharedGenerationResultUtils ? (
+            <SharedGenerationResultUtils traceId={nodeTraceId} actionsOnly />
+        ) : undefined
 
     // Read output ports from the runnable bridge (includes per-field schema)
     const outputPorts = useAtomValue(
@@ -279,7 +303,7 @@ const DownstreamNodeCard = ({
     // Idle / cancelled / no result — show expected fields with placeholder dashes
     if (!fullResult || rawStatus === "idle" || rawStatus === "cancelled") {
         return (
-            <NodeResultCard name={nodeName} status={rawStatus}>
+            <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
                 <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} idle />
             </NodeResultCard>
         )
@@ -288,7 +312,7 @@ const DownstreamNodeCard = ({
     // Running / pending -> loading skeleton
     if (rawStatus === "running" || rawStatus === "pending") {
         return (
-            <NodeResultCard name={nodeName} status={rawStatus}>
+            <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
                 <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} loading />
             </NodeResultCard>
         )
@@ -301,7 +325,7 @@ const DownstreamNodeCard = ({
                 ? fullResult.error.message
                 : "Error"
         return (
-            <NodeResultCard name={nodeName} status={rawStatus}>
+            <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
                 <span className="text-[var(--ant-color-error)] text-xs leading-5">{errorMsg}</span>
             </NodeResultCard>
         )
@@ -314,7 +338,7 @@ const DownstreamNodeCard = ({
                 ? fullResult.error.message
                 : "Skipped"
         return (
-            <NodeResultCard name={nodeName} status={rawStatus}>
+            <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
                 <span className="text-[var(--ant-color-text-tertiary)] text-xs leading-5 italic">
                     {skipMsg}
                 </span>
@@ -323,12 +347,16 @@ const DownstreamNodeCard = ({
     }
 
     // Success -> extract and display value(s)
-    // Filter to only show fields defined in output ports (excludes backend-injected fields like "success")
+    // Filter to only show fields defined in output ports (excludes backend-injected
+    // fields like "success"). Fallback ports are a synthesized default, not a
+    // declared shape, so they must not filter the response (e.g., code evaluators
+    // returning arbitrary dicts).
     const rawEntries = extractDisplayEntries(fullResult.output)
+    const declaredPorts = outputPorts.filter((port) => !port.isFallback)
     const entries =
-        rawEntries && outputPorts.length > 0
+        rawEntries && declaredPorts.length > 0
             ? (() => {
-                  const portKeys = new Set(outputPorts.map((p) => p.key))
+                  const portKeys = new Set(declaredPorts.map((p) => p.key))
                   const filtered = rawEntries.filter(([key]) => portKeys.has(key))
                   return filtered.length > 0 ? filtered : rawEntries
               })()
@@ -336,14 +364,14 @@ const DownstreamNodeCard = ({
 
     if (!entries || entries.length === 0) {
         return (
-            <NodeResultCard name={nodeName} status={rawStatus}>
+            <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
                 <span className="text-xs leading-5">—</span>
             </NodeResultCard>
         )
     }
 
     return (
-        <NodeResultCard name={nodeName} status={rawStatus}>
+        <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
             <div
                 className="grid items-baseline text-xs leading-5"
                 style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 6}}
@@ -618,6 +646,25 @@ const SingleView = ({
         useMemo(() => workflowMolecule.selectors.isDirty(entityId), [entityId]),
     )
 
+    // Resolve the active prompt template_format from the primary entity's
+    // parameters. Passed into `PlaygroundInputsBodyHost` so chat-mode
+    // variable inputs tokenize `{{...}}` with the right rules (mustache
+    // sections, jinja2, etc). Falls back to `"curly"` to match the
+    // editor stack's default when no value is stored yet.
+    const promptTemplateFormat = useMemo<"mustache" | "curly" | "fstring" | "jinja2">(() => {
+        const params = primaryWorkflowData?.data?.parameters as Record<string, unknown> | undefined
+        const prompt = params?.prompt as Record<string, unknown> | undefined
+        const raw =
+            (prompt?.template_format as string | undefined) ??
+            (prompt?.templateFormat as string | undefined) ??
+            (params?.template_format as string | undefined) ??
+            (params?.templateFormat as string | undefined)
+        if (raw === "mustache") return "mustache"
+        if (raw === "jinja2" || raw === "jinja") return "jinja2"
+        if (raw === "fstring") return "fstring"
+        return "curly"
+    }, [primaryWorkflowData?.data?.parameters])
+
     const executionRowIds = useAtomValue(
         executionItemController.selectors.executionRowIds,
     ) as string[]
@@ -673,6 +720,11 @@ const SingleView = ({
     const isExecutionExpanded = inputOnly || !isCollapsed
     const isWaitingForVariableControls =
         variableIds.length === 0 && (schemaInputKeys.length > 0 || Boolean(runnableQuery.isPending))
+
+    // Feature flag — when true, the non-grouped (flat) variable list renders
+    // through `PlaygroundInputsBodyHost` (V2-aligned bordered cards with
+    // type chips + "View as ▾" dropdown). Off by default; OSS opts in.
+    const useNewInputsBody = useAtomValue(useNewPlaygroundInputsBodyAtom)
     const collapseDurationMs = hasInteractedWithCollapse ? 300 : 0
 
     useEffect(() => {
@@ -727,7 +779,7 @@ const SingleView = ({
                         renderLabel={(label) => (
                             <Tag
                                 variant="filled"
-                                className="flex items-center gap-1 !m-0 whitespace-nowrap rounded px-2 py-0.5 text-xs bg-[#0517290F] text-[#344054] border border-solid border-transparent cursor-pointer select-none hover:bg-[#0517291A] transition-colors"
+                                className="flex items-center gap-1 !m-0 whitespace-nowrap rounded px-2 py-0.5 text-xs bg-[var(--ag-c-0517290F)] text-[var(--ag-c-344054)] border border-solid border-transparent cursor-pointer select-none hover:bg-[var(--ag-c-0517291A)] transition-colors"
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     openFocusDrawer({rowId, entityId})
@@ -797,10 +849,14 @@ const SingleView = ({
                                     className={clsx(
                                         "flex items-start gap-2 px-3 py-2 rounded-md",
                                         "bg-blue-50 border border-solid border-blue-100",
+                                        "dark:bg-blue-900/20 dark:border-blue-900/40",
                                     )}
                                 >
-                                    <Info size={14} className="text-blue-500 mt-0.5 shrink-0" />
-                                    <div className="flex-1 text-xs text-gray-700 leading-relaxed">
+                                    <Info
+                                        size={14}
+                                        className="text-blue-500 dark:text-blue-300 mt-0.5 shrink-0"
+                                    />
+                                    <div className="flex-1 text-xs text-gray-700 dark:text-blue-50 leading-relaxed">
                                         Fill these with the data the application being evaluated
                                         received and produced. The evaluator will judge this pair —
                                         not your own typed values.
@@ -810,6 +866,7 @@ const SingleView = ({
                                         onClick={() => setEvaluatorCalloutDismissed(true)}
                                         className={clsx(
                                             "shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-700 hover:bg-blue-100",
+                                            "dark:text-blue-200 dark:hover:text-blue-50 dark:hover:bg-blue-900/40",
                                             "border-0 bg-transparent cursor-pointer",
                                         )}
                                         aria-label="Dismiss"
@@ -865,27 +922,69 @@ const SingleView = ({
                                     )
                                 }
 
-                                // Flat layout — apps, and evaluators with no
-                                // extracted field ports (default template).
+                                // New playground inputs body — V2-aligned
+                                // bordered cards with type chips + "View
+                                // as ▾" dropdowns. Behind a feature flag
+                                // so the existing per-variable layout stays
+                                // default until the new UX is signed off.
+                                if (useNewInputsBody) {
+                                    // Grouped layout — evaluators with
+                                    // extracted field ports. Field ports +
+                                    // the `inputs` envelope catch-all share
+                                    // `data.inputs` at runtime; the new
+                                    // inputs body renders both inside the
+                                    // same left-border "inputs" section,
+                                    // and the `outputs` envelope in its
+                                    // own section. The section blocks come
+                                    // through the host's `sections` prop.
+                                    if (useGroupedLayout) {
+                                        const groupedSections = [
+                                            {
+                                                ariaLabel: "inputs",
+                                                variableNames: [
+                                                    ...fieldPortIds,
+                                                    ...(hasInputsEnvelope ? ["inputs"] : []),
+                                                ],
+                                            },
+                                            ...(hasOutputsEnvelope
+                                                ? [
+                                                      {
+                                                          ariaLabel: "outputs",
+                                                          variableNames: ["outputs"],
+                                                      },
+                                                  ]
+                                                : []),
+                                        ]
+                                        return (
+                                            <PlaygroundInputsBodyHost
+                                                rowId={rowId}
+                                                downstreamKey={downstreamKey}
+                                                editable={!isWaitingForVariableControls}
+                                                sections={groupedSections}
+                                                templateFormat={promptTemplateFormat}
+                                            />
+                                        )
+                                    }
+                                    return (
+                                        <PlaygroundInputsBodyHost
+                                            rowId={rowId}
+                                            downstreamKey={downstreamKey}
+                                            editable={!isWaitingForVariableControls}
+                                            templateFormat={promptTemplateFormat}
+                                        />
+                                    )
+                                }
+
+                                // Legacy path (flag off) — flat layout for
+                                // apps and evaluators-with-no-fields, grouped
+                                // legacy SectionBlock layout for evaluators
+                                // with extracted field ports. Each port renders
+                                // through the per-variable
+                                // `VariableControlAdapter` with its full header
+                                // (label + ⓘ tooltip + hover-revealed actions).
                                 if (!useGroupedLayout) {
                                     return variableIds.map((id) => renderVariable(id))
                                 }
-
-                                // Grouped layout — evaluators with field
-                                // ports. Field ports + the envelope catch-all
-                                // share `data.inputs` at runtime, so we wrap
-                                // them in one left-border block to surface
-                                // that relationship visually. Each port
-                                // renders with its full header (label + ⓘ
-                                // tooltip + hover-revealed action cluster:
-                                // JSON/text toggle, markdown, copy, collapse)
-                                // and the editor's own border, so envelope
-                                // and field rows look identical and the
-                                // hover affordances stay intact. The group
-                                // identity comes from the container; we
-                                // intentionally don't add a separate header
-                                // label to avoid colliding with the envelope
-                                // port's own header.
                                 return (
                                     <>
                                         <SectionBlock ariaLabel="inputs">
@@ -907,7 +1006,7 @@ const SingleView = ({
                     <div
                         className={clsx([
                             "w-full flex flex-col gap-3 pb-2 relative group/output",
-                            "border-0 border-t border-solid border-[rgba(5,23,41,0.06)] pt-3",
+                            "border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] pt-3",
                         ])}
                     >
                         {/* Primary node */}
@@ -920,7 +1019,7 @@ const SingleView = ({
                             <div
                                 className={clsx(
                                     "min-w-0",
-                                    !currentDisplayResult && !isBusy && "text-[#bdc7d1]",
+                                    !currentDisplayResult && !isBusy && "text-[var(--ag-c-BDC7D1)]",
                                 )}
                             >
                                 <ExecutionResultView

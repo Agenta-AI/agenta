@@ -1,8 +1,9 @@
-import {useEffect, useMemo} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {PageLayout} from "@agenta/ui"
 import {Tabs} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 import Router from "next/router"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
@@ -11,15 +12,22 @@ import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 
 import {activePreviewProjectIdAtom, activePreviewRunIdAtom} from "../atoms/run"
 import {runDisplayNameAtomFamily, runStatusAtomFamily} from "../atoms/runDerived"
+import {editEvaluationDrawerRunIdAtom} from "../state/editDrawer"
 import {previewEvalTypeAtom} from "../state/evalType"
 import {syncCompareStateFromUrl} from "../state/urlCompare"
 import {syncFocusDrawerStateFromUrl} from "../state/urlFocusDrawer"
 import EvalRunDetailsTable from "../Table"
 
 import PreviewEvalRunTabs, {PreviewEvalRunMeta} from "./PreviewEvalRunHeader"
+import RunActionsDropdown from "./RunActionsDropdown"
 import ConfigurationView from "./views/ConfigurationView"
 import FocusView from "./views/FocusView"
 import OverviewView from "./views/OverviewView"
+
+// Heavy (pulls the EntityPicker); only needed once a trigger opens it.
+const EditEvaluationDrawer = dynamic(() => import("@/oss/components/EditEvaluationDrawer"), {
+    ssr: false,
+})
 
 type ViewKey = "overview" | "focus" | "scenarios" | "configuration"
 
@@ -43,6 +51,11 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     const runStatusAtom = useMemo(() => runStatusAtomFamily(runId), [runId])
     const runStatus = useAtomValue(runStatusAtom)
 
+    // Shared "Edit evaluation" drawer — opened by the header dropdown (all tabs), the
+    // config General Edit button, and the Add-evaluator button.
+    const editDrawerRunId = useAtomValue(editEvaluationDrawerRunIdAtom)
+    const setEditDrawerRunId = useSetAtom(editEvaluationDrawerRunIdAtom)
+
     // Map evaluation type to display label and URL kind parameter
     // Labels match EvaluationsView.tsx tab labels
     const evaluationTypeBreadcrumb = useMemo(() => {
@@ -50,6 +63,7 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
             auto: {label: "Auto Evals", kind: "auto"},
             human: {label: "Human Evals", kind: "human"},
             online: {label: "Live Evals", kind: "online"},
+            sdk: {label: "SDK Evals", kind: "custom"},
         }
         const config = typeMap[evaluationType] ?? {label: "Evaluations", kind: "auto"}
         return {
@@ -125,12 +139,52 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     const defaultView =
         evaluationType === "human" ? (isTerminalStatus ? "overview" : "focus") : "overview"
     const [activeViewParam, setActiveViewParam] = useQueryParam("view", defaultView, "replace")
-    const activeView = (activeViewParam as ViewKey) ?? defaultView
+    const rawView = (activeViewParam as ViewKey) ?? defaultView
+
+    // `useQueryParam` reads the in-flight route's query, which Next updates at
+    // `routeChangeStart` — before this page unmounts. Navigating away drops the
+    // `view` param, which would snap the active tab back to the default and, via
+    // the `destroyOnHidden` Tabs below, tear down the active tab's table (e.g.
+    // the Scenarios IVT) mid-navigation. Freeze the view while a navigation that
+    // actually leaves this run is in flight; the page is replaced on completion.
+    // Shallow tab switches keep the runId in the URL, so they still update.
+    const navigatingAwayRef = useRef(false)
+    const [activeView, setActiveView] = useState<ViewKey>(rawView)
+    useEffect(() => {
+        if (!navigatingAwayRef.current) setActiveView(rawView)
+    }, [rawView])
+    useEffect(() => {
+        const onStart = (url: string) => {
+            navigatingAwayRef.current = typeof url === "string" && !url.includes(runId)
+        }
+        // routeChangeComplete passes (url); routeChangeError passes (err, url) —
+        // so the first arg isn't always the URL string. Guard before calling
+        // string methods on it.
+        const onSettle = (urlOrErr: unknown) => {
+            navigatingAwayRef.current = false
+            // Adopt whatever the committed route asks for once navigation settles
+            // (covers landing back on this run via a route with no `view` param).
+            if (typeof urlOrErr === "string" && urlOrErr.includes(runId)) setActiveView(rawView)
+        }
+        Router.events.on("routeChangeStart", onStart)
+        Router.events.on("routeChangeComplete", onSettle)
+        Router.events.on("routeChangeError", onSettle)
+        return () => {
+            Router.events.off("routeChangeStart", onStart)
+            Router.events.off("routeChangeComplete", onSettle)
+            Router.events.off("routeChangeError", onSettle)
+        }
+    }, [runId, rawView])
 
     return (
         <PageLayout
             className="!p-0 h-full min-h-0"
-            title={runDisplayName}
+            title={
+                <span className="inline-flex items-center gap-1">
+                    {runDisplayName}
+                    <RunActionsDropdown runId={runId} />
+                </span>
+            }
             headerTabs={
                 <PreviewEvalRunTabs
                     activeView={activeView}
@@ -195,6 +249,9 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
                     ]}
                 />
             </div>
+            {editDrawerRunId === runId ? (
+                <EditEvaluationDrawer runId={runId} open onClose={() => setEditDrawerRunId(null)} />
+            ) : null}
         </PageLayout>
     )
 }

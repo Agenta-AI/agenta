@@ -78,11 +78,34 @@ def capital_mock_response(*args, **kwargs) -> MockResponseModel:
     )
 
 
+@instrument()
+def echo_mock_response(*args, **kwargs) -> MockResponseModel:
+    # Returns the last user message content verbatim — deterministic, useful for
+    # asserting prompt plumbing without an LLM.
+    messages = kwargs.get("messages") or []
+    content = ""
+    for message in reversed(messages):
+        if isinstance(message, dict) and message.get("role") == "user":
+            content = str(message.get("content", ""))
+            break
+    return MockResponseModel(
+        choices=[MockChoiceModel(message=MockMessageModel(content=content))],
+    )
+
+
+@instrument()
+def error_mock_response(*args, **kwargs) -> MockResponseModel:
+    # Raises to exercise the LLM failure path deterministically.
+    raise RuntimeError("mock LLM error")
+
+
 MOCKS: dict[str, Callable[..., MockResponseModel]] = {
     "hello": hello_mock_response,
     "chat": chat_mock_response,
     "delay": delay_mock_response,
     "capital": capital_mock_response,
+    "echo": echo_mock_response,
+    "error": error_mock_response,
 }
 
 CAPITALS = {

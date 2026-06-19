@@ -2,12 +2,10 @@ from typing import Optional
 from uuid import getnode
 from datetime import datetime, timezone, timedelta
 
-
-import stripe
-
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 from oss.src.utils.caching import invalidate_cache
+from oss.src.utils.lazy import _load_stripe
 
 from ee.src.core.subscriptions.types import (
     SubscriptionDTO,
@@ -23,17 +21,8 @@ from ee.src.core.subscriptions.settings import (
     trial_enabled,
 )
 from ee.src.core.subscriptions.interfaces import SubscriptionsDAOInterface
-from ee.src.core.entitlements.service import EntitlementsService
-from ee.src.core.meters.service import MetersService
 
 log = get_module_logger(__name__)
-
-# Initialize Stripe only if enabled
-if env.stripe.enabled:
-    stripe.api_key = env.stripe.api_key
-    log.info("✓ Stripe enabled:", target=env.stripe.webhook_target)
-else:
-    log.info("✗ Stripe disabled")
 
 MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
 
@@ -50,11 +39,8 @@ class SubscriptionsService:
     def __init__(
         self,
         subscriptions_dao: SubscriptionsDAOInterface,
-        meters_service: MetersService,
     ):
         self.subscriptions_dao = subscriptions_dao
-        self.meters_service = meters_service
-        self.entitlements_service = EntitlementsService(meters_service=meters_service)
 
     async def create(
         self,
@@ -84,8 +70,9 @@ class SubscriptionsService:
         organization_name: str,
         organization_email: str,
     ) -> Optional[SubscriptionDTO]:
-        if not env.stripe.enabled:
-            raise EventException("Reverse trial requires Stripe to be enabled")
+        stripe = _load_stripe()
+        if stripe is None:
+            raise EventException("Reverse trial requires Stripe to be available")
 
         if not trial_enabled():
             raise EventException(
@@ -212,7 +199,7 @@ class SubscriptionsService:
 
         return subscription
 
-    async def provision_signup_subscription(
+    async def provision_subscription(
         self,
         *,
         organization_id: str,
@@ -247,6 +234,40 @@ class SubscriptionsService:
             organization_id=organization_id,
             plan=get_default_plan(),
         )
+
+    async def cancel_subscription(
+        self,
+        *,
+        organization_id: str,
+    ) -> bool:
+        """Cancel an organization's Stripe subscription, if any.
+
+        Used by org/account deletion to stop billing before the local rows are
+        removed. Returns True if a live subscription was cancelled at Stripe,
+        False when there was nothing to cancel (no subscription, or Stripe
+        disabled). Raises on a genuine Stripe failure so the caller can decide
+        whether to treat it as best-effort.
+        """
+        subscription = await self.read(organization_id=organization_id)
+
+        if not subscription or not subscription.subscription_id:
+            return False
+
+        stripe = _load_stripe()
+        if stripe is None:
+            return False
+
+        stripe_subscription = stripe.Subscription.retrieve(
+            subscription.subscription_id,
+        )
+
+        status = getattr(stripe_subscription, "status", None)
+        if status == "canceled":
+            return False
+
+        stripe.Subscription.cancel(subscription.subscription_id)
+
+        return True
 
     async def process_event(
         self,
@@ -299,9 +320,10 @@ class SubscriptionsService:
             subscription = await self.update(subscription=subscription)
 
         elif subscription.plan != free_plan and event == Event.SUBSCRIPTION_SWITCHED:
-            if not env.stripe.enabled:
-                log.warn("✗ Stripe disabled")
-                return None
+            stripe = _load_stripe()
+            if stripe is None:
+                log.warn("✗ Stripe unavailable")
+                raise EventException("Stripe is not available for plan switching")
 
             if subscription.plan == plan:
                 log.warn("Subscription already on the plan: %s", plan)
@@ -331,12 +353,6 @@ class SubscriptionsService:
             subscription.active = True
             subscription.plan = plan
 
-            # await self.entitlements_service.enforce(
-            #     organization_id=organization_id,
-            #     plan=plan,
-            #     force=force,
-            # )
-
             stripe.Subscription.modify(
                 subscription.subscription_id,
                 items=[
@@ -355,12 +371,6 @@ class SubscriptionsService:
             subscription.plan = free_plan
             subscription.subscription_id = None
             subscription.anchor = anchor
-
-            # await self.entitlements_service.enforce(
-            #     organization_id=organization_id,
-            #     plan=free_plan,
-            #     force=True,
-            # )
 
             subscription = await self.update(subscription=subscription)
 

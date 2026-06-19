@@ -21,6 +21,7 @@ import {signOut} from "supertokens-auth-react/recipe/session"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 import {useLocalStorage} from "usehooks-ts"
 
+import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
@@ -47,6 +48,8 @@ const {Text, Title} = Typography
 const LAST_SSO_ORG_SLUG_KEY = "lastSsoOrgSlug"
 
 const Auth = () => {
+    const {appTheme} = useAppTheme()
+    const isDark = appTheme === ThemeMode.Dark
     const [isAuthLoading, setIsAuthLoading] = useState(false)
     const [isSocialAuthLoading, setIsSocialAuthLoading] = useState(false)
     const [isLoginCodeVisible, setIsLoginCodeVisible] = useState(false)
@@ -421,13 +424,22 @@ const Auth = () => {
         >
             <section
                 className={clsx(
-                    "h-screen overflow-y-auto flex items-start justify-center rounded-tr-[1.5rem] rounded-br-[1.5rem] shadow-[15px_0px_80px_0px_rgba(214,222,230,0.5)]",
+                    "h-screen overflow-y-auto flex items-start justify-center rounded-tr-[1.5rem] rounded-br-[1.5rem]",
+                    // Light: pale grey edge glow. Dark: a deeper, neutral shadow —
+                    // the light glow reads as a halo against a dark surface.
+                    isDark
+                        ? "shadow-[15px_0px_80px_0px_rgba(0,0,0,0.45)]"
+                        : "shadow-[15px_0px_80px_0px_rgba(214,222,230,0.5)]",
                     "w-full lg:w-1/2",
                     "px-4 lg:px-0",
                 )}
             >
                 <Image
-                    src="/assets/Agenta-logo-full-light.png"
+                    src={
+                        isDark
+                            ? "/assets/Agenta-logo-full-dark-accent.png"
+                            : "/assets/Agenta-logo-full-light.png"
+                    }
                     alt="agenta-ai"
                     width={114}
                     height={39}
@@ -438,33 +450,11 @@ const Auth = () => {
                         <Title level={2} className="font-bold">
                             Welcome to Agenta AI
                         </Title>
-                        <Text className="text-sm text-[#586673]">
+                        <Text className="text-sm text-[var(--ag-c-586673)]">
                             Your All-In-One LLM Development Platform. Collaborate on prompts,
                             evaluate, and monitor LLM apps with confidence
                         </Text>
                     </div>
-
-                    {!isDemo() && (
-                        <Alert
-                            message={
-                                <div className="space-y-1 italic">
-                                    <p className="m-0">
-                                        If you are the first member to log in, your account will
-                                        become the organization{" "}
-                                        <span className="font-bold">owner</span>. As an{" "}
-                                        <span className="font-bold">owner</span>, you will have
-                                        exclusive rights to invite other members to your
-                                        organization.
-                                    </p>
-                                    <p className="m-0">
-                                        If you are not the first member to join, please contact the{" "}
-                                        <span className="font-bold">owner</span> and request an
-                                        invitation.
-                                    </p>
-                                </div>
-                            }
-                        />
-                    )}
 
                     <div className="flex flex-col gap-6 min-h-[360px]">
                         {shouldShowRegionSelector() && <RegionSelector />}
@@ -652,10 +642,10 @@ const Auth = () => {
 
                         {/* Auth upgrade: show organization switch and sign out options */}
                         {isAuthUpgradeRequired && isAuthenticated && !hasInviteEmailMismatch && (
-                            <div className="flex flex-col gap-3 pt-2 border-t border-[#e5e7eb]">
+                            <div className="flex flex-col gap-3 pt-2 border-t border-[var(--ag-c-E5E7EB)]">
                                 {otherOrgs.length > 0 && (
                                     <div className="flex flex-col gap-2">
-                                        <Text className="text-sm text-[#586673]">
+                                        <Text className="text-sm text-[var(--ag-c-586673)]">
                                             Or switch to a different organization:
                                         </Text>
                                         <Select

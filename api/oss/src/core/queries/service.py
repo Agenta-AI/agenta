@@ -6,11 +6,13 @@ from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.events.utils import publish_revision_event
 from oss.src.core.git.interfaces import GitDAOInterface
+from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.git.types import (
+    VariantForkError,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     needs_default_variant_resolution,
-    validate_retrieve_refs_consistent,  # noqa: F401  HOTFIX: re-enable with PR <stack>
+    validate_retrieve_refs_consistent,
 )
 from oss.src.core.shared.dtos import Reference, Windowing, Trace, Traces
 from oss.src.core.tracing.dtos import (
@@ -33,6 +35,7 @@ from oss.src.core.git.dtos import (
     ArtifactEdit,
     ArtifactQuery,
     ArtifactFork,
+    RetrievalInfo,
     RevisionsLog,
     #
     VariantCreate,
@@ -49,7 +52,7 @@ from oss.src.core.queries.dtos import (
     QueryCreate,
     QueryEdit,
     QueryQuery,
-    QueryFork,
+    QueryVariantFork,
     #
     QueryVariant,
     QueryVariantCreate,
@@ -581,10 +584,32 @@ class QueriesService:
         project_id: UUID,
         user_id: UUID,
         #
-        query_fork: QueryFork,
+        query_variant_fork: QueryVariantFork,
+        query_variant_ref: Reference,
+        query_revision_ref: Optional[Reference] = None,
     ) -> Optional[QueryVariant]:
+        source_variant = await self.fetch_query_variant(
+            project_id=project_id,
+            query_variant_ref=query_variant_ref,
+        )
+        if not source_variant:
+            raise VariantForkError("Fork source variant could not be resolved.")
+
+        source_revision_id: Optional[UUID] = None
+        if query_revision_ref is not None:
+            source_revision = await self.fetch_query_revision(
+                project_id=project_id,
+                query_variant_ref=query_variant_ref,
+                query_revision_ref=query_revision_ref,
+            )
+            if not source_revision:
+                raise VariantForkError("Fork source revision could not be resolved.")
+            source_revision_id = source_revision.id
+
         _artifact_fork = ArtifactFork(
-            **query_fork.model_dump(mode="json"),
+            variant_id=source_variant.id,
+            revision_id=source_revision_id,
+            variant=query_variant_fork,
         )
 
         variant = await self.queries_dao.fork_variant(
@@ -713,28 +738,25 @@ class QueriesService:
         if not revision:
             return None
 
-        # HOTFIX: env-stored refs may carry stale slugs.
-        # Re-enable once the web write paths are fixed and the historical rows
-        # are backfilled.
-        # validate_retrieve_refs_consistent(
-        #     artifact_ref=_original_query_ref,
-        #     variant_ref=_original_query_variant_ref,
-        #     revision_ref=query_revision_ref,
-        #     resolved_artifact_ref=Reference(
-        #         id=revision.artifact_id,
-        #         slug=revision.artifact_slug,
-        #     ),
-        #     resolved_variant_ref=Reference(
-        #         id=revision.variant_id,
-        #         slug=revision.variant_slug,
-        #     ),
-        #     resolved_revision_ref=Reference(
-        #         id=revision.id,
-        #         slug=revision.slug,
-        #         version=revision.version,
-        #     ),
-        #     entity_type="query",
-        # )
+        validate_retrieve_refs_consistent(
+            artifact_ref=_original_query_ref,
+            variant_ref=_original_query_variant_ref,
+            revision_ref=query_revision_ref,
+            resolved_artifact_ref=Reference(
+                id=revision.artifact_id,
+                slug=revision.artifact_slug,
+            ),
+            resolved_variant_ref=Reference(
+                id=revision.variant_id,
+                slug=revision.variant_slug,
+            ),
+            resolved_revision_ref=Reference(
+                id=revision.id,
+                slug=revision.slug,
+                version=revision.version,
+            ),
+            entity_type="query",
+        )
 
         _query_revision = QueryRevision(
             **revision.model_dump(mode="json"),
@@ -752,6 +774,40 @@ class QueriesService:
         )
 
         return _query_revision
+
+    async def retrieve_query_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        query_ref: Optional[Reference] = None,
+        query_variant_ref: Optional[Reference] = None,
+        query_revision_ref: Optional[Reference] = None,
+        #
+        include_trace_ids: Optional[bool] = None,
+        include_traces: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> tuple[Optional[QueryRevision], Optional[RetrievalInfo]]:
+        query_revision = await self.fetch_query_revision(
+            project_id=project_id,
+            #
+            query_ref=query_ref,
+            query_variant_ref=query_variant_ref,
+            query_revision_ref=query_revision_ref,
+            #
+            include_trace_ids=include_trace_ids,
+            include_traces=include_traces,
+            #
+            windowing=windowing,
+        )
+
+        retrieval_info = build_retrieval_info(
+            revision=query_revision,
+            entity_type="query",
+        )
+
+        return query_revision, retrieval_info
 
     async def edit_query_revision(
         self,
@@ -888,6 +944,8 @@ class QueriesService:
         user_id: UUID,
         #
         query_revision_commit: QueryRevisionCommit,
+        #
+        initial: bool = False,
     ) -> Optional[QueryRevision]:
         if not query_revision_commit.slug:
             query_revision_commit.slug = uuid4().hex[-12:]
@@ -920,6 +978,8 @@ class QueriesService:
             user_id=user_id,
             #
             revision_commit=_revision_commit,
+            #
+            initial=initial,
         )
 
         if not revision:
@@ -952,7 +1012,7 @@ class QueriesService:
         #
         query_revisions_log: QueryRevisionsLog,
         #
-        include_archived: bool = False,
+        include_archived: Optional[bool] = False,
     ) -> List[QueryRevision]:
         _revisions_log = RevisionsLog(
             **query_revisions_log.model_dump(mode="json"),
@@ -1056,7 +1116,7 @@ class SimpleQueriesService:
         # ----------------------------------------------------------------------
         placeholder_revision_slug = uuid4().hex[-12:]
 
-        _query_revision_create = QueryRevisionCreate(
+        _query_revision_commit = QueryRevisionCommit(
             slug=placeholder_revision_slug,
             #
             name=simple_query_create.name,
@@ -1066,15 +1126,19 @@ class SimpleQueriesService:
             tags=simple_query_create.tags,
             meta=simple_query_create.meta,
             #
+            data=None,
+            #
+            message="Initial commit",
+            #
             query_id=query.id,
             query_variant_id=query_variant.id,
         )
 
-        placeholder_revision = await self.queries_service.create_query_revision(
+        placeholder_revision = await self.queries_service.commit_query_revision(
             project_id=project_id,
             user_id=user_id,
             #
-            query_revision_create=_query_revision_create,
+            query_revision_commit=_query_revision_commit,
         )
 
         if placeholder_revision is None:

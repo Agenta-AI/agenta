@@ -1,9 +1,11 @@
-import React, {useMemo} from "react"
+import React, {useEffect, useLayoutEffect, useMemo} from "react"
 
 import {MESSAGE_CONTENT_SCHEMA} from "@agenta/shared/schemas"
+import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 
 import {SimpleDropdownSelect} from "../../components/presentational/select"
 import {EditorProvider} from "../../Editor/Editor"
+import {SET_MARKDOWN_VIEW} from "../../Editor/plugins/markdown/commands"
 import {SharedEditor, type SharedEditorProps} from "../../SharedEditor"
 import {cn, flexLayouts, gapClasses, justifyClasses} from "../../utils/styles"
 
@@ -47,7 +49,7 @@ export interface ChatMessageEditorProps {
     /** Whether to enable token highlighting */
     enableTokens?: boolean
     /** Template format for variable syntax highlighting */
-    templateFormat?: "curly" | "fstring" | "jinja2"
+    templateFormat?: "mustache" | "curly" | "fstring" | "jinja2"
     /** Available template variables for token highlighting */
     tokens?: string[]
     /** Editor state: filled, readOnly, etc. */
@@ -64,6 +66,41 @@ export interface ChatMessageEditorProps {
     maxPasteChars?: number
     /** Optional hook for custom handling when a paste exceeds the limit. */
     onPasteLimitExceeded?: SharedEditorProps["onPasteLimitExceeded"]
+    /**
+     * When true, render content as raw markdown source; when false, render rich text.
+     * Setting only the `markdownViewAtom` CSS flag is not enough — the Lexical
+     * editor needs a `SET_MARKDOWN_VIEW` command dispatch to actually swap
+     * between rich-text nodes and a markdown code node. This prop wires that
+     * up via an internal synchronizer mounted inside the EditorProvider.
+     */
+    markdownView?: boolean
+}
+
+/**
+ * Dispatches `SET_MARKDOWN_VIEW` whenever `enabled` changes so the Lexical
+ * editor actually swaps between rich-text and markdown-source views.
+ *
+ * Mirrors VariableControlAdapter's MarkdownViewSynchronizer: a `useLayoutEffect`
+ * handles updates after the MarkdownPlugin handler is registered, and a
+ * deferred `useEffect` + `requestAnimationFrame` re-dispatches once after paint
+ * to cover the initial mount race where this component's layout effect can
+ * fire before the descendant MarkdownPlugin has registered the command.
+ */
+const MarkdownViewSynchronizer: React.FC<{enabled: boolean}> = ({enabled}) => {
+    const [editor] = useLexicalComposerContext()
+
+    useLayoutEffect(() => {
+        editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)
+    }, [editor, enabled])
+
+    useEffect(() => {
+        const frameId = requestAnimationFrame(() => {
+            editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)
+        })
+        return () => cancelAnimationFrame(frameId)
+    }, [editor, enabled])
+
+    return null
 }
 
 /**
@@ -147,11 +184,47 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
             initialValue={text}
             value={text}
             handleChange={(v: string) => onChangeText?.(v)}
+            // Chat message editors emit on every keystroke — no 300ms
+            // debounce window. The default `useDebounceInput` behavior in
+            // SharedEditor lets late emits with stale text race against
+            // external value updates: e.g. the Refine Prompt modal writes
+            // refined messages to the molecule, the chat editor receives
+            // the new value, but a previously-scheduled debounced emit
+            // fires shortly after with the editor's pre-refine buffer (or
+            // the post-hydration text content after normalization) and
+            // propagates back up through `PromptSchemaControl
+            // .handleMessagesChange`. The spread `{...value, messages:
+            // STALE}` overwrites the just-applied refinement, reverting
+            // the prompt. Disabling the debounce makes emits synchronous
+            // — every onChange propagates immediately, so the molecule's
+            // state stays consistent with what the user sees.
+            //
+            // Performance trade-off: every keystroke fires `onChangeText`,
+            // which propagates through `ChatMessageList` →
+            // `MessagesSchemaControl` → `PromptSchemaControl` →
+            // `setUpdate`. Each step is an atom set or callback dispatch
+            // (cheap) and downstream re-renders are limited by Jotai's
+            // reactive granularity. In practice the chain is fast enough
+            // for normal typing cadence; the previous 300ms debounce was
+            // a performance hedge, not a correctness requirement.
+            //
+            // Kaosiso QA 2026-06-02 (also reproduces in production).
+            disableDebounce
             editorClassName={editorClassName}
             placeholder={placeholder}
             disabled={disabled}
             state={disabled ? "readOnly" : state}
-            className={cn("relative", flexLayouts.column, gapClasses.xs, "rounded-md", className)}
+            // `agenta-chat-message-editor` is the styling hook used in globals.css
+            // to align the message text with the role label (see that file). The
+            // padding can't go through `editorClassName` because ChatMessageEditor
+            // renders the Editor with `noProvider`, where `className` is dropped.
+            className={cn(
+                "agenta-chat-message-editor relative",
+                flexLayouts.column,
+                gapClasses.xs,
+                "rounded-md",
+                className,
+            )}
             footer={footer}
             onFocusChange={onFocusChange}
             maxPasteChars={maxPasteChars}
@@ -181,12 +254,14 @@ const ChatMessageEditor: React.FC<ChatMessageEditorProps> = ({
     isJSON,
     isTool,
     language = "json",
+    markdownView = false,
     ...props
 }) => {
+    const isCodeMode = Boolean(isTool || isJSON)
     return (
         <EditorProvider
-            codeOnly={isTool || isJSON}
-            language={isTool || isJSON ? language : undefined}
+            codeOnly={isCodeMode}
+            language={isCodeMode ? language : undefined}
             enableTokens={Boolean(props.enableTokens)}
             tokens={props.tokens}
             templateFormat={props.templateFormat}
@@ -196,6 +271,11 @@ const ChatMessageEditor: React.FC<ChatMessageEditorProps> = ({
             loadingFallback={props.loadingFallback}
         >
             <ChatMessageEditorInner isJSON={isJSON} language={language} {...props} />
+            {/* Sync markdown view AFTER ChatMessageEditorInner so descendant
+                MarkdownPlugin has registered SET_MARKDOWN_VIEW by the time the
+                synchronizer's effects fire. Only mounted in rich-text mode —
+                code mode editors don't include MarkdownPlugin. */}
+            {!isCodeMode && <MarkdownViewSynchronizer enabled={markdownView} />}
         </EditorProvider>
     )
 }

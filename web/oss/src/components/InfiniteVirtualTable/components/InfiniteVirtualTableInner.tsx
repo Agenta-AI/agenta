@@ -31,6 +31,7 @@ import useInfiniteScroll from "../hooks/useInfiniteScroll"
 import useScrollContainer from "../hooks/useScrollContainer"
 import useSmartResizableColumns from "../hooks/useSmartResizableColumns"
 import useTableKeyboardShortcuts from "../hooks/useTableKeyboardShortcuts"
+import {shouldIgnoreRowClick} from "../hooks/useTableManager"
 import useTableRowSelection from "../hooks/useTableRowSelection"
 import ColumnVisibilityProvider from "../providers/ColumnVisibilityProvider"
 import type {InfiniteVirtualTableProps} from "../types"
@@ -69,6 +70,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     keyboardShortcuts,
     expandable,
     tableRef,
+    disableInteractiveClickGuard = false,
 }: InfiniteVirtualTableInnerProps<RecordType>) => {
     const generatedScopeId = useId()
     const resolvedScopeId = useMemo(
@@ -444,6 +446,36 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         tableHeaderHeight,
     ])
 
+    // Sync .ant-table-header scroll position with .ant-table-body on every horizontal scroll.
+    //
+    // AntD's virtual Table syncs header/body scroll internally, but it can lose sync after
+    // column visibility changes, resizes, or scroll-config updates that trigger a re-render.
+    // We attach our own passive scroll listener as a safety net: when it fires, the header is
+    // already correct (AntD's handler ran first), so this is a no-op in the happy path.
+    // When AntD's sync breaks, our listener corrects the header on the very next scroll tick.
+    useEffect(() => {
+        const container = containerRef.current
+        if (!container) return
+
+        const body = container.querySelector<HTMLElement>(".ant-table-body")
+        const header = container.querySelector<HTMLElement>(".ant-table-header")
+        if (!body || !header) return
+
+        const sync = () => {
+            if (header.scrollLeft !== body.scrollLeft) {
+                header.scrollLeft = body.scrollLeft
+            }
+        }
+
+        body.addEventListener("scroll", sync, {passive: true})
+        // Correct any drift that happened during the re-render that triggered this effect
+        sync()
+
+        return () => {
+            body.removeEventListener("scroll", sync)
+        }
+    }, [finalColumns, scrollConfig.x])
+
     // Memoize dependencies object to prevent unnecessary useEffect runs in useScrollContainer
     // Without memoization, a new object is created every render, causing infinite loops during scroll
     const scrollContainerDeps = useMemo(
@@ -500,28 +532,43 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             const shortcutProps = getShortcutRowProps
                 ? (getShortcutRowProps(record, index) ?? {})
                 : {}
-            if (!shortcutProps || Object.keys(shortcutProps).length === 0) {
-                return baseProps
+
+            const baseOnClick = baseProps?.onClick
+            const guardedOnClick =
+                !disableInteractiveClickGuard && baseOnClick
+                    ? (event: React.MouseEvent<HTMLTableRowElement>) => {
+                          if (shouldIgnoreRowClick(event)) return
+                          baseOnClick(event)
+                      }
+                    : baseOnClick
+
+            const hasShortcuts = shortcutProps && Object.keys(shortcutProps).length > 0
+            if (!hasShortcuts) {
+                if (guardedOnClick === baseOnClick) return baseProps
+                return {...baseProps, onClick: guardedOnClick}
             }
             return {
                 ...baseProps,
                 ...shortcutProps,
                 className: clsx(baseProps?.className, shortcutProps?.className),
                 onMouseEnter: mergeHandlers(baseProps?.onMouseEnter, shortcutProps?.onMouseEnter),
+                onClick: guardedOnClick,
             }
         },
-        [finalTableProps.onRow, getShortcutRowProps],
+        [finalTableProps.onRow, getShortcutRowProps, disableInteractiveClickGuard],
     )
 
     const tablePropsWithShortcuts = useMemo<TableProps<RecordType>>(() => {
-        if (!getShortcutRowProps) {
+        const needsMerge =
+            getShortcutRowProps || (Boolean(finalTableProps.onRow) && !disableInteractiveClickGuard)
+        if (!needsMerge) {
             return finalTableProps
         }
         return {
             ...finalTableProps,
             onRow: mergedOnRow,
         }
-    }, [finalTableProps, getShortcutRowProps, mergedOnRow])
+    }, [finalTableProps, getShortcutRowProps, mergedOnRow, disableInteractiveClickGuard])
 
     const tableRowSelection = useTableRowSelection(rowSelection)
 

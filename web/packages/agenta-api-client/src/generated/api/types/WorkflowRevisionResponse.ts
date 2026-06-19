@@ -9,4 +9,6 @@ export interface WorkflowRevisionResponse {
     workflow_revision?: (AgentaApi.WorkflowRevisionOutput | null) | undefined;
     /** Reference-resolution metadata; populated when `resolve=true` on retrieve. */
     resolution_info?: (AgentaApi.ResolutionInfo | null) | undefined;
+    /** References used to retrieve the top-level revision. */
+    retrieval_info?: (AgentaApi.RetrievalInfo | null) | undefined;
 }

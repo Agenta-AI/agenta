@@ -51,6 +51,12 @@ export interface EvalDrawerMetricSection {
     id: string
     label: string
     kind: "annotation" | "metric"
+    /**
+     * For "annotation" sections this is the trace_id of the annotation's
+     * evaluation step (one trace per evaluator). For "metric" sections it
+     * is left undefined because run-level metrics have no per-row trace.
+     */
+    traceId?: string
     columns: EvaluationTableColumn[]
 }
 
@@ -58,16 +64,25 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
     !!value && typeof value === "object" && !Array.isArray(value)
 
 const getPathValue = (value: unknown, path: string): unknown => {
-    if (!isRecord(value)) return undefined
+    // Arrays are valid roots/intermediates: paths like "trees.0.tree.id"
+    // need to traverse `trees` (an array) by numeric index.
+    if (!isRecord(value) && !Array.isArray(value)) return undefined
 
-    if (Object.prototype.hasOwnProperty.call(value, path)) {
-        return value[path]
+    if (
+        isRecord(value) &&
+        Object.prototype.hasOwnProperty.call(value as Record<string, unknown>, path)
+    ) {
+        return (value as Record<string, unknown>)[path]
     }
 
     return path
         .split(".")
         .filter(Boolean)
         .reduce<unknown>((current, segment) => {
+            if (Array.isArray(current)) {
+                const index = Number(segment)
+                return Number.isInteger(index) ? current[index] : undefined
+            }
             if (!isRecord(current)) return undefined
             return current[segment]
         }, value)
@@ -231,19 +246,41 @@ const buildStaticMetricColumn = (
     } as EvaluationTableColumn & {__source: "runMetric"}
 }
 
+const findAnnotationTraceId = (
+    steps: unknown[],
+    columns: EvaluationTableColumn[],
+): string | undefined => {
+    const candidateStepKeys = Array.from(
+        new Set(columns.map((column) => column.stepKey).filter(Boolean) as string[]),
+    )
+    if (!candidateStepKeys.length) return undefined
+
+    for (const candidate of candidateStepKeys) {
+        const step = steps.find((value) => getStepKey(value) === candidate)
+        const traceId = getStepTraceId(step)
+        if (traceId) return traceId
+    }
+    return undefined
+}
+
 export function mapEvalMetricSections({
     groups,
     columns,
+    steps = [],
 }: {
     groups: EvaluationTableColumnGroup[]
     columns: EvaluationTableColumn[]
+    steps?: unknown[]
 }): EvalDrawerMetricSection[] {
     const columnMap = new Map(columns.map((column) => [column.id, column]))
     const seenStaticMetricSignatures = new Set<string>()
 
     return groups
-        .filter((group) => group.kind === "annotation" || group.kind === "metric")
-        .map((group) => {
+        .filter(
+            (group): group is EvaluationTableColumnGroup & {kind: "annotation" | "metric"} =>
+                group.kind === "annotation" || group.kind === "metric",
+        )
+        .map<EvalDrawerMetricSection>((group) => {
             const dynamicColumns = group.columnIds
                 .map((columnId) => columnMap.get(columnId))
                 .filter((column): column is EvaluationTableColumn => Boolean(column))
@@ -251,12 +288,17 @@ export function mapEvalMetricSections({
                 group.staticMetricColumns?.map((definition) =>
                     buildStaticMetricColumn(group.id, definition),
                 ) ?? []
+            const allColumns = [...dynamicColumns, ...staticColumns]
 
             return {
                 id: group.id,
                 label: group.label,
                 kind: group.kind,
-                columns: [...dynamicColumns, ...staticColumns],
+                traceId:
+                    group.kind === "annotation"
+                        ? findAnnotationTraceId(steps, allColumns)
+                        : undefined,
+                columns: allColumns,
             }
         })
         .filter((section) => {

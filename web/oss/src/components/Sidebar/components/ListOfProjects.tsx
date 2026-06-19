@@ -21,10 +21,13 @@ import {useRouter} from "next/router"
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {createProject, deleteProject, patchProject} from "@/oss/services/project"
 import type {ProjectsResponse} from "@/oss/services/project/types"
+import {appIdentifiersAtom} from "@/oss/state/appState"
 import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {cacheLastUsedProjectId, useProjectData} from "@/oss/state/project"
 import {settingsTabAtom} from "@/oss/state/settings"
+
+import {buildProjectSwitchHref} from "./assets/projectSwitchHref"
 
 interface ListOfProjectsProps {
     collapsed: boolean
@@ -57,6 +60,7 @@ const ListOfProjects = ({
     const {orgs} = useOrgData()
     const {project, projects, refetch} = useProjectData()
     const settingsTab = useAtomValue(settingsTabAtom)
+    const {workspaceId: currentWorkspaceId} = useAtomValue(appIdentifiersAtom)
 
     const totalProjects = useMemo(() => projects.filter(Boolean).length, [projects])
     const canDeleteProjects = totalProjects > 1
@@ -106,7 +110,8 @@ const ListOfProjects = ({
     )
 
     const createMutation = useMutation({
-        mutationFn: ({name}: ProjectFormValues) => createProject({name: name.trim()}),
+        mutationFn: ({name}: ProjectFormValues) =>
+            createProject({name: name.trim()}, currentWorkspaceId ?? undefined),
         onSuccess: (createdProject) => {
             message.success("Project created")
             createForm.resetFields()
@@ -133,7 +138,7 @@ const ListOfProjects = ({
 
     const renameMutation = useMutation({
         mutationFn: ({projectId, name}: {projectId: string; name: string}) =>
-            patchProject(projectId, {name: name.trim()}),
+            patchProject(projectId, {name: name.trim()}, currentWorkspaceId ?? undefined),
         onSuccess: () => {
             message.success("Project renamed")
             void refreshProjects()
@@ -149,7 +154,8 @@ const ListOfProjects = ({
     })
 
     const defaultMutation = useMutation({
-        mutationFn: (projectId: string) => patchProject(projectId, {make_default: true}),
+        mutationFn: (projectId: string) =>
+            patchProject(projectId, {make_default: true}, currentWorkspaceId ?? undefined),
         onSuccess: () => {
             message.success("Default project updated")
             void refreshProjects()
@@ -162,7 +168,8 @@ const ListOfProjects = ({
     })
 
     const deleteMutation = useMutation({
-        mutationFn: (projectId: string) => deleteProject(projectId),
+        mutationFn: (projectId: string) =>
+            deleteProject(projectId, currentWorkspaceId ?? undefined),
         onSuccess: () => {
             message.success("Project deleted")
             void refreshProjects()
@@ -261,19 +268,13 @@ const ListOfProjects = ({
             cacheLastUsedProjectId(workspaceId, projectId)
             if (organizationId) cacheWorkspaceOrgPair(workspaceId, organizationId)
 
-            // Extract the current page path to preserve navigation context
-            const currentPathMatch = router.asPath.match(/\/p\/[^/]+\/(.*)/)
-            const currentPagePath = currentPathMatch?.[1]?.split("?")[0] ?? "apps"
-
-            // Preserve query params for settings tab
-            const isOnSettingsPage = currentPagePath.startsWith("settings")
-            const currentTab =
-                (settingsTab && settingsTab !== "workspace" ? settingsTab : undefined) ??
-                (router.query.tab as string | undefined)
-            const tabParam =
-                isOnSettingsPage && currentTab ? `?tab=${encodeURIComponent(currentTab)}` : ""
-
-            const href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/${currentPagePath}${tabParam}`
+            const href = buildProjectSwitchHref({
+                workspaceId,
+                projectId,
+                currentAsPath: router.asPath,
+                settingsTab,
+                queryTab: router.query.tab as string | undefined,
+            })
 
             void router.push(href)
         },
@@ -409,7 +410,7 @@ const ListOfProjects = ({
                     <div className="flex items-center gap-2 w-full max-w-[300px]">
                         <span className="truncate">{proj.project_name}</span>
                         {proj.is_default_project && (
-                            <Tag className="bg-[#0517290F] m-0">default</Tag>
+                            <Tag className="bg-[var(--ag-c-0517290F)] m-0">default</Tag>
                         )}
                     </div>
                 ),

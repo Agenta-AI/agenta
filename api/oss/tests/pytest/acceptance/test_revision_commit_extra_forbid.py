@@ -60,7 +60,7 @@ def test_commit_workflow_revision_rejects_unknown_data_field(authed_api):
         authed_api,
         "/workflows/revisions/commit",
         {
-            "workflow_revision_commit": {
+            "workflow_revision": {
                 "slug": uuid4().hex[-12:],
                 "workflow_id": workflow["id"],
                 "workflow_variant_id": variant["id"],
@@ -121,7 +121,7 @@ def test_commit_application_revision_rejects_unknown_data_field(authed_api):
         authed_api,
         "/applications/revisions/commit",
         {
-            "application_revision_commit": {
+            "application_revision": {
                 "application_id": application["id"],
                 "application_variant_id": variant["id"],
                 "data": {"ag_config": {"prompt": {}}},
@@ -181,7 +181,7 @@ def test_commit_evaluator_revision_rejects_unknown_data_field(authed_api):
         authed_api,
         "/evaluators/revisions/commit",
         {
-            "evaluator_revision_commit": {
+            "evaluator_revision": {
                 "evaluator_id": evaluator["id"],
                 "evaluator_variant_id": variant["id"],
                 "data": {"ag_config": {"prompt": {}}},
@@ -226,7 +226,7 @@ def test_commit_testset_revision_rejects_unknown_data_field(authed_api):
         authed_api,
         "/testsets/revisions/commit",
         {
-            "testset_revision_commit": {
+            "testset_revision": {
                 "slug": uuid4().hex[-12:],
                 "testset_id": testset["id"],
                 "testset_variant_id": variant["id"],
@@ -260,7 +260,7 @@ def test_commit_query_revision_rejects_unknown_data_field(authed_api):
         authed_api,
         "/queries/revisions/commit",
         {
-            "query_revision_commit": {
+            "query_revision": {
                 "slug": uuid4().hex[-12:],
                 "query_id": query["id"],
                 "query_variant_id": query["variant_id"],
@@ -306,7 +306,7 @@ def test_commit_environment_revision_rejects_unknown_data_field(authed_api):
         authed_api,
         "/environments/revisions/commit",
         {
-            "environment_revision_commit": {
+            "environment_revision": {
                 "slug": uuid4().hex[-12:],
                 "environment_id": environment["id"],
                 "environment_variant_id": variant["id"],

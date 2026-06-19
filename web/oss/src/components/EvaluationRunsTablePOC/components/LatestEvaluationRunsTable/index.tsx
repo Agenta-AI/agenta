@@ -73,6 +73,10 @@ const LatestEvaluationRunsTable = ({
                     appId,
                     projectIdOverride,
                     includePreview,
+                    // Fixed-size summary (no infinite scroll): over-fetch so the
+                    // subject filter doesn't leave it falsely empty when the
+                    // workflow is graded more than it's evaluated.
+                    fillToLimit: true,
                     ...(appScoped && {scope: "app" as const}),
                 }}
                 pageSize={limit}
@@ -92,7 +96,7 @@ const LatestEvaluationRunsTable = ({
                     hideOnboardingVideos={true}
                     className={clsx(
                         withContainerStyles &&
-                            "border border-gray-100 rounded-lg px-2 py-4 bg-white shadow-sm",
+                            "border border-gray-100 rounded-lg px-2 py-4 bg-[var(--ag-c-FFFFFF)] shadow-sm",
                     )}
                 />
             </EvaluationRunsTableStoreProvider>

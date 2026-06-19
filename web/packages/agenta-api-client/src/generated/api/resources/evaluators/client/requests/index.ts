@@ -4,7 +4,6 @@ export type { ArchiveEvaluatorVariantRequest } from "./ArchiveEvaluatorVariantRe
 export type { ArchiveSimpleEvaluatorRequest } from "./ArchiveSimpleEvaluatorRequest.js";
 export type { EvaluatorCreateRequest } from "./EvaluatorCreateRequest.js";
 export type { EvaluatorEditRequest } from "./EvaluatorEditRequest.js";
-export type { EvaluatorForkRequest } from "./EvaluatorForkRequest.js";
 export type { EvaluatorQueryRequest } from "./EvaluatorQueryRequest.js";
 export type { EvaluatorRevisionCommitRequest } from "./EvaluatorRevisionCommitRequest.js";
 export type { EvaluatorRevisionCreateRequest } from "./EvaluatorRevisionCreateRequest.js";
@@ -16,6 +15,7 @@ export type { EvaluatorRevisionRetrieveRequest } from "./EvaluatorRevisionRetrie
 export type { EvaluatorRevisionsLogRequest } from "./EvaluatorRevisionsLogRequest.js";
 export type { EvaluatorVariantCreateRequest } from "./EvaluatorVariantCreateRequest.js";
 export type { EvaluatorVariantEditRequest } from "./EvaluatorVariantEditRequest.js";
+export type { EvaluatorVariantForkRequest } from "./EvaluatorVariantForkRequest.js";
 export type { FetchEvaluatorCatalogPresetRequest } from "./FetchEvaluatorCatalogPresetRequest.js";
 export type { FetchEvaluatorCatalogTemplateRequest } from "./FetchEvaluatorCatalogTemplateRequest.js";
 export type { FetchEvaluatorRequest } from "./FetchEvaluatorRequest.js";

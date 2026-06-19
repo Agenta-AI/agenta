@@ -93,6 +93,7 @@ const useEvaluationRunsColumns = ({
     onVariantNavigation,
     onTestsetNavigation,
     onRequestDelete,
+    onEditEvaluation,
     resolveAppId,
     onExportRow,
     rowExportingKey,
@@ -102,8 +103,10 @@ const useEvaluationRunsColumns = ({
     const setEvaluatorBlueprint = useSetAtom(blueprintAtom)
     const stableRows = rows
 
-    // Track seen run IDs to avoid recomputing metric groups when only new rows are added
-    const seenRunIdsRef = useRef<Set<string>>(new Set())
+    // Signature of (runId + annotation step keys) across rows. Recompute the metric-group
+    // blueprint when the set of runs OR any existing run's evaluator steps change (e.g. an
+    // evaluator added to an already-loaded run via the edit drawer) — not just on new runs.
+    const previewSignatureRef = useRef<string>("")
     const stablePreviewEntriesRef = useRef<
         {
             runId: string | null
@@ -121,7 +124,7 @@ const useEvaluationRunsColumns = ({
     // Reset refs and evaluator blueprint when evaluationKind changes (tab switch)
     useEffect(() => {
         if (prevEvaluationKindRef.current !== evaluationKind) {
-            seenRunIdsRef.current = new Set()
+            previewSignatureRef.current = ""
             stablePreviewEntriesRef.current = []
             stableReferenceBlueprintRef.current = []
             // Also reset the evaluator blueprint atom to clear stale column data
@@ -140,18 +143,32 @@ const useEvaluationRunsColumns = ({
             }))
             .filter((entry) => Boolean(entry.runId))
 
-        // Check if we have any new run IDs that we haven't seen before
-        const currentRunIds = new Set(entries.map((e) => e.runId).filter(Boolean) as string[])
-        const hasNewRuns = [...currentRunIds].some((id) => !seenRunIdsRef.current.has(id))
+        // Recompute when the runs OR any run's annotation (evaluator) steps change.
+        const signature = entries
+            .map((entry) => {
+                const steps = Array.isArray(entry.meta?.steps) ? entry.meta.steps : []
+                const annotationKeys = steps
+                    .filter(
+                        (step) =>
+                            typeof step?.key === "string" &&
+                            typeof step?.type === "string" &&
+                            step.type.toLowerCase() === "annotation",
+                    )
+                    .map((step) => step.key as string)
+                    .sort()
+                    .join(",")
+                return `${entry.runId}#${annotationKeys}`
+            })
+            .sort()
+            .join("|")
 
-        if (hasNewRuns) {
-            // Update seen run IDs
-            currentRunIds.forEach((id) => seenRunIdsRef.current.add(id))
+        if (signature !== previewSignatureRef.current) {
+            previewSignatureRef.current = signature
             stablePreviewEntriesRef.current = entries
             return entries
         }
 
-        // Return stable reference if no new runs
+        // Return stable reference when nothing structural changed
         return stablePreviewEntriesRef.current.length > 0
             ? stablePreviewEntriesRef.current
             : entries
@@ -214,7 +231,8 @@ const useEvaluationRunsColumns = ({
             const stepInfoMap = new Map<
                 string,
                 {
-                    slug: string
+                    slug: string | null
+                    groupKey: string
                     label: string
                     id: string | null
                     handles: EvaluatorHandles
@@ -231,10 +249,10 @@ const useEvaluationRunsColumns = ({
                     evaluatorHandles.projectId = projectId
                 }
                 const evaluatorRef = resolveEvaluatorReferenceCandidate(refs)
-                const slugCandidate =
-                    evaluatorHandles.slug ??
-                    normalizeString(evaluatorRef?.slug) ??
-                    normalizeString(evaluatorRef?.key) ??
+                const slugCandidate = evaluatorHandles.slug ?? normalizeString(evaluatorRef?.slug)
+                const groupKey =
+                    slugCandidate ??
+                    evaluatorHandles.id ??
                     normalizeString(evaluatorRef?.id) ??
                     normalizeString(step.key) ??
                     step.key
@@ -242,9 +260,11 @@ const useEvaluationRunsColumns = ({
                     evaluatorHandles.name ??
                     normalizeString(evaluatorRef?.name) ??
                     slugCandidate ??
+                    groupKey ??
                     step.key
                 stepInfoMap.set(step.key, {
-                    slug: slugCandidate ?? step.key,
+                    slug: slugCandidate,
+                    groupKey,
                     label: humanizeEvaluatorName(labelCandidate ?? step.key),
                     id: evaluatorHandles.id ?? normalizeString(evaluatorRef?.id) ?? null,
                     handles: evaluatorHandles,
@@ -261,7 +281,7 @@ const useEvaluationRunsColumns = ({
                 const metricPath = normalizeString(mapping?.path)
                 if (!metricPath) return
                 const canonicalPath = canonicalizeMetricKey(metricPath)
-                const descriptorId = `${stepInfo.slug}:${canonicalPath}`
+                const descriptorId = `${stepInfo.groupKey}:${canonicalPath}`
                 const metricLabelSource = mapping?.name ?? metricPath
                 const metricLabel = humanizeMetricPath(metricLabelSource ?? metricPath)
                 const outputType = normalizeString(mapping?.outputType)?.toLowerCase() ?? null
@@ -273,17 +293,17 @@ const useEvaluationRunsColumns = ({
                 const referenceIdCandidate =
                     handles.id ?? handles.revisionId ?? handles.variantId ?? stepInfo.id ?? null
 
-                let group = groups.get(stepInfo.slug)
+                let group = groups.get(stepInfo.groupKey)
                 if (!group) {
                     group = {
-                        id: stepInfo.slug,
+                        id: stepInfo.groupKey,
                         label: stepInfo.label,
                         referenceId: referenceIdCandidate,
                         projectIds: new Set<string>(),
                         handles: handles,
                         metrics: new Map<string, RunMetricDescriptor>(),
                     }
-                    groups.set(stepInfo.slug, group)
+                    groups.set(stepInfo.groupKey, group)
                 }
                 if (referenceIdCandidate && !group.referenceId) {
                     group.referenceId = referenceIdCandidate
@@ -308,7 +328,7 @@ const useEvaluationRunsColumns = ({
                         stepKeysByRunId: {[runId]: stepKey},
                         metricPathsByRunId: {[runId]: metricPath},
                         evaluatorRef: {
-                            slug: handles.slug ?? stepInfo.slug,
+                            slug: handles.slug ?? stepInfo.slug ?? null,
                             id: handles.id ?? null,
                             variantId: handles.variantId ?? null,
                             variantSlug: handles.variantSlug ?? null,
@@ -336,7 +356,7 @@ const useEvaluationRunsColumns = ({
                     }
                     const priorRef = descriptor.evaluatorRef ?? {}
                     descriptor.evaluatorRef = {
-                        slug: priorRef.slug ?? handles.slug ?? stepInfo.slug,
+                        slug: priorRef.slug ?? handles.slug ?? stepInfo.slug ?? null,
                         id: priorRef.id ?? handles.id ?? null,
                         variantId: priorRef.variantId ?? handles.variantId ?? null,
                         variantSlug: priorRef.variantSlug ?? handles.variantSlug ?? null,
@@ -834,6 +854,7 @@ const useEvaluationRunsColumns = ({
                         onVariantNavigation={onVariantNavigation}
                         onTestsetNavigation={onTestsetNavigation}
                         onRequestDelete={onRequestDelete}
+                        onEditEvaluation={onEditEvaluation}
                         resolveAppId={resolveAppId}
                         isVisible
                         onExportRow={onExportRow}
@@ -852,6 +873,7 @@ const useEvaluationRunsColumns = ({
         onVariantNavigation,
         onTestsetNavigation,
         onRequestDelete,
+        onEditEvaluation,
         resolveAppId,
         onExportRow,
         rowExportingKey,

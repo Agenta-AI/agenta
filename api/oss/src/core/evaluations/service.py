@@ -18,9 +18,11 @@ from oss.src.core.evaluations.types import (
     EvaluationRunDataMappingColumn,
     EvaluationRunDataMappingStep,
     EvaluationRunDataMapping,
-    EvaluationRunDataStepInput,
+    EvaluationRunDataStepInputKey,
     EvaluationRunDataStep,
+    EvaluationRunDataConcurrency,
     EvaluationRunData,
+    JsonSchemas,
     EvaluationRun,
     EvaluationRunCreate,
     EvaluationRunEdit,
@@ -33,12 +35,10 @@ from oss.src.core.evaluations.types import (
     # EVALUATION RESULT
     EvaluationResult,
     EvaluationResultCreate,
-    EvaluationResultEdit,
     EvaluationResultQuery,
     # EVALUATION METRICS
     EvaluationMetrics,
     EvaluationMetricsCreate,
-    EvaluationMetricsEdit,
     EvaluationMetricsQuery,
     EvaluationMetricsRefresh,
     # EVALUATION QUEUE
@@ -49,6 +49,11 @@ from oss.src.core.evaluations.types import (
     EvaluationQueueData,
     EvaluationQueueEdit,
     EvaluationQueueQuery,
+    # DEFAULT QUEUE EXCEPTIONS
+    DefaultQueueDataInvalid,
+    DefaultQueueDemotionForbidden,
+    DefaultQueueDeletionForbidden,
+    DefaultQueueArchiveForbidden,
 )
 from oss.src.core.evaluations.types import (
     Target,
@@ -72,6 +77,7 @@ from oss.src.core.evaluations.types import (
     SimpleQueueSettings,
 )
 from oss.src.core.evaluations.types import CURRENT_VERSION
+from oss.src.core.evaluations.types import EvaluationClosedConflict
 from oss.src.core.tracing.dtos import (
     TracingQuery,
     Filtering,
@@ -90,6 +96,8 @@ from oss.src.core.testsets.dtos import TestsetRevision
 from oss.src.core.evaluators.dtos import EvaluatorRevision
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.testsets.service import TestsetsService
+from oss.src.core.testcases.service import TestcasesService
+from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.applications.service import ApplicationsService
 
 from oss.src.core.evaluations.utils import (
@@ -100,9 +108,19 @@ from oss.src.core.evaluations.utils import (
 )
 
 from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
+from oss.src.core.evaluations.runtime.topology import classify_run_topology
+from oss.src.core.evaluations.runtime.sources import SourceResolution
+from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
+from oss.src.core.evaluations.runtime.types import RunSlice
+from oss.src.core.evaluations.runtime.operations import SliceOperations
 
 
 log = get_module_logger(__name__)
+
+# Product policy toggle: when True, every evaluation run keeps a default queue
+# even when it has no human evaluators. Keep this as a global until the product
+# decision is finalized.
+EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS = False
 
 if TYPE_CHECKING:
     from oss.src.tasks.taskiq.evaluations.worker import EvaluationsWorker
@@ -191,6 +209,9 @@ class EvaluationsService:
         testsets_service: TestsetsService,
         evaluators_service: EvaluatorsService,
         evaluations_worker: Optional["EvaluationsWorker"] = None,
+        testcases_service: Optional[TestcasesService] = None,
+        workflows_service: Optional[WorkflowsService] = None,
+        applications_service: Optional[ApplicationsService] = None,
     ):
         self.evaluations_dao = evaluations_dao
 
@@ -199,6 +220,35 @@ class EvaluationsService:
         self.testsets_service = testsets_service
         self.evaluators_service = evaluators_service
         self.evaluations_worker = evaluations_worker
+        self.testcases_service = testcases_service
+        self.workflows_service = workflows_service
+        self.applications_service = applications_service
+        self.evaluations_task_runner = (
+            TaskiqEvaluationTaskRunner(worker=evaluations_worker)
+            if evaluations_worker is not None
+            else None
+        )
+
+        # Run slice ops (probe/populate run in-process; process dispatches
+        # async via taskiq). Built here so the service owns its runtime
+        # collaborator, like `evaluations_task_runner` above. `APISliceProcessor`
+        # lives in `tasks/processor.py` which imports this module, so it is
+        # imported locally to avoid a circular import. Requires the sub-services
+        # the SDK engine needs; absent those (e.g. worker/parser contexts) the
+        # ops degrade to None and probe/populate no-op.
+        self.run_slice_operations: Optional[SliceOperations] = None
+        if testcases_service is not None and workflows_service is not None:
+            from oss.src.core.evaluations.tasks.processor import APISliceProcessor
+
+            self.run_slice_operations = SliceOperations(
+                evaluations_service=self,
+                slice_processor=APISliceProcessor(
+                    evaluations_service=self,
+                    tracing_service=tracing_service,
+                    testcases_service=testcases_service,
+                    workflows_service=workflows_service,
+                ),
+            )
 
     ### CRUD
 
@@ -225,7 +275,7 @@ class EvaluationsService:
             log.error(e, exc_info=True)
             return False
 
-        if self.evaluations_worker is None:
+        if self.evaluations_task_runner is None:
             log.warning(
                 "[LIVE] Taskiq client is not configured; skipping live run dispatch"
             )
@@ -266,12 +316,10 @@ class EvaluationsService:
                     run=run,
                 )
 
-                await self.evaluations_worker.evaluate_live_query.kiq(
+                await self.evaluations_task_runner.process_run_from_source(
                     project_id=project_id,
                     user_id=user_id,
-                    #
                     run_id=run.id,
-                    #
                     newest=newest,
                     oldest=oldest,
                 )
@@ -359,34 +407,99 @@ class EvaluationsService:
         user_id: UUID,
         run: EvaluationRun,
     ) -> None:
-        """Create an EvaluationQueue for human annotation steps if none exists for this run."""
-        if not run.id or not run.data or not run.data.steps:
-            return
-
-        human_step_keys = [
-            step.key
-            for step in run.data.steps
-            if step.type == "annotation" and step.origin == "human" and step.key
-        ]
-
-        if not human_step_keys:
-            return
-
-        existing_queues = await self.query_queues(
-            project_id=project_id,
-            queue=EvaluationQueueQuery(run_id=run.id),
-        )
-        if any(q.run_id == run.id for q in existing_queues):
-            return
-
-        await self.create_queue(
+        await self._reconcile_default_queue(
             project_id=project_id,
             user_id=user_id,
-            queue=EvaluationQueueCreate(
-                run_id=run.id,
-                status=EvaluationStatus.RUNNING,
-                data=EvaluationQueueData(step_keys=human_step_keys),
+            run=run,
+        )
+
+    async def fetch_default_queue(
+        self,
+        *,
+        project_id: UUID,
+        run_id: UUID,
+        include_archived: Optional[bool] = False,
+    ) -> Optional[EvaluationQueue]:
+        queues = await self.query_queues(
+            project_id=project_id,
+            queue=EvaluationQueueQuery(
+                run_id=run_id,
+                flags=EvaluationQueueQueryFlags(is_default=True),
+                include_archived=include_archived,
             ),
+        )
+        return queues[0] if queues else None
+
+    async def _reconcile_default_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        run: EvaluationRun,
+    ) -> EvaluationRun:
+        if not run.id:
+            return run
+
+        has_human = bool(run.flags and run.flags.has_human)
+        should_exist = EVALUATIONS_DEFAULT_QUEUES_FOR_ALL_RUNS or has_human
+        default_queue = await self.fetch_default_queue(
+            project_id=project_id,
+            run_id=run.id,
+            include_archived=True,
+        )
+
+        if should_exist:
+            if default_queue is None:
+                default_queue = await self.create_queue(
+                    project_id=project_id,
+                    user_id=user_id,
+                    queue=EvaluationQueueCreate(
+                        run_id=run.id,
+                        name=run.name,
+                        description=run.description,
+                        status=EvaluationStatus.RUNNING,
+                        flags=EvaluationQueueFlags(is_default=True),
+                        data=EvaluationQueueData(),
+                    ),
+                )
+            elif default_queue.deleted_at is not None:
+                default_queue = await self.unarchive_queue(
+                    project_id=project_id,
+                    user_id=user_id,
+                    queue_id=default_queue.id,
+                )
+        elif default_queue is not None and default_queue.deleted_at is None:
+            default_queue = await self.archive_queue(
+                project_id=project_id,
+                user_id=user_id,
+                queue_id=default_queue.id,
+                force=True,
+            )
+
+        is_queue = bool(
+            has_human and default_queue is not None and default_queue.deleted_at is None
+        )
+        if run.flags and run.flags.is_queue == is_queue:
+            return run
+
+        flags = run.flags.model_copy() if run.flags else EvaluationRunFlags()
+        flags.is_queue = is_queue
+        return (
+            await self.evaluations_dao.edit_run(
+                project_id=project_id,
+                user_id=user_id,
+                run=EvaluationRunEdit(
+                    id=run.id,
+                    name=run.name,
+                    description=run.description,
+                    flags=flags,
+                    tags=run.tags,
+                    meta=run.meta,
+                    status=run.status,
+                    data=run.data,
+                ),
+            )
+            or run
         )
 
     async def fetch_live_runs(
@@ -429,10 +542,126 @@ class EvaluationsService:
         Checks Redis for eval:run:{run_id}:lock.
         """
         from oss.src.core.evaluations.runtime.locks import (
-            has_mutation_lock as _has_mutation_lock,
+            has_run_lock as _has_mutation_lock,
         )
 
         return await _has_mutation_lock(run_id=str(run_id))
+
+    @staticmethod
+    def _step_keys(run: Optional[EvaluationRun]) -> set:
+        if run is None or run.data is None or not run.data.steps:
+            return set()
+        return {step.key for step in run.data.steps}
+
+    async def _reconcile_run(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run: EvaluationRun,
+        prior_step_keys: set,
+    ) -> EvaluationRun:
+        """Bring all run-derived state in line with the run's current graph.
+
+        This is the single post-write reconciliation path shared by create and
+        edit. `create_run` is just `edit_run` starting from an empty graph: it
+        passes `prior_step_keys=set()`, so the prune step is a no-op (there are
+        no prior cells), while the default-queue reconciliation runs identically
+        in both cases.
+
+        Steps:
+          1. prune run cells (and input-only scenarios + their metrics) for
+             any step that existed before but is gone from the current graph,
+             per `docs/designs/unified-eval-loops/step-removal-semantics.md`.
+          2. reconcile the default queue + `is_queue` from the current graph.
+        """
+        await self._prune_removed_steps(
+            project_id=project_id,
+            user_id=user_id,
+            run=run,
+            removed_step_keys=prior_step_keys - self._step_keys(run),
+        )
+
+        return await self._reconcile_default_queue(
+            project_id=project_id,
+            user_id=user_id,
+            run=run,
+        )
+
+    async def _prune_removed_steps(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run: EvaluationRun,
+        removed_step_keys: set,
+    ) -> None:
+        """Destructively prune cells, orphan scenarios, and metrics for steps
+        that left the graph. Removal is destructive (Model A): stored graph and
+        stored run shape keep the same shape. A no-op when nothing was removed.
+        """
+        if not removed_step_keys or not run.id:
+            return
+
+        removed_results = await self.query_results(
+            project_id=project_id,
+            result=EvaluationResultQuery(
+                run_id=run.id,
+                step_keys=sorted(removed_step_keys),
+            ),
+        )
+        affected_scenario_ids = sorted(
+            {r.scenario_id for r in removed_results if r.scenario_id},
+            key=str,
+        )
+
+        removed_result_ids = [r.id for r in removed_results if r.id]
+        if removed_result_ids:
+            await self.delete_results(
+                project_id=project_id,
+                result_ids=removed_result_ids,
+            )
+
+        # Scenarios sourced only from a removed step have no remaining cells.
+        remaining = await self.query_results(
+            project_id=project_id,
+            result=EvaluationResultQuery(
+                run_id=run.id,
+                scenario_ids=list(affected_scenario_ids),
+            ),
+        )
+        scenarios_with_cells = {r.scenario_id for r in remaining if r.scenario_id}
+        orphan_scenario_ids: List[UUID] = [
+            scenario_id
+            for scenario_id in affected_scenario_ids
+            if scenario_id not in scenarios_with_cells
+        ]
+
+        if orphan_scenario_ids:
+            await self.delete_scenarios(
+                project_id=project_id,
+                scenario_ids=orphan_scenario_ids,
+            )
+
+        # Flush metrics for surviving affected scenarios so current metrics stay
+        # aligned with the post-removal graph. Orphans are gone.
+        orphans = set(orphan_scenario_ids)
+        surviving_scenario_ids = [
+            scenario_id
+            for scenario_id in affected_scenario_ids
+            if scenario_id not in orphans
+        ]
+        if surviving_scenario_ids:
+            await self.refresh_metrics(
+                project_id=project_id,
+                user_id=user_id,
+                metrics=EvaluationMetricsRefresh(
+                    run_id=run.id,
+                    scenario_ids=surviving_scenario_ids,
+                ),
+            )
 
     async def create_run(
         self,
@@ -444,12 +673,21 @@ class EvaluationsService:
     ) -> Optional[EvaluationRun]:
         run.version = CURRENT_VERSION
 
-        return await self.evaluations_dao.create_run(
+        created_run = await self.evaluations_dao.create_run(
             project_id=project_id,
             user_id=user_id,
             #
             run=run,
         )
+        if created_run:
+            # Create is edit from an empty graph: no prior steps to prune.
+            created_run = await self._reconcile_run(
+                project_id=project_id,
+                user_id=user_id,
+                run=created_run,
+                prior_step_keys=set(),
+            )
+        return created_run
 
     async def create_runs(
         self,
@@ -462,12 +700,21 @@ class EvaluationsService:
         for run in runs:
             run.version = CURRENT_VERSION
 
-        return await self.evaluations_dao.create_runs(
+        created_runs = await self.evaluations_dao.create_runs(
             project_id=project_id,
             user_id=user_id,
             #
             runs=runs,
         )
+        return [
+            await self._reconcile_run(
+                project_id=project_id,
+                user_id=user_id,
+                run=created_run,
+                prior_step_keys=set(),
+            )
+            for created_run in created_runs
+        ]
 
     async def fetch_run(
         self,
@@ -505,12 +752,25 @@ class EvaluationsService:
     ) -> Optional[EvaluationRun]:
         run.version = CURRENT_VERSION
 
-        return await self.evaluations_dao.edit_run(
+        # Capture the prior graph so reconciliation can prune any step the edit
+        # drops. An edit that omits a step is a destructive removal.
+        prior_run = await self.fetch_run(project_id=project_id, run_id=run.id)
+        prior_step_keys = self._step_keys(prior_run)
+
+        edited_run = await self.evaluations_dao.edit_run(
             project_id=project_id,
             user_id=user_id,
             #
             run=run,
         )
+        if edited_run:
+            edited_run = await self._reconcile_run(
+                project_id=project_id,
+                user_id=user_id,
+                run=edited_run,
+                prior_step_keys=prior_step_keys,
+            )
+        return edited_run
 
     async def edit_runs(
         self,
@@ -523,12 +783,29 @@ class EvaluationsService:
         for run in runs:
             run.version = CURRENT_VERSION
 
-        return await self.evaluations_dao.edit_runs(
+        prior_runs = await self.fetch_runs(
+            project_id=project_id,
+            run_ids=[run.id for run in runs],
+        )
+        prior_step_keys_by_id = {
+            prior_run.id: self._step_keys(prior_run) for prior_run in prior_runs
+        }
+
+        edited_runs = await self.evaluations_dao.edit_runs(
             project_id=project_id,
             user_id=user_id,
             #
             runs=runs,
         )
+        return [
+            await self._reconcile_run(
+                project_id=project_id,
+                user_id=user_id,
+                run=edited_run,
+                prior_step_keys=prior_step_keys_by_id.get(edited_run.id, set()),
+            )
+            for edited_run in edited_runs
+        ]
 
     async def delete_run(
         self,
@@ -808,7 +1085,7 @@ class EvaluationsService:
             result=result,
         )
 
-    async def create_results(
+    async def set_results(
         self,
         *,
         project_id: UUID,
@@ -819,7 +1096,7 @@ class EvaluationsService:
         for result in results:
             result.version = CURRENT_VERSION
 
-        return await self.evaluations_dao.create_results(
+        return await self.evaluations_dao.set_results(
             project_id=project_id,
             user_id=user_id,
             #
@@ -850,41 +1127,6 @@ class EvaluationsService:
             project_id=project_id,
             #
             result_ids=result_ids,
-        )
-
-    async def edit_result(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        result: EvaluationResultEdit,
-    ) -> Optional[EvaluationResult]:
-        result.version = CURRENT_VERSION
-
-        return await self.evaluations_dao.edit_result(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            result=result,
-        )
-
-    async def edit_results(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        results: List[EvaluationResultEdit],
-    ) -> List[EvaluationResult]:
-        for result in results:
-            result.version = CURRENT_VERSION
-
-        return await self.evaluations_dao.edit_results(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            results=results,
         )
 
     async def delete_result(
@@ -930,9 +1172,22 @@ class EvaluationsService:
             windowing=windowing,
         )
 
+    async def query_result_ids(
+        self,
+        *,
+        project_id: UUID,
+        #
+        result: Optional[EvaluationResultQuery] = None,
+    ) -> List[UUID]:
+        return await self.evaluations_dao.query_result_ids(
+            project_id=project_id,
+            #
+            result=result,
+        )
+
     # - EVALUATION METRIC ------------------------------------------------------
 
-    async def create_metrics(
+    async def set_metrics(
         self,
         *,
         project_id: UUID,
@@ -943,7 +1198,7 @@ class EvaluationsService:
         for metric in metrics:
             metric.version = CURRENT_VERSION
 
-        return await self.evaluations_dao.create_metrics(
+        return await self.evaluations_dao.set_metrics(
             project_id=project_id,
             user_id=user_id,
             #
@@ -961,24 +1216,6 @@ class EvaluationsService:
             project_id=project_id,
             #
             metrics_ids=metrics_ids,
-        )
-
-    async def edit_metrics(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        metrics: List[EvaluationMetricsEdit],
-    ) -> List[EvaluationMetrics]:
-        for metric in metrics:
-            metric.version = CURRENT_VERSION
-
-        return await self.evaluations_dao.edit_metrics(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            metrics=metrics,
         )
 
     async def delete_metrics(
@@ -1178,10 +1415,24 @@ class EvaluationsService:
                 steps_trace_ids[step_key] = trace_ids
 
         if not steps_trace_ids:
-            log.warning("[METRICS] No trace_ids found! Cannot extract metrics.")
+            # A human/custom annotation is run elsewhere (web / SDK), so it has no
+            # trace here by design — only warn if a step we expected to trace
+            # (an invocation or auto annotation) failed to produce one.
+            expected_traces = any(
+                step.type != "annotation" or step.origin not in {"human", "custom"}
+                for step in refreshable_steps
+            )
+            if expected_traces:
+                log.warning("[METRICS] No trace_ids found! Cannot extract metrics.")
             return []
 
-        inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
+        # Resolved metric keys per step (declared schema, else trace-inferred);
+        # become the run's `mappings`. Rewrite only when something was inferred.
+        metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
+        # Trace-inferred outputs schema per step, persisted onto the run step so
+        # the UI can type filter columns for schema-less evaluators.
+        inferred_schemas_by_step: Dict[str, Dict[str, Any]] = {}
+        any_inferred = False
 
         for step in refreshable_steps:
             steps_metrics_keys[step.key] = deepcopy(DEFAULT_METRICS)
@@ -1238,7 +1489,14 @@ class EvaluationsService:
                         schema=inferred_schema,
                     )
 
-                    inferred_metrics_keys_by_step[step.key] = metrics_keys
+                    if metrics_keys:
+                        any_inferred = True
+                        inferred_schemas_by_step[step.key] = inferred_schema
+
+                # Record declared + inferred keys; skip [] (would wipe the
+                # step's existing mapping without replacing it).
+                if metrics_keys:
+                    metrics_keys_by_step[step.key] = metrics_keys
 
                 steps_metrics_keys[step.key] += [
                     {
@@ -1249,13 +1507,24 @@ class EvaluationsService:
                     for metric_key in metrics_keys
                 ]
 
-        if inferred_metrics_keys_by_step and run and run.data:
-            await self._update_run_mappings_from_inferred_metrics(
-                project_id=project_id,
-                user_id=user_id,
-                run=run,
-                inferred_metrics_keys_by_step=inferred_metrics_keys_by_step,
-            )
+        # Rewrite mappings only if a schema was inferred this pass; declared-only
+        # runs already have correct mappings. Pass the full set (declared + inferred).
+        # A closed run can't be edited; skip the persist rather than abort the
+        # whole refresh (metric recompute/store below still needs to run).
+        if any_inferred and metrics_keys_by_step and run and run.data:
+            try:
+                await self._update_run_mappings_from_inferred_metrics(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run=run,
+                    inferred_metrics_keys_by_step=metrics_keys_by_step,
+                    inferred_schemas_by_step=inferred_schemas_by_step,
+                )
+            except EvaluationClosedConflict:
+                log.info(
+                    "[METRICS] Skipping inferred-schema persistence for closed run",
+                    run_id=run.id,
+                )
 
         steps_specs: Dict[str, List[MetricSpec]] = dict()
 
@@ -1328,14 +1597,6 @@ class EvaluationsService:
 
                 bucket = buckets[0]
 
-                # log.info(
-                #     f"[METRICS] Step '{step_key}': bucket has metrics: {bool(bucket.metrics)}"
-                # )
-                # if bucket.metrics:
-                #     log.info(
-                #         f"[METRICS] Step '{step_key}': metrics keys: {list(bucket.metrics.keys())}"
-                #     )
-
                 if not bucket.metrics:
                     log.warning("Bucket metrics should not be empty")
                     log.warning("Bucket:", bucket)
@@ -1367,7 +1628,7 @@ class EvaluationsService:
             )
         ]
 
-        metrics = await self.create_metrics(
+        metrics = await self.set_metrics(
             project_id=project_id,
             user_id=user_id,
             #
@@ -1452,6 +1713,7 @@ class EvaluationsService:
         user_id: UUID,
         run: EvaluationRun,
         inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]],
+        inferred_schemas_by_step: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> None:
         existing_mappings = list(run.data.mappings or [])
         updated_mappings: List[EvaluationRunDataMapping] = []
@@ -1517,26 +1779,64 @@ class EvaluationsService:
                     )
                 )
 
-        if updated_mappings != existing_mappings:
-            run_data = EvaluationRunData(
-                steps=run.data.steps,
-                repeats=run.data.repeats,
-                mappings=updated_mappings,
+        existing_steps = list(run.data.steps or [])
+        updated_steps = existing_steps
+        if inferred_schemas_by_step:
+            updated_steps = []
+            for step in existing_steps:
+                inferred_outputs = inferred_schemas_by_step.get(step.key)
+                if inferred_outputs and (not step.schemas or not step.schemas.outputs):
+                    updated_steps.append(
+                        step.model_copy(
+                            update={"schemas": JsonSchemas(outputs=inferred_outputs)}
+                        )
+                    )
+                else:
+                    updated_steps.append(step)
+
+        if updated_mappings != existing_mappings or updated_steps != existing_steps:
+            run_data = run.data.model_copy(
+                update={"steps": updated_steps, "mappings": updated_mappings}
+            )
+            run_edit = EvaluationRunEdit(
+                **run.model_dump(
+                    include=set(EvaluationRunEdit.model_fields) - {"data"},
+                    exclude_none=True,
+                ),
+                data=run_data,
             )
             await self.edit_run(
                 project_id=project_id,
                 user_id=user_id,
-                run=EvaluationRunEdit(
-                    id=run.id,
-                    name=run.name,
-                    description=run.description,
-                    status=run.status,
-                    flags=run.flags,
-                    data=run_data,
-                ),
+                run=run_edit,
             )
 
     # - EVALUATION QUEUE -------------------------------------------------------
+
+    @staticmethod
+    def _is_default_queue_data(*, data: Optional[EvaluationQueueData]) -> bool:
+        """A queue is default-shaped when it carries no scoping config."""
+        if not data:
+            return True
+        return all(
+            value is None
+            for value in (
+                data.user_ids,
+                data.scenario_ids,
+                data.step_keys,
+                data.batch_size,
+                data.batch_offset,
+            )
+        )
+
+    @staticmethod
+    def _validate_default_queue_data(
+        *, flags: Optional[EvaluationQueueFlags], data: Optional[EvaluationQueueData]
+    ) -> None:
+        if not flags or not flags.is_default or not data:
+            return
+        if not EvaluationsService._is_default_queue_data(data=data):
+            raise DefaultQueueDataInvalid()
 
     async def create_queue(
         self,
@@ -1547,13 +1847,21 @@ class EvaluationsService:
         queue: EvaluationQueueCreate,
     ) -> Optional[EvaluationQueue]:
         queue.version = CURRENT_VERSION
+        self._validate_default_queue_data(flags=queue.flags, data=queue.data)
 
-        return await self.evaluations_dao.create_queue(
+        created_queue = await self.evaluations_dao.create_queue(
             project_id=project_id,
             user_id=user_id,
             #
             queue=queue,
         )
+        if created_queue:
+            await self._sync_run_queue_flag_for_default_queue(
+                project_id=project_id,
+                user_id=user_id,
+                queue=created_queue,
+            )
+        return created_queue
 
     async def create_queues(
         self,
@@ -1565,13 +1873,21 @@ class EvaluationsService:
     ) -> List[EvaluationQueue]:
         for queue in queues:
             queue.version = CURRENT_VERSION
+            self._validate_default_queue_data(flags=queue.flags, data=queue.data)
 
-        return await self.evaluations_dao.create_queues(
+        created_queues = await self.evaluations_dao.create_queues(
             project_id=project_id,
             user_id=user_id,
             #
             queues=queues,
         )
+        for created_queue in created_queues:
+            await self._sync_run_queue_flag_for_default_queue(
+                project_id=project_id,
+                user_id=user_id,
+                queue=created_queue,
+            )
+        return created_queues
 
     async def fetch_queue(
         self,
@@ -1608,13 +1924,29 @@ class EvaluationsService:
         queue: EvaluationQueueEdit,
     ) -> Optional[EvaluationQueue]:
         queue.version = CURRENT_VERSION
+        existing = await self.fetch_queue(project_id=project_id, queue_id=queue.id)
+        if existing and existing.flags and existing.flags.is_default:
+            if queue.flags and not queue.flags.is_default:
+                raise DefaultQueueDemotionForbidden(queue_id=queue.id)
+            effective_flags = existing.flags
+        else:
+            effective_flags = queue.flags or (existing.flags if existing else None)
+        effective_data = queue.data or (existing.data if existing else None)
+        self._validate_default_queue_data(flags=effective_flags, data=effective_data)
 
-        return await self.evaluations_dao.edit_queue(
+        edited_queue = await self.evaluations_dao.edit_queue(
             project_id=project_id,
             user_id=user_id,
             #
             queue=queue,
         )
+        if edited_queue:
+            await self._sync_run_queue_flag_for_default_queue(
+                project_id=project_id,
+                user_id=user_id,
+                queue=edited_queue,
+            )
+        return edited_queue
 
     async def edit_queues(
         self,
@@ -1627,12 +1959,127 @@ class EvaluationsService:
         for queue in queues:
             queue.version = CURRENT_VERSION
 
-        return await self.evaluations_dao.edit_queues(
+        existing_queues = await self.fetch_queues(
+            project_id=project_id,
+            queue_ids=[queue.id for queue in queues],
+        )
+        existing_by_id = {queue.id: queue for queue in existing_queues}
+        for queue in queues:
+            existing = existing_by_id.get(queue.id)
+            if existing and existing.flags and existing.flags.is_default:
+                if queue.flags and not queue.flags.is_default:
+                    raise DefaultQueueDemotionForbidden(queue_id=queue.id)
+                effective_flags = existing.flags
+            else:
+                effective_flags = queue.flags or (existing.flags if existing else None)
+            effective_data = queue.data or (existing.data if existing else None)
+            self._validate_default_queue_data(
+                flags=effective_flags, data=effective_data
+            )
+
+        edited_queues = await self.evaluations_dao.edit_queues(
             project_id=project_id,
             user_id=user_id,
             #
             queues=queues,
         )
+        for edited_queue in edited_queues:
+            await self._sync_run_queue_flag_for_default_queue(
+                project_id=project_id,
+                user_id=user_id,
+                queue=edited_queue,
+            )
+        return edited_queues
+
+    async def _sync_run_queue_flag_for_default_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        queue: EvaluationQueue,
+    ) -> None:
+        if not queue.flags or not queue.flags.is_default:
+            return
+        run = await self.fetch_run(project_id=project_id, run_id=queue.run_id)
+        if not run:
+            return
+        has_human = bool(run.flags and run.flags.has_human)
+        is_queue = bool(has_human and queue.deleted_at is None)
+        if run.flags and run.flags.is_queue == is_queue:
+            return
+        flags = run.flags.model_copy() if run.flags else EvaluationRunFlags()
+        flags.is_queue = is_queue
+        try:
+            await self.evaluations_dao.edit_run(
+                project_id=project_id,
+                user_id=user_id,
+                run=EvaluationRunEdit(
+                    id=run.id,
+                    name=run.name,
+                    description=run.description,
+                    flags=flags,
+                    tags=run.tags,
+                    meta=run.meta,
+                    status=run.status,
+                    data=run.data,
+                ),
+            )
+        except EvaluationClosedConflict:
+            # Archiving/unarchiving a default queue is a worklist action allowed
+            # on a closed run, but the closed run rejects content edits. The
+            # derived is_queue flag is best-effort here; it reconciles on reopen.
+            pass
+
+    async def archive_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        queue_id: UUID,
+        force: bool = False,
+    ) -> Optional[EvaluationQueue]:
+        # Default queues are system-managed: only reconcile (force=True) may
+        # archive them. Direct user-facing archive of a default is forbidden.
+        if not force:
+            existing = await self.fetch_queue(
+                project_id=project_id,
+                queue_id=queue_id,
+            )
+            if existing and existing.flags and existing.flags.is_default:
+                raise DefaultQueueArchiveForbidden(queue_id=queue_id)
+
+        queue = await self.evaluations_dao.archive_queue(
+            project_id=project_id,
+            user_id=user_id,
+            queue_id=queue_id,
+        )
+        if queue:
+            await self._sync_run_queue_flag_for_default_queue(
+                project_id=project_id,
+                user_id=user_id,
+                queue=queue,
+            )
+        return queue
+
+    async def unarchive_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        queue_id: UUID,
+    ) -> Optional[EvaluationQueue]:
+        queue = await self.evaluations_dao.unarchive_queue(
+            project_id=project_id,
+            user_id=user_id,
+            queue_id=queue_id,
+        )
+        if queue:
+            await self._sync_run_queue_flag_for_default_queue(
+                project_id=project_id,
+                user_id=user_id,
+                queue=queue,
+            )
+        return queue
 
     async def delete_queue(
         self,
@@ -1641,6 +2088,9 @@ class EvaluationsService:
         #
         queue_id: UUID,
     ) -> Optional[UUID]:
+        existing = await self.fetch_queue(project_id=project_id, queue_id=queue_id)
+        if existing and existing.flags and existing.flags.is_default:
+            raise DefaultQueueDeletionForbidden(queue_id=queue_id)
         return await self.evaluations_dao.delete_queue(
             project_id=project_id,
             #
@@ -1654,6 +2104,12 @@ class EvaluationsService:
         #
         queue_ids: List[UUID],
     ) -> List[UUID]:
+        existing_queues = await self.fetch_queues(
+            project_id=project_id,
+            queue_ids=queue_ids,
+        )
+        if any(queue.flags and queue.flags.is_default for queue in existing_queues):
+            raise DefaultQueueDeletionForbidden()
         return await self.evaluations_dao.delete_queues(
             project_id=project_id,
             #
@@ -1800,6 +2256,11 @@ class SimpleEvaluationsService:
         self.evaluators_service = evaluators_service
         self.evaluations_service = evaluations_service
         self.evaluations_worker = evaluations_worker
+        self.evaluations_task_runner = (
+            TaskiqEvaluationTaskRunner(worker=evaluations_worker)
+            if evaluations_worker is not None
+            else None
+        )
 
     async def create(
         self,
@@ -1856,6 +2317,7 @@ class SimpleEvaluationsService:
                 evaluator_steps=evaluation.data.evaluator_steps,
                 #
                 repeats=evaluation.data.repeats,
+                concurrency=evaluation.data.concurrency,
                 #
                 is_live=evaluation.flags.is_live,
             )
@@ -2232,62 +2694,51 @@ class SimpleEvaluationsService:
                     _evaluation = await self._parse_evaluation_run(run=run)
                     return _evaluation
 
-                if self.evaluations_worker is None:
+                if self.evaluations_task_runner is None:
                     log.warning(
                         "[EVAL] Taskiq client missing; cannot dispatch evaluation run",
                     )
                     return _evaluation
 
-                has_query_steps = bool(_evaluation.data.query_steps)
-                has_testset_steps = bool(_evaluation.data.testset_steps)
-                has_application_steps = bool(_evaluation.data.application_steps)
-                has_evaluator_steps = bool(_evaluation.data.evaluator_steps)
+                # Worker task names are API-internal, so dispatch through the
+                # unified run processor rather than topology-specific handlers.
+                topology = classify_run_topology(run)
 
-                if has_query_steps and has_evaluator_steps:
-                    await self._ensure_human_annotation_queue(
+                if topology.dispatch:
+                    if (
+                        topology.dispatch.source == "query"
+                        and topology.dispatch.mode == "batch"
+                    ):
+                        await self._ensure_human_annotation_queue(
+                            project_id=project_id,
+                            user_id=user_id,
+                            run=run,
+                        )
+                    await self.evaluations_task_runner.process_run_from_source(
                         project_id=project_id,
                         user_id=user_id,
-                        run=run,
-                    )
-                    await self.evaluations_worker.evaluate_batch_query.kiq(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        run_id=run.id,
-                    )
-
-                elif (
-                    has_testset_steps and has_application_steps and has_evaluator_steps
-                ):
-                    await self.evaluations_worker.evaluate_batch_testset.kiq(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        run_id=run.id,
-                    )
-
-                elif (
-                    has_testset_steps
-                    and has_application_steps
-                    and not has_evaluator_steps
-                    and not has_query_steps
-                ):
-                    await self.evaluations_worker.evaluate_batch_invocation.kiq(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
                         run_id=run.id,
                     )
 
                 else:
+                    # No worker path dispatches this topology and re-polling will
+                    # never change that, so finalize the run to a terminal state
+                    # instead of leaving it active and hanging in RUNNING.
                     log.warning(
-                        "[EVAL] [start] [skip] unsupported non-live run topology",
+                        "[EVAL] [start] [fail] unsupported non-live run topology",
                         run_id=run.id,
-                        has_query_steps=has_query_steps,
-                        has_testset_steps=has_testset_steps,
-                        has_application_steps=has_application_steps,
-                        has_evaluator_steps=has_evaluator_steps,
+                        topology=topology.label,
+                        topology_status=topology.status,
+                        reason=topology.reason,
                     )
+                    failed = await self._fail_evaluation_run(
+                        project_id=project_id,
+                        user_id=user_id,
+                        #
+                        run_id=run.id,
+                    )
+                    if failed:
+                        _evaluation = await self._parse_evaluation_run(run=failed)
 
                 return _evaluation
 
@@ -2335,7 +2786,7 @@ class SimpleEvaluationsService:
             run=run,
         )
 
-    async def evaluate_batch_traces(
+    async def dispatch_trace_slice(
         self,
         *,
         project_id: UUID,
@@ -2347,7 +2798,7 @@ class SimpleEvaluationsService:
     ) -> bool:
         if not trace_ids:
             return False
-        if self.evaluations_worker is None:
+        if self.evaluations_task_runner is None:
             log.warning(
                 "[EVAL] Taskiq client missing; cannot dispatch trace batch",
                 run_id=run_id,
@@ -2358,9 +2809,13 @@ class SimpleEvaluationsService:
             project_id=project_id,
             run_id=run_id,
         )
-        if not run or not run.flags or not run.flags.is_queue:
+        if (
+            not run
+            or not run.flags
+            or not (run.flags.has_traces or run.flags.has_queries)
+        ):
             log.warning(
-                "[EVAL] trace batch dispatch requires a queue evaluation run",
+                "[EVAL] trace batch dispatch requires a trace-capable evaluation run",
                 run_id=run_id,
             )
             return False
@@ -2371,17 +2826,17 @@ class SimpleEvaluationsService:
             run=run,
         )
 
-        await self.evaluations_worker.evaluate_batch_traces.kiq(
+        await self.evaluations_task_runner.process_run_from_batch(
             project_id=project_id,
             user_id=user_id,
-            #
             run_id=run_id,
+            source_kind="traces",
             trace_ids=trace_ids,
             input_step_key=input_step_key,
         )
         return True
 
-    async def evaluate_batch_testcases(
+    async def dispatch_testcase_slice(
         self,
         *,
         project_id: UUID,
@@ -2393,7 +2848,7 @@ class SimpleEvaluationsService:
     ) -> bool:
         if not testcase_ids:
             return False
-        if self.evaluations_worker is None:
+        if self.evaluations_task_runner is None:
             log.warning(
                 "[EVAL] Taskiq client missing; cannot dispatch testcase batch",
                 run_id=run_id,
@@ -2404,9 +2859,13 @@ class SimpleEvaluationsService:
             project_id=project_id,
             run_id=run_id,
         )
-        if not run or not run.flags or not run.flags.is_queue:
+        if (
+            not run
+            or not run.flags
+            or not (run.flags.has_testcases or run.flags.has_testsets)
+        ):
             log.warning(
-                "[EVAL] testcase batch dispatch requires a queue evaluation run",
+                "[EVAL] testcase batch dispatch requires a testcase-capable evaluation run",
                 run_id=run_id,
             )
             return False
@@ -2417,15 +2876,440 @@ class SimpleEvaluationsService:
             run=run,
         )
 
-        await self.evaluations_worker.evaluate_batch_testcases.kiq(
+        await self.evaluations_task_runner.process_run_from_batch(
             project_id=project_id,
             user_id=user_id,
-            #
             run_id=run_id,
+            source_kind="testcases",
             testcase_ids=testcase_ids,
             input_step_key=input_step_key,
         )
         return True
+
+    # --- RUN SLICE OPS -----------------------------------------------------
+    #
+    # Coordinate-addressed ops over EXISTING scenarios (scenarios x steps x
+    # repeats), distinct from the source-keyed dispatch_*_slice above (which
+    # ingests NEW source items). `process` is the re-execution verb (retry /
+    # fill-missing / run-added-step), dispatched async via taskiq under the job
+    # lock. `probe` (read) and `populate` (write) are immediate, in-process.
+
+    async def dispatch_run_slice(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        scenario_ids: Optional[List[UUID]] = None,
+        step_keys: Optional[List[str]] = None,
+        repeat_idxs: Optional[List[int]] = None,
+        overwrite: bool = False,
+    ) -> bool:
+        if self.evaluations_task_runner is None:
+            log.warning(
+                "[EVAL] Taskiq client missing; cannot dispatch run slice",
+                run_id=run_id,
+            )
+            return False
+
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if not run:
+            log.warning(
+                "[EVAL] run slice dispatch requires an existing run",
+                run_id=run_id,
+            )
+            return False
+
+        # Re-activate the run before dispatching: the slice re-executes scenarios
+        # (e.g. a newly added evaluator over existing outputs), so the run is genuinely
+        # running again. Set it synchronously here so the status is visible the moment the
+        # 202 returns; `_finalize_run_after_slice` floors it back to a terminal status
+        # (RUNNING ranks below SUCCESS) and clears is_active when scoring completes.
+        flags = run.flags.model_copy() if run.flags else EvaluationRunFlags()
+        flags.is_active = True
+        await self.evaluations_service.edit_run(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            run=EvaluationRunEdit(
+                id=run.id,
+                #
+                name=run.name,
+                description=run.description,
+                #
+                flags=flags,
+                tags=run.tags,
+                meta=run.meta,
+                #
+                status=EvaluationStatus.RUNNING,
+                #
+                data=run.data,
+            ),
+        )
+
+        # Mirror the re-activation at the scenario level so per-scenario status indicators
+        # also reflect the reprocess. edit_scenarios is a full PUT, so every persisted field
+        # is carried over and only status/is_active flip; the engine writes each scenario's
+        # terminal status back as it finishes.
+        scenarios = await self.evaluations_service.query_scenarios(
+            project_id=project_id,
+            scenario=EvaluationScenarioQuery(run_id=run_id, ids=scenario_ids),
+            windowing=Windowing(limit=10_000),
+        )
+        if scenarios:
+            await self.evaluations_service.edit_scenarios(
+                project_id=project_id,
+                user_id=user_id,
+                scenarios=[
+                    EvaluationScenarioEdit(
+                        id=scenario.id,
+                        flags=(
+                            scenario.flags.model_copy(update={"is_active": True})
+                            if scenario.flags
+                            else EvaluationRunFlags(is_active=True)
+                        ),
+                        status=EvaluationStatus.RUNNING,
+                        interval=scenario.interval,
+                        timestamp=scenario.timestamp,
+                        meta=scenario.meta,
+                    )
+                    for scenario in scenarios
+                ],
+            )
+
+        await self.evaluations_task_runner.process_rerun(
+            project_id=project_id,
+            user_id=user_id,
+            run_id=run_id,
+            scenario_ids=scenario_ids,
+            step_keys=step_keys,
+            repeat_idxs=repeat_idxs,
+            overwrite=overwrite,
+        )
+        return True
+
+    async def probe_slice(
+        self,
+        *,
+        project_id: UUID,
+        #
+        run_id: UUID,
+        scenario_ids: Optional[List[UUID]] = None,
+        step_keys: Optional[List[str]] = None,
+        repeat_idxs: Optional[List[int]] = None,
+    ) -> List[EvaluationResult]:
+        run_operations = self.evaluations_service.run_slice_operations
+        if run_operations is None:
+            log.warning("[EVAL] run operations not wired; cannot probe slice")
+            return []
+
+        return await run_operations.probe(
+            project_id=project_id,
+            run_slice=RunSlice(
+                run_id=run_id,
+                scenario_ids=scenario_ids,
+                step_keys=step_keys,
+                repeat_idxs=repeat_idxs,
+            ),
+        )
+
+    async def populate_slice(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        results: List[EvaluationResultCreate],
+    ) -> List[EvaluationResult]:
+        run_operations = self.evaluations_service.run_slice_operations
+        if run_operations is None:
+            log.warning("[EVAL] run operations not wired; cannot populate slice")
+            return []
+
+        return await run_operations.populate(
+            project_id=project_id,
+            user_id=user_id,
+            results=results,
+        )
+
+    async def prune_slice(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        scenario_ids: Optional[List[UUID]] = None,
+        step_keys: Optional[List[str]] = None,
+        repeat_idxs: Optional[List[int]] = None,
+    ) -> List[UUID]:
+        run_operations = self.evaluations_service.run_slice_operations
+        if run_operations is None:
+            log.warning("[EVAL] run operations not wired; cannot prune slice")
+            return []
+
+        return await run_operations.prune(
+            project_id=project_id,
+            user_id=user_id,
+            run_slice=RunSlice(
+                run_id=run_id,
+                scenario_ids=scenario_ids,
+                step_keys=step_keys,
+                repeat_idxs=repeat_idxs,
+            ),
+        )
+
+    async def refresh_slice(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        scenario_ids: Optional[List[UUID]] = None,
+        step_keys: Optional[List[str]] = None,
+        repeat_idxs: Optional[List[int]] = None,
+    ) -> None:
+        """Recompute metrics over the slice scope (variational + aggregate).
+
+        The metrics counterpart of populate/process: callers that wrote cells
+        without executing (e.g. the SDK, which runs workflows locally and
+        populates the finished cells) invoke this to roll up the per-scenario,
+        temporal, and global metric rows without re-running anything.
+        """
+        run_operations = self.evaluations_service.run_slice_operations
+        if run_operations is None:
+            log.warning("[EVAL] run operations not wired; cannot refresh slice")
+            return
+
+        await run_operations.refresh(
+            project_id=project_id,
+            user_id=user_id,
+            run_slice=RunSlice(
+                run_id=run_id,
+                scenario_ids=scenario_ids,
+                step_keys=step_keys,
+                repeat_idxs=repeat_idxs,
+            ),
+        )
+
+    # --- SHAPE-DIMENSION OPS --------------------------------------------------
+    #
+    # Modify the run.s SHAPE (scenarios x steps x repeats) — distinct from the
+    # run operations (probe/populate/process/prune) that fill or clear cells WITHIN a
+    # fixed shape. Three axes, each with a paired add/remove (or set):
+    #
+    #   height — `add_scenarios` / `remove_scenarios`  (scenario rows)
+    #   width  — `add_steps` / `remove_steps`          (step columns)
+    #   depth  — `set_repeats`                         (repeat count)
+    #
+    # `process` operates only on EXISTING coordinates — it never mints scenarios
+    # or steps, so callers grow the shape with these ops first when needed.
+
+    async def _edit_run_data(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run: EvaluationRun,
+        new_data: EvaluationRunData,
+    ) -> Optional[EvaluationRun]:
+        """Persist a new `data` payload for `run`, preserving every other field."""
+        return await self.evaluations_service.edit_run(
+            project_id=project_id,
+            user_id=user_id,
+            run=EvaluationRunEdit(
+                id=run.id,
+                name=run.name,
+                description=run.description,
+                tags=run.tags,
+                meta=run.meta,
+                status=run.status,
+                flags=run.flags,
+                data=new_data,
+            ),
+        )
+
+    async def add_scenarios(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        count: int,
+        timestamp: Optional[datetime] = None,
+    ) -> List[EvaluationScenario]:
+        """Create `count` scenario skeleton rows for the run (height dimension).
+
+        Skeleton only: rows with no input cells and no results. `populate` writes
+        the input cells (the trace_id/testcase_id binding); `process` plans and
+        executes. Returns the created scenarios so the caller has their ids.
+
+        `timestamp` buckets the new scenarios on the temporal (time) axis so they
+        participate in temporal metrics — mirroring the query path, which derives
+        a timestamp from its window. The bucket width (`interval`) is fixed at
+        `DEFAULT_REFRESH_INTERVAL` (1 minute); only the timestamp is caller-set,
+        and it is floored to the minute so it lands on the bucket boundary.
+        """
+        if count <= 0:
+            return []
+
+        bucket = (
+            timestamp.replace(second=0, microsecond=0)
+            if timestamp is not None
+            else None
+        )
+
+        return await self.evaluations_service.create_scenarios(
+            project_id=project_id,
+            user_id=user_id,
+            scenarios=[
+                EvaluationScenarioCreate(
+                    run_id=run_id,
+                    status=EvaluationStatus.RUNNING,
+                    timestamp=bucket,
+                    interval=DEFAULT_REFRESH_INTERVAL if bucket else None,
+                )
+                for _ in range(count)
+            ],
+        )
+
+    async def remove_scenarios(
+        self,
+        *,
+        project_id: UUID,
+        #
+        scenario_ids: List[UUID],
+    ) -> List[UUID]:
+        """Delete scenario rows (height dimension) — the inverse of `add_scenarios`.
+
+        Removing a scenario drops its whole row (every step/repeat cell with it).
+        Returns the ids actually deleted.
+
+        Deletion is scoped by `project_id` only — it does NOT verify the
+        scenarios belong to a particular run. The run-scoped HTTP endpoint
+        validates `scenario_ids` against its path `evaluation_id` before calling
+        here, so cross-run deletion cannot happen over the API.
+        """
+        if not scenario_ids:
+            return []
+
+        return await self.evaluations_service.delete_scenarios(
+            project_id=project_id,
+            scenario_ids=scenario_ids,
+        )
+
+    async def add_steps(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        steps: List[EvaluationRunDataStep],
+    ) -> Optional[EvaluationRun]:
+        """Append steps to the run (width dimension).
+
+        Adds new step columns to `run.data.steps`; the cells under them start
+        empty and a subsequent `process` fills them. Steps whose key already
+        exists are skipped (add is idempotent on key). Existing steps, scenarios,
+        and result cells are untouched.
+        """
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if not run or not run.data:
+            return None
+        if not steps:
+            return run
+
+        existing = list(run.data.steps or [])
+        existing_keys = {step.key for step in existing}
+        fresh = [step for step in steps if step.key not in existing_keys]
+        if not fresh:
+            return run
+
+        new_data = run.data.model_copy(update={"steps": existing + fresh})
+        return await self._edit_run_data(
+            project_id=project_id,
+            user_id=user_id,
+            run=run,
+            new_data=new_data,
+        )
+
+    async def remove_steps(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        step_keys: List[str],
+    ) -> Optional[EvaluationRun]:
+        """Drop steps from the run by key (width dimension).
+
+        The inverse of `add_steps`: removes the named step columns from
+        `run.data.steps`. The result cells under those steps are not deleted here
+        (that is `prune`); this op only narrows the graph's declared width.
+        """
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if not run or not run.data:
+            return None
+        if not step_keys:
+            return run
+
+        drop = set(step_keys)
+        kept = [step for step in (run.data.steps or []) if step.key not in drop]
+        if len(kept) == len(run.data.steps or []):
+            return run
+
+        new_data = run.data.model_copy(update={"steps": kept})
+        return await self._edit_run_data(
+            project_id=project_id,
+            user_id=user_id,
+            run=run,
+            new_data=new_data,
+        )
+
+    async def set_repeats(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        repeats: int,
+    ) -> Optional[EvaluationRun]:
+        """Set the run's repeat (depth) dimension.
+
+        `repeats` is fixed at run creation today; this is the first-class op to
+        change it. Growing it adds repeat_idx slots that subsequent `process`
+        runs plan and fill; the existing result cells are untouched.
+        """
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if not run or not run.data:
+            return None
+
+        new_data = run.data.model_copy(update={"repeats": repeats})
+        return await self._edit_run_data(
+            project_id=project_id,
+            user_id=user_id,
+            run=run,
+            new_data=new_data,
+        )
 
     async def close(
         self,
@@ -2485,8 +3369,11 @@ class SimpleEvaluationsService:
         evaluator_steps: Optional[Target] = None,
         #
         repeats: Optional[int] = None,
+        concurrency: Optional[EvaluationRunDataConcurrency] = None,
         #
         is_live: Optional[bool] = None,
+        #
+        default_evaluator_origin: Origin = DEFAULT_ORIGIN_EVALUATORS,
     ) -> Optional[EvaluationRunData]:
         # IMPLICIT FLAG: is_multivariate=False
         # IMPLICIT FLAG: all_inputs=True
@@ -2791,7 +3678,7 @@ class SimpleEvaluationsService:
 
             if isinstance(evaluator_steps, list):
                 evaluator_steps = {
-                    evaluator_revision_id: DEFAULT_ORIGIN_EVALUATORS
+                    evaluator_revision_id: default_evaluator_origin
                     for evaluator_revision_id in evaluator_steps
                 }
 
@@ -2928,7 +3815,7 @@ class SimpleEvaluationsService:
                     references=application_references[step_key],
                     inputs=[
                         # IMPLICIT FLAG: all_inputs=True
-                        EvaluationRunDataStepInput(key="__all_inputs__"),
+                        EvaluationRunDataStepInputKey(key="__all_inputs__"),
                     ],
                 )
                 for step_key in application_invocation_steps_keys
@@ -2944,7 +3831,7 @@ class SimpleEvaluationsService:
                         [
                             *(
                                 [
-                                    EvaluationRunDataStepInput(
+                                    EvaluationRunDataStepInputKey(
                                         key="__all_invocations__"
                                     ),
                                 ]
@@ -2953,7 +3840,7 @@ class SimpleEvaluationsService:
                             ),
                             *(
                                 [
-                                    EvaluationRunDataStepInput(key="__all_inputs__"),
+                                    EvaluationRunDataStepInputKey(key="__all_inputs__"),
                                 ]
                                 if (query_input_steps_keys or testset_input_steps_keys)
                                 else []
@@ -3044,6 +3931,7 @@ class SimpleEvaluationsService:
                 steps=steps,
                 mappings=mappings,
                 repeats=repeats or 1,
+                concurrency=concurrency,
             )
 
         except Exception:  # pylint: disable=broad-exception-caught
@@ -3149,6 +4037,11 @@ class SimpleEvaluationsService:
 
         run.flags.is_active = True
 
+        # A (re)dispatched run is running until its slice finalizes. Reset to
+        # RUNNING on every activation — not just creation — so an extended
+        # finished run goes back to `running` while the new work executes and is
+        # re-finalized by the slice. The slice's terminal status then replaces
+        # this via the (corrected) severity floor in source_slice.py.
         run = await self.evaluations_service.edit_run(
             project_id=project_id,
             user_id=user_id,
@@ -3163,7 +4056,7 @@ class SimpleEvaluationsService:
                 tags=run.tags,
                 meta=run.meta,
                 #
-                status=EvaluationStatus.RUNNING if just_created else run.status,
+                status=EvaluationStatus.RUNNING,
                 #
                 data=run.data,
             ),
@@ -3209,6 +4102,59 @@ class SimpleEvaluationsService:
                 meta=run.meta,
                 #
                 status=run.status,
+                #
+                data=run.data,
+            ),
+        )
+
+        return run
+
+    async def _fail_evaluation_run(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+    ) -> Optional[EvaluationRun]:
+        """Drive a run to a permanent terminal state: closed, inactive, FAILURE.
+
+        Used when a run can never make progress — e.g. a topology that no worker
+        path dispatches. Re-polling would never help, so close it (no further
+        edits/restarts), deactivate it (scheduler stops polling) and mark it
+        FAILURE rather than leaving it active and hanging in RUNNING.
+        """
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            #
+            run_id=run_id,
+        )
+
+        if not run or not run.id:
+            log.error("[EVAL] [fail] [failure] could not find evaluation run")
+            return None
+
+        if not run.flags:
+            run.flags = EvaluationRunFlags()
+
+        run.flags.is_active = False
+        run.flags.is_closed = True
+
+        run = await self.evaluations_service.edit_run(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            run=EvaluationRunEdit(
+                id=run.id,
+                #
+                name=run.name,
+                description=run.description,
+                #
+                flags=run.flags,
+                tags=run.tags,
+                meta=run.meta,
+                #
+                status=EvaluationStatus.FAILURE,
                 #
                 data=run.data,
             ),
@@ -3335,6 +4281,12 @@ class SimpleQueuesService:
         self.simple_evaluations_service = simple_evaluations_service
         self.evaluators_service = evaluators_service
 
+        # Built once, reused across dispatches.
+        self._sources = SourceResolution(
+            queries_service=simple_evaluations_service.queries_service,
+            testsets_service=simple_evaluations_service.testsets_service,
+        )
+
     async def create(
         self,
         *,
@@ -3377,7 +4329,7 @@ class SimpleQueuesService:
             if not run_data_and_keys:
                 return None
 
-            run_data, annotation_step_keys = run_data_and_keys
+            run_data, _ = run_data_and_keys
         else:
             run_data = await self.simple_evaluations_service._make_evaluation_run_data(
                 project_id=project_id,
@@ -3387,15 +4339,10 @@ class SimpleQueuesService:
                 evaluator_steps=queue.data.evaluators,
                 repeats=repeats,
                 is_live=False,
+                default_evaluator_origin="human",
             )
             if not run_data or not run_data.steps:
                 return None
-
-            annotation_step_keys = [
-                step.key
-                for step in run_data.steps
-                if step.type == "annotation" and step.key
-            ]
 
         run = await self.evaluations_service.create_run(
             project_id=project_id,
@@ -3409,7 +4356,7 @@ class SimpleQueuesService:
                     is_live=False,
                     is_active=True,
                     is_closed=False,
-                    is_queue=True,
+                    is_queue=False,
                 ),
                 tags=queue.tags,
                 meta=queue.meta,
@@ -3431,32 +4378,48 @@ class SimpleQueuesService:
             and (settings.batch_size is not None or settings.batch_offset is not None)
         )
 
-        created_queue = await self.evaluations_service.create_queue(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            queue=EvaluationQueueCreate(
-                name=queue.name,
-                description=queue.description,
-                #
-                flags=EvaluationQueueFlags(
-                    is_sequential=is_sequential,
-                ),
-                tags=queue.tags,
-                meta=queue.meta,
-                #
-                status=queue.status or EvaluationStatus.RUNNING,
-                #
-                data=EvaluationQueueData(
-                    user_ids=queue_user_ids,
-                    step_keys=annotation_step_keys,
-                    batch_size=settings.batch_size if settings else None,
-                    batch_offset=settings.batch_offset if settings else None,
-                ),
-                # is_queue
-                run_id=run.id,
-            ),
+        queue_data = EvaluationQueueData(
+            user_ids=queue_user_ids,
+            step_keys=queue.data.step_keys,
+            batch_size=settings.batch_size if settings else None,
+            batch_offset=settings.batch_offset if settings else None,
         )
+        # A queue with no scoping config is the run's default queue, which
+        # create_run already reconciled into existence (named after the run).
+        # Adopt it instead of creating a non-default twin that the queue list
+        # (default-only) would hide. _parse_queue still recovers any source/kind
+        # from the run's steps, and batch dispatch below operates on the run.
+        created_queue: Optional[EvaluationQueue] = None
+        if not is_sequential and EvaluationsService._is_default_queue_data(
+            data=queue_data
+        ):
+            created_queue = await self.evaluations_service.fetch_default_queue(
+                project_id=project_id,
+                run_id=run.id,
+            )
+
+        if created_queue is None:
+            created_queue = await self.evaluations_service.create_queue(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                queue=EvaluationQueueCreate(
+                    name=queue.name,
+                    description=queue.description,
+                    #
+                    flags=EvaluationQueueFlags(
+                        is_sequential=is_sequential,
+                    ),
+                    tags=queue.tags,
+                    meta=queue.meta,
+                    #
+                    status=queue.status or EvaluationStatus.RUNNING,
+                    #
+                    data=queue_data,
+                    # is_queue
+                    run_id=run.id,
+                ),
+            )
 
         if not created_queue:
             await self.evaluations_service.delete_run(
@@ -3515,6 +4478,52 @@ class SimpleQueuesService:
             run=run,
         )
 
+    async def delete(
+        self,
+        *,
+        project_id: UUID,
+        queue_id: UUID,
+    ) -> Optional[UUID]:
+        """Delete a simple queue.
+
+        A simple queue is an overlay over an evaluation queue. Deleting a
+        default queue is forbidden at the queue layer, so when the target is the
+        run's default queue we delete the underlying run instead (which cascades
+        the default queue away). This keeps delete symmetric with create: the
+        frontend always goes through /simple/queues and never special-cases the
+        default queue itself.
+        """
+        queue = await self.evaluations_service.fetch_queue(
+            project_id=project_id,
+            queue_id=queue_id,
+        )
+        if not queue:
+            return None
+
+        if queue.flags and queue.flags.is_default:
+            await self.evaluations_service.delete_run(
+                project_id=project_id,
+                run_id=queue.run_id,
+            )
+            return queue_id
+
+        return await self.evaluations_service.delete_queue(
+            project_id=project_id,
+            queue_id=queue_id,
+        )
+
+    async def delete_many(
+        self,
+        *,
+        project_id: UUID,
+        queue_ids: List[UUID],
+    ) -> List[UUID]:
+        deleted: List[UUID] = []
+        for queue_id in queue_ids:
+            if await self.delete(project_id=project_id, queue_id=queue_id) is not None:
+                deleted.append(queue_id)
+        return deleted
+
     async def query(
         self,
         *,
@@ -3534,32 +4543,31 @@ class SimpleQueuesService:
 
             run_ids_filter = list(dict.fromkeys(requested_run_ids))
 
+        eligible_runs = await self.evaluations_service.query_runs(
+            project_id=project_id,
+            run=EvaluationRunQuery(
+                flags=EvaluationRunQueryFlags(is_queue=True),
+            ),
+        )
+        eligible_run_ids = [run.id for run in eligible_runs if run and run.id]
         if query and query.kind is not None:
-            run_query = EvaluationRunQuery(
-                flags=EvaluationRunQueryFlags(
-                    is_queue=True,
-                    has_queries=query.kind == SimpleQueueKind.TRACES,
-                    has_testsets=query.kind == SimpleQueueKind.TESTCASES,
-                ),
-            )
-            runs = await self.evaluations_service.query_runs(
-                project_id=project_id,
-                run=run_query,
-            )
+            eligible_run_ids = [
+                run.id
+                for run in eligible_runs
+                if run and run.id and self._get_kind(run) == query.kind
+            ]
+        if not eligible_run_ids:
+            return []
 
-            kind_run_ids = [run.id for run in runs if run and run.id]
-            if not kind_run_ids:
+        eligible_run_ids_set = set(eligible_run_ids)
+        if run_ids_filter is None:
+            run_ids_filter = eligible_run_ids
+        else:
+            run_ids_filter = [
+                run_id for run_id in run_ids_filter if run_id in eligible_run_ids_set
+            ]
+            if not run_ids_filter:
                 return []
-
-            kind_run_ids_set = set(kind_run_ids)
-            if run_ids_filter is None:
-                run_ids_filter = kind_run_ids
-            else:
-                run_ids_filter = [
-                    run_id for run_id in run_ids_filter if run_id in kind_run_ids_set
-                ]
-                if not run_ids_filter:
-                    return []
 
         queues = await self.evaluations_service.query_queues(
             project_id=project_id,
@@ -3567,7 +4575,8 @@ class SimpleQueuesService:
                 name=query.name if query else None,
                 description=query.description if query else None,
                 #
-                flags=EvaluationQueueQueryFlags(),
+                # Return every queue for the eligible runs; the web layer owns
+                # which queues to display (default-only, direct-source-only).
                 tags=query.tags if query else None,
                 meta=query.meta if query else None,
                 #
@@ -3631,7 +4640,7 @@ class SimpleQueuesService:
         if self._get_kind(run) != SimpleQueueKind.TRACES:
             return None
 
-        ok = await self.simple_evaluations_service.evaluate_batch_traces(
+        ok = await self.simple_evaluations_service.dispatch_trace_slice(
             project_id=project_id,
             user_id=user_id,
             #
@@ -3671,7 +4680,7 @@ class SimpleQueuesService:
         if self._get_kind(run) != SimpleQueueKind.TESTCASES:
             return None
 
-        ok = await self.simple_evaluations_service.evaluate_batch_testcases(
+        ok = await self.simple_evaluations_service.dispatch_testcase_slice(
             project_id=project_id,
             user_id=user_id,
             #
@@ -3799,63 +4808,31 @@ class SimpleQueuesService:
         if not run.id or not run.data or not run.data.steps:
             return False
 
+        batches = await self._sources.resolve_queue_source_batches(
+            project_id=project_id,
+            run=run,
+        )
+
         dispatched = False
-        for step in run.data.steps:
-            if step.type != "input" or not step.key:
-                continue
-
-            refs = step.references or {}
-            query_revision_ref = refs.get("query_revision")
-            testset_revision_ref = refs.get("testset_revision")
-
-            if query_revision_ref and query_revision_ref.id:
-                query_revision = await self.simple_evaluations_service.queries_service.fetch_query_revision(
-                    project_id=project_id,
-                    query_revision_ref=query_revision_ref,
-                    include_trace_ids=True,
-                )
-                trace_ids = (
-                    query_revision.data.trace_ids
-                    if query_revision
-                    and query_revision.data
-                    and query_revision.data.trace_ids
-                    else []
-                )
-                if not trace_ids:
-                    continue
-
-                ok = await self.simple_evaluations_service.evaluate_batch_traces(
+        for batch in batches:
+            if batch.kind == "traces" and batch.trace_ids:
+                ok = await self.simple_evaluations_service.dispatch_trace_slice(
                     project_id=project_id,
                     user_id=user_id,
                     run_id=run.id,
-                    trace_ids=trace_ids,
-                    input_step_key=step.key,
+                    trace_ids=batch.trace_ids,
+                    input_step_key=batch.step_key,
                 )
                 dispatched = dispatched or ok
                 continue
 
-            if testset_revision_ref and testset_revision_ref.id:
-                testset_revision = await self.simple_evaluations_service.testsets_service.fetch_testset_revision(
-                    project_id=project_id,
-                    testset_revision_ref=testset_revision_ref,
-                    include_testcase_ids=True,
-                )
-                testcase_ids = (
-                    testset_revision.data.testcase_ids
-                    if testset_revision
-                    and testset_revision.data
-                    and testset_revision.data.testcase_ids
-                    else []
-                )
-                if not testcase_ids:
-                    continue
-
-                ok = await self.simple_evaluations_service.evaluate_batch_testcases(
+            if batch.kind == "testcases" and batch.testcase_ids:
+                ok = await self.simple_evaluations_service.dispatch_testcase_slice(
                     project_id=project_id,
                     user_id=user_id,
                     run_id=run.id,
-                    testcase_ids=testcase_ids,
-                    input_step_key=step.key,
+                    testcase_ids=batch.testcase_ids,
+                    input_step_key=batch.step_key,
                 )
                 dispatched = dispatched or ok
 
@@ -3882,9 +4859,7 @@ class SimpleQueuesService:
         annotation_mappings: List[EvaluationRunDataMapping] = []
         annotation_step_keys: List[str] = []
 
-        source_step_key = (
-            "query-direct" if kind == SimpleQueueKind.TRACES else "testset-direct"
-        )
+        source_step_key = "traces" if kind == SimpleQueueKind.TRACES else "testcases"
         source_step = EvaluationRunDataStep(
             key=source_step_key,
             type="input",
@@ -3892,7 +4867,33 @@ class SimpleQueuesService:
             references={},
         )
 
-        source_mappings: List[EvaluationRunDataMapping] = []
+        # Source mapping mirrors _make_evaluation_run_data; without it the UI has no output/trace column.
+        if kind == SimpleQueueKind.TRACES:
+            source_mappings: List[EvaluationRunDataMapping] = [
+                EvaluationRunDataMapping(
+                    column=EvaluationRunDataMappingColumn(
+                        kind="query",
+                        name="data",
+                    ),
+                    step=EvaluationRunDataMappingStep(
+                        key=source_step_key,
+                        path="attributes.ag.data",
+                    ),
+                )
+            ]
+        else:
+            source_mappings = [
+                EvaluationRunDataMapping(
+                    column=EvaluationRunDataMappingColumn(
+                        kind="testset",
+                        name="data",
+                    ),
+                    step=EvaluationRunDataMappingStep(
+                        key=source_step_key,
+                        path="data",
+                    ),
+                )
+            ]
 
         for evaluator_revision_id, origin in evaluator_step_origins.items():
             evaluator_revision_ref = Reference(id=evaluator_revision_id)
@@ -3920,8 +4921,8 @@ class SimpleQueuesService:
             step_key = "evaluator-" + evaluator_revision.slug
             annotation_step_keys.append(step_key)
 
-            step_inputs: List[EvaluationRunDataStepInput] = [
-                EvaluationRunDataStepInput(key="__all_inputs__")
+            step_inputs: List[EvaluationRunDataStepInputKey] = [
+                EvaluationRunDataStepInputKey(key="__all_inputs__")
             ]
 
             annotation_steps.append(
@@ -4003,21 +5004,22 @@ class SimpleQueuesService:
         if not run.flags or not run.flags.is_queue:
             return None
 
-        if run.flags.has_queries and not run.flags.has_testsets:
-            return SimpleQueueKind.TRACES
-
-        if run.flags.has_testsets and not run.flags.has_queries:
-            return SimpleQueueKind.TESTCASES
-
-        return None
+        families = [
+            (run.flags.has_queries, SimpleQueueKind.QUERIES),
+            (run.flags.has_testsets, SimpleQueueKind.TESTSETS),
+            (run.flags.has_traces, SimpleQueueKind.TRACES),
+            (run.flags.has_testcases, SimpleQueueKind.TESTCASES),
+        ]
+        enabled = [kind for enabled, kind in families if enabled]
+        return enabled[0] if len(enabled) == 1 else None
 
     @staticmethod
     def _get_source_kind(*, queue_data: SimpleQueueData) -> Optional[SimpleQueueKind]:
         if queue_data.queries:
-            return SimpleQueueKind.TRACES
+            return SimpleQueueKind.QUERIES
 
         if queue_data.testsets:
-            return SimpleQueueKind.TESTCASES
+            return SimpleQueueKind.TESTSETS
 
         return None
 

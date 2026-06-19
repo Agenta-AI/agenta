@@ -21,7 +21,6 @@ from ..types.workflow_catalog_type_response import WorkflowCatalogTypeResponse
 from ..types.workflow_catalog_types_response import WorkflowCatalogTypesResponse
 from ..types.workflow_create import WorkflowCreate
 from ..types.workflow_edit import WorkflowEdit
-from ..types.workflow_fork import WorkflowFork
 from ..types.workflow_response import WorkflowResponse
 from ..types.workflow_revision_commit import WorkflowRevisionCommit
 from ..types.workflow_revision_create import WorkflowRevisionCreate
@@ -33,6 +32,7 @@ from ..types.workflow_revisions_log import WorkflowRevisionsLog
 from ..types.workflow_revisions_response import WorkflowRevisionsResponse
 from ..types.workflow_variant_create import WorkflowVariantCreate
 from ..types.workflow_variant_edit import WorkflowVariantEdit
+from ..types.workflow_variant_fork import WorkflowVariantFork
 from ..types.workflow_variant_response import WorkflowVariantResponse
 from ..types.workflow_variants_response import WorkflowVariantsResponse
 from ..types.workflows_response import WorkflowsResponse
@@ -772,12 +772,18 @@ class WorkflowsClient:
         _response = self._raw_client.query_workflow_variants(workflow_id=workflow_id, workflow_ids=workflow_ids, workflow_slug=workflow_slug, workflow_slugs=workflow_slugs, workflow_variant_id=workflow_variant_id, workflow_variant_ids=workflow_variant_ids, workflow_variant_slug=workflow_variant_slug, workflow_variant_slugs=workflow_variant_slugs, name=name, description=description, flags=flags, tags=tags, meta=meta, include_archived=include_archived, next=next, newest=newest, oldest=oldest, limit=limit, order=order, request_options=request_options)
         return _response.data
     
-    def fork_workflow_variant(self, *, workflow: WorkflowFork, request_options: typing.Optional[RequestOptions] = None) -> WorkflowVariantResponse:
+    def fork_workflow_variant(self, *, workflow_variant: WorkflowVariantFork, workflow_variant_ref: Reference, workflow_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> WorkflowVariantResponse:
         """
         Parameters
         ----------
-        workflow : WorkflowFork
-            Fork payload. Identify the source by `workflow_id` and `workflow_variant_id` (or equivalent slugs), supply a new `workflow_variant.slug` for the forked branch.
+        workflow_variant : WorkflowVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        workflow_variant_ref : Reference
+            Source variant to fork from.
+        
+        workflow_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -789,16 +795,17 @@ class WorkflowsClient:
         
         Examples
         --------
-        from agenta import AgentaApi, WorkflowFork
+        from agenta import AgentaApi, Reference, WorkflowVariantFork
         
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
         client.workflows.fork_workflow_variant(
-            workflow=WorkflowFork(),
+            workflow_variant=WorkflowVariantFork(),
+            workflow_variant_ref=Reference(),
         )
         """
-        _response = self._raw_client.fork_workflow_variant(workflow=workflow, request_options=request_options)
+        _response = self._raw_client.fork_workflow_variant(workflow_variant=workflow_variant, workflow_variant_ref=workflow_variant_ref, workflow_revision_ref=workflow_revision_ref, request_options=request_options)
         return _response.data
     
     def retrieve_workflow_revision(self, *, workflow_ref: typing.Optional[Reference] = OMIT, workflow_variant_ref: typing.Optional[Reference] = OMIT, workflow_revision_ref: typing.Optional[Reference] = OMIT, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, key: typing.Optional[str] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> WorkflowRevisionResponse:
@@ -806,13 +813,13 @@ class WorkflowsClient:
         Parameters
         ----------
         workflow_ref : typing.Optional[Reference]
-            Return the latest revision across all variants of this workflow.
+            Workflow artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of the workflow's default variant.
         
         workflow_variant_ref : typing.Optional[Reference]
-            Return the latest revision of this variant.
+            Workflow variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         workflow_revision_ref : typing.Optional[Reference]
-            Return this exact revision (by `id`, or by `slug` + `version`).
+            Workflow revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with a `workflow_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         environment_ref : typing.Optional[Reference]
             Environment artifact backing the deployment to resolve from.
@@ -1147,11 +1154,11 @@ class WorkflowsClient:
         _response = self._raw_client.commit_workflow_revision(workflow_revision=workflow_revision, workflow_variant_id=workflow_variant_id, request_options=request_options)
         return _response.data
     
-    def log_workflow_revisions(self, *, workflow: WorkflowRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> WorkflowRevisionsResponse:
+    def log_workflow_revisions(self, *, workflow_revisions: WorkflowRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> WorkflowRevisionsResponse:
         """
         Parameters
         ----------
-        workflow : WorkflowRevisionsLog
+        workflow_revisions : WorkflowRevisionsLog
             Log query. Supply `workflow_id`, `workflow_variant_id`, or `workflow_revision_id` to scope the log, and an optional `depth`.
         
         request_options : typing.Optional[RequestOptions]
@@ -1170,10 +1177,10 @@ class WorkflowsClient:
             api_key="YOUR_API_KEY",
         )
         client.workflows.log_workflow_revisions(
-            workflow=WorkflowRevisionsLog(),
+            workflow_revisions=WorkflowRevisionsLog(),
         )
         """
-        _response = self._raw_client.log_workflow_revisions(workflow=workflow, request_options=request_options)
+        _response = self._raw_client.log_workflow_revisions(workflow_revisions=workflow_revisions, request_options=request_options)
         return _response.data
     
     def resolve_workflow_revision(self, *, workflow_ref: typing.Optional[Reference] = OMIT, workflow_variant_ref: typing.Optional[Reference] = OMIT, workflow_revision_ref: typing.Optional[Reference] = OMIT, workflow_revision: typing.Optional[WorkflowRevisionInput] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> WorkflowRevisionResolveResponse:
@@ -2283,12 +2290,18 @@ class AsyncWorkflowsClient:
         _response = await self._raw_client.query_workflow_variants(workflow_id=workflow_id, workflow_ids=workflow_ids, workflow_slug=workflow_slug, workflow_slugs=workflow_slugs, workflow_variant_id=workflow_variant_id, workflow_variant_ids=workflow_variant_ids, workflow_variant_slug=workflow_variant_slug, workflow_variant_slugs=workflow_variant_slugs, name=name, description=description, flags=flags, tags=tags, meta=meta, include_archived=include_archived, next=next, newest=newest, oldest=oldest, limit=limit, order=order, request_options=request_options)
         return _response.data
     
-    async def fork_workflow_variant(self, *, workflow: WorkflowFork, request_options: typing.Optional[RequestOptions] = None) -> WorkflowVariantResponse:
+    async def fork_workflow_variant(self, *, workflow_variant: WorkflowVariantFork, workflow_variant_ref: Reference, workflow_revision_ref: typing.Optional[Reference] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> WorkflowVariantResponse:
         """
         Parameters
         ----------
-        workflow : WorkflowFork
-            Fork payload. Identify the source by `workflow_id` and `workflow_variant_id` (or equivalent slugs), supply a new `workflow_variant.slug` for the forked branch.
+        workflow_variant : WorkflowVariantFork
+            Config for the new variant (slug, name, description, flags).
+        
+        workflow_variant_ref : Reference
+            Source variant to fork from.
+        
+        workflow_revision_ref : typing.Optional[Reference]
+            Pin the fork to this revision; defaults to the source variant's head.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2302,7 +2315,7 @@ class AsyncWorkflowsClient:
         --------
         import asyncio
         
-        from agenta import AsyncAgentaApi, WorkflowFork
+        from agenta import AsyncAgentaApi, Reference, WorkflowVariantFork
         
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
@@ -2311,13 +2324,14 @@ class AsyncWorkflowsClient:
         
         async def main() -> None:
             await client.workflows.fork_workflow_variant(
-                workflow=WorkflowFork(),
+                workflow_variant=WorkflowVariantFork(),
+                workflow_variant_ref=Reference(),
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.fork_workflow_variant(workflow=workflow, request_options=request_options)
+        _response = await self._raw_client.fork_workflow_variant(workflow_variant=workflow_variant, workflow_variant_ref=workflow_variant_ref, workflow_revision_ref=workflow_revision_ref, request_options=request_options)
         return _response.data
     
     async def retrieve_workflow_revision(self, *, workflow_ref: typing.Optional[Reference] = OMIT, workflow_variant_ref: typing.Optional[Reference] = OMIT, workflow_revision_ref: typing.Optional[Reference] = OMIT, environment_ref: typing.Optional[Reference] = OMIT, environment_variant_ref: typing.Optional[Reference] = OMIT, environment_revision_ref: typing.Optional[Reference] = OMIT, key: typing.Optional[str] = OMIT, resolve: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> WorkflowRevisionResponse:
@@ -2325,13 +2339,13 @@ class AsyncWorkflowsClient:
         Parameters
         ----------
         workflow_ref : typing.Optional[Reference]
-            Return the latest revision across all variants of this workflow.
+            Workflow artifact to look up. Identifies the artifact by `id` or `slug` (both project-unique). When no variant_ref or revision_ref is provided, returns the latest revision of the workflow's default variant.
         
         workflow_variant_ref : typing.Optional[Reference]
-            Return the latest revision of this variant.
+            Workflow variant to look up. Identifies the variant by `id` or `slug` (both project-unique). When no revision_ref is provided, returns the latest revision of this variant.
         
         workflow_revision_ref : typing.Optional[Reference]
-            Return this exact revision (by `id`, or by `slug` + `version`).
+            Workflow revision to look up. `id` alone identifies a revision (project-unique). `slug` alone identifies a revision (project-unique). `version` alone is a per-variant sequence number and is **not** sufficient on its own; it must be combined with a `workflow_variant_ref`. Sending only `version` without a variant ref returns HTTP 400.
         
         environment_ref : typing.Optional[Reference]
             Environment artifact backing the deployment to resolve from.
@@ -2738,11 +2752,11 @@ class AsyncWorkflowsClient:
         _response = await self._raw_client.commit_workflow_revision(workflow_revision=workflow_revision, workflow_variant_id=workflow_variant_id, request_options=request_options)
         return _response.data
     
-    async def log_workflow_revisions(self, *, workflow: WorkflowRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> WorkflowRevisionsResponse:
+    async def log_workflow_revisions(self, *, workflow_revisions: WorkflowRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> WorkflowRevisionsResponse:
         """
         Parameters
         ----------
-        workflow : WorkflowRevisionsLog
+        workflow_revisions : WorkflowRevisionsLog
             Log query. Supply `workflow_id`, `workflow_variant_id`, or `workflow_revision_id` to scope the log, and an optional `depth`.
         
         request_options : typing.Optional[RequestOptions]
@@ -2766,13 +2780,13 @@ class AsyncWorkflowsClient:
         
         async def main() -> None:
             await client.workflows.log_workflow_revisions(
-                workflow=WorkflowRevisionsLog(),
+                workflow_revisions=WorkflowRevisionsLog(),
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.log_workflow_revisions(workflow=workflow, request_options=request_options)
+        _response = await self._raw_client.log_workflow_revisions(workflow_revisions=workflow_revisions, request_options=request_options)
         return _response.data
     
     async def resolve_workflow_revision(self, *, workflow_ref: typing.Optional[Reference] = OMIT, workflow_variant_ref: typing.Optional[Reference] = OMIT, workflow_revision_ref: typing.Optional[Reference] = OMIT, workflow_revision: typing.Optional[WorkflowRevisionInput] = OMIT, max_depth: typing.Optional[int] = OMIT, max_embeds: typing.Optional[int] = OMIT, error_policy: typing.Optional[ErrorPolicy] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> WorkflowRevisionResolveResponse:

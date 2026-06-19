@@ -99,11 +99,6 @@ def test_event_type_includes_all_new_events():
         "traces.queried",
         "testcases.fetched",
         "testcases.queried",
-        "applications.revisions.retrieved",
-        "applications.revisions.fetched",
-        "applications.revisions.queried",
-        "applications.revisions.logged",
-        "applications.revisions.committed",
         "queries.revisions.retrieved",
         "queries.revisions.fetched",
         "queries.revisions.queried",
@@ -114,11 +109,11 @@ def test_event_type_includes_all_new_events():
         "testsets.revisions.queried",
         "testsets.revisions.logged",
         "testsets.revisions.committed",
-        "evaluators.revisions.retrieved",
-        "evaluators.revisions.fetched",
-        "evaluators.revisions.queried",
-        "evaluators.revisions.logged",
-        "evaluators.revisions.committed",
+        "workflows.revisions.retrieved",
+        "workflows.revisions.fetched",
+        "workflows.revisions.queried",
+        "workflows.revisions.logged",
+        "workflows.revisions.committed",
         "environments.revisions.retrieved",
         "environments.revisions.fetched",
         "environments.revisions.queried",
@@ -217,10 +212,9 @@ def test_testcase_queried_attributes_caps_at_1000():
 @pytest.mark.parametrize(
     "domain,plural",
     [
-        ("application", "applications"),
+        ("workflow", "workflows"),
         ("query", "queries"),
         ("testset", "testsets"),
-        ("evaluator", "evaluators"),
         ("environment", "environments"),
     ],
 )
@@ -242,9 +236,9 @@ def test_revision_event_types_cover_all_actions(domain, plural):
 
 def test_revision_attributes_single():
     user = uuid4()
-    rev = _revision(domain="application", revision_id="r-1")
+    rev = _revision(domain="workflow", revision_id="r-1")
     attrs = build_revision_event_attributes(
-        domain="application",
+        domain="workflow",
         action="retrieve",
         user_id=user,
         revision=rev,
@@ -252,9 +246,9 @@ def test_revision_attributes_single():
     assert attrs["user_id"] == str(user)
     assert attrs["count"] == 1
     refs = attrs["references"]
-    assert refs["application"] == {"id": "a-id", "slug": "a-slug"}
-    assert refs["application_variant"] == {"id": "v-id", "slug": "v-slug"}
-    assert refs["application_revision"] == {
+    assert refs["workflow"] == {"id": "a-id", "slug": "a-slug"}
+    assert refs["workflow_variant"] == {"id": "v-id", "slug": "v-slug"}
+    assert refs["workflow_revision"] == {
         "id": "r-1",
         "slug": "v1",
         "version": 1,
@@ -290,20 +284,20 @@ def test_revision_attributes_omits_parent_slug_when_absent():
     """Artifact/variant id present but slug unresolved → emit id without slug."""
     user = uuid4()
     rev = _revision(
-        domain="evaluator",
+        domain="workflow",
         revision_id="r-9",
         artifact_slug=None,
         variant_slug=None,
     )
     attrs = build_revision_event_attributes(
-        domain="evaluator",
+        domain="workflow",
         action="retrieve",
         user_id=user,
         revision=rev,
     )
     refs = attrs["references"]
-    assert refs["evaluator"] == {"id": "a-id"}
-    assert refs["evaluator_variant"] == {"id": "v-id"}
+    assert refs["workflow"] == {"id": "a-id"}
+    assert refs["workflow_variant"] == {"id": "v-id"}
 
 
 def test_revision_attributes_falls_back_to_generic_slug():
@@ -319,14 +313,14 @@ def test_revision_attributes_falls_back_to_generic_slug():
         variant_slug="generic-v",
     )
     attrs = build_revision_event_attributes(
-        domain="application",
+        domain="workflow",
         action="retrieve",
         user_id=user,
         revision=rev,
     )
     refs = attrs["references"]
-    assert refs["application"] == {"id": "a-id", "slug": "generic-a"}
-    assert refs["application_variant"] == {"id": "v-id", "slug": "generic-v"}
+    assert refs["workflow"] == {"id": "a-id", "slug": "generic-a"}
+    assert refs["workflow_variant"] == {"id": "v-id", "slug": "generic-v"}
 
 
 def test_revision_attributes_list_caps_references():
@@ -347,9 +341,9 @@ def test_revision_attributes_list_caps_references():
 
 def test_revision_attributes_commit_omits_count_and_includes_message():
     user = uuid4()
-    rev = _revision(domain="evaluator", revision_id="r-3")
+    rev = _revision(domain="workflow", revision_id="r-3")
     attrs = build_revision_event_attributes(
-        domain="evaluator",
+        domain="workflow",
         action="commit",
         user_id=user,
         revision=rev,
@@ -601,50 +595,50 @@ async def test_publish_testcase_fetched_zero_count_suppressed():
 @pytest.mark.asyncio
 async def test_publish_revision_event_routes_action_to_event_type():
     captured: List[dict] = []
-    rev = _revision(domain="application", revision_id="r-1")
+    rev = _revision(domain="workflow", revision_id="r-1")
     with patch(
         "oss.src.core.events.utils.publish_event",
         new=_captured_publishes(captured),
     ):
         await publish_revision_event(
             request=_make_request(),
-            domain="application",
+            domain="workflow",
             action="retrieve",
             revision=rev,
         )
         await publish_revision_event(
             request=_make_request(),
-            domain="application",
+            domain="workflow",
             action="fetch",
             revision=rev,
         )
         await publish_revision_event(
             request=_make_request(),
-            domain="application",
+            domain="workflow",
             action="commit",
             revision=rev,
             message="Commit changes",
         )
         await publish_revision_event(
             request=_make_request(),
-            domain="application",
+            domain="workflow",
             action="query",
             revisions=[rev],
         )
         await publish_revision_event(
             request=_make_request(),
-            domain="application",
+            domain="workflow",
             action="log",
             revisions=[rev],
         )
 
     types = [m["event"].event_type for m in captured]
     assert types == [
-        EventType.APPLICATIONS_REVISIONS_RETRIEVED,
-        EventType.APPLICATIONS_REVISIONS_FETCHED,
-        EventType.APPLICATIONS_REVISIONS_COMMITTED,
-        EventType.APPLICATIONS_REVISIONS_QUERIED,
-        EventType.APPLICATIONS_REVISIONS_LOGGED,
+        EventType.WORKFLOWS_REVISIONS_RETRIEVED,
+        EventType.WORKFLOWS_REVISIONS_FETCHED,
+        EventType.WORKFLOWS_REVISIONS_COMMITTED,
+        EventType.WORKFLOWS_REVISIONS_QUERIED,
+        EventType.WORKFLOWS_REVISIONS_LOGGED,
     ]
     # commit event must carry message and skip count
     commit_attrs = captured[2]["event"].attributes
@@ -690,7 +684,7 @@ async def test_publish_revision_event_zero_revisions_suppresses():
 async def test_publish_revision_event_skips_single_when_count_zero():
     """retrieve/fetch/commit must not publish when explicit count <= 0."""
     captured: List[dict] = []
-    rev = _revision(domain="application", revision_id="r-1")
+    rev = _revision(domain="workflow", revision_id="r-1")
     with patch(
         "oss.src.core.events.utils.publish_event",
         new=_captured_publishes(captured),
@@ -698,7 +692,7 @@ async def test_publish_revision_event_skips_single_when_count_zero():
         for action in ("retrieve", "fetch", "commit"):
             await publish_revision_event(
                 request=_make_request(),
-                domain="application",
+                domain="workflow",
                 action=action,
                 revision=rev,
                 count=0,
@@ -778,9 +772,15 @@ async def test_l1_quota_soft_check_drops_when_over_quota():
         ),
         patch("oss.src.core.events.utils.is_ee", return_value=True),
         patch(
-            "ee.src.utils.entitlements.check_entitlements", new=_fake_check, create=True
+            "ee.src.core.access.entitlements.service.check_entitlements",
+            new=_fake_check,
+            create=True,
         ),
-        patch("ee.src.utils.entitlements.scope_from", new=lambda **kw: kw, create=True),
+        patch(
+            "ee.src.core.access.entitlements.service.scope_from",
+            new=lambda **kw: kw,
+            create=True,
+        ),
     ):
         await publish_trace_fetched(
             request=_make_request(),
@@ -805,9 +805,15 @@ async def test_l1_quota_soft_check_allows_under_quota():
         ),
         patch("oss.src.core.events.utils.is_ee", return_value=True),
         patch(
-            "ee.src.utils.entitlements.check_entitlements", new=_fake_check, create=True
+            "ee.src.core.access.entitlements.service.check_entitlements",
+            new=_fake_check,
+            create=True,
         ),
-        patch("ee.src.utils.entitlements.scope_from", new=lambda **kw: kw, create=True),
+        patch(
+            "ee.src.core.access.entitlements.service.scope_from",
+            new=lambda **kw: kw,
+            create=True,
+        ),
     ):
         await publish_trace_fetched(
             request=_make_request(),
@@ -832,9 +838,15 @@ async def test_l1_quota_soft_check_fails_open_on_exception():
         ),
         patch("oss.src.core.events.utils.is_ee", return_value=True),
         patch(
-            "ee.src.utils.entitlements.check_entitlements", new=_fake_check, create=True
+            "ee.src.core.access.entitlements.service.check_entitlements",
+            new=_fake_check,
+            create=True,
         ),
-        patch("ee.src.utils.entitlements.scope_from", new=lambda **kw: kw, create=True),
+        patch(
+            "ee.src.core.access.entitlements.service.scope_from",
+            new=lambda **kw: kw,
+            create=True,
+        ),
     ):
         await publish_trace_fetched(
             request=_make_request(),
@@ -862,9 +874,15 @@ async def test_l1_quota_soft_check_skipped_when_org_unknown():
         ),
         patch("oss.src.core.events.utils.is_ee", return_value=True),
         patch(
-            "ee.src.utils.entitlements.check_entitlements", new=_fake_check, create=True
+            "ee.src.core.access.entitlements.service.check_entitlements",
+            new=_fake_check,
+            create=True,
         ),
-        patch("ee.src.utils.entitlements.scope_from", new=lambda **kw: kw, create=True),
+        patch(
+            "ee.src.core.access.entitlements.service.scope_from",
+            new=lambda **kw: kw,
+            create=True,
+        ),
     ):
         await publish_trace_fetched(
             request=request,
@@ -892,9 +910,15 @@ async def test_l1_quota_soft_check_skipped_on_oss():
         ),
         patch("oss.src.core.events.utils.is_ee", return_value=False),
         patch(
-            "ee.src.utils.entitlements.check_entitlements", new=_fake_check, create=True
+            "ee.src.core.access.entitlements.service.check_entitlements",
+            new=_fake_check,
+            create=True,
         ),
-        patch("ee.src.utils.entitlements.scope_from", new=lambda **kw: kw, create=True),
+        patch(
+            "ee.src.core.access.entitlements.service.scope_from",
+            new=lambda **kw: kw,
+            create=True,
+        ),
     ):
         await publish_trace_fetched(
             request=_make_request(),

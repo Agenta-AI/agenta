@@ -106,8 +106,13 @@ const FocusValueCard = ({
     children: ReactNode
     className?: string
 }) => (
-    <div className={clsx("rounded-xl bg-[#F8FAFC] px-4 py-3 text-[#1D2939]", className)}>
-        <Text className="text-xs font-medium text-[#101828]">{label}</Text>
+    <div
+        className={clsx(
+            "rounded-xl bg-[var(--ag-c-F8FAFC)] px-4 py-3 text-[var(--ag-c-1D2939)]",
+            className,
+        )}
+    >
+        <Text className="text-xs font-medium text-[var(--ag-c-101828)]">{label}</Text>
         <div className="mt-2 text-sm whitespace-pre-wrap break-words">{children}</div>
     </div>
 )
@@ -501,7 +506,13 @@ const ScenarioColumnValue = memo(
                 }
                 if (isLongTextMetric) {
                     return (
-                        <span className={isPlaceholder ? "text-[#98A2B3]" : "text-[#1D2939]"}>
+                        <span
+                            className={
+                                isPlaceholder
+                                    ? "text-[var(--ag-c-98A2B3)]"
+                                    : "text-[var(--ag-c-1D2939)]"
+                            }
+                        >
                             {formattedValue}
                         </span>
                     )
@@ -533,7 +544,9 @@ const ScenarioColumnValue = memo(
 
             return (
                 <div className="flex flex-col gap-2">
-                    <Text className="text-xs font-medium text-[#475467]">{displayLabel}</Text>
+                    <Text className="text-xs font-medium text-[var(--ag-c-475467)]">
+                        {displayLabel}
+                    </Text>
                     {metricContent}
                 </div>
             )
@@ -688,7 +701,7 @@ const EvalOutputMetaRow = memo(
         const resolvedCompareIndex = compareIndex ?? 0
 
         return (
-            <div className="flex flex-wrap items-center justify-between gap-2 py-2 px-4 min-w-[480px] border-[0.5px] border-solid border-[#EAEFF5]">
+            <div className="flex flex-wrap items-center justify-between gap-2 py-2 px-4 min-w-[480px] border-[0.5px] border-solid border-[var(--ag-c-EAEFF5)]">
                 <EvaluationRunTag
                     label={runDisplayName || "Evaluation"}
                     compareIndex={resolvedCompareIndex}
@@ -725,7 +738,7 @@ const FocusSectionHeader = ({
         <div
             className={clsx(
                 "flex items-center justify-between py-1 px-3 h-10 sticky top-0 bg-zinc-1 z-20 cursor-pointer",
-                "border-b border-b-[rgba(5,23,41,0.06)]",
+                "border-b border-b-[var(--ag-rgba-051729-06)]",
             )}
             style={{borderBottomStyle: "solid"}}
             role="button"
@@ -733,7 +746,7 @@ const FocusSectionHeader = ({
             onClick={onToggle}
             onKeyDown={handleKeyDown}
         >
-            <Text className="text-sm font-semibold text-[#344054]">{title}</Text>
+            <Text className="text-sm font-semibold text-[var(--ag-c-344054)]">{title}</Text>
             <Button
                 type="link"
                 size="small"
@@ -873,12 +886,14 @@ const InvocationMetaChips = memo(
 
         return (
             <div className="flex flex-col">
-                {appLabel ? <span className="font-medium text-[#101828]">{appLabel}</span> : null}
+                {appLabel ? (
+                    <span className="font-medium text-[var(--ag-c-101828)]">{appLabel}</span>
+                ) : null}
                 {variantLabel ? (
-                    <div className="flex items-center gap-2 text-[#475467]">
+                    <div className="flex items-center gap-2 text-[var(--ag-c-475467)]">
                         <span>{variantLabel}</span>
                         {revisionBadge ? (
-                            <span className="rounded-full bg-[#F2F4F7] px-2 py-0.5 text-xs font-semibold text-[#344054]">
+                            <span className="rounded-full bg-[var(--ag-c-F2F4F7)] px-2 py-0.5 text-xs font-semibold text-[var(--ag-c-344054)]">
                                 {revisionBadge}
                             </span>
                         ) : null}

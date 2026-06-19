@@ -22,7 +22,13 @@ import AccordionTreePanel from "../../../AccordionTreePanel"
 
 import {prepareTraceOverviewPanels} from "./messagePanels"
 
-const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
+const OverviewTabItem = ({
+    activeTrace,
+    prettyJsonStickyOffset = 0,
+}: {
+    activeTrace: TraceSpanNode
+    prettyJsonStickyOffset?: number
+}) => {
     // Use trace drill-in API for data access while preserving existing UI rendering.
     const entityWithDrillIn = traceSpanMolecule as typeof traceSpanMolecule & {
         drillIn: NonNullable<typeof traceSpanMolecule.drillIn>
@@ -115,6 +121,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                             rootScope="span"
                             spanDataOverride={panels.inputs.value}
                             viewModePreset={panels.inputs.hasMessages ? "message" : "default"}
+                            prettyJsonStickyOffset={prettyJsonStickyOffset}
                         />
                     ) : (
                         <AccordionTreePanel
@@ -137,6 +144,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                             rootScope="span"
                             spanDataOverride={parameters}
                             defaultCollapsed
+                            prettyJsonStickyOffset={prettyJsonStickyOffset}
                         />
                     ) : (
                         <AccordionTreePanel
@@ -159,6 +167,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                             rootScope="span"
                             spanDataOverride={panels.outputs.value}
                             viewModePreset={panels.outputs.hasMessages ? "message" : "default"}
+                            prettyJsonStickyOffset={prettyJsonStickyOffset}
                         />
                     ) : (
                         <AccordionTreePanel
@@ -182,6 +191,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                                     editable={false}
                                     rootScope="span"
                                     spanDataOverride={internals}
+                                    prettyJsonStickyOffset={prettyJsonStickyOffset}
                                 />
                             ) : (
                                 <AccordionTreePanel
@@ -204,6 +214,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                             editable={false}
                             rootScope="span"
                             spanDataOverride={exception}
+                            prettyJsonStickyOffset={prettyJsonStickyOffset}
                         />
                     ) : null}
                 </Space>

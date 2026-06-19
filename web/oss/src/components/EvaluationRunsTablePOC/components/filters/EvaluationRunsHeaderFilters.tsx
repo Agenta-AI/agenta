@@ -10,6 +10,7 @@ import {
     type ReferenceTone,
 } from "@/oss/components/References/referenceColors"
 import {testsetsListQueryAtomFamily} from "@/oss/state/entities/testset"
+import {currentWorkflowAtom} from "@/oss/state/workflow"
 
 import {
     evaluationRunsFilterOptionsAtom,
@@ -137,10 +138,19 @@ const FiltersSummary = () => {
         () => optionMap(filterOptions.evaluatorOptions ?? []),
         [filterOptions.evaluatorOptions],
     )
-    const appLabels = useMemo(
-        () => optionMap(filterOptions.appOptions ?? []),
-        [filterOptions.appOptions],
-    )
+    const currentWorkflow = useAtomValue(currentWorkflowAtom)
+    const appLabels = useMemo(() => {
+        const map = optionMap(filterOptions.appOptions ?? [])
+        // The locked "Apps" chip is preset to the route workflow. Evaluator
+        // workflows aren't in the apps list (`appOptions`), so their id won't
+        // resolve to a name and the chip would show a raw id. Seed the map from
+        // the current workflow so the chip renders its name instead.
+        const workflowName = currentWorkflow?.name ?? currentWorkflow?.slug
+        if (currentWorkflow?.id && workflowName && !map.has(currentWorkflow.id)) {
+            map.set(currentWorkflow.id, workflowName)
+        }
+        return map
+    }, [filterOptions.appOptions, currentWorkflow])
     const variantLabels = useMemo(
         () =>
             optionMap(
@@ -356,14 +366,14 @@ const FiltersSummary = () => {
 
     if (!groups.length) {
         return (
-            <Typography.Text className="text-xs text-[#98A2B3] whitespace-nowrap">
+            <Typography.Text className="text-xs text-[var(--ag-c-98A2B3)] whitespace-nowrap">
                 No filters applied
             </Typography.Text>
         )
     }
 
     return (
-        <div className="flex gap-2 text-xs text-[#475467] grow overflow-x-auto">
+        <div className="flex gap-2 text-xs text-[var(--ag-c-475467)] grow overflow-x-auto">
             {groups.map((group) =>
                 group.chips.map((chip) => {
                     const tone = REFERENCE_CHIP_TONES[group.kind]
@@ -381,7 +391,7 @@ const FiltersSummary = () => {
                                 "m-0 px-2 py-0.5 text-xs border border-solid rounded",
                                 toneColors
                                     ? "hover:brightness-95"
-                                    : "text-[#475467] bg-[#F2F4F7] border-transparent",
+                                    : "text-[var(--ag-c-475467)] bg-[var(--ag-c-F2F4F7)] border-transparent",
                             )}
                             style={
                                 toneColors
@@ -403,7 +413,7 @@ const FiltersSummary = () => {
                                 }
                             >
                                 <span className={toneColors ? "text-inherit" : undefined}>
-                                    <span className="font-medium text-[#101828]">
+                                    <span className="font-medium text-[var(--ag-c-101828)]">
                                         {group.label}:
                                     </span>{" "}
                                     {chip.label}

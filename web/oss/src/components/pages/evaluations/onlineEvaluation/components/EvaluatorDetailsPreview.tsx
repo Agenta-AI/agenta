@@ -13,8 +13,7 @@ const {Text} = Typography
 interface EvaluatorDetailsPreviewProps {
     details: EvaluatorDetails
     typeLabel?: string
-    typeColor?: string
-    fallbackColors?: {backgroundColor?: string; textColor?: string}
+    typeKey?: string
     showType?: boolean
 }
 
@@ -26,11 +25,11 @@ const renderParameterValue = (param: ParameterPreviewItem) => {
 
     const isMultiline = displayValue.includes("\n")
     const baseContent = isMultiline ? (
-        <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-[#1D2939]">
+        <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-[var(--ag-c-1D2939)]">
             {displayValue}
         </pre>
     ) : (
-        <span className="text-[#1D2939] break-words">{displayValue}</span>
+        <span className="text-[var(--ag-c-1D2939)] break-words">{displayValue}</span>
     )
 
     if (param.fullValue && param.fullValue !== displayValue) {
@@ -49,8 +48,7 @@ const renderOutputType = (metric: OutputMetric) => {
 const EvaluatorDetailsPreview = ({
     details,
     typeLabel,
-    typeColor,
-    fallbackColors,
+    typeKey,
     showType,
 }: EvaluatorDetailsPreviewProps) => {
     const hasParameters = details.visibleParameters.length > 0
@@ -62,11 +60,7 @@ const EvaluatorDetailsPreview = ({
             {showType && typeLabel ? (
                 <Form.Item label="Evaluator type" style={{marginBottom: 12}}>
                     <div className="flex items-center gap-2">
-                        <EvaluatorTypeTag
-                            label={typeLabel}
-                            color={typeColor}
-                            fallback={fallbackColors}
-                        />
+                        <EvaluatorTypeTag label={typeLabel} typeKey={typeKey} />
                     </div>
                 </Form.Item>
             ) : null}
@@ -100,7 +94,7 @@ const EvaluatorDetailsPreview = ({
             {/* {details.parameters.length > 0 ? (
                 <Form.Item label="Evaluator JSON payload" style={{marginBottom: 12}}>
                     <ReadOnlyBox className="max-h-48 overflow-auto">
-                        <pre className="m-0 whitespace-pre-wrap break-words text-xs text-[#1D2939]">
+                        <pre className="m-0 whitespace-pre-wrap break-words text-xs text-[var(--ag-c-1D2939)]">
                             {JSON.stringify(details.parameterPayload, null, 2)}
                         </pre>
                     </ReadOnlyBox>
@@ -117,7 +111,9 @@ const EvaluatorDetailsPreview = ({
                     >
                         <ReadOnlyBox>
                             <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-semibold text-[#475467]">{metric.name}</span>
+                                <span className="font-semibold text-[var(--ag-c-475467)]">
+                                    {metric.name}
+                                </span>
                                 <Tag className="!m-0" bordered={false}>
                                     {renderOutputType(metric)}
                                 </Tag>
@@ -129,14 +125,19 @@ const EvaluatorDetailsPreview = ({
                                     <Tag
                                         className="!m-0"
                                         bordered={false}
-                                        style={{backgroundColor: "#F2F4F7", color: "#475467"}}
+                                        style={{
+                                            backgroundColor: "var(--ag-c-F2F4F7)",
+                                            color: "var(--ag-c-475467)",
+                                        }}
                                     >
                                         Optional
                                     </Tag>
                                 )}
                             </div>
                             {metric.description ? (
-                                <div className="mt-1 text-[#475467]">{metric.description}</div>
+                                <div className="mt-1 text-[var(--ag-c-475467)]">
+                                    {metric.description}
+                                </div>
                             ) : null}
                         </ReadOnlyBox>
                     </Form.Item>

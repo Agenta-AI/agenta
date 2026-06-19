@@ -4,8 +4,9 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .application_revision import ApplicationRevision
+from .application_revision_output import ApplicationRevisionOutput
 from .resolution_info import ResolutionInfo
+from .retrieval_info import RetrievalInfo
 
 
 class ApplicationRevisionResponse(UniversalBaseModel):
@@ -17,7 +18,7 @@ class ApplicationRevisionResponse(UniversalBaseModel):
     `1` when a revision was found, `0` otherwise.
     """
     
-    application_revision: typing.Optional[ApplicationRevision] = pydantic.Field(default=None)
+    application_revision: typing.Optional[ApplicationRevisionOutput] = pydantic.Field(default=None)
     """
     The application revision, including its `data` payload (prompt, model parameters, schemas, URL).
     """
@@ -25,6 +26,11 @@ class ApplicationRevisionResponse(UniversalBaseModel):
     resolution_info: typing.Optional[ResolutionInfo] = pydantic.Field(default=None)
     """
     Present only when the request set `resolve: true`. Describes which embedded references were resolved and any errors that occurred.
+    """
+    
+    retrieval_info: typing.Optional[RetrievalInfo] = pydantic.Field(default=None)
+    """
+    References used to retrieve the top-level revision.
     """
     
     

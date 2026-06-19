@@ -21,6 +21,8 @@ class TracingContext(BaseModel):
     references: Optional[dict] = None
     links: Optional[dict] = None
     #
+    selector: Optional[dict] = None
+    #
     type: Optional[str] = None
     #
     link: Optional[dict] = None

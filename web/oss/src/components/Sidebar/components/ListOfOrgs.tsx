@@ -24,7 +24,6 @@ import Session from "supertokens-auth-react/recipe/session"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useSession} from "@/oss/hooks/useSession"
-import {isEE} from "@/oss/lib/helpers/isEE"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import {checkOrganizationAccess} from "@/oss/services/organization/api"
 import {useOrgData} from "@/oss/state/org"
@@ -67,7 +66,7 @@ const ListOfOrgs = ({
     buttonProps,
     interactive = true,
     overrideOrganizationId,
-    organizationSelectionEnabled = isEE(),
+    organizationSelectionEnabled = true,
     ...dropdownProps
 }: ListOfOrgsProps) => {
     const formatErrorMessage = (detail: any, fallback: string) => {
@@ -98,13 +97,12 @@ const ListOfOrgs = ({
         [safeOrganizationList, effectiveSelectedId],
     )
     const {project} = useProjectData()
-    const organizationLabel = isEE() ? "Organization" : "Agenta"
-    const organizationDisplayName = isEE()
-        ? selectedBasicOrganization?.name ||
-          selectedOrganization?.name ||
-          organizations?.[0]?.name ||
-          organizationLabel
-        : organizationLabel
+    const organizationLabel = "Organization"
+    const organizationDisplayName =
+        selectedBasicOrganization?.name ||
+        selectedOrganization?.name ||
+        organizations?.[0]?.name ||
+        organizationLabel
 
     const [isCreateModalOpen, setCreateModalOpen] = useState(false)
     const [createForm] = Form.useForm<{name: string; description?: string}>()
@@ -179,14 +177,14 @@ const ListOfOrgs = ({
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                             <InitialsAvatar size="small" name={organization.name} />
                             <span className="truncate">{organization.name}</span>
-                            {isDemo && <Tag className="bg-[#0517290F] m-0">demo</Tag>}
+                            {isDemo && <Tag className="bg-[var(--ag-c-0517290F)] m-0">demo</Tag>}
                         </div>
                     </div>
                 ),
             }
 
             // Show submenu actions only for the currently selected org
-            if (isOwner && isEE() && isSelectedOrganization) {
+            if (isOwner && isSelectedOrganization) {
                 return {
                     ...baseItem,
                     children: [
@@ -229,8 +227,7 @@ const ListOfOrgs = ({
             items.push({type: "divider", key: "organizations-divider"})
         }
 
-        // Only show "New Organization" in EE
-        if (isEE()) {
+        if (organizationSelectionEnabled) {
             items.push({
                 key: "create-organization",
                 label: (
@@ -239,8 +236,8 @@ const ListOfOrgs = ({
                     </div>
                 ),
             })
-            items.push({type: "divider", key: "organizations-actions-divider"})
         }
+        items.push({type: "divider", key: "organizations-actions-divider"})
 
         items.push({
             key: "logout",
@@ -459,6 +456,7 @@ const ListOfOrgs = ({
             AlertPopup({
                 title: "Logout",
                 message: "Are you sure you want to logout?",
+                centered: true,
                 onOk: logout,
             })
             return
@@ -550,10 +548,6 @@ const ListOfOrgs = ({
                                         payload?.session_identities ||
                                         payload?.sessionIdentities ||
                                         []
-                                    console.debug("[auth-upgrade] captured session identities", {
-                                        organizationId,
-                                        sessionIdentities,
-                                    })
                                     window.localStorage.setItem(
                                         "authUpgradeSessionIdentities",
                                         JSON.stringify(sessionIdentities),

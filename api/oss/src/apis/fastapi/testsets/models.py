@@ -6,11 +6,14 @@ from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
 )
+from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.testsets.dtos import (
     Testset,
     TestsetCreate,
     TestsetEdit,
     TestsetQuery,
+    TestsetFork,
+    TestsetVariantFork,
     TestsetRevisionsLog,
     #
     TestsetVariant,
@@ -42,6 +45,25 @@ class TestsetCreateRequest(BaseModel):
 class TestsetEditRequest(BaseModel):
     testset: TestsetEdit = Field(
         description="Testset artifact fields to update. The `id` in the body must match the `testset_id` in the path.",
+    )
+
+
+class TestsetForkRequest(BaseModel):
+    testset: TestsetFork = Field(
+        description="Fork specification. Supply the source variant and optional revision to fork from, plus slug/name for the new variant.",
+    )
+
+
+class TestsetVariantForkRequest(BaseModel):
+    testset_variant: TestsetVariantFork = Field(
+        description="Config for the new variant (slug, name, description, flags).",
+    )
+    testset_variant_ref: Reference = Field(
+        description="Source variant to fork from.",
+    )
+    testset_revision_ref: Optional[Reference] = Field(
+        default=None,
+        description="Pin the fork to this revision; defaults to the source variant's head.",
     )
 
 
@@ -214,7 +236,7 @@ class TestsetRevisionQueryRequest(BaseModel):
 
 
 class TestsetRevisionCommitRequest(BaseModel):
-    testset_revision_commit: TestsetRevisionCommit = Field(
+    testset_revision: TestsetRevisionCommit = Field(
         description="New revision to commit. Pass either `data` (full replacement of the testcase list) or `delta` (add/remove/replace operations against the base revision) — not both.",
     )
     include_testcases: Optional[bool] = Field(
@@ -270,7 +292,7 @@ class TestsetRevisionRetrieveRequest(BaseModel):
 
 
 class TestsetRevisionsLogRequest(BaseModel):
-    testset_revision: TestsetRevisionsLog = Field(
+    testset_revisions: TestsetRevisionsLog = Field(
         description="Scope for the log: one of `testset_id`, `testset_variant_id`, or `testset_revision_id`. Optional `depth` limits how far back to walk.",
     )
     include_testcases: Optional[bool] = Field(
@@ -287,6 +309,10 @@ class TestsetRevisionResponse(BaseModel):
     testset_revision: Optional[TestsetRevision] = Field(
         default=None,
         description="The testset revision. `data.testcase_ids` is the ordered list of testcase IDs; `data.testcases` is populated when `include_testcases` is true.",
+    )
+    retrieval_info: Optional[RetrievalInfo] = Field(
+        default=None,
+        description="References used to retrieve the top-level revision.",
     )
 
 

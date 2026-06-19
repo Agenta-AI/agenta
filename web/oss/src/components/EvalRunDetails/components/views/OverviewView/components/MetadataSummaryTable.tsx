@@ -206,18 +206,13 @@ const StatusCell = ({runId}: MetadataCellProps) => {
 
 const ApplicationCell = ({runId, projectURL}: MetadataCellProps) => (
     <div className="flex min-h-[28px] items-center">
-        <ApplicationReferenceLabel
-            runId={runId}
-            projectURL={projectURL}
-            toneOverride={null}
-            showIconOverride={false}
-        />
+        <ApplicationReferenceLabel runId={runId} projectURL={projectURL} showIconOverride={false} />
     </div>
 )
 
 const LegacyVariantCell = memo(({runId}: MetadataCellProps) => (
     <div className="flex min-h-[28px] items-center">
-        <VariantRevisionLabel runId={runId} toneOverride={null} showIconOverride={false} />
+        <VariantRevisionLabel runId={runId} showIconOverride={false} />
     </div>
 ))
 
@@ -261,7 +256,6 @@ const LegacyTestsetsCell = memo(({runId, projectURL}: MetadataCellProps) => {
                 projectURL={projectURL ?? undefined}
                 runId={runId}
                 className="items-center"
-                toneOverride={null}
                 showIconOverride={false}
             />
         </div>
@@ -558,13 +552,13 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
                     key: metric.id,
                     label: (
                         <div className="flex flex-col gap-0.5">
-                            <span className="text-[#586673]">
+                            <span className="text-[var(--ag-c-586673)]">
                                 <EvaluatorNameLabel evaluatorId={metric.evaluatorRef?.id} />{" "}
                             </span>
                             <div className="flex items-center gap-2">
                                 <span>{metric.displayLabel}</span>
                                 {hasMeanValue ? (
-                                    <span className="text-[#586673]">(mean)</span>
+                                    <span className="text-[var(--ag-c-586673)]">(mean)</span>
                                 ) : null}
                             </div>
                         </div>
@@ -630,7 +624,7 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
             width: 180,
             fixed: "left" as const,
             render: (value: ReactNode) => (
-                <div className="text-[#586673] font-medium leading-snug">{value}</div>
+                <div className="text-[var(--ag-c-586673)] font-medium leading-snug">{value}</div>
             ),
         }
 

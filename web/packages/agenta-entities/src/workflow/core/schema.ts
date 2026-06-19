@@ -293,6 +293,12 @@ export const workflowSchema = z
         // Parent slugs (from revision responses; backend returns artifact_slug
         // and variant_slug alongside the IDs so callers can verify which
         // workflow/variant the revision belongs to without a second lookup).
+        //
+        // workflow_slug / workflow_variant_slug are also required for emitting
+        // evaluator references on playground chain runs — the trace storage
+        // layer identifies evaluator runs by slug (via
+        // `references.evaluator.slug`), and we want to write the parent
+        // workflow's slug, not the revision's.
         workflow_slug: z.string().nullable().optional(),
         workflow_variant_slug: z.string().nullable().optional(),
         artifact_slug: z.string().nullable().optional(),
@@ -501,96 +507,224 @@ export function buildWorkflowUri(
 }
 
 // ============================================================================
-// EVALUATOR COLOR UTILITIES
+// WORKFLOW TYPE COLOR UTILITIES
 // ============================================================================
 
-/**
- * Ant Design preset color names used for evaluator coloring.
- */
-const PRESET_COLOR_NAMES = [
-    "blue",
-    "purple",
-    "cyan",
-    "green",
-    "magenta",
-    "pink",
-    "red",
-    "orange",
-    "yellow",
-    "volcano",
-    "geekblue",
-    "lime",
-    "gold",
-] as const
+type PresetColorName =
+    | "blue"
+    | "purple"
+    | "cyan"
+    | "green"
+    | "magenta"
+    | "pink"
+    | "red"
+    | "orange"
+    | "yellow"
+    | "volcano"
+    | "geekblue"
+    | "lime"
+    | "gold"
 
-type PresetColorName = (typeof PRESET_COLOR_NAMES)[number]
-
-const PRESET_COLOR_MAP: Record<PresetColorName, EvaluatorColor> = {
-    blue: {name: "blue", bg: "#e6f4ff", text: "#1677ff", border: "#91caff"},
-    purple: {name: "purple", bg: "#f9f0ff", text: "#722ed1", border: "#d3adf7"},
-    cyan: {name: "cyan", bg: "#e6fffb", text: "#13c2c2", border: "#87e8de"},
-    green: {name: "green", bg: "#f6ffed", text: "#52c41a", border: "#b7eb8f"},
-    magenta: {name: "magenta", bg: "#fff0f6", text: "#eb2f96", border: "#ffadd2"},
-    pink: {name: "pink", bg: "#fff0f6", text: "#eb2f96", border: "#ffadd2"},
-    red: {name: "red", bg: "#fff2f0", text: "#f5222d", border: "#ffccc7"},
-    orange: {name: "orange", bg: "#fff7e6", text: "#fa8c16", border: "#ffd591"},
-    yellow: {name: "yellow", bg: "#feffe6", text: "#fadb14", border: "#fffb8f"},
-    volcano: {name: "volcano", bg: "#fff2e8", text: "#fa541c", border: "#ffbb96"},
-    geekblue: {name: "geekblue", bg: "#f0f5ff", text: "#2f54eb", border: "#adc6ff"},
-    lime: {name: "lime", bg: "#fcffe6", text: "#a0d911", border: "#eaff8f"},
-    gold: {name: "gold", bg: "#fffbe6", text: "#faad14", border: "#ffe58f"},
-}
-
-export interface EvaluatorColor {
-    name: string
+export interface WorkflowTypeColor {
+    name: PresetColorName
     bg: string
     text: string
     border: string
 }
 
-function hashToRange(text: string, min: number, max: number): number {
-    let hash = 0
-    for (let i = 0; i < text.length; i++) {
-        hash += text.charCodeAt(i)
-    }
-    const range = max - min + 1
-    return min + (((hash % range) + range) % range)
+const PRESET_COLOR_MAP: Record<PresetColorName, WorkflowTypeColor> = {
+    blue: {
+        name: "blue",
+        bg: "var(--ant-blue-1)",
+        text: "var(--ant-blue-6)",
+        border: "var(--ant-blue-3)",
+    },
+    purple: {
+        name: "purple",
+        bg: "var(--ant-purple-1)",
+        text: "var(--ant-purple-6)",
+        border: "var(--ant-purple-3)",
+    },
+    cyan: {
+        name: "cyan",
+        bg: "var(--ant-cyan-1)",
+        text: "var(--ant-cyan-6)",
+        border: "var(--ant-cyan-3)",
+    },
+    green: {
+        name: "green",
+        bg: "var(--ant-green-1)",
+        text: "var(--ant-green-6)",
+        border: "var(--ant-green-3)",
+    },
+    magenta: {
+        name: "magenta",
+        bg: "var(--ant-magenta-1)",
+        text: "var(--ant-magenta-6)",
+        border: "var(--ant-magenta-3)",
+    },
+    pink: {
+        name: "pink",
+        bg: "var(--ant-pink-1)",
+        text: "var(--ant-pink-6)",
+        border: "var(--ant-pink-3)",
+    },
+    red: {
+        name: "red",
+        bg: "var(--ant-red-1)",
+        text: "var(--ant-red-6)",
+        border: "var(--ant-red-3)",
+    },
+    orange: {
+        name: "orange",
+        bg: "var(--ant-orange-1)",
+        text: "var(--ant-orange-6)",
+        border: "var(--ant-orange-3)",
+    },
+    yellow: {
+        name: "yellow",
+        bg: "var(--ant-yellow-1)",
+        text: "var(--ant-yellow-6)",
+        border: "var(--ant-yellow-3)",
+    },
+    volcano: {
+        name: "volcano",
+        bg: "var(--ant-volcano-1)",
+        text: "var(--ant-volcano-6)",
+        border: "var(--ant-volcano-3)",
+    },
+    geekblue: {
+        name: "geekblue",
+        bg: "var(--ant-geekblue-1)",
+        text: "var(--ant-geekblue-6)",
+        border: "var(--ant-geekblue-3)",
+    },
+    lime: {
+        name: "lime",
+        bg: "var(--ant-lime-1)",
+        text: "var(--ant-lime-6)",
+        border: "var(--ant-lime-3)",
+    },
+    gold: {
+        name: "gold",
+        bg: "var(--ant-gold-1)",
+        text: "var(--ant-gold-6)",
+        border: "var(--ant-gold-3)",
+    },
 }
 
-/**
- * Derive a deterministic color for an evaluator workflow from its URI or key.
- * Only meaningful for evaluator-type workflows (`flags.is_evaluator === true`).
- * Returns `null` for empty input.
- */
-export function getEvaluatorColor(uriOrKey: string | null | undefined): EvaluatorColor | null {
-    if (!uriOrKey) return null
-    const key = uriOrKey.includes(":") ? parseWorkflowKeyFromUri(uriOrKey) : uriOrKey
-    if (!key) return null
-    const index = hashToRange(key, 0, PRESET_COLOR_NAMES.length - 1)
-    const colorName = PRESET_COLOR_NAMES[index]
-    return PRESET_COLOR_MAP[colorName]
-}
-
-/**
- * Fixed preset colors for app workflow types.
- *
- * Apps can't use the hash-based `getEvaluatorColor` because they only have a
- * handful of types (`chat`/`completion`/`custom`) and users expect each type
- * to have a stable, semantically-chosen color across the product. Returning
- * the same `EvaluatorColor` shape lets app and evaluator tags share the
- * exact same bordered-pill rendering.
- */
-const APP_TYPE_PRESET: Record<string, PresetColorName> = {
+const WORKFLOW_TYPE_PRESET_MAP = {
     chat: "blue",
     completion: "cyan",
     custom: "gold",
+    auto_ai_critique: "purple",
+    auto_custom_code_run: "gold",
+    field_match_test: "blue",
+    json_multi_field_match: "cyan",
+    auto_json_diff: "volcano",
+    auto_semantic_similarity: "geekblue",
+    auto_webhook_test: "lime",
+    auto_exact_match: "green",
+    auto_contains_json: "magenta",
+    auto_similarity_match: "pink",
+    auto_regex_test: "orange",
+    auto_starts_with: "yellow",
+    auto_ends_with: "red",
+    auto_contains: "orange",
+    auto_contains_any: "purple",
+    auto_contains_all: "gold",
+    auto_levenshtein_distance: "lime",
+    rag_faithfulness: "geekblue",
+    rag_context_relevancy: "lime",
+    ai_llm: "purple",
+    llm: "purple",
+    prompt: "purple",
+    classifiers: "orange",
+    match: "orange",
+    similarity: "geekblue",
+    functional: "volcano",
+    hook: "volcano",
+    code: "gold",
+    human: "green",
+    feedback: "green",
+    rag: "lime",
+} as const satisfies Record<string, PresetColorName>
+
+export const WORKFLOW_TYPE_COLOR_MAP: Record<
+    keyof typeof WORKFLOW_TYPE_PRESET_MAP,
+    WorkflowTypeColor
+> = Object.fromEntries(
+    Object.entries(WORKFLOW_TYPE_PRESET_MAP).map(([key, preset]) => [
+        key,
+        PRESET_COLOR_MAP[preset],
+    ]),
+) as Record<keyof typeof WORKFLOW_TYPE_PRESET_MAP, WorkflowTypeColor>
+
+const WORKFLOW_TYPE_LABEL_MAP: Record<keyof typeof WORKFLOW_TYPE_PRESET_MAP, string> = {
+    chat: "Chat",
+    completion: "Completion",
+    custom: "Custom",
+    auto_ai_critique: "AI Critique",
+    auto_custom_code_run: "Custom Code",
+    field_match_test: "Field Match",
+    json_multi_field_match: "JSON Multi Field Match",
+    auto_json_diff: "JSON Diff",
+    auto_semantic_similarity: "Semantic Similarity",
+    auto_webhook_test: "Webhook",
+    auto_exact_match: "Exact Match",
+    auto_contains_json: "Contains JSON",
+    auto_similarity_match: "Similarity Match",
+    auto_regex_test: "Regex Test",
+    auto_starts_with: "Starts With",
+    auto_ends_with: "Ends With",
+    auto_contains: "Contains",
+    auto_contains_any: "Contains Any",
+    auto_contains_all: "Contains All",
+    auto_levenshtein_distance: "Levenshtein Distance",
+    rag_faithfulness: "RAG Faithfulness",
+    rag_context_relevancy: "RAG Context Relevancy",
+    ai_llm: "AI / LLM",
+    llm: "LLM",
+    prompt: "LLM",
+    classifiers: "Classifiers",
+    match: "Matchers",
+    similarity: "Similarity",
+    functional: "Functional",
+    hook: "Hook",
+    code: "Code",
+    human: "Human",
+    feedback: "Human",
+    rag: "RAG",
 }
 
-export function getAppTypeColor(appType: string | null | undefined): EvaluatorColor | null {
-    if (!appType) return null
-    const presetName = APP_TYPE_PRESET[appType]
-    if (!presetName) return null
-    return PRESET_COLOR_MAP[presetName]
+export function normalizeWorkflowTypeKey(typeKey: string | null | undefined): string | null {
+    if (!typeKey) return null
+    const key = typeKey.includes(":") ? parseWorkflowKeyFromUri(typeKey) : typeKey
+    const normalized = key
+        ?.toString()
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_|_$/g, "")
+    if (!normalized) return null
+    if (normalized === "ai" || normalized === "ai_llm") return "ai_llm"
+    if (normalized === "classifier") return "classifiers"
+    if (normalized === "matcher") return "match"
+    if (normalized === "webhooks" || normalized === "webhook") return "hook"
+    return normalized
+}
+
+export function getWorkflowTypeColor(typeKey: string | null | undefined): WorkflowTypeColor | null {
+    const normalized = normalizeWorkflowTypeKey(typeKey)
+    if (!normalized) return null
+    return WORKFLOW_TYPE_COLOR_MAP[normalized as keyof typeof WORKFLOW_TYPE_COLOR_MAP] ?? null
+}
+
+export function getWorkflowTypeLabel(typeKey: string | null | undefined): string | null {
+    const normalized = normalizeWorkflowTypeKey(typeKey)
+    if (!normalized) return null
+    return WORKFLOW_TYPE_LABEL_MAP[normalized as keyof typeof WORKFLOW_TYPE_LABEL_MAP] ?? null
 }
 
 /**
@@ -788,6 +922,25 @@ export function resolveOutputSchema(data: WorkflowDataInput): Record<string, unk
 }
 
 /**
+ * Auto-created feedback evaluators (`POST /simple/traces/` and `/annotations/`) infer
+ * their output schema with genson over the full trace `data` envelope (`{outputs: {...}}`),
+ * so the stored outputs schema is wrapped one level deeper than UI-created evaluators
+ * (`{score, comment}`). Unwrap the lone `outputs` object so every consumer sees the real
+ * metric keys. This is a strict no-op for every other evaluator: no real evaluator's output
+ * `properties` is a single key named `outputs` whose value has its own nested `properties`.
+ */
+function unwrapEnvelopeProperties(props: Record<string, unknown>): Record<string, unknown> {
+    const keys = Object.keys(props)
+    if (keys.length === 1 && keys[0] === "outputs") {
+        const innerProps = (props.outputs as Record<string, unknown> | undefined)?.properties
+        if (innerProps && typeof innerProps === "object") {
+            return innerProps as Record<string, unknown>
+        }
+    }
+    return props
+}
+
+/**
  * Resolve output metric properties from a workflow's data.
  */
 export function resolveOutputSchemaProperties(
@@ -798,7 +951,7 @@ export function resolveOutputSchemaProperties(
 
     const props = schema.properties
     if (props && typeof props === "object") {
-        return props as Record<string, unknown>
+        return unwrapEnvelopeProperties(props as Record<string, unknown>)
     }
 
     return null

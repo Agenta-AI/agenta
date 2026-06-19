@@ -196,7 +196,7 @@ const SessionNavigation = ({scenarioId, queueId, onCompleted}: SessionNavigation
                         type="text"
                         icon={<ArrowSquareOut size={13} />}
                         onClick={handleViewTrace}
-                        className="!text-[#758391]"
+                        className="!text-[var(--ag-c-758391)]"
                     />
                 )}
             </div>
@@ -259,7 +259,9 @@ const SessionNavigation = ({scenarioId, queueId, onCompleted}: SessionNavigation
                     <Button
                         type="primary"
                         onClick={handleMarkComplete}
-                        disabled={isSubmitting || !hasFilledMetrics}
+                        disabled={
+                            isSubmitting || (isCompleted ? !hasPendingChanges : !hasFilledMetrics)
+                        }
                         loading={isSubmitting}
                         className="w-[160px]"
                         size="small"

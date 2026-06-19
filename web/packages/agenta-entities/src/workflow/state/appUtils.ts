@@ -16,6 +16,7 @@ import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {atom, getDefaultStore} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
+import {syncPromptInputKeysInParameters} from "../../runnable/utils"
 import {generateLocalId} from "../../shared"
 import type {WorkflowCatalogTemplate, WorkflowCatalogTemplatesResponse} from "../api"
 import {fetchWorkflowCatalogTemplates, inspectWorkflow} from "../api"
@@ -185,9 +186,12 @@ export async function createEphemeralAppFromTemplate({
 
     if (signal?.aborted) return null
 
-    const parameters: Record<string, unknown> = {
+    const rawParameters: Record<string, unknown> = {
         ...((template.data?.parameters as Record<string, unknown> | undefined) ?? {}),
     }
+    const parameters =
+        (syncPromptInputKeysInParameters(rawParameters) as Record<string, unknown> | undefined) ??
+        rawParameters
 
     const workflow: Workflow = {
         id: localId,

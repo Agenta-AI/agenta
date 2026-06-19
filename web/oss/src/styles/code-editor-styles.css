@@ -248,7 +248,8 @@
         top: 0 !important;
         width: 30px !important;
         text-align: right !important;
-        color: #6b7280 !important;
+        color: var(--editor-line-number) !important;
+        background-color: var(--editor-bg) !important;
         font-size: 10px !important;
         line-height: inherit !important;
         font-family:
@@ -271,7 +272,8 @@
         top: 0 !important;
         width: 30px !important;
         text-align: left !important;
-        color: #6b7280 !important;
+        color: var(--editor-line-number) !important;
+        background-color: var(--editor-bg) !important;
         font-size: 10px !important;
         line-height: inherit !important;
         font-family:
@@ -581,4 +583,30 @@
     to {
         transform: rotate(360deg);
     }
+}
+
+/* === Dark theme === */
+.dark .code-editor .editor-code {
+    --editor-bg: #1e1e1e;
+    --editor-text: rgba(255, 255, 255, 0.85);
+    --editor-line-number: #6e7681;
+    --editor-gutter-bg: #181818;
+    --editor-gutter-border: #303030;
+    --editor-selection-bg: rgba(56, 90, 140, 0.5);
+    --editor-cursor: #ffffff;
+    --editor-error-bg: rgba(255, 0, 0, 0.12);
+    --editor-error-border: #ff6b6b;
+
+    /* Syntax highlighting - Dark theme (GitHub-dark-inspired) */
+    --token-comment: #8b949e;
+    --token-string: #a5d6ff;
+    --token-keyword: #ff7b72;
+    --token-number: #79c0ff;
+    --token-property: #d2a8ff;
+    --token-operator: #ff7b72;
+    --token-punctuation: #c9d1d9;
+    --token-function: #79c0ff;
+    --token-class-name: #ffa657;
+    --token-variable: #7ee787;
+    --token-plain: rgba(255, 255, 255, 0.85);
 }

@@ -23,7 +23,6 @@ import SelectVariant from "../../Menus/SelectVariant"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "../../Modals/DeployVariantModal/assets/DeployVariantButton"
 
-import {useStyles} from "./styles"
 import {PlaygroundVariantConfigHeaderProps} from "./types"
 
 const PlaygroundVariantHeaderMenu = dynamic(
@@ -43,8 +42,6 @@ const PlaygroundVariantConfigHeader = ({
     extraActions,
     ...divProps
 }: PlaygroundVariantConfigHeaderProps & {embedded?: boolean}) => {
-    const classes = useStyles()
-
     // Project-scoped playground (no app in URL) → browse all workflows
     // App-scoped playground → scoped to current app only
     const appId = useAtomValue(routerAppIdAtom)
@@ -75,6 +72,10 @@ const PlaygroundVariantConfigHeader = ({
                 skipVariantLevel: true,
                 excludeRevisionZero: true,
                 flags: {is_evaluator: false, is_feedback: false},
+                // App browse picker — without this the search bar would say
+                // "Search evaluator…" (the adapter's default in skip-variant
+                // mode) while the user is browsing apps.
+                parentLabel: "Application",
             }),
         [],
     )
@@ -159,7 +160,7 @@ const PlaygroundVariantConfigHeader = ({
 
     return (
         <section
-            className={`h-[48px] flex items-center justify-between overflow-hidden ${embedded ? "grow" : `sticky top-0 z-[10] w-full`} ${classes.container} ${className ?? ""}`}
+            className={`h-[48px] flex items-center justify-between overflow-hidden ${embedded ? "grow" : `sticky top-0 z-[10] w-full`} border-b border-colorBorderSecondary py-2 px-4 bg-[var(--ag-c-FFFFFF)] ${className ?? ""}`}
             {...divProps}
         >
             <div className="flex items-center gap-2 grow min-w-0 overflow-hidden">

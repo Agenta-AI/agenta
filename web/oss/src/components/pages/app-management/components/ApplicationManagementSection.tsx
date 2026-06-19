@@ -121,23 +121,41 @@ const ApplicationManagementSection = ({mode = "active"}: ApplicationManagementSe
         () =>
             isArchived ? null : (
                 <Space>
-                    <Button
-                        icon={<Tray size={14} />}
-                        onClick={() => router.push(`${baseAppURL}/archived`)}
-                        type="text"
-                    >
-                        Archived
-                    </Button>
+                    {table.selectedRowKeys.length > 0 ? (
+                        <Button
+                            danger
+                            icon={<Tray size={14} />}
+                            onClick={() =>
+                                openDeleteAppModal({
+                                    apps: table.getSelectedRecords().map((record) => ({
+                                        id: record.workflowId,
+                                        name: record.name,
+                                    })),
+                                    onArchived: () => table.clearSelection(),
+                                })
+                            }
+                        >
+                            Archive
+                        </Button>
+                    ) : (
+                        <Button
+                            icon={<Tray size={14} />}
+                            onClick={() => router.push(`${baseAppURL}/archived`)}
+                            type="text"
+                        >
+                            Archived
+                        </Button>
+                    )}
                     <CreateAppDropdown />
                 </Space>
             ),
-        [baseAppURL, isArchived, router],
+        [baseAppURL, isArchived, openDeleteAppModal, router, table],
     )
 
     const emptyState = useMemo(() => {
         if (isArchived) {
             return (
-                <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-white">
+                <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-[var(--ag-c-FFFFFF)]">
                     <Empty description="No archived apps" />
                 </div>
             )

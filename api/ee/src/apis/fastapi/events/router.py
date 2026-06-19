@@ -1,17 +1,34 @@
-"""Admin-only events retention router.
+"""EE events routers.
 
-Mounts at ``/admin/events/flush``. Independent from spans retention — own
+Mounts user-facing audit-log querying at ``/events/query`` and admin retention
+at ``/admin/events/flush``. Retention is independent from spans retention: own
 lock namespace, own cron schedule, own failure mode.
 """
 
-from fastapi import APIRouter, status
+from uuid import UUID
+from typing import Union
+
+from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
-from oss.src.utils.caching import acquire_lock, release_lock
+from oss.src.utils.locking import acquire_lock, release_lock
+from oss.src.core.events.service import EventsService
 
-from ee.src.core.events.service import EventsService
+from ee.src.apis.fastapi.events.models import EventQueryRequest, EventsQueryResponse
+from ee.src.core.events.service import EventsRetentionService
+from ee.src.core.access.permissions.types import Permission
+from ee.src.core.access.permissions.service import (
+    check_action_access,
+    FORBIDDEN_EXCEPTION,
+)
+from ee.src.core.access.entitlements.service import (
+    check_entitlements,
+    NOT_ENTITLED_RESPONSE,
+    Flag,
+    Tracker,
+)
 
 
 log = get_module_logger(__name__)
@@ -23,6 +40,56 @@ class EventsRouter:
         events_service: EventsService,
     ):
         self.events_service = events_service
+
+        self.router = APIRouter()
+
+        self.router.add_api_route(
+            "/query",
+            self.query_events,
+            methods=["POST"],
+            operation_id="query_events_rpc",
+            status_code=status.HTTP_200_OK,
+            response_model=EventsQueryResponse,
+            response_model_exclude_none=True,
+        )
+
+    @intercept_exceptions()
+    async def query_events(
+        self,
+        request: Request,
+        *,
+        query_request: EventQueryRequest,
+    ) -> Union[EventsQueryResponse, JSONResponse]:
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVENTS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        check, _, _ = await check_entitlements(
+            key=Flag.AUDIT,
+        )
+        if not check:
+            return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
+
+        events = await self.events_service.query(
+            project_id=UUID(request.state.project_id),
+            event=query_request.event,
+            windowing=query_request.windowing,
+        )
+        return EventsQueryResponse(
+            count=len(events),
+            events=events,
+        )
+
+
+class EventsRetentionRouter:
+    def __init__(
+        self,
+        events_retention_service: EventsRetentionService,
+    ):
+        self.events_retention_service = events_retention_service
 
         self.admin_router = APIRouter()
 
@@ -59,7 +126,7 @@ class EventsRouter:
 
             try:
                 log.info("[flush-events] [endpoint] Retention started")
-                await self.events_service.flush_events()
+                await self.events_retention_service.flush_events()
                 log.info("[flush-events] [endpoint] Retention completed")
 
                 return JSONResponse(

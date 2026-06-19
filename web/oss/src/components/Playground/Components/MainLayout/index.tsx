@@ -12,10 +12,12 @@ import {
     GenerationComparisonOutputHeader,
     GenerationComparisonInputHeader as PlaygroundComparisonGenerationInputHeader,
 } from "@agenta/playground-ui/execution-item-comparison-view"
-import ExecutionItems from "@agenta/playground-ui/execution-items"
+import ExecutionItems, {
+    type PlaygroundGenerationsProps,
+} from "@agenta/playground-ui/execution-items"
 import {Button, Splitter, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
@@ -45,13 +47,15 @@ type MainLayoutProps = BaseContainerProps & {
     configViewMode?: ConfigViewMode
     /** Callback when config view mode changes. */
     onConfigViewModeChange?: (mode: ConfigViewMode) => void
+    /** Render slot for testset menu in the per-entity Generations header (single view). */
+    renderTestsetActions?: PlaygroundGenerationsProps["renderTestsetActions"]
 }
 
 const SplitterPanel = Splitter.Panel
 
 const GenerationPanelPlaceholder = memo(() => (
     <div className="p-4">
-        <div className="h-[180px] rounded-lg border border-solid border-[rgba(5,23,41,0.08)] bg-white" />
+        <div className="h-[180px] rounded-lg border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-c-FFFFFF)]" />
     </div>
 ))
 
@@ -96,6 +100,7 @@ const PlaygroundMainView = ({
     embedded = false,
     configViewMode,
     onConfigViewModeChange,
+    renderTestsetActions,
     ...divProps
 }: MainLayoutProps) => {
     const selectedEntityIds = useAtomValue(playgroundController.selectors.entityIds())
@@ -103,7 +108,7 @@ const PlaygroundMainView = ({
     const status = useAtomValue(playgroundController.selectors.status())
     const urlAppId = useAtomValue(routerAppIdAtom)
     const {open: openEntitySelector} = useEntitySelector()
-    const setEntityIds = playgroundController.actions.setEntityIds
+    const setEntityIds = useSetAtom(playgroundController.actions.setEntityIds)
 
     const isEvaluatorMode = mode === "evaluator"
     const layoutEntityIds = selectedEntityIds.length > 0 ? selectedEntityIds : displayedEntities
@@ -132,9 +137,7 @@ const PlaygroundMainView = ({
             allowedTypes: ["workflow"],
         })
         if (selection) {
-            // Add the selected entity to the playground
-            const store = (await import("jotai")).getDefaultStore()
-            store.set(setEntityIds, [selection.id])
+            setEntityIds([selection.id])
         }
     }, [openEntitySelector, setEntityIds])
 
@@ -227,7 +230,7 @@ const PlaygroundMainView = ({
                             <>
                                 {isComparisonView && hasDisplayedEntities && (
                                     <PromptComparisonVariantNavigation
-                                        className="[&::-webkit-scrollbar]:w-0 w-[400px] sticky left-0 z-10 h-full overflow-y-auto overflow-x-hidden flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] bg-white"
+                                        className="[&::-webkit-scrollbar]:w-0 w-[400px] sticky left-0 z-10 h-full overflow-y-auto overflow-x-hidden flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FFFFFF)]"
                                         handleScroll={handleScroll}
                                     />
                                 )}
@@ -237,7 +240,7 @@ const PlaygroundMainView = ({
                                             key={`variant-config-${variantId}`}
                                             className={clsx([
                                                 {
-                                                    "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] relative":
+                                                    "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] relative":
                                                         isComparisonView,
                                                 },
                                             ])}
@@ -255,7 +258,7 @@ const PlaygroundMainView = ({
                                     ))
                                 ) : (
                                     <div className="h-full w-full p-4">
-                                        <div className="h-[260px] rounded-lg border border-solid border-[rgba(5,23,41,0.08)] bg-white" />
+                                        <div className="h-[260px] rounded-lg border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-c-FFFFFF)]" />
                                     </div>
                                 )}
                             </>
@@ -286,7 +289,7 @@ const PlaygroundMainView = ({
                             {/* This component renders Output component header section */}
                             {isComparisonView ? (
                                 <div className="flex min-w-fit sticky top-0 z-[5]">
-                                    <PlaygroundComparisonGenerationInputHeader className="!w-[400px] shrink-0 sticky left-0 top-0 z-[99] bg-white" />
+                                    <PlaygroundComparisonGenerationInputHeader className="!w-[400px] shrink-0 sticky left-0 top-0 z-[99] bg-[var(--ag-c-FFFFFF)]" />
 
                                     {layoutEntityIds.map((variantId) => (
                                         <GenerationComparisonOutputHeader
@@ -312,7 +315,11 @@ const PlaygroundMainView = ({
                             ) : (
                                 layoutEntityIds.map((variantId) =>
                                     displayedEntities.includes(variantId) || isEvaluatorMode ? (
-                                        <ExecutionItems key={variantId} entityId={variantId} />
+                                        <ExecutionItems
+                                            key={variantId}
+                                            entityId={variantId}
+                                            renderTestsetActions={renderTestsetActions}
+                                        />
                                     ) : (
                                         <GenerationPanelPlaceholder
                                             key={`generation-placeholder-${variantId}`}

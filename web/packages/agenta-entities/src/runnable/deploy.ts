@@ -15,6 +15,8 @@ import {deployToEnvironment} from "../environment/api/mutations"
 import type {Environment} from "../environment/core"
 import {invalidateEnvironmentsListCache} from "../environment/state/environmentMolecule"
 import {environmentsListQueryAtomFamily} from "../environment/state/store"
+import {workflowsListDataAtom, workflowMolecule} from "../workflow"
+import type {Workflow} from "../workflow/core"
 
 // ============================================================================
 // PAYLOAD TYPES
@@ -63,8 +65,15 @@ function resolveEnvironmentBySlug(
  *
  * Backend convention: keys are `{appSlug}.revision` (see EnvironmentRevisionData docs).
  * For existing deployments, reuse the current key to avoid duplicates.
+ *
+ * Returns `null` when creating a new deployment without a real application slug,
+ * so callers can fail explicitly instead of synthesizing a key from the app ID.
  */
-function resolveAppKey(env: Environment, applicationId: string, applicationSlug?: string): string {
+function resolveAppKey(
+    env: Environment,
+    applicationId: string,
+    applicationSlug?: string,
+): string | null {
     // Try to find existing appKey in the environment's references
     const refs = env.data?.references
     if (refs) {
@@ -80,7 +89,20 @@ function resolveAppKey(env: Environment, applicationId: string, applicationSlug?
         return `${applicationSlug}.revision`
     }
 
-    return `${applicationId}.revision`
+    return null
+}
+
+function resolveApplicationSlug(
+    workflows: Workflow[],
+    payload: Pick<PublishPayload, "applicationId" | "applicationSlug">,
+    revision?: Pick<Workflow, "workflow_slug" | "artifact_slug"> | null,
+): string | undefined {
+    if (payload.applicationSlug) return payload.applicationSlug
+
+    const revisionSlug = revision?.workflow_slug ?? revision?.artifact_slug ?? undefined
+    if (revisionSlug) return revisionSlug
+
+    return workflows.find((workflow) => workflow.id === payload.applicationId)?.slug ?? undefined
 }
 
 // ============================================================================
@@ -103,6 +125,7 @@ export const publishMutationAtom = atomWithMutation<void, PublishPayload>((get) 
         // Resolve environment from list cache
         const listQuery = get(environmentsListQueryAtomFamily(false))
         const environments = listQuery.data?.environments ?? []
+        const workflows = get(workflowsListDataAtom)
         const env = resolveEnvironmentBySlug(environments, payload.environmentSlug)
 
         if (!env) {
@@ -119,7 +142,15 @@ export const publishMutationAtom = atomWithMutation<void, PublishPayload>((get) 
             )
         }
 
-        const appKey = resolveAppKey(env, payload.applicationId, payload.applicationSlug)
+        const revision = get(workflowMolecule.selectors.data(payload.revisionId))
+        const applicationSlug = resolveApplicationSlug(workflows, payload, revision)
+        const appKey = resolveAppKey(env, payload.applicationId, applicationSlug)
+        if (!appKey) {
+            throw new Error(
+                `Application slug missing for revision "${payload.revisionId}". ` +
+                    `Cannot deploy without a stable environment reference key.`,
+            )
+        }
 
         await deployToEnvironment({
             projectId,
@@ -129,10 +160,10 @@ export const publishMutationAtom = atomWithMutation<void, PublishPayload>((get) 
             references: {
                 application: {
                     id: payload.applicationId,
-                    slug: payload.applicationSlug,
+                    slug: applicationSlug,
                 },
                 application_variant: {
-                    id: payload.workflowVariantId || payload.applicationId,
+                    id: payload.workflowVariantId,
                     slug: payload.variantSlug,
                 },
                 application_revision: {
@@ -173,6 +204,7 @@ export async function publishToEnvironment(payload: PublishPayload): Promise<voi
 
     const listQuery = store.get(environmentsListQueryAtomFamily(false))
     const environments = listQuery.data?.environments ?? []
+    const workflows = store.get(workflowsListDataAtom)
     const env = resolveEnvironmentBySlug(environments, payload.environmentSlug)
 
     if (!env) {
@@ -183,7 +215,15 @@ export async function publishToEnvironment(payload: PublishPayload): Promise<voi
         throw new Error(`Environment "${payload.environmentSlug}" has no variant_id.`)
     }
 
-    const appKey = resolveAppKey(env, payload.applicationId, payload.applicationSlug)
+    const revision = workflowMolecule.get.data(payload.revisionId)
+    const applicationSlug = resolveApplicationSlug(workflows, payload, revision)
+    const appKey = resolveAppKey(env, payload.applicationId, applicationSlug)
+    if (!appKey) {
+        throw new Error(
+            `Application slug missing for revision "${payload.revisionId}". ` +
+                `Cannot deploy without a stable environment reference key.`,
+        )
+    }
 
     await deployToEnvironment({
         projectId,
@@ -193,10 +233,10 @@ export async function publishToEnvironment(payload: PublishPayload): Promise<voi
         references: {
             application: {
                 id: payload.applicationId,
-                slug: payload.applicationSlug,
+                slug: applicationSlug,
             },
             application_variant: {
-                id: payload.workflowVariantId || payload.applicationId,
+                id: payload.workflowVariantId,
                 slug: payload.variantSlug,
             },
             application_revision: {

@@ -1,6 +1,7 @@
 import type {Annotation} from "@agenta/entities/annotation"
 import type {Testcase} from "@agenta/entities/testcase"
 import type {TestsetRevisionDelta} from "@agenta/entities/testset"
+import deepEqual from "fast-deep-equal"
 
 export const TESTCASE_QUEUE_KIND_TAG = "agenta:queue-kind:testcases"
 
@@ -106,6 +107,24 @@ function getAnnotationTags(annotation: Annotation): string[] {
 function hasQueueAnnotationTag(annotation: Annotation, queueId: string): boolean {
     const tags = getAnnotationTags(annotation)
     return tags.includes(getQueueAnnotationTag(queueId))
+}
+
+/**
+ * Filter a testcase's annotations down to the ones that belong to a specific
+ * queue.
+ *
+ * Annotations are stored as traces keyed by testcase id, so a query by testcase
+ * returns every annotation ever made on that testcase — across all queues and
+ * archived revisions. Both the queue display and the add-to-testset export must
+ * scope to the active queue (via its `agenta:queue:<id>` tag), otherwise a fresh
+ * queue surfaces stale annotations and the export bleeds them onto every row.
+ */
+export function filterQueueScopedAnnotations(
+    annotations: Annotation[],
+    queueId: string,
+): Annotation[] {
+    if (!queueId) return annotations
+    return annotations.filter((annotation) => hasQueueAnnotationTag(annotation, queueId))
 }
 
 function hasAnyQueueAnnotationTag(annotation: Annotation): boolean {
@@ -724,7 +743,103 @@ export function buildTestsetSyncOperations(target: TestsetSyncTarget): TestsetRe
     }
 }
 
-function getTestcaseDedupId(data: Record<string, unknown> | null | undefined): string | null {
+export interface AddToTestsetCommitRow {
+    /** The source testcase id, when the row originates from an existing testcase. */
+    rowId?: string | null
+    /** Dedup id from the row's original (pre-remap) data, used as a fallback match key. */
+    dedupId?: string | null
+    data: Record<string, unknown>
+}
+
+/**
+ * Build the revision delta for the "Add to testset" export.
+ *
+ * Rows that correspond to an existing row in the target revision (matched by
+ * source testcase id, or by dedup id as a fallback) are committed as `replace`
+ * so the annotated data updates the row in place. Genuinely new rows (e.g.
+ * trace exports, or testcases exported to a different testset) are committed as
+ * `add`. This prevents the source testcases from appearing twice — once
+ * unannotated and once annotated — when exporting back to their own testset.
+ *
+ * Re-applying is idempotent: a matched row whose data already equals the base
+ * row's is omitted entirely, so re-saving with nothing new produces an empty
+ * delta (no new revision, no needless testcase-id churn).
+ */
+export function buildAddToTestsetOperations(params: {
+    rows: AddToTestsetCommitRow[]
+    baseRows: BaseRevisionTestcaseRow[]
+}): TestsetRevisionDelta {
+    const baseRowIds = new Set<string>()
+    const baseRowIdByDedup = new Map<string, string>()
+    const baseDataById = new Map<string, Record<string, unknown> | null | undefined>()
+    // Dedup ids that appear on more than one base row (historical corruption).
+    const ambiguousDedups = new Set<string>()
+
+    for (const row of params.baseRows) {
+        if (row.id) {
+            baseRowIds.add(row.id)
+            baseDataById.set(row.id, row.data)
+        }
+
+        const dedupId = getTestcaseDedupId(row.data)
+        if (row.id && dedupId) {
+            if (baseRowIdByDedup.has(dedupId)) {
+                // dedup -> row is no longer 1:1 for this id. Letting the last
+                // writer win would replace an *arbitrary* row, silently
+                // corrupting an unrelated testcase. Mark it ambiguous instead.
+                ambiguousDedups.add(dedupId)
+            } else {
+                baseRowIdByDedup.set(dedupId, row.id)
+            }
+        }
+    }
+
+    // Drop ambiguous dedups from the fallback index: rows that can only be
+    // matched by such a dedup fall through to `add` rather than overwriting the
+    // wrong row. This is the documented "duplicate/missing dedup" corruption
+    // case that the FE can contain but not repair (the durable fix is backend).
+    if (ambiguousDedups.size > 0) {
+        for (const dedupId of ambiguousDedups) {
+            baseRowIdByDedup.delete(dedupId)
+        }
+        console.warn(
+            `[buildAddToTestsetOperations] target revision has ${ambiguousDedups.size} ` +
+                `duplicate testcase_dedup_id(s); those rows can't be matched by dedup and ` +
+                `will be added instead of replaced.`,
+        )
+    }
+
+    const replace: {id: string; data: Record<string, unknown>}[] = []
+    const add: {data: Record<string, unknown>}[] = []
+
+    for (const row of params.rows) {
+        const directId = row.rowId && baseRowIds.has(row.rowId) ? row.rowId : null
+        const mappedId =
+            directId ?? (row.dedupId ? (baseRowIdByDedup.get(row.dedupId) ?? null) : null)
+
+        if (mappedId) {
+            // Skip when the matched base row already holds identical data —
+            // keeps re-saves idempotent (fast-deep-equal is key-order
+            // insensitive, so this never misses a real change).
+            if (deepEqual(baseDataById.get(mappedId), row.data)) {
+                continue
+            }
+            replace.push({id: mappedId, data: row.data})
+        } else {
+            add.push({data: row.data})
+        }
+    }
+
+    const rows: NonNullable<TestsetRevisionDelta["rows"]> = {}
+    if (replace.length > 0) rows.replace = replace
+    if (add.length > 0) rows.add = add
+
+    return {rows}
+}
+
+export function getTestcaseDedupId(
+    data: Record<string, unknown> | null | undefined,
+): string | null {
     if (!data) return null
 
     const raw = data.testcase_dedup_id ?? data.__dedup_id__
