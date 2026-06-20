@@ -51,11 +51,12 @@ def select_backend(selection: RunSelection) -> Backend:
     """Pick the backend for a run.
 
     The in-process Pi backend runs Pi locally, and the Agenta harness is Pi with an opinion,
-    so both ``pi`` and ``agenta`` stay on it. Any other harness, a non-local sandbox, or
-    ``AGENTA_AGENT_RUNTIME=rivet`` selects the rivet backend instead of silently dropping the
-    choice (``agenta`` is not yet supported on the rivet path, so ``agenta`` + a non-local
-    sandbox raises ``UnsupportedHarnessError`` rather than running the wrong thing). The
-    transport to the TypeScript runner is a deployment detail each backend takes:
+    so both ``pi`` and ``agenta`` stay on it locally. Any other harness, a non-local sandbox,
+    or ``AGENTA_AGENT_RUNTIME=rivet`` selects the rivet backend instead of silently dropping
+    the choice. The rivet backend drives ``agenta`` too (it runs on the same ``pi`` ACP agent
+    and the runner lays the forced skills into the sandbox), so ``agenta`` + ``daytona`` is a
+    supported combination, not an ``UnsupportedHarnessError``. The transport to the TypeScript
+    runner is a deployment detail each backend takes:
     ``AGENTA_AGENT_PI_URL`` set (docker) -> HTTP to the sidecar; unset (local checkout) ->
     spawn the runner CLI from the wrapper dir.
     """

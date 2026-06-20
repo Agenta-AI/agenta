@@ -2,8 +2,10 @@
 
 This backend hard-codes that it is the rivet engine. It reaches the same runner the deployed
 sidecar runs (HTTP when a ``url`` is set, otherwise a subprocess CLI), and the runner starts
-the rivet daemon, the ACP adapter, and the harness. Supports Pi and Claude. The ``sandbox``
-axis (``local`` / ``daytona``) is a real runtime choice, so it stays a constructor arg.
+the rivet daemon, the ACP adapter, and the harness. Supports Pi, Claude, and Agenta (Pi with
+an opinion, which the runner drives on the same ``pi`` ACP agent plus forced skills). The
+``sandbox`` axis (``local`` / ``daytona``) is a real runtime choice, so it stays a constructor
+arg.
 
 It is its own class, not a subclass of any other backend; it shares only the ``utils`` wire
 and transport helpers.
@@ -111,9 +113,11 @@ class RivetSession(Session):
 
 
 class RivetBackend(Backend):
-    """The rivet engine: a harness over ACP through the TS runner. Pi and Claude."""
+    """The rivet engine: a harness over ACP through the TS runner. Pi, Claude, and Agenta."""
 
-    supported_harnesses = frozenset({HarnessType.PI, HarnessType.CLAUDE})
+    supported_harnesses = frozenset(
+        {HarnessType.PI, HarnessType.CLAUDE, HarnessType.AGENTA}
+    )
     _ENGINE = "rivet"  # hard-coded engine identity, not a constructor arg
 
     def __init__(

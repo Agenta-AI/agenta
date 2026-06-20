@@ -52,13 +52,39 @@ instructions are the `AGENTS.md`. An author's own `system` / `append_system` (vi
 ## Selecting it
 
 `agenta` is a harness option alongside `pi` and `claude` (the playground dropdown, the
-`harness` field). It runs on the in-process Pi backend (`InProcessPiBackend` now lists
-`HarnessType.AGENTA` as supported), so `select_backend` keeps `agenta` on the local Pi path.
+`harness` field). On a local sandbox it runs on the in-process Pi backend (`InProcessPiBackend`
+lists `HarnessType.AGENTA` as supported), so `select_backend` keeps `agenta` on the local Pi
+path. A non-local sandbox (e.g. Daytona) or `AGENTA_AGENT_RUNTIME=rivet` routes it to the rivet
+backend, which drives it too (see below).
 
-## Deferred
+## On the rivet (ACP) path
 
-Only the in-process Pi (local) path is wired. The ACP/rivet path (and therefore the Daytona
-sandbox) does not yet deliver the forced skills — it would teach `runRivet` to read the
-`skills` field and lay the bundled skill directories into the sandbox via the existing
-bundled-file provisioning. Until then, `agenta` with a non-local sandbox raises
-`UnsupportedHarnessError` rather than silently running without its skills.
+`RivetBackend` also lists `HarnessType.AGENTA` as supported, so `agenta` runs over ACP through
+the rivet daemon as well — this is what lets it use the Daytona sandbox. The Agenta harness is
+Pi with an opinion, and the rivet daemon only knows real agents (`pi`, `claude`, …), so the
+runner maps `agenta` onto the `pi` ACP agent (`acpAgent` in `engines/rivet.ts`) and treats it
+as Pi for capabilities, model resolution, and tracing.
+
+The forced *skills* cannot ride the `/run` wire as text (a skill is a directory that may
+reference relative scripts and assets), so the wire carries only the skill **names** and the
+runner lays the bundled directories into the Pi **agent dir**'s `skills/` (user scope).
+`runRivet` resolves the names against the bundled `skills/` root (`engines/skills.ts`, shared
+with the in-process engine). The agent dir is deliberate — Pi auto-discovers and enables
+user-scope skills (`<agentDir>/skills/`) on every run, whereas project skills
+(`<cwd>/.pi/skills/`) are trust-gated and would not load in this headless run.
+
+Because the forced skills are user-scope, writing them into the *shared* agent dir would leak
+them into later plain `pi` runs on the same sidecar (and could pollute a developer's real
+`~/.pi/agent`). So each path gives the run its own agent dir: on **Daytona** the sandbox is
+already fresh per run (`uploadSkillsToSandbox`); on **local** an Agenta run gets a throwaway
+per-run agent dir seeded from the login (`auth.json` / `settings.json`), with the extension and
+skills installed into it and the daemon pointed at it via `PI_CODING_AGENT_DIR`
+(`prepareLocalAgentDir`), removed after the run. A plain `pi` run is unchanged (it installs only
+the extension into the shared agent dir).
+
+The base AGENTS.md preamble still rides the wire as `agentsMd` (written into the session `cwd`),
+and the forced `read` / `bash` tools are Pi defaults under pi-acp. The one gap versus the
+in-process path is the persona `appendSystemPrompt`, which pi-acp gives no per-run hook to set;
+it is logged and skipped on the rivet Pi path (the same pre-existing limitation as plain Pi over
+ACP), so on rivet the Agenta persona is not yet applied. Daytona skill uploads are UTF-8 text
+only (`writeFsFile` takes a string body); binary skill assets are a follow-up.

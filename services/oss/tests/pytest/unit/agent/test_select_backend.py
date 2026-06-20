@@ -55,6 +55,20 @@ def test_claude_routes_to_rivet():
     assert isinstance(select_backend(_sel("claude", "local")), RivetBackend)
 
 
+def test_agenta_daytona_routes_to_rivet():
+    # Agenta stays in-process only on local; a non-local sandbox routes it to rivet, which now
+    # drives agenta (Pi on the `pi` ACP agent + forced skills laid into the sandbox).
+    backend = select_backend(_sel("agenta", "daytona"))
+    assert isinstance(backend, RivetBackend)
+    assert backend._sandbox == "daytona"
+
+
+def test_agenta_runtime_override_routes_to_rivet(monkeypatch):
+    # The deployment override forces agenta onto rivet even for a local sandbox.
+    monkeypatch.setenv("AGENTA_AGENT_RUNTIME", "rivet")
+    assert isinstance(select_backend(_sel("agenta", "local")), RivetBackend)
+
+
 def test_non_local_sandbox_routes_to_rivet():
     backend = select_backend(_sel("pi", "daytona"))
     assert isinstance(backend, RivetBackend)

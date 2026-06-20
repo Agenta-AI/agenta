@@ -463,6 +463,10 @@ services:
         # === STORAGE ============================================== #
         volumes:
             - ../../../services/agent/src:/app/src
+            # The Agenta harness's forced skills are real files the runner lays into the
+            # sandbox per run (resolved from /app/skills). Bind-mounted like src so edits are
+            # live; the prod image bakes them with `COPY skills ./skills`.
+            - ../../../services/agent/skills:/app/skills
             - ${HOME}/.pi/agent:/pi-agent-ro:ro
         # === NETWORK ============================================== #
         networks:

@@ -25,6 +25,9 @@ RUN pnpm install --frozen-lockfile
 COPY tsconfig.json ./
 COPY scripts ./scripts
 COPY src ./src
+# The Agenta harness's forced skills (resolved from /app/skills per run). Baked like the
+# prod image; the dev compose also bind-mounts skills/ over this for live edits.
+COPY skills ./skills
 
 # Bundle the Agenta Pi extension (tracing + tools) into dist/. dist/ is NOT bind-mounted
 # in dev, so this baked copy is what runRivet installs into Pi's agent dir. Rebuild the

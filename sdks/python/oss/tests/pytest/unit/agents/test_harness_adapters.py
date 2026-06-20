@@ -162,6 +162,15 @@ def test_agenta_is_in_process_pi_supported():
     assert InProcessPiBackend(url="http://runner").supports(HarnessType.AGENTA)
 
 
+def test_agenta_is_rivet_supported():
+    # Agenta is Pi with an opinion, so the rivet backend drives it too (on the `pi` ACP
+    # agent, with the runner laying the forced skills into the sandbox). This is what lets
+    # `agenta` run on a non-local sandbox (e.g. daytona) instead of raising.
+    from agenta.sdk.agents import RivetBackend
+
+    assert RivetBackend(url="http://runner").supports(HarnessType.AGENTA)
+
+
 # ------------------------------------------------------------------------- Claude
 
 

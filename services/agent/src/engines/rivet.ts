@@ -27,17 +27,19 @@ import { randomBytes } from "node:crypto";
 import {
   chmodSync,
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { SandboxAgent, InMemorySessionPersistDriver } from "sandbox-agent";
@@ -45,6 +47,7 @@ import { local } from "sandbox-agent/local";
 import { daytona } from "sandbox-agent/daytona";
 
 import { createRivetOtel } from "../tracing/otel.ts";
+import { resolveSkillDirs } from "./skills.ts";
 import { buildToolMcpServers, type McpServerStdio } from "../tools/mcp-bridge.ts";
 import { executableToolSpecs, publicToolSpecs } from "../tools/public-spec.ts";
 import {
@@ -198,6 +201,107 @@ async function uploadPiExtensionToSandbox(sandbox: any, agentDir: string): Promi
     await sandbox.writeFsFile({ path: `${dir}/agenta.js` }, readFileSync(EXTENSION_BUNDLE, "utf-8"));
   } catch (err) {
     log(`pi extension upload skipped: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * Install the Agenta harness's forced skill dirs into a local Pi agent dir's `skills/`. Pi
+ * auto-discovers and enables user-scope skills (`<agentDir>/skills/`) on every run, unlike
+ * project skills (`<cwd>/.pi/skills/`), which are trust-gated and would not load in this
+ * headless run — so the agent dir is the right home, mirroring the extension install above.
+ * Each skill keeps its directory name (the contract with the SDK's forced-skill list).
+ * Best-effort: a skill that fails to copy is logged and skipped, never failing the run.
+ */
+function installSkillsLocal(agentDir: string, skillDirs: string[]): void {
+  for (const src of skillDirs) {
+    try {
+      const dest = join(agentDir, "skills", basename(src));
+      mkdirSync(dirname(dest), { recursive: true });
+      // dereference so a skill's symlinked assets materialize as real files, matching the
+      // Daytona uploader (which has no symlink target on the remote FS).
+      cpSync(src, dest, { recursive: true, dereference: true });
+    } catch (err) {
+      log(`skill install skipped for ${basename(src)}: ${(err as Error).message}`);
+    }
+  }
+}
+
+/**
+ * Seed a throwaway local Pi agent dir from `sourceAgentDir` (the login: auth.json /
+ * settings.json) and install the Agenta extension and forced skills into it. The Agenta
+ * harness forces skills into the *user-scope* agent dir (the only place pi-acp auto-loads
+ * them headlessly), so writing them into the shared `PI_CODING_AGENT_DIR` would leak them
+ * into later plain `pi` runs on the same sidecar and could pollute a developer's real
+ * `~/.pi/agent`. A per-run dir keeps each Agenta run's skills to itself; the daemon is
+ * pointed at it via `PI_CODING_AGENT_DIR`, and the caller removes it after the run. This
+ * mirrors the Daytona path, where the sandbox already gives each run a fresh agent dir.
+ */
+function prepareLocalAgentDir(sourceAgentDir: string, skillDirs: string[]): string {
+  const dir = mkdtempSync(join(tmpdir(), "agenta-pi-agentdir-"));
+  // Carry the login forward so pi-acp still authenticates (OAuth/auth.json), exactly the
+  // files the Daytona path uploads.
+  for (const name of ["auth.json", "settings.json"]) {
+    const src = join(sourceAgentDir, name);
+    try {
+      if (existsSync(src)) copyFileSync(src, join(dir, name));
+    } catch (err) {
+      log(`agent-dir seed skipped for ${name}: ${(err as Error).message}`);
+    }
+  }
+  installPiExtensionLocal(dir);
+  installSkillsLocal(dir, skillDirs);
+  return dir;
+}
+
+/**
+ * Upload the forced skill dirs into a Daytona sandbox's Pi `skills/` (user scope), the remote
+ * counterpart of {@link installSkillsLocal}. Walks each skill directory and writes every file
+ * through the sandbox FS API. `writeFsFile` takes a string body, so skill assets are uploaded
+ * as UTF-8 text (the SKILL.md and any text helpers); binary skill assets are a follow-up.
+ * Best-effort per skill.
+ */
+async function uploadSkillsToSandbox(
+  sandbox: any,
+  agentDir: string,
+  skillDirs: string[],
+): Promise<void> {
+  for (const src of skillDirs) {
+    try {
+      await uploadDirToSandbox(sandbox, src, `${agentDir}/skills/${basename(src)}`);
+    } catch (err) {
+      log(`skill upload skipped for ${basename(src)}: ${(err as Error).message}`);
+    }
+  }
+}
+
+/** Recursively upload a host directory tree into a sandbox path via the FS API. */
+async function uploadDirToSandbox(
+  sandbox: any,
+  srcDir: string,
+  destDir: string,
+): Promise<void> {
+  await sandbox.mkdirFs({ path: destDir });
+  for (const entry of readdirSync(srcDir, { withFileTypes: true })) {
+    const srcPath = join(srcDir, entry.name);
+    const destPath = `${destDir}/${entry.name}`;
+    // Resolve symlinks to their target kind so a symlinked file/dir is uploaded by content,
+    // matching the dereferencing local copy (a broken link is skipped).
+    let isDir = entry.isDirectory();
+    let isFile = entry.isFile();
+    if (entry.isSymbolicLink()) {
+      try {
+        const st = statSync(srcPath);
+        isDir = st.isDirectory();
+        isFile = st.isFile();
+      } catch {
+        continue;
+      }
+    }
+    if (isDir) {
+      await uploadDirToSandbox(sandbox, srcPath, destPath);
+    } else if (isFile) {
+      await sandbox.writeFsFile({ path: destPath }, readFileSync(srcPath, "utf-8"));
+    }
   }
 }
 
@@ -683,6 +787,13 @@ export async function runRivet(
   const harness = request.harness || process.env.AGENTA_AGENT_HARNESS || "pi";
   const sandboxId = request.sandbox || process.env.AGENTA_AGENT_SANDBOX || "local";
 
+  // The Agenta harness is Pi with an opinion: it runs on the `pi` ACP agent (the rivet
+  // daemon only knows real agents like `pi`/`claude`, not `agenta`), plus a base AGENTS.md,
+  // a persona, forced tools, and forced skills. `acpAgent` is the agent the daemon launches;
+  // `harness` stays the selected identity (logging, span label, user-facing errors). The
+  // forced skills are delivered below by laying them into the Pi agent dir.
+  const acpAgent = harness === "agenta" ? "pi" : harness;
+
   const prompt = resolvePrompt(request);
   if (!prompt) {
     return { ok: false, error: "No user message to send (prompt/messages empty)." };
@@ -691,14 +802,14 @@ export async function runRivet(
   // context when this is a continued conversation.
   const turnText = buildTurnText(request);
 
-  const isPi = harness === "pi";
+  const isPi = acpAgent === "pi";
   const isDaytona = sandboxId === "daytona";
 
   // Provider API keys resolved from the vault (OPENAI_API_KEY/ANTHROPIC_API_KEY/...).
   // Present => the harness authenticates with the key; absent => it uses its own login
   // (OAuth: local Codex / a mounted-or-uploaded auth.json).
   const secrets = request.secrets ?? {};
-  const harnessKeyVar = harness === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
+  const harnessKeyVar = acpAgent === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
   const hasApiKey = !!secrets[harnessKeyVar];
 
   // Session cwd holds AGENTS.md. Local: a host temp dir. Daytona: an in-sandbox path
@@ -717,7 +828,7 @@ export async function runRivet(
   // caller can roll them onto the workflow span (separate OTLP batch, see piExtension).
   const usageOutPath = isPi ? `${cwd}/.agenta-usage.json` : undefined;
 
-  const env = buildDaemonEnv(harness);
+  const env = buildDaemonEnv(acpAgent);
   Object.assign(env, secrets); // local daemon inherits the provider keys
   // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
   // via the Agenta extension. Tool execution always relays back to this runner, which keeps
@@ -729,9 +840,32 @@ export async function runRivet(
   // undefined is fine: the local provider runs its own resolution and errors clearly.
   const binaryPath = resolveDaemonBinary();
 
-  // For local Pi, install the extension into the agent dir Pi loads from.
+  // The Agenta harness's forced skills: bundled dirs named on the request, resolved against
+  // the runner's skills root. Laid into the Pi agent dir's `skills/` below (local or daytona)
+  // so Pi auto-discovers them on every run. Non-Pi harnesses do not load Pi skills.
+  const skillDirs = isPi ? resolveSkillDirs(request.skills, log) : [];
+  // Note: pass an arrow, not `basename` directly — Array.map would feed the index as
+  // basename's `suffix` arg (a number), which throws ERR_INVALID_ARG_TYPE.
+  if (skillDirs.length > 0) log(`skills: ${skillDirs.map((d) => basename(d)).join(", ")}`);
+
+  // For local Pi, set up the agent dir pi-acp loads from. A plain `pi` run installs the
+  // extension into the shared agent dir (unchanged). An Agenta run forces skills, which are
+  // user-scope and would otherwise leak into later plain `pi` runs on this sidecar (and could
+  // pollute a developer's real ~/.pi/agent); so it gets a throwaway per-run agent dir seeded
+  // from the login, and the daemon is pointed at it. Cleaned up in the finally below.
   const localPiAgentDir = process.env.PI_CODING_AGENT_DIR;
-  if (isPi && !isDaytona && localPiAgentDir) installPiExtensionLocal(localPiAgentDir);
+  let runAgentDir: string | undefined;
+  if (isPi && !isDaytona) {
+    if (skillDirs.length > 0) {
+      runAgentDir = prepareLocalAgentDir(
+        localPiAgentDir || join(homedir(), ".pi", "agent"),
+        skillDirs,
+      );
+      env.PI_CODING_AGENT_DIR = runAgentDir;
+    } else if (localPiAgentDir) {
+      installPiExtensionLocal(localPiAgentDir);
+    }
+  }
 
   // Pi's system-prompt overrides (systemPrompt / appendSystemPrompt) are honored on the
   // in-process Pi engine via the resource loader. The ACP path drives Pi through pi-acp,
@@ -775,6 +909,7 @@ export async function runRivet(
         // uploading the Codex/OAuth login when no key is available.
         if (!hasApiKey) await uploadPiAuthToSandbox(sandbox);
         await uploadPiExtensionToSandbox(sandbox, DAYTONA_PI_DIR);
+        if (skillDirs.length > 0) await uploadSkillsToSandbox(sandbox, DAYTONA_PI_DIR, skillDirs);
         if (DAYTONA_PI_INSTALL) await installPiInSandbox(sandbox);
       }
       await sandbox.mkdirFs({ path: cwd }).catch(() => {});
@@ -789,7 +924,7 @@ export async function runRivet(
     // name. Tool delivery: Pi loads our extension (native tools, set up above); any other
     // harness takes tools over MCP only when it advertises `mcpTools` (pi-acp does not
     // forward MCP, Claude/Codex do).
-    const capabilities = await probeCapabilities(sandbox, harness);
+    const capabilities = await probeCapabilities(sandbox, acpAgent);
     const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];
     const userMcpCount = request.mcpServers?.length ?? 0;
     // MCP delivery is gated on `mcpTools`: pi-acp does not forward MCP, Claude/Codex do. The
@@ -814,7 +949,7 @@ export async function runRivet(
     }
 
     const session = await sandbox.createSession({
-      agent: harness,
+      agent: acpAgent,
       cwd,
       sessionInit: { cwd, mcpServers },
     });
@@ -944,5 +1079,7 @@ export async function runRivet(
     await sandbox.destroySandbox().catch(() => {});
     await sandbox.dispose().catch(() => {});
     rmSync(cwd, { recursive: true, force: true });
+    // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too.
+    if (runAgentDir) rmSync(runAgentDir, { recursive: true, force: true });
   }
 }
