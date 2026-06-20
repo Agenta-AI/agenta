@@ -299,11 +299,17 @@ services:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
             - SCRIPT_NAME=/services
+            - AGENTA_AGENT_RUNNER_URL=${AGENTA_AGENT_RUNNER_URL:-http://sandbox-agent:8765}
+            - AGENTA_AGENT_ENABLE_MCP=${AGENTA_AGENT_ENABLE_MCP:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            sandbox-agent:
+                condition: service_healthy
         # === LABELS =============================================== #
         labels:
             - "traefik.http.routers.services.rule=PathPrefix(`/services/`)"
@@ -315,6 +321,38 @@ services:
             - "traefik.http.routers.services.service=services"
         # === LIFECYCLE ============================================ #
         restart: always
+
+    sandbox-agent:
+        # === IMAGE ================================================ #
+        build:
+            context: ../../../services/agent
+            dockerfile: docker/Dockerfile
+        # === CONFIGURATION ======================================== #
+        environment:
+            PORT: "8765"
+            AGENTA_HOST: ${AGENTA_HOST:-}
+            AGENTA_API_KEY: ${AGENTA_API_KEY:-}
+            SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
+            SANDBOX_AGENT_DAYTONA_API_KEY: ${SANDBOX_AGENT_DAYTONA_API_KEY:-}
+            SANDBOX_AGENT_DAYTONA_API_URL: ${SANDBOX_AGENT_DAYTONA_API_URL:-}
+            SANDBOX_AGENT_DAYTONA_TARGET: ${SANDBOX_AGENT_DAYTONA_TARGET:-}
+            SANDBOX_AGENT_DAYTONA_SNAPSHOT: ${SANDBOX_AGENT_DAYTONA_SNAPSHOT:-}
+            SANDBOX_AGENT_DAYTONA_IMAGE: ${SANDBOX_AGENT_DAYTONA_IMAGE:-}
+            SANDBOX_AGENT_DAYTONA_INSTALL_PI: ${SANDBOX_AGENT_DAYTONA_INSTALL_PI:-false}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        # === LABELS =============================================== #
+        labels:
+            - "traefik.enable=false"
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8765/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 20s
 
     postgres:
         # === IMAGE ================================================ #
