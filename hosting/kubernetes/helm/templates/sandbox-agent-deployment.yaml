@@ -1,0 +1,120 @@
+{{- $runner := default dict .Values.agentRunner -}}
+{{- $daytona := default dict $runner.daytona -}}
+{{- if eq (include "agenta.agentRunner.enabled" .) "true" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agenta.agentRunner.serviceName" . }}
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandbox-agent
+spec:
+  replicas: {{ include "agenta.agentRunner.replicas" . }}
+  selector:
+    matchLabels:
+      {{- include "agenta.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: sandbox-agent
+  template:
+    metadata:
+      labels:
+        {{- include "agenta.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: sandbox-agent
+    spec:
+      {{- include "agenta.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- with $runner.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: sandbox-agent
+          image: {{ include "agenta.agentRunnerImage" . }}
+          imagePullPolicy: {{ include "agenta.agentRunner.pullPolicy" . }}
+          {{- with $runner.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ include "agenta.agentRunner.port" . }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: {{ include "agenta.agentRunner.port" . | quote }}
+            - name: SANDBOX_AGENT_PROVIDER
+              value: {{ default "local" $runner.provider | quote }}
+            {{- if $runner.logLevel }}
+            - name: SANDBOX_AGENT_LOG_LEVEL
+              value: {{ $runner.logLevel | quote }}
+            {{- end }}
+            {{- if $daytona.apiUrl }}
+            - name: SANDBOX_AGENT_DAYTONA_API_URL
+              value: {{ $daytona.apiUrl | quote }}
+            {{- end }}
+            {{- if $daytona.target }}
+            - name: SANDBOX_AGENT_DAYTONA_TARGET
+              value: {{ $daytona.target | quote }}
+            {{- end }}
+            {{- if $daytona.snapshot }}
+            - name: SANDBOX_AGENT_DAYTONA_SNAPSHOT
+              value: {{ $daytona.snapshot | quote }}
+            {{- end }}
+            {{- if $daytona.image }}
+            - name: SANDBOX_AGENT_DAYTONA_IMAGE
+              value: {{ $daytona.image | quote }}
+            {{- end }}
+            {{- if hasKey $daytona "installPi" }}
+            - name: SANDBOX_AGENT_DAYTONA_INSTALL_PI
+              value: {{ $daytona.installPi | quote }}
+            {{- end }}
+            {{- if $daytona.apiKey }}
+            - name: SANDBOX_AGENT_DAYTONA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: SANDBOX_AGENT_DAYTONA_API_KEY
+                  optional: true
+            {{- end }}
+            {{- range $key, $val := $runner.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- with $runner.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with $runner.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $runner.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $runner.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

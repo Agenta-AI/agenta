@@ -187,6 +187,24 @@ global:
 #   target: eu
 
 # ================================================================== #
+# === agentRunner ===
+# sandbox-agent runner used by agent workflows. The services pod gets
+# AGENTA_AGENT_RUNNER_URL from this component.
+# ================================================================== #
+# agentRunner:
+#   enabled: true
+#   port: 8765
+#   provider: local
+#   enableMcp: false
+#   daytona:
+#     apiKey:
+#     apiUrl: https://app.daytona.io/api
+#     target: eu
+#     snapshot:
+#     image:
+#     installPi: false
+
+# ================================================================== #
 # docker (compose-only — no-op on Kubernetes, kept commented so this
 # file mirrors the compose env surface without affecting K8s behavior).
 # ================================================================== #
