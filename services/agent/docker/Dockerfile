@@ -20,9 +20,11 @@ WORKDIR /app
 # CA certificates: the sandbox-agent daemon (Rust) downloads harness CLIs (e.g. Claude
 # Code) over HTTPS using the system trust store, which node:*-slim omits — without this
 # the daemon's `install-agent claude` fails TLS verification. git lets npm/installers
-# fetch git deps.
+# fetch git deps. python3 runs `code` tools whose runtime is "python": the runner relays
+# the call and spawns `python3` (src/tools/code.ts), so without it those tools fail with
+# `spawn python3 ENOENT`.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates git \
+    && apt-get install -y --no-install-recommends ca-certificates git python3 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable

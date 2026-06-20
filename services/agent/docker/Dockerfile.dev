@@ -11,8 +11,10 @@ WORKDIR /app
 # CA certificates: the rivet daemon (Rust) downloads harness CLIs (e.g. Claude Code) over
 # HTTPS using the system trust store, which node:*-slim omits — without this the daemon's
 # `install-agent claude` fails TLS verification. git lets npm/installers fetch git deps.
+# python3 runs `code` tools whose runtime is "python": the runner relays the call and
+# spawns `python3` (src/tools/code.ts), so without it those tools fail `spawn python3 ENOENT`.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates git \
+    && apt-get install -y --no-install-recommends ca-certificates git python3 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable
@@ -26,9 +28,10 @@ COPY tsconfig.json ./
 COPY scripts ./scripts
 COPY src ./src
 
-# Bundle the Agenta Pi extension (tracing + tools) into dist/. dist/ is NOT bind-mounted
-# in dev, so this baked copy is what runRivet installs into Pi's agent dir. Rebuild the
-# image after editing src/piExtension.ts or src/agenta-otel.ts.
+# Bundle the Agenta Pi extension (tracing + tools) into dist/ as a baked fallback. dist/ is
+# NOT bind-mounted in dev, but the CMD below rebuilds the bundle from the mounted src on
+# container start, so a container restart picks up edits to src/extensions/agenta.ts or the
+# tracer without a full image rebuild. (tsx watch hot-reloads the runner but not this bundle.)
 RUN pnpm run build:extension
 
 ENV NODE_ENV=development \
@@ -36,6 +39,7 @@ ENV NODE_ENV=development \
 
 EXPOSE 8765
 
-# Call the local tsx binary directly to avoid pnpm/corepack HOME writes when the
-# container runs as a non-root host uid.
-CMD ["node_modules/.bin/tsx", "watch", "src/server.ts"]
+# Rebuild the Pi extension from the mounted src on start (cheap, ~120ms) so a restart picks
+# up extension edits, then run the watcher. Call node + the local tsx binary directly to
+# avoid pnpm/corepack HOME writes when the container runs as a non-root host uid.
+CMD ["sh", "-c", "node scripts/build-extension.mjs && exec node_modules/.bin/tsx watch src/server.ts"]
