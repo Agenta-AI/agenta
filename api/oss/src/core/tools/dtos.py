@@ -126,6 +126,13 @@ class ToolConnection(
         return None
 
     @property
+    def is_no_auth(self) -> bool:
+        """True for a no-auth toolkit connection (no Composio auth config/account)."""
+        return bool(
+            self.data and isinstance(self.data, dict) and self.data.get("no_auth")
+        )
+
+    @property
     def is_active(self) -> bool:
         """Check if connection is active (not deleted)."""
         if self.flags and isinstance(self.flags, dict):
@@ -228,7 +235,7 @@ class ToolExecutionRequest(BaseModel):
 
     integration_key: str
     action_key: str
-    provider_connection_id: str
+    provider_connection_id: Optional[str] = None  # absent for no-auth toolkits
     user_id: Optional[str] = None
     arguments: Dict[str, Any] = {}
 

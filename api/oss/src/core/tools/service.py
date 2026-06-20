@@ -259,6 +259,16 @@ class ToolsService:
         data["project_id"] = str(project_id)
         connection_create.data = data  # type: ignore[assignment]
 
+        # Connection validity is server-owned, never client-supplied. An auth-backed
+        # connection is not valid until its flow completes (the OAuth callback flips
+        # is_valid). A no-auth toolkit has no flow, so the server marks it valid up front,
+        # but only after the adapter confirmed it is no-auth. Drop any client-sent flags so a
+        # caller cannot mark a pending OAuth connection valid.
+        connection_create.flags = {  # type: ignore[assignment]
+            "is_active": True,
+            "is_valid": bool(data.get("no_auth")),
+        }
+
         # Persist locally
         return await self.tools_dao.create_connection(
             project_id=project_id,
@@ -347,6 +357,11 @@ class ToolsService:
                 connection_id=str(connection_id),
             )
 
+        # A no-auth connection has no provider-side authorization to re-link, so refresh is a
+        # no-op. Return it unchanged rather than reporting it missing.
+        if conn.is_no_auth:
+            return conn
+
         if not conn.provider_connection_id:
             raise ConnectionNotFoundError(
                 connection_id=str(connection_id),
@@ -408,7 +423,7 @@ class ToolsService:
         provider_key: str,
         integration_key: str,
         action_key: str,
-        provider_connection_id: str,
+        provider_connection_id: Optional[str] = None,
         user_id: Optional[str] = None,
         arguments: Dict[str, Any],
     ) -> ToolExecutionResponse:
@@ -473,7 +488,9 @@ class ToolsService:
                 detail="Please refresh the connection.",
             )
 
-        if not connection.provider_connection_id:
+        # No-auth toolkits have no provider-side connected account; the missing id is
+        # expected and execution runs without one.
+        if not connection.is_no_auth and not connection.provider_connection_id:
             raise ConnectionNotFoundError(
                 provider_key=provider_key,
                 integration_key=integration_key,
