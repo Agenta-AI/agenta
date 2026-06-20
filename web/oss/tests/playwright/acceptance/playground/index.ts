@@ -425,12 +425,25 @@ const playgroundTests = () => {
                     // which toggles selection without requiring AntD checkboxes
                     // to be present in the DOM (they depend on enableSelection /
                     // rowSelection being set, which has proven unreliable here).
-                    for (const {country} of rows) {
+                    //
+                    // After each click we assert the running count in the dialog
+                    // footer. handleRowClick closes over the `selectedIds` prop and
+                    // React 18 batches re-renders, so the prop can be stale for the
+                    // very next click dispatched in CI. The assertion retries until
+                    // the atom update is reflected in the DOM, guaranteeing the
+                    // component has re-rendered with the correct selectedIds before
+                    // the next click fires.
+                    for (let i = 0; i < rows.length; i++) {
                         await loadDialog
                             .locator(".ant-table-row")
-                            .filter({hasText: country})
+                            .filter({hasText: rows[i].country})
                             .first()
                             .click()
+                        await expect(
+                            loadDialog.getByText(`${i + 1} of ${rows.length} testcases selected`, {
+                                exact: true,
+                            }),
+                        ).toBeVisible({timeout: 5000})
                     }
                     await loadDialog
                         .getByRole("button", {name: "Load Selected", exact: true})
@@ -553,16 +566,25 @@ const playgroundTests = () => {
                 await expect(
                     loadDialog.locator(".ant-table-row").filter({hasText: "Germany"}).first(),
                 ).toBeVisible({timeout: 30000})
-                for (const {country} of rows) {
+                for (let i = 0; i < rows.length; i++) {
                     // Select each testcase by clicking its row. The table's
                     // onRow.onClick handler (handleRowClick in TestsetPreviewPanelWrapper)
                     // toggles multi-selection without requiring AntD checkboxes
                     // to be present in the DOM.
                     await loadDialog
                         .locator(".ant-table-row")
-                        .filter({hasText: country})
+                        .filter({hasText: rows[i].country})
                         .first()
                         .click()
+                    // After each click, assert the running count in the footer so
+                    // we know the Jotai atom update has been applied and React has
+                    // re-rendered before the next click. Without this barrier
+                    // handleRowClick can see a stale selectedIds prop in CI.
+                    await expect(
+                        loadDialog.getByText(`${i + 1} of ${rows.length} testcases selected`, {
+                            exact: true,
+                        }),
+                    ).toBeVisible({timeout: 5000})
                 }
                 await loadDialog.getByRole("button", {name: "Load Selected", exact: true}).click()
                 await expect(loadDialog).toBeHidden()
