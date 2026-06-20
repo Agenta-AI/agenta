@@ -115,6 +115,26 @@ for how they behave. The plan and role variables are Enterprise-only; see
 | `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` | `agenta.services.hook.allow_insecure` | `agenta.services.hook.allowInsecure` |
 | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
 
+## Agent runner
+
+These variables configure agent workflows. `AGENTA_AGENT_*` variables are read by the
+Services API. `SANDBOX_AGENT_*` variables are read by the separate `sandbox-agent` runner
+service. See [Deploy the agent runner](/self-host/guides/deploy-the-agent-runner).
+
+| Env var | Component | values.yaml path |
+|---|---|---|
+| `AGENTA_AGENT_RUNNER_URL` | Services API | `agentRunner.externalUrl` or generated from `agentRunner.enabled` |
+| `AGENTA_AGENT_RUNNER_TIMEOUT_SECONDS` | Services API / SDK | n/a |
+| `AGENTA_AGENT_ENABLE_MCP` | Services API | `agentRunner.enableMcp` |
+| `SANDBOX_AGENT_PROVIDER` | `sandbox-agent` | `agentRunner.provider` |
+| `SANDBOX_AGENT_LOG_LEVEL` | `sandbox-agent` | `agentRunner.logLevel` |
+| `SANDBOX_AGENT_DAYTONA_API_KEY` | `sandbox-agent` | `agentRunner.daytona.apiKey` |
+| `SANDBOX_AGENT_DAYTONA_API_URL` | `sandbox-agent` | `agentRunner.daytona.apiUrl` |
+| `SANDBOX_AGENT_DAYTONA_TARGET` | `sandbox-agent` | `agentRunner.daytona.target` |
+| `SANDBOX_AGENT_DAYTONA_SNAPSHOT` | `sandbox-agent` | `agentRunner.daytona.snapshot` |
+| `SANDBOX_AGENT_DAYTONA_IMAGE` | `sandbox-agent` | `agentRunner.daytona.image` |
+| `SANDBOX_AGENT_DAYTONA_INSTALL_PI` | `sandbox-agent` | `agentRunner.daytona.installPi` |
+
 ## Agenta — webhooks
 
 | Env var | env.py path | values.yaml path |
