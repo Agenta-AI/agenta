@@ -418,6 +418,8 @@ services:
             AGENTA_AGENT_RUNTIME: ${AGENTA_AGENT_RUNTIME:-rivet}
             AGENTA_AGENT_HARNESS: ${AGENTA_AGENT_HARNESS:-pi}
             AGENTA_AGENT_SANDBOX: ${AGENTA_AGENT_SANDBOX:-local}
+            # Gate user-declared MCP servers (resolve_mcp_servers). Off by default.
+            AGENTA_AGENT_ENABLE_MCP: ${AGENTA_AGENT_ENABLE_MCP:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -446,9 +448,14 @@ services:
         # === EXECUTION ============================================ #
         # No file watcher (the box's inotify limit is shared across stacks). Copy the
         # read-only mounted Pi login into a writable path so OAuth refresh stays
-        # in-container.
+        # in-container. This command replaces the image CMD, so the Pi extension rebuild
+        # has to live here too: dist/ is not bind-mounted and src/extensions/agenta.ts is,
+        # so without this a restart keeps a stale bundle and custom tools silently stop
+        # being delivered on the Rivet path (QA finding F-005). Rebuild from the mounted
+        # src on start; fail loud if it cannot build rather than run a stale bundle.
         command: >
             sh -c "mkdir -p /pi-agent && cp -a /pi-agent-ro/. /pi-agent/ 2>/dev/null || true;
+            node scripts/build-extension.mjs &&
             exec node_modules/.bin/tsx src/server.ts"
         # === CONFIGURATION ======================================== #
         # Deliberately NO env_file: the Pi sandbox must not inherit the stack's
