@@ -1,6 +1,6 @@
 {
   "name": "agenta-agent-pi-wrapper",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.30.0",
@@ -10,7 +10,12 @@
     "serve": "tsx src/server.ts",
     "serve:watch": "tsx watch src/server.ts",
     "build:extension": "node scripts/build-extension.mjs",
-    "login": "pi"
+    "login": "pi",
+    "test": "pnpm run test:unit",
+    "test:unit": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@daytonaio/sdk": "^0.187.0",
@@ -26,9 +31,12 @@
     "sandbox-agent": "0.4.2"
   },
   "devDependencies": {
-    "@types/node": "22.10.2",
+    "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^4.1.4",
     "esbuild": "0.23.1",
-    "tsx": "4.19.2"
+    "tsx": "4.19.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.4"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

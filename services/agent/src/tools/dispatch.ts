@@ -85,11 +85,11 @@ export async function relayToolCall(
         /* best-effort cleanup */
       }
       if (res.ok) return res.text ?? "";
-      throw new Error(res.error || `tool relay failed for ${callRef}`);
+      throw new Error(res.error || `tool relay failed for ${toolName}`);
     }
     await sleep(RELAY_POLL_MS);
   }
-  throw new Error(`tool relay timed out for ${callRef}`);
+  throw new Error(`tool relay timed out for ${toolName}`);
 }
 
 /**
