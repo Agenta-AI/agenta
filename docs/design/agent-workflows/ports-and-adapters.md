@@ -1,0 +1,153 @@
+# Ports And Adapters
+
+The agent runtime uses the same hexagonal vocabulary as the rest of Agenta. The SDK owns
+the neutral ports and data contracts. The service and runner plug adapters into them.
+
+## Runtime Package
+
+The SDK runtime lives under `sdks/python/agenta/sdk/agents/`.
+
+| Layer | Files | Role |
+| --- | --- | --- |
+| DTOs | `dtos.py` | `AgentConfig`, `RunSelection`, `SessionConfig`, messages, events, capabilities, and harness-specific config models. |
+| Ports | `interfaces.py` | `Backend`, `Environment`, `Sandbox`, `Session`, `Harness`, `SessionStore`. |
+| Backend adapters | `adapters/in_process.py`, `adapters/rivet.py`, `adapters/local.py` | Engines that can run a harness. |
+| Harness adapters | `adapters/harnesses.py` | Per-harness mapping from neutral session config to harness-specific config. |
+| Browser adapter | `adapters/vercel/` | Vercel `UIMessage` input and Vercel UI Message Stream output. |
+| Runner plumbing | `utils/wire.py`, `utils/ts_runner.py` | `/run` serialization and runner transports. |
+| Tools and MCP | `tools/`, `mcp/` | Canonical tool and MCP config, resolution, wire models, and errors. |
+
+The service imports this package. The SDK must not import the service.
+
+## Core Ports
+
+### Backend
+
+A `Backend` is the engine. It declares `supported_harnesses`, creates sandboxes, and opens
+sessions. It does not know how Pi or Claude wants tools shaped.
+
+Current backends:
+
+- `InProcessPiBackend`: implemented, supports `pi` and `agenta`, local only.
+- `RivetBackend`: implemented, supports `pi` and `claude`, local or Daytona.
+- `LocalBackend`: planned, public class exists, methods raise.
+
+### Environment
+
+`Environment` wraps a backend and owns sandbox policy. The default is one sandbox per
+session. That is the cold isolation model.
+
+### Harness
+
+A `Harness` wraps an environment for one harness type. It validates that the backend can
+drive it, maps `SessionConfig` into a harness-specific config, provisions files, and runs a
+turn.
+
+Current harnesses:
+
+- `PiHarness` keeps built-in tool names, resolved tool specs, Pi prompt overrides, and Pi
+  native tool delivery.
+- `ClaudeHarness` drops Pi built-ins, carries MCP-delivered specs, and carries the
+  permission policy.
+- `AgentaHarness` is Pi with forced Agenta policy layered on top.
+
+### Session
+
+`Session` represents one conversation from the SDK point of view. Today it is a cold
+wrapper around one `/run` call. It exposes both:
+
+- `prompt(...)`: one-shot path returning `AgentResult`.
+- `stream(...)`: live path returning `AgentRun`.
+
+`AgentRun` yields live `AgentEvent` objects and exposes the terminal `AgentResult` after
+the stream drains.
+
+### SessionStore
+
+`SessionStore` is the durable-history port. It has `load` and `save_turn`. The only default
+adapter is `NoopSessionStore`, which returns no messages and discards writes.
+
+This is intentional scaffolding. Server-owned session history is not implemented yet.
+
+A separate future port is still needed for harness session snapshots. Durable message
+history can reload a transcript, but it cannot necessarily restore Rivet/ACP session state,
+tool state, or setup artifacts. That future port should be designed after we inspect the
+actual session representation and storage size.
+
+## Config Ownership
+
+`AgentConfig` describes the agent itself: instructions, model, tool references, MCP server
+config, and per-harness option bags. It does not choose a backend.
+
+`RunSelection` describes runtime choices: harness, sandbox, and permission policy.
+
+This is the current POC shape. The long-term split should be stricter:
+
+- Generic agent identity: `AGENTS.md`, skills, tool references, and metadata.
+- Harness-specific config: harness id, model, option bags, and harness-specific
+  permissions.
+- Runtime infrastructure: local versus Daytona, runner sidecar URL, filesystem isolation,
+  and secret channels.
+
+Sandbox is currently selectable through `RunSelection` so the POC can exercise local and
+Daytona paths. It should not become durable agent template identity unless product
+requirements explicitly need portable per-template runtime selection.
+
+`SessionConfig` describes one run: the neutral agent config plus resolved secrets, resolved
+tools, resolved MCP servers, trace context, and the session id.
+
+## Service Composition
+
+`services/oss/src/agent/app.py` is a thin consumer of the SDK ports:
+
+1. Parse `AgentConfig` and `RunSelection`.
+2. Resolve provider secrets.
+3. Resolve tools and, when enabled, MCP servers.
+4. Build `SessionConfig`.
+5. Choose a backend.
+6. Build the harness.
+7. Run `prompt` or `stream`.
+
+Tool and MCP resolution are split cleanly:
+
+- The SDK owns canonical models, parsing, local secret provider interfaces, and generic
+  resolver behavior.
+- The service owns Agenta-specific HTTP adapters for gateway tools and vault secrets.
+- The TypeScript runner owns actual execution for callback, code, and MCP-delivered tools.
+
+## Browser Protocol Adapter
+
+The Vercel adapter is not part of the generic workflow route. It is registered only for
+agent routes and lives in `sdks/python/agenta/sdk/agents/adapters/vercel/`.
+
+It owns:
+
+- Vercel `UIMessage` to neutral `Message` conversion.
+- `session_id` validation and minting.
+- `/messages` stream negotiation.
+- Vercel stream-part encoding.
+- `/load-session` over `SessionStore`.
+
+This keeps Vercel-specific names out of the runtime ports.
+
+## The `/run` Boundary
+
+Runner-backed backends send the same `/run` wire shape whether they use HTTP or spawn the
+CLI. The Python and TypeScript sides intentionally duplicate the contract:
+
+- Python: `sdks/python/agenta/sdk/agents/utils/wire.py`
+- TypeScript: `services/agent/src/protocol.ts`
+
+Golden tests pin this boundary. Any change to request fields, event kinds, capabilities, or
+result fields should update both sides and the wire tests in the same PR.
+
+## Known Weak Points
+
+- `LocalBackend` appears in public exports but is not usable yet.
+- `SessionStore` has no production adapter and the current runtime does not call
+  `save_turn` after completed `/messages` turns.
+- `AgentaHarness` policy content is placeholder product copy.
+- `AgentaHarness` cannot run on rivet or Daytona.
+- MCP server resolution is disabled unless `AGENTA_AGENT_ENABLE_MCP` is truthy.
+- The code still has historical WP labels in comments. Those labels should not guide new
+  design decisions.

@@ -46,9 +46,6 @@ services:
             - ../../../web/oss/src:/app/oss/src
             - ../../../web/oss/public:/app/oss/public
             - ../../../web/packages:/app/packages
-            - nextjs-ee-cache:/app/ee/.next/cache
-            - nextjs-oss-cache:/app/oss/.next/cache
-            - turbo-ee-cache:/app/.turbo
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -82,11 +79,7 @@ services:
                 "--reload-dir",
                 "/app/ee/src",
                 "--reload-dir",
-                "/app/ee/databases",
-                "--reload-dir",
                 "/app/oss/src",
-                "--reload-dir",
-                "/app/oss/databases",
                 "--reload-dir",
                 "/app/entrypoints",
                 "--reload-dir",
@@ -150,9 +143,7 @@ services:
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
-            --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
-            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --ignore-patterns=*/tests/* --
             python -m entrypoints.worker_evaluations
         # === STORAGE ============================================== #
         volumes:
@@ -189,9 +180,7 @@ services:
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
-            --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
-            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --ignore-patterns=*/tests/* --
             python -m entrypoints.worker_tracing
         # === STORAGE ============================================== #
         volumes:
@@ -228,9 +217,7 @@ services:
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
-            --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
-            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --ignore-patterns=*/tests/* --
             python -m entrypoints.worker_webhooks
         # === STORAGE ============================================== #
         volumes:
@@ -273,9 +260,7 @@ services:
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
-            --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
-            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --ignore-patterns=*/tests/* --
             python -m entrypoints.worker_events
         # === STORAGE ============================================== #
         volumes:
@@ -409,6 +394,15 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+            # Agent workflow: reach the agent runner sidecar in-network.
+            AGENTA_AGENT_PI_URL: http://agent-pi:8765
+            # Agent runtime: drive the harness over ACP via a rivet daemon.
+            # Harness (pi/claude) and sandbox (local/daytona) are independent axes.
+            # The agent-pi sidecar files are introduced by PR #4778, so this compose
+            # wiring must land after #4778 or be reviewed with that branch applied.
+            AGENTA_AGENT_RUNTIME: ${AGENTA_AGENT_RUNTIME:-rivet}
+            AGENTA_AGENT_HARNESS: ${AGENTA_AGENT_HARNESS:-pi}
+            AGENTA_AGENT_SANDBOX: ${AGENTA_AGENT_SANDBOX:-local}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -423,6 +417,56 @@ services:
             - "traefik.http.routers.services.middlewares=services-strip"
             - "traefik.http.services.services.loadbalancer.server.port=8080"
             - "traefik.http.routers.services.service=services"
+        # === LIFECYCLE ============================================ #
+        restart: always
+
+    agent-pi:
+        # === IMAGE ================================================ #
+        # Agent runner sidecar. The services container
+        # calls it in-network at http://agent-pi:8765 (AGENTA_AGENT_PI_URL).
+        # The build context and Dockerfile come from PR #4778.
+        build:
+            context: ../../../services/agent
+            dockerfile: docker/Dockerfile.dev
+        # === EXECUTION ============================================ #
+        # No file watcher (the box's inotify limit is shared across stacks). Copy the
+        # read-only mounted Pi login into a writable path so OAuth refresh stays
+        # in-container.
+        command: >
+            sh -c "mkdir -p /pi-agent && cp -a /pi-agent-ro/. /pi-agent/ 2>/dev/null || true;
+            exec node_modules/.bin/tsx src/server.ts"
+        # === CONFIGURATION ======================================== #
+        # Deliberately NO env_file: the Pi sandbox must not inherit the stack's
+        # secrets (COMPOSIO_API_KEY, STRIPE/POSTHOG/GOOGLE keys, ...). Tools run
+        # server-side via /tools/call, so the sandbox only needs its own port, the Pi
+        # login (mounted below), the OTLP export fallback, and the Daytona credentials
+        # the SDK reads for the rivet `daytona` sandbox axis.
+        environment:
+            PORT: "8765"
+            PI_CODING_AGENT_DIR: /pi-agent
+            # Tracing export fallback (used when a request carries no usable OTLP
+            # credential). Must be reachable from this container.
+            AGENTA_HOST: ${AGENTA_HOST:-http://144.76.237.122:8280}
+            AGENTA_API_KEY: ${AGENTA_API_KEY:-}
+            # Daytona sandbox axis: the rivet daytona provider's `new Daytona()` reads
+            # these. Scoped to Daytona only (not the full stack secret set).
+            DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
+            DAYTONA_API_URL: ${DAYTONA_API_URL:-}
+            DAYTONA_TARGET: ${DAYTONA_TARGET:-}
+            # Pre-baked snapshot (rivet daemon + Pi + certs; Claude inherited from rivet's
+            # -full base) so Daytona runs skip the ~150s per-invoke `npm install pi`. We
+            # ship the builder (poc/build_rivet_snapshot.py), not the snapshot itself: each
+            # operator builds their own, so we never distribute a Claude-containing image.
+            # See services/agent/docker/README.md for the licensing posture.
+            AGENTA_RIVET_DAYTONA_SNAPSHOT: ${AGENTA_RIVET_DAYTONA_SNAPSHOT:-agenta-rivet-pi}
+            AGENTA_RIVET_DAYTONA_INSTALL_PI: ${AGENTA_RIVET_DAYTONA_INSTALL_PI:-false}
+        # === STORAGE ============================================== #
+        volumes:
+            - ../../../services/agent/src:/app/src
+            - ${HOME}/.pi/agent:/pi-agent-ro:ro
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
         # === LIFECYCLE ============================================ #
         restart: always
 
@@ -593,6 +637,4 @@ volumes:
     postgres-data:
     redis-volatile-data:
     redis-durable-data:
-    nextjs-ee-cache:
-    nextjs-oss-cache:
-    turbo-ee-cache:
+    nextjs_cache:
