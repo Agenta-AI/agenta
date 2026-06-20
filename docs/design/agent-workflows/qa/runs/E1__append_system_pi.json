@@ -1,0 +1,55 @@
+{
+  "id": "append_system_pi",
+  "group": "f001",
+  "capability": "pi append_system override",
+  "env_label": "E1",
+  "sandbox": "local",
+  "harness": "pi",
+  "model": "gpt-4o-mini",
+  "ts": "2026-06-20T11:09:12.440781+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Say hello in one short sentence."
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi",
+          "sandbox": "local",
+          "model": "gpt-4o-mini",
+          "agents_md": "Be brief.",
+          "harness_options": {
+            "pi": {
+              "append_system": "Always end every reply with the exact token ZK-9-END."
+            }
+          }
+        }
+      }
+    }
+  },
+  "http_status": 200,
+  "response": {
+    "span_id": "d8b780695d64b128",
+    "trace_id": "00ca37fbd7d30d93a501d65085150b26",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "Hello! How can I assist you today? ZK-9-END"
+      }
+    }
+  },
+  "reply": "Hello! How can I assist you today? ZK-9-END",
+  "status_message": "Success",
+  "passed": true,
+  "expect": "reply contains ZK-9-END (F-001: dropped on rivet, works in-process)"
+}
