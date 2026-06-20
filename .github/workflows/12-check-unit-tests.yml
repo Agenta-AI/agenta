@@ -319,6 +319,8 @@ jobs:
       AGENTA_LICENSE: oss
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Skip when package selection excludes services
         if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","services-only"]'), inputs.packages)
