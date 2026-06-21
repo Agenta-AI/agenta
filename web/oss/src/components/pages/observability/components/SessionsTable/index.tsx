@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
 import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
 import {SessionDrawer} from "@/oss/components/SharedDrawers/SessionDrawer"
@@ -48,6 +48,14 @@ const SessionsTable: React.FC = () => {
         isFetchingMore,
         resetSessionPages,
     } = useSessions()
+
+    // The per-session cells (Traces count, First input, metrics, …) read their
+    // data from page-level atoms keyed by session id (e.g. `sessionsSpansAtom`).
+    // Without this, the table mounts its rows inside an isolated Jotai store
+    // (`useIsolatedStore` when no `store` is passed), where those atoms are empty
+    // — so every cell renders 0/"-" even though the data is loaded in the page
+    // store. Sharing the page store lets the cells resolve the real data.
+    const store = useStore()
 
     const isNewUser = useAtomValue(isNewUserAtom)
     const onboardingStorageUserId = useAtomValue(onboardingStorageUserIdAtom)
@@ -111,7 +119,7 @@ const SessionsTable: React.FC = () => {
     const isEmptyState = sessionIds.length === 0 && !isLoading
 
     return (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col h-full gap-2 min-h-0">
             <ObservabilityHeader
                 columns={columns}
                 componentType="sessions"
@@ -128,11 +136,11 @@ const SessionsTable: React.FC = () => {
                 <EmptySessions showOnboarding={showOnboarding} />
             ) : (
                 <InfiniteVirtualTableFeatureShell<SessionRow>
+                    store={store}
                     tableScope={tableScope}
                     columns={columns}
                     rowKey="session_id"
                     pagination={pagination}
-                    autoHeight={false}
                     resizableColumns
                     enableExport={false}
                     useSettingsDropdown={false}
