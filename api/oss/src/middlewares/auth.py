@@ -35,9 +35,6 @@ from oss.src.utils.exceptions import (
 
 from oss.src.core.auth.service import AuthService
 
-if is_ee():
-    from ee.src.services import db_manager_ee
-
 log = get_module_logger(__name__)
 
 
@@ -631,12 +628,9 @@ async def verify_bearer_token(
             organization_id = workspace.organization_id
 
         else:
-            if is_ee():
-                workspace_id = await db_manager_ee.get_default_workspace_id(
-                    user_id=user_id,
-                )
-            else:
-                workspace_id = await db_manager.get_default_workspace_id_oss()
+            workspace_id = await db_manager.get_default_workspace_id(
+                user_id=user_id,
+            )
 
             project_id = await db_manager.get_default_project_id_from_workspace(
                 workspace_id=workspace_id
@@ -674,18 +668,14 @@ async def verify_bearer_token(
         # lock the user out for the full cache TTL even after they accept an
         # invite.  The deny is raised directly to the middleware, bypassing the
         # outer except-handler that caches.
-        if (
-            is_ee()
-            and (query_project_id or query_workspace_id)
-            and not is_invite_accept_route
-        ):
+        if (query_project_id or query_workspace_id) and not is_invite_accept_route:
             if query_project_id:
-                is_member = await db_manager_ee.project_member_exists(
+                is_member = await db_manager.project_member_exists(
                     project_id=project_id,
                     user_id=user_id,
                 )
             else:
-                is_member = await db_manager_ee.workspace_member_exists(
+                is_member = await db_manager.workspace_member_exists(
                     workspace_id=workspace_id,
                     user_id=user_id,
                 )

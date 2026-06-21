@@ -12,13 +12,22 @@ import {isNewUserAtom, onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/a
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
 import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
-import {resolvePreferredWorkspaceId} from "@/oss/state/org/selectors/org"
+import {resolvePreferredWorkspaceId, resolveWorkspaceIdForOrg} from "@/oss/state/org/selectors/org"
 import {useProfileData} from "@/oss/state/profile"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {useProjectData} from "@/oss/state/project"
 import {authFlowAtom} from "@/oss/state/session"
 import {writePostSignupPending} from "@/oss/state/url/auth"
-import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
+import {
+    buildPostLoginPathResolved,
+    waitForWorkspaceContext,
+} from "@/oss/state/url/postLoginRedirect"
+
+// Org ids must be translated to default_workspace.id before landing in /w/<id>.
+const orgWorkspacePath = async (orgId: string): Promise<string> => {
+    const workspaceId = (await resolveWorkspaceIdForOrg(orgId)) ?? orgId
+    return `/w/${encodeURIComponent(workspaceId)}`
+}
 
 interface AuthUserLike {
     createdNewRecipeUser?: boolean
@@ -168,7 +177,7 @@ const usePostAuthRedirect = () => {
                 }
                 if (upgradeOrgId) {
                     await resetAuthState()
-                    await router.replace(`/w/${encodeURIComponent(upgradeOrgId)}`)
+                    await router.replace(await orgWorkspacePath(upgradeOrgId))
                     return
                 }
             }
@@ -239,7 +248,7 @@ const usePostAuthRedirect = () => {
                         // This avoids a brief redirect to Personal that can trigger
                         // "requires email/social" when the session only has sso:*.
                         window.localStorage.removeItem(lastSsoOrgSlugKey)
-                        await router.replace(`/w/${encodeURIComponent(match.id)}`)
+                        await router.replace(await orgWorkspacePath(match.id))
                         return
                     }
                     if (match?.id && !match.flags?.allow_sso) {
@@ -263,7 +272,7 @@ const usePostAuthRedirect = () => {
                 // Use preferred workspace resolution with ONLY compatible orgs
                 const preferredWorkspaceId = resolvePreferredWorkspaceId(userId, compatibleOrgs)
                 if (preferredWorkspaceId) {
-                    await router.replace(`/w/${encodeURIComponent(preferredWorkspaceId)}`)
+                    await router.replace(await orgWorkspacePath(preferredWorkspaceId))
                     return
                 }
 
@@ -301,7 +310,7 @@ const usePostAuthRedirect = () => {
                 }
             }
 
-            const nextPath = buildPostLoginPath(context)
+            const nextPath = await buildPostLoginPathResolved(context)
             await router.replace(nextPath)
         },
         [derivedIsInvitedUser, resetAuthState, router],
