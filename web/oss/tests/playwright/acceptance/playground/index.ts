@@ -421,18 +421,9 @@ const playgroundTests = () => {
                     ).toBeVisible({timeout: 30000})
 
                     // Select all testcases by clicking each row. The table wires
-                    // onRow.onClick to handleRowClick in TestsetPreviewPanelWrapper,
-                    // which toggles selection without requiring AntD checkboxes
-                    // to be present in the DOM (they depend on enableSelection /
-                    // rowSelection being set, which has proven unreliable here).
-                    //
-                    // After each click we assert the running count in the dialog
-                    // footer. handleRowClick closes over the `selectedIds` prop and
-                    // React 18 batches re-renders, so the prop can be stale for the
-                    // very next click dispatched in CI. The assertion retries until
-                    // the atom update is reflected in the DOM, guaranteeing the
-                    // component has re-rendered with the correct selectedIds before
-                    // the next click fires.
+                    // onRow.onClick to handleRowClick in TestsetPreviewPanelWrapper.
+                    // After each click, assert the running footer count to verify
+                    // the selection registered before proceeding to the next row.
                     for (let i = 0; i < rows.length; i++) {
                         await loadDialog
                             .locator(".ant-table-row")
@@ -570,16 +561,13 @@ const playgroundTests = () => {
                     // Select each testcase by clicking its row. The table's
                     // onRow.onClick handler (handleRowClick in TestsetPreviewPanelWrapper)
                     // toggles multi-selection without requiring AntD checkboxes
-                    // to be present in the DOM.
+                    // to be present in the DOM. Assert the running footer count
+                    // after each click to verify the selection registered.
                     await loadDialog
                         .locator(".ant-table-row")
                         .filter({hasText: rows[i].country})
                         .first()
                         .click()
-                    // After each click, assert the running count in the footer so
-                    // we know the Jotai atom update has been applied and React has
-                    // re-rendered before the next click. Without this barrier
-                    // handleRowClick can see a stale selectedIds prop in CI.
                     await expect(
                         loadDialog.getByText(`${i + 1} of ${rows.length} testcases selected`, {
                             exact: true,
