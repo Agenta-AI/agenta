@@ -20,6 +20,13 @@ export const PRIORITY_ORDER: Record<BannerType, number> = {
 }
 
 /**
+ * Maximum number of dismissible sidebar banners a user should have to clear.
+ * Apply this before dismissal filtering so older changelog entries do not
+ * backfill the sidebar after each close.
+ */
+export const MAX_DISMISSIBLE_SIDEBAR_BANNERS = 2
+
+/**
  * Persisted atom for dismissed banner IDs.
  * Uses localStorage to remember which banners the user has dismissed.
  */
@@ -107,8 +114,17 @@ export const activeBannersAtom = atom((get) => {
 export const visibleBannersAtom = atom((get) => {
     const allBanners = get(activeBannersAtom)
     const dismissedIds = get(dismissedBannerIdsAtom)
+    const sortedBanners = [...allBanners].sort(
+        (a, b) => PRIORITY_ORDER[a.type] - PRIORITY_ORDER[b.type],
+    )
 
-    return allBanners
+    const cappedDismissibleBanners = sortedBanners
+        .filter((banner) => banner.dismissible)
+        .slice(0, MAX_DISMISSIBLE_SIDEBAR_BANNERS)
+
+    const nonDismissibleBanners = sortedBanners.filter((banner) => !banner.dismissible)
+
+    return [...cappedDismissibleBanners, ...nonDismissibleBanners]
         .filter((banner) => !dismissedIds.includes(banner.id))
         .sort((a, b) => PRIORITY_ORDER[a.type] - PRIORITY_ORDER[b.type])
 })
