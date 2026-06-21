@@ -12,6 +12,10 @@ from oss.src.core.triggers.dtos import (
     TriggerConnectionCreate,
     TriggerDelivery,
     TriggerDeliveryQuery,
+    TriggerSchedule,
+    TriggerScheduleCreate,
+    TriggerScheduleEdit,
+    TriggerScheduleQuery,
     TriggerSubscription,
     TriggerSubscriptionCreate,
     TriggerSubscriptionEdit,
@@ -109,6 +113,35 @@ class TriggerSubscriptionResponse(BaseModel):
 class TriggerSubscriptionsResponse(BaseModel):
     count: int = 0
     subscriptions: List[TriggerSubscription] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Trigger Schedules
+# ---------------------------------------------------------------------------
+
+
+class TriggerScheduleCreateRequest(BaseModel):
+    schedule: TriggerScheduleCreate
+
+
+class TriggerScheduleEditRequest(BaseModel):
+    schedule: TriggerScheduleEdit
+
+
+class TriggerScheduleQueryRequest(BaseModel):
+    schedule: Optional[TriggerScheduleQuery] = None
+
+    windowing: Optional[Windowing] = None
+
+
+class TriggerScheduleResponse(BaseModel):
+    count: int = 0
+    schedule: Optional[TriggerSchedule] = None
+
+
+class TriggerSchedulesResponse(BaseModel):
+    count: int = 0
+    schedules: List[TriggerSchedule] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

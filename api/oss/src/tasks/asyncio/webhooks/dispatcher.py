@@ -249,6 +249,14 @@ class WebhooksDispatcher:
                 )
 
                 for sub in matching:
+                    flags = getattr(sub, "flags", None)
+                    if flags is not None and not getattr(flags, "is_active", True):
+                        log.info(
+                            f"[WEBHOOKS DISPATCHER] Skipping subscription {sub.id} "
+                            f"— inactive"
+                        )
+                        continue
+
                     if not sub.secret:
                         log.warning(
                             f"[WEBHOOKS DISPATCHER] Skipping subscription {sub.id} "

@@ -2,7 +2,7 @@
  * Gateway-trigger entity module.
  *
  * Browser-side state and queries for the `/triggers/*` endpoint family:
- * the read-only events catalog (WP1) and the shared connection list (WP0).
+ * the read-only events catalog and the shared connection list.
  *
  * Mirrors `gatewayTool`. The catalog isn't in the Fern client yet, so the API
  * layer uses the shared axios instance with zod validation at the boundary
@@ -36,17 +36,28 @@ export type {
     TriggerDeliveryResponse,
     TriggerProviderKind,
     TriggerReference,
+    TriggerSchedule,
+    TriggerScheduleCreate,
+    TriggerScheduleData,
+    TriggerScheduleEdit,
+    TriggerScheduleFlags,
+    TriggerScheduleQuery,
+    TriggerScheduleResponse,
+    TriggerSchedulesResponse,
     TriggerSelector,
     TriggerStatus,
     TriggerSubscription,
     TriggerSubscriptionCreate,
     TriggerSubscriptionData,
     TriggerSubscriptionEdit,
+    TriggerSubscriptionFlags,
     TriggerSubscriptionQuery,
     TriggerSubscriptionResponse,
     TriggerSubscriptionsResponse,
 } from "./core"
-export {isConnectionActive, isConnectionValid} from "./core"
+export {isConnectionActive, isConnectionValid, isEntityActive, isEntityValid} from "./core"
+export {describeCron, nextCronRuns, validateCron} from "./core/cron"
+export type {CronValidationResult} from "./core/cron"
 
 // ---------------------------------------------------------------------------
 // API — HTTP wrappers (axios + zod boundary validation)
@@ -54,9 +65,12 @@ export {isConnectionActive, isConnectionValid} from "./core"
 
 export {
     createTriggerConnection,
+    createTriggerSchedule,
     createTriggerSubscription,
     deleteTriggerConnection,
+    deleteTriggerSchedule,
     deleteTriggerSubscription,
+    editTriggerSchedule,
     editTriggerSubscription,
     fetchTriggerConnection,
     fetchTriggerDelivery,
@@ -66,14 +80,20 @@ export {
     fetchTriggerIntegrations,
     fetchTriggerProvider,
     fetchTriggerProviders,
+    fetchTriggerSchedule,
     fetchTriggerSubscription,
     queryTriggerConnections,
     queryTriggerDeliveries,
+    queryTriggerSchedules,
     queryTriggerSubscriptions,
     refreshTriggerConnection,
     refreshTriggerSubscription,
     revokeTriggerConnection,
     revokeTriggerSubscription,
+    startTriggerSchedule,
+    startTriggerSubscription,
+    stopTriggerSchedule,
+    stopTriggerSubscription,
     triggerApiErrorMessage,
 } from "./api"
 
@@ -82,14 +102,22 @@ export {
 // ---------------------------------------------------------------------------
 
 export {
+    applyScheduleActiveOptimistic,
+    applySubscriptionActiveOptimistic,
     triggerCatalogDrawerOpenAtom,
     triggerDeliveriesDrawerAtom,
     triggerEventsDrawerAtom,
     triggerEventSearchAtom,
+    triggerScheduleDrawerAtom,
     triggerSelectedCatalogEventAtom,
     triggerSubscriptionDrawerAtom,
 } from "./state"
-export type {DeliveriesDrawerState, EventsDrawerState, SubscriptionDrawerState} from "./state"
+export type {
+    DeliveriesDrawerState,
+    EventsDrawerState,
+    ScheduleDrawerState,
+    SubscriptionDrawerState,
+} from "./state"
 
 // ---------------------------------------------------------------------------
 // HOOKS — query hooks for React consumers
@@ -105,6 +133,8 @@ export {
     triggerEventsSearchAtom,
     triggerIntegrationConnectionsAtomFamily,
     triggerIntegrationsSearchAtom,
+    triggerScheduleQueryAtomFamily,
+    triggerSchedulesQueryAtom,
     triggerSubscriptionQueryAtomFamily,
     triggerSubscriptionsQueryAtom,
     useTriggerCatalogEvents,
@@ -115,6 +145,8 @@ export {
     useTriggerDeliveries,
     useTriggerEvent,
     useTriggerIntegrationConnections,
+    useTriggerSchedule,
+    useTriggerSchedules,
     useTriggerSubscription,
     useTriggerSubscriptions,
 } from "./hooks"

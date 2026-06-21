@@ -10,6 +10,10 @@ from oss.src.core.triggers.dtos import (
     TriggerDelivery,
     TriggerDeliveryCreate,
     TriggerDeliveryQuery,
+    TriggerSchedule,
+    TriggerScheduleCreate,
+    TriggerScheduleEdit,
+    TriggerScheduleQuery,
     TriggerSubscription,
     TriggerSubscriptionCreate,
     TriggerSubscriptionEdit,
@@ -20,10 +24,9 @@ from oss.src.core.triggers.dtos import (
 class TriggersGatewayInterface(ABC):
     """Port for external trigger providers (Composio, ...).
 
-    FROZEN (WS-PRE) — consumed by WS3 (subscriptions) and WS5 (web catalog).
     The catalog reads (``list_events``/``get_event``) back the events catalog;
     the subscription verbs build/manage the provider-side trigger instance
-    (``ti_*``) that WP3 stores on a local subscription row.
+    (``ti_*``) stored on a local subscription row.
     """
 
     @abstractmethod
@@ -150,7 +153,7 @@ class TriggersDAOInterface(ABC):
         *,
         trigger_id: str,
     ) -> Optional[TriggerSubscription]:
-        """FROZEN (WP4): resolve an inbound event's ``ti_*`` to its local row."""
+        """Resolve an inbound event's ``ti_*`` to its local row."""
         ...
 
     @abstractmethod
@@ -173,7 +176,7 @@ class TriggersDAOInterface(ABC):
         #
         delivery: TriggerDeliveryCreate,
     ) -> TriggerDelivery:
-        """FROZEN (WP4): upsert a delivery row (idempotent on event_id)."""
+        """Upsert a delivery row (idempotent on event_id)."""
         ...
 
     @abstractmethod
@@ -204,5 +207,81 @@ class TriggersDAOInterface(ABC):
         subscription_id: UUID,
         event_id: str,
     ) -> bool:
-        """FROZEN (WP4): True if a delivery for this event_id already exists (I4)."""
+        """True if a delivery for this event_id already exists."""
         ...
+
+    @abstractmethod
+    async def dedup_seen_schedule(
+        self,
+        *,
+        project_id: UUID,
+        schedule_id: UUID,
+        event_id: str,
+    ) -> bool:
+        """True if a delivery for this (schedule, event_id) already exists."""
+        ...
+
+    # --- schedules ---------------------------------------------------------- #
+
+    @abstractmethod
+    async def create_schedule(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        schedule: TriggerScheduleCreate,
+    ) -> TriggerSchedule: ...
+
+    @abstractmethod
+    async def fetch_schedule(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule_id: UUID,
+    ) -> Optional[TriggerSchedule]: ...
+
+    @abstractmethod
+    async def edit_schedule(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        schedule: TriggerScheduleEdit,
+    ) -> Optional[TriggerSchedule]: ...
+
+    @abstractmethod
+    async def delete_schedule(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule_id: UUID,
+    ) -> bool: ...
+
+    @abstractmethod
+    async def query_schedules(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule: Optional[TriggerScheduleQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[TriggerSchedule]: ...
+
+    @abstractmethod
+    async def fetch_active_schedules(
+        self,
+        *,
+        project_id: Optional[UUID] = None,
+    ) -> List[TriggerSchedule]: ...
+
+    @abstractmethod
+    async def fetch_active_schedules_with_project(
+        self,
+        *,
+        project_id: Optional[UUID] = None,
+    ) -> List[Tuple[UUID, TriggerSchedule]]: ...

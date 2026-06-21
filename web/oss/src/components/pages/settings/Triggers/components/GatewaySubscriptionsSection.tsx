@@ -1,6 +1,8 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {
+    isEntityActive,
+    isEntityValid,
     triggerDeliveriesDrawerAtom,
     triggerSubscriptionDrawerAtom,
     useTriggerConnectionsQuery,
@@ -8,7 +10,7 @@ import {
     useTriggerSubscriptions,
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
-import {TriggerDeliveriesDrawer, TriggerSubscriptionDrawer} from "@agenta/entity-ui/gatewayTrigger"
+import {ActiveToggle, TriggerSubscriptionDrawer} from "@agenta/entity-ui/gatewayTrigger"
 import {MoreOutlined} from "@ant-design/icons"
 import {
     ArrowClockwise,
@@ -29,7 +31,7 @@ import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 export default function GatewaySubscriptionsSection() {
     const {subscriptions, isLoading, refetch} = useTriggerSubscriptions()
     const {connections} = useTriggerConnectionsQuery()
-    const {revoke, refresh, remove, isMutating} = useTriggerSubscription()
+    const {revoke, refresh, remove, setActive, isMutating} = useTriggerSubscription()
     const openDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openDeliveries = useSetAtom(triggerDeliveriesDrawerAtom)
     const [reloading, setReloading] = useState(false)
@@ -97,6 +99,14 @@ export default function GatewaySubscriptionsSection() {
         [remove],
     )
 
+    const handleToggle = useCallback(
+        (record: TriggerSubscription) => async (next: boolean) => {
+            if (!record.id) return
+            await setActive(record.id, next)
+        },
+        [setActive],
+    )
+
     const columns: ColumnsType<TriggerSubscription> = useMemo(
         () => [
             {
@@ -134,12 +144,13 @@ export default function GatewaySubscriptionsSection() {
                 key: "status",
                 onHeaderCell: () => ({style: {minWidth: 120}}),
                 render: (_, record) =>
-                    !record.valid ? (
+                    // WP1: top-level `enabled`/`valid` are gone; read flags.
+                    !isEntityValid(record) ? (
                         <Tag color="red">Invalid</Tag>
-                    ) : record.enabled ? (
-                        <Tag color="green">Enabled</Tag>
+                    ) : isEntityActive(record) ? (
+                        <Tag color="green">Active</Tag>
                     ) : (
-                        <Tag>Disabled</Tag>
+                        <Tag>Paused</Tag>
                     ),
             },
             {
@@ -153,80 +164,98 @@ export default function GatewaySubscriptionsSection() {
             {
                 title: <GearSix size={16} />,
                 key: "actions",
-                width: 61,
+                width: 96,
                 fixed: "right" as const,
                 align: "center" as const,
                 render: (_, record) => (
-                    <Dropdown
-                        trigger={["click"]}
-                        styles={{root: {width: 180}}}
-                        menu={{
-                            items: [
-                                {
-                                    key: "deliveries",
-                                    label: "View deliveries",
-                                    icon: <ListChecks size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        if (record.id)
-                                            openDeliveries({
-                                                subscriptionId: record.id,
-                                                subscriptionName: record.name ?? undefined,
-                                            })
-                                    },
-                                },
-                                {
-                                    key: "edit",
-                                    label: "Edit",
-                                    icon: <PencilSimpleLine size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        handleEdit(record)
-                                    },
-                                },
-                                {
-                                    key: "refresh",
-                                    label: "Refresh",
-                                    icon: <ArrowsClockwise size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        handleRefresh(record)
-                                    },
-                                },
-                                {type: "divider" as const},
-                                {
-                                    key: "revoke",
-                                    label: "Revoke",
-                                    icon: <XCircle size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        handleRevoke(record)
-                                    },
-                                },
-                                {
-                                    key: "delete",
-                                    label: "Delete",
-                                    icon: <Trash size={16} />,
-                                    danger: true,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        handleDelete(record)
-                                    },
-                                },
-                            ],
-                        }}
-                    >
-                        <Button
-                            type="text"
-                            icon={<MoreOutlined />}
-                            aria-label="Open subscription actions"
-                            onClick={(e) => e.stopPropagation()}
+                    <div className="flex items-center justify-center gap-1">
+                        <ActiveToggle
+                            active={isEntityActive(record)}
+                            onToggle={handleToggle(record)}
+                            disabled={!record.id || !isEntityValid(record)}
+                            activatedMessage="Subscription resumed"
+                            pausedMessage="Subscription paused"
+                            errorMessage="Failed to update subscription"
                         />
-                    </Dropdown>
+                        <Dropdown
+                            trigger={["click"]}
+                            styles={{root: {width: 180}}}
+                            menu={{
+                                items: [
+                                    {
+                                        key: "deliveries",
+                                        label: "View deliveries",
+                                        icon: <ListChecks size={16} />,
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
+                                            if (record.id)
+                                                openDeliveries({
+                                                    owner: {kind: "subscription", id: record.id},
+                                                    name: record.name ?? undefined,
+                                                })
+                                        },
+                                    },
+                                    {
+                                        key: "edit",
+                                        label: "Edit",
+                                        icon: <PencilSimpleLine size={16} />,
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
+                                            handleEdit(record)
+                                        },
+                                    },
+                                    {
+                                        key: "refresh",
+                                        label: "Refresh",
+                                        icon: <ArrowsClockwise size={16} />,
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
+                                            handleRefresh(record)
+                                        },
+                                    },
+                                    {type: "divider" as const},
+                                    {
+                                        key: "revoke",
+                                        label: "Revoke",
+                                        icon: <XCircle size={16} />,
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
+                                            handleRevoke(record)
+                                        },
+                                    },
+                                    {
+                                        key: "delete",
+                                        label: "Delete",
+                                        icon: <Trash size={16} />,
+                                        danger: true,
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
+                                            handleDelete(record)
+                                        },
+                                    },
+                                ],
+                            }}
+                        >
+                            <Button
+                                type="text"
+                                icon={<MoreOutlined />}
+                                aria-label="Open subscription actions"
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        </Dropdown>
+                    </div>
                 ),
             },
         ],
-        [connectionLabel, handleDelete, handleEdit, handleRefresh, handleRevoke, openDeliveries],
+        [
+            connectionLabel,
+            handleDelete,
+            handleEdit,
+            handleRefresh,
+            handleRevoke,
+            handleToggle,
+            openDeliveries,
+        ],
     )
 
     return (
@@ -271,7 +300,6 @@ export default function GatewaySubscriptionsSection() {
             </section>
 
             <TriggerSubscriptionDrawer />
-            <TriggerDeliveriesDrawer />
         </>
     )
 }

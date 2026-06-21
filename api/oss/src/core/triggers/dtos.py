@@ -62,8 +62,6 @@ class TriggerCatalogEvent(BaseModel):
 
 
 class TriggerCatalogEventDetails(TriggerCatalogEvent):
-    # FROZEN (WS-PRE): the Event DTO carries the event's trigger_config JSON Schema
-    # — the inbound analogue of an action's input_parameters.
     trigger_config: Optional[Dict[str, Any]] = None
     payload: Optional[Dict[str, Any]] = None
 
@@ -124,14 +122,20 @@ SUBSCRIPTION_CONTEXT_FIELDS = {
 # A standing watch on one provider event. Mirrors a webhook subscription
 # (subscribe-to-events lifecycle, CRUD) + FK to the shared gateway_connections
 # row + a bound workflow reference. The provider-side trigger instance id
-# (``ti_*``) lives on the row alongside its ``trigger_config``.
+# (``ti_*``) is a top-level lookup key (indexed), not config inside ``data``.
 # ---------------------------------------------------------------------------
+
+
+class TriggerSubscriptionFlags(BaseModel):
+    # is_active = user play/pause switch; is_valid = provider connection still good
+    # (Composio can revoke a connection out from under a subscription).
+    is_active: bool = True
+    is_valid: bool = True
 
 
 class TriggerSubscriptionData(BaseModel):
     event_key: str
     #
-    ti_id: Optional[str] = None
     trigger_config: Optional[Dict[str, Any]] = None
     #
     # MAPPING — inputs-only template resolved into WorkflowServiceRequest.data.inputs.
@@ -145,10 +149,11 @@ class TriggerSubscriptionData(BaseModel):
 class TriggerSubscription(Identifier, Lifecycle, Header, Metadata):
     connection_id: UUID
     #
+    ti_id: Optional[str] = None
+    #
     data: TriggerSubscriptionData
     #
-    enabled: bool = True
-    valid: bool = True
+    flags: TriggerSubscriptionFlags = Field(default_factory=TriggerSubscriptionFlags)
 
 
 class TriggerSubscriptionCreate(Header, Metadata):
@@ -162,13 +167,61 @@ class TriggerSubscriptionEdit(Identifier, Header, Metadata):
     #
     data: TriggerSubscriptionData
     #
-    enabled: bool = True
-    valid: bool = True
+    flags: TriggerSubscriptionFlags = Field(default_factory=TriggerSubscriptionFlags)
 
 
 class TriggerSubscriptionQuery(BaseModel):
     name: Optional[str] = None
     connection_id: Optional[UUID] = None
+    event_key: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Trigger Schedules
+#
+# A cron-driven analogue to a trigger subscription. Same mapping + bound-workflow
+# reference, but fired by our own cron tick (``croniter.match`` on the rounded
+# trigger_datetime) instead of a Composio event. No connection_id, no ti_id.
+# ---------------------------------------------------------------------------
+
+
+class TriggerScheduleFlags(BaseModel):
+    # No is_valid: a schedule has no external connection to invalidate.
+    is_active: bool = True
+
+
+class TriggerScheduleData(BaseModel):
+    event_key: str
+    #
+    # PERIOD — a 5-field cron expression (UTC, 1-minute floor); validated via croniter.
+    schedule: str
+    #
+    # MAPPING — inputs-only template resolved into WorkflowServiceRequest.data.inputs.
+    inputs_fields: Optional[Dict[str, Any]] = None
+    #
+    # DESTINATION — the bound workflow, by reference (the /retrieve shape).
+    references: Optional[Dict[str, Reference]] = None
+    selector: Optional[Selector] = None
+
+
+class TriggerSchedule(Identifier, Lifecycle, Header, Metadata):
+    data: TriggerScheduleData
+    #
+    flags: TriggerScheduleFlags = Field(default_factory=TriggerScheduleFlags)
+
+
+class TriggerScheduleCreate(Header, Metadata):
+    data: TriggerScheduleData
+
+
+class TriggerScheduleEdit(Identifier, Header, Metadata):
+    data: TriggerScheduleData
+    #
+    flags: TriggerScheduleFlags = Field(default_factory=TriggerScheduleFlags)
+
+
+class TriggerScheduleQuery(BaseModel):
+    name: Optional[str] = None
     event_key: Optional[str] = None
 
 
@@ -196,7 +249,9 @@ class TriggerDelivery(Identifier, Lifecycle):
 
     data: Optional[TriggerDeliveryData] = None
 
-    subscription_id: UUID
+    # Exactly one of subscription_id / schedule_id is set (XOR — enforced in DB).
+    subscription_id: Optional[UUID] = None
+    schedule_id: Optional[UUID] = None
     event_id: str
 
 
@@ -205,7 +260,8 @@ class TriggerDeliveryCreate(Identifier):
 
     data: Optional[TriggerDeliveryData] = None
 
-    subscription_id: UUID
+    subscription_id: Optional[UUID] = None
+    schedule_id: Optional[UUID] = None
     event_id: str
 
 
@@ -213,4 +269,5 @@ class TriggerDeliveryQuery(BaseModel):
     status: Optional[Status] = None
 
     subscription_id: Optional[UUID] = None
+    schedule_id: Optional[UUID] = None
     event_id: Optional[str] = None

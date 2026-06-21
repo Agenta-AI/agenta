@@ -11,10 +11,11 @@ import type {ColumnsType} from "antd/es/table"
 import {useAtom} from "jotai"
 
 // ---------------------------------------------------------------------------
-// TriggerDeliveriesDrawer — read-only delivery history for one subscription.
+// TriggerDeliveriesDrawer — read-only delivery history for one subscription
+// OR one schedule (a delivery belongs to exactly one of the two; XOR).
 //
-// One audit row per inbound event dispatched to the bound workflow: status,
-// event_id, result/error, timestamps. The inbound dual of webhook deliveries.
+// One audit row per dispatch to the bound workflow: status, event_id,
+// result/error, timestamps. The inbound dual of webhook deliveries.
 // ---------------------------------------------------------------------------
 
 function statusColor(type?: string | null): string {
@@ -39,7 +40,7 @@ export default function TriggerDeliveriesDrawer() {
     const [state, setState] = useAtom(triggerDeliveriesDrawerAtom)
     const open = !!state
 
-    const {deliveries, isLoading} = useTriggerDeliveries(state?.subscriptionId)
+    const {deliveries, isLoading} = useTriggerDeliveries(state?.owner)
 
     const columns: ColumnsType<TriggerDelivery> = useMemo(
         () => [
@@ -111,7 +112,7 @@ export default function TriggerDeliveriesDrawer() {
         <Drawer
             open={open}
             onClose={() => setState(null)}
-            title={`Deliveries${state?.subscriptionName ? ` · ${state.subscriptionName}` : ""}`}
+            title={`Deliveries${state?.name ? ` · ${state.name}` : ""}`}
             width={720}
             destroyOnClose
         >

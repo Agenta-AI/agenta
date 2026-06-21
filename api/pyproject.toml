@@ -40,6 +40,7 @@ dependencies = [
     "newrelic>=13,<14",
     "dnspython>=2,<3",
     "opentelemetry-proto>=1,<2",
+    "croniter>=6,<7",
 ]
 
 [dependency-groups]

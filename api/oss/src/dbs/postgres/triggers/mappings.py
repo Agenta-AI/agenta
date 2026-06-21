@@ -5,25 +5,26 @@ from oss.src.core.triggers.dtos import (
     TriggerDelivery,
     TriggerDeliveryCreate,
     TriggerDeliveryData,
+    TriggerSchedule,
+    TriggerScheduleCreate,
+    TriggerScheduleData,
+    TriggerScheduleEdit,
+    TriggerScheduleFlags,
     TriggerSubscription,
     TriggerSubscriptionCreate,
     TriggerSubscriptionData,
     TriggerSubscriptionEdit,
+    TriggerSubscriptionFlags,
 )
 
 from oss.src.dbs.postgres.triggers.dbes import (
     TriggerDeliveryDBE,
+    TriggerScheduleDBE,
     TriggerSubscriptionDBE,
 )
 
 
 # --- Subscription ----------------------------------------------------------- #
-
-_SUBSCRIPTION_FLAGS = ("enabled", "valid")
-
-
-def _flags_to_dbe(*, enabled: bool, valid: bool) -> dict:
-    return {"enabled": enabled, "valid": valid}
 
 
 def map_subscription_dto_to_dbe_create(
@@ -35,23 +36,22 @@ def map_subscription_dto_to_dbe_create(
     #
     ti_id: str,
 ) -> TriggerSubscriptionDBE:
-    data = subscription.data.model_copy(update={"ti_id": ti_id})
-
     return TriggerSubscriptionDBE(
         project_id=project_id,
         #
         created_by_id=user_id,
         #
         connection_id=subscription.connection_id,
+        ti_id=ti_id,
         #
         name=subscription.name,
         description=subscription.description,
         tags=subscription.tags,
         meta=subscription.meta,
         #
-        flags=_flags_to_dbe(enabled=True, valid=True),
+        flags=TriggerSubscriptionFlags().model_dump(),
         #
-        data=data.model_dump(mode="json", exclude_none=True),
+        data=subscription.data.model_dump(mode="json", exclude_none=True),
     )
 
 
@@ -59,8 +59,6 @@ def map_subscription_dbe_to_dto(
     *,
     subscription_dbe: TriggerSubscriptionDBE,
 ) -> TriggerSubscription:
-    flags = subscription_dbe.flags or {}
-
     return TriggerSubscription(
         id=subscription_dbe.id,
         #
@@ -72,6 +70,7 @@ def map_subscription_dbe_to_dto(
         deleted_by_id=subscription_dbe.deleted_by_id,
         #
         connection_id=subscription_dbe.connection_id,
+        ti_id=subscription_dbe.ti_id,
         #
         name=subscription_dbe.name,
         description=subscription_dbe.description,
@@ -81,8 +80,7 @@ def map_subscription_dbe_to_dto(
         #
         data=TriggerSubscriptionData.model_validate(subscription_dbe.data),
         #
-        enabled=bool(flags.get("enabled", True)),
-        valid=bool(flags.get("valid", True)),
+        flags=TriggerSubscriptionFlags(**(subscription_dbe.flags or {})),
     )
 
 
@@ -104,18 +102,82 @@ def map_subscription_dto_to_dbe_edit(
     subscription_dbe.tags = subscription.tags
     subscription_dbe.meta = subscription.meta
 
-    # Preserve the provider ti_id even if the client omitted it on the full-PUT.
-    existing_ti_id = (subscription_dbe.data or {}).get("ti_id")
-    data = subscription.data
-    if data.ti_id is None and existing_ti_id is not None:
-        data = data.model_copy(update={"ti_id": existing_ti_id})
+    subscription_dbe.data = subscription.data.model_dump(mode="json", exclude_none=True)
 
-    subscription_dbe.data = data.model_dump(mode="json", exclude_none=True)
+    subscription_dbe.flags = subscription.flags.model_dump()
 
-    subscription_dbe.flags = _flags_to_dbe(
-        enabled=subscription.enabled,
-        valid=subscription.valid,
+
+# --- Schedule --------------------------------------------------------------- #
+
+
+def map_schedule_dto_to_dbe_create(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    #
+    schedule: TriggerScheduleCreate,
+) -> TriggerScheduleDBE:
+    return TriggerScheduleDBE(
+        project_id=project_id,
+        #
+        created_by_id=user_id,
+        #
+        name=schedule.name,
+        description=schedule.description,
+        tags=schedule.tags,
+        meta=schedule.meta,
+        #
+        flags=TriggerScheduleFlags().model_dump(),
+        #
+        data=schedule.data.model_dump(mode="json", exclude_none=True),
     )
+
+
+def map_schedule_dbe_to_dto(
+    *,
+    schedule_dbe: TriggerScheduleDBE,
+) -> TriggerSchedule:
+    return TriggerSchedule(
+        id=schedule_dbe.id,
+        #
+        created_at=schedule_dbe.created_at,
+        updated_at=schedule_dbe.updated_at,
+        deleted_at=schedule_dbe.deleted_at,
+        created_by_id=schedule_dbe.created_by_id,
+        updated_by_id=schedule_dbe.updated_by_id,
+        deleted_by_id=schedule_dbe.deleted_by_id,
+        #
+        name=schedule_dbe.name,
+        description=schedule_dbe.description,
+        #
+        tags=schedule_dbe.tags,
+        meta=schedule_dbe.meta,
+        #
+        data=TriggerScheduleData.model_validate(schedule_dbe.data),
+        #
+        flags=TriggerScheduleFlags(**(schedule_dbe.flags or {})),
+    )
+
+
+def map_schedule_dto_to_dbe_edit(
+    *,
+    schedule_dbe: TriggerScheduleDBE,
+    #
+    user_id: UUID,
+    #
+    schedule: TriggerScheduleEdit,
+) -> None:
+    schedule_dbe.updated_by_id = user_id
+
+    schedule_dbe.name = schedule.name
+    schedule_dbe.description = schedule.description
+
+    schedule_dbe.tags = schedule.tags
+    schedule_dbe.meta = schedule.meta
+
+    schedule_dbe.data = schedule.data.model_dump(mode="json", exclude_none=True)
+
+    schedule_dbe.flags = schedule.flags.model_dump()
 
 
 # --- Delivery --------------------------------------------------------------- #
@@ -142,6 +204,7 @@ def map_delivery_dto_to_dbe_create(
         else None,
         #
         subscription_id=delivery.subscription_id,
+        schedule_id=delivery.schedule_id,
         #
         event_id=delivery.event_id,
     )
@@ -174,6 +237,7 @@ def map_delivery_dbe_to_dto(
         else None,
         #
         subscription_id=delivery_dbe.subscription_id,
+        schedule_id=delivery_dbe.schedule_id,
         #
         event_id=delivery_dbe.event_id,
     )

@@ -1,7 +1,10 @@
 import hashlib
 import hmac
-from typing import List, Mapping, Optional, Tuple
+from datetime import datetime
+from typing import Any, List, Mapping, Optional, Tuple
 from uuid import UUID
+
+from croniter import croniter
 
 from oss.src.utils.logging import get_module_logger
 
@@ -17,6 +20,10 @@ from oss.src.core.triggers.dtos import (
     TriggerDelivery,
     TriggerDeliveryCreate,
     TriggerDeliveryQuery,
+    TriggerSchedule,
+    TriggerScheduleCreate,
+    TriggerScheduleEdit,
+    TriggerScheduleQuery,
     TriggerSubscription,
     TriggerSubscriptionCreate,
     TriggerSubscriptionEdit,
@@ -24,8 +31,10 @@ from oss.src.core.triggers.dtos import (
 )
 from oss.src.core.triggers.exceptions import (
     ConnectionNotFoundError,
+    ScheduleNotFoundError,
     SubscriptionNotFoundError,
     TriggerReferenceInvalid,
+    TriggerScheduleInvalid,
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
@@ -41,10 +50,10 @@ log = get_module_logger(__name__)
 class TriggersService:
     """Triggers domain orchestration.
 
-    Covers the read-only events catalog (WP1) and subscription/delivery
-    CRUD (WP3). Subscriptions bind a provider event to a workflow on top of a
-    shared gateway connection; the provider-side trigger instance (``ti_*``) is
-    minted/managed through the adapter, never the catalog routes.
+    Covers the read-only events catalog and subscription/delivery CRUD.
+    Subscriptions bind a provider event to a workflow on top of a shared gateway
+    connection; the provider-side trigger instance (``ti_*``) is minted/managed
+    through the adapter, never the catalog routes.
     """
 
     def __init__(
@@ -55,12 +64,14 @@ class TriggersService:
         triggers_dao: Optional[TriggersDAOInterface] = None,
         connections_service: Optional[ConnectionsService] = None,
         workflows_service: Optional[WorkflowsService] = None,
+        schedule_dispatch_task: Optional[Any] = None,
     ):
         self.adapter_registry = adapter_registry
         self.catalog_service = catalog_service
         self.dao = triggers_dao
         self.connections_service = connections_service
         self.workflows_service = workflows_service
+        self.schedule_dispatch_task = schedule_dispatch_task
         self.webhook_secret_resolver = WebhookSecretResolver(
             adapter_registry=adapter_registry,
         )
@@ -405,7 +416,7 @@ class TriggersService:
         #
         subscription: TriggerSubscriptionEdit,
     ) -> Optional[TriggerSubscription]:
-        """Full-PUT edit. Reflects the enabled flag onto the provider ``ti_*``."""
+        """Full-PUT edit. Reflects is_active onto the provider ``ti_*``."""
         existing = await self.dao.fetch_subscription(
             project_id=project_id,
             subscription_id=subscription.id,
@@ -418,8 +429,11 @@ class TriggersService:
             references=subscription.data.references,
         )
 
-        ti_id = existing.data.ti_id
-        if ti_id is not None and subscription.enabled != existing.enabled:
+        ti_id = existing.ti_id
+        if (
+            ti_id is not None
+            and subscription.flags.is_active != existing.flags.is_active
+        ):
             connection = await self._require_connection(
                 project_id=project_id,
                 connection_id=existing.connection_id,
@@ -427,7 +441,7 @@ class TriggersService:
             adapter = self.adapter_registry.get(connection.provider_key.value)
             await adapter.set_subscription_status(
                 trigger_id=ti_id,
-                enabled=subscription.enabled,
+                enabled=subscription.flags.is_active,
             )
 
         return await self.dao.edit_subscription(
@@ -455,7 +469,7 @@ class TriggersService:
         if existing is None:
             return False
 
-        ti_id = existing.data.ti_id
+        ti_id = existing.ti_id
         if ti_id is not None:
             connection = await self.connections_service.get_connection(
                 project_id=project_id,
@@ -484,12 +498,12 @@ class TriggersService:
         #
         subscription_id: UUID,
     ) -> TriggerSubscription:
-        """Re-enable the provider ``ti_*`` and mark the row enabled+valid."""
-        return await self._set_enabled(
+        """Re-sync the provider ``ti_*`` and mark the row valid."""
+        return await self._set_valid(
             project_id=project_id,
             user_id=user_id,
             subscription_id=subscription_id,
-            enabled=True,
+            is_valid=True,
         )
 
     async def revoke_subscription(
@@ -500,25 +514,65 @@ class TriggersService:
         #
         subscription_id: UUID,
     ) -> TriggerSubscription:
-        """Disable the provider ``ti_*`` and mark the row disabled.
+        """Disable the provider ``ti_*`` and mark the row invalid.
 
-        Local + provider trigger-instance only; the shared connection is never
-        touched (C7).
+        Drives the third-party-sync axis (``is_valid``); the user's local
+        play/pause (``is_active``) is left untouched, as is the shared
+        connection (C7).
         """
-        return await self._set_enabled(
+        return await self._set_valid(
             project_id=project_id,
             user_id=user_id,
             subscription_id=subscription_id,
-            enabled=False,
+            is_valid=False,
         )
 
-    async def _set_enabled(
+    async def set_subscription_active(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        subscription_id: UUID,
+        is_active: bool,
+    ) -> TriggerSubscription:
+        """Full-PUT play/pause toggle; touches only local is_active (never is_valid).
+
+        Distinct from /revoke, which drives the provider ti_* / is_valid axis.
+        """
+        existing = await self.dao.fetch_subscription(
+            project_id=project_id,
+            subscription_id=subscription_id,
+        )
+        if existing is None:
+            raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
+
+        edit = TriggerSubscriptionEdit(
+            id=existing.id,
+            connection_id=existing.connection_id,
+            name=existing.name,
+            description=existing.description,
+            tags=existing.tags,
+            meta=existing.meta,
+            data=existing.data,
+            flags=existing.flags.model_copy(update={"is_active": is_active}),
+        )
+
+        updated = await self.dao.edit_subscription(
+            project_id=project_id,
+            user_id=user_id,
+            subscription=edit,
+        )
+
+        return updated or existing
+
+    async def _set_valid(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         subscription_id: UUID,
-        enabled: bool,
+        is_valid: bool,
     ) -> TriggerSubscription:
         existing = await self.dao.fetch_subscription(
             project_id=project_id,
@@ -527,7 +581,7 @@ class TriggersService:
         if existing is None:
             raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
 
-        ti_id = existing.data.ti_id
+        ti_id = existing.ti_id
         if ti_id is not None:
             connection = await self._require_connection(
                 project_id=project_id,
@@ -536,7 +590,7 @@ class TriggersService:
             adapter = self.adapter_registry.get(connection.provider_key.value)
             await adapter.set_subscription_status(
                 trigger_id=ti_id,
-                enabled=enabled,
+                enabled=is_valid,
             )
 
         edit = TriggerSubscriptionEdit(
@@ -547,8 +601,7 @@ class TriggersService:
             tags=existing.tags,
             meta=existing.meta,
             data=existing.data,
-            enabled=enabled,
-            valid=existing.valid,
+            flags=existing.flags.model_copy(update={"is_valid": is_valid}),
         )
 
         updated = await self.dao.edit_subscription(
@@ -558,6 +611,225 @@ class TriggersService:
         )
 
         return updated or existing
+
+    # -----------------------------------------------------------------------
+    # Schedules
+    # -----------------------------------------------------------------------
+
+    @staticmethod
+    def _validate_schedule(expr: str) -> None:
+        """Reject anything that is not a valid 5-field cron expression (UTC)."""
+        if not isinstance(expr, str) or len(expr.split()) != 5:
+            raise TriggerScheduleInvalid()
+        if not croniter.is_valid(expr):
+            raise TriggerScheduleInvalid()
+
+    async def create_schedule(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        schedule: TriggerScheduleCreate,
+    ) -> TriggerSchedule:
+        self._validate_schedule(schedule.data.schedule)
+
+        await self._normalize_references(
+            project_id=project_id,
+            references=schedule.data.references,
+        )
+
+        return await self.dao.create_schedule(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            schedule=schedule,
+        )
+
+    async def fetch_schedule(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule_id: UUID,
+    ) -> Optional[TriggerSchedule]:
+        return await self.dao.fetch_schedule(
+            project_id=project_id,
+            schedule_id=schedule_id,
+        )
+
+    async def query_schedules(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule: Optional[TriggerScheduleQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[TriggerSchedule]:
+        return await self.dao.query_schedules(
+            project_id=project_id,
+            schedule=schedule,
+            windowing=windowing,
+        )
+
+    async def edit_schedule(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        schedule: TriggerScheduleEdit,
+    ) -> Optional[TriggerSchedule]:
+        """Full-PUT edit (load the current row, override owned fields)."""
+        existing = await self.dao.fetch_schedule(
+            project_id=project_id,
+            schedule_id=schedule.id,
+        )
+        if existing is None:
+            return None
+
+        self._validate_schedule(schedule.data.schedule)
+
+        await self._normalize_references(
+            project_id=project_id,
+            references=schedule.data.references,
+        )
+
+        return await self.dao.edit_schedule(
+            project_id=project_id,
+            user_id=user_id,
+            schedule=schedule,
+        )
+
+    async def delete_schedule(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule_id: UUID,
+    ) -> bool:
+        return await self.dao.delete_schedule(
+            project_id=project_id,
+            schedule_id=schedule_id,
+        )
+
+    async def set_schedule_active(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        schedule_id: UUID,
+        is_active: bool,
+    ) -> TriggerSchedule:
+        """Full-PUT play/pause toggle; touches only flags.is_active."""
+        existing = await self.dao.fetch_schedule(
+            project_id=project_id,
+            schedule_id=schedule_id,
+        )
+        if existing is None:
+            raise ScheduleNotFoundError(schedule_id=str(schedule_id))
+
+        edit = TriggerScheduleEdit(
+            id=existing.id,
+            name=existing.name,
+            description=existing.description,
+            tags=existing.tags,
+            meta=existing.meta,
+            data=existing.data,
+            flags=existing.flags.model_copy(update={"is_active": is_active}),
+        )
+
+        updated = await self.dao.edit_schedule(
+            project_id=project_id,
+            user_id=user_id,
+            schedule=edit,
+        )
+
+        return updated or existing
+
+    async def refresh_schedules(
+        self,
+        *,
+        timestamp: datetime,
+        interval: int,
+    ) -> bool:
+        """Fire every active schedule whose cron matches this tick.
+
+        Mirrors live-eval ``refresh_runs``: point-in-time ``croniter.match`` gate,
+        deterministic ``event_id`` per (schedule, tick) for dedup, enqueue onto the
+        schedule dispatch task.
+        """
+        log.info(
+            f"[SCHEDULE] Refreshing schedules at {timestamp} every {interval} minute(s)"
+        )
+
+        if not timestamp:
+            return False
+
+        try:
+            schedules = await self.dao.fetch_active_schedules_with_project()
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            log.error(f"[SCHEDULE] Error fetching active schedules: {e}", exc_info=True)
+            return False
+
+        if self.schedule_dispatch_task is None:
+            log.warning(
+                "[SCHEDULE] Taskiq client is not configured; skipping schedule dispatch"
+            )
+            return False
+
+        for project_id, schedule in schedules:
+            try:
+                if not croniter.match(schedule.data.schedule, timestamp):
+                    continue
+
+                event_id = f"{schedule.id}:{timestamp.isoformat()}"
+
+                already_seen = await self.dao.dedup_seen_schedule(
+                    project_id=project_id,
+                    schedule_id=schedule.id,
+                    event_id=event_id,
+                )
+                if already_seen:
+                    continue
+
+                event = {
+                    "metadata": {
+                        "trigger_slug": schedule.data.event_key,
+                        "id": event_id,
+                    },
+                    "payload": {"timestamp": timestamp.isoformat()},
+                }
+
+                log.info(
+                    "[SCHEDULE] Dispatching...",
+                    project_id=project_id,
+                    schedule_id=schedule.id,
+                    timestamp=timestamp,
+                )
+
+                await self.schedule_dispatch_task.kiq(
+                    project_id=str(project_id),
+                    event_id=event_id,
+                    event=event,
+                    schedule=schedule.model_dump(mode="json"),
+                )
+
+                log.info(
+                    "[SCHEDULE] Dispatched.   ",
+                    project_id=project_id,
+                    schedule_id=schedule.id,
+                )
+
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                log.error(
+                    f"[SCHEDULE] Error refreshing schedule {schedule.id}: {e}",
+                    exc_info=True,
+                )
+
+        return True
 
     # -----------------------------------------------------------------------
     # Deliveries

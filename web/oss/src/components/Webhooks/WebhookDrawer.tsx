@@ -1,7 +1,18 @@
 import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 
 import {BookOpen} from "@phosphor-icons/react"
-import {Button, Collapse, Form, Input, message, Select, Tabs, Tooltip, Typography} from "antd"
+import {
+    Button,
+    Collapse,
+    Form,
+    Input,
+    message,
+    Select,
+    Switch,
+    Tabs,
+    Tooltip,
+    Typography,
+} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
@@ -10,7 +21,12 @@ import {
     WebhookSubscriptionCreateRequest,
     WebhookSubscriptionEditRequest,
 } from "@/oss/services/webhooks/types"
-import {createWebhookAtom, testWebhookAtom, updateWebhookAtom} from "@/oss/state/webhooks/atoms"
+import {
+    createWebhookAtom,
+    setWebhookActiveAtom,
+    testWebhookAtom,
+    updateWebhookAtom,
+} from "@/oss/state/webhooks/atoms"
 import {
     createdWebhookSecretAtom,
     editingWebhookAtom,
@@ -38,8 +54,12 @@ const WebhookDrawer = ({onSuccess}: {onSuccess: () => void}) => {
     const createWebhook = useSetAtom(createWebhookAtom)
     const testWebhook = useSetAtom(testWebhookAtom)
     const updateWebhook = useSetAtom(updateWebhookAtom)
+    const setWebhookActive = useSetAtom(setWebhookActiveAtom)
 
     const isEdit = !!initialValues
+    // WP6: start/stop state lives in `flags.is_active`; prefill from it.
+    const [isActive, setIsActive] = useState(true)
+    const [isTogglingActive, setIsTogglingActive] = useState(false)
 
     const onCancel = useCallback(() => {
         setOpen(false)
@@ -56,6 +76,9 @@ const WebhookDrawer = ({onSuccess}: {onSuccess: () => void}) => {
         setActiveTab("configuration")
 
         if (initialValues) {
+            // WP6: prefill the active state from `flags.is_active` (default true).
+            const active = initialValues.flags?.is_active
+            setIsActive(active === undefined || active === null ? true : Boolean(active))
             // Determine provider via heuristic since no meta field is stored.
             let isGitHub = false
             try {
@@ -114,6 +137,7 @@ const WebhookDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                 github_branch,
             })
         } else {
+            setIsActive(true)
             form.resetFields()
             setSelectedProvider("webhook")
             form.setFieldsValue({
@@ -253,6 +277,24 @@ const WebhookDrawer = ({onSuccess}: {onSuccess: () => void}) => {
         selectedProvider,
     ])
 
+    const handleToggleActive = useCallback(
+        async (next: boolean) => {
+            if (!initialValues?.id) return
+            setIsActive(next)
+            setIsTogglingActive(true)
+            try {
+                await setWebhookActive({id: initialValues.id, active: next})
+                message.success(next ? "Webhook resumed" : "Webhook paused")
+            } catch {
+                setIsActive(!next)
+                message.error("Failed to update webhook")
+            } finally {
+                setIsTogglingActive(false)
+            }
+        },
+        [initialValues?.id, setWebhookActive],
+    )
+
     const providerOptions = useMemo(
         () =>
             WEBHOOK_SCHEMA.map((provider) => ({
@@ -322,6 +364,16 @@ const WebhookDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                                     <Input placeholder="Production deploy hook" />
                                 </Form.Item>
 
+                                {isEdit && (
+                                    <Form.Item label="Active" className="!mb-0">
+                                        <Switch
+                                            checked={isActive}
+                                            loading={isTogglingActive}
+                                            onChange={handleToggleActive}
+                                        />
+                                    </Form.Item>
+                                )}
+
                                 <Form.Item
                                     name="events"
                                     label="Event Types"
@@ -390,8 +442,11 @@ const WebhookDrawer = ({onSuccess}: {onSuccess: () => void}) => {
         [
             activeTab,
             form,
+            handleToggleActive,
             initialValues?.id,
+            isActive,
             isEdit,
+            isTogglingActive,
             providerOptions,
             selectedProviderConfig,
             setSelectedProvider,

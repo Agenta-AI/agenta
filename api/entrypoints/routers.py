@@ -707,7 +707,10 @@ _triggers_dispatcher = TriggersDispatcher(
 _triggers_worker = TriggersWorker(
     broker=_triggers_broker,
     dispatcher=_triggers_dispatcher,
+    triggers_dao=triggers_dao,
 )
+
+triggers_service.schedule_dispatch_task = _triggers_worker.dispatch_schedule
 
 _t_services_done = time.perf_counter() - _t_services
 print(f"[STARTUP] Service initialization completed (+{_t_services_done:.3f}s)")
@@ -1205,6 +1208,13 @@ app.include_router(
     router=triggers.router,
     prefix="/preview/triggers",
     tags=["Triggers"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=triggers.admin_router,
+    prefix="/admin/triggers",
+    tags=["Triggers", "Admin"],
     include_in_schema=False,
 )
 

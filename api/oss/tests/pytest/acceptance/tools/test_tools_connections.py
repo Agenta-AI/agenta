@@ -1,4 +1,4 @@
-"""Acceptance tests for the /tools/connections contract (WP0).
+"""Acceptance tests for the /tools/connections contract.
 
 The connection now lives in the routerless ``connections`` domain backed by the
 ``gateway_connections`` table, but the public HTTP surface stays at

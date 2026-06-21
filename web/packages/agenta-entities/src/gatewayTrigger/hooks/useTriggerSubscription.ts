@@ -12,6 +12,8 @@ import {
     fetchTriggerSubscription,
     refreshTriggerSubscription,
     revokeTriggerSubscription,
+    startTriggerSubscription,
+    stopTriggerSubscription,
 } from "../api"
 import type {
     TriggerSubscription,
@@ -19,6 +21,7 @@ import type {
     TriggerSubscriptionEdit,
     TriggerSubscriptionResponse,
 } from "../core/types"
+import {applySubscriptionActiveOptimistic} from "../state/optimistic"
 
 const invalidateSubscriptions = () => {
     queryClient.invalidateQueries({queryKey: ["triggers", "subscriptions"]})
@@ -80,6 +83,20 @@ export const useTriggerSubscription = (subscriptionId?: string) => {
         }
     }, [])
 
+    // Optimistic play/pause: flip `flags.is_active` in the cache, call
+    // start/stop, roll back on failure.
+    const setActive = useCallback(async (id: string, active: boolean): Promise<void> => {
+        const rollback = applySubscriptionActiveOptimistic(id, active)
+        try {
+            await (active ? startTriggerSubscription(id) : stopTriggerSubscription(id))
+            invalidateSubscriptions()
+        } catch (error) {
+            rollback()
+            invalidateSubscriptions()
+            throw error
+        }
+    }, [])
+
     return {
         subscription: subscriptionId ? (query.data?.subscription ?? null) : null,
         isLoading: subscriptionId ? query.isPending : false,
@@ -90,5 +107,6 @@ export const useTriggerSubscription = (subscriptionId?: string) => {
         revoke,
         refresh,
         remove,
+        setActive,
     }
 }

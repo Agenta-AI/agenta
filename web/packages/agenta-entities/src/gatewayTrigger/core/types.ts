@@ -1,17 +1,12 @@
 /**
  * Gateway-trigger domain types.
  *
- * The triggers catalog API (WP1) is not yet in the Fern-generated client, so
- * the wire shapes are declared here as zod schemas mirroring the frozen
- * backend DTOs (`api/oss/src/core/triggers/dtos.py`,
+ * The triggers catalog API is not yet in the Fern-generated client, so the
+ * wire shapes are declared here as zod schemas mirroring the backend DTOs
+ * (`api/oss/src/core/triggers/dtos.py`,
  * `api/oss/src/apis/fastapi/triggers/models.py`). Validation runs at the API
- * boundary, exactly as `web/AGENTS.md` prescribes for the Fern path. When the
- * client is regenerated with a `triggers` resource these aliases swap to
- * `AgentaApi.*` mechanically.
- *
- * Connections are shared rows (WP0): the same `gateway_connections` surface
- * both `/tools/connections` and `/triggers/connections`. We reuse the
- * gatewayTool connection type so the two lists are byte-compatible (F2).
+ * boundary. Connections are shared `gateway_connections` rows, so the
+ * gatewayTool connection type is reused to keep both lists byte-compatible.
  */
 
 import {z} from "zod"
@@ -131,10 +126,9 @@ export const triggerCatalogEventResponseSchema = z
 export type TriggerCatalogEventResponse = z.infer<typeof triggerCatalogEventResponseSchema>
 
 // ---------------------------------------------------------------------------
-// Connections — shared `gateway_connections` rows (WP0). Same shape as
-// `/tools/connections`; the FE treats both lists as the same rows (F2). The TS
-// type aliases the gatewayTool Fern type so the two lists are byte-compatible;
-// the schema validates the axios boundary (the triggers client isn't Fern yet).
+// Connections — shared `gateway_connections` rows. The TS type aliases the
+// gatewayTool Fern type so both lists are byte-compatible; the schema validates
+// the axios boundary (the triggers client isn't Fern yet).
 // ---------------------------------------------------------------------------
 
 const jsonRecordSchema = z.record(z.string(), z.unknown()).nullish()
@@ -177,8 +171,7 @@ export const triggerConnectionResponseSchema = z
 
 export type TriggerConnection = ToolConnection
 export type TriggerConnectionsResponse = ToolConnectionsResponse
-// Write surface reuses the gatewayTool shapes — same shared `gateway_connections`
-// rows, byte-compatible (F2). Independent endpoint, identical payload.
+// Write surface reuses the gatewayTool shapes: independent endpoint, identical payload.
 export type TriggerConnectionResponse = ToolConnectionResponse
 export type TriggerConnectionCreatePayload = ToolConnectionCreatePayload
 
@@ -186,11 +179,8 @@ export {isConnectionActive, isConnectionValid} from "../../gatewayTool/core/type
 
 // ---------------------------------------------------------------------------
 // Subscriptions — a standing watch binding a provider event to a workflow.
-//
-// Mirrors the frozen backend DTOs (`api/oss/src/core/triggers/dtos.py`:
-// TriggerSubscription / *Create / *Edit / *Query). Validated at the axios
-// boundary; the aliases swap to `AgentaApi.*` once the triggers resource lands
-// in the Fern client.
+// Mirrors the backend DTOs (`api/oss/src/core/triggers/dtos.py`). Validated at
+// the axios boundary.
 // ---------------------------------------------------------------------------
 
 // A workflow reference (the /retrieve shape): {id, slug?, version?}.
@@ -211,10 +201,18 @@ export const triggerSelectorSchema = z
     .passthrough()
 export type TriggerSelector = z.infer<typeof triggerSelectorSchema>
 
+// Start/stop state lives in `flags.is_active` / `flags.is_valid`.
+export const triggerSubscriptionFlagsSchema = z
+    .object({
+        is_active: z.boolean().default(true),
+        is_valid: z.boolean().default(true),
+    })
+    .passthrough()
+export type TriggerSubscriptionFlags = z.infer<typeof triggerSubscriptionFlagsSchema>
+
 export const triggerSubscriptionDataSchema = z
     .object({
         event_key: z.string(),
-        ti_id: z.string().nullish(),
         trigger_config: z.record(z.string(), z.unknown()).nullish(),
         inputs_fields: z.record(z.string(), z.unknown()).nullish(),
         references: z.record(z.string(), triggerReferenceSchema).nullish(),
@@ -239,9 +237,9 @@ export const triggerSubscriptionSchema = z
         updated_by_id: z.string().nullish(),
         deleted_by_id: z.string().nullish(),
         connection_id: z.string(),
+        ti_id: z.string().nullish(),
         data: triggerSubscriptionDataSchema,
-        enabled: z.boolean().default(true),
-        valid: z.boolean().default(true),
+        flags: triggerSubscriptionFlagsSchema.nullish(),
     })
     .passthrough()
 export type TriggerSubscription = z.infer<typeof triggerSubscriptionSchema>
@@ -276,8 +274,7 @@ export interface TriggerSubscriptionCreate {
 // Edit body — full PUT: Identifier + Header + Metadata + connection_id + data + flags.
 export interface TriggerSubscriptionEdit extends TriggerSubscriptionCreate {
     id: string
-    enabled: boolean
-    valid: boolean
+    flags: {is_active: boolean; is_valid: boolean} & Record<string, unknown>
 }
 
 export interface TriggerSubscriptionQuery {
@@ -326,7 +323,9 @@ export const triggerDeliverySchema = z
         deleted_by_id: z.string().nullish(),
         status: triggerStatusSchema,
         data: triggerDeliveryDataSchema.nullish(),
-        subscription_id: z.string(),
+        // XOR (DB-enforced): a delivery belongs to a subscription OR a schedule.
+        subscription_id: z.string().nullish(),
+        schedule_id: z.string().nullish(),
         event_id: z.string(),
     })
     .passthrough()
@@ -351,5 +350,112 @@ export type TriggerDeliveriesResponse = z.infer<typeof triggerDeliveriesResponse
 export interface TriggerDeliveryQuery {
     status?: TriggerStatus
     subscription_id?: string
+    schedule_id?: string
     event_id?: string
+}
+
+// ---------------------------------------------------------------------------
+// Schedules — a standing cron timer binding a recurring tick to a workflow.
+// Mirrors the backend DTOs (`api/oss/src/core/triggers/dtos.py`). A schedule
+// has no connection — it fires on its own UTC 5-field cron clock, so
+// `flags.is_active` is the only lifecycle flag (no `is_valid`). Validated at
+// the axios boundary.
+// ---------------------------------------------------------------------------
+
+export const triggerScheduleFlagsSchema = z
+    .object({
+        is_active: z.boolean().default(true),
+    })
+    .passthrough()
+export type TriggerScheduleFlags = z.infer<typeof triggerScheduleFlagsSchema>
+
+export const triggerScheduleDataSchema = z
+    .object({
+        event_key: z.string(),
+        // 5-field cron expression, UTC, validated client-side via the local helper.
+        schedule: z.string(),
+        inputs_fields: z.record(z.string(), z.unknown()).nullish(),
+        references: z.record(z.string(), triggerReferenceSchema).nullish(),
+        selector: triggerSelectorSchema.nullish(),
+    })
+    .passthrough()
+export type TriggerScheduleData = z.infer<typeof triggerScheduleDataSchema>
+
+export const triggerScheduleSchema = z
+    .object({
+        id: z.string().nullish(),
+        slug: z.string().nullish(),
+        name: z.string().nullish(),
+        description: z.string().nullish(),
+        flags: triggerScheduleFlagsSchema.nullish(),
+        tags: jsonRecordSchema,
+        meta: jsonRecordSchema,
+        created_at: z.string().nullish(),
+        updated_at: z.string().nullish(),
+        deleted_at: z.string().nullish(),
+        created_by_id: z.string().nullish(),
+        updated_by_id: z.string().nullish(),
+        deleted_by_id: z.string().nullish(),
+        data: triggerScheduleDataSchema,
+    })
+    .passthrough()
+export type TriggerSchedule = z.infer<typeof triggerScheduleSchema>
+
+export const triggerScheduleResponseSchema = z
+    .object({
+        count: z.number().default(0),
+        schedule: triggerScheduleSchema.nullish(),
+    })
+    .passthrough()
+export type TriggerScheduleResponse = z.infer<typeof triggerScheduleResponseSchema>
+
+export const triggerSchedulesResponseSchema = z
+    .object({
+        count: z.number().default(0),
+        schedules: z.array(triggerScheduleSchema).default([]),
+    })
+    .passthrough()
+export type TriggerSchedulesResponse = z.infer<typeof triggerSchedulesResponseSchema>
+
+// Create body (Header + Metadata + data); no id, no connection_id.
+export interface TriggerScheduleCreate {
+    name?: string | null
+    description?: string | null
+    flags?: Record<string, unknown> | null
+    tags?: Record<string, unknown> | null
+    meta?: Record<string, unknown> | null
+    data: TriggerScheduleData
+}
+
+// Edit body — full PUT: Identifier + Header + Metadata + data + flags.
+export interface TriggerScheduleEdit extends TriggerScheduleCreate {
+    id: string
+    flags: {is_active: boolean} & Record<string, unknown>
+}
+
+export interface TriggerScheduleQuery {
+    name?: string
+    event_key?: string
+}
+
+// ---------------------------------------------------------------------------
+// Shared flag readers. These accept any of the three lifecycle entities
+// (trigger subscription, trigger schedule, webhook subscription) which all
+// expose the same `flags.is_active` shape.
+// ---------------------------------------------------------------------------
+
+/** Read `flags.is_active`, defaulting to `true` when the flag is absent. */
+export function isEntityActive(entity?: {flags?: Record<string, unknown> | null} | null): boolean {
+    const raw = entity?.flags?.is_active
+    return raw === undefined || raw === null ? true : Boolean(raw)
+}
+
+/**
+ * Read `flags.is_valid`, defaulting to `true` when the flag is absent. Only
+ * trigger/webhook subscriptions carry validity (schedules have no external
+ * connection, so they have no `is_valid`).
+ */
+export function isEntityValid(entity?: {flags?: Record<string, unknown> | null} | null): boolean {
+    const raw = entity?.flags?.is_valid
+    return raw === undefined || raw === null ? true : Boolean(raw)
 }

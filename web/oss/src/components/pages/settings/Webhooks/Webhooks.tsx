@@ -1,8 +1,9 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {ActiveToggle} from "@agenta/entity-ui/gatewayTrigger"
 import {MoreOutlined} from "@ant-design/icons"
 import {ArrowClockwise, GearSix, PencilSimpleLine, Play, Plus, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Table, Tooltip, Typography, message} from "antd"
+import {Button, Dropdown, Table, Tag, Tooltip, Typography, message} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import DeleteWebhookModal from "@/oss/components/Webhooks/Modals/DeleteWebhookModal"
@@ -13,7 +14,7 @@ import {
 } from "@/oss/components/Webhooks/utils/handleTestResult"
 import WebhookDrawer from "@/oss/components/Webhooks/WebhookDrawer"
 import {WebhookProvider, WebhookSubscription} from "@/oss/services/webhooks/types"
-import {webhooksAtom, testWebhookAtom} from "@/oss/state/webhooks/atoms"
+import {setWebhookActiveAtom, webhooksAtom, testWebhookAtom} from "@/oss/state/webhooks/atoms"
 import {
     editingWebhookAtom,
     isWebhookDrawerOpenAtom,
@@ -36,6 +37,12 @@ const getProviderLabel = (url?: string | null): WebhookProvider => {
     return isGitHubApiUrl(url) ? "github" : "webhook"
 }
 
+// WP6: webhooks now carry `flags.is_active`; default true when absent.
+const isWebhookActive = (webhook: WebhookSubscription): boolean => {
+    const raw = webhook.flags?.is_active
+    return raw === undefined || raw === null ? true : Boolean(raw)
+}
+
 const formatDestination = (url?: string) => {
     if (!url) {
         return "-"
@@ -56,6 +63,7 @@ const Webhooks: React.FC = () => {
     const setIsDrawerOpen = useSetAtom(isWebhookDrawerOpenAtom)
     const setEditingWebhook = useSetAtom(editingWebhookAtom)
     const testWebhookSubscription = useSetAtom(testWebhookAtom)
+    const setWebhookActive = useSetAtom(setWebhookActiveAtom)
     const setWebhookToDelete = useSetAtom(webhookToDeleteAtom)
 
     const [testingWebhookId, setTestingWebhookId] = useState<string | null>(null)
@@ -111,6 +119,13 @@ const Webhooks: React.FC = () => {
             }
         },
         [testWebhookSubscription],
+    )
+
+    const handleToggle = useCallback(
+        (webhook: WebhookSubscription) => async (next: boolean) => {
+            await setWebhookActive({id: webhook.id, active: next})
+        },
+        [setWebhookActive],
     )
 
     const handleModalSuccess = useCallback(() => {
@@ -176,62 +191,80 @@ const Webhooks: React.FC = () => {
                 },
             },
             {
+                title: "Status",
+                key: "status",
+                onHeaderCell: () => ({
+                    style: {minWidth: 100},
+                }),
+                render: (_: any, record: WebhookSubscription) =>
+                    isWebhookActive(record) ? <Tag color="green">Active</Tag> : <Tag>Paused</Tag>,
+            },
+            {
                 title: <GearSix size={16} />,
                 key: "actions",
-                width: 61,
+                width: 96,
                 fixed: "right" as const,
                 align: "center" as const,
                 render: (_: any, record: WebhookSubscription) => (
-                    <Dropdown
-                        trigger={["click"]}
-                        styles={{root: {width: 180}}}
-                        menu={{
-                            items: [
-                                {
-                                    key: "test",
-                                    label: "Test",
-                                    icon: <Play size={16} />,
-                                    disabled: testingWebhookId !== null,
-                                    onClick: (e: any) => {
-                                        e.domEvent.stopPropagation()
-                                        handleTestWebhook(record)
-                                    },
-                                },
-                                {
-                                    key: "edit",
-                                    label: "Edit",
-                                    icon: <PencilSimpleLine size={16} />,
-                                    onClick: (e: any) => {
-                                        e.domEvent.stopPropagation()
-                                        handleEdit(record)
-                                    },
-                                },
-                                {type: "divider" as const},
-                                {
-                                    key: "delete",
-                                    label: "Delete",
-                                    icon: <Trash size={16} />,
-                                    danger: true,
-                                    onClick: (e: any) => {
-                                        e.domEvent.stopPropagation()
-                                        handleDeleteClick(record)
-                                    },
-                                },
-                            ],
-                        }}
-                    >
-                        <Button
-                            type="text"
-                            icon={<MoreOutlined />}
-                            loading={testingWebhookId === record.id}
-                            aria-label="Open webhook actions"
-                            onClick={(e) => e.stopPropagation()}
+                    <div className="flex items-center justify-center gap-1">
+                        <ActiveToggle
+                            active={isWebhookActive(record)}
+                            onToggle={handleToggle(record)}
+                            activatedMessage="Webhook resumed"
+                            pausedMessage="Webhook paused"
+                            errorMessage="Failed to update webhook"
                         />
-                    </Dropdown>
+                        <Dropdown
+                            trigger={["click"]}
+                            styles={{root: {width: 180}}}
+                            menu={{
+                                items: [
+                                    {
+                                        key: "test",
+                                        label: "Test",
+                                        icon: <Play size={16} />,
+                                        disabled: testingWebhookId !== null,
+                                        onClick: (e: any) => {
+                                            e.domEvent.stopPropagation()
+                                            handleTestWebhook(record)
+                                        },
+                                    },
+                                    {
+                                        key: "edit",
+                                        label: "Edit",
+                                        icon: <PencilSimpleLine size={16} />,
+                                        onClick: (e: any) => {
+                                            e.domEvent.stopPropagation()
+                                            handleEdit(record)
+                                        },
+                                    },
+                                    {type: "divider" as const},
+                                    {
+                                        key: "delete",
+                                        label: "Delete",
+                                        icon: <Trash size={16} />,
+                                        danger: true,
+                                        onClick: (e: any) => {
+                                            e.domEvent.stopPropagation()
+                                            handleDeleteClick(record)
+                                        },
+                                    },
+                                ],
+                            }}
+                        >
+                            <Button
+                                type="text"
+                                icon={<MoreOutlined />}
+                                loading={testingWebhookId === record.id}
+                                aria-label="Open webhook actions"
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        </Dropdown>
+                    </div>
                 ),
             },
         ],
-        [handleDeleteClick, handleEdit, handleTestWebhook, testingWebhookId],
+        [handleDeleteClick, handleEdit, handleTestWebhook, handleToggle, testingWebhookId],
     )
 
     return (

@@ -42,6 +42,11 @@ export interface GitHubFormValues extends WebhookFormValuesBase<"github"> {
 
 export type WebhookFormValues = WebhookConfigFormValues | GitHubFormValues
 
+/** Typed flags (WP6): webhooks carry only `is_active` (no validity concept). */
+export interface WebhookSubscriptionFlags {
+    is_active?: boolean
+}
+
 /** Full subscription as returned by the backend */
 export interface WebhookSubscription {
     id: string
@@ -51,6 +56,7 @@ export interface WebhookSubscription {
     created_at: string
     updated_at: string
     data: WebhookSubscriptionData
+    flags?: WebhookSubscriptionFlags
     secret?: string
     secret_id?: string
 }

@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    isEntityActive,
+    isEntityValid,
     triggerApiErrorMessage,
     triggerSubscriptionDrawerAtom,
     useTriggerCatalogEvents,
@@ -104,7 +106,7 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         setName(subscription.name ?? "")
         setConnectionId(subscription.connection_id)
         setEventKey(subscription.data?.event_key ?? "")
-        setEnabled(subscription.enabled ?? true)
+        setEnabled(isEntityActive(subscription))
         const wfId =
             subscription.data?.references?.application_revision?.id ??
             subscription.data?.references?.workflow_revision?.id ??
@@ -192,13 +194,15 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                     id: subscription.id as string,
                     name: name || null,
                     description: subscription.description ?? null,
-                    flags: subscription.flags ?? null,
                     tags: subscription.tags ?? null,
                     meta: subscription.meta ?? null,
                     connection_id: connectionId,
                     data: {...subscription.data, ...data},
-                    enabled,
-                    valid: subscription.valid ?? true,
+                    flags: {
+                        ...(subscription.flags ?? {}),
+                        is_active: enabled,
+                        is_valid: isEntityValid(subscription),
+                    },
                 }
                 const result = await edit(body)
                 if (!result) {
@@ -343,7 +347,7 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                         disabled={isMutating}
                     />
 
-                    <Form.Item label="Enabled">
+                    <Form.Item label="Active">
                         <Switch checked={enabled} onChange={setEnabled} />
                     </Form.Item>
                 </Form>

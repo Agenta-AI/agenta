@@ -1,7 +1,7 @@
 """rename tool_connections to gateway_connections
 
 Connection ownership moves out of /tools into the shared, routerless
-connections domain (gateway-triggers WP0). Rename-only — no data transform.
+connections domain (gateway-triggers). Rename-only — no data transform.
 Authored once in the shared core_oss chain so it runs in BOTH editions; the
 legacy chain that created tool_connections is parked.
 

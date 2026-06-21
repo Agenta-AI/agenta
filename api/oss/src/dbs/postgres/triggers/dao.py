@@ -10,6 +10,10 @@ from oss.src.core.triggers.dtos import (
     TriggerDelivery,
     TriggerDeliveryCreate,
     TriggerDeliveryQuery,
+    TriggerSchedule,
+    TriggerScheduleCreate,
+    TriggerScheduleEdit,
+    TriggerScheduleQuery,
     TriggerSubscription,
     TriggerSubscriptionCreate,
     TriggerSubscriptionEdit,
@@ -24,11 +28,15 @@ from oss.src.dbs.postgres.shared.engine import (
 from oss.src.dbs.postgres.shared.utils import apply_windowing
 from oss.src.dbs.postgres.triggers.dbes import (
     TriggerDeliveryDBE,
+    TriggerScheduleDBE,
     TriggerSubscriptionDBE,
 )
 from oss.src.dbs.postgres.triggers.mappings import (
     map_delivery_dbe_to_dto,
     map_delivery_dto_to_dbe_create,
+    map_schedule_dbe_to_dto,
+    map_schedule_dto_to_dbe_create,
+    map_schedule_dto_to_dbe_edit,
     map_subscription_dbe_to_dto,
     map_subscription_dto_to_dbe_create,
     map_subscription_dto_to_dbe_edit,
@@ -217,7 +225,7 @@ class TriggersDAO(TriggersDAOInterface):
             stmt = (
                 select(TriggerSubscriptionDBE)
                 .filter(
-                    TriggerSubscriptionDBE.data["ti_id"].astext == trigger_id,
+                    TriggerSubscriptionDBE.ti_id == trigger_id,
                     TriggerSubscriptionDBE.deleted_at.is_(None),
                 )
                 .limit(1)
@@ -243,7 +251,7 @@ class TriggersDAO(TriggersDAOInterface):
             stmt = (
                 select(TriggerSubscriptionDBE)
                 .filter(
-                    TriggerSubscriptionDBE.data["ti_id"].astext == trigger_id,
+                    TriggerSubscriptionDBE.ti_id == trigger_id,
                     TriggerSubscriptionDBE.deleted_at.is_(None),
                 )
                 .limit(1)
@@ -278,6 +286,19 @@ class TriggersDAO(TriggersDAOInterface):
             delivery=delivery,
         )
 
+        by_schedule = delivery.subscription_id is None
+
+        index_elements = (
+            ["project_id", "schedule_id", "event_id"]
+            if by_schedule
+            else ["project_id", "subscription_id", "event_id"]
+        )
+        index_where = (
+            TriggerDeliveryDBE.schedule_id.isnot(None)
+            if by_schedule
+            else TriggerDeliveryDBE.subscription_id.isnot(None)
+        )
+
         async with self.engine.session() as session:
             values = {
                 c.name: getattr(delivery_dbe, c.name)
@@ -290,7 +311,8 @@ class TriggersDAO(TriggersDAOInterface):
 
             stmt = insert(TriggerDeliveryDBE).values(**values)
             stmt = stmt.on_conflict_do_update(
-                index_elements=["project_id", "subscription_id", "event_id"],
+                index_elements=index_elements,
+                index_where=index_where,
                 set_={
                     "status": stmt.excluded.status,
                     "data": stmt.excluded.data,
@@ -303,7 +325,9 @@ class TriggersDAO(TriggersDAOInterface):
 
             refreshed_stmt = select(TriggerDeliveryDBE).where(
                 TriggerDeliveryDBE.project_id == project_id,
-                TriggerDeliveryDBE.subscription_id == delivery.subscription_id,
+                TriggerDeliveryDBE.schedule_id == delivery.schedule_id
+                if by_schedule
+                else TriggerDeliveryDBE.subscription_id == delivery.subscription_id,
                 TriggerDeliveryDBE.event_id == delivery.event_id,
             )
             delivery_dbe = (await session.execute(refreshed_stmt)).scalar_one()
@@ -362,6 +386,11 @@ class TriggersDAO(TriggersDAOInterface):
                         TriggerDeliveryDBE.subscription_id == delivery.subscription_id,
                     )
 
+                if delivery.schedule_id is not None:
+                    stmt = stmt.filter(
+                        TriggerDeliveryDBE.schedule_id == delivery.schedule_id,
+                    )
+
                 if delivery.event_id is not None:
                     stmt = stmt.filter(
                         TriggerDeliveryDBE.event_id == delivery.event_id,
@@ -404,3 +433,228 @@ class TriggersDAO(TriggersDAOInterface):
             result = await session.execute(stmt)
 
             return result.scalar_one_or_none() is not None
+
+    async def dedup_seen_schedule(
+        self,
+        *,
+        project_id: UUID,
+        schedule_id: UUID,
+        event_id: str,
+    ) -> bool:
+        async with self.engine.session() as session:
+            stmt = (
+                select(TriggerDeliveryDBE.id)
+                .where(
+                    TriggerDeliveryDBE.project_id == project_id,
+                    TriggerDeliveryDBE.schedule_id == schedule_id,
+                    TriggerDeliveryDBE.event_id == event_id,
+                )
+                .limit(1)
+            )
+
+            result = await session.execute(stmt)
+
+            return result.scalar_one_or_none() is not None
+
+    # --- SCHEDULES ---------------------------------------------------------- #
+
+    async def create_schedule(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        schedule: TriggerScheduleCreate,
+    ) -> TriggerSchedule:
+        schedule_dbe = map_schedule_dto_to_dbe_create(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            schedule=schedule,
+        )
+
+        async with self.engine.session() as session:
+            session.add(schedule_dbe)
+
+            await session.commit()
+
+            await session.refresh(schedule_dbe)
+
+        return map_schedule_dbe_to_dto(
+            schedule_dbe=schedule_dbe,
+        )
+
+    async def fetch_schedule(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule_id: UUID,
+    ) -> Optional[TriggerSchedule]:
+        async with self.engine.session() as session:
+            stmt = select(TriggerScheduleDBE).where(
+                TriggerScheduleDBE.project_id == project_id,
+                TriggerScheduleDBE.id == schedule_id,
+            )
+
+            result = await session.execute(stmt)
+
+            schedule_dbe = result.scalar_one_or_none()
+
+            if not schedule_dbe:
+                return None
+
+            return map_schedule_dbe_to_dto(
+                schedule_dbe=schedule_dbe,
+            )
+
+    async def edit_schedule(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        schedule: TriggerScheduleEdit,
+    ) -> Optional[TriggerSchedule]:
+        async with self.engine.session() as session:
+            stmt = select(TriggerScheduleDBE).where(
+                TriggerScheduleDBE.id == schedule.id,
+                TriggerScheduleDBE.project_id == project_id,
+            )
+
+            result = await session.execute(stmt)
+
+            schedule_dbe = result.scalar_one_or_none()
+
+            if not schedule_dbe:
+                return None
+
+            map_schedule_dto_to_dbe_edit(
+                schedule_dbe=schedule_dbe,
+                #
+                user_id=user_id,
+                #
+                schedule=schedule,
+            )
+
+            await session.commit()
+
+            await session.refresh(schedule_dbe)
+
+            return map_schedule_dbe_to_dto(
+                schedule_dbe=schedule_dbe,
+            )
+
+    async def delete_schedule(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule_id: UUID,
+    ) -> bool:
+        async with self.engine.session() as session:
+            stmt = select(TriggerScheduleDBE).where(
+                TriggerScheduleDBE.project_id == project_id,
+                TriggerScheduleDBE.id == schedule_id,
+            )
+
+            result = await session.execute(stmt)
+
+            schedule_dbe = result.scalar_one_or_none()
+
+            if not schedule_dbe:
+                return False
+
+            await session.delete(schedule_dbe)
+
+            await session.commit()
+
+            return True
+
+    async def query_schedules(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule: Optional[TriggerScheduleQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[TriggerSchedule]:
+        async with self.engine.session() as session:
+            stmt = select(TriggerScheduleDBE).filter(
+                TriggerScheduleDBE.project_id == project_id,
+            )
+
+            if schedule:
+                if schedule.name is not None:
+                    stmt = stmt.filter(
+                        TriggerScheduleDBE.name.ilike(f"%{schedule.name}%"),
+                    )
+
+                if schedule.event_key is not None:
+                    stmt = stmt.filter(
+                        TriggerScheduleDBE.data["event_key"].astext
+                        == schedule.event_key,
+                    )
+
+            if windowing:
+                stmt = apply_windowing(
+                    stmt=stmt,
+                    DBE=TriggerScheduleDBE,
+                    attribute="id",
+                    order="descending",
+                    windowing=windowing,
+                )
+
+            result = await session.execute(stmt)
+
+            return [
+                map_schedule_dbe_to_dto(schedule_dbe=dbe)
+                for dbe in result.scalars().all()
+            ]
+
+    async def fetch_active_schedules(
+        self,
+        *,
+        project_id: Optional[UUID] = None,
+    ) -> List[TriggerSchedule]:
+        async with self.engine.session() as session:
+            stmt = select(TriggerScheduleDBE).where(
+                TriggerScheduleDBE.flags["is_active"].astext == "true",
+                TriggerScheduleDBE.deleted_at.is_(None),
+            )
+
+            if project_id is not None:
+                stmt = stmt.where(
+                    TriggerScheduleDBE.project_id == project_id,
+                )
+
+            result = await session.execute(stmt)
+
+            return [
+                map_schedule_dbe_to_dto(schedule_dbe=dbe)
+                for dbe in result.scalars().all()
+            ]
+
+    async def fetch_active_schedules_with_project(
+        self,
+        *,
+        project_id: Optional[UUID] = None,
+    ) -> List[Tuple[UUID, TriggerSchedule]]:
+        async with self.engine.session() as session:
+            stmt = select(TriggerScheduleDBE).where(
+                TriggerScheduleDBE.flags["is_active"].astext == "true",
+                TriggerScheduleDBE.deleted_at.is_(None),
+            )
+
+            if project_id is not None:
+                stmt = stmt.where(
+                    TriggerScheduleDBE.project_id == project_id,
+                )
+
+            result = await session.execute(stmt)
+
+            return [
+                (dbe.project_id, map_schedule_dbe_to_dto(schedule_dbe=dbe))
+                for dbe in result.scalars().all()
+            ]

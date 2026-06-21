@@ -7,18 +7,18 @@
  * project store so we can introspect the request shape and confirm boundary
  * validation without hitting the network.
  *
- * AC coverage:
- *  - Catalog browse: events are fetched against the WP1 API shape.
- *  - F2: `/triggers/connections/query` reads the same shared connection rows
- *    that `/tools/connections/query` returns, with no second connect.
+ * Coverage:
+ *  - Catalog browse: events are fetched against the triggers API shape.
+ *  - `/triggers/connections/query` reads the same shared connection rows that
+ *    `/tools/connections/query` returns, with no second connect.
  */
 
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const {get, post} = vi.hoisted(() => ({get: vi.fn(), post: vi.fn()}))
+const {get, post, put} = vi.hoisted(() => ({get: vi.fn(), post: vi.fn(), put: vi.fn()}))
 
 vi.mock("@agenta/shared/api", () => ({
-    axios: {get, post},
+    axios: {get, post, put},
     getAgentaApiUrl: () => "https://api.test",
 }))
 
@@ -32,19 +32,28 @@ vi.mock("jotai", async (importOriginal) => {
 })
 
 import {
+    createTriggerSchedule,
     createTriggerSubscription,
+    editTriggerSchedule,
+    fetchTriggerSchedule,
     fetchTriggerSubscription,
     fetchTriggerEvent,
     fetchTriggerEvents,
     fetchTriggerProviders,
     queryTriggerConnections,
     queryTriggerDeliveries,
+    queryTriggerSchedules,
     queryTriggerSubscriptions,
+    startTriggerSchedule,
+    startTriggerSubscription,
+    stopTriggerSchedule,
+    stopTriggerSubscription,
 } from "../../src/gatewayTrigger/api/api"
 
 beforeEach(() => {
     get.mockReset()
     post.mockReset()
+    put.mockReset()
 })
 
 describe("catalog browse", () => {
@@ -61,7 +70,7 @@ describe("catalog browse", () => {
         expect(res.providers[0].key).toBe("composio")
     })
 
-    it("fetches an integration's events against the WP1 path with cursor params", async () => {
+    it("fetches an integration's events against the triggers path with cursor params", async () => {
         get.mockResolvedValueOnce({
             data: {
                 count: 1,
@@ -242,6 +251,108 @@ describe("subscriptions", () => {
         const res = await queryTriggerSubscriptions()
 
         expect(res).toEqual({count: 0, subscriptions: []})
+    })
+})
+
+describe("schedules (recurring cron timers)", () => {
+    const sampleSchedule = {
+        id: "sch-1",
+        name: "Nightly run",
+        flags: {is_active: true},
+        data: {
+            event_key: "schedule.tick",
+            schedule: "0 9 * * *",
+            inputs_fields: {greeting: "hello"},
+            references: {application_variant: {id: "var-1"}},
+        },
+    }
+
+    it("creates a schedule with the {schedule} envelope and project scope", async () => {
+        post.mockResolvedValueOnce({data: {count: 1, schedule: sampleSchedule}})
+
+        const res = await createTriggerSchedule({
+            name: "Nightly run",
+            data: {
+                event_key: "schedule.tick",
+                schedule: "0 9 * * *",
+                inputs_fields: {greeting: "hello"},
+                references: {application_variant: {id: "var-1"}},
+            },
+        })
+
+        const [url, body, opts] = post.mock.calls[0]
+        expect(url).toBe("https://api.test/triggers/schedules/")
+        expect(body.schedule.data.schedule).toBe("0 9 * * *")
+        expect(body.schedule.data.references.application_variant.id).toBe("var-1")
+        expect(opts.params).toMatchObject({project_id: "proj-42"})
+        expect(res.schedule?.id).toBe("sch-1")
+    })
+
+    it("edits a schedule with a full PUT to /schedules/{id}", async () => {
+        put.mockResolvedValueOnce({
+            data: {count: 1, schedule: {...sampleSchedule, flags: {is_active: false}}},
+        })
+
+        const res = await editTriggerSchedule({
+            id: "sch-1",
+            name: "Nightly run",
+            data: sampleSchedule.data,
+            flags: {is_active: false},
+        })
+
+        const [url, body] = put.mock.calls[0]
+        expect(url).toBe("https://api.test/triggers/schedules/sch-1")
+        expect(body.schedule.flags.is_active).toBe(false)
+        expect(res.schedule?.id).toBe("sch-1")
+    })
+
+    it("queries schedules under the {schedule} envelope", async () => {
+        post.mockResolvedValueOnce({data: {count: 1, schedules: [sampleSchedule]}})
+
+        const res = await queryTriggerSchedules({event_key: "schedule.tick"})
+
+        const [url, body] = post.mock.calls[0]
+        expect(url).toBe("https://api.test/triggers/schedules/query")
+        expect(body).toEqual({schedule: {event_key: "schedule.tick"}})
+        expect(res.schedules[0].data.schedule).toBe("0 9 * * *")
+    })
+
+    it("fetches a single schedule by id", async () => {
+        get.mockResolvedValueOnce({data: {count: 1, schedule: sampleSchedule}})
+
+        const res = await fetchTriggerSchedule("sch-1")
+
+        const [url] = get.mock.calls[0]
+        expect(url).toBe("https://api.test/triggers/schedules/sch-1")
+        expect(res.schedule?.data.schedule).toBe("0 9 * * *")
+    })
+
+    it("starts and stops a schedule via the lifecycle verb routes", async () => {
+        post.mockResolvedValueOnce({data: {count: 1, schedule: sampleSchedule}})
+        await startTriggerSchedule("sch-1")
+        expect(post.mock.calls[0][0]).toBe("https://api.test/triggers/schedules/sch-1/start")
+
+        post.mockResolvedValueOnce({data: {count: 1, schedule: sampleSchedule}})
+        await stopTriggerSchedule("sch-1")
+        expect(post.mock.calls[1][0]).toBe("https://api.test/triggers/schedules/sch-1/stop")
+    })
+
+    it("falls back to an empty list when the schedules payload fails validation", async () => {
+        post.mockResolvedValueOnce({data: {schedules: "nope"}})
+        const res = await queryTriggerSchedules()
+        expect(res).toEqual({count: 0, schedules: []})
+    })
+})
+
+describe("subscription start/stop", () => {
+    it("starts and stops a subscription via the lifecycle verb routes", async () => {
+        post.mockResolvedValueOnce({data: {count: 1, subscription: {id: "sub-1"}}})
+        await startTriggerSubscription("sub-1")
+        expect(post.mock.calls[0][0]).toBe("https://api.test/triggers/subscriptions/sub-1/start")
+
+        post.mockResolvedValueOnce({data: {count: 1, subscription: {id: "sub-1"}}})
+        await stopTriggerSubscription("sub-1")
+        expect(post.mock.calls[1][0]).toBe("https://api.test/triggers/subscriptions/sub-1/stop")
     })
 })
 

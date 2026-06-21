@@ -177,6 +177,29 @@ lanes that touch disjoint files (e.g. `web/**` vs `api/**`) can sit anywhere in 
 - Ant Design token changes: run `pnpm generate:tailwind-tokens` in the `web` folder and
   commit the generated file.
 
+## Local dev loop (deploy + test)
+
+From the repo root. **`load-env` must match the edition and image you deploy** — the env
+file and the `run.sh` flags always agree:
+
+- OSS + dev → `load-env hosting/docker-compose/oss/.env.oss.dev` + `run.sh --oss --dev`
+- OSS + gh  → `load-env hosting/docker-compose/oss/.env.oss.gh`  + `run.sh --oss --gh`
+- EE  + dev → `load-env hosting/docker-compose/ee/.env.ee.dev`   + `run.sh --ee --dev`
+- EE  + gh  → `load-env hosting/docker-compose/ee/.env.ee.gh`    + `run.sh --ee --gh`
+
+- `load-env <env-file>` — load env vars into the shell (pick the row above).
+- `bash ./hosting/docker-compose/run.sh <flags> --build` — deploy to the local
+  docker-compose stack (`--oss`/`--ee`, `--dev`/`--gh`; `--down` to stop, `--nuke` to drop
+  volumes). Use the SAME edition/image as load-env.
+- `cd "sdks/python" | "api" | "services" && py-run-tests` — run that area's tests
+  (`py-run-tests` = `uv sync --locked && uv run --no-sync python run-tests.py`).
+- Postgres is reachable locally with `username:password`; EE DB name is `agenta_ee_core`.
+- Tests mint ephemeral accounts + API keys via the admin endpoint
+  `POST /admin/simple/accounts/` (with `Authorization: Access AUTH_KEY`,
+  `create_api_keys/return_api_keys: true`). Reuse the fixtures in
+  `api/oss/tests/pytest/utils/accounts.py` (`foo_account`/`cls_account`/`mod_account` →
+  `{api_url, credentials: "ApiKey ..."}`); do not hand-roll account creation.
+
 ## Environment config
 
 - For API configuration, add new environment variables to `api/oss/src/utils/env.py` and

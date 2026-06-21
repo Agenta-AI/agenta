@@ -1,4 +1,4 @@
-"""EE acceptance tests for the /tools/connections contract (WP0).
+"""EE acceptance tests for the /tools/connections contract.
 
 Mirrors the OSS suite (oss/tests/pytest/acceptance/tools/test_tools_connections.py)
 but exercises /tools/connections as a business-plan, developer-role account.

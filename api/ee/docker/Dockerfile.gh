@@ -95,6 +95,8 @@ RUN groupadd --gid 10001 agenta && \
 # Copy stable cron files first (change less frequently)
 COPY --chmod=755 ./api/oss/src/crons/queries.sh /queries.sh
 COPY --chmod=644 ./api/oss/src/crons/queries.txt /etc/cron.d/queries-cron
+COPY --chmod=755 ./api/oss/src/crons/triggers.sh /triggers.sh
+COPY --chmod=644 ./api/oss/src/crons/triggers.txt /etc/cron.d/triggers-cron
 COPY --chmod=755 ./api/ee/src/crons/meters.sh /meters.sh
 COPY --chmod=644 ./api/ee/src/crons/meters.txt /etc/cron.d/meters-cron
 COPY --chmod=755 ./api/ee/src/crons/spans.sh /spans.sh
@@ -114,10 +116,10 @@ COPY --chown=agenta:agenta --from=builder /clients/python /clients/python
 
 # Generate supercronic-compatible crontab (strip user field and /proc redirects)
 RUN set -eux; \
-    for cron_file in /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron /etc/cron.d/events-cron; do \
+    for cron_file in /etc/cron.d/queries-cron /etc/cron.d/triggers-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron /etc/cron.d/events-cron; do \
         sed -i -e '$a\' "${cron_file}"; \
     done; \
-    cat /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron /etc/cron.d/events-cron \
+    cat /etc/cron.d/queries-cron /etc/cron.d/triggers-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron /etc/cron.d/events-cron \
         | sed -E 's/^(([^[:space:]]+[[:space:]]+){5})root[[:space:]]+/\1/' \
         | sed 's| >> /proc/1/fd/1 2>&1||' > /app/crontab && \
     chown agenta:agenta /app/crontab

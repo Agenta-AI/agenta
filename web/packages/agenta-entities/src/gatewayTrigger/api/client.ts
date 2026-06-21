@@ -5,10 +5,9 @@ import {getDefaultStore} from "jotai"
 /**
  * HTTP client for the `/triggers/*` API.
  *
- * The triggers catalog isn't in the Fern client yet (WP1 hasn't been
- * regenerated into `@agentaai/api-client`), so we use the shared axios
- * instance. Once the client gains a `triggers` resource this module collapses
- * onto `getAgentaSdkClient().triggers` like `gatewayTool/api/client.ts`.
+ * The triggers catalog isn't in the Fern client yet, so we use the shared
+ * axios instance. Once the client gains a `triggers` resource this module
+ * collapses onto `getAgentaSdkClient().triggers` like `gatewayTool/api/client.ts`.
  */
 export const triggersBaseUrl = () => `${getAgentaApiUrl()}/triggers`
 

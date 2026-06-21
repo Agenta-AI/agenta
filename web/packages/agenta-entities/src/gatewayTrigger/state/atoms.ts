@@ -36,9 +36,23 @@ export interface SubscriptionDrawerState {
 }
 export const triggerSubscriptionDrawerAtom = atom<SubscriptionDrawerState | null>(null)
 
-// Deliveries drawer state — opened against one subscription.
+// ---------------------------------------------------------------------------
+// Schedule drawer state — create (no id) or edit (existing schedule id)
+// ---------------------------------------------------------------------------
+
+export interface ScheduleDrawerState {
+    // Edit mode when set; create mode otherwise.
+    scheduleId?: string
+}
+export const triggerScheduleDrawerAtom = atom<ScheduleDrawerState | null>(null)
+
+// ---------------------------------------------------------------------------
+// Deliveries drawer state — opened against one subscription OR one schedule
+// (a delivery belongs to exactly one of the two; XOR, DB-enforced).
+// ---------------------------------------------------------------------------
+
 export interface DeliveriesDrawerState {
-    subscriptionId: string
-    subscriptionName?: string
+    owner: {kind: "subscription" | "schedule"; id: string}
+    name?: string
 }
 export const triggerDeliveriesDrawerAtom = atom<DeliveriesDrawerState | null>(null)

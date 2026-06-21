@@ -7,8 +7,8 @@
  * failure rather than a downstream crash.
  *
  * `/triggers/connections/query` reads the same shared `gateway_connections`
- * rows as `/tools/connections/query` (WP0); the connection shape is reused
- * from gatewayTool so the two lists stay byte-compatible (F2).
+ * rows as `/tools/connections/query`; the connection shape is reused from
+ * gatewayTool so the two lists stay byte-compatible.
  */
 
 import {safeParseWithLogging} from "../../shared"
@@ -23,6 +23,8 @@ import {
     triggerConnectionsResponseSchema,
     triggerDeliveriesResponseSchema,
     triggerDeliveryResponseSchema,
+    triggerScheduleResponseSchema,
+    triggerSchedulesResponseSchema,
     triggerSubscriptionResponseSchema,
     triggerSubscriptionsResponseSchema,
     type TriggerCatalogEventResponse,
@@ -37,6 +39,11 @@ import {
     type TriggerDeliveriesResponse,
     type TriggerDeliveryQuery,
     type TriggerDeliveryResponse,
+    type TriggerScheduleCreate,
+    type TriggerScheduleEdit,
+    type TriggerScheduleQuery,
+    type TriggerScheduleResponse,
+    type TriggerSchedulesResponse,
     type TriggerSubscriptionCreate,
     type TriggerSubscriptionEdit,
     type TriggerSubscriptionQuery,
@@ -156,7 +163,7 @@ export const fetchTriggerIntegration = async (
     )
 }
 
-// --- Connections (shared rows, WP0 view; F2) ---
+// --- Connections (shared `gateway_connections` rows) ---
 
 export const queryTriggerConnections = async (params?: {
     provider_key?: string
@@ -357,6 +364,142 @@ export const deleteTriggerSubscription = async (subscriptionId: string): Promise
     await axios.delete(
         `${triggersBaseUrl()}/subscriptions/${subscriptionId}`,
         projectScopedParams(),
+    )
+}
+
+// --- Subscription start/stop ---
+// Lifecycle verbs toggling `flags.is_active` via `POST /subscriptions/{id}/<verb>`.
+
+export const startTriggerSubscription = async (
+    subscriptionId: string,
+): Promise<TriggerSubscriptionResponse> => {
+    const {data} = await axios.post(
+        `${triggersBaseUrl()}/subscriptions/${subscriptionId}/start`,
+        {},
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(
+            triggerSubscriptionResponseSchema,
+            data,
+            "[startTriggerSubscription]",
+        ) ?? {count: 0, subscription: null}
+    )
+}
+
+export const stopTriggerSubscription = async (
+    subscriptionId: string,
+): Promise<TriggerSubscriptionResponse> => {
+    const {data} = await axios.post(
+        `${triggersBaseUrl()}/subscriptions/${subscriptionId}/stop`,
+        {},
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(
+            triggerSubscriptionResponseSchema,
+            data,
+            "[stopTriggerSubscription]",
+        ) ?? {count: 0, subscription: null}
+    )
+}
+
+// --- Schedules — recurring cron timers binding a tick to a workflow ---
+
+export const queryTriggerSchedules = async (
+    schedule?: TriggerScheduleQuery,
+): Promise<TriggerSchedulesResponse> => {
+    const {data} = await axios.post(
+        `${triggersBaseUrl()}/schedules/query`,
+        {schedule: schedule ?? null},
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(triggerSchedulesResponseSchema, data, "[queryTriggerSchedules]") ?? {
+            count: 0,
+            schedules: [],
+        }
+    )
+}
+
+export const fetchTriggerSchedule = async (
+    scheduleId: string,
+): Promise<TriggerScheduleResponse> => {
+    const {data} = await axios.get(
+        `${triggersBaseUrl()}/schedules/${scheduleId}`,
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(triggerScheduleResponseSchema, data, "[fetchTriggerSchedule]") ?? {
+            count: 0,
+            schedule: null,
+        }
+    )
+}
+
+export const createTriggerSchedule = async (
+    schedule: TriggerScheduleCreate,
+): Promise<TriggerScheduleResponse> => {
+    const {data} = await axios.post(
+        `${triggersBaseUrl()}/schedules/`,
+        {schedule},
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(triggerScheduleResponseSchema, data, "[createTriggerSchedule]") ?? {
+            count: 0,
+            schedule: null,
+        }
+    )
+}
+
+export const editTriggerSchedule = async (
+    schedule: TriggerScheduleEdit,
+): Promise<TriggerScheduleResponse> => {
+    const {data} = await axios.put(
+        `${triggersBaseUrl()}/schedules/${schedule.id}`,
+        {schedule},
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(triggerScheduleResponseSchema, data, "[editTriggerSchedule]") ?? {
+            count: 0,
+            schedule: null,
+        }
+    )
+}
+
+export const deleteTriggerSchedule = async (scheduleId: string): Promise<void> => {
+    await axios.delete(`${triggersBaseUrl()}/schedules/${scheduleId}`, projectScopedParams())
+}
+
+export const startTriggerSchedule = async (
+    scheduleId: string,
+): Promise<TriggerScheduleResponse> => {
+    const {data} = await axios.post(
+        `${triggersBaseUrl()}/schedules/${scheduleId}/start`,
+        {},
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(triggerScheduleResponseSchema, data, "[startTriggerSchedule]") ?? {
+            count: 0,
+            schedule: null,
+        }
+    )
+}
+
+export const stopTriggerSchedule = async (scheduleId: string): Promise<TriggerScheduleResponse> => {
+    const {data} = await axios.post(
+        `${triggersBaseUrl()}/schedules/${scheduleId}/stop`,
+        {},
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(triggerScheduleResponseSchema, data, "[stopTriggerSchedule]") ?? {
+            count: 0,
+            schedule: null,
+        }
     )
 }
 

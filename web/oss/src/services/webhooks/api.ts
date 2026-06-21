@@ -55,6 +55,32 @@ const queryWebhookSubscriptions = async (
     return response.data
 }
 
+// Lifecycle verbs toggling `flags.is_active` (WP6). Mirror the trigger
+// subscription/schedule start/stop routes: POST /subscriptions/{id}/{verb}.
+const startWebhookSubscription = async (
+    webhookSubscriptionId: string,
+    projectId?: string,
+): Promise<WebhookSubscriptionResponse> => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/webhooks/subscriptions/${webhookSubscriptionId}/start`,
+        {},
+        {params: projectId ? {project_id: projectId} : undefined},
+    )
+    return response.data
+}
+
+const stopWebhookSubscription = async (
+    webhookSubscriptionId: string,
+    projectId?: string,
+): Promise<WebhookSubscriptionResponse> => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/webhooks/subscriptions/${webhookSubscriptionId}/stop`,
+        {},
+        {params: projectId ? {project_id: projectId} : undefined},
+    )
+    return response.data
+}
+
 const testWebhookSubscription = async (
     data: WebhookSubscriptionTestRequest,
     projectId?: string,
@@ -80,6 +106,8 @@ export {
     deleteWebhookSubscription,
     queryWebhookDeliveries,
     queryWebhookSubscriptions,
+    startWebhookSubscription,
+    stopWebhookSubscription,
     testWebhookSubscription,
     editWebhookSubscription,
 }

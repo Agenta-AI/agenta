@@ -103,6 +103,24 @@ class WebhooksRouter:
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
         )
+        self.router.add_api_route(
+            "/subscriptions/{subscription_id}/start",
+            self.start_subscription,
+            methods=["POST"],
+            operation_id="start_webhook_subscription",
+            response_model=WebhookSubscriptionResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/subscriptions/{subscription_id}/stop",
+            self.stop_subscription,
+            methods=["POST"],
+            operation_id="stop_webhook_subscription",
+            response_model=WebhookSubscriptionResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
 
         # --- WEBHOOK DELIVERIES --------------------------------------------- #
 
@@ -371,6 +389,84 @@ class WebhooksRouter:
         return WebhookSubscriptionsResponse(
             count=len(subscriptions),
             subscriptions=subscriptions,
+        )
+
+    async def _set_subscription_active(
+        self,
+        *,
+        request: Request,
+        subscription_id: UUID,
+        is_active: bool,
+    ) -> WebhookSubscriptionResponse:
+        if is_ee():
+            has_permission = await check_action_access(
+                user_uid=str(request.state.user_id),
+                project_id=str(request.state.project_id),
+                permission=Permission.EDIT_WEBHOOKS,
+            )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        subscription = await self.webhooks_service.set_subscription_active(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(str(request.state.user_id)),
+            #
+            subscription_id=subscription_id,
+            is_active=is_active,
+        )
+
+        if not subscription:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Webhook subscription not found",
+            )
+
+        await set_cache(
+            namespace="webhooks",
+            project_id=str(request.state.project_id),
+            key=f"subscription:{subscription.id}",
+            value=subscription.model_copy(
+                update={"secret": encrypt(subscription.secret)}
+            )
+            if subscription.secret
+            else subscription,
+            ttl=AGENTA_CACHE_TTL,
+        )
+        await invalidate_cache(
+            namespace="webhooks",
+            project_id=str(request.state.project_id),
+            key="subscriptions",
+        )
+
+        return WebhookSubscriptionResponse(
+            count=1,
+            subscription=subscription,
+        )
+
+    @intercept_exceptions()
+    async def start_subscription(
+        self,
+        request: Request,
+        *,
+        subscription_id: UUID,
+    ) -> WebhookSubscriptionResponse:
+        return await self._set_subscription_active(
+            request=request,
+            subscription_id=subscription_id,
+            is_active=True,
+        )
+
+    @intercept_exceptions()
+    async def stop_subscription(
+        self,
+        request: Request,
+        *,
+        subscription_id: UUID,
+    ) -> WebhookSubscriptionResponse:
+        return await self._set_subscription_active(
+            request=request,
+            subscription_id=subscription_id,
+            is_active=False,
         )
 
     # --- WEBHOOK DELIVERIES ------------------------------------------------- #

@@ -1,15 +1,16 @@
 """Trigger dispatcher — asyncio side of the inbound pipeline.
 
-The inbound dual of ``webhooks/dispatcher.py``. Given a verified Composio event
-(``ti_*`` trigger id + ``metadata.id`` dedup key + raw payload), it resolves the
-local subscription, dedups, maps ``inputs_fields`` into the workflow inputs, runs
-the bound workflow, and records a single delivery row with the outcome.
+Entity-agnostic: ``dispatch`` runs one already-resolved entity (a
+``TriggerSubscription`` from the Composio path, or a ``TriggerSchedule`` from the
+cron path) against its bound workflow, dedups on ``event_id``, maps
+``inputs_fields`` into the workflow inputs, and records one delivery row. The
+``ti_*`` → subscription lookup lives in the worker, not here.
 
 Self-contained so it can run inside its own TaskIQ worker process.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 from uuid import UUID
 
 import uuid_utils.compat as uuid_compat
@@ -20,11 +21,11 @@ from oss.src.core.triggers.dtos import (
     SUBSCRIPTION_CONTEXT_FIELDS,
     TriggerDeliveryCreate,
     TriggerDeliveryData,
+    TriggerSchedule,
     TriggerSubscription,
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
 from oss.src.core.workflows.service import WorkflowsService
-from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 from agenta.sdk.decorators.running import WorkflowServiceRequest
@@ -50,10 +51,10 @@ class TriggersDispatcher:
         self,
         *,
         event: Dict[str, Any],
-        subscription: TriggerSubscription,
+        entity: Union[TriggerSubscription, TriggerSchedule],
         project_id: UUID,
     ) -> Dict[str, Any]:
-        sub_dump = subscription.model_dump(mode="json", exclude_none=True)
+        sub_dump = entity.model_dump(mode="json", exclude_none=True)
         metadata = event.get("metadata") or {}
         now = datetime.now(timezone.utc).isoformat()
         normalized = {
@@ -76,51 +77,44 @@ class TriggersDispatcher:
     async def dispatch(
         self,
         *,
-        trigger_id: str,
+        project_id: UUID,
+        entity: Union[TriggerSubscription, TriggerSchedule],
         event_id: str,
         event: Dict[str, Any],
     ) -> None:
-        """Run the bound workflow for one inbound event (idempotent on event_id)."""
-        resolved = await self.triggers_dao.get_project_and_subscription_by_trigger_id(
-            trigger_id=trigger_id,
-        )
+        """Run the bound workflow for one resolved entity (idempotent on event_id)."""
+        is_subscription = isinstance(entity, TriggerSubscription)
 
-        if resolved is None:
-            # Unknown ti_* is normal isolation unless a target is configured.
-            level = log.warning if env.composio.webhook_target else log.info
-            level("[TRIGGERS DISPATCHER] Unknown trigger_id %s — skipping", trigger_id)
-            return
-
-        project_id, subscription = resolved
-
-        if not subscription.enabled:
+        if not entity.flags.is_active:
             log.info(
-                "[TRIGGERS DISPATCHER] Subscription %s disabled — skipping",
-                subscription.id,
+                "[TRIGGERS DISPATCHER] Entity %s inactive — skipping",
+                entity.id,
             )
             return
 
-        already_seen = await self.triggers_dao.dedup_seen(
-            project_id=project_id,
-            subscription_id=subscription.id,
-            event_id=event_id,
-        )
-        if already_seen:
-            log.info(
-                "[TRIGGERS DISPATCHER] Duplicate event %s for subscription %s — skipping",
-                event_id,
-                subscription.id,
+        # is_valid (subscriptions only) is NOT a silent skip: let it fall through to
+        # the failed-delivery branch so the user sees why nothing ran.
+        if is_subscription:
+            already_seen = await self.triggers_dao.dedup_seen(
+                project_id=project_id,
+                subscription_id=entity.id,
+                event_id=event_id,
             )
-            return
+            if already_seen:
+                log.info(
+                    "[TRIGGERS DISPATCHER] Duplicate event %s for subscription %s — skipping",
+                    event_id,
+                    entity.id,
+                )
+                return
 
         context = self._build_context(
             event=event,
-            subscription=subscription,
+            entity=entity,
             project_id=project_id,
         )
 
-        # MAPPING — inputs-only template (default whole-context "$" like webhooks).
-        template = subscription.data.inputs_fields
+        template = entity.data.inputs_fields
         inputs = resolve_target_fields(
             template if template is not None else "$", context
         )
@@ -128,23 +122,23 @@ class TriggersDispatcher:
         references = (
             {
                 k: ref.model_dump(mode="json", exclude_none=True)
-                for k, ref in subscription.data.references.items()
+                for k, ref in entity.data.references.items()
             }
-            if subscription.data.references
+            if entity.data.references
             else None
         )
         selector = (
-            subscription.data.selector.model_dump(mode="json", exclude_none=True)
-            if subscription.data.selector
+            entity.data.selector.model_dump(mode="json", exclude_none=True)
+            if entity.data.selector
             else None
         )
 
         delivery_id = uuid_compat.uuid7()
-        user_id = subscription.created_by_id  # M6 — attribute to the creator, or None
+        user_id = entity.created_by_id
 
         delivery_data = TriggerDeliveryData(
-            event_key=subscription.data.event_key,
-            references=subscription.data.references,
+            event_key=entity.data.event_key,
+            references=entity.data.references,
             inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
         )
 
@@ -153,11 +147,11 @@ class TriggersDispatcher:
                 project_id=project_id,
                 user_id=user_id,
                 delivery_id=delivery_id,
-                subscription_id=subscription.id,
+                entity=entity,
                 event_id=event_id,
                 status=Status(code="400", message="failed"),
                 data=delivery_data.model_copy(
-                    update={"error": "Subscription has no bound workflow reference"}
+                    update={"error": "Entity has no bound workflow reference"}
                 ),
             )
             return
@@ -182,7 +176,7 @@ class TriggersDispatcher:
                 project_id=project_id,
                 user_id=user_id,
                 delivery_id=delivery_id,
-                subscription_id=subscription.id,
+                entity=entity,
                 event_id=event_id,
                 status=Status(code="500", message="failed"),
                 data=delivery_data.model_copy(update={"error": str(e)}),
@@ -200,7 +194,7 @@ class TriggersDispatcher:
                 project_id=project_id,
                 user_id=user_id,
                 delivery_id=delivery_id,
-                subscription_id=subscription.id,
+                entity=entity,
                 event_id=event_id,
                 status=Status(code=str(status_code), message="failed"),
                 data=delivery_data.model_copy(
@@ -220,7 +214,7 @@ class TriggersDispatcher:
             project_id=project_id,
             user_id=user_id,
             delivery_id=delivery_id,
-            subscription_id=subscription.id,
+            entity=entity,
             event_id=event_id,
             status=Status(code="200", message="success"),
             data=delivery_data.model_copy(
@@ -234,8 +228,8 @@ class TriggersDispatcher:
             ),
         )
         log.info(
-            "[TRIGGERS DISPATCHER] dispatch complete subscription=%s event=%s status=200",
-            subscription.id,
+            "[TRIGGERS DISPATCHER] dispatch complete entity=%s event=%s status=200",
+            entity.id,
             event_id,
         )
 
@@ -245,17 +239,19 @@ class TriggersDispatcher:
         project_id: UUID,
         user_id: Optional[UUID],
         delivery_id: UUID,
-        subscription_id: UUID,
+        entity: Union[TriggerSubscription, TriggerSchedule],
         event_id: str,
         status: Status,
         data: TriggerDeliveryData,
     ) -> None:
+        is_subscription = isinstance(entity, TriggerSubscription)
         await self.triggers_dao.write_delivery(
             project_id=project_id,
             user_id=user_id,
             delivery=TriggerDeliveryCreate(
                 id=delivery_id,
-                subscription_id=subscription_id,
+                subscription_id=entity.id if is_subscription else None,
+                schedule_id=None if is_subscription else entity.id,
                 event_id=event_id,
                 status=status,
                 data=data,

@@ -138,8 +138,8 @@ class TestTriggerSubscriptionsLifecycle:
         sub = create.json()["subscription"]
         subscription_id = sub["id"]
         assert sub["connection_id"] == connection_id
-        assert sub["data"]["ti_id"] is not None
-        assert sub["enabled"] is True
+        assert sub["ti_id"] is not None
+        assert sub["flags"]["is_active"] is True
 
         # LIST
         listing = authed_api("GET", "/triggers/subscriptions/").json()
@@ -148,7 +148,7 @@ class TestTriggerSubscriptionsLifecycle:
         # DISABLE (revoke the subscription, not the connection)
         revoke = authed_api("POST", f"/triggers/subscriptions/{subscription_id}/revoke")
         assert revoke.status_code == 200, revoke.text
-        assert revoke.json()["subscription"]["enabled"] is False
+        assert revoke.json()["subscription"]["flags"]["is_active"] is False
 
         # DELETE
         delete = authed_api("DELETE", f"/triggers/subscriptions/{subscription_id}")

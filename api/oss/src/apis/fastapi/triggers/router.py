@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from functools import wraps
 from json import JSONDecodeError, loads
 from typing import Any, Optional
@@ -26,6 +27,11 @@ from oss.src.apis.fastapi.triggers.models import (
     TriggerDeliveryQueryRequest,
     TriggerDeliveryResponse,
     TriggerEventAck,
+    TriggerScheduleCreateRequest,
+    TriggerScheduleEditRequest,
+    TriggerScheduleQueryRequest,
+    TriggerScheduleResponse,
+    TriggerSchedulesResponse,
     TriggerSubscriptionCreateRequest,
     TriggerSubscriptionEditRequest,
     TriggerSubscriptionQueryRequest,
@@ -36,7 +42,10 @@ from oss.src.core.triggers.exceptions import (
     AdapterError,
     ConnectionNotFoundError,
     ProviderNotFoundError,
+    ScheduleNotFoundError,
     SubscriptionNotFoundError,
+    TriggerReferenceInvalid,
+    TriggerScheduleInvalid,
 )
 from oss.src.core.triggers.service import TriggersService
 
@@ -263,6 +272,24 @@ class TriggersRouter:
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
+            "/subscriptions/{subscription_id}/start",
+            self.start_subscription,
+            methods=["POST"],
+            operation_id="start_trigger_subscription",
+            response_model=TriggerSubscriptionResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/subscriptions/{subscription_id}/stop",
+            self.stop_subscription,
+            methods=["POST"],
+            operation_id="stop_trigger_subscription",
+            response_model=TriggerSubscriptionResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
             "/subscriptions/{subscription_id}",
             self.fetch_subscription,
             methods=["GET"],
@@ -286,6 +313,89 @@ class TriggersRouter:
             methods=["DELETE"],
             operation_id="delete_trigger_subscription",
             status_code=status.HTTP_204_NO_CONTENT,
+        )
+
+        # --- Trigger Schedules ---
+        self.router.add_api_route(
+            "/schedules",
+            self.create_schedule,
+            methods=["POST"],
+            operation_id="create_trigger_schedule",
+            response_model=TriggerScheduleResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/schedules",
+            self.list_schedules,
+            methods=["GET"],
+            operation_id="list_trigger_schedules",
+            response_model=TriggerSchedulesResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/schedules/query",
+            self.query_schedules,
+            methods=["POST"],
+            operation_id="query_trigger_schedules",
+            response_model=TriggerSchedulesResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/schedules/{schedule_id}",
+            self.fetch_schedule,
+            methods=["GET"],
+            operation_id="fetch_trigger_schedule",
+            response_model=TriggerScheduleResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/schedules/{schedule_id}",
+            self.edit_schedule,
+            methods=["PUT"],
+            operation_id="edit_trigger_schedule",
+            response_model=TriggerScheduleResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/schedules/{schedule_id}",
+            self.delete_schedule,
+            methods=["DELETE"],
+            operation_id="delete_trigger_schedule",
+            status_code=status.HTTP_204_NO_CONTENT,
+        )
+        self.router.add_api_route(
+            "/schedules/{schedule_id}/start",
+            self.start_schedule,
+            methods=["POST"],
+            operation_id="start_trigger_schedule",
+            response_model=TriggerScheduleResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/schedules/{schedule_id}/stop",
+            self.stop_schedule,
+            methods=["POST"],
+            operation_id="stop_trigger_schedule",
+            response_model=TriggerScheduleResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+
+        # --- Trigger Schedules (admin) ---
+        # The cron driver POSTs to /admin/triggers/schedules/refresh (mounted in
+        # entrypoints/routers.py under prefix /admin/triggers). No auth/entitlement.
+        self.admin_router = APIRouter()
+        self.admin_router.add_api_route(
+            "/schedules/refresh",
+            self.refresh_schedules,
+            methods=["POST"],
+            operation_id="refresh_trigger_schedules",
         )
 
         # --- Trigger Deliveries ---
@@ -1049,6 +1159,287 @@ class TriggersRouter:
             count=1,
             subscription=subscription,
         )
+
+    @intercept_exceptions()
+    async def start_subscription(
+        self,
+        request: Request,
+        *,
+        subscription_id: UUID,
+    ) -> TriggerSubscriptionResponse:
+        return await self._set_subscription_active(
+            request=request,
+            subscription_id=subscription_id,
+            is_active=True,
+        )
+
+    @intercept_exceptions()
+    async def stop_subscription(
+        self,
+        request: Request,
+        *,
+        subscription_id: UUID,
+    ) -> TriggerSubscriptionResponse:
+        return await self._set_subscription_active(
+            request=request,
+            subscription_id=subscription_id,
+            is_active=False,
+        )
+
+    async def _set_subscription_active(
+        self,
+        *,
+        request: Request,
+        subscription_id: UUID,
+        is_active: bool,
+    ) -> TriggerSubscriptionResponse:
+        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+
+        try:
+            subscription = await self.triggers_service.set_subscription_active(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(str(request.state.user_id)),
+                #
+                subscription_id=subscription_id,
+                is_active=is_active,
+            )
+        except SubscriptionNotFoundError as e:
+            raise HTTPException(status_code=404, detail=e.message) from e
+
+        return TriggerSubscriptionResponse(
+            count=1,
+            subscription=subscription,
+        )
+
+    # -----------------------------------------------------------------------
+    # Trigger Schedules
+    # -----------------------------------------------------------------------
+
+    @intercept_exceptions()
+    async def create_schedule(
+        self,
+        request: Request,
+        *,
+        body: TriggerScheduleCreateRequest,
+    ) -> TriggerScheduleResponse:
+        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+
+        try:
+            schedule = await self.triggers_service.create_schedule(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(str(request.state.user_id)),
+                #
+                schedule=body.schedule,
+            )
+        except TriggerScheduleInvalid as e:
+            raise HTTPException(status_code=422, detail=e.message) from e
+        except TriggerReferenceInvalid as e:
+            raise HTTPException(status_code=422, detail=e.message) from e
+
+        return TriggerScheduleResponse(
+            count=1 if schedule else 0,
+            schedule=schedule,
+        )
+
+    @intercept_exceptions()
+    async def list_schedules(
+        self,
+        request: Request,
+    ) -> TriggerSchedulesResponse:
+        await self._check(request, Permission.VIEW_TRIGGERS if is_ee() else None)
+
+        schedules = await self.triggers_service.query_schedules(
+            project_id=UUID(request.state.project_id),
+        )
+
+        return TriggerSchedulesResponse(
+            count=len(schedules),
+            schedules=schedules,
+        )
+
+    @intercept_exceptions()
+    async def query_schedules(
+        self,
+        request: Request,
+        *,
+        body: TriggerScheduleQueryRequest,
+    ) -> TriggerSchedulesResponse:
+        await self._check(request, Permission.VIEW_TRIGGERS if is_ee() else None)
+
+        schedules = await self.triggers_service.query_schedules(
+            project_id=UUID(request.state.project_id),
+            #
+            schedule=body.schedule,
+            #
+            windowing=body.windowing,
+        )
+
+        return TriggerSchedulesResponse(
+            count=len(schedules),
+            schedules=schedules,
+        )
+
+    @intercept_exceptions()
+    async def fetch_schedule(
+        self,
+        request: Request,
+        *,
+        schedule_id: UUID,
+    ) -> TriggerScheduleResponse:
+        await self._check(request, Permission.VIEW_TRIGGERS if is_ee() else None)
+
+        schedule = await self.triggers_service.fetch_schedule(
+            project_id=UUID(request.state.project_id),
+            #
+            schedule_id=schedule_id,
+        )
+        if not schedule:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Trigger schedule not found",
+            )
+
+        return TriggerScheduleResponse(
+            count=1,
+            schedule=schedule,
+        )
+
+    @intercept_exceptions()
+    async def edit_schedule(
+        self,
+        request: Request,
+        *,
+        schedule_id: UUID,
+        body: TriggerScheduleEditRequest,
+    ) -> TriggerScheduleResponse:
+        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+
+        if str(schedule_id) != str(body.schedule.id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Path schedule_id does not match body id",
+            )
+
+        try:
+            schedule = await self.triggers_service.edit_schedule(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(str(request.state.user_id)),
+                #
+                schedule=body.schedule,
+            )
+        except TriggerScheduleInvalid as e:
+            raise HTTPException(status_code=422, detail=e.message) from e
+        except TriggerReferenceInvalid as e:
+            raise HTTPException(status_code=422, detail=e.message) from e
+
+        if not schedule:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Trigger schedule not found",
+            )
+
+        return TriggerScheduleResponse(
+            count=1,
+            schedule=schedule,
+        )
+
+    @intercept_exceptions()
+    async def delete_schedule(
+        self,
+        request: Request,
+        *,
+        schedule_id: UUID,
+    ) -> None:
+        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+
+        deleted = await self.triggers_service.delete_schedule(
+            project_id=UUID(request.state.project_id),
+            #
+            schedule_id=schedule_id,
+        )
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Trigger schedule not found",
+            )
+
+    @intercept_exceptions()
+    async def start_schedule(
+        self,
+        request: Request,
+        *,
+        schedule_id: UUID,
+    ) -> TriggerScheduleResponse:
+        return await self._set_schedule_active(
+            request=request,
+            schedule_id=schedule_id,
+            is_active=True,
+        )
+
+    @intercept_exceptions()
+    async def stop_schedule(
+        self,
+        request: Request,
+        *,
+        schedule_id: UUID,
+    ) -> TriggerScheduleResponse:
+        return await self._set_schedule_active(
+            request=request,
+            schedule_id=schedule_id,
+            is_active=False,
+        )
+
+    async def _set_schedule_active(
+        self,
+        *,
+        request: Request,
+        schedule_id: UUID,
+        is_active: bool,
+    ) -> TriggerScheduleResponse:
+        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+
+        try:
+            schedule = await self.triggers_service.set_schedule_active(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(str(request.state.user_id)),
+                #
+                schedule_id=schedule_id,
+                is_active=is_active,
+            )
+        except ScheduleNotFoundError as e:
+            raise HTTPException(status_code=404, detail=e.message) from e
+
+        return TriggerScheduleResponse(
+            count=1,
+            schedule=schedule,
+        )
+
+    @intercept_exceptions()
+    async def refresh_schedules(
+        self,
+        *,
+        trigger_interval: int = Query(1, ge=1, le=60),
+        trigger_datetime: datetime = Query(None),
+    ) -> Any:
+        # ----------------------------------------------------------------------
+        # THIS IS AN ADMIN ENDPOINT
+        # NO CHECK FOR PERMISSIONS / ENTITLEMENTS
+        # ----------------------------------------------------------------------
+
+        if not trigger_datetime or not trigger_interval:
+            return {"status": "error"}
+
+        timestamp = trigger_datetime - timedelta(minutes=trigger_interval)
+
+        check = await self.triggers_service.refresh_schedules(
+            timestamp=timestamp,
+            interval=trigger_interval,
+        )
+
+        if not check:
+            return {"status": "failure"}
+
+        return {"status": "success"}
 
     # -----------------------------------------------------------------------
     # Trigger Deliveries

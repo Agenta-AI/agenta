@@ -31,6 +31,24 @@ class TriggerSubscriptionDBA(
         nullable=False,
     )
 
+    ti_id = Column(
+        String,
+        nullable=True,
+    )
+
+
+class TriggerScheduleDBA(
+    ProjectScopeDBA,
+    LifecycleDBA,
+    IdentifierDBA,
+    HeaderDBA,
+    DataDBA,
+    FlagsDBA,
+    TagsDBA,
+    MetaDBA,
+):
+    __abstract__ = True
+
 
 class TriggerDeliveryDBA(
     ProjectScopeDBA,
@@ -43,10 +61,15 @@ class TriggerDeliveryDBA(
 
     subscription_id = Column(
         UUID(as_uuid=True),
-        nullable=False,
+        nullable=True,
     )
 
-    # I4: provider metadata.id — an arbitrary provider string, unique per subscription.
+    schedule_id = Column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )
+
+    # provider metadata.id — an arbitrary provider string, unique per parent
     event_id = Column(
         String,
         nullable=False,

@@ -29,7 +29,7 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
     Modeled on ``ComposioToolsAdapter``: own httpx client, ``_get/_post/_delete``
     helpers, slug passthrough. Catalog operations (list/get events) come from
     ``ComposioTriggersCatalogClient``; subscription (trigger-instance) management
-    is implemented here and consumed by WP3.
+    is implemented here.
 
     REST paths (E5 — verified vs the live Composio API reference):
       list events    GET    /triggers_types?toolkit_slugs={i}
@@ -159,7 +159,7 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
             ) from e
 
     # -----------------------------------------------------------------------
-    # Subscriptions (provider-side trigger instances — ti_*) — consumed by WP3
+    # Subscriptions (provider-side trigger instances — ti_*)
     # -----------------------------------------------------------------------
 
     async def create_subscription(

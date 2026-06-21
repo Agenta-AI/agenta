@@ -8,10 +8,13 @@ import {
     deleteWebhookSubscription,
     queryWebhookDeliveries,
     queryWebhookSubscriptions,
+    startWebhookSubscription,
+    stopWebhookSubscription,
     testWebhookSubscription,
     editWebhookSubscription,
 } from "@/oss/services/webhooks/api"
 import {
+    WebhookSubscription,
     WebhookSubscriptionTestRequest,
     WebhookSubscriptionCreateRequest,
     WebhookSubscriptionEditRequest,
@@ -103,6 +106,35 @@ export const deleteWebhookAtom = atom(null, async (get, _set, webhookSubscriptio
     await deleteWebhookSubscription(webhookSubscriptionId, projectId ?? undefined)
     await queryClient.invalidateQueries({queryKey: ["webhooks"]})
 })
+
+// Optimistic play/pause: flip `flags.is_active` in the list cache, call the
+// start/stop route, refetch on success, roll back + refetch on failure.
+export const setWebhookActiveAtom = atom(
+    null,
+    async (get, _set, {id, active}: {id: string; active: boolean}) => {
+        const projectId = get(projectIdAtom)
+        const listKey = ["webhooks", projectId]
+        const prev = queryClient.getQueryData<WebhookSubscription[]>(listKey)
+        if (prev) {
+            queryClient.setQueryData<WebhookSubscription[]>(
+                listKey,
+                prev.map((w) =>
+                    w.id === id ? {...w, flags: {...(w.flags ?? {}), is_active: active}} : w,
+                ),
+            )
+        }
+        try {
+            await (active
+                ? startWebhookSubscription(id, projectId ?? undefined)
+                : stopWebhookSubscription(id, projectId ?? undefined))
+            await queryClient.invalidateQueries({queryKey: ["webhooks"]})
+        } catch (error) {
+            if (prev) queryClient.setQueryData(listKey, prev)
+            await queryClient.invalidateQueries({queryKey: ["webhooks"]})
+            throw error
+        }
+    },
+)
 
 export const testWebhookAtom = atom(
     null,

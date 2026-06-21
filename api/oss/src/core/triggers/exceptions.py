@@ -35,6 +35,24 @@ class TriggerReferenceInvalid(TriggersError):
         super().__init__(message)
 
 
+class ScheduleNotFoundError(TriggersError):
+    """Raised when a schedule_id does not exist in the project."""
+
+    def __init__(self, *, schedule_id: str):
+        self.schedule_id = schedule_id
+        super().__init__(f"Trigger schedule not found: {schedule_id}")
+
+
+class TriggerScheduleInvalid(TriggersError):
+    """Raised when a schedule's cron expression is not a valid 5-field expression."""
+
+    def __init__(
+        self,
+        message: str = "Schedule must be a valid 5-field cron expression.",
+    ):
+        super().__init__(message)
+
+
 class ConnectionNotFoundError(TriggersError):
     """Raised when a subscription references a connection that does not exist."""
 
