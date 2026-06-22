@@ -79,6 +79,7 @@ class WorkflowFlags(BaseModel):
     # interface-derived
     ## schema
     is_chat: bool = False
+    is_agent: bool = False
     ## hook
     has_url: bool = False
     ## code
@@ -106,6 +107,7 @@ class WorkflowQueryFlags(BaseModel):
     # interface-derived
     ## schema
     is_chat: Optional[bool] = None
+    is_agent: Optional[bool] = None
     ## hook
     has_url: Optional[bool] = None
     ## code
@@ -209,6 +211,15 @@ class WorkflowRequestData(BaseModel):
     #
     testcase: Optional[dict] = None
     inputs: Optional[dict] = None
+    # The agent ``/messages`` egress lifts the conversation out of ``inputs`` to this
+    # first-class member, in the Vercel ``UIMessage`` shape; ``/invoke`` ignores it.
+    messages: Optional[list] = None
+    # Transport mode for the agent ``/messages`` route: the endpoint sets this from the Accept
+    # negotiation so the shared agent handler streams (returns an async generator) instead of
+    # returning a batch dict. A sibling of ``messages`` / ``inputs`` / ``parameters`` on purpose
+    # — it must not live in ``parameters``, where it would leak into agent config / revision
+    # state / trace inputs. ``/invoke`` leaves it unset (batch).
+    stream: Optional[bool] = None
     #
     trace: Optional[dict] = None
     outputs: Optional[Any] = None
@@ -232,6 +243,10 @@ class WorkflowBaseRequest(Metadata):
 
     secrets: Optional[Dict[str, Any]] = None
     credentials: Optional[str] = None
+
+    # The agent ``/messages`` session this turn belongs to (opaque, project-scoped). Optional;
+    # absent on ``/invoke`` and on the first turn of a server-minted session.
+    session_id: Optional[str] = None
 
     @model_validator(mode="before")
     def _coerce_nested_models(cls, values: Dict[str, Any]) -> Dict[str, Any]:
@@ -291,6 +306,10 @@ class WorkflowBaseResponse(TraceID, SpanID):
 
     status: Optional[WorkflowServiceStatus] = WorkflowServiceStatus()
 
+    # The resolved agent session id (minted or echoed) on the ``/messages`` response, alongside
+    # ``trace_id`` / ``span_id``. ``None`` for plain ``/invoke`` responses.
+    session_id: Optional[str] = None
+
 
 # back-compat alias
 WorkflowServiceBaseResponse = WorkflowBaseResponse
@@ -322,6 +341,20 @@ WorkflowServiceResponse = Union[
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
 ]
+
+
+class LoadSessionRequest(BaseModel):
+    """``POST /load-session`` body. The session id is required (RFC §7.1)."""
+
+    session_id: str
+
+
+class LoadSessionResponse(BaseModel):
+    """``POST /load-session`` response: a session's history as Vercel ``UIMessage`` objects,
+    the shape ``useChat`` takes as its initial ``messages``."""
+
+    session_id: str
+    messages: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 # aliases ----------------------------------------------------------------------

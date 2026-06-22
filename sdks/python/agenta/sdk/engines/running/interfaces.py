@@ -524,6 +524,49 @@ chat_v0_interface = WorkflowRevisionData(
     ),
 )
 
+agent_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:agent:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                # One composite control for the whole agent config. The field shape lives in
+                # `AgentConfigSchema` (agenta.sdk.utils.types), registered as the `agent_config`
+                # catalog type; the playground resolves this ref and renders the AgentConfigControl.
+                "agent": semantic_field(
+                    x_ag_type_ref="agent_config",
+                    jtype="object",
+                    description="The agent's instructions, model, tools, MCP servers, and runtime.",
+                    default={
+                        "agents_md": (
+                            "You are a friendly hello-world agent running on the "
+                            "Agenta agent service.\n\n- Greet the user warmly.\n- "
+                            "Answer the user's message in one or two short sentences."
+                        ),
+                        "model": "gpt-5.5",
+                        "tools": [],
+                        "mcp_servers": [],
+                        "harness": "pi",
+                        "sandbox": "local",
+                        "permission_policy": "auto",
+                    },
+                ),
+            },
+            additional_properties=True,
+        ),
+        inputs=llm_inputs_schema(
+            include_messages=True,
+        ),
+        outputs={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            **semantic_field(
+                x_ag_type_ref="message",
+                jtype="object",
+                description="Final assistant message returned by the agent.",
+            ),
+        },
+    ),
+)
+
 completion_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:completion:v0",
     schemas=dict(  # type: ignore

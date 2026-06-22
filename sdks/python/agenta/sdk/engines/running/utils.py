@@ -51,6 +51,7 @@ from agenta.sdk.engines.running.interfaces import (
     # --- OLD URI
     chat_v0_interface,
     completion_v0_interface,
+    agent_v0_interface,
     echo_v0_interface,
     auto_exact_match_v0_interface,
     auto_regex_test_v0_interface,
@@ -88,6 +89,7 @@ INTERFACE_REGISTRY: dict = dict(
             # --- OLD URI
             chat=dict(v0=chat_v0_interface),
             completion=dict(v0=completion_v0_interface),
+            agent=dict(v0=agent_v0_interface),
             echo=dict(v0=echo_v0_interface),
             auto_exact_match=dict(v0=auto_exact_match_v0_interface),
             auto_regex_test=dict(v0=auto_regex_test_v0_interface),
@@ -243,6 +245,15 @@ CATALOG_REGISTRY: dict = dict(
                     presets=[],
                 )
             ),
+            agent=dict(
+                v0=dict(
+                    name="agent",
+                    description="Agent that runs tools over multiple turns on the Pi harness.",
+                    categories=None,
+                    flags=None,
+                    presets=[],
+                )
+            ),
             #
             echo=dict(v0=_catalog_entry()),
             auto_exact_match=dict(v0=_catalog_entry()),
@@ -282,6 +293,18 @@ CONFIGURATION_REGISTRY: dict = dict(
             # --- OLD URI
             chat=dict(v0=WorkflowRevisionData()),
             completion=dict(v0=WorkflowRevisionData()),
+            agent=dict(
+                v0=WorkflowRevisionData(
+                    parameters={
+                        "model": "gpt-5.5",
+                        "agents_md": (
+                            "You are a friendly hello-world agent running on the "
+                            "Agenta agent service.\n\n- Greet the user warmly.\n- "
+                            "Answer the user's message in one or two short sentences."
+                        ),
+                    }
+                )
+            ),
             echo=dict(v0=WorkflowRevisionData()),
             auto_exact_match=dict(v0=WorkflowRevisionData()),
             auto_regex_test=dict(v0=WorkflowRevisionData()),
@@ -543,12 +566,12 @@ _AGENTA_ROLE_TABLE: dict = {
     # agenta:builtin:* — application-only (not evaluators)
     ("builtin", "chat"): (True, False, False),
     ("builtin", "completion"): (True, False, False),
+    ("builtin", "agent"): (True, False, False),
     # agenta:builtin:* — both evaluator and application
     ("builtin", "llm"): (True, True, False),
     # agenta:builtin:* — evaluator-only
     ("builtin", "match"): (False, True, False),
     ("builtin", "prompt"): (False, True, False),
-    ("builtin", "agent"): (False, True, False),
     ("builtin", "echo"): (False, True, False),
     ("builtin", "human"): (False, True, False),
     ("builtin", "auto_exact_match"): (False, True, False),
