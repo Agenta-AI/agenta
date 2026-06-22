@@ -30,7 +30,6 @@ from oss.src.core.accounts.errors import (
     AdminUserNotFoundError,
     AdminValidationError,
     AdminWorkspaceNotFoundError,
-    OssMultiOrgNotSupportedError,
 )
 from oss.src.apis.fastapi.accounts.models import (
     AdminAccountsCreate,
@@ -77,8 +76,6 @@ def _handle_admin_error(exc: AdminError) -> None:
         raise BadRequestException(message=exc.message, **(exc.details or {}))
     if isinstance(exc, AdminInvalidReferenceError):
         raise BadRequestException(message=exc.message, **exc.details)
-    if isinstance(exc, OssMultiOrgNotSupportedError):
-        raise BadRequestException(message=exc.message, **(exc.details or {}))
     # Generic admin error → 400
     raise BadRequestException(message=exc.message)
 

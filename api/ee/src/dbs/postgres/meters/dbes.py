@@ -1,12 +1,24 @@
 from sqlalchemy import PrimaryKeyConstraint, ForeignKeyConstraint, Index
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, foreign
 
 from oss.src.dbs.postgres.shared.base import Base
 from ee.src.dbs.postgres.meters.dbas import MeterDBA
+from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
 
 
 class MeterDBE(Base, MeterDBA):
     __tablename__ = "meters"
+
+    # Read-only nav to the org's subscription (one per org); meters and
+    # subscriptions both anchor on organization_id, with no FK between them.
+    subscription = relationship(
+        SubscriptionDBE,
+        primaryjoin=lambda: (
+            foreign(MeterDBE.organization_id) == SubscriptionDBE.organization_id
+        ),
+        viewonly=True,
+        uselist=False,
+    )
 
     __table_args__ = (
         PrimaryKeyConstraint(
@@ -14,7 +26,8 @@ class MeterDBE(Base, MeterDBA):
         ),
         ForeignKeyConstraint(
             ["organization_id"],
-            ["subscriptions.organization_id"],
+            ["organizations.id"],
+            ondelete="CASCADE",
         ),
         Index(
             "idx_synced_value",
@@ -35,5 +48,3 @@ class MeterDBE(Base, MeterDBA):
             "day",
         ),
     )
-
-    subscription = relationship("SubscriptionDBE", back_populates="meters")
