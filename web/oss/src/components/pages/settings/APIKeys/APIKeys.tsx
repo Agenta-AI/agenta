@@ -100,8 +100,9 @@ const APIKeys: React.FC = () => {
                                     Make sure to copy your API Key now. You won’t be able to see it
                                     again!
                                 </div>
-                                <div className="mt-[0.5rem] flex items-center gap-2">
+                                <div className="mt-[0.5rem] flex items-start gap-2">
                                     <span
+                                        className="min-w-0 break-all"
                                         style={{
                                             ...monospaceKeyStyle,
                                             color: token.colorTextSecondary,
@@ -110,7 +111,7 @@ const APIKeys: React.FC = () => {
                                     >
                                         {data}
                                     </span>
-                                    <span>
+                                    <span className="shrink-0">
                                         <Tooltip title="Copy">
                                             <CopyOutlined
                                                 onClick={() => copyToClipboard(data)}
