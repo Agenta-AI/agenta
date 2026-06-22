@@ -1,3 +1,4 @@
+import {generateId} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
@@ -57,7 +58,7 @@ export const addSessionAtom = atom(null, (get, set) => {
     const key = get(appKeyAtom)
     const all = get(sessionsByAppAtom)
     const list = all[key] ?? []
-    const id = crypto.randomUUID()
+    const id = generateId()
     set(sessionsByAppAtom, {...all, [key]: [...list, {id}]})
     set(activeByAppAtom, {...get(activeByAppAtom), [key]: id})
     return id
