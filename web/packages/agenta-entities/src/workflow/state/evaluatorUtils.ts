@@ -519,8 +519,8 @@ export const evaluatorConfigRevisionsListDataAtom = atom<Workflow[]>((get) => {
             return {
                 ...ref,
                 ...revision,
-                name: revision.name ?? ref.name,
-                slug: revision.slug ?? ref.slug,
+                name: ref.name ?? revision.name,
+                slug: ref.slug ?? revision.slug,
                 description: revision.description ?? ref.description,
                 flags: {
                     ...(ref.flags ?? {}),

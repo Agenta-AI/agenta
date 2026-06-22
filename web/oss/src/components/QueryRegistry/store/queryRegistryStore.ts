@@ -19,7 +19,7 @@ import {atom, getDefaultStore} from "jotai"
 
 import {emptyFetchResult} from "@/oss/state/entities/shared"
 
-import {querySearchTermAtom, type QueryRegistryStatus} from "./queryRegistryFilterAtoms"
+import {querySearchTermAtomFamily, type QueryRegistryStatus} from "./queryRegistryFilterAtoms"
 
 // ============================================================================
 // TABLE ROW TYPE
@@ -68,10 +68,10 @@ interface QueryRegistryMeta {
 // atom, so the active and archived routes drive independent stores (mirrors the
 // Evaluators `getEvaluatorsTableState(mode)` factory and avoids a stale first
 // fetch when landing directly on the archived route).
-const queryRegistryMetaAtomByStatus = (status: QueryRegistryStatus) =>
+const queryRegistryMetaAtomByStatus = (status: QueryRegistryStatus, scopeId: string) =>
     atom<QueryRegistryMeta>((get) => ({
         projectId: get(projectIdAtom),
-        searchTerm: get(querySearchTermAtom) || undefined,
+        searchTerm: get(querySearchTermAtomFamily(scopeId)) || undefined,
         status,
     }))
 
@@ -88,7 +88,7 @@ const skeletonDefaults: Partial<QueryRegistryRow> = {
     key: "",
 }
 
-const toRow = (query: SimpleQuery): QueryRegistryRow => ({
+const toQueryRegistryRow = (query: SimpleQuery): QueryRegistryRow => ({
     key: query.id ?? query.revision_id ?? "",
     queryId: query.id ?? "",
     variantId: query.variant_id ?? null,
@@ -105,10 +105,10 @@ const toRow = (query: SimpleQuery): QueryRegistryRow => ({
 // PAGINATED STORE (per-mode factory)
 // ============================================================================
 
-const createQueryRegistryStore = (status: QueryRegistryStatus) =>
+const createQueryRegistryStore = (status: QueryRegistryStatus, scopeId: string) =>
     createPaginatedEntityStore<QueryRegistryRow, SimpleQuery, QueryRegistryMeta>({
-        entityName: status === "archived" ? "query-registry-archived" : "query-registry",
-        metaAtom: queryRegistryMetaAtomByStatus(status),
+        entityName: scopeId,
+        metaAtom: queryRegistryMetaAtomByStatus(status, scopeId),
         fetchPage: async ({
             meta,
             limit,
@@ -169,22 +169,25 @@ const createQueryRegistryStore = (status: QueryRegistryStatus) =>
             getRowId: (row) => row.id ?? row.revision_id ?? "",
             skeletonDefaults,
         },
-        transformRow: toRow,
+        transformRow: toQueryRegistryRow,
         isEnabled: (meta) => Boolean(meta?.projectId),
         listCountsConfig: {
             totalCountMode: "unknown",
         },
     })
 
-// Lazily-built, cached store per mode. The table reads the store for its current
-// mode; both are invalidated together after a create/edit/archive/restore.
-const _stores = new Map<QueryRegistryStatus, ReturnType<typeof createQueryRegistryStore>>()
+// Lazily-built, cached store per mode + consumer scope. Every consumer reuses the
+// same fetch/transform behavior while keeping pagination, search, and selection isolated.
+const _stores = new Map<string, ReturnType<typeof createQueryRegistryStore>>()
 
-export function getQueryRegistryTableState(status: QueryRegistryStatus) {
-    let store = _stores.get(status)
+export function getQueryRegistryTableState(status: QueryRegistryStatus, scopeId?: string) {
+    const resolvedScopeId =
+        scopeId ?? (status === "archived" ? "query-registry-archived" : "query-registry")
+    const storeKey = `${status}:${resolvedScopeId}`
+    let store = _stores.get(storeKey)
     if (!store) {
-        store = createQueryRegistryStore(status)
-        _stores.set(status, store)
+        store = createQueryRegistryStore(status, resolvedScopeId)
+        _stores.set(storeKey, store)
     }
     return store
 }

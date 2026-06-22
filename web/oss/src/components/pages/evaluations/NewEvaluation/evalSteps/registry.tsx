@@ -372,16 +372,20 @@ export const evalStepRegistry: EvalStepDescriptorRegistry = {
             if (!context.projectId) {
                 throw new Error("A project is required to create a query-backed evaluation.")
             }
+            const projectId = context.projectId
             if (!value.queryId) {
                 throw new Error("Select a query before creating an evaluation.")
             }
-            const queryKey = queryHeadQueryKey(context.projectId, value.queryId)
+            if (value.revisionId) {
+                return {query_steps: {[value.revisionId]: "auto"}}
+            }
+            const queryKey = queryHeadQueryKey(projectId, value.queryId)
             const revision =
                 queryClient.getQueryData<Awaited<ReturnType<typeof retrieveQueryRevision>>>(
                     queryKey,
                 ) ??
                 (await retrieveQueryRevision({
-                    projectId: context.projectId,
+                    projectId,
                     queryRef: {id: value.queryId},
                 }))
             if (!revision?.id) {

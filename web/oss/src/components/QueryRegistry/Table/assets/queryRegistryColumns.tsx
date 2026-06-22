@@ -3,7 +3,6 @@ import {SkeletonLine, createStandardColumns, formatDateCell} from "@agenta/ui/ta
 import {
     ArchiveIcon,
     ArrowCounterClockwise,
-    ChartDonutIcon,
     CopySimple,
     Eye,
     MinusCircle,
@@ -115,7 +114,6 @@ export interface QueryColumnActions {
     handleOpen?: (record: QueryRegistryRow) => void
     handleEdit?: (record: QueryRegistryRow) => void
     handleDuplicate?: (record: QueryRegistryRow) => void
-    handleRunAutoEval?: (record: QueryRegistryRow) => void
     handleArchive?: (record: QueryRegistryRow) => void
     handleRestore?: (record: QueryRegistryRow) => void
 }
@@ -147,13 +145,6 @@ function buildActionItems(actions: QueryColumnActions, isArchived: boolean) {
             icon: <Eye size={16} />,
             hidden: isRevisionRow,
             onClick: (record: QueryRegistryRow) => actions.handleOpen?.(record),
-        },
-        {
-            key: "run-auto-eval",
-            label: "Run auto evaluation",
-            icon: <ChartDonutIcon size={14} />,
-            hidden: isRevisionRow,
-            onClick: (record: QueryRegistryRow) => actions.handleRunAutoEval?.(record),
         },
         {
             key: "edit",
@@ -291,21 +282,35 @@ export function createQueryRegistryColumns(
                         content={
                             <div className="flex max-w-[320px] flex-col items-start gap-1">
                                 {conditions.map((condition, index) => (
-                                    <Tag key={index} className="m-0 text-xs">
+                                    <Tag
+                                        key={index}
+                                        className="m-0 max-w-full whitespace-normal break-all text-xs"
+                                    >
                                         {conditionLabel(condition, labels)}
                                     </Tag>
                                 ))}
                             </div>
                         }
                     >
-                        <span tabIndex={0} className="flex h-full flex-wrap items-center gap-1">
+                        <span
+                            tabIndex={0}
+                            className="flex h-full w-full min-w-0 items-center gap-1 overflow-hidden"
+                        >
                             {shown.map((condition, index) => (
-                                <Tag key={index} className="m-0 text-xs">
-                                    {conditionLabel(condition, labels)}
+                                <Tag
+                                    key={index}
+                                    className="m-0 min-w-0 max-w-full overflow-hidden text-xs"
+                                >
+                                    <span className="block truncate">
+                                        {conditionLabel(condition, labels)}
+                                    </span>
                                 </Tag>
                             ))}
                             {rest > 0 ? (
-                                <Text type="secondary" className="text-xs">
+                                <Text
+                                    type="secondary"
+                                    className="shrink-0 whitespace-nowrap text-xs"
+                                >
                                     +{rest} more
                                 </Text>
                             ) : null}

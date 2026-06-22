@@ -14,21 +14,27 @@ import {PageLayout} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {TableEmptyState} from "@agenta/ui/components/presentational"
 import {PlusOutlined} from "@ant-design/icons"
-import {ArrowLeft, Tray} from "@phosphor-icons/react"
-import {Button, Input, Space, Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {ArrowLeft, ChartDonutIcon, PlayIcon, Tray} from "@phosphor-icons/react"
+import {Button, Dropdown, Input, Space, Tooltip, Typography, type MenuProps} from "antd"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
-import type {EvalStepSlot} from "@/oss/components/pages/evaluations/NewEvaluation/evalSteps/types"
+import type {
+    EvalStepSlot,
+    QueryStepValue,
+} from "@/oss/components/pages/evaluations/NewEvaluation/evalSteps/types"
 import useURL from "@/oss/hooks/useURL"
 
 import QueryRegistryDrawer from "./Drawer/QueryRegistryDrawer"
-import {querySearchTermAtom, queryRegistryActiveRowAtom} from "./store/queryRegistryFilterAtoms"
+import {
+    querySearchTermAtomFamily,
+    queryRegistryActiveRowAtom,
+} from "./store/queryRegistryFilterAtoms"
 import type {QueryRegistryStatus} from "./store/queryRegistryFilterAtoms"
 import type {QueryRegistryRow} from "./store/queryRegistryStore"
-import {invalidateQueryRegistryStore} from "./store/queryRegistryStore"
+import {getQueryRegistryTableState, invalidateQueryRegistryStore} from "./store/queryRegistryStore"
 import type {QueryColumnActions} from "./Table/assets/queryRegistryColumns"
 import QueryRegistryTable from "./Table/QueryRegistryTable"
 
@@ -57,6 +63,62 @@ interface QueryRegistryProps {
     mode?: QueryRegistryStatus
 }
 
+const RunEvaluationDropdown = ({
+    selectedCount,
+    hasValidSelection,
+    onRun,
+}: {
+    selectedCount: number
+    hasValidSelection: boolean
+    onRun: () => void
+}) => {
+    const isDisabled = selectedCount !== 1 || !hasValidSelection
+    const disabledTooltip =
+        selectedCount === 0
+            ? "Select a query to run an evaluation"
+            : selectedCount > 1
+              ? "Select only one query to run an evaluation"
+              : "Select a query row, not a query version"
+    const menuItems = useMemo<NonNullable<MenuProps["items"]>>(
+        () => [
+            {
+                key: "auto-eval",
+                label: "Run auto evaluation",
+                icon: <ChartDonutIcon size={14} />,
+                disabled: isDisabled,
+            },
+        ],
+        [isDisabled],
+    )
+    const handleMenuClick = useCallback<NonNullable<MenuProps["onClick"]>>(
+        ({key}) => {
+            if (key === "auto-eval" && !isDisabled) onRun()
+        },
+        [isDisabled, onRun],
+    )
+
+    return (
+        <Tooltip title={isDisabled ? disabledTooltip : undefined}>
+            <span>
+                <Dropdown
+                    trigger={["click"]}
+                    placement="bottomRight"
+                    menu={{items: menuItems, onClick: handleMenuClick}}
+                >
+                    <Button
+                        type="default"
+                        icon={<PlayIcon size={14} />}
+                        disabled={isDisabled}
+                        aria-label="Run evaluation"
+                    >
+                        Run
+                    </Button>
+                </Dropdown>
+            </span>
+        </Tooltip>
+    )
+}
+
 /**
  * Project-scoped Query Registry — lists saved trace-filter queries (SimpleQuery
  * rows with head-revision data inlined). Row click / "New query" open the manage
@@ -67,17 +129,37 @@ interface QueryRegistryProps {
  */
 const QueryRegistry = ({mode = "active"}: QueryRegistryProps) => {
     const projectId = useAtomValue(projectIdAtom)
-    const setSearchTerm = useSetAtom(querySearchTermAtom)
     const setActiveRow = useSetAtom(queryRegistryActiveRowAtom)
     const router = useRouter()
     const {projectURL} = useURL()
     const [search, setSearch] = useState("")
     const [archiveTarget, setArchiveTarget] = useState<QueryRegistryRow | null>(null)
     const [archiving, setArchiving] = useState(false)
-    const [runEvalQuery, setRunEvalQuery] = useState<{
-        queryId: string
-        name?: string
-    } | null>(null)
+    const tableScopeId = mode === "archived" ? "query-registry-archived" : "query-registry"
+    const queryRegistryState = useMemo(() => getQueryRegistryTableState(mode), [mode])
+    const searchTermAtom = useMemo(() => querySearchTermAtomFamily(tableScopeId), [tableScopeId])
+    const setSearchTerm = useSetAtom(searchTermAtom)
+    const selectionAtom = useMemo(
+        () => queryRegistryState.store.atoms.selectionAtom({scopeId: tableScopeId}),
+        [queryRegistryState, tableScopeId],
+    )
+    const rowsAtom = useMemo(
+        () => queryRegistryState.store.atoms.rowsAtom({scopeId: tableScopeId, pageSize: 50}),
+        [queryRegistryState, tableScopeId],
+    )
+    const [selectedQueryKeys, setSelectedQueryKeys] = useAtom(selectionAtom)
+    const queryRows = useAtomValue(rowsAtom)
+    const [runEvalQuery, setRunEvalQuery] = useState<QueryStepValue | null>(null)
+    const selectedQuery = useMemo(() => {
+        if (selectedQueryKeys.length !== 1) return null
+        const selectedKey = String(selectedQueryKeys[0])
+        return (
+            queryRows.find(
+                (row) =>
+                    !row.__isSkeleton && row.key === selectedKey && row.queryId === selectedKey,
+            ) ?? null
+        )
+    }, [queryRows, selectedQueryKeys])
 
     const isArchived = mode === "archived"
 
@@ -131,13 +213,6 @@ const QueryRegistry = ({mode = "active"}: QueryRegistryProps) => {
         setArchiveTarget(record)
     }, [])
 
-    const handleRunAutoEval = useCallback((record: QueryRegistryRow) => {
-        setRunEvalQuery({
-            queryId: record.queryId,
-            name: record.name || undefined,
-        })
-    }, [])
-
     const archiveTargetIsRevision = Boolean(archiveTarget?.__isRevisionChild)
 
     const confirmArchive = useCallback(async () => {
@@ -188,11 +263,10 @@ const QueryRegistry = ({mode = "active"}: QueryRegistryProps) => {
             handleOpen: openDrawer,
             handleEdit: openDrawer,
             handleDuplicate,
-            handleRunAutoEval,
             handleArchive,
             handleRestore,
         }),
-        [openDrawer, handleDuplicate, handleRunAutoEval, handleArchive, handleRestore],
+        [openDrawer, handleDuplicate, handleArchive, handleRestore],
     )
 
     const runEvaluationSteps = useMemo<EvalStepSlot[]>(
@@ -204,7 +278,8 @@ const QueryRegistry = ({mode = "active"}: QueryRegistryProps) => {
                           required: true,
                           preset: {
                               queryId: runEvalQuery.queryId,
-                              name: runEvalQuery.name,
+                              revisionId: runEvalQuery.revisionId ?? undefined,
+                              name: runEvalQuery.name || undefined,
                           },
                       },
                       {kind: "evaluator", required: true},
@@ -214,7 +289,19 @@ const QueryRegistry = ({mode = "active"}: QueryRegistryProps) => {
         [runEvalQuery],
     )
 
+    const openRunEvaluationModal = useCallback(() => {
+        if (!selectedQuery) return
+        setRunEvalQuery({
+            queryId: selectedQuery.queryId,
+            revisionId: selectedQuery.revisionId ?? undefined,
+            name: selectedQuery.name || undefined,
+        })
+    }, [selectedQuery])
     const closeRunEvaluationModal = useCallback(() => setRunEvalQuery(null), [])
+    const handleRunEvaluationSuccess = useCallback(() => {
+        setRunEvalQuery(null)
+        setSelectedQueryKeys([])
+    }, [setSelectedQueryKeys])
 
     // Archived view: swap the title for a back-arrow + "Archived Queries", exactly
     // like the Evaluators archived route.
@@ -255,6 +342,11 @@ const QueryRegistry = ({mode = "active"}: QueryRegistryProps) => {
             >
                 Archived
             </Button>
+            <RunEvaluationDropdown
+                selectedCount={selectedQueryKeys.length}
+                hasValidSelection={Boolean(selectedQuery)}
+                onRun={openRunEvaluationModal}
+            />
             <Button type="primary" icon={<PlusOutlined />} onClick={handleNewQuery}>
                 New query
             </Button>
@@ -295,7 +387,7 @@ const QueryRegistry = ({mode = "active"}: QueryRegistryProps) => {
             <NewEvaluationModal
                 open={runEvalQuery !== null}
                 onCancel={closeRunEvaluationModal}
-                onSuccess={closeRunEvaluationModal}
+                onSuccess={handleRunEvaluationSuccess}
                 evaluationType="auto"
                 preview={false}
                 liveCompatibleEvaluatorsOnly

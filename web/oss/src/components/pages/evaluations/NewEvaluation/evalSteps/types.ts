@@ -29,6 +29,7 @@ export interface TestsetStepValue {
 
 export interface QueryStepValue {
     queryId: string
+    revisionId?: string
     name?: string
 }
 

@@ -2,7 +2,11 @@
 import {memo, useMemo, type ReactNode} from "react"
 
 import type {QueryConditionPayload, QueryFilteringPayload} from "@agenta/evaluations/state"
-import {evaluationQueryRevisionAtomFamily} from "@agenta/evaluations/state/evalRun"
+import {
+    derivedEvalTypeAtomFamily,
+    evaluationQueryReferenceAtomFamily,
+    evaluationQueryRevisionAtomFamily,
+} from "@agenta/evaluations/state/evalRun"
 import {
     runCreatedAtAtomFamily,
     runInvocationRefsAtomFamily,
@@ -24,7 +28,12 @@ import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import {useHostHook} from "../../../../../../host/hostRegistry"
 import {buildFrequencyChartData} from "../../../EvaluatorMetricsChart/utils/chartData"
-import {ApplicationReferenceLabel, TestsetTagList, VariantRevisionLabel} from "../../../references"
+import {
+    ApplicationReferenceLabel,
+    QueryReferenceLabel,
+    TestsetTagList,
+    VariantRevisionLabel,
+} from "../../../references"
 import {useRunMetricData} from "../hooks/useRunMetricData"
 import {resolveMetricValue} from "../utils/metrics"
 
@@ -38,6 +47,12 @@ interface MetadataSummaryTableProps {
 const QuerySummaryCell = ({runId}: MetadataCellProps) => {
     const revAtom = useMemo(() => evaluationQueryRevisionAtomFamily(runId), [runId])
     const revQuery = useAtomValueWithSchedule(revAtom, {priority: LOW_PRIORITY}) as any
+
+    const queryRefAtom = useMemo(() => evaluationQueryReferenceAtomFamily(runId), [runId])
+    const queryRef = useAtomValue(queryRefAtom)
+    const evalTypeAtom = useMemo(() => derivedEvalTypeAtomFamily(runId), [runId])
+    const evaluationType = useAtomValue(evalTypeAtom)
+    const isLive = evaluationType === "online"
 
     const filtering: QueryFilteringPayload | undefined = revQuery?.data?.revision?.filtering
     const windowing: any = revQuery?.data?.revision?.windowing
@@ -91,6 +106,19 @@ const QuerySummaryCell = ({runId}: MetadataCellProps) => {
     }
 
     if (isLoading) return <Typography.Text type="secondary">…</Typography.Text>
+
+    // Auto (batch) eval over traces: render the query as a chip (name + version), matching
+    // the other reference rows. Live eval keeps the raw filter + sample-rate detail.
+    if (!isLive) {
+        const version = queryRef.queryRevisionVersion ?? revQuery?.data?.revision?.version ?? null
+        return (
+            <QueryReferenceLabel
+                queryId={queryRef.queryId ?? null}
+                querySlug={queryRef.querySlug ?? null}
+                version={version}
+            />
+        )
+    }
 
     const filtersText = filtering ? formatFiltering(filtering) : "—"
     const sampleRateText = formatSampleRate(windowing?.rate)

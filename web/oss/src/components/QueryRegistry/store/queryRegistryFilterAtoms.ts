@@ -1,9 +1,10 @@
 import {atom} from "jotai"
+import {atomFamily} from "jotai/utils"
 
 import type {QueryRegistryRow} from "./queryRegistryStore"
 
-/** Search term for the Query Registry list (client-side filter on the loaded page). */
-export const querySearchTermAtom = atom("")
+/** Search term per Query Registry consumer (page, modal selector, etc.). */
+export const querySearchTermAtomFamily = atomFamily((_scopeId: string) => atom(""))
 
 /**
  * Active vs archived view. Driven by the route (`/queries` vs `/queries/archived`)
