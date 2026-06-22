@@ -17,9 +17,11 @@ import {PlusOutlined} from "@ant-design/icons"
 import {ArrowLeft, Tray} from "@phosphor-icons/react"
 import {Button, Input, Space, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
+import type {EvalStepSlot} from "@/oss/components/pages/evaluations/NewEvaluation/evalSteps/types"
 import useURL from "@/oss/hooks/useURL"
 
 import QueryRegistryDrawer from "./Drawer/QueryRegistryDrawer"
@@ -31,6 +33,11 @@ import type {QueryColumnActions} from "./Table/assets/queryRegistryColumns"
 import QueryRegistryTable from "./Table/QueryRegistryTable"
 
 const {Text} = Typography
+
+const NewEvaluationModal = dynamic(
+    () => import("@/oss/components/pages/evaluations/NewEvaluation"),
+    {ssr: false},
+)
 
 const EMPTY_CREATE_ROW: QueryRegistryRow = {
     key: "new",
@@ -67,6 +74,10 @@ const QueryRegistry = ({mode = "active"}: QueryRegistryProps) => {
     const [search, setSearch] = useState("")
     const [archiveTarget, setArchiveTarget] = useState<QueryRegistryRow | null>(null)
     const [archiving, setArchiving] = useState(false)
+    const [runEvalQuery, setRunEvalQuery] = useState<{
+        queryId: string
+        name?: string
+    } | null>(null)
 
     const isArchived = mode === "archived"
 
@@ -120,6 +131,13 @@ const QueryRegistry = ({mode = "active"}: QueryRegistryProps) => {
         setArchiveTarget(record)
     }, [])
 
+    const handleRunAutoEval = useCallback((record: QueryRegistryRow) => {
+        setRunEvalQuery({
+            queryId: record.queryId,
+            name: record.name || undefined,
+        })
+    }, [])
+
     const archiveTargetIsRevision = Boolean(archiveTarget?.__isRevisionChild)
 
     const confirmArchive = useCallback(async () => {
@@ -170,11 +188,33 @@ const QueryRegistry = ({mode = "active"}: QueryRegistryProps) => {
             handleOpen: openDrawer,
             handleEdit: openDrawer,
             handleDuplicate,
+            handleRunAutoEval,
             handleArchive,
             handleRestore,
         }),
-        [openDrawer, handleDuplicate, handleArchive, handleRestore],
+        [openDrawer, handleDuplicate, handleRunAutoEval, handleArchive, handleRestore],
     )
+
+    const runEvaluationSteps = useMemo<EvalStepSlot[]>(
+        () =>
+            runEvalQuery
+                ? [
+                      {
+                          kind: "query",
+                          required: true,
+                          preset: {
+                              queryId: runEvalQuery.queryId,
+                              name: runEvalQuery.name,
+                          },
+                      },
+                      {kind: "evaluator", required: true},
+                      {kind: "advanced", required: true},
+                  ]
+                : [],
+        [runEvalQuery],
+    )
+
+    const closeRunEvaluationModal = useCallback(() => setRunEvalQuery(null), [])
 
     // Archived view: swap the title for a back-arrow + "Archived Queries", exactly
     // like the Evaluators archived route.
@@ -252,6 +292,15 @@ const QueryRegistry = ({mode = "active"}: QueryRegistryProps) => {
                 mode={mode}
             />
             <QueryRegistryDrawer />
+            <NewEvaluationModal
+                open={runEvalQuery !== null}
+                onCancel={closeRunEvaluationModal}
+                onSuccess={closeRunEvaluationModal}
+                evaluationType="auto"
+                preview={false}
+                liveCompatibleEvaluatorsOnly
+                steps={runEvaluationSteps}
+            />
             <EnhancedModal
                 centered
                 width={480}

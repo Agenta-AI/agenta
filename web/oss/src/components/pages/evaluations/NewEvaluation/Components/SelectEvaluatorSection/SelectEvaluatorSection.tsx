@@ -1,6 +1,9 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {invalidateWorkflowsListCache} from "@agenta/entities/workflow"
+import {
+    invalidateWorkflowsListCache,
+    liveCompatibleEvaluatorKeysAtom,
+} from "@agenta/entities/workflow"
 import {
     InfiniteVirtualTableFeatureShell,
     useTableManager,
@@ -9,7 +12,7 @@ import {
 import {PlusOutlined} from "@ant-design/icons"
 import {Button, Input, Space} from "antd"
 import clsx from "clsx"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import router from "next/router"
 
@@ -44,6 +47,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     className,
     preview,
     selectedAppId,
+    liveCompatibleEvaluatorsOnly = false,
     onSelectTemplate,
     onCreateHumanEvaluator,
     ...props
@@ -52,7 +56,8 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     const setCategory = useSetAtom(evaluatorCategoryAtom)
     const setStoreSearchTerm = useSetAtom(evaluatorSearchTermAtom)
     const [searchTerm, setSearchTerm] = useState("")
-    const prevSelectedAppIdRef = useRef<string | undefined>()
+    const prevSelectedAppIdRef = useRef<string | undefined>(undefined)
+    const liveCompatibleEvaluatorKeys = useAtomValue(liveCompatibleEvaluatorKeysAtom)
 
     const category = preview ? "human" : "automatic"
 
@@ -94,10 +99,21 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     })
 
     const paginationRows = table.shellProps.pagination?.rows ?? []
+    const rows = useMemo(
+        () =>
+            liveCompatibleEvaluatorsOnly
+                ? paginationRows.filter(
+                      (row) =>
+                          !row.evaluatorKey ||
+                          liveCompatibleEvaluatorKeys.has(row.evaluatorKey as string),
+                  )
+                : paginationRows,
+        [liveCompatibleEvaluatorKeys, liveCompatibleEvaluatorsOnly, paginationRows],
+    )
 
     const {groupedDataSource, treeExpandable, resolveSelectableId, toDisplayKeys, expandState} =
         useGroupedTreeData({
-            rows: paginationRows,
+            rows,
             getGroupKey: getEvaluatorGroupKey,
             getSelectableId: getEvaluatorSelectableId,
             groupKeyPrefix: "evaluator-group-",

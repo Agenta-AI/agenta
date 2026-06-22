@@ -29,6 +29,7 @@ const NewEvaluationModalInner = dynamic(() => import("./Components/NewEvaluation
  * - `preSelectedVariantIds`: Preselects revision IDs.
  * - `steps`: Controls step order, requiredness, dependencies, visibility, locking, and presets.
  * - `nameBuilder`: Builds the base for the generated evaluation name from current step values.
+ * - `liveCompatibleEvaluatorsOnly`: Shows only evaluators that do not require ground truth.
  * - Remaining Ant Design `ModalProps` are forwarded to the modal.
  *
  * Each `steps` item supports:
@@ -68,6 +69,7 @@ const NewEvaluationModal = <Preview extends boolean = true>({
     preSelectedAppId,
     steps,
     nameBuilder,
+    liveCompatibleEvaluatorsOnly = false,
     ...props
 }: NewEvaluationModalGenericProps<Preview>) => {
     const [submitLoading, setSubmitLoading] = useState(false)
@@ -117,6 +119,7 @@ const NewEvaluationModal = <Preview extends boolean = true>({
                     preSelectedAppId={preSelectedAppId}
                     steps={steps}
                     nameBuilder={nameBuilder}
+                    liveCompatibleEvaluatorsOnly={liveCompatibleEvaluatorsOnly}
                 />
             )}
         </EnhancedModal>

@@ -86,6 +86,7 @@ const RunEvaluationDropdown = ({
                 onSuccess={handleModalClose}
                 evaluationType="auto"
                 preview={false}
+                liveCompatibleEvaluatorsOnly
                 steps={steps}
             />
         </>

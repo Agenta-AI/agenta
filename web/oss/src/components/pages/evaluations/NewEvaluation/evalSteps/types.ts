@@ -56,6 +56,7 @@ export interface EvalStepContext {
     appId?: string
     evaluationType: "auto" | "human"
     preview: boolean
+    liveCompatibleEvaluatorsOnly: boolean
     getStepValue: <Kind extends EvalStepKind>(kind: Kind) => EvalStepValueMap[Kind]
     setStepValue: <Kind extends EvalStepKind>(
         kind: Kind,

@@ -3,6 +3,7 @@ import {SkeletonLine, createStandardColumns, formatDateCell} from "@agenta/ui/ta
 import {
     ArchiveIcon,
     ArrowCounterClockwise,
+    ChartDonutIcon,
     CopySimple,
     Eye,
     MinusCircle,
@@ -114,6 +115,7 @@ export interface QueryColumnActions {
     handleOpen?: (record: QueryRegistryRow) => void
     handleEdit?: (record: QueryRegistryRow) => void
     handleDuplicate?: (record: QueryRegistryRow) => void
+    handleRunAutoEval?: (record: QueryRegistryRow) => void
     handleArchive?: (record: QueryRegistryRow) => void
     handleRestore?: (record: QueryRegistryRow) => void
 }
@@ -145,6 +147,13 @@ function buildActionItems(actions: QueryColumnActions, isArchived: boolean) {
             icon: <Eye size={16} />,
             hidden: isRevisionRow,
             onClick: (record: QueryRegistryRow) => actions.handleOpen?.(record),
+        },
+        {
+            key: "run-auto-eval",
+            label: "Run auto evaluation",
+            icon: <ChartDonutIcon size={14} />,
+            hidden: isRevisionRow,
+            onClick: (record: QueryRegistryRow) => actions.handleRunAutoEval?.(record),
         },
         {
             key: "edit",

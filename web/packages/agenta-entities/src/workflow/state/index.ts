@@ -172,6 +172,7 @@ export {
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,
     evaluatorTemplatesMapAtom,
+    liveCompatibleEvaluatorKeysAtom,
     // Template lookup
     evaluatorTemplateByKeyAtomFamily,
     // Catalog presets

@@ -91,6 +91,7 @@ const NewEvaluationModalInner = ({
     preSelectedAppId,
     steps,
     nameBuilder,
+    liveCompatibleEvaluatorsOnly = false,
 }: NewEvaluationModalInnerProps) => {
     const router = useRouter()
     const {baseAppURL, projectURL} = useURL()
@@ -255,12 +256,13 @@ const NewEvaluationModalInner = ({
                 appId: getStepValue("application").id || undefined,
                 evaluationType,
                 preview,
+                liveCompatibleEvaluatorsOnly,
                 getStepValue,
                 setStepValue: () => undefined,
                 advanceFrom: () => undefined,
             }) ??
                 true),
-        [evaluationType, getStepValue, preview, projectId],
+        [evaluationType, getStepValue, liveCompatibleEvaluatorsOnly, preview, projectId],
     )
 
     const baseContext = useMemo(
@@ -269,8 +271,9 @@ const NewEvaluationModalInner = ({
             appId: selectedAppId || undefined,
             evaluationType,
             preview,
+            liveCompatibleEvaluatorsOnly,
         }),
-        [evaluationType, preview, projectId, selectedAppId],
+        [evaluationType, liveCompatibleEvaluatorsOnly, preview, projectId, selectedAppId],
     )
 
     const advanceFrom = useCallback(

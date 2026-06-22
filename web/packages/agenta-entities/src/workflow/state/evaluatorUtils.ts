@@ -50,6 +50,7 @@ export {
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,
     evaluatorTemplatesMapAtom,
+    liveCompatibleEvaluatorKeysAtom,
     evaluatorTemplateByKeyAtomFamily,
 } from "./evaluatorTemplateAtoms"
 

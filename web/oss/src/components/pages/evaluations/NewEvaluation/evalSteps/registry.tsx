@@ -160,6 +160,7 @@ const EvaluatorSection = ({value, context, runtime}: EvalStepSectionProps<string
             }}
             preview={context.preview}
             selectedAppId={context.appId}
+            liveCompatibleEvaluatorsOnly={context.liveCompatibleEvaluatorsOnly}
             onSelectTemplate={handleSelectTemplate}
             onCreateHumanEvaluator={handleCreateHumanEvaluator}
             className="pt-2"
