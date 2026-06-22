@@ -10,7 +10,7 @@ import pytest
 from agenta.sdk.agents import (
     AgentRunnerConfigurationError,
     InProcessPiBackend,
-    RivetBackend,
+    SandboxAgentBackend,
 )
 
 
@@ -22,19 +22,19 @@ def runner_dir(tmp_path: Path) -> Path:
     return tmp_path
 
 
-@pytest.mark.parametrize("backend_cls", [InProcessPiBackend, RivetBackend])
+@pytest.mark.parametrize("backend_cls", [InProcessPiBackend, SandboxAgentBackend])
 def test_default_subprocess_requires_cwd(backend_cls):
     with pytest.raises(AgentRunnerConfigurationError, match="pass cwd"):
         backend_cls()
 
 
-@pytest.mark.parametrize("backend_cls", [InProcessPiBackend, RivetBackend])
+@pytest.mark.parametrize("backend_cls", [InProcessPiBackend, SandboxAgentBackend])
 def test_default_subprocess_requires_runner_cli(backend_cls, tmp_path: Path):
     with pytest.raises(AgentRunnerConfigurationError, match="src/cli.ts"):
         backend_cls(cwd=str(tmp_path))
 
 
-@pytest.mark.parametrize("backend_cls", [InProcessPiBackend, RivetBackend])
+@pytest.mark.parametrize("backend_cls", [InProcessPiBackend, SandboxAgentBackend])
 def test_default_subprocess_accepts_runner_wrapper_cwd(backend_cls, runner_dir: Path):
     backend = backend_cls(cwd=str(runner_dir))
 
@@ -42,15 +42,15 @@ def test_default_subprocess_accepts_runner_wrapper_cwd(backend_cls, runner_dir: 
     assert backend._command == ["pnpm", "exec", "tsx", "src/cli.ts"]
 
 
-@pytest.mark.parametrize("backend_cls", [InProcessPiBackend, RivetBackend])
+@pytest.mark.parametrize("backend_cls", [InProcessPiBackend, SandboxAgentBackend])
 def test_http_transport_does_not_require_runner_wrapper(backend_cls):
-    backend = backend_cls(url="http://agent-pi:8765")
+    backend = backend_cls(url="http://sandbox-agent:8765")
 
-    assert backend._url == "http://agent-pi:8765"
+    assert backend._url == "http://sandbox-agent:8765"
     assert backend._command == ["pnpm", "exec", "tsx", "src/cli.ts"]
 
 
-@pytest.mark.parametrize("backend_cls", [InProcessPiBackend, RivetBackend])
+@pytest.mark.parametrize("backend_cls", [InProcessPiBackend, SandboxAgentBackend])
 def test_custom_command_does_not_require_runner_wrapper(backend_cls):
     command = [sys.executable, "-m", "runner"]
 

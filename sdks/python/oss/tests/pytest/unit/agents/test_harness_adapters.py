@@ -162,6 +162,15 @@ def test_agenta_is_in_process_pi_supported():
     assert InProcessPiBackend(url="http://runner").supports(HarnessType.AGENTA)
 
 
+def test_agenta_is_sandbox_agent_supported():
+    # Agenta is Pi with an opinion, so the sandbox-agent backend drives it too (on the `pi` ACP
+    # agent, with the runner laying the forced skills into the sandbox). This is what lets
+    # `agenta` run on a non-local sandbox (e.g. daytona) instead of raising.
+    from agenta.sdk.agents import SandboxAgentBackend
+
+    assert SandboxAgentBackend(url="http://runner").supports(HarnessType.AGENTA)
+
+
 # ------------------------------------------------------------------------- Claude
 
 

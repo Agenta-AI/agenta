@@ -4,7 +4,7 @@ Three layers, lowest to highest:
 
 - ``Backend`` is the engine. It declares which harnesses it can drive
   (``supported_harnesses``), owns sandbox + session lifecycle, and is pure plumbing: it
-  takes an already-harness-shaped config and launches it. Adapters: ``RivetBackend``,
+  takes an already-harness-shaped config and launches it. Adapters: ``SandboxAgentBackend``,
   ``InProcessPiBackend``, ``LocalBackend``.
 - ``Sandbox`` is where a session's process tree lives, plus the provisioning verb
   (``add_files``).

@@ -11,7 +11,7 @@ import json
 import os
 from typing import Any, AsyncIterator, Dict, Optional, Sequence
 
-_DEFAULT_TIMEOUT = float(os.getenv("AGENTA_AGENT_TIMEOUT", "180"))
+_DEFAULT_TIMEOUT = float(os.getenv("AGENTA_AGENT_RUNNER_TIMEOUT_SECONDS", "180"))
 
 
 async def deliver_http(

@@ -1,9 +1,11 @@
-"""RivetBackend: drive a harness over ACP via the TypeScript rivet runner.
+"""SandboxAgentBackend: drive a harness over ACP via the TypeScript sandbox-agent runner.
 
-This backend hard-codes that it is the rivet engine. It reaches the same runner the deployed
+This backend hard-codes that it is the sandbox-agent engine. It reaches the same runner the deployed
 sidecar runs (HTTP when a ``url`` is set, otherwise a subprocess CLI), and the runner starts
-the rivet daemon, the ACP adapter, and the harness. Supports Pi and Claude. The ``sandbox``
-axis (``local`` / ``daytona``) is a real runtime choice, so it stays a constructor arg.
+the sandbox-agent daemon, the ACP adapter, and the harness. Supports Pi, Claude, and Agenta (Pi with
+an opinion, which the runner drives on the same ``pi`` ACP agent plus forced skills). The
+``sandbox`` axis (``local`` / ``daytona``) is a real runtime choice, so it stays a constructor
+arg.
 
 It is its own class, not a subclass of any other backend; it shares only the ``utils`` wire
 and transport helpers.
@@ -35,7 +37,7 @@ from ..utils import (
 from ._runner_config import resolve_runner_command
 
 
-class RivetSandbox(Sandbox):
+class SandboxAgentSandbox(Sandbox):
     """Carries the sandbox axis for the run. The real sandbox (a local daemon or a Daytona
     VM) is created inside the TS runner; here we hold the axis and buffer provisioning files
     (today AGENTS.md rides the wire, so this is informational)."""
@@ -48,13 +50,13 @@ class RivetSandbox(Sandbox):
         self.files.update(files)
 
 
-class RivetSession(Session):
+class SandboxAgentSession(Session):
     """One turn-per-prompt session. Each prompt sends one ``/run`` (cold + replay)."""
 
     def __init__(
         self,
-        backend: "RivetBackend",
-        sandbox: RivetSandbox,
+        backend: "SandboxAgentBackend",
+        sandbox: SandboxAgentSandbox,
         config: HarnessAgentConfig,
         *,
         harness: HarnessType,
@@ -77,7 +79,7 @@ class RivetSession(Session):
     def _wire_payload(self, messages: Sequence[Message]) -> Dict[str, Any]:
         """The ``/run`` request JSON for this turn (shared by ``prompt`` and ``stream``)."""
         return request_to_wire(
-            engine=RivetBackend._ENGINE,
+            engine=SandboxAgentBackend._ENGINE,
             harness=self._harness,
             sandbox=self._sandbox.sandbox_id,
             config=self._config,
@@ -110,11 +112,13 @@ class RivetSession(Session):
         return AgentRun(records).on_result(self._absorb_result)
 
 
-class RivetBackend(Backend):
-    """The rivet engine: a harness over ACP through the TS runner. Pi and Claude."""
+class SandboxAgentBackend(Backend):
+    """The sandbox-agent engine: a harness over ACP through the TS runner. Pi, Claude, and Agenta."""
 
-    supported_harnesses = frozenset({HarnessType.PI, HarnessType.CLAUDE})
-    _ENGINE = "rivet"  # hard-coded engine identity, not a constructor arg
+    supported_harnesses = frozenset(
+        {HarnessType.PI, HarnessType.CLAUDE, HarnessType.AGENTA}
+    )
+    _ENGINE = "sandbox-agent"  # hard-coded engine identity, not a constructor arg
 
     def __init__(
         self,
@@ -123,7 +127,7 @@ class RivetBackend(Backend):
         url: Optional[str] = None,
         command: Optional[Sequence[str]] = None,
         cwd: Optional[str] = None,
-        timeout: float = float(os.getenv("AGENTA_AGENT_TIMEOUT", "180")),
+        timeout: float = float(os.getenv("AGENTA_AGENT_RUNNER_TIMEOUT_SECONDS", "180")),
     ) -> None:
         self._sandbox = sandbox
         self._url = url
@@ -136,8 +140,8 @@ class RivetBackend(Backend):
         self._cwd = cwd
         self._timeout = timeout
 
-    async def create_sandbox(self) -> RivetSandbox:
-        return RivetSandbox(self._sandbox)
+    async def create_sandbox(self) -> SandboxAgentSandbox:
+        return SandboxAgentSandbox(self._sandbox)
 
     async def create_session(
         self,
@@ -148,10 +152,12 @@ class RivetBackend(Backend):
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
         session_id: Optional[str] = None,
-    ) -> RivetSession:
-        if not isinstance(sandbox, RivetSandbox):
-            raise TypeError("RivetBackend.create_session requires a RivetSandbox")
-        return RivetSession(
+    ) -> SandboxAgentSession:
+        if not isinstance(sandbox, SandboxAgentSandbox):
+            raise TypeError(
+                "SandboxAgentBackend.create_session requires a SandboxAgentSandbox"
+            )
+        return SandboxAgentSession(
             self,
             sandbox,
             config,

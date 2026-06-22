@@ -26,7 +26,7 @@ def resolve_runner_command(
         raise AgentRunnerConfigurationError(
             f"{backend_name} requires a runner transport: pass url for an HTTP runner, "
             "pass command for a custom subprocess runner, or pass cwd pointing to a "
-            f"runner wrapper containing {RUNNER_CLI_PATH.as_posix()}."
+            f"runner directory containing {RUNNER_CLI_PATH.as_posix()}."
         )
 
     cli_path = Path(cwd) / RUNNER_CLI_PATH
@@ -34,7 +34,7 @@ def resolve_runner_command(
         raise AgentRunnerConfigurationError(
             f"{backend_name} could not find runner CLI at {cli_path}. Pass url for an "
             "HTTP runner, pass command for a custom subprocess runner, or set cwd to a "
-            f"runner wrapper containing {RUNNER_CLI_PATH.as_posix()}."
+            f"runner directory containing {RUNNER_CLI_PATH.as_posix()}."
         )
 
     return list(DEFAULT_RUNNER_COMMAND)

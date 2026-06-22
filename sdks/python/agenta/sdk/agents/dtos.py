@@ -56,7 +56,7 @@ PermissionPolicy = str  # "auto" | "deny"
 
 
 class HarnessCapabilities(BaseModel):
-    """What a harness can do, probed by the backend (rivet ``AgentCapabilities``).
+    """What a harness can do, probed by the sandbox-agent backend.
 
     Adapters branch on these flags rather than the harness name (no ``if pi``): deliver
     tools over MCP only when ``mcp_tools`` is set, skip image blocks without ``images``.

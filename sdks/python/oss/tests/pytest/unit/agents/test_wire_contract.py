@@ -96,7 +96,7 @@ def _claude_payload():
         permission_policy="deny",
     )
     return request_to_wire(
-        engine="rivet",
+        engine="sandbox-agent",
         harness=HarnessType.CLAUDE,
         sandbox="local",
         config=config,

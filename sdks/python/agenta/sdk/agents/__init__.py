@@ -5,7 +5,7 @@ Layers (Agenta's hexagonal vocabulary):
 - ``dtos.py`` — data contracts (``AgentConfig``, ``SessionConfig``, ``Message``, ...).
 - ``interfaces.py`` — the ports (ABCs): ``Backend``, ``Environment``, ``Sandbox``,
   ``Session``, ``Harness``.
-- ``adapters/`` — implementations: ``RivetBackend`` / ``InProcessPiBackend`` / ``LocalBackend``
+- ``adapters/`` — implementations: ``SandboxAgentBackend`` / ``InProcessPiBackend`` / ``LocalBackend``
   and ``PiHarness`` / ``ClaudeHarness``.
 - ``utils/`` — shared plumbing (the ``/run`` wire and the transports to the TS runner).
 
@@ -16,7 +16,7 @@ Standalone usage::
 
     cfg = ag.ConfigManager.get_from_registry(app_slug="my-agent")
     agent = ag.AgentConfig.from_params(cfg)
-    harness = ag.PiHarness(ag.Environment(ag.RivetBackend()))
+    harness = ag.PiHarness(ag.Environment(ag.SandboxAgentBackend()))
     result = await harness.prompt(ag.SessionConfig(agent=agent), [Message(role="user", content="hi")])
 """
 
@@ -26,7 +26,7 @@ from .adapters import (
     InProcessPiBackend,
     LocalBackend,
     PiHarness,
-    RivetBackend,
+    SandboxAgentBackend,
     make_harness,
 )
 from .dtos import (
@@ -178,7 +178,7 @@ __all__ = [
     "UnsupportedHarnessError",
     "ToolResolutionError",
     # Adapters
-    "RivetBackend",
+    "SandboxAgentBackend",
     "InProcessPiBackend",
     "LocalBackend",
     "PiHarness",

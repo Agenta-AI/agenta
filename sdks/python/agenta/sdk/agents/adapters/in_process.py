@@ -1,11 +1,11 @@
-"""InProcessPiBackend: drive Pi in-process through the TS runner, no rivet daemon.
+"""InProcessPiBackend: drive Pi in-process through the TS runner, no sandbox-agent daemon.
 
 This was the first backend implementation and stays as the simplest one: a single harness
 (Pi), a single place (local), the legacy in-process Pi engine (``engines/pi.ts``). It is the
 reference to read when writing a new backend.
 
 It is its own class and hard-codes its differences (the ``pi`` engine, Pi-only support,
-local-only). It is deliberately NOT a subclass of ``RivetBackend``; the two are different
+local-only). It is deliberately NOT a subclass of ``SandboxAgentBackend``; the two are different
 engines that happen to share the ``utils`` wire and transport helpers.
 """
 
@@ -111,7 +111,7 @@ class InProcessPiSession(Session):
 
 class InProcessPiBackend(Backend):
     """The in-process Pi engine: drives the Pi SDK directly in the TS runner. Pi only, local
-    only, no rivet daemon."""
+    only, no sandbox-agent daemon."""
 
     # Agenta is Pi with an opinion: same in-process engine, so this backend drives it too.
     supported_harnesses = frozenset({HarnessType.PI, HarnessType.AGENTA})
@@ -123,7 +123,7 @@ class InProcessPiBackend(Backend):
         url: Optional[str] = None,
         command: Optional[Sequence[str]] = None,
         cwd: Optional[str] = None,
-        timeout: float = float(os.getenv("AGENTA_AGENT_TIMEOUT", "180")),
+        timeout: float = float(os.getenv("AGENTA_AGENT_RUNNER_TIMEOUT_SECONDS", "180")),
     ) -> None:
         self._url = url
         self._command: List[str] = resolve_runner_command(

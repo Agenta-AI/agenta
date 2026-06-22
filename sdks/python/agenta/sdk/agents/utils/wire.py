@@ -1,6 +1,6 @@
 """The ``/run`` wire contract: our DTOs <-> the runner's camelCase JSON.
 
-Shared by the runner-backed adapters (rivet, in-process Pi). The TS side mirrors these names
+Shared by the runner-backed adapters (sandbox-agent, in-process Pi). The TS side mirrors these names
 in ``services/agent/src/protocol.ts``, and the contract is pinned by shared golden fixtures
 under ``sdks/python/oss/tests/pytest/unit/agents/golden/`` (see ``test_wire_contract.py``).
 The caller passes the engine id explicitly, since each adapter hard-codes its own.

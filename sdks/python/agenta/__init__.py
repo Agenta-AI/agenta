@@ -63,7 +63,7 @@ from .sdk.agents import (  # noqa: F401
     InProcessPiBackend,
     LocalBackend,
     PiHarness,
-    RivetBackend,
+    SandboxAgentBackend,
     RunSelection,
     SessionConfig,
     make_harness,
