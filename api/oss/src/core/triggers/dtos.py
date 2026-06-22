@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
@@ -229,6 +230,10 @@ class TriggerScheduleData(BaseModel):
     #
     # PERIOD — a 5-field cron expression (UTC, 1-minute floor); validated via croniter.
     schedule: str
+    #
+    # WINDOW — minute-aligned UTC bounds; [start_time, end_time), null = unbounded.
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
     #
     # MAPPING — inputs-only template resolved into WorkflowServiceRequest.data.inputs.
     inputs_fields: Optional[Dict[str, Any]] = None

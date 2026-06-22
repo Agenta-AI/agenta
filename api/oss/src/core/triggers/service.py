@@ -1,7 +1,7 @@
 import asyncio
 import hashlib
 import hmac
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, List, Mapping, Optional
 from uuid import UUID
 
@@ -24,6 +24,7 @@ from oss.src.core.triggers.dtos import (
     TriggerDeliveryQuery,
     TriggerSchedule,
     TriggerScheduleCreate,
+    TriggerScheduleData,
     TriggerScheduleEdit,
     TriggerScheduleQuery,
     TriggerSubscription,
@@ -665,6 +666,29 @@ class TriggersService:
                 reason="cron expression is not parseable",
             )
 
+    @staticmethod
+    def _align_to_minute_utc(dt: Optional[datetime]) -> Optional[datetime]:
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc).replace(second=0, microsecond=0)
+
+    @classmethod
+    def _normalize_window(cls, data: TriggerScheduleData) -> None:
+        data.start_time = cls._align_to_minute_utc(data.start_time)
+        data.end_time = cls._align_to_minute_utc(data.end_time)
+        if (
+            data.start_time is not None
+            and data.end_time is not None
+            and data.end_time <= data.start_time
+        ):
+            raise TriggerScheduleInvalid(
+                message="Schedule end_time must be after start_time.",
+                schedule=data.schedule,
+                reason="empty window",
+            )
+
     async def create_schedule(
         self,
         *,
@@ -674,6 +698,7 @@ class TriggersService:
         schedule: TriggerScheduleCreate,
     ) -> TriggerSchedule:
         self._validate_schedule(schedule.data.schedule)
+        self._normalize_window(schedule.data)
 
         await self._normalize_references(
             project_id=project_id,
@@ -731,6 +756,7 @@ class TriggersService:
             return None
 
         self._validate_schedule(schedule.data.schedule)
+        self._normalize_window(schedule.data)
 
         await self._normalize_references(
             project_id=project_id,
@@ -771,6 +797,14 @@ class TriggersService:
         )
         if existing is None:
             raise ScheduleNotFoundError(schedule_id=str(schedule_id))
+
+        end = existing.data.end_time
+        if is_active and end is not None and datetime.now(timezone.utc) >= end:
+            raise TriggerScheduleInvalid(
+                message="Cannot start a schedule whose end_time has passed.",
+                schedule=existing.data.schedule,
+                reason="window ended",
+            )
 
         edit = TriggerScheduleEdit(
             id=existing.id,
@@ -824,6 +858,20 @@ class TriggersService:
         failures = 0
         for project_id, schedule in schedules:
             try:
+                end = schedule.data.end_time
+                if end is not None and timestamp >= end:
+                    await self.set_schedule_active(
+                        project_id=project_id,
+                        user_id=schedule.created_by_id,
+                        schedule_id=schedule.id,
+                        is_active=False,
+                    )
+                    continue
+
+                start = schedule.data.start_time
+                if start is not None and timestamp < start:
+                    continue
+
                 if not croniter.match(schedule.data.schedule, timestamp):
                     continue
 

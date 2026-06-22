@@ -5,6 +5,8 @@ import type * as AgentaApi from "../index.js";
 export interface TriggerScheduleData {
     event_key: string;
     schedule: string;
+    start_time?: (string | null) | undefined;
+    end_time?: (string | null) | undefined;
     inputs_fields?: (Record<string, unknown> | null) | undefined;
     references?: (Record<string, AgentaApi.Reference | null> | null) | undefined;
     selector?: (AgentaApi.Selector | null) | undefined;

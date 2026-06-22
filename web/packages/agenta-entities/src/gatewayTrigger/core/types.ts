@@ -373,6 +373,9 @@ export const triggerScheduleDataSchema = z
         event_key: z.string(),
         // 5-field cron expression, UTC, validated client-side via the local helper.
         schedule: z.string(),
+        // Optional UTC window bounds; ISO strings, [start_time, end_time).
+        start_time: z.string().nullish(),
+        end_time: z.string().nullish(),
         inputs_fields: z.record(z.string(), z.unknown()).nullish(),
         references: z.record(z.string(), triggerReferenceSchema).nullish(),
         selector: triggerSelectorSchema.nullish(),

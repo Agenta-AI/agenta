@@ -94,6 +94,22 @@ export default function GatewaySchedulesSection() {
                 },
             },
             {
+                title: "Window (UTC)",
+                key: "window",
+                onHeaderCell: () => ({style: {minWidth: 200}}),
+                render: (_, record) => {
+                    const {start_time: start, end_time: end} = record.data ?? {}
+                    if (!start && !end) return <Typography.Text type="secondary">-</Typography.Text>
+                    const fmt = (v?: string | null) =>
+                        v ? formatDay({date: v, outputFormat: "YYYY-MM-DD HH:mm"}) : "∞"
+                    return (
+                        <Typography.Text className="text-xs">
+                            {fmt(start)} → {fmt(end)}
+                        </Typography.Text>
+                    )
+                },
+            },
+            {
                 title: "Bound workflow",
                 key: "workflow",
                 onHeaderCell: () => ({style: {minWidth: 160}}),

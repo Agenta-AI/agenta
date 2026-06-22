@@ -80,6 +80,18 @@ Cron-driven analogue to trigger subscriptions. See `plan.md` for the full work b
 - [x] Play/pause = **`/start` + `/stop`** POST routes flipping `is_active` (mirrors `/revoke`, live-eval `/open`·`/close`), on **all three** domains.
 - [x] Webhooks get `is_active` + play/pause (full parity) — reverses the earlier "leave webhooks alone" defer. But **no `is_valid`** (no validity concept) and no other webhook lifecycle work.
 - [x] Edition = OSS, alongside `core/triggers/`.
+- [x] **Active window** (post-plan enhancement): optional `start_time`/`end_time` on
+  `TriggerScheduleData`, minute-floored UTC, half-open `[start_time, end_time)` (start
+  inclusive, end exclusive); either side null = unbounded. Stored **in the `data` JSONB**,
+  not promoted to columns — the only reader is the per-tick refresh loop over the
+  already-`is_active`-filtered set, so a column/index buys nothing at this scale (a partial
+  index can't carry the per-minute moving boundary anyway). Window edits are validated at
+  create/edit (`end <= start` rejected). Past `end_time` **auto-stops** the schedule
+  (`flags.is_active → false`) on the next refresh tick, so the row drops out of the existing
+  `ix_trigger_schedules_active` partial index — the fetch set shrinks as schedules expire.
+  `set_schedule_active(is_active=True)` rejects re-activating a schedule whose `end_time`
+  has passed (the next tick would just flip it back). Before-`start_time` ticks skip but
+  leave the schedule active.
 
 ## Notes
 

@@ -3,18 +3,32 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import {
     describeCron,
     isEntityActive,
+    localFaceToUtcIso,
     nextCronRuns,
     triggerApiErrorMessage,
     triggerScheduleDrawerAtom,
     useTriggerSchedule,
+    utcIsoToLocalFace,
     validateCron,
     type TriggerScheduleCreate,
     type TriggerScheduleData,
     type TriggerScheduleEdit,
 } from "@agenta/entities/gatewayTrigger"
 import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {dayjs} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
-import {Button, Divider, Drawer, Form, Input, Spin, Switch, Typography, message} from "antd"
+import {
+    Button,
+    DatePicker,
+    Divider,
+    Drawer,
+    Form,
+    Input,
+    Spin,
+    Switch,
+    Typography,
+    message,
+} from "antd"
 import {useAtom} from "jotai"
 
 import {
@@ -85,6 +99,8 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
 
     const [name, setName] = useState("")
     const [cron, setCron] = useState(DEFAULT_CRON)
+    const [startTime, setStartTime] = useState<string | null>(null)
+    const [endTime, setEndTime] = useState<string | null>(null)
     const [enabled, setEnabled] = useState(true)
     const [workflowRevId, setWorkflowRevId] = useState<string | null>(null)
     const [workflowSelection, setWorkflowSelection] =
@@ -98,6 +114,8 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
         if (!isEdit || !schedule) return
         setName(schedule.name ?? "")
         setCron(schedule.data?.schedule ?? DEFAULT_CRON)
+        setStartTime(schedule.data?.start_time ?? null)
+        setEndTime(schedule.data?.end_time ?? null)
         setEnabled(isEntityActive(schedule))
         const wfId =
             schedule.data?.references?.application_revision?.id ??
@@ -118,6 +136,10 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
         }
         if (!workflowRevId) {
             message.error("Bind a workflow")
+            return
+        }
+        if (startTime && endTime && !dayjs.utc(endTime).isAfter(dayjs.utc(startTime))) {
+            message.error("End time must be after start time")
             return
         }
 
@@ -145,6 +167,8 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
         const data: TriggerScheduleData = {
             event_key: schedule?.data?.event_key ?? SCHEDULE_EVENT_KEY,
             schedule: cron.trim(),
+            start_time: startTime,
+            end_time: endTime,
             inputs_fields: inputsFields,
             references,
         }
@@ -186,6 +210,8 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
     }, [
         cronValidation,
         cron,
+        startTime,
+        endTime,
         workflowRevId,
         workflowSelection,
         inputsText,
@@ -219,6 +245,13 @@ function ScheduleForm({onClose}: {onClose: () => void}) {
                     </Form.Item>
 
                     <CronField value={cron} onChange={setCron} />
+
+                    <WindowField
+                        startTime={startTime}
+                        endTime={endTime}
+                        onChangeStart={setStartTime}
+                        onChangeEnd={setEndTime}
+                    />
 
                     <Form.Item label="Bound workflow" required>
                         <div className="flex items-center gap-2">
@@ -312,6 +345,50 @@ function CronField({value, onChange}: {value: string; onChange: (next: string) =
                     ))}
                 </div>
             )}
+        </Form.Item>
+    )
+}
+
+// ---------------------------------------------------------------------------
+// WindowField — optional UTC start/end bounds. [start, end): a tick fires only
+// at or after start and strictly before end; either side empty = unbounded.
+// Past end_time auto-stops the schedule on the next backend refresh.
+// ---------------------------------------------------------------------------
+
+function WindowField({
+    startTime,
+    endTime,
+    onChangeStart,
+    onChangeEnd,
+}: {
+    startTime: string | null
+    endTime: string | null
+    onChangeStart: (next: string | null) => void
+    onChangeEnd: (next: string | null) => void
+}) {
+    return (
+        <Form.Item
+            label="Active window (UTC, optional)"
+            help="Schedule fires only within [start, end). Leave either empty for no bound; past end auto-stops it."
+        >
+            <div className="flex items-center gap-2">
+                <DatePicker
+                    showTime={{format: "HH:mm"}}
+                    format="YYYY-MM-DD HH:mm"
+                    placeholder="Start (unbounded)"
+                    className="w-full"
+                    value={utcIsoToLocalFace(startTime)}
+                    onChange={(d) => onChangeStart(localFaceToUtcIso(d))}
+                />
+                <DatePicker
+                    showTime={{format: "HH:mm"}}
+                    format="YYYY-MM-DD HH:mm"
+                    placeholder="End (unbounded)"
+                    className="w-full"
+                    value={utcIsoToLocalFace(endTime)}
+                    onChange={(d) => onChangeEnd(localFaceToUtcIso(d))}
+                />
+            </div>
         </Form.Item>
     )
 }
