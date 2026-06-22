@@ -92,13 +92,14 @@ export const clearLastUsedProjectId = (workspaceId: string | null) => {
 }
 
 export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
-    const workspaceId = get(selectedOrgIdAtom)
+    const orgId = get(selectedOrgIdAtom)
+    const {workspaceId} = get(appIdentifiersAtom)
     const snapshot = get(appStateSnapshotAtom)
     const jwtReady = Boolean((get(jwtReadyAtom) as any)?.data)
     const isAcceptRoute = snapshot.pathname.startsWith("/workspaces/accept")
     return {
-        queryKey: ["projects", workspaceId || ""],
-        queryFn: async () => fetchAllProjects(),
+        queryKey: ["projects", orgId || ""],
+        queryFn: async () => fetchAllProjects(workspaceId ?? undefined),
         experimental_prefetchInRender: true,
         staleTime: 60_000,
         refetchOnWindowFocus: false,
@@ -109,7 +110,7 @@ export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
         // token is readable; firing /projects/ then 401s. jwtReady resolves in
         // parallel with /profile/, so this does not reintroduce the sequential
         // profile-wait that 2ede5faa10 removed to fix the demo-banner cold-load race.
-        enabled: get(sessionExistsAtom) && jwtReady && !isAcceptRoute && !!workspaceId,
+        enabled: get(sessionExistsAtom) && jwtReady && !isAcceptRoute && !!orgId,
     }
 })
 
