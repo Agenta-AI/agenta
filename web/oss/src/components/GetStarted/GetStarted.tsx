@@ -8,7 +8,10 @@ import {useRouter} from "next/router"
 import {SetupTracingModalContent} from "@/oss/components/pages/app-management/modals/SetupTracingModal"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {setOnboardingWidgetActivationAtom} from "@/oss/lib/onboarding"
-import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
+import {
+    buildPostLoginPathResolved,
+    waitForWorkspaceContext,
+} from "@/oss/state/url/postLoginRedirect"
 
 import {RunEvaluationView} from "./views/RunEvaluationView"
 
@@ -50,7 +53,7 @@ const GetStarted = ({onSelectDemo}: GetStartedProps) => {
                 requireWorkspaceId: true,
                 requireOrgData: true,
             })
-            const path = buildPostLoginPath(context)
+            const path = await buildPostLoginPathResolved(context)
             router.push(path)
         } catch (e) {
             console.error("Failed to resolve workspace context", e)
@@ -73,7 +76,7 @@ const GetStarted = ({onSelectDemo}: GetStartedProps) => {
                         requireWorkspaceId: true,
                         requireOrgData: true,
                     })
-                    const path = buildPostLoginPath(context)
+                    const path = await buildPostLoginPathResolved(context)
                     router.push(path)
                 } catch (e) {
                     console.error("Failed to resolve workspace context", e)
@@ -95,7 +98,7 @@ const GetStarted = ({onSelectDemo}: GetStartedProps) => {
                     requireWorkspaceId: true,
                     requireOrgData: true,
                 })
-                const path = buildPostLoginPath(context)
+                const path = await buildPostLoginPathResolved(context)
                 const basePath = path.replace("/apps", "")
                 router.push(`${basePath}/${destination}`)
             } catch (e) {
