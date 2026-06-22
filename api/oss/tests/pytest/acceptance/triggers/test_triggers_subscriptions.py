@@ -138,7 +138,7 @@ class TestTriggerSubscriptionsLifecycle:
         sub = create.json()["subscription"]
         subscription_id = sub["id"]
         assert sub["connection_id"] == connection_id
-        assert sub["ti_id"] is not None
+        assert sub["trigger_id"] is not None
         assert sub["flags"]["is_active"] is True
 
         # LIST

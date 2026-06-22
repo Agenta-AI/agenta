@@ -375,7 +375,7 @@ class TriggersService:
 
         adapter = self.adapter_registry.get(connection.provider_key.value)
 
-        ti_id = await adapter.create_subscription(
+        trigger_id = await adapter.create_subscription(
             project_id=project_id,
             event_key=subscription.data.event_key,
             connected_account_id=connection.provider_connection_id,
@@ -388,7 +388,7 @@ class TriggersService:
             #
             subscription=subscription,
             #
-            ti_id=ti_id,
+            trigger_id=trigger_id,
         )
 
     async def fetch_subscription(
@@ -418,6 +418,34 @@ class TriggersService:
             windowing=windowing,
         )
 
+    async def _sync_provider_enabled(
+        self,
+        *,
+        project_id: UUID,
+        subscription: TriggerSubscription,
+        is_active: bool,
+        is_valid: bool,
+    ) -> None:
+        """Reflect the combined desired state onto the provider ``ti_*``.
+
+        The provider trigger should only fire when the subscription is BOTH
+        locally active and provider-valid, so ``enabled = is_active and is_valid``.
+        Single source of truth for edit/start/stop/refresh/revoke so they can't
+        disagree and re-enable a revoked/paused trigger.
+        """
+        trigger_id = subscription.trigger_id
+        if trigger_id is None:
+            return
+        connection = await self._require_connection(
+            project_id=project_id,
+            connection_id=subscription.connection_id,
+        )
+        adapter = self.adapter_registry.get(connection.provider_key.value)
+        await adapter.set_subscription_status(
+            trigger_id=trigger_id,
+            enabled=is_active and is_valid,
+        )
+
     async def edit_subscription(
         self,
         *,
@@ -426,7 +454,7 @@ class TriggersService:
         #
         subscription: TriggerSubscriptionEdit,
     ) -> Optional[TriggerSubscription]:
-        """Full-PUT edit. Reflects is_active onto the provider ``ti_*``."""
+        """Full-PUT edit. Reflects the combined is_active/is_valid onto ``ti_*``."""
         existing = await self.dao.fetch_subscription(
             project_id=project_id,
             subscription_id=subscription.id,
@@ -439,19 +467,12 @@ class TriggersService:
             references=subscription.data.references,
         )
 
-        ti_id = existing.ti_id
-        if (
-            ti_id is not None
-            and subscription.flags.is_active != existing.flags.is_active
-        ):
-            connection = await self._require_connection(
+        if subscription.flags.is_active != existing.flags.is_active:
+            await self._sync_provider_enabled(
                 project_id=project_id,
-                connection_id=existing.connection_id,
-            )
-            adapter = self.adapter_registry.get(connection.provider_key.value)
-            await adapter.set_subscription_status(
-                trigger_id=ti_id,
-                enabled=subscription.flags.is_active,
+                subscription=existing,
+                is_active=subscription.flags.is_active,
+                is_valid=existing.flags.is_valid,
             )
 
         return await self.dao.edit_subscription(
@@ -479,8 +500,8 @@ class TriggersService:
         if existing is None:
             return False
 
-        ti_id = existing.ti_id
-        if ti_id is not None:
+        trigger_id = existing.trigger_id
+        if trigger_id is not None:
             connection = await self.connections_service.get_connection(
                 project_id=project_id,
                 connection_id=existing.connection_id,
@@ -488,13 +509,13 @@ class TriggersService:
             if connection is not None:
                 adapter = self.adapter_registry.get(connection.provider_key.value)
                 try:
-                    await adapter.delete_subscription(trigger_id=ti_id)
+                    await adapter.delete_subscription(trigger_id=trigger_id)
                 except AdapterError:
                     # Provider-side trigger may already be gone; local delete is
                     # the source of truth. Unexpected errors are left to surface.
                     log.warning(
                         "Failed to delete provider trigger %s; proceeding with local delete",
-                        ti_id,
+                        trigger_id,
                     )
 
         return await self.dao.delete_subscription(
@@ -559,6 +580,13 @@ class TriggersService:
         if existing is None:
             raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
 
+        await self._sync_provider_enabled(
+            project_id=project_id,
+            subscription=existing,
+            is_active=is_active,
+            is_valid=existing.flags.is_valid,
+        )
+
         edit = TriggerSubscriptionEdit(
             id=existing.id,
             connection_id=existing.connection_id,
@@ -593,17 +621,12 @@ class TriggersService:
         if existing is None:
             raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
 
-        ti_id = existing.ti_id
-        if ti_id is not None:
-            connection = await self._require_connection(
-                project_id=project_id,
-                connection_id=existing.connection_id,
-            )
-            adapter = self.adapter_registry.get(connection.provider_key.value)
-            await adapter.set_subscription_status(
-                trigger_id=ti_id,
-                enabled=is_valid,
-            )
+        await self._sync_provider_enabled(
+            project_id=project_id,
+            subscription=existing,
+            is_active=existing.flags.is_active,
+            is_valid=is_valid,
+        )
 
         edit = TriggerSubscriptionEdit(
             id=existing.id,
@@ -632,9 +655,15 @@ class TriggersService:
     def _validate_schedule(expr: str) -> None:
         """Reject anything that is not a valid 5-field cron expression (UTC)."""
         if not isinstance(expr, str) or len(expr.split()) != 5:
-            raise TriggerScheduleInvalid()
+            raise TriggerScheduleInvalid(
+                schedule=expr if isinstance(expr, str) else None,
+                reason="not a 5-field cron expression",
+            )
         if not croniter.is_valid(expr):
-            raise TriggerScheduleInvalid()
+            raise TriggerScheduleInvalid(
+                schedule=expr,
+                reason="cron expression is not parseable",
+            )
 
     async def create_schedule(
         self,
@@ -792,6 +821,7 @@ class TriggersService:
             )
             return False
 
+        failures = 0
         for project_id, schedule in schedules:
             try:
                 if not croniter.match(schedule.data.schedule, timestamp):
@@ -839,12 +869,15 @@ class TriggersService:
                 )
 
             except Exception as e:  # pylint: disable=broad-exception-caught
+                failures += 1
                 log.error(
                     f"[SCHEDULE] Error refreshing schedule {schedule.id}: {e}",
                     exc_info=True,
                 )
 
-        return True
+        # Report failure if any schedule dropped, so the cron/admin caller can
+        # surface a non-200 instead of seeing a false success.
+        return failures == 0
 
     # -----------------------------------------------------------------------
     # Deliveries

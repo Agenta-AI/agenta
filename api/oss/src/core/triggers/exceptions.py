@@ -49,7 +49,12 @@ class TriggerScheduleInvalid(TriggersError):
     def __init__(
         self,
         message: str = "Schedule must be a valid 5-field cron expression.",
+        *,
+        schedule: Optional[str] = None,
+        reason: Optional[str] = None,
     ):
+        self.schedule = schedule
+        self.reason = reason
         super().__init__(message)
 
 

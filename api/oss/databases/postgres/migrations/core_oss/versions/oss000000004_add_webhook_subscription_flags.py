@@ -24,9 +24,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # Only backfill rows that have no is_active yet — never overwrite an
+    # already-set (e.g. paused) value.
     op.execute(
         "UPDATE webhook_subscriptions "
-        "SET flags = COALESCE(flags, '{}'::jsonb) || '{\"is_active\": true}'::jsonb"
+        "SET flags = jsonb_set(COALESCE(flags, '{}'::jsonb), '{is_active}', 'true'::jsonb, true) "
+        "WHERE flags IS NULL OR flags ->> 'is_active' IS NULL"
     )
     op.create_index(
         "ix_webhook_subscriptions_active",

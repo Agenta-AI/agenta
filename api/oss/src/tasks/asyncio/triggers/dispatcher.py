@@ -58,8 +58,8 @@ class TriggersDispatcher:
         metadata = event.get("metadata") or {}
         now = datetime.now(timezone.utc).isoformat()
         normalized = {
-            "trigger_id": metadata.get("trigger_id"),
-            "trigger_type": metadata.get("trigger_slug"),
+            "event_id": metadata.get("id"),
+            "event_type": metadata.get("trigger_slug"),
             "timestamp": now,
             "created_at": now,
             "attributes": event.get("payload"),
@@ -74,7 +74,93 @@ class TriggersDispatcher:
             "scope": {"project_id": str(project_id)},
         }
 
-    async def dispatch(
+    async def dispatch_subscription(
+        self,
+        *,
+        project_id: UUID,
+        subscription: TriggerSubscription,
+        event_id: str,
+        event: Dict[str, Any],
+    ) -> None:
+        """Dispatch an inbound provider event for one subscription.
+
+        Subscription-only gates (dedup on the provider event_id, is_valid →
+        failed delivery) run here, then the path converges on ``_run``.
+        """
+        if not subscription.flags.is_active:
+            log.info(
+                "[TRIGGERS DISPATCHER] Subscription %s inactive — skipping",
+                subscription.id,
+            )
+            return
+
+        already_seen = await self.triggers_dao.dedup_seen(
+            project_id=project_id,
+            subscription_id=subscription.id,
+            event_id=event_id,
+        )
+        if already_seen:
+            log.info(
+                "[TRIGGERS DISPATCHER] Duplicate event %s for subscription %s — skipping",
+                event_id,
+                subscription.id,
+            )
+            return
+
+        # is_valid is NOT a silent skip: write a failed delivery so the user sees
+        # why nothing ran, and never invoke the workflow.
+        if not subscription.flags.is_valid:
+            log.info(
+                "[TRIGGERS DISPATCHER] Subscription %s is invalid — failed delivery",
+                subscription.id,
+            )
+            await self._write_delivery(
+                project_id=project_id,
+                user_id=subscription.created_by_id,
+                delivery_id=uuid_compat.uuid7(),
+                subscription_id=subscription.id,
+                schedule_id=None,
+                event_id=event_id,
+                status=Status(code="409", message="failed"),
+                data=TriggerDeliveryData(
+                    event_key=subscription.data.event_key,
+                    references=subscription.data.references,
+                    error="Subscription is invalid (provider connection revoked or unsynced)",
+                ),
+            )
+            return
+
+        await self._run(
+            project_id=project_id,
+            entity=subscription,
+            event_id=event_id,
+            event=event,
+        )
+
+    async def dispatch_schedule(
+        self,
+        *,
+        project_id: UUID,
+        schedule: TriggerSchedule,
+        event_id: str,
+        event: Dict[str, Any],
+    ) -> None:
+        """Dispatch a cron tick for one schedule (no provider/dedup/validity gates)."""
+        if not schedule.flags.is_active:
+            log.info(
+                "[TRIGGERS DISPATCHER] Schedule %s inactive — skipping",
+                schedule.id,
+            )
+            return
+
+        await self._run(
+            project_id=project_id,
+            entity=schedule,
+            event_id=event_id,
+            event=event,
+        )
+
+    async def _run(
         self,
         *,
         project_id: UUID,
@@ -82,31 +168,11 @@ class TriggersDispatcher:
         event_id: str,
         event: Dict[str, Any],
     ) -> None:
-        """Run the bound workflow for one resolved entity (idempotent on event_id)."""
+        """Shared path once a subscription/schedule is cleared to fire: resolve
+        inputs + references, invoke the bound workflow, and record the delivery."""
         is_subscription = isinstance(entity, TriggerSubscription)
-
-        if not entity.flags.is_active:
-            log.info(
-                "[TRIGGERS DISPATCHER] Entity %s inactive — skipping",
-                entity.id,
-            )
-            return
-
-        # is_valid (subscriptions only) is NOT a silent skip: let it fall through to
-        # the failed-delivery branch so the user sees why nothing ran.
-        if is_subscription:
-            already_seen = await self.triggers_dao.dedup_seen(
-                project_id=project_id,
-                subscription_id=entity.id,
-                event_id=event_id,
-            )
-            if already_seen:
-                log.info(
-                    "[TRIGGERS DISPATCHER] Duplicate event %s for subscription %s — skipping",
-                    event_id,
-                    entity.id,
-                )
-                return
+        subscription_id = entity.id if is_subscription else None
+        schedule_id = None if is_subscription else entity.id
 
         context = self._build_context(
             event=event,
@@ -147,7 +213,8 @@ class TriggersDispatcher:
                 project_id=project_id,
                 user_id=user_id,
                 delivery_id=delivery_id,
-                entity=entity,
+                subscription_id=subscription_id,
+                schedule_id=schedule_id,
                 event_id=event_id,
                 status=Status(code="400", message="failed"),
                 data=delivery_data.model_copy(
@@ -176,7 +243,8 @@ class TriggersDispatcher:
                 project_id=project_id,
                 user_id=user_id,
                 delivery_id=delivery_id,
-                entity=entity,
+                subscription_id=subscription_id,
+                schedule_id=schedule_id,
                 event_id=event_id,
                 status=Status(code="500", message="failed"),
                 data=delivery_data.model_copy(update={"error": str(e)}),
@@ -194,7 +262,8 @@ class TriggersDispatcher:
                 project_id=project_id,
                 user_id=user_id,
                 delivery_id=delivery_id,
-                entity=entity,
+                subscription_id=subscription_id,
+                schedule_id=schedule_id,
                 event_id=event_id,
                 status=Status(code=str(status_code), message="failed"),
                 data=delivery_data.model_copy(
@@ -214,7 +283,8 @@ class TriggersDispatcher:
             project_id=project_id,
             user_id=user_id,
             delivery_id=delivery_id,
-            entity=entity,
+            subscription_id=subscription_id,
+            schedule_id=schedule_id,
             event_id=event_id,
             status=Status(code="200", message="success"),
             data=delivery_data.model_copy(
@@ -239,19 +309,19 @@ class TriggersDispatcher:
         project_id: UUID,
         user_id: Optional[UUID],
         delivery_id: UUID,
-        entity: Union[TriggerSubscription, TriggerSchedule],
+        subscription_id: Optional[UUID],
+        schedule_id: Optional[UUID],
         event_id: str,
         status: Status,
         data: TriggerDeliveryData,
     ) -> None:
-        is_subscription = isinstance(entity, TriggerSubscription)
         await self.triggers_dao.write_delivery(
             project_id=project_id,
             user_id=user_id,
             delivery=TriggerDeliveryCreate(
                 id=delivery_id,
-                subscription_id=entity.id if is_subscription else None,
-                schedule_id=None if is_subscription else entity.id,
+                subscription_id=subscription_id,
+                schedule_id=schedule_id,
                 event_id=event_id,
                 status=status,
                 data=data,

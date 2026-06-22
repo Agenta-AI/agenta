@@ -191,7 +191,8 @@ file and the `run.sh` flags always agree:
 - `bash ./hosting/docker-compose/run.sh <flags> --build` — deploy to the local
   docker-compose stack (`--oss`/`--ee`, `--dev`/`--gh`; `--down` to stop, `--nuke` to drop
   volumes). Use the SAME edition/image as load-env.
-- `cd "sdks/python" | "api" | "services" && py-run-tests` — run that area's tests
+- `cd <area> && py-run-tests` — run that area's tests, where `area` is one of
+  `sdks/python`, `api`, or `services`
   (`py-run-tests` = `uv sync --locked && uv run --no-sync python run-tests.py`).
 - Postgres is reachable locally with `username:password`; EE DB name is `agenta_ee_core`.
 - Tests mint ephemeral accounts + API keys via the admin endpoint

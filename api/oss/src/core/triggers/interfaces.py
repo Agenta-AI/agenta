@@ -103,7 +103,7 @@ class TriggersDAOInterface(ABC):
         #
         subscription: TriggerSubscriptionCreate,
         #
-        ti_id: str,
+        trigger_id: str,
     ) -> TriggerSubscription: ...
 
     @abstractmethod
@@ -155,7 +155,7 @@ class TriggersDAOInterface(ABC):
 
         Deliberately cross-project: an inbound Composio event carries only the
         provider ``ti_*`` and no tenant scope, so this lookup *recovers* the
-        project from the (partial-unique) ``ti_id`` column. The only sanctioned
+        project from the (partial-unique) ``trigger_id`` column. The only sanctioned
         unscoped DAO read — every other read/write takes ``project_id``.
         """
         ...

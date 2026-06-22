@@ -210,7 +210,7 @@ class TestTriggerSubscriptionsLifecycle:
         sub = create.json()["subscription"]
         subscription_id = sub["id"]
         assert sub["connection_id"] == connection_id
-        assert sub["data"]["ti_id"] is not None
+        assert sub["trigger_id"] is not None
 
         listing = triggers_api("GET", "/triggers/subscriptions/").json()
         assert any(s["id"] == subscription_id for s in listing["subscriptions"])

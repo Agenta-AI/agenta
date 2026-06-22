@@ -74,9 +74,9 @@ class TriggersWorker:
 
             project_id, subscription = resolved
 
-            await self.dispatcher.dispatch(
+            await self.dispatcher.dispatch_subscription(
                 project_id=project_id,
-                entity=subscription,
+                subscription=subscription,
                 event_id=event_id,
                 event=event,
             )
@@ -104,9 +104,9 @@ class TriggersWorker:
                 f"schedule={entity.id} event={event_id}"
             )
 
-            await self.dispatcher.dispatch(
+            await self.dispatcher.dispatch_schedule(
                 project_id=UUID(project_id),
-                entity=entity,
+                schedule=entity,
                 event_id=event_id,
                 event=event,
             )

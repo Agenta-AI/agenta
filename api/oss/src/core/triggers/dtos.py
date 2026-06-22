@@ -115,8 +115,8 @@ class TriggerConnectionCreate(ConnectionCreate):
 # ---------------------------------------------------------------------------
 
 TRIGGER_CONTEXT_FIELDS = {
-    "trigger_id",
-    "trigger_type",
+    "event_id",
+    "event_type",
     "timestamp",
     "created_at",
     "attributes",
@@ -165,7 +165,7 @@ class TriggerSubscriptionData(BaseModel):
 class TriggerSubscription(Identifier, Lifecycle, Header, Metadata):
     connection_id: UUID
     #
-    ti_id: Optional[str] = None
+    trigger_id: Optional[str] = None
     #
     data: TriggerSubscriptionData
     #
@@ -197,7 +197,7 @@ class TriggerSubscriptionQuery(BaseModel):
 #
 # A cron-driven analogue to a trigger subscription. Same mapping + bound-workflow
 # reference, but fired by our own cron tick (``croniter.match`` on the rounded
-# trigger_datetime) instead of a Composio event. No connection_id, no ti_id.
+# trigger_datetime) instead of a Composio event. No connection_id, no trigger_id.
 # ---------------------------------------------------------------------------
 
 

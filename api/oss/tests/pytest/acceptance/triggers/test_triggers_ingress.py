@@ -148,12 +148,12 @@ class TestTriggerIngressDedup:
         assert create.status_code == 200, create.text
         sub = create.json()["subscription"]
         subscription_id = sub["id"]
-        ti_id = sub["ti_id"]
+        trigger_id = sub["trigger_id"]
 
         event_id = uuid4().hex
         envelope = {
             "type": "github_star_added_event",
-            "metadata": {"trigger_id": ti_id, "id": event_id},
+            "metadata": {"trigger_id": trigger_id, "id": event_id},
             "payload": {"repository": "acme/widgets"},
         }
         body = json.dumps(envelope).encode()

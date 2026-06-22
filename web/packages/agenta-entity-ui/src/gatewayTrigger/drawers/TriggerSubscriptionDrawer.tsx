@@ -567,8 +567,8 @@ interface MappingLeaf {
 function buildPreviewContext(payload: Record<string, unknown> | null): Record<string, unknown> {
     return {
         event: {
-            trigger_id: "ti_…",
-            trigger_type: "…",
+            event_id: "evt_…",
+            event_type: "…",
             timestamp: "…",
             created_at: "…",
             attributes: payload ?? {},

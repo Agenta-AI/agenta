@@ -2,7 +2,7 @@
 
 The inbound dual of ``test_webhooks_dispatcher.py``. Stubs the DAO and workflows
 service (no DB, no Composio) and pins the dispatch branches: inactive entity,
-dedup, missing workflow reference, and the happy path. The ti_id lookup moved to
+dedup, missing workflow reference, and the happy path. The trigger_id lookup moved to
 the worker, so unknown-trigger handling is no longer the dispatcher's concern.
 """
 
@@ -45,11 +45,13 @@ def _make_dao(*, seen=False):
 
 
 # Raw provider envelope (Composio webhook shape): the message lives under
-# `payload`, the routing ids under `metadata`. The dispatcher normalizes this
-# into `event.attributes` + synthetic `event.trigger_*` before mapping.
+# `payload`, the routing ids under `metadata` (`trigger_id` = the provider ti_*,
+# `id` = the per-delivery event id). The dispatcher normalizes this into
+# `event.{event_id,event_type,attributes}` before mapping.
 _EVENT = {
     "metadata": {
         "trigger_id": "ti_1",
+        "id": "evt_1",
         "trigger_slug": "github.issue.opened",
     },
     "payload": {"issue": {"number": 7}},
@@ -70,8 +72,8 @@ def test_build_context_normalizes_provider_envelope():
     )
 
     event = context["event"]
-    assert event["trigger_id"] == "ti_1"
-    assert event["trigger_type"] == "github.issue.opened"
+    assert event["event_id"] == "evt_1"
+    assert event["event_type"] == "github.issue.opened"
     assert event["attributes"] == {"issue": {"number": 7}}
     assert event["timestamp"] == event["created_at"]
     # Raw provider keys never leak into the resolution context.
@@ -92,8 +94,8 @@ def test_build_context_tolerates_missing_metadata_and_payload():
     )
 
     event = context["event"]
-    assert event["trigger_id"] is None
-    assert event["trigger_type"] is None
+    assert event["event_id"] is None
+    assert event["event_type"] is None
     assert event["attributes"] is None
 
 
@@ -103,8 +105,8 @@ async def test_inactive_entity_is_skipped():
     dao = _make_dao()
     dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=MagicMock())
 
-    await dispatcher.dispatch(
-        project_id=project_id, entity=subscription, event_id="e1", event=_EVENT
+    await dispatcher.dispatch_subscription(
+        project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
     )
 
     dao.dedup_seen.assert_not_awaited()
@@ -128,12 +130,18 @@ async def test_invalid_subscription_is_not_silently_skipped():
     )
     dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
 
-    await dispatcher.dispatch(
-        project_id=project_id, entity=subscription, event_id="e1", event=_EVENT
+    await dispatcher.dispatch_subscription(
+        project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
     )
 
     dao.dedup_seen.assert_awaited_once()
+    # The workflow must NOT run for an invalid subscription, and a failed
+    # delivery must be recorded so the user can see why.
+    workflows.invoke_workflow.assert_not_awaited()
     dao.write_delivery.assert_awaited_once()
+    delivery = dao.write_delivery.await_args.kwargs["delivery"]
+    assert delivery.status.code == "409"
+    assert "invalid" in delivery.data.error.lower()
 
 
 async def test_duplicate_event_is_skipped():
@@ -142,8 +150,8 @@ async def test_duplicate_event_is_skipped():
     dao = _make_dao(seen=True)
     dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=MagicMock())
 
-    await dispatcher.dispatch(
-        project_id=project_id, entity=subscription, event_id="e1", event=_EVENT
+    await dispatcher.dispatch_subscription(
+        project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
     )
 
     dao.dedup_seen.assert_awaited_once()
@@ -158,8 +166,8 @@ async def test_missing_reference_writes_failed_delivery():
     workflows.invoke_workflow = AsyncMock()
     dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
 
-    await dispatcher.dispatch(
-        project_id=project_id, entity=subscription, event_id="e1", event=_EVENT
+    await dispatcher.dispatch_subscription(
+        project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
     )
 
     workflows.invoke_workflow.assert_not_awaited()
@@ -188,8 +196,8 @@ async def test_happy_path_invokes_workflow_and_writes_success():
     workflows.invoke_workflow = AsyncMock(return_value=response)
     dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
 
-    await dispatcher.dispatch(
-        project_id=project_id, entity=subscription, event_id="e1", event=_EVENT
+    await dispatcher.dispatch_subscription(
+        project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
     )
 
     workflows.invoke_workflow.assert_awaited_once()
@@ -222,8 +230,8 @@ async def test_workflow_non_200_writes_failed_delivery():
     workflows.invoke_workflow = AsyncMock(return_value=response)
     dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
 
-    await dispatcher.dispatch(
-        project_id=project_id, entity=subscription, event_id="e1", event=_EVENT
+    await dispatcher.dispatch_subscription(
+        project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
     )
 
     dao.write_delivery.assert_awaited_once()

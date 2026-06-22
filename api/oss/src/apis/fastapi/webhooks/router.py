@@ -602,6 +602,7 @@ class WebhooksRouter:
                 name=existing.name,
                 description=existing.description,
                 data=existing.data,
+                flags=existing.flags,
                 secret=existing.secret,
             )
 

@@ -190,11 +190,9 @@ describe("subscriptions", () => {
         id: "sub-1",
         name: "Star watch",
         connection_id: "conn-1",
-        enabled: true,
-        valid: true,
+        trigger_id: "ti_abc",
         data: {
             event_key: "github_star_added_event",
-            ti_id: "ti_abc",
             trigger_config: {owner: "agenta", repo: "agenta"},
             inputs_fields: {message: "{{event.data.action}}"},
             references: {workflow_revision: {id: "rev-1"}},

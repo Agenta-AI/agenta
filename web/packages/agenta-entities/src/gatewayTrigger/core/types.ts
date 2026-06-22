@@ -237,7 +237,7 @@ export const triggerSubscriptionSchema = z
         updated_by_id: z.string().nullish(),
         deleted_by_id: z.string().nullish(),
         connection_id: z.string(),
-        ti_id: z.string().nullish(),
+        trigger_id: z.string().nullish(),
         data: triggerSubscriptionDataSchema,
         flags: triggerSubscriptionFlagsSchema.nullish(),
     })

@@ -56,7 +56,7 @@ def _schedule_payload(*, name=None, schedule="*/5 * * * *", workflow_slug=None):
     data = {
         "event_key": "cron.tick",
         "schedule": schedule,
-        "inputs_fields": {"now": "$.event.trigger_timestamp"},
+        "inputs_fields": {"now": "$.event.timestamp"},
     }
     if workflow_slug is not None:
         data["references"] = {"workflow": {"slug": workflow_slug}}
@@ -76,7 +76,9 @@ def _schedule_payload(*, name=None, schedule="*/5 * * * *", workflow_slug=None):
 
 class TestTriggerSchedulesReads:
     def test_list_schedules_returns_200_empty(self, authed_api):
-        body = authed_api("GET", "/triggers/schedules").json()
+        response = authed_api("GET", "/triggers/schedules")
+        assert response.status_code == 200, response.text
+        body = response.json()
         assert "count" in body
         assert "schedules" in body
         assert isinstance(body["schedules"], list)
@@ -154,7 +156,9 @@ class TestTriggerSchedulesLifecycle:
         assert sched["data"]["references"]
 
         # LIST
-        listing = authed_api("GET", "/triggers/schedules").json()
+        list_resp = authed_api("GET", "/triggers/schedules")
+        assert list_resp.status_code == 200, list_resp.text
+        listing = list_resp.json()
         assert any(s["id"] == schedule_id for s in listing["schedules"])
 
         # STOP -> is_active False (round-trips through fetch)

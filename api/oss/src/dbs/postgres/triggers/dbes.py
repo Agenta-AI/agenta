@@ -45,11 +45,11 @@ class TriggerSubscriptionDBE(Base, TriggerSubscriptionDBA):
             "connection_id",
         ),
         Index(
-            "ix_trigger_subscriptions_ti_id",
+            "ix_trigger_subscriptions_trigger_id",
             "project_id",
-            "ti_id",
+            "trigger_id",
             unique=True,
-            postgresql_where=text("ti_id IS NOT NULL AND deleted_at IS NULL"),
+            postgresql_where=text("trigger_id IS NOT NULL AND deleted_at IS NULL"),
         ),
     )
 

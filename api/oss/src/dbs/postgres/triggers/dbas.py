@@ -31,7 +31,7 @@ class TriggerSubscriptionDBA(
         nullable=False,
     )
 
-    ti_id = Column(
+    trigger_id = Column(
         String,
         nullable=True,
     )

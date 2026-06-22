@@ -34,7 +34,7 @@ def map_subscription_dto_to_dbe_create(
     #
     subscription: TriggerSubscriptionCreate,
     #
-    ti_id: str,
+    trigger_id: str,
 ) -> TriggerSubscriptionDBE:
     return TriggerSubscriptionDBE(
         project_id=project_id,
@@ -42,7 +42,7 @@ def map_subscription_dto_to_dbe_create(
         created_by_id=user_id,
         #
         connection_id=subscription.connection_id,
-        ti_id=ti_id,
+        trigger_id=trigger_id,
         #
         name=subscription.name,
         description=subscription.description,
@@ -70,7 +70,7 @@ def map_subscription_dbe_to_dto(
         deleted_by_id=subscription_dbe.deleted_by_id,
         #
         connection_id=subscription_dbe.connection_id,
-        ti_id=subscription_dbe.ti_id,
+        trigger_id=subscription_dbe.trigger_id,
         #
         name=subscription_dbe.name,
         description=subscription_dbe.description,

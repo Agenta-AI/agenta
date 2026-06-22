@@ -146,8 +146,8 @@ def cmd_create(composio: Composio) -> None:
         except Exception as e:  # noqa: BLE001
             print(f"  ❌ {intent} ({slug}): {e}")
             continue
-        ti_id = getattr(result, "trigger_id", None) or getattr(result, "id", None)
-        print(f"  ✅ {intent} ({slug}) → {ti_id}")
+        trigger_id = getattr(result, "trigger_id", None) or getattr(result, "id", None)
+        print(f"  ✅ {intent} ({slug}) → {trigger_id}")
 
 
 def cmd_watch(composio: Composio) -> None:

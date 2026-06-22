@@ -35,7 +35,7 @@ def upgrade() -> None:
         sa.Column("project_id", sa.UUID(), nullable=False),
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("connection_id", sa.UUID(), nullable=False),
-        sa.Column("ti_id", sa.String(), nullable=True),
+        sa.Column("trigger_id", sa.String(), nullable=True),
         sa.Column("name", sa.String(), nullable=True),
         sa.Column("description", sa.String(), nullable=True),
         sa.Column("data", postgresql.JSON(astext_type=sa.Text()), nullable=True),
@@ -94,11 +94,11 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        "ix_trigger_subscriptions_ti_id",
+        "ix_trigger_subscriptions_trigger_id",
         "trigger_subscriptions",
-        ["project_id", "ti_id"],
+        ["project_id", "trigger_id"],
         unique=True,
-        postgresql_where=sa.text("ti_id IS NOT NULL AND deleted_at IS NULL"),
+        postgresql_where=sa.text("trigger_id IS NOT NULL AND deleted_at IS NULL"),
     )
 
     # -- TRIGGER SCHEDULES ------------------------------------------------------
@@ -223,6 +223,12 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
+        "ix_trigger_deliveries_schedule_id_created_at",
+        "trigger_deliveries",
+        ["schedule_id", "created_at"],
+        unique=False,
+    )
+    op.create_index(
         "ix_trigger_deliveries_subscription_id_event_id",
         "trigger_deliveries",
         ["project_id", "subscription_id", "event_id"],
@@ -245,6 +251,10 @@ def downgrade() -> None:
     )
     op.drop_index(
         "ix_trigger_deliveries_subscription_id_event_id",
+        table_name="trigger_deliveries",
+    )
+    op.drop_index(
+        "ix_trigger_deliveries_schedule_id_created_at",
         table_name="trigger_deliveries",
     )
     op.drop_index(
@@ -272,7 +282,7 @@ def downgrade() -> None:
     op.drop_table("trigger_schedules")
 
     op.drop_index(
-        "ix_trigger_subscriptions_ti_id",
+        "ix_trigger_subscriptions_trigger_id",
         table_name="trigger_subscriptions",
     )
     op.drop_index(
