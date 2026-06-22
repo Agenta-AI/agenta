@@ -6,7 +6,7 @@
  * `sdks/python/oss/tests/pytest/unit/agents/golden/`; a change here that drifts from those
  * fixtures fails `test_wire_contract.py`. Keeping the request/result/event/capability types
  * here (rather than in one runner that the other imports from) is what lets `engines/pi.ts`
- * and `engines/rivet.ts` stay peers.
+ * and `engines/sandbox_agent.ts` stay peers.
  */
 
 /** One piece of a message. `text` is all the playground sends today; the rest is plumbed. */
@@ -97,7 +97,7 @@ export interface McpServerConfig {
 }
 
 /**
- * What a harness can do, probed from the runtime (rivet `AgentCapabilities`). The runner
+ * What a harness can do, probed from the runtime (sandbox-agent `AgentCapabilities`). The runner
  * branches on these flags instead of the harness name, and returns them in the result.
  */
 export interface HarnessCapabilities {
@@ -121,7 +121,7 @@ export interface HarnessCapabilities {
  * block and are what the one-shot `/run` result log holds (the non-streaming path has no
  * per-token granularity to recover). The `*_start` / `*_delta` / `*_end` lifecycle events
  * are emitted live on the streaming path; a consumer that sees the delta family for a block
- * never also sees a coalesced `message` for it (see `createRivetOtel.finish`).
+ * never also sees a coalesced `message` for it (see `createSandboxAgentOtel.finish`).
  */
 /**
  * A generative-UI hint stamped onto a tool's events so the frontend can render it. The
@@ -183,11 +183,11 @@ export interface AgentUsage {
 }
 
 export interface AgentRunRequest {
-  /** Engine: "rivet" (ACP) or "pi" (legacy in-process). Routed on by cli.ts/server.ts. */
+  /** Engine: "sandbox-agent" (ACP) or "pi" (legacy in-process). Routed on by cli.ts/server.ts. */
   backend?: string;
-  /** Harness id for the rivet backend ("pi" / "claude"). */
+  /** Harness id for the sandbox-agent backend ("pi" / "claude"). */
   harness?: string;
-  /** Sandbox for the rivet backend ("local" / "daytona"). */
+  /** Sandbox for the sandbox-agent backend ("local" / "daytona"). */
   sandbox?: string;
   /** External conversation id. The cold runtime still receives history in `messages`. */
   sessionId?: string;

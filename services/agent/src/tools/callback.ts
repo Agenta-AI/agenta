@@ -3,7 +3,7 @@
  *
  * One implementation of the tool round-trip used by every delivery path:
  *  - engines/pi.ts buildCustomTools (in-process Pi customTools)
- *  - extensions/agenta.ts registerTools (Pi under rivet/ACP, via the bundled extension)
+ *  - extensions/agenta.ts registerTools (Pi under sandbox-agent/ACP, via the bundled extension)
  *  - tools/mcp-server.ts (the MCP stdio bridge for non-Pi harnesses)
  *
  * Each call POSTs the OpenAI-style envelope to Agenta's /tools/call, so the Composio key

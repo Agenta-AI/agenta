@@ -4,18 +4,18 @@ The Node side of the agent workflow service. It runs the actual agent loop and s
 contract: a JSON request in, a structured result out. The Python service
 (`services/oss/src/agent/`) decides *what* to run (config, tools, secrets, trace) and calls
 in here; this package *runs* it. It lives in Node because the harnesses (Pi, Claude Code,
-rivet's `sandbox-agent`) are Node libraries with no Python SDK.
+and the `sandbox-agent` package) are Node libraries with no Python SDK.
 
 ## How it is invoked
 
 Two entrypoints, same `/run` contract (see `src/protocol.ts`):
 
 - **`src/cli.ts`** — one JSON request on stdin, one result on stdout. The Python
-  SDK adapters use this subprocess transport when `AGENTA_AGENT_PI_URL` is unset. stdout is
+  SDK adapters use this subprocess transport when `AGENTA_AGENT_RUNNER_URL` is unset. stdout is
   the result channel only; logs go to stderr.
 - **`src/server.ts`** — the same thing as a long-lived HTTP server on `:8765`
   (`GET /health`, `POST /run`). This is the dockerized agent runner sidecar the Python SDK
-  adapters call over HTTP when `AGENTA_AGENT_PI_URL` points at it. The dev image
+  adapters call over HTTP when `AGENTA_AGENT_RUNNER_URL` points at it. The dev image
   (`docker/Dockerfile.dev`) runs `tsx watch src/server.ts`.
 
 Both route to an engine by the request's `backend` field.
@@ -29,7 +29,7 @@ src/
   protocol.ts         the /run wire contract (request, result, events, capabilities)
   engines/
     pi.ts             engine: drive the Pi SDK in-process
-    rivet.ts          engine: drive a harness over ACP via a rivet sandbox-agent daemon
+    sandbox_agent.ts  engine: drive a harness over ACP through sandbox-agent
   tracing/
     otel.ts           turn a run into OpenTelemetry spans nested under /invoke
   tools/
@@ -45,13 +45,13 @@ src/
 ## Engines
 
 - **`pi`** (`engines/pi.ts`) — drives the Pi SDK directly in-process.
-- **`rivet`** (`engines/rivet.ts`) — drives any harness (`pi`, `claude`) over the Agent
-  Client Protocol through a rivet `sandbox-agent` daemon, either local or in a Daytona
+- **`sandbox-agent`** (`engines/sandbox_agent.ts`) — drives any harness (`pi`, `claude`) over the Agent
+  Client Protocol through sandbox-agent, either local or in a Daytona
   sandbox. This is the default on the platform.
 
-The engine is a deployment choice (`backend` on the wire / `AGENT_BACKEND` env), not a
-harness. Harness choice (`pi`, `claude`, or experimental `agenta`) and sandbox (`local` or
-`daytona`, where supported) are per-run config the Python service sends.
+The engine is internal runner plumbing. The platform sends `sandbox-agent` by default.
+Harness choice (`pi`, `claude`, or experimental `agenta`) and sandbox (`local` or
+`daytona`, where supported) are per-run config from the Python service.
 
 ## Result
 
@@ -70,7 +70,7 @@ harness. Harness choice (`pi`, `claude`, or experimental `agenta`) and sandbox (
 }
 ```
 
-`runRivet` probes the harness's capabilities and branches on them (for example, tools go
+`runSandboxAgent` probes the harness's capabilities and branches on them (for example, tools go
 over MCP only when the harness advertises `mcpTools`); usage and the structured event log
 come back on every run.
 
@@ -78,7 +78,7 @@ come back on every run.
 
 When the request carries a `trace` block, the run is exported to Agenta as OpenTelemetry
 spans nested under the caller's `/invoke` span. The Pi path self-instruments via the
-bundled extension (`extensions/agenta.ts`); other harnesses are traced from the rivet ACP
+bundled extension (`extensions/agenta.ts`); other harnesses are traced from the sandbox-agent ACP
 event stream (`tracing/otel.ts`). The Python `tracing` module fills `trace` in from the
 live workflow span.
 
@@ -117,5 +117,5 @@ revision's config, so these are rarely hit.
 
 ```bash
 pnpm install
-echo '{"backend":"pi","messages":[{"role":"user","content":"Hi"}]}' | pnpm run run:cli
+echo '{"backend":"sandbox-agent","harness":"pi","sandbox":"local","messages":[{"role":"user","content":"Hi"}]}' | pnpm run run:cli
 ```

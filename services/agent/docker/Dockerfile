@@ -52,6 +52,8 @@ ENV NODE_ENV=production \
 
 EXPOSE 8765
 
+USER node
+
 # Call the local tsx binary directly to avoid pnpm/corepack HOME writes when the
 # container runs as a non-root host uid.
 CMD ["node_modules/.bin/tsx", "src/server.ts"]

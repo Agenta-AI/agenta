@@ -1,5 +1,5 @@
 /**
- * WP-8 tool delivery over rivet/ACP.
+ * WP-8 tool delivery over sandbox-agent/ACP.
  *
  * The Pi engine (engines/pi.ts) injected resolved runnable tools (WP-7) as in-process Pi
  * customTools. Over ACP the harness only accepts tools through MCP, so the same

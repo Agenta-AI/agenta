@@ -1,8 +1,8 @@
 /**
  * Agenta Pi extension (WP-8): tracing + tools, installed into Pi's agent dir and loaded
- * by Pi when it runs under rivet (`pi --mode rpc` via pi-acp).
+ * by Pi when it runs under sandbox-agent (`pi --mode rpc` via pi-acp).
  *
- * This is how we keep WP-1/WP-2/WP-7 behavior on the rivet path: instead of a synthetic,
+ * This is how we keep WP-1/WP-2/WP-7 behavior on the sandbox-agent path: instead of a synthetic,
  * coarse tracer in the runner, we propagate the caller's trace context INTO Pi and let
  * Pi emit its real span tree (turn / chat / tool, with token usage) under that parent —
  * and we deliver tools the Pi-native way (`registerTool`), each routing back to Agenta's

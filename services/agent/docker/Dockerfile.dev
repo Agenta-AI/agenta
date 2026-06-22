@@ -1,6 +1,6 @@
-# Pi harness sidecar (WP-2), dev image.
+# Agent runner, dev image.
 #
-# Runs the TypeScript Pi wrapper as an HTTP server. The Python agent service calls
+# Runs the TypeScript runner as an HTTP server. The Python agent service calls
 # it in-network. Source is bind-mounted in dev so `tsx watch` hot-reloads; node_modules
 # stays baked into the image. Build context is services/agent.
 
@@ -8,7 +8,7 @@ FROM node:24-slim
 
 WORKDIR /app
 
-# CA certificates: the rivet daemon (Rust) downloads harness CLIs (e.g. Claude Code) over
+# CA certificates: the sandbox-agent daemon downloads harness CLIs (e.g. Claude Code) over
 # HTTPS using the system trust store, which node:*-slim omits — without this the daemon's
 # `install-agent claude` fails TLS verification. git lets npm/installers fetch git deps.
 # python3 runs `code` tools whose runtime is "python": the runner relays the call and
@@ -27,6 +27,9 @@ RUN pnpm install --frozen-lockfile
 COPY tsconfig.json ./
 COPY scripts ./scripts
 COPY src ./src
+# The Agenta harness's forced skills (resolved from /app/skills per run). Baked like the
+# prod image; the dev compose also bind-mounts skills/ over this for live edits.
+COPY skills ./skills
 
 # Bundle the Agenta Pi extension (tracing + tools) into dist/ as a baked fallback. dist/ is
 # NOT bind-mounted in dev, but the CMD below rebuilds the bundle from the mounted src on

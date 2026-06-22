@@ -3,7 +3,7 @@
  *
  * A harness (the ACP "Agent") does not only emit tool calls. It also raises typed
  * reverse-RPC interaction requests that something must answer: permission gates today,
- * elicitation (input) and client-side tools later. Today the rivet runner answered the
+ * elicitation (input) and client-side tools later. Today the sandbox-agent runner answered the
  * permission gate inline with a hardcoded auto-approve. This module lifts that decision
  * behind a `Responder` interface so it is pluggable:
  *
@@ -51,11 +51,11 @@ export class PolicyResponder implements Responder {
 
 /**
  * Resolve the permission policy with the same precedence as before: an explicit per-run
- * `permissionPolicy: "deny"` or the `AGENTA_RIVET_DENY_PERMISSIONS` env flips to deny; the
+ * `permissionPolicy: "deny"` or the `SANDBOX_AGENT_DENY_PERMISSIONS` env flips to deny; the
  * default is auto-allow, because backend-resolved tools are trusted and the run is headless.
  */
 export function policyFromRequest(permissionPolicy?: string): PermissionPolicy {
-  if (permissionPolicy === "deny" || process.env.AGENTA_RIVET_DENY_PERMISSIONS === "true") {
+  if (permissionPolicy === "deny" || process.env.SANDBOX_AGENT_DENY_PERMISSIONS === "true") {
     return "deny";
   }
   return "auto";

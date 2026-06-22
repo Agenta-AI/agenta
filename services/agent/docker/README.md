@@ -1,6 +1,6 @@
-# Agent sidecar images
+# Agent runner images
 
-Images for the agent runner sidecar (the `sandbox-agent server` runtime in
+Images for the agent runner (the `sandbox-agent server` runtime in
 `services/agent/src/server.ts`). The Python service calls it in-network at
 `:8765`.
 
@@ -54,10 +54,10 @@ We never bake an OAuth login or an API key into an image.
   builds and uses its own snapshot internally; self-hosters run the same recipe
   against their own Daytona account. We ship the build script (the recipe), not the
   built snapshot, so we never distribute a Claude-containing artifact. Snapshot
-  builder: `docs/design/agent-workflows/scratch/wp-8-rivet-acp-runtime/poc/build_rivet_snapshot.py`.
-  Today it bases on rivet's `-full` image, which already bundles Claude. That is
+  builder: `services/agent/sandbox-images/daytona/build_snapshot.py`.
+  Self-hosters run this recipe in their own Daytona account. That is
   compliant under the recipe-not-image model. **Cleaner-provenance follow-up
-  (needs a live Daytona build to verify):** base on a daemon-only rivet image and
+  (needs a live Daytona build to verify):** base on a daemon-only sandbox-agent image and
   install Claude from Anthropic at build, so the snapshot's Claude comes straight
   from Anthropic rather than from a third party's bundled image. Relocation of the
   builder into this folder is a follow-up.

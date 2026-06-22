@@ -6,7 +6,7 @@
  * (WP-7) and relays each tool call back to the runner — so private specs/auth stay in
  * runner memory, exactly as in the in-process Pi path.
  *
- * Launched by the rivet daemon as a session MCP server (see mcp-bridge.ts). Its env
+ * Launched by the sandbox-agent daemon as a session MCP server (see mcp-bridge.ts). Its env
  * contains only public tool metadata and the relay dir:
  *   AGENTA_TOOL_PUBLIC_SPECS     JSON array of { name, description, inputSchema }
  *   AGENTA_TOOL_RELAY_DIR        directory watched by the runner for tool requests

@@ -14,7 +14,7 @@
  * JSON-serialized and handed to the model as the tool result.
  *
  * Shared by every delivery path that runs code locally: engines/pi.ts (in-process Pi),
- * extensions/agenta.ts (Pi under rivet), tools/mcp-server.ts (the MCP bridge for other
+ * extensions/agenta.ts (Pi under sandbox-agent), tools/mcp-server.ts (the MCP bridge for other
  * harnesses).
  */
 import { spawn } from "node:child_process";

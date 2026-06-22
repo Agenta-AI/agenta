@@ -2,7 +2,7 @@
  * Shared tool dispatch: execute one backend-resolved tool, branching on its executor `kind`.
  *
  * The same "branch on spec.kind to run a resolved tool" logic was duplicated across every
- * delivery path (engines/pi.ts in-process Pi, extensions/agenta.ts Pi-under-rivet,
+ * delivery path (engines/pi.ts in-process Pi, extensions/agenta.ts Pi-under-sandbox-agent,
  * tools/mcp-server.ts the MCP bridge). This module owns that dispatch ONCE so a change to how
  * a kind is executed is a one-line edit, not three. Each call site still keeps its OWN
  * result-wrapping shape (Pi customTool details, the MCP `content` envelope) and its OWN
@@ -85,11 +85,11 @@ export async function relayToolCall(
         /* best-effort cleanup */
       }
       if (res.ok) return res.text ?? "";
-      throw new Error(res.error || `tool relay failed for ${callRef}`);
+      throw new Error(res.error || `tool relay failed for ${toolName}`);
     }
     await sleep(RELAY_POLL_MS);
   }
-  throw new Error(`tool relay timed out for ${callRef}`);
+  throw new Error(`tool relay timed out for ${toolName}`);
 }
 
 /**

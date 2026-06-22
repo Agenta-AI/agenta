@@ -1,11 +1,11 @@
 /**
  * Legacy backend: drive the Pi SDK in-process for one cold run.
  *
- * This is the non-rivet engine. It drives Pi's `createAgentSession` directly: injects
+ * This is the non-sandbox-agent engine. It drives Pi's `createAgentSession` directly: injects
  * AGENTS.md in memory, resolves the model, sends one user turn, and returns the structured
  * result (final text, messages, events, usage, capabilities). It also turns the
  * backend-resolved runnable tools (WP-7) into Pi customTools that route back through
- * Agenta's /tools/call. The rivet engine (`engines/rivet.ts`) is the ACP path; both serve the
+ * Agenta's /tools/call. The sandbox-agent engine (`engines/sandbox_agent.ts`) is the ACP path; both serve the
  * same `/run` contract (see `protocol.ts`).
  *
  * Auth: provider keys arrive as `request.secrets` (applied to the env) or fall back to the
@@ -16,10 +16,9 @@
  * Important: stdout is reserved for the JSON result (see cli.ts). Everything here logs to
  * stderr so it never pollutes the result channel.
  */
-import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, isAbsolute, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import {
   AuthStorage,
@@ -46,8 +45,9 @@ import {
 } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA } from "../tools/callback.ts";
 import { runResolvedTool } from "../tools/dispatch.ts";
+import { resolveSkillDirs } from "./skills.ts";
 
-/** What the in-process Pi engine supports. Static (no daemon to probe, unlike rivet). */
+/** What the in-process Pi engine supports. Static (no daemon to probe, unlike sandbox-agent). */
 const PI_CAPABILITIES: HarnessCapabilities = {
   textMessages: true,
   toolCalls: true,
@@ -63,36 +63,7 @@ const PI_CAPABILITIES: HarnessCapabilities = {
 };
 
 function log(message: string): void {
-  process.stderr.write(`[pi-wrapper] ${message}\n`);
-}
-
-// services/agent/src/engines/pi.ts -> services/agent. Bundled skills (the Agenta harness's
-// forced skills) live under services/agent/skills/<name>/. Overridable for non-default layouts.
-const PKG_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
-const SKILLS_ROOT = process.env.AGENTA_AGENT_SKILLS_DIR || join(PKG_ROOT, "skills");
-
-/**
- * Resolve the requested skill names to bundled skill directories under SKILLS_ROOT. Each name
- * must be a committed dir holding a SKILL.md (Pi loads them and surfaces them in the system
- * prompt). Absolute paths are honored as-is; unknown or non-directory entries are skipped with
- * a warning so a stale name never fails the run.
- */
-function resolveSkillDirs(names: string[] | undefined): string[] {
-  const dirs: string[] = [];
-  for (const name of names ?? []) {
-    if (!name) continue;
-    const path = isAbsolute(name) ? name : join(SKILLS_ROOT, name);
-    try {
-      if (existsSync(path) && statSync(path).isDirectory()) {
-        dirs.push(path);
-      } else {
-        log(`skipping unknown skill "${name}" (no directory at ${path})`);
-      }
-    } catch {
-      log(`skipping skill "${name}": cannot stat ${path}`);
-    }
-  }
-  return dirs;
+  process.stderr.write(`[pi-engine] ${message}\n`);
 }
 
 // In-process Pi reads provider keys from process.env. Since process.env is process-global,
@@ -282,7 +253,7 @@ async function runPiWithEnv(
     // `noSkills` suppresses host/global discovery so the run is deterministic; the loader still
     // merges `additionalSkillPaths` on top, so the bundled skills load. They only surface in
     // the prompt when `read` is enabled (the harness forces it).
-    const skillDirs = resolveSkillDirs(request.skills);
+    const skillDirs = resolveSkillDirs(request.skills, log);
     if (skillDirs.length > 0) {
       log(`skills: ${skillDirs.join(", ")}`);
     }
@@ -315,7 +286,7 @@ async function runPiWithEnv(
     }
 
     // Created before the prompt so a throw mid-run still flushes the partial trace and
-    // disposes the session (the inner finally below). Mirrors the rivet engine's pattern.
+    // disposes the session (the inner finally below). Mirrors the sandbox-agent engine's pattern.
     let session: Awaited<ReturnType<typeof createAgentSession>>["session"] | undefined;
     try {
       ({ session } = await createAgentSession({
@@ -369,7 +340,7 @@ async function runPiWithEnv(
       // exits): invoke_agent has a remote parent, so the per-trace flush is what exports it.
       await otel.flush();
 
-      // The structured stream is thinner here than on the rivet path: Pi's in-process tool
+      // The structured stream is thinner here than on the sandbox-agent path: Pi's in-process tool
       // events feed the trace spans, while the result-level event log carries the final
       // message, usage, and stop reason (enough for the platform without double-plumbing).
       //

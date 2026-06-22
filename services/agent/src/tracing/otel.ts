@@ -586,14 +586,14 @@ export function createAgentaOtel(
 }
 
 // ---------------------------------------------------------------------------
-// Rivet / ACP tracer (one per run; state is closure-scoped)
+// sandbox-agent / ACP tracer (one per run; state is closure-scoped)
 // ---------------------------------------------------------------------------
 //
-// The Pi extension above hooks Pi's in-process `pi.on(...)` events. Under rivet the
-// harness runs as a separate process and we never see those events; instead the rivet
+// The Pi extension above hooks Pi's in-process `pi.on(...)` events. Under sandbox-agent the
+// harness runs as a separate process and we never see those events; instead the sandbox-agent
 // SDK surfaces the run as ACP `session/update` notifications (agent_message_chunk,
 // tool_call, tool_call_update, usage_update). This tracer builds the SAME span tree
-// from that event stream, so tracing is uniform across every harness rivet drives
+// from that event stream, so tracing is uniform across every harness sandbox-agent drives
 // (Pi, Claude Code, ...) and always nests under the caller's `/invoke` span.
 //
 // Span tree (per prompt turn):
@@ -656,7 +656,7 @@ function splitModel(model?: string): { provider?: string; id?: string } {
   return { provider: model.slice(0, slash), id: model.slice(slash + 1) };
 }
 
-export interface RivetOtelInit extends Partial<RunConfig> {
+export interface SandboxAgentOtelInit extends Partial<RunConfig> {
   captureContent?: boolean;
   /** Harness id ("pi" / "claude"); becomes gen_ai.agent.name. */
   harness?: string;
@@ -679,7 +679,7 @@ export interface RivetOtelInit extends Partial<RunConfig> {
   emit?: EmitEvent;
 }
 
-export interface RivetOtel {
+export interface SandboxAgentOtel {
   /** Start the invoke_agent (AGENT) span as a child of the caller's traceparent. */
   start(input: { prompt?: string; messages?: any[]; sessionId?: string }): void;
   /** Feed one ACP `session/update` payload (the `update` object). */
@@ -707,10 +707,10 @@ export interface RivetOtel {
 }
 
 /**
- * Build an ACP-event-driven tracer scoped to a single rivet run. Call `start` once,
+ * Build an ACP-event-driven tracer scoped to a single sandbox-agent run. Call `start` once,
  * `handleUpdate` for every ACP session update, then `finish` + `await flush`.
  */
-export function createRivetOtel(init: RivetOtelInit): RivetOtel {
+export function createSandboxAgentOtel(init: SandboxAgentOtelInit): SandboxAgentOtel {
   ensureProvider();
 
   const capture = init.captureContent !== false;
@@ -718,7 +718,7 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
   const endpoint = init.endpoint ?? defaultTarget().endpoint;
   const authorization = init.authorization ?? defaultTarget().authorization;
   const { provider, id: modelId } = splitModel(init.model);
-  const tracer = trace.getTracer("agenta-rivet-otel", "0.1.0");
+  const tracer = trace.getTracer("agenta-sandbox-agent-otel", "0.1.0");
 
   let agentSpan: Span | undefined;
   let agentCtx: Context | undefined;
@@ -929,7 +929,7 @@ export function createRivetOtel(init: RivetOtelInit): RivetOtel {
     if (kind === "usage_update") {
       // ACP usage_update carries only `used` (context tokens) and `cost.amount`. The
       // per-call input/output split is NOT on the stream; it rides on the PromptResponse,
-      // which the rivet engine reads. Keep total + cost here and leave the split to the caller.
+      // which the sandbox-agent engine reads. Keep total + cost here and leave the split to the caller.
       const cost = update.cost?.amount;
       const total = update.used;
       usage = {
