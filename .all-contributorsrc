@@ -633,6 +633,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "Koushik-Salammagari",
+      "name": "Koushik-Salammagari",
+      "avatar_url": "https://avatars.githubusercontent.com/u/138836560?v=4",
+      "profile": "https://github.com/Koushik-Salammagari",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "contributorsPerLine": 7,
