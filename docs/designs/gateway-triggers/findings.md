@@ -55,6 +55,7 @@
 | F35 | P3 | fixed | Docs | `AGENTS.md` test-run example rewritten as `cd <area>` with an explicit area list. |
 | F37 | P3 | confirmed | Testing | `test_triggers_ingress.py:113` dedup test gates only on `COMPOSIO_TEST_CONNECTED_ACCOUNT` and can resolve an empty secret → 401 flakiness unrelated to dedup. Add `@_requires_composio` + guard the secret. |
 | F38 | P0 | fixed | Wiring/Reliability | Triggers worker entrypoint crash-loops: the dispatcher refactor added a required `triggers_dao` kwarg to `TriggersWorker`, wired in `routers.py` but **missed in `worker_triggers.py`**. Ingress verified+enqueued every event (202) but nothing consumed the queue. **Found via live run** (worker container restarting every ~7s); **fixed locally** by passing `triggers_dao` (already constructed). Confirmed: worker boots, 2 deliveries written. |
+| F39 | P2 | needs-user-decision | Testing | `test_triggers_connections.py:24` reads config via `os.getenv` instead of the shared API `env` object (CodeRabbit refactor suggestion). Distinct from F18 (cleanup) on the same file. |
 
 ## Notes
 
@@ -135,6 +136,12 @@ gateway **connection ID** (`connection_id`, the `ca_*`), trigger **subscription 
 - **Files** `api/oss/tests/pytest/acceptance/triggers/test_triggers_ingress.py:113`
 - **Evidence** The dedup test gates only on `COMPOSIO_TEST_CONNECTED_ACCOUNT` and can resolve an empty webhook secret → 401 failures unrelated to dedup → flaky.
 - **Suggested Fix** Add `@_requires_composio` and guard the resolved secret before signing.
+
+### [OPEN] F39 — connection test reads config via `os.getenv`
+- **Origin** sync (CodeRabbit, refactor) · **Severity** P2 · **Confidence** medium · **Status** needs-user-decision · **Category** Testing
+- **Files** `api/oss/tests/pytest/acceptance/triggers/test_triggers_connections.py:24`
+- **Evidence** Reads env directly with `os.getenv` instead of the shared API `env` object (`api/CLAUDE.md`: avoid `os.getenv` for application config). Distinct from F18 (cleanup) on the same file.
+- **Suggested Fix** Source the value from the shared `env` object, or confirm test-scope `os.getenv` is acceptable here (tests aren't application config).
 
 ## Closed Findings
 
