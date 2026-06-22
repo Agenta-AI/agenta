@@ -1,0 +1,28 @@
+{
+  "backend": "sandbox-agent",
+  "harness": "claude",
+  "sandbox": "local",
+  "sessionId": null,
+  "agentsMd": "You are a helpful assistant.",
+  "model": "claude-sonnet-4-6",
+  "messages": [
+    {"role": "user", "content": "hi"}
+  ],
+  "secrets": {"ANTHROPIC_API_KEY": "sk-ant"},
+  "trace": null,
+  "tools": [],
+  "customTools": [
+    {
+      "name": "get_user",
+      "description": "Get a user",
+      "inputSchema": {"type": "object", "properties": {}},
+      "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
+      "kind": "callback"
+    }
+  ],
+  "toolCallback": {
+    "endpoint": "https://api.example/tools/call",
+    "authorization": "Access tok-123"
+  },
+  "permissionPolicy": "deny"
+}

@@ -79,6 +79,36 @@ class TestRequestNormalization:
 
         assert kwargs["parameters"] == {"correct_answer_key": "answer"}
 
+    @pytest.mark.asyncio
+    async def test_session_id_is_passed_to_explicit_handler_argument(self):
+        def handler(session_id):
+            return session_id
+
+        request = WorkflowServiceRequest(
+            session_id="sess_request",
+            data=WorkflowRequestData(),
+        )
+
+        mw = NormalizerMiddleware()
+        kwargs = await mw._normalize_request(request, handler)
+
+        assert kwargs["session_id"] == "sess_request"
+
+    @pytest.mark.asyncio
+    async def test_session_id_is_not_added_to_var_kwargs(self):
+        def handler(**kwargs):
+            return kwargs
+
+        request = WorkflowServiceRequest(
+            session_id="sess_request",
+            data=WorkflowRequestData(inputs={"prompt": "hi"}),
+        )
+
+        mw = NormalizerMiddleware()
+        kwargs = await mw._normalize_request(request, handler)
+
+        assert "session_id" not in kwargs
+
 
 class TestAsyncGenerator:
     @pytest.mark.asyncio

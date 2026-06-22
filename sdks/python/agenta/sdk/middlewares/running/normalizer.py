@@ -66,8 +66,10 @@ class NormalizerMiddleware:
         1. If parameter name is 'request': passes the entire WorkflowServiceRequest
         2. If parameter name matches DATA_FIELDS (like 'inputs', 'outputs', 'parameters'):
            extracts that field from request.data
-        3. If parameter is **kwargs: includes all unconsumed DATA_FIELDS
-        4. Otherwise: looks up the parameter name in request.data.inputs dict
+        3. If parameter name is a supported top-level request field like 'session_id':
+           extracts that field from the request envelope
+        4. If parameter is **kwargs: includes all unconsumed DATA_FIELDS
+        5. Otherwise: looks up the parameter name in request.data.inputs dict
 
         Args:
             request: The workflow service request containing inputs and data
@@ -93,6 +95,10 @@ class NormalizerMiddleware:
                 normalized[name] = (
                     getattr(request.data, name, None) if request.data else None
                 )
+                consumed.add(name)
+
+            elif name == "session_id":
+                normalized[name] = request.session_id
                 consumed.add(name)
 
             elif param.kind == inspect.Parameter.VAR_KEYWORD:
