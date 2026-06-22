@@ -5,8 +5,10 @@ from uuid import UUID
 from oss.src.core.gateway.connections.dtos import (
     Connection,
     ConnectionCreate,
+    ConnectionRefreshResponse,
     ConnectionRequest,
     ConnectionResponse,
+    ConnectionStatusResponse,
 )
 
 
@@ -67,6 +69,7 @@ class ConnectionsDAOInterface(ABC):
     async def find_connection_by_provider_id(
         self,
         *,
+        project_id: UUID,
         provider_connection_id: str,
     ) -> Optional[Connection]: ...
 
@@ -74,8 +77,8 @@ class ConnectionsDAOInterface(ABC):
     async def activate_connection_by_provider_id(
         self,
         *,
+        project_id: UUID,
         provider_connection_id: str,
-        project_id: Optional[UUID] = None,
     ) -> Optional[Connection]: ...
 
 
@@ -104,7 +107,7 @@ class ConnectionsGatewayInterface(ABC):
         self,
         *,
         provider_connection_id: str,
-    ) -> Dict[str, Any]:
+    ) -> ConnectionStatusResponse:
         """Poll provider for updated connection status."""
         ...
 
@@ -117,7 +120,7 @@ class ConnectionsGatewayInterface(ABC):
         callback_url: Optional[str] = None,
         integration_key: Optional[str] = None,
         user_id: Optional[str] = None,
-    ) -> Dict[str, Any]: ...
+    ) -> ConnectionRefreshResponse: ...
 
     @abstractmethod
     async def revoke_connection(

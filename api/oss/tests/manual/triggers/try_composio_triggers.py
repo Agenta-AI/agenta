@@ -326,10 +326,11 @@ def cmd_converge(composio: Composio) -> None:
 
     import httpx
 
-    url = os.getenv(
-        "AGENTA_WEBHOOK_URL",
-        "https://webhook.site/00000000-0000-0000-0000-00000000c0de",
-    )
+    url = os.getenv("AGENTA_WEBHOOK_URL")
+    if not url:
+        sys.exit(
+            "Set AGENTA_WEBHOOK_URL to a registration target for the convergence run"
+        )
     n = int(os.getenv("CONTAINERS", "6"))
     base = os.getenv("COMPOSIO_API_URL", "https://backend.composio.dev/api/v3")
     key = os.environ["COMPOSIO_API_KEY"]

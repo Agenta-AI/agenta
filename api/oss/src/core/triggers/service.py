@@ -1,7 +1,9 @@
+import asyncio
+import base64
 import hashlib
 import hmac
 from datetime import datetime
-from typing import Any, List, Mapping, Optional, Tuple
+from typing import Any, List, Mapping, Optional
 from uuid import UUID
 
 from croniter import croniter
@@ -11,9 +13,10 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.core.triggers.dtos import (
-    TriggerCatalogEvent,
     TriggerCatalogEventDetails,
+    TriggerCatalogEventsPage,
     TriggerCatalogIntegration,
+    TriggerCatalogIntegrationsPage,
     TriggerCatalogProvider,
     TriggerConnection,
     TriggerConnectionCreate,
@@ -30,6 +33,7 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionQuery,
 )
 from oss.src.core.triggers.exceptions import (
+    AdapterError,
     ConnectionNotFoundError,
     ScheduleNotFoundError,
     SubscriptionNotFoundError,
@@ -45,6 +49,8 @@ from oss.src.core.workflows.service import WorkflowsService
 
 
 log = get_module_logger(__name__)
+
+_ENQUEUE_TIMEOUT_SECONDS = 5.0
 
 
 class TriggersService:
@@ -108,8 +114,8 @@ class TriggersService:
         sort_by: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-    ) -> Tuple[List[TriggerCatalogIntegration], Optional[str], int]:
-        integrations, next_cursor, total = await self.catalog_service.list_integrations(
+    ) -> TriggerCatalogIntegrationsPage:
+        page = await self.catalog_service.list_integrations(
             provider_key=provider_key,
             search=search,
             sort_by=sort_by,
@@ -118,9 +124,13 @@ class TriggersService:
         )
         items = [
             TriggerCatalogIntegration.model_validate(i.model_dump())
-            for i in integrations
+            for i in page.integrations
         ]
-        return items, next_cursor, total
+        return TriggerCatalogIntegrationsPage(
+            integrations=items,
+            next_cursor=page.next_cursor,
+            total=page.total,
+        )
 
     async def get_integration(
         self,
@@ -145,7 +155,7 @@ class TriggersService:
         query: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-    ) -> Tuple[List[TriggerCatalogEvent], Optional[str], int]:
+    ) -> TriggerCatalogEventsPage:
         """List events for an integration with optional search and pagination."""
         adapter = self.adapter_registry.get(provider_key)
         return await adapter.list_events(
@@ -479,7 +489,9 @@ class TriggersService:
                 adapter = self.adapter_registry.get(connection.provider_key.value)
                 try:
                     await adapter.delete_subscription(trigger_id=ti_id)
-                except Exception:
+                except AdapterError:
+                    # Provider-side trigger may already be gone; local delete is
+                    # the source of truth. Unexpected errors are left to surface.
                     log.warning(
                         "Failed to delete provider trigger %s; proceeding with local delete",
                         ti_id,
@@ -810,11 +822,14 @@ class TriggersService:
                     timestamp=timestamp,
                 )
 
-                await self.schedule_dispatch_task.kiq(
-                    project_id=str(project_id),
-                    event_id=event_id,
-                    event=event,
-                    schedule=schedule.model_dump(mode="json"),
+                await asyncio.wait_for(
+                    self.schedule_dispatch_task.kiq(
+                        project_id=str(project_id),
+                        event_id=event_id,
+                        event=event,
+                        schedule=schedule.model_dump(mode="json"),
+                    ),
+                    timeout=_ENQUEUE_TIMEOUT_SECONDS,
                 )
 
                 log.info(
@@ -889,6 +904,11 @@ class TriggersService:
     ) -> bool:
         """Verify Composio's HMAC over ``{webhook-id}.{webhook-timestamp}.{body}``.
 
+        Composio's encoding (hex vs base64) is not yet confirmed against a real
+        event, so we compute both digests and accept either, logging which one
+        matched plus the raw inputs at debug. This is intentionally permissive
+        for now — once the logs confirm the real encoding, collapse to one.
+
         On mismatch, refresh the secret once (it rotates if the subscription is
         recreated) and retry before rejecting.
         """
@@ -900,7 +920,8 @@ class TriggersService:
 
         webhook_id = headers.get("webhook-id") or ""
         timestamp = headers.get("webhook-timestamp") or ""
-        signed = f"{webhook_id}.{timestamp}.{body.decode('utf-8', errors='replace')}"
+        # Byte-exact signing input: avoids the lossy utf-8 decode for non-utf-8 bodies.
+        signed_bytes = f"{webhook_id}.{timestamp}.".encode("utf-8") + body
         provided = signature.split(",")[-1].strip()
 
         for force_refresh in (False, True):
@@ -909,12 +930,30 @@ class TriggersService:
             )
             if not secret:
                 return False
-            expected = hmac.new(
-                secret.encode("utf-8"),
-                signed.encode("utf-8"),
-                hashlib.sha256,
-            ).hexdigest()
-            if hmac.compare_digest(expected, provided):
+            digest = hmac.new(secret.encode("utf-8"), signed_bytes, hashlib.sha256)
+            expected_hex = digest.hexdigest()
+            expected_b64 = base64.b64encode(digest.digest()).decode("ascii")
+
+            log.debug(
+                "[TRIGGER SIGNATURE] webhook_id=%s timestamp=%s body_len=%d "
+                "provided=%s expected_hex=%s expected_b64=%s force_refresh=%s",
+                webhook_id,
+                timestamp,
+                len(body),
+                provided,
+                expected_hex,
+                expected_b64,
+                force_refresh,
+            )
+
+            if hmac.compare_digest(expected_hex, provided):
+                log.info("[TRIGGER SIGNATURE] matched via HEX encoding")
+                return True
+            if hmac.compare_digest(expected_b64, provided):
+                log.info("[TRIGGER SIGNATURE] matched via BASE64 encoding")
                 return True
 
+        log.warning(
+            "[TRIGGER SIGNATURE] no match (hex or base64) webhook_id=%s", webhook_id
+        )
         return False

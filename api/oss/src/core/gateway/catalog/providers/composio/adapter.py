@@ -9,7 +9,7 @@ Parser logic mirrors ``core/tools/providers/composio/catalog.py`` (the prior
 home of integration browse) so the wire shape is unchanged.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -17,6 +17,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.gateway.catalog.dtos import (
     CatalogAuthScheme,
     CatalogIntegration,
+    CatalogIntegrationsPage,
     CatalogProvider,
 )
 from oss.src.core.gateway.catalog.interfaces import CatalogGatewayInterface
@@ -118,7 +119,7 @@ class ComposioCatalogAdapter(CatalogGatewayInterface):
         sort_by: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-    ) -> Tuple[List[CatalogIntegration], Optional[str], int]:
+    ) -> CatalogIntegrationsPage:
         page_limit = min(limit, MAX_PAGE_SIZE) if limit else DEFAULT_PAGE_SIZE
 
         params: Dict[str, Any] = {"limit": page_limit}
@@ -159,7 +160,11 @@ class ComposioCatalogAdapter(CatalogGatewayInterface):
 
         items = [_parse_integration(item) for item in items_raw]
 
-        return items, next_cursor, total_items
+        return CatalogIntegrationsPage(
+            integrations=items,
+            next_cursor=next_cursor,
+            total=total_items,
+        )
 
 
 # ---------------------------------------------------------------------------

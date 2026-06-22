@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
@@ -7,9 +7,10 @@ from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.gateway.connections.service import ConnectionsService
 
 from oss.src.core.tools.dtos import (
-    ToolCatalogAction,
     ToolCatalogActionDetails,
+    ToolCatalogActionsPage,
     ToolCatalogIntegration,
+    ToolCatalogIntegrationsPage,
     ToolCatalogProvider,
     ToolConnection,
     ToolConnectionCreate,
@@ -64,8 +65,8 @@ class ToolsService:
         sort_by: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-    ) -> Tuple[List[ToolCatalogIntegration], Optional[str], int]:
-        integrations, next_cursor, total = await self.catalog_service.list_integrations(
+    ) -> ToolCatalogIntegrationsPage:
+        page = await self.catalog_service.list_integrations(
             provider_key=provider_key,
             search=search,
             sort_by=sort_by,
@@ -73,9 +74,14 @@ class ToolsService:
             cursor=cursor,
         )
         items = [
-            ToolCatalogIntegration.model_validate(i.model_dump()) for i in integrations
+            ToolCatalogIntegration.model_validate(i.model_dump())
+            for i in page.integrations
         ]
-        return items, next_cursor, total
+        return ToolCatalogIntegrationsPage(
+            integrations=items,
+            next_cursor=page.next_cursor,
+            total=page.total,
+        )
 
     async def get_integration(
         self,
@@ -102,7 +108,7 @@ class ToolsService:
         important: Optional[bool] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-    ) -> Tuple[List[ToolCatalogAction], Optional[str], int]:
+    ) -> ToolCatalogActionsPage:
         """List actions for an integration with optional search and pagination."""
         adapter = self.adapter_registry.get(provider_key)
         return await adapter.list_actions(
@@ -182,9 +188,11 @@ class ToolsService:
     async def find_connection_by_provider_connection_id(
         self,
         *,
+        project_id: UUID,
         provider_connection_id: str,
     ) -> Optional[ToolConnection]:
         conn = await self.connections_service.find_connection_by_provider_connection_id(
+            project_id=project_id,
             provider_connection_id=provider_connection_id,
         )
         return self._as_tool_connection(conn)
@@ -192,12 +200,12 @@ class ToolsService:
     async def activate_connection_by_provider_connection_id(
         self,
         *,
+        project_id: UUID,
         provider_connection_id: str,
-        project_id: Optional[UUID] = None,
     ) -> Optional[ToolConnection]:
         conn = await self.connections_service.activate_connection_by_provider_connection_id(
-            provider_connection_id=provider_connection_id,
             project_id=project_id,
+            provider_connection_id=provider_connection_id,
         )
         return self._as_tool_connection(conn)
 

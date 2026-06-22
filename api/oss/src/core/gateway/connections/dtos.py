@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -89,7 +89,9 @@ class ConnectionCreate(
     provider_key: ConnectionProviderKind
     integration_key: str
     #
-    data: Optional[ConnectionCreateData] = None
+    # Either the typed create input (from the API) or the provider-shaped payload
+    # the service builds before persistence (provider field names are opaque here).
+    data: Optional[Union[ConnectionCreateData, Json]] = None
 
 
 class Usage(BaseModel):
@@ -128,3 +130,20 @@ class ConnectionResponse(BaseModel):
     provider_connection_id: str
     redirect_url: Optional[str] = None
     connection_data: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ConnectionStatusResponse(BaseModel):
+    """Output DTO from ConnectionsGatewayInterface.get_connection_status."""
+
+    status: Optional[str] = None
+    is_valid: bool = False
+
+
+class ConnectionRefreshResponse(BaseModel):
+    """Output DTO from ConnectionsGatewayInterface.refresh_connection."""
+
+    id: Optional[str] = None
+    status: Optional[str] = None
+    is_valid: Optional[bool] = None
+    redirect_url: Optional[str] = None
+    auth_config_id: Optional[str] = None

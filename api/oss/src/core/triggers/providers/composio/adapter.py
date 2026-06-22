@@ -137,9 +137,9 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
         """
         try:
             existing = await self._get("/webhook_subscriptions")
-            items = existing.get("items", []) if isinstance(existing, dict) else []
-            if items:
-                return items[0]["secret"]
+            secret = self._first_webhook_secret(existing)
+            if secret:
+                return secret
 
             resp = await self._client.post(
                 f"{self.api_url}/webhook_subscriptions",
@@ -148,7 +148,14 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
             )
             if resp.status_code == 409:
                 again = await self._get("/webhook_subscriptions")
-                return again["items"][0]["secret"]
+                secret = self._first_webhook_secret(again)
+                if not secret:
+                    raise AdapterError(
+                        provider_key="composio",
+                        operation="ensure_webhook_subscription",
+                        detail="409 conflict returned no readable webhook secret",
+                    )
+                return secret
             resp.raise_for_status()
             return resp.json()["secret"]
         except httpx.HTTPError as e:
@@ -157,6 +164,15 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
                 operation="ensure_webhook_subscription",
                 detail=composio_error_detail(e),
             ) from e
+
+    @staticmethod
+    def _first_webhook_secret(payload: object) -> Optional[str]:
+        if not isinstance(payload, dict):
+            return None
+        items = payload.get("items", [])
+        if items and isinstance(items[0], dict):
+            return items[0].get("secret")
+        return None
 
     # -----------------------------------------------------------------------
     # Subscriptions (provider-side trigger instances — ti_*)

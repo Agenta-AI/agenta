@@ -93,23 +93,25 @@ class ConnectionsService:
     async def find_connection_by_provider_connection_id(
         self,
         *,
+        project_id: UUID,
         provider_connection_id: str,
     ) -> Optional[Connection]:
-        """Find any connection by its provider-side ID (for OAuth callbacks)."""
+        """Find a project's connection by its provider-side ID (for OAuth callbacks)."""
         return await self.connections_dao.find_connection_by_provider_id(
+            project_id=project_id,
             provider_connection_id=provider_connection_id,
         )
 
     async def activate_connection_by_provider_connection_id(
         self,
         *,
+        project_id: UUID,
         provider_connection_id: str,
-        project_id: Optional[UUID] = None,
     ) -> Optional[Connection]:
         """Mark a connection valid+active after OAuth completes."""
         return await self.connections_dao.activate_connection_by_provider_id(
-            provider_connection_id=provider_connection_id,
             project_id=project_id,
+            provider_connection_id=provider_connection_id,
         )
 
     async def usage(
@@ -180,7 +182,7 @@ class ConnectionsService:
         # The adapter owns provider-specific field names; the service adds project scope.
         data: Dict[str, Any] = dict(provider_result.connection_data)
         data["project_id"] = str(project_id)
-        connection_create.data = data  # type: ignore[assignment]
+        connection_create.data = data
 
         # Persist locally
         return await self.connections_dao.create_connection(
@@ -306,11 +308,11 @@ class ConnectionsService:
             integration_key=conn.integration_key,
             user_id=str(project_id),
         )
-        provider_connection_id = result.get("id") or provider_connection_id
-        auth_config_id = result.get("auth_config_id")
-        is_valid = result.get("is_valid", conn.is_valid)
+        provider_connection_id = result.id or provider_connection_id
+        auth_config_id = result.auth_config_id
+        is_valid = result.is_valid if result.is_valid is not None else conn.is_valid
 
-        redirect_url = result.get("redirect_url")
+        redirect_url = result.redirect_url
         # Always overwrite redirect_url so FE doesn't reuse stale links from prior flows.
         data_update = {"redirect_url": redirect_url}
         if auth_config_id:

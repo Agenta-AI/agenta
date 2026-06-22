@@ -20,8 +20,8 @@ export function projectScopedParams(extra?: Record<string, unknown>) {
     const projectId = getDefaultStore().get(projectIdAtom)
     return {
         params: {
-            ...(projectId ? {project_id: projectId} : {}),
             ...(extra ?? {}),
+            ...(projectId ? {project_id: projectId} : {}),
         },
     }
 }

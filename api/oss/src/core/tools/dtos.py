@@ -75,6 +75,22 @@ class ToolCatalogProviderDetails(ToolCatalogProvider):
     integrations: Optional[List[ToolCatalogIntegration]] = None
 
 
+class ToolCatalogIntegrationsPage(BaseModel):
+    """A cursor-paginated page of tool integrations."""
+
+    integrations: List[ToolCatalogIntegration] = []
+    next_cursor: Optional[str] = None
+    total: int = 0
+
+
+class ToolCatalogActionsPage(BaseModel):
+    """A cursor-paginated page of tool actions."""
+
+    actions: List[ToolCatalogAction] = []
+    next_cursor: Optional[str] = None
+    total: int = 0
+
+
 # ---------------------------------------------------------------------------
 # Tool Connections — shared `gateway_connections` rows, inherited here so the
 # tools router/models never reference the generic gateway DTOs directly.

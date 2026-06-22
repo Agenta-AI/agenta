@@ -222,20 +222,20 @@ class ConnectionsDAO(ConnectionsDAOInterface):
     async def activate_connection_by_provider_id(
         self,
         *,
+        project_id: UUID,
         provider_connection_id: str,
-        project_id: Optional[UUID] = None,
     ) -> Optional[Connection]:
         """Set is_valid=True and is_active=True for the connection matching the provider ID."""
         async with self.engine.session() as session:
-            stmt = select(self.ConnectionDBE).filter(
-                self.ConnectionDBE.data["connected_account_id"].astext
-                == provider_connection_id
+            stmt = (
+                select(self.ConnectionDBE)
+                .filter(
+                    self.ConnectionDBE.project_id == project_id,
+                    self.ConnectionDBE.data["connected_account_id"].astext
+                    == provider_connection_id,
+                )
+                .limit(1)
             )
-
-            if project_id is not None:
-                stmt = stmt.filter(self.ConnectionDBE.project_id == project_id)
-
-            stmt = stmt.limit(1)
 
             result = await session.execute(stmt)
             dbe = result.scalars().first()
@@ -260,15 +260,17 @@ class ConnectionsDAO(ConnectionsDAOInterface):
     async def find_connection_by_provider_id(
         self,
         *,
+        project_id: UUID,
         provider_connection_id: str,
     ) -> Optional[Connection]:
-        """Lookup any connection by provider-side connected_account_id (no project scope)."""
+        """Lookup a connection by provider-side connected_account_id within a project."""
         async with self.engine.session() as session:
             stmt = (
                 select(self.ConnectionDBE)
                 .filter(
+                    self.ConnectionDBE.project_id == project_id,
                     self.ConnectionDBE.data["connected_account_id"].astext
-                    == provider_connection_id
+                    == provider_connection_id,
                 )
                 .limit(1)
             )

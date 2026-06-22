@@ -5,8 +5,10 @@ import httpx
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.gateway.connections.dtos import (
+    ConnectionRefreshResponse,
     ConnectionRequest,
     ConnectionResponse,
+    ConnectionStatusResponse,
 )
 from oss.src.core.gateway.connections.interfaces import ConnectionsGatewayInterface
 from oss.src.core.gateway.connections.exceptions import AdapterError
@@ -223,7 +225,7 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
         self,
         *,
         provider_connection_id: str,
-    ) -> Dict[str, Any]:
+    ) -> ConnectionStatusResponse:
         try:
             result = await self._get(f"/connected_accounts/{provider_connection_id}")
         except httpx.HTTPError as e:
@@ -233,10 +235,10 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
                 detail=composio_error_detail(e),
             ) from e
 
-        return {
-            "status": result.get("status"),
-            "is_valid": result.get("status") == "ACTIVE",
-        }
+        return ConnectionStatusResponse(
+            status=result.get("status"),
+            is_valid=result.get("status") == "ACTIVE",
+        )
 
     async def refresh_connection(
         self,
@@ -246,7 +248,7 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
         callback_url: Optional[str] = None,
         integration_key: Optional[str] = None,
         user_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> ConnectionRefreshResponse:
         # For Composio OAuth flows, "refresh" means re-initiating the auth link.
         # The provider does not expose a token-refresh endpoint for OAuth connections,
         # so we create a new connected_accounts/link which the user must re-authorize.
@@ -258,12 +260,12 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
                     callback_url=callback_url,
                 ),
             )
-            return {
-                "id": result.provider_connection_id,
-                "redirect_url": result.redirect_url,
-                "auth_config_id": result.connection_data.get("auth_config_id"),
-                "is_valid": False,  # Re-auth pending until callback fires
-            }
+            return ConnectionRefreshResponse(
+                id=result.provider_connection_id,
+                redirect_url=result.redirect_url,
+                auth_config_id=result.connection_data.get("auth_config_id"),
+                is_valid=False,  # Re-auth pending until callback fires
+            )
 
         payload: Dict[str, Any] = {}
         if callback_url:
@@ -281,11 +283,11 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
                 detail=composio_error_detail(e),
             ) from e
 
-        return {
-            "status": result.get("status"),
-            "is_valid": result.get("status") == "ACTIVE",
-            "redirect_url": result.get("redirect_url"),
-        }
+        return ConnectionRefreshResponse(
+            status=result.get("status"),
+            is_valid=result.get("status") == "ACTIVE",
+            redirect_url=result.get("redirect_url"),
+        )
 
     async def revoke_connection(
         self,

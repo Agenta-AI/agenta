@@ -44,3 +44,11 @@ class CatalogIntegration(BaseModel):
     actions_count: Optional[int] = None
     #
     auth_schemes: Optional[List[CatalogAuthScheme]] = None
+
+
+class CatalogIntegrationsPage(BaseModel):
+    """A cursor-paginated page of integrations from a provider catalog."""
+
+    integrations: List[CatalogIntegration] = []
+    next_cursor: Optional[str] = None
+    total: int = 0

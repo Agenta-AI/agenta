@@ -62,10 +62,22 @@ export const useTriggerCatalogIntegrations = () => {
     }, [])
 
     useEffect(() => {
-        if (loadedPages < targetPages && query.hasNextPage && !query.isFetchingNextPage) {
+        if (
+            loadedPages < targetPages &&
+            query.hasNextPage &&
+            !query.isFetchingNextPage &&
+            !query.isError
+        ) {
             query.fetchNextPage()
         }
-    }, [loadedPages, targetPages, query.hasNextPage, query.isFetchingNextPage, query.fetchNextPage])
+    }, [
+        loadedPages,
+        targetPages,
+        query.hasNextPage,
+        query.isFetchingNextPage,
+        query.isError,
+        query.fetchNextPage,
+    ])
 
     return {
         integrations,

@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from oss.src.core.gateway.catalog.dtos import (
     CatalogIntegration,
+    CatalogIntegrationsPage,
     CatalogProvider,
 )
 
@@ -26,9 +27,7 @@ class CatalogGatewayInterface(ABC):
         sort_by: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-    ) -> Tuple[List[CatalogIntegration], Optional[str], int]:
-        """Returns (items, next_cursor, total_items)."""
-        ...
+    ) -> CatalogIntegrationsPage: ...
 
     @abstractmethod
     async def get_integration(

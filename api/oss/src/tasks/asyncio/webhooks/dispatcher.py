@@ -8,6 +8,7 @@ The dispatcher is intentionally self-contained so it can be extracted into
 its own consumer process later without changing its internal logic.
 """
 
+import asyncio
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -26,6 +27,8 @@ from oss.src.utils.crypting import decrypt, encrypt
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
+
+_ENQUEUE_TIMEOUT_SECONDS = 5.0
 
 
 class WebhooksDispatcher:
@@ -267,32 +270,35 @@ class WebhooksDispatcher:
                     try:
                         delivery_id = uuid_compat.uuid7()
 
-                        await self.deliver_task.kiq(
-                            project_id=str(project_id),
-                            #
-                            delivery_id=str(delivery_id),
-                            #
-                            subscription_id=str(sub.id),
-                            event_id=str(event.event_id),
-                            #
-                            url=str(sub.data.url),
-                            headers=sub.data.headers or {},
-                            payload_fields=sub.data.payload_fields,
-                            auth_mode=sub.data.auth_mode,
-                            #
-                            event_type=event_type,
-                            #
-                            subscription=sub.model_dump(
-                                mode="json",
-                                exclude_none=True,
-                                exclude={"secret", "secret_id"},
+                        await asyncio.wait_for(
+                            self.deliver_task.kiq(
+                                project_id=str(project_id),
+                                #
+                                delivery_id=str(delivery_id),
+                                #
+                                subscription_id=str(sub.id),
+                                event_id=str(event.event_id),
+                                #
+                                url=str(sub.data.url),
+                                headers=sub.data.headers or {},
+                                payload_fields=sub.data.payload_fields,
+                                auth_mode=sub.data.auth_mode,
+                                #
+                                event_type=event_type,
+                                #
+                                subscription=sub.model_dump(
+                                    mode="json",
+                                    exclude_none=True,
+                                    exclude={"secret", "secret_id"},
+                                ),
+                                event=event.model_dump(
+                                    mode="json",
+                                    exclude_none=True,
+                                ),
+                                #
+                                encrypted_secret=encrypt(sub.secret),
                             ),
-                            event=event.model_dump(
-                                mode="json",
-                                exclude_none=True,
-                            ),
-                            #
-                            encrypted_secret=encrypt(sub.secret),
+                            timeout=_ENQUEUE_TIMEOUT_SECONDS,
                         )
                         log.info(
                             f"[WEBHOOKS DISPATCHER] Enqueued delivery "

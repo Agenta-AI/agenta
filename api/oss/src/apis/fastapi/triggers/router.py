@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta
 from functools import wraps
 from json import JSONDecodeError, loads
@@ -58,6 +59,8 @@ if is_ee():
     )
 
 log = get_module_logger(__name__)
+
+_ENQUEUE_TIMEOUT_SECONDS = 5.0
 
 
 def handle_adapter_exceptions():
@@ -747,23 +750,19 @@ class TriggersRouter:
         if cached:
             return cached
 
-        (
-            integrations,
-            next_cursor,
-            total,
-        ) = await self.triggers_service.list_integrations(
+        page = await self.triggers_service.list_integrations(
             provider_key=provider_key,
             search=search,
             sort_by=sort_by,
             limit=limit,
             cursor=cursor,
         )
-        items = list(integrations)
+        items = list(page.integrations)
 
         response = TriggerCatalogIntegrationsResponse(
             count=len(items),
-            total=total,
-            cursor=next_cursor,
+            total=page.total,
+            cursor=page.next_cursor,
             integrations=items,
         )
 
@@ -869,19 +868,19 @@ class TriggersRouter:
         if cached:
             return cached
 
-        events, next_cursor, total = await self.triggers_service.list_events(
+        page = await self.triggers_service.list_events(
             provider_key=provider_key,
             integration_key=integration_key,
             query=query,
             limit=limit,
             cursor=cursor,
         )
-        items = list(events)
+        items = list(page.events)
 
         response = TriggerCatalogEventsResponse(
             count=len(items),
-            total=total,
-            cursor=next_cursor,
+            total=page.total,
+            cursor=page.next_cursor,
             events=items,
         )
 
@@ -1551,10 +1550,20 @@ class TriggersRouter:
             )
 
         if self.dispatch_task is not None:
-            await self.dispatch_task.kiq(
-                trigger_id=str(trigger_id),
-                event_id=str(event_id),
-                event=envelope,
-            )
+            try:
+                await asyncio.wait_for(
+                    self.dispatch_task.kiq(
+                        trigger_id=str(trigger_id),
+                        event_id=str(event_id),
+                        event=envelope,
+                    ),
+                    timeout=_ENQUEUE_TIMEOUT_SECONDS,
+                )
+            except Exception as e:
+                log.error("Failed to enqueue trigger event: %s", e)
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Failed to enqueue trigger event",
+                ) from e
 
         return TriggerEventAck(status="accepted")

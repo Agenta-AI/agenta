@@ -5,10 +5,11 @@ logic lives here once and each router calls it. The leaf reads (tool actions /
 trigger events) stay in their own domain services.
 """
 
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from oss.src.core.gateway.catalog.dtos import (
     CatalogIntegration,
+    CatalogIntegrationsPage,
     CatalogProvider,
 )
 from oss.src.core.gateway.catalog.registry import CatalogGatewayRegistry
@@ -50,7 +51,7 @@ class CatalogService:
         sort_by: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-    ) -> Tuple[List[CatalogIntegration], Optional[str], int]:
+    ) -> CatalogIntegrationsPage:
         adapter = self.adapter_registry.get(provider_key)
         return await adapter.list_integrations(
             search=search,

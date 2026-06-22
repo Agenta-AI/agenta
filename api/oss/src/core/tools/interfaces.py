@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from oss.src.core.tools.dtos import (
-    ToolCatalogAction,
     ToolCatalogActionDetails,
+    ToolCatalogActionsPage,
     ToolCatalogIntegration,
+    ToolCatalogIntegrationsPage,
     ToolCatalogProvider,
     ToolExecutionRequest,
     ToolExecutionResponse,
@@ -29,9 +30,7 @@ class ToolsGatewayInterface(ABC):
         sort_by: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-    ) -> Tuple[List[ToolCatalogIntegration], Optional[str], int]:
-        """Returns (items, next_cursor, total_items)."""
-        ...
+    ) -> ToolCatalogIntegrationsPage: ...
 
     @abstractmethod
     async def get_integration(
@@ -50,9 +49,7 @@ class ToolsGatewayInterface(ABC):
         important: Optional[bool] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-    ) -> Tuple[List[ToolCatalogAction], Optional[str], int]:
-        """Returns (items, next_cursor, total_items)."""
-        ...
+    ) -> ToolCatalogActionsPage: ...
 
     @abstractmethod
     async def get_action(

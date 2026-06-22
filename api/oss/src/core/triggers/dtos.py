@@ -76,6 +76,22 @@ class TriggerCatalogIntegration(CatalogIntegration):
     pass
 
 
+class TriggerCatalogIntegrationsPage(BaseModel):
+    """A cursor-paginated page of trigger integrations."""
+
+    integrations: List[TriggerCatalogIntegration] = []
+    next_cursor: Optional[str] = None
+    total: int = 0
+
+
+class TriggerCatalogEventsPage(BaseModel):
+    """A cursor-paginated page of trigger events."""
+
+    events: List[TriggerCatalogEvent] = []
+    next_cursor: Optional[str] = None
+    total: int = 0
+
+
 # ---------------------------------------------------------------------------
 # Trigger Connections — shared `gateway_connections` rows, inherited here so the
 # triggers router/models never reference the generic gateway DTOs directly.

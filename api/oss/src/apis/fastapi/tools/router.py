@@ -379,19 +379,19 @@ class ToolsRouter:
         if cached:
             return cached
 
-        integrations, next_cursor, total = await self.tools_service.list_integrations(
+        page = await self.tools_service.list_integrations(
             provider_key=provider_key,
             search=search,
             sort_by=sort_by,
             limit=limit,
             cursor=cursor,
         )
-        items = list(integrations)
+        items = list(page.integrations)
 
         response = ToolCatalogIntegrationsResponse(
             count=len(items),
-            total=total,
-            cursor=next_cursor,
+            total=page.total,
+            cursor=page.next_cursor,
             integrations=items,
         )
 
@@ -504,7 +504,7 @@ class ToolsRouter:
         if cached:
             return cached
 
-        actions, next_cursor, total = await self.tools_service.list_actions(
+        page = await self.tools_service.list_actions(
             provider_key=provider_key,
             integration_key=integration_key,
             query=query,
@@ -514,7 +514,7 @@ class ToolsRouter:
         )
         items = []
 
-        for action in actions:
+        for action in page.actions:
             if full_details:
                 # Call route handler to benefit from cache reuse
                 action_response = await self.get_action(
@@ -535,8 +535,8 @@ class ToolsRouter:
 
         response = ToolCatalogActionsResponse(
             count=len(items),
-            total=total,
-            cursor=next_cursor,
+            total=page.total,
+            cursor=page.next_cursor,
             actions=items,
         )
 
@@ -828,7 +828,9 @@ class ToolsRouter:
                 ),
             )
 
-        # Decode HMAC-signed state to recover project scope.
+        # Decode HMAC-signed state to recover project scope. Activation is
+        # project-scoped, so a missing/invalid state is fatal — we never activate
+        # without a resolved project_id.
         project_id: Optional[UUID] = None
         if state:
             payload = decode_oauth_state(state, secret_key=env.agenta.crypt_key)
@@ -841,6 +843,15 @@ class ToolsRouter:
                     log.warning("OAuth callback state missing or invalid project_id")
         else:
             log.warning("OAuth callback received without state token")
+
+        if project_id is None:
+            return HTMLResponse(
+                status_code=400,
+                content=_oauth_card(
+                    success=False,
+                    error="Connection could not be activated. Please try again.",
+                ),
+            )
 
         # Activate the connection — this is the critical path.
         conn = None

@@ -4,8 +4,8 @@ from uuid import UUID
 
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.triggers.dtos import (
-    TriggerCatalogEvent,
     TriggerCatalogEventDetails,
+    TriggerCatalogEventsPage,
     TriggerCatalogProvider,
     TriggerDelivery,
     TriggerDeliveryCreate,
@@ -40,9 +40,7 @@ class TriggersGatewayInterface(ABC):
         query: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-    ) -> Tuple[List[TriggerCatalogEvent], Optional[str], int]:
-        """Returns (items, next_cursor, total_items)."""
-        ...
+    ) -> TriggerCatalogEventsPage: ...
 
     @abstractmethod
     async def get_event(
@@ -148,21 +146,18 @@ class TriggersDAOInterface(ABC):
     ) -> List[TriggerSubscription]: ...
 
     @abstractmethod
-    async def get_subscription_by_trigger_id(
-        self,
-        *,
-        trigger_id: str,
-    ) -> Optional[TriggerSubscription]:
-        """Resolve an inbound event's ``ti_*`` to its local row."""
-        ...
-
-    @abstractmethod
     async def get_project_and_subscription_by_trigger_id(
         self,
         *,
         trigger_id: str,
     ) -> Optional[Tuple[UUID, TriggerSubscription]]:
-        """Resolve a ``ti_*`` to its (project_id, subscription); the DTO omits project scope."""
+        """Resolve a ``ti_*`` to its (project_id, subscription).
+
+        Deliberately cross-project: an inbound Composio event carries only the
+        provider ``ti_*`` and no tenant scope, so this lookup *recovers* the
+        project from the (partial-unique) ``ti_id`` column. The only sanctioned
+        unscoped DAO read — every other read/write takes ``project_id``.
+        """
         ...
 
     # --- deliveries --------------------------------------------------------- #

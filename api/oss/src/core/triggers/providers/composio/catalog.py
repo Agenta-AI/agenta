@@ -11,7 +11,7 @@ type*), and an action's ``input_parameters`` schema becomes an event's
 ``next_cursor`` string, passed through as-is.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -19,6 +19,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.triggers.dtos import (
     TriggerCatalogEvent,
     TriggerCatalogEventDetails,
+    TriggerCatalogEventsPage,
 )
 from oss.src.core.triggers.exceptions import AdapterError
 
@@ -48,7 +49,7 @@ class ComposioTriggersCatalogClient:
         query: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-    ) -> Tuple[List[TriggerCatalogEvent], Optional[str], int]:
+    ) -> TriggerCatalogEventsPage:
         """Fetch one page of events (Composio trigger types) for an integration.
 
         E5 (verified vs live Composio API reference): GET /triggers_types,
@@ -104,7 +105,11 @@ class ComposioTriggersCatalogClient:
             next_cursor,
         )
 
-        return items, next_cursor, total_items
+        return TriggerCatalogEventsPage(
+            events=items,
+            next_cursor=next_cursor,
+            total=total_items,
+        )
 
     async def get_event(
         self,

@@ -216,37 +216,14 @@ class TriggersDAO(TriggersDAOInterface):
                 for dbe in result.scalars().all()
             ]
 
-    async def get_subscription_by_trigger_id(
-        self,
-        *,
-        trigger_id: str,
-    ) -> Optional[TriggerSubscription]:
-        async with self.engine.session() as session:
-            stmt = (
-                select(TriggerSubscriptionDBE)
-                .filter(
-                    TriggerSubscriptionDBE.ti_id == trigger_id,
-                    TriggerSubscriptionDBE.deleted_at.is_(None),
-                )
-                .limit(1)
-            )
-
-            result = await session.execute(stmt)
-
-            subscription_dbe = result.scalars().first()
-
-            if not subscription_dbe:
-                return None
-
-            return map_subscription_dbe_to_dto(
-                subscription_dbe=subscription_dbe,
-            )
-
     async def get_project_and_subscription_by_trigger_id(
         self,
         *,
         trigger_id: str,
     ) -> Optional[Tuple[UUID, TriggerSubscription]]:
+        # Deliberately unscoped: inbound Composio events carry only the provider
+        # ti_id and no tenant scope, so this recovers project_id from it. The one
+        # sanctioned cross-project read (ti_id is partial-unique).
         async with self.engine.session() as session:
             stmt = (
                 select(TriggerSubscriptionDBE)
