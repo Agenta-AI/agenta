@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -11,10 +11,13 @@ from oss.src.core.gateway.catalog.dtos import (
 from oss.src.core.gateway.connections.dtos import (
     Connection,
     ConnectionCreate,
+    ConnectionCreateData,
+    ConnectionStatus,
 )
 from oss.src.core.shared.dtos import (
     Header,
     Identifier,
+    Json,
     Lifecycle,
     Metadata,
     Reference,
@@ -37,6 +40,11 @@ TRIGGER_MAX_RETRIES = 5
 
 class TriggerProviderKind(str, Enum):
     COMPOSIO = "composio"
+
+
+class TriggerAuthScheme(str, Enum):
+    OAUTH = "oauth"
+    API_KEY = "api_key"
 
 
 # ---------------------------------------------------------------------------
@@ -69,11 +77,11 @@ class TriggerCatalogEventDetails(TriggerCatalogEvent):
 # Providers + integrations are SHARED across tools and triggers — defined once
 # in gateway/catalog and inherited here as the triggers-side subclasses.
 class TriggerCatalogProvider(CatalogProvider):
-    pass
+    key: TriggerProviderKind
 
 
 class TriggerCatalogIntegration(CatalogIntegration):
-    pass
+    auth_schemes: Optional[List[TriggerAuthScheme]] = None
 
 
 class TriggerCatalogIntegrationsPage(BaseModel):
@@ -98,12 +106,22 @@ class TriggerCatalogEventsPage(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class TriggerConnection(Connection):
+class TriggerConnectionStatus(ConnectionStatus):
     pass
+
+
+class TriggerConnectionCreateData(ConnectionCreateData):
+    auth_scheme: Optional[TriggerAuthScheme] = None
+
+
+class TriggerConnection(Connection):
+    provider_key: TriggerProviderKind
+    status: Optional[TriggerConnectionStatus] = None
 
 
 class TriggerConnectionCreate(ConnectionCreate):
-    pass
+    provider_key: TriggerProviderKind
+    data: Optional[Union[TriggerConnectionCreateData, Json]] = None
 
 
 # ---------------------------------------------------------------------------

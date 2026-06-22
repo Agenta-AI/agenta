@@ -2,7 +2,19 @@
 
 import typing
 
-from .connection_create_data import ConnectionCreateData
-from .full_json_input import FullJsonInput
+import pydantic
+from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .tool_auth_scheme import ToolAuthScheme
 
-ToolConnectionCreateData = typing.Union[ConnectionCreateData, typing.Dict[str, typing.Optional[FullJsonInput]]]
+
+class ToolConnectionCreateData(UniversalBaseModel):
+    callback_url: typing.Optional[str] = None
+    auth_scheme: typing.Optional[ToolAuthScheme] = None
+    
+    if IS_PYDANTIC_V2:
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+    else:
+        class Config:
+            frozen = True
+            smart_union = True
+            extra = pydantic.Extra.allow

@@ -6,7 +6,7 @@ import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 
 
-class ConnectionStatus(UniversalBaseModel):
+class ToolConnectionStatus(UniversalBaseModel):
     redirect_url: typing.Optional[str] = None
     
     if IS_PYDANTIC_V2:

@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from agenta.sdk.models.workflows import JsonSchemas
 from pydantic import BaseModel
@@ -11,6 +11,8 @@ from oss.src.core.gateway.catalog.dtos import (
 from oss.src.core.gateway.connections.dtos import (
     Connection,
     ConnectionCreate,
+    ConnectionCreateData,
+    ConnectionStatus,
 )
 from oss.src.core.shared.dtos import (
     Identifier,
@@ -60,7 +62,7 @@ class ToolCatalogActionDetails(ToolCatalogAction):
 # in gateway/catalog and inherited here so the tool-specific "details" leaves
 # (nested actions) can extend them without duplicating the base shape.
 class ToolCatalogIntegration(CatalogIntegration):
-    pass
+    auth_schemes: Optional[List[ToolAuthScheme]] = None
 
 
 class ToolCatalogIntegrationDetails(ToolCatalogIntegration):
@@ -68,7 +70,7 @@ class ToolCatalogIntegrationDetails(ToolCatalogIntegration):
 
 
 class ToolCatalogProvider(CatalogProvider):
-    pass
+    key: ToolProviderKind
 
 
 class ToolCatalogProviderDetails(ToolCatalogProvider):
@@ -97,12 +99,22 @@ class ToolCatalogActionsPage(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class ToolConnection(Connection):
+class ToolConnectionStatus(ConnectionStatus):
     pass
+
+
+class ToolConnectionCreateData(ConnectionCreateData):
+    auth_scheme: Optional[ToolAuthScheme] = None
+
+
+class ToolConnection(Connection):
+    provider_key: ToolProviderKind
+    status: Optional[ToolConnectionStatus] = None
 
 
 class ToolConnectionCreate(ConnectionCreate):
-    pass
+    provider_key: ToolProviderKind
+    data: Optional[Union[ToolConnectionCreateData, Json]] = None
 
 
 # ---------------------------------------------------------------------------

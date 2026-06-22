@@ -9,11 +9,7 @@ export interface TriggerConnectionCreate {
     name?: (string | null) | undefined;
     description?: (string | null) | undefined;
     slug?: (string | null) | undefined;
-    provider_key: AgentaApi.ConnectionProviderKind;
+    provider_key: AgentaApi.TriggerProviderKind;
     integration_key: string;
-    data?: (TriggerConnectionCreate.Data | null) | undefined;
-}
-
-export namespace TriggerConnectionCreate {
-    export type Data = AgentaApi.ConnectionCreateData | Record<string, AgentaApi.FullJsonInput | null>;
+    data?: (AgentaApi.TriggerConnectionCreateData | null) | undefined;
 }

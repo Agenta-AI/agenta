@@ -16,8 +16,8 @@ export interface TriggerConnection {
     description?: (string | null) | undefined;
     slug?: (string | null) | undefined;
     id?: (string | null) | undefined;
-    provider_key: AgentaApi.ConnectionProviderKind;
+    provider_key: AgentaApi.TriggerProviderKind;
     integration_key: string;
     data?: (Record<string, AgentaApi.FullJsonOutput | null> | null) | undefined;
-    status?: (AgentaApi.ConnectionStatus | null) | undefined;
+    status?: (AgentaApi.TriggerConnectionStatus | null) | undefined;
 }

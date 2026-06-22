@@ -4,12 +4,10 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .connection_auth_scheme import ConnectionAuthScheme
 
 
-class ConnectionCreateData(UniversalBaseModel):
-    callback_url: typing.Optional[str] = None
-    auth_scheme: typing.Optional[ConnectionAuthScheme] = None
+class TriggerConnectionStatus(UniversalBaseModel):
+    redirect_url: typing.Optional[str] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

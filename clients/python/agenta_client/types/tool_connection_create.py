@@ -6,8 +6,8 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
-from .connection_provider_kind import ConnectionProviderKind
 from .tool_connection_create_data import ToolConnectionCreateData
+from .tool_provider_kind import ToolProviderKind
 
 
 class ToolConnectionCreate(UniversalBaseModel):
@@ -17,7 +17,7 @@ class ToolConnectionCreate(UniversalBaseModel):
     name: typing.Optional[str] = None
     description: typing.Optional[str] = None
     slug: typing.Optional[str] = None
-    provider_key: ConnectionProviderKind
+    provider_key: ToolProviderKind
     integration_key: str
     data: typing.Optional[ToolConnectionCreateData] = None
     

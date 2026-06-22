@@ -24,8 +24,8 @@ export type ToolCatalogProviderDetails = AgentaApi.ToolCatalogProviderDetails
 export type ToolCatalogProviderResponse = AgentaApi.ToolCatalogProviderResponse
 export type ToolCatalogProvidersResponse = AgentaApi.ToolCatalogProvidersResponse
 
-export type ToolAuthScheme = AgentaApi.ConnectionAuthScheme
-export type ToolProviderKind = AgentaApi.ConnectionProviderKind
+export type ToolAuthScheme = AgentaApi.ToolAuthScheme
+export type ToolProviderKind = AgentaApi.ToolProviderKind
 
 export type ToolCatalogIntegration = AgentaApi.ToolCatalogIntegration
 export type ToolCatalogIntegrationDetails = AgentaApi.ToolCatalogIntegrationDetails
@@ -43,10 +43,10 @@ export type ToolCatalogActionsResponse = AgentaApi.ToolCatalogActionsResponse
 
 export type ToolConnection = AgentaApi.ToolConnection
 export type ToolConnectionCreate = AgentaApi.ToolConnectionCreate
-export type ToolConnectionCreateData = AgentaApi.ConnectionCreateData
+export type ToolConnectionCreateData = AgentaApi.ToolConnectionCreateData
 export type ToolConnectionResponse = AgentaApi.ToolConnectionResponse
 export type ToolConnectionsResponse = AgentaApi.ToolConnectionsResponse
-export type ToolConnectionStatus = AgentaApi.ConnectionStatus
+export type ToolConnectionStatus = AgentaApi.ToolConnectionStatus
 
 // ---------------------------------------------------------------------------
 // Tool execution

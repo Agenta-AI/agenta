@@ -3,7 +3,7 @@
 import type * as AgentaApi from "../index.js";
 
 export interface TriggerCatalogProvider {
-    key: AgentaApi.CatalogProviderKind;
+    key: AgentaApi.TriggerProviderKind;
     name: string;
     description?: (string | null) | undefined;
     integrations_count?: (number | null) | undefined;

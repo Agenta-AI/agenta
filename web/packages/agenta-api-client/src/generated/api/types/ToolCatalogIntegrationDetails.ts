@@ -10,6 +10,6 @@ export interface ToolCatalogIntegrationDetails {
     logo?: (string | null) | undefined;
     url?: (string | null) | undefined;
     actions_count?: (number | null) | undefined;
-    auth_schemes?: (AgentaApi.CatalogAuthScheme[] | null) | undefined;
+    auth_schemes?: (AgentaApi.ToolAuthScheme[] | null) | undefined;
     actions?: (AgentaApi.ToolCatalogAction[] | null) | undefined;
 }

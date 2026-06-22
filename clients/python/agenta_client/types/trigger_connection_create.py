@@ -6,8 +6,8 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
-from .connection_provider_kind import ConnectionProviderKind
 from .trigger_connection_create_data import TriggerConnectionCreateData
+from .trigger_provider_kind import TriggerProviderKind
 
 
 class TriggerConnectionCreate(UniversalBaseModel):
@@ -17,7 +17,7 @@ class TriggerConnectionCreate(UniversalBaseModel):
     name: typing.Optional[str] = None
     description: typing.Optional[str] = None
     slug: typing.Optional[str] = None
-    provider_key: ConnectionProviderKind
+    provider_key: TriggerProviderKind
     integration_key: str
     data: typing.Optional[TriggerConnectionCreateData] = None
     

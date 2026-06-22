@@ -4,11 +4,11 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .catalog_provider_kind import CatalogProviderKind
+from .trigger_provider_kind import TriggerProviderKind
 
 
 class TriggerCatalogProvider(UniversalBaseModel):
-    key: CatalogProviderKind
+    key: TriggerProviderKind
     name: str
     description: typing.Optional[str] = None
     integrations_count: typing.Optional[int] = None

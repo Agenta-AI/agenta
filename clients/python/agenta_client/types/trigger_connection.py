@@ -7,8 +7,8 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
-from .connection_provider_kind import ConnectionProviderKind
-from .connection_status import ConnectionStatus
+from .trigger_connection_status import TriggerConnectionStatus
+from .trigger_provider_kind import TriggerProviderKind
 
 
 class TriggerConnection(UniversalBaseModel):
@@ -25,10 +25,10 @@ class TriggerConnection(UniversalBaseModel):
     description: typing.Optional[str] = None
     slug: typing.Optional[str] = None
     id: typing.Optional[str] = None
-    provider_key: ConnectionProviderKind
+    provider_key: TriggerProviderKind
     integration_key: str
     data: typing.Optional[typing.Dict[str, typing.Any]] = None
-    status: typing.Optional[ConnectionStatus] = None
+    status: typing.Optional[TriggerConnectionStatus] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

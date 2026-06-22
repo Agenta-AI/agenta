@@ -4,7 +4,7 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .catalog_auth_scheme import CatalogAuthScheme
+from .tool_auth_scheme import ToolAuthScheme
 from .tool_catalog_action import ToolCatalogAction
 
 
@@ -16,7 +16,7 @@ class ToolCatalogIntegrationDetails(UniversalBaseModel):
     logo: typing.Optional[str] = None
     url: typing.Optional[str] = None
     actions_count: typing.Optional[int] = None
-    auth_schemes: typing.Optional[typing.List[CatalogAuthScheme]] = None
+    auth_schemes: typing.Optional[typing.List[ToolAuthScheme]] = None
     actions: typing.Optional[typing.List[ToolCatalogAction]] = None
     
     if IS_PYDANTIC_V2:

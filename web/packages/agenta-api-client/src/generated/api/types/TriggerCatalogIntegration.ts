@@ -10,5 +10,5 @@ export interface TriggerCatalogIntegration {
     logo?: (string | null) | undefined;
     url?: (string | null) | undefined;
     actions_count?: (number | null) | undefined;
-    auth_schemes?: (AgentaApi.CatalogAuthScheme[] | null) | undefined;
+    auth_schemes?: (AgentaApi.TriggerAuthScheme[] | null) | undefined;
 }

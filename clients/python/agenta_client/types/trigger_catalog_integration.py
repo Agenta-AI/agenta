@@ -4,7 +4,7 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .catalog_auth_scheme import CatalogAuthScheme
+from .trigger_auth_scheme import TriggerAuthScheme
 
 
 class TriggerCatalogIntegration(UniversalBaseModel):
@@ -15,7 +15,7 @@ class TriggerCatalogIntegration(UniversalBaseModel):
     logo: typing.Optional[str] = None
     url: typing.Optional[str] = None
     actions_count: typing.Optional[int] = None
-    auth_schemes: typing.Optional[typing.List[CatalogAuthScheme]] = None
+    auth_schemes: typing.Optional[typing.List[TriggerAuthScheme]] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
