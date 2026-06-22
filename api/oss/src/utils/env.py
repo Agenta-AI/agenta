@@ -2,7 +2,7 @@ import os
 import hashlib
 from uuid import getnode
 from json import loads
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote_plus
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -864,19 +864,32 @@ class NewRelicConfig(BaseModel):
 class PostgresConfig(BaseModel):
     """PostgreSQL database configuration"""
 
-    uri_core: str = os.getenv("POSTGRES_URI_CORE") or (
-        f"postgresql+asyncpg://username:password@postgres:5432/agenta_{_LICENSE}_core"
-    )
-    uri_tracing: str = os.getenv("POSTGRES_URI_TRACING") or (
-        f"postgresql+asyncpg://username:password@postgres:5432/agenta_{_LICENSE}_tracing"
-    )
-    uri_supertokens: str = os.getenv("POSTGRES_URI_SUPERTOKENS") or (
-        f"postgresql://username:password@postgres:5432/agenta_{_LICENSE}_supertokens"
-    )
+    # Database-name resolution: explicit POSTGRES_URI_* wins; else compose from
+    # POSTGRES_DB_PREFIX (e.g. an EE stack adopting an OSS database sets
+    # POSTGRES_DB_PREFIX=agenta_oss); else today's default, agenta_{license}.
+    db_prefix: str = os.getenv("POSTGRES_DB_PREFIX") or f"agenta_{_LICENSE}"
 
     user: str = os.getenv("POSTGRES_USER") or "username"
     password: str = os.getenv("POSTGRES_PASSWORD") or "password"
-    port: int = int(os.getenv("POSTGRES_PORT") or "5432")
+    # The bundled Postgres always listens on 5432 inside the Docker network.
+    # POSTGRES_PORT only remaps the host-published port (compose
+    # "${POSTGRES_PORT:-5432}:5432") and must NOT feed the in-network URIs below.
+    # To point at an external database on a non-default port, set POSTGRES_URI_*.
+
+    # URL-encode credentials so reserved characters (@ : / ? #) in a real
+    # password don't corrupt the composed DSN.
+    _user_q: str = quote_plus(user)
+    _password_q: str = quote_plus(password)
+
+    uri_core: str = os.getenv("POSTGRES_URI_CORE") or (
+        f"postgresql+asyncpg://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_core"
+    )
+    uri_tracing: str = os.getenv("POSTGRES_URI_TRACING") or (
+        f"postgresql+asyncpg://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_tracing"
+    )
+    uri_supertokens: str = os.getenv("POSTGRES_URI_SUPERTOKENS") or (
+        f"postgresql://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_supertokens"
+    )
 
     # Stable signed-64-bit advisory-lock key for this deployment. We mix
     # AGENTA_AUTH_KEY with the core Postgres URI so two deployments that

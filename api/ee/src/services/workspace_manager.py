@@ -439,5 +439,5 @@ async def remove_user_from_workspace(
         bool: True when the member or pending invitation was removed.
     """
 
-    remove_user = await db_manager_ee.remove_user_from_workspace(workspace_id, email)
+    remove_user = await db_manager.remove_user_from_workspace(workspace_id, email)
     return remove_user

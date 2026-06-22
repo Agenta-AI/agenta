@@ -125,10 +125,40 @@ class TestSimpleUserIdentities:
 
 
 class TestSimpleOrganizations:
-    # Create / delete round-trip moved to EE: on OSS the singleton
-    # invariant collapses admin_create_organization onto a fixed slug
-    # and the delete handler refuses to remove it. See
-    # api/ee/tests/pytest/acceptance/accounts/test_simple_entities_ee.py.
+    def test_create_and_delete_organization(self, admin_api):
+        uid = uuid4().hex[:12]
+        email = f"org-owner-{uid}@test.agenta.ai"
+
+        # Owner must exist before creating an organization
+        user_resp = admin_api(
+            "POST",
+            "/admin/simple/accounts/users/",
+            json={"user": {"email": email}},
+        )
+        assert user_resp.status_code == 200
+
+        create_resp = admin_api(
+            "POST",
+            "/admin/simple/accounts/organizations/",
+            json={
+                "organization": {"name": f"Org-{uid}"},
+                "owner": {"email": email},
+            },
+        )
+        assert create_resp.status_code == 200
+        body = create_resp.json()
+        orgs = body["accounts"][0]["organizations"]
+        assert orgs
+        org_id = list(orgs.values())[0]["id"]
+
+        delete_resp = admin_api(
+            "DELETE",
+            f"/admin/simple/accounts/organizations/{org_id}",
+        )
+        assert delete_resp.status_code == 200
+        assert delete_resp.json()["deleted"]["organizations"]
+
+        _delete_account_by_email(admin_api, email=email)
 
     def test_delete_nonexistent_org_returns_404(self, admin_api):
         response = admin_api(
