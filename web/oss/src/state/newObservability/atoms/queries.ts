@@ -509,15 +509,18 @@ export const sessionTraceCountAtomFamily = atomFamily((sessionId: string) =>
     }),
 )
 
-// Sorted traces are required for time-based metrics (Start/End/Duration)
-// We memoize this to avoid re-sorting for every time-related cell
+// Sorted traces are required for time-based metrics (Start/End/Duration) and for
+// the First input / Last output cells. Sort by `start_time` (falling back to
+// `created_at`) to match the Session drawer's tree ordering
+// (SessionTree sorts its "Trace N" nodes by start_time). Sorting by a different
+// key here made the table's first/last trace diverge from the drawer's.
 const sessionSortedTracesAtomFamily = atomFamily((sessionId: string) =>
     atom((get) => {
         const traces = get(sessionTracesAtomFamily(sessionId))
         if (!traces.length) return []
-        return [...traces].sort(
-            (a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime(),
-        )
+        const sortKey = (t: (typeof traces)[number]) =>
+            new Date(t.start_time || t.created_at || 0).getTime()
+        return [...traces].sort((a, b) => sortKey(a) - sortKey(b))
     }),
 )
 

@@ -23,7 +23,10 @@ interface TraceDrawerContentProps {
 }
 
 const SessionDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerContentProps) => {
-    const [selected, setSelected] = useState<string>("")
+    // Default-select the "Session" root node so the tree opens with a selection
+    // instead of nothing highlighted. The root node's key is always "root", and
+    // selecting it is a no-op in handleSelect (it early-returns for "root").
+    const [selected, setSelected] = useState<string>("root")
     const {isLoading} = useSessionDrawer()
     if (isLoading) {
         return (
