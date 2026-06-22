@@ -4,7 +4,7 @@ The agent authenticates the harness with the same provider keys the project conf
 LLM access. We fetch the project's vault ``provider_key`` secrets from the backend (the
 same backend + caller credential the tool resolver uses) and inject each as its standard
 env var, so the harness uses whichever its model needs. Empty when the vault has none, in
-which case the harness falls back to its own login / OAuth (see ``runRivet``).
+which case the harness falls back to its own login / OAuth (see ``runSandboxAgent``).
 """
 
 from typing import Dict
