@@ -17,10 +17,6 @@ class WebhookSubscriptionDBE(Base, WebhookSubscriptionDBA):
             ondelete="CASCADE",
         ),
         ForeignKeyConstraint(
-            ["created_by_id"],
-            ["users.id"],
-        ),
-        ForeignKeyConstraint(
             ["secret_id"],
             ["secrets.id"],
             ondelete="SET NULL",
@@ -43,6 +39,16 @@ class WebhookDeliveryDBE(Base, WebhookDeliveryDBA):
     __tablename__ = "webhook_deliveries"
 
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["project_id", "subscription_id"],
+            ["webhook_subscriptions.project_id", "webhook_subscriptions.id"],
+            ondelete="CASCADE",
+        ),
         PrimaryKeyConstraint("project_id", "id"),
         Index(
             "ix_webhook_deliveries_project_id_created_at",
