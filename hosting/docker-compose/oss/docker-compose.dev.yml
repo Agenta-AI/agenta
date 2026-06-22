@@ -46,6 +46,8 @@ services:
             - ../../../web/oss/src:/app/oss/src
             - ../../../web/oss/public:/app/oss/public
             - ../../../web/packages:/app/packages
+            - nextjs-oss-cache:/app/oss/.next/cache
+            - turbo-oss-cache:/app/.turbo
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -78,6 +80,8 @@ services:
                 "--reload",
                 "--reload-dir",
                 "/app/oss/src",
+                "--reload-dir",
+                "/app/oss/databases",
                 "--reload-dir",
                 "/app/entrypoints",
                 "--reload-dir",
@@ -141,7 +145,8 @@ services:
         image: agenta-oss-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --ignore-patterns=*/tests/* --
+            watchmedo auto-restart --directory=/app/oss/src --directory=/app/oss/databases --directory=/app/entrypoints
+            --directory=/sdks/python/agenta --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
             python -m entrypoints.worker_evaluations
         # === STORAGE ============================================== #
         volumes:
@@ -178,7 +183,8 @@ services:
         image: agenta-oss-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --ignore-patterns=*/tests/* --
+            watchmedo auto-restart --directory=/app/oss/src --directory=/app/oss/databases --directory=/app/entrypoints
+            --directory=/sdks/python/agenta --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
             python -m entrypoints.worker_tracing
         # === STORAGE ============================================== #
         volumes:
@@ -215,7 +221,8 @@ services:
         image: agenta-oss-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --ignore-patterns=*/tests/* --
+            watchmedo auto-restart --directory=/app/oss/src --directory=/app/oss/databases --directory=/app/entrypoints
+            --directory=/sdks/python/agenta --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
             python -m entrypoints.worker_webhooks
         # === STORAGE ============================================== #
         volumes:
@@ -258,7 +265,8 @@ services:
         image: agenta-oss-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --ignore-patterns=*/tests/* --
+            watchmedo auto-restart --directory=/app/oss/src --directory=/app/oss/databases --directory=/app/entrypoints
+            --directory=/sdks/python/agenta --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
             python -m entrypoints.worker_events
         # === STORAGE ============================================== #
         volumes:
@@ -567,4 +575,5 @@ volumes:
     postgres-data:
     redis-volatile-data:
     redis-durable-data:
-    nextjs_cache:
+    nextjs-oss-cache:
+    turbo-oss-cache:

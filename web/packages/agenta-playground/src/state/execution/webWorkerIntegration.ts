@@ -13,7 +13,6 @@ import {loadableController, type RunnableType} from "@agenta/entities/runnable"
 import {projectIdAtom} from "@agenta/shared/state"
 import {isPlainObject} from "@agenta/shared/utils"
 import {atom} from "jotai"
-import {getDefaultStore} from "jotai/vanilla"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {outputConnectionsAtom} from "../atoms/connections"
@@ -21,7 +20,7 @@ import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
 import {clearSessionResponsesAtom, messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat"
 import {
     collectDownstreamReferencedColumns,
-    collectTestcaseServerColumns,
+    collectTestsetServerColumns,
     reconcileRowDataForEntity,
 } from "../helpers/entityInputContract"
 
@@ -57,10 +56,7 @@ import {extractTraceIdFromPayload} from "./trace"
 let _sharedLimiter: (<T>(fn: () => Promise<T>) => Promise<T>) | null = null
 let _sharedLimiterConcurrency = 0
 
-function getSharedConcurrencyLimiter(): <T>(fn: () => Promise<T>) => Promise<T> {
-    const store = getDefaultStore()
-    const concurrency = store.get(executionConcurrencyAtom)
-
+function getSharedConcurrencyLimiter(concurrency: number): <T>(fn: () => Promise<T>) => Promise<T> {
     // Re-create if concurrency changed or first call
     if (!_sharedLimiter || _sharedLimiterConcurrency !== concurrency) {
         _sharedLimiterConcurrency = concurrency
@@ -340,9 +336,12 @@ export const triggerExecutionAtom = atom(
         // inputs. The synced test set's own columns are protected too (#4647):
         // a column the prompt doesn't reference is intentional test set data,
         // not a stale leftover, and deleting it here emptied the "unused
-        // testcase columns" footer on Run.
+        // testcase columns" footer on Run. The protection is test-set-scoped
+        // (union across all server rows), not per-row, so rows that joined
+        // the test set locally — kept drafts, rows added while connected —
+        // keep their filled test set columns too.
         const protectedColumns = collectDownstreamReferencedColumns(get, nodes)
-        for (const column of collectTestcaseServerColumns(get, testcaseRowId)) {
+        for (const column of collectTestsetServerColumns(get)) {
             protectedColumns.add(column)
         }
         const reconciledRow = reconcileRowDataForEntity(get, rootEntityId, rawTestcaseData, {
@@ -377,7 +376,7 @@ export const triggerExecutionAtom = atom(
                   )
                 : connections
 
-        const limiter = getSharedConcurrencyLimiter()
+        const limiter = getSharedConcurrencyLimiter(get(executionConcurrencyAtom))
         await limiter(() =>
             executeStepForSessionWithExecutionItems({
                 get,

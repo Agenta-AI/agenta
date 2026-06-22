@@ -151,51 +151,56 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                             elementWidth={elementWidth}
                         />
 
-                        <DataPreviewEditor
-                            traceData={drawer.traceData}
-                            rowDataPreview={drawer.rowDataPreview}
-                            setRowDataPreview={drawer.setRowDataPreview}
-                            setUpdatedTraceData={drawer.setUpdatedTraceData}
-                            editorFormat={drawer.editorFormat}
-                            formatDataPreview={drawer.formatDataPreview}
-                            selectedTraceData={drawer.selectedTraceData}
-                            onRemoveTraceData={drawer.onRemoveTraceData}
-                            onSaveEditedTrace={drawer.onSaveEditedTrace}
-                            onRevertEditedTrace={drawer.onRevertEditedTrace}
-                            columnOptions={drawer.columnOptions}
-                            onMapToColumn={drawer.onMapToColumnFromDrillIn}
-                            onUnmap={drawer.onUnmapFromDrillIn}
-                            mappedPaths={drawer.mappedPaths}
-                            focusPath={focusPath}
-                            onFocusPathHandled={handleFocusPathHandled}
-                            onPropertyClick={handleFocusPath}
-                            initialPath={initialPath}
-                        />
+                        {/* Steps 2-4: only shown after a test set is selected or a new one is being created */}
+                        {(!!drawer.selectedRevisionId || drawer.isNewTestset) && (
+                            <>
+                                <DataPreviewEditor
+                                    traceData={drawer.traceData}
+                                    rowDataPreview={drawer.rowDataPreview}
+                                    setRowDataPreview={drawer.setRowDataPreview}
+                                    setUpdatedTraceData={drawer.setUpdatedTraceData}
+                                    editorFormat={drawer.editorFormat}
+                                    formatDataPreview={drawer.formatDataPreview}
+                                    selectedTraceData={drawer.selectedTraceData}
+                                    onRemoveTraceData={drawer.onRemoveTraceData}
+                                    onSaveEditedTrace={drawer.onSaveEditedTrace}
+                                    onRevertEditedTrace={drawer.onRevertEditedTrace}
+                                    columnOptions={drawer.columnOptions}
+                                    onMapToColumn={drawer.onMapToColumnFromDrillIn}
+                                    onUnmap={drawer.onUnmapFromDrillIn}
+                                    mappedPaths={drawer.mappedPaths}
+                                    focusPath={focusPath}
+                                    onFocusPathHandled={handleFocusPathHandled}
+                                    onPropertyClick={handleFocusPath}
+                                    initialPath={initialPath}
+                                />
 
-                        <MappingSection
-                            mappingData={drawer.mappingData}
-                            setMappingData={drawer.setMappingData}
-                            onMappingOptionChange={drawer.onMappingOptionChange}
-                            onRemoveMapping={drawer.onRemoveMapping}
-                            onNewColumnBlur={drawer.onNewColumnBlur}
-                            allAvailablePaths={drawer.allAvailablePaths}
-                            columnOptions={drawer.columnOptions}
-                            customSelectOptions={drawer.customSelectOptions}
-                            selectedRevisionId={drawer.selectedRevisionId}
-                            hasDuplicateColumns={drawer.hasDuplicateColumns}
-                            testsetId={drawer.testset.id}
-                            selectedTestsetColumns={drawer.selectedTestsetColumns}
-                            elementWidth={elementWidth}
-                            isNewTestset={drawer.isNewTestset}
-                            onFocusPath={handleFocusPath}
-                        />
+                                <MappingSection
+                                    mappingData={drawer.mappingData}
+                                    setMappingData={drawer.setMappingData}
+                                    onMappingOptionChange={drawer.onMappingOptionChange}
+                                    onRemoveMapping={drawer.onRemoveMapping}
+                                    onNewColumnBlur={drawer.onNewColumnBlur}
+                                    allAvailablePaths={drawer.allAvailablePaths}
+                                    columnOptions={drawer.columnOptions}
+                                    customSelectOptions={drawer.customSelectOptions}
+                                    selectedRevisionId={drawer.selectedRevisionId}
+                                    hasDuplicateColumns={drawer.hasDuplicateColumns}
+                                    testsetId={drawer.testset.id}
+                                    selectedTestsetColumns={drawer.selectedTestsetColumns}
+                                    elementWidth={elementWidth}
+                                    isNewTestset={drawer.isNewTestset}
+                                    onFocusPath={handleFocusPath}
+                                />
 
-                        <PreviewSection
-                            selectedRevisionId={drawer.selectedRevisionId}
-                            isMapColumnExist={drawer.isMapColumnExist}
-                            isNewTestset={drawer.isNewTestset}
-                            testcaseCount={drawer.traceData.length}
-                        />
+                                <PreviewSection
+                                    selectedRevisionId={drawer.selectedRevisionId}
+                                    isMapColumnExist={drawer.isMapColumnExist}
+                                    isNewTestset={drawer.isNewTestset}
+                                    testcaseCount={drawer.traceData.length}
+                                />
+                            </>
+                        )}
 
                         <ConfirmSaveModal
                             isConfirmSave={drawer.isConfirmSave}

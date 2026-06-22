@@ -21,6 +21,7 @@ import {useRouter} from "next/router"
 import {timeout} from "@/oss/components/pages/app-management/assets/helpers"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
+import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import useURL from "@/oss/hooks/useURL"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {waitForAppToStart} from "@/oss/services/api"
@@ -113,6 +114,7 @@ const PromptsPage = () => {
     const [isMovingItem, setIsMovingItem] = useState(false)
     const [isDeletingFolder, setIsDeletingFolder] = useState(false)
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
+    const openEditAppModal = useSetAtom(openEditAppModalAtom)
 
     // Refetch both scoped folders and all folders together
     const refetchAllFolderData = useCallback(() => {
@@ -723,6 +725,15 @@ const PromptsPage = () => {
             onDeleteFolder: handleOpenDeleteModal,
             onMoveItem: handleOpenMoveModal,
             onOpenAppOverview: handleOpenAppOverview,
+            onRenameApp: (record) => {
+                if (!record.workflowId || typeof record.name !== "string") return
+
+                openEditAppModal({
+                    id: String(record.workflowId),
+                    name: record.name,
+                    onRenamed: () => refetchWorkflows(),
+                })
+            },
             onDeleteApp: (record) => {
                 if (!record.workflowId || typeof record.name !== "string") return
 
@@ -741,6 +752,8 @@ const PromptsPage = () => {
             handleOpenAppOverview,
             handlePromptArchived,
             openDeleteAppModal,
+            openEditAppModal,
+            refetchWorkflows,
         ],
     )
 

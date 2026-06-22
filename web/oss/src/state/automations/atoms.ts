@@ -24,7 +24,7 @@ export const automationsAtom = atomWithQuery((get) => {
     return {
         queryKey: ["automations", projectId],
         queryFn: async () => {
-            const response = await queryWebhookSubscriptions()
+            const response = await queryWebhookSubscriptions(projectId ?? undefined)
             return response.subscriptions
         },
         staleTime: 60_000,
@@ -45,15 +45,18 @@ export const automationDeliveriesAtomFamily = atomFamily((webhookSubscriptionId:
                     return []
                 }
 
-                const response = await queryWebhookDeliveries({
-                    delivery: {
-                        subscription_id: webhookSubscriptionId,
+                const response = await queryWebhookDeliveries(
+                    {
+                        delivery: {
+                            subscription_id: webhookSubscriptionId,
+                        },
+                        windowing: {
+                            limit: 25,
+                            order: "descending",
+                        },
                     },
-                    windowing: {
-                        limit: 25,
-                        order: "descending",
-                    },
-                })
+                    projectId ?? undefined,
+                )
                 return response.deliveries
             },
             staleTime: 30_000,
@@ -66,8 +69,9 @@ export const automationDeliveriesAtomFamily = atomFamily((webhookSubscriptionId:
 
 export const createAutomationAtom = atom(
     null,
-    async (_get, _set, payload: WebhookSubscriptionCreateRequest) => {
-        const res = await createWebhookSubscription(payload)
+    async (get, _set, payload: WebhookSubscriptionCreateRequest) => {
+        const projectId = get(projectIdAtom)
+        const res = await createWebhookSubscription(payload, projectId ?? undefined)
         await queryClient.invalidateQueries({queryKey: ["automations"]})
         return res
     },
@@ -76,31 +80,35 @@ export const createAutomationAtom = atom(
 export const updateAutomationAtom = atom(
     null,
     async (
-        _get,
+        get,
         _set,
         {
             webhookSubscriptionId,
             payload,
         }: {webhookSubscriptionId: string; payload: WebhookSubscriptionEditRequest},
     ) => {
-        const res = await editWebhookSubscription(webhookSubscriptionId, payload)
+        const projectId = get(projectIdAtom)
+        const res = await editWebhookSubscription(
+            webhookSubscriptionId,
+            payload,
+            projectId ?? undefined,
+        )
         await queryClient.invalidateQueries({queryKey: ["automations"]})
         return res
     },
 )
 
-export const deleteAutomationAtom = atom(
-    null,
-    async (_get, _set, webhookSubscriptionId: string) => {
-        await deleteWebhookSubscription(webhookSubscriptionId)
-        await queryClient.invalidateQueries({queryKey: ["automations"]})
-    },
-)
+export const deleteAutomationAtom = atom(null, async (get, _set, webhookSubscriptionId: string) => {
+    const projectId = get(projectIdAtom)
+    await deleteWebhookSubscription(webhookSubscriptionId, projectId ?? undefined)
+    await queryClient.invalidateQueries({queryKey: ["automations"]})
+})
 
 export const testAutomationAtom = atom(
     null,
-    async (_get, _set, payload: WebhookSubscriptionTestRequest) => {
-        const res = await testWebhookSubscription(payload)
+    async (get, _set, payload: WebhookSubscriptionTestRequest) => {
+        const projectId = get(projectIdAtom)
+        const res = await testWebhookSubscription(payload, projectId ?? undefined)
         await queryClient.invalidateQueries({queryKey: ["automations"]})
         await queryClient.invalidateQueries({queryKey: ["automation-deliveries"]})
         return res

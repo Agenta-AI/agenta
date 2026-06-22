@@ -18,6 +18,7 @@ BUILD=false  # Default to no forced build
 NO_CACHE=false  # Default to using cache
 PULL_ENABLED=  # Stage-dependent default applied after parsing: gh→true, dev→false
 NUKE=false  # Default to not nuking volumes
+DOWN=false  # Default to up; --down only stops containers
 
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
@@ -51,6 +52,7 @@ show_usage() {
     echo ""
     echo "Database:"
     echo "  --nuke                  Remove related volumes on shutdown"
+    echo "  --down                  Stop containers and exit (no up); keeps volumes unless --nuke"
     echo ""
     echo "Network:"
     echo "  --ssl                   Use SSL proxy stage (requires --image gh)"
@@ -226,6 +228,9 @@ while [[ "$#" -gt 0 ]]; do
         --nuke)
             NUKE=true
             ;;
+        --down)
+            DOWN=true
+            ;;
         --help)
             show_usage
             ;;
@@ -350,6 +355,11 @@ if $NUKE; then
 fi
 
 $SHUTDOWN_CMD || error_exit "Failed to stop existing containers."
+
+if $DOWN; then
+    echo "✅ Containers stopped."
+    exit 0
+fi
 
 echo "Starting Docker containers with domain: $AGENTA_WEB_URL ..."
 AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD up -d || error_exit "Failed to start Docker containers."

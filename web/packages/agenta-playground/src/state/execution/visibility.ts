@@ -45,6 +45,12 @@ export interface SplitInputsVisibilityArgs {
     draftKeys?: string[]
     /** Current testcase row data. */
     testcaseData: Record<string, unknown>
+    /** Column keys of the connected test set. Keys the row doesn't carry yet
+     *  are appended to `unreferencedColumns` with an `undefined` value, so a
+     *  row that joined the test set locally (a kept draft, a row added while
+     *  connected) shows the same empty fields a server row would. Callers
+     *  pre-filter system/chat-transport keys, same as for `testcaseData`. */
+    testsetColumnKeys?: string[]
 }
 
 /**
@@ -57,6 +63,7 @@ export function splitInputsVisibility({
     referencedKeys,
     draftKeys = [],
     testcaseData,
+    testsetColumnKeys = [],
 }: SplitInputsVisibilityArgs): InputsVisibility {
     const refsSet = new Set(referencedKeys)
     const draftSet = new Set(draftKeys)
@@ -70,6 +77,15 @@ export function splitInputsVisibility({
     for (const [name, value] of Object.entries(testcaseData)) {
         if (refsSet.has(name)) continue
         unreferencedColumns.push({name, value})
+    }
+
+    // Test set columns missing from this row render as empty fields after
+    // the row's own columns. Referenced keys already surface in `inputs`
+    // (with `undefined` when absent), so only unreferenced ones land here.
+    for (const name of testsetColumnKeys) {
+        if (refsSet.has(name)) continue
+        if (name in testcaseData) continue
+        unreferencedColumns.push({name, value: undefined})
     }
 
     return {inputs, unreferencedColumns}

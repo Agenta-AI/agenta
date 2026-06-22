@@ -98,10 +98,8 @@ async def fetch_organization_details(
 
         # If we have a project, check project membership
         if project_id:
-            project_memberships = (
-                await db_manager_ee.fetch_project_memberships_by_user_id(
-                    user_id=str(request.state.user_id)
-                )
+            project_memberships = await db_manager.fetch_project_memberships_by_user_id(
+                user_id=str(request.state.user_id)
             )
 
             membership = None

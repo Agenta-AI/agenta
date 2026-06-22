@@ -8,7 +8,15 @@ description: Override the built-in plans, entitlements, and role catalogs at run
 
 Agenta EE ships with code-default plans, entitlements, and role catalogs.
 Operators can override any of these at runtime by setting JSON environment
-variables. This page documents the **access** layer:
+variables.
+
+The variables on this page (plans, entitlements, roles) are **Enterprise-only**.
+The simpler sign-up and organization-creation controls
+(`AGENTA_ACCESS_ALLOWED_DOMAINS`, `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS`, and the
+block lists) work in **both editions**; they are covered in
+[Restrict Sign-ups and Organization Creation](/self-host/guides/restrict-organization-creation).
+
+This page documents the **access** layer:
 
 - `AGENTA_ACCESS_PLANS` — plan slugs and per-plan entitlement controls
   (flags, counters, gauges, throttles).

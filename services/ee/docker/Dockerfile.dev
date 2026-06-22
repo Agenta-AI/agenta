@@ -6,6 +6,7 @@ FROM python:3.13-slim-trixie
 WORKDIR /app
 
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_CACHE_DIR=/root/.cache/uv \
     UV_LINK_MODE=copy \
     PATH="/opt/venv/bin:${PATH}"
 
@@ -14,11 +15,17 @@ COPY --from=uv /uv /uvx /bin/
 # Build context is `application/` so `uv sync` can resolve the local-path source
 # `agenta = { path = "../sdks/python", editable = true }` declared in services/pyproject.toml.
 COPY ./services/pyproject.toml ./services/uv.lock* /app/
+COPY ./sdks/python/pyproject.toml ./sdks/python/README.md /sdks/python/
+COPY ./clients/python/pyproject.toml /clients/python/
+
+RUN --mount=type=cache,id=uv-dev,target=/root/.cache/uv,sharing=locked \
+    UV_HTTP_TIMEOUT=300 uv sync --locked --no-install-local
+
 COPY ./sdks/python /sdks/python/
 COPY ./clients/python /clients/python/
 
-RUN --mount=type=cache,id=uv-services-ee-dev,target=/root/.cache/uv \
-    UV_HTTP_TIMEOUT=300 uv sync --locked
+RUN --mount=type=cache,id=uv-dev,target=/root/.cache/uv,sharing=locked \
+    UV_HTTP_TIMEOUT=300 uv pip install --python /opt/venv/bin/python --no-deps --editable /clients/python --editable /sdks/python
 
 RUN groupadd --gid 10001 agenta && \
     useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
@@ -26,7 +33,7 @@ RUN groupadd --gid 10001 agenta && \
 COPY --chown=agenta:agenta ./services/oss /app/oss/
 COPY --chown=agenta:agenta ./services/entrypoints /app/entrypoints/
 
-ENV PYTHONPATH=/sdks/python:/clients/python:$PYTHONPATH
+ENV PYTHONPATH=/sdks/python:/clients/python
 
 USER 10001
 

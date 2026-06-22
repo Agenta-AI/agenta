@@ -4867,7 +4867,33 @@ class SimpleQueuesService:
             references={},
         )
 
-        source_mappings: List[EvaluationRunDataMapping] = []
+        # Source mapping mirrors _make_evaluation_run_data; without it the UI has no output/trace column.
+        if kind == SimpleQueueKind.TRACES:
+            source_mappings: List[EvaluationRunDataMapping] = [
+                EvaluationRunDataMapping(
+                    column=EvaluationRunDataMappingColumn(
+                        kind="query",
+                        name="data",
+                    ),
+                    step=EvaluationRunDataMappingStep(
+                        key=source_step_key,
+                        path="attributes.ag.data",
+                    ),
+                )
+            ]
+        else:
+            source_mappings = [
+                EvaluationRunDataMapping(
+                    column=EvaluationRunDataMappingColumn(
+                        kind="testset",
+                        name="data",
+                    ),
+                    step=EvaluationRunDataMappingStep(
+                        key=source_step_key,
+                        path="data",
+                    ),
+                )
+            ]
 
         for evaluator_revision_id, origin in evaluator_step_origins.items():
             evaluator_revision_ref = Reference(id=evaluator_revision_id)

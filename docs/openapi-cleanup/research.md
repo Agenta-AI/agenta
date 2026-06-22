@@ -354,7 +354,7 @@ Secrets         — as-is
 
 Several domains are expected to evolve their public URL shape and scoping model before the tag/route structure is final. Changes to watch:
 
-**Secrets (`/vault/v1/secrets/` → `/secrets/`):** The `vault/v1` prefix is an implementation detail leaking into the public API. Likely path: expose a clean `/secrets/` prefix, keep `/vault/v1/` mounted hidden for backward compat. Secrets may also become project-scoped rather than user-scoped.
+**Secrets (`/secrets/` → `/secrets/`):** The `vault/v1` prefix is an implementation detail leaking into the public API. Likely path: expose a clean `/secrets/` prefix, keep `/vault/v1/` mounted hidden for backward compat. Secrets may also become project-scoped rather than user-scoped.
 
 **Traces group (`/tracing/`, `/traces/`, `/spans/`, `/simple/traces/`):** The `/tracing/` router is the legacy RPC-style surface; its fate (deprecation, reduction, or expansion) is undecided. The split across four prefixes and two router files is a known mess. Until the tracing surface is stable, the Traces tag content should not be treated as final — endpoints may be hidden, moved, split into sub-tags (e.g. Sessions, Spans), or removed.
 
