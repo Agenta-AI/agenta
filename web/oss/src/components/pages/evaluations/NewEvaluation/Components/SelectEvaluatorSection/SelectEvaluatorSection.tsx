@@ -2,6 +2,7 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     invalidateWorkflowsListCache,
+    isOnlineCapableEvaluator,
     liveCompatibleEvaluatorKeysAtom,
 } from "@agenta/entities/workflow"
 import {
@@ -102,11 +103,23 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     const rows = useMemo(
         () =>
             liveCompatibleEvaluatorsOnly
-                ? paginationRows.filter(
-                      (row) =>
-                          !row.evaluatorKey ||
-                          liveCompatibleEvaluatorKeys.has(row.evaluatorKey as string),
-                  )
+                ? paginationRows.filter((row) => {
+                      // Rows whose evaluator key hasn't resolved yet pass through (e.g.
+                      // skeletons / local entities) — don't hide them on a missing key.
+                      if (!row.evaluatorKey) return true
+                      const key = row.evaluatorKey as string
+                      // Mirror the live-evaluation drawer's two-stage gate
+                      // (useEvaluatorSelection): the evaluator must (1) run in the
+                      // real-time/trace execution path and (2) not require a ground-truth
+                      // answer. Without stage 1, declarative classifiers like Contains
+                      // JSON — which need no expected answer, so they clear stage 2 — leak
+                      // into the trace/query auto-eval picker even though they aren't
+                      // online-capable.
+                      return (
+                          liveCompatibleEvaluatorKeys.has(key) &&
+                          isOnlineCapableEvaluator({slug: key})
+                      )
+                  })
                 : paginationRows,
         [liveCompatibleEvaluatorKeys, liveCompatibleEvaluatorsOnly, paginationRows],
     )
