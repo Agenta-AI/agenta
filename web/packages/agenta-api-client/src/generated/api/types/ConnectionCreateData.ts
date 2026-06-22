@@ -2,7 +2,7 @@
 
 import type * as AgentaApi from "../index.js";
 
-export interface ToolConnectionCreateData {
+export interface ConnectionCreateData {
     callback_url?: (string | null) | undefined;
-    auth_scheme?: (AgentaApi.ToolAuthScheme | null) | undefined;
+    auth_scheme?: (AgentaApi.ConnectionAuthScheme | null) | undefined;
 }

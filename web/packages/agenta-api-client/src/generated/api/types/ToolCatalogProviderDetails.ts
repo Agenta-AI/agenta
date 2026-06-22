@@ -3,7 +3,7 @@
 import type * as AgentaApi from "../index.js";
 
 export interface ToolCatalogProviderDetails {
-    key: AgentaApi.ToolProviderKind;
+    key: AgentaApi.CatalogProviderKind;
     name: string;
     description?: (string | null) | undefined;
     integrations_count?: (number | null) | undefined;

@@ -4,10 +4,14 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .status import Status
 
 
-class ToolConnectionStatus(UniversalBaseModel):
-    redirect_url: typing.Optional[str] = None
+class TriggerDeliveryQuery(UniversalBaseModel):
+    status: typing.Optional[Status] = None
+    subscription_id: typing.Optional[str] = None
+    schedule_id: typing.Optional[str] = None
+    event_id: typing.Optional[str] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

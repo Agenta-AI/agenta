@@ -4,12 +4,12 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .catalog_provider_kind import CatalogProviderKind
 from .tool_catalog_integration import ToolCatalogIntegration
-from .tool_provider_kind import ToolProviderKind
 
 
 class ToolCatalogProviderDetails(UniversalBaseModel):
-    key: ToolProviderKind
+    key: CatalogProviderKind
     name: str
     description: typing.Optional[str] = None
     integrations_count: typing.Optional[int] = None

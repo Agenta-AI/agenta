@@ -7,8 +7,8 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
-from .tool_connection_status import ToolConnectionStatus
-from .tool_provider_kind import ToolProviderKind
+from .connection_provider_kind import ConnectionProviderKind
+from .connection_status import ConnectionStatus
 
 
 class ToolConnection(UniversalBaseModel):
@@ -25,10 +25,10 @@ class ToolConnection(UniversalBaseModel):
     description: typing.Optional[str] = None
     slug: typing.Optional[str] = None
     id: typing.Optional[str] = None
-    provider_key: ToolProviderKind
+    provider_key: ConnectionProviderKind
     integration_key: str
     data: typing.Optional[typing.Dict[str, typing.Any]] = None
-    status: typing.Optional[ToolConnectionStatus] = None
+    status: typing.Optional[ConnectionStatus] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

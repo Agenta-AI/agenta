@@ -9,7 +9,11 @@ export interface ToolConnectionCreate {
     name?: (string | null) | undefined;
     description?: (string | null) | undefined;
     slug?: (string | null) | undefined;
-    provider_key: AgentaApi.ToolProviderKind;
+    provider_key: AgentaApi.ConnectionProviderKind;
     integration_key: string;
-    data?: (AgentaApi.ToolConnectionCreateData | null) | undefined;
+    data?: (ToolConnectionCreate.Data | null) | undefined;
+}
+
+export namespace ToolConnectionCreate {
+    export type Data = AgentaApi.ConnectionCreateData | Record<string, AgentaApi.FullJsonInput | null>;
 }

@@ -16,8 +16,8 @@ export interface ToolConnection {
     description?: (string | null) | undefined;
     slug?: (string | null) | undefined;
     id?: (string | null) | undefined;
-    provider_key: AgentaApi.ToolProviderKind;
+    provider_key: AgentaApi.ConnectionProviderKind;
     integration_key: string;
     data?: (Record<string, AgentaApi.FullJsonOutput | null> | null) | undefined;
-    status?: (AgentaApi.ToolConnectionStatus | null) | undefined;
+    status?: (AgentaApi.ConnectionStatus | null) | undefined;
 }
