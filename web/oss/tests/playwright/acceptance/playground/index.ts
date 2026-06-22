@@ -424,12 +424,16 @@ const playgroundTests = () => {
                     // onRow.onClick to handleRowClick in TestsetPreviewPanelWrapper.
                     // After each click, assert the running footer count to verify
                     // the selection registered before proceeding to the next row.
+                    // Use dispatchEvent instead of click() to bypass the CellContentPopover
+                    // portal that opens after mouseEnterDelay (500ms) in CI — the portal
+                    // sits at the row center and intercepts the native click, preventing
+                    // onRow.onClick from firing. dispatchEvent sends directly to the <tr>.
                     for (let i = 0; i < rows.length; i++) {
                         await loadDialog
                             .locator(".ant-table-row")
                             .filter({hasText: rows[i].country})
                             .first()
-                            .click()
+                            .dispatchEvent("click")
                         await expect(
                             loadDialog.getByText(`${i + 1} of ${rows.length} testcases selected`, {
                                 exact: true,
@@ -563,11 +567,14 @@ const playgroundTests = () => {
                     // toggles multi-selection without requiring AntD checkboxes
                     // to be present in the DOM. Assert the running footer count
                     // after each click to verify the selection registered.
+                    // Use dispatchEvent instead of click() — in CI the hover before
+                    // click triggers the CellContentPopover (mouseEnterDelay 500ms),
+                    // whose portal intercepts the native click at the row coordinates.
                     await loadDialog
                         .locator(".ant-table-row")
                         .filter({hasText: rows[i].country})
                         .first()
-                        .click()
+                        .dispatchEvent("click")
                     await expect(
                         loadDialog.getByText(`${i + 1} of ${rows.length} testcases selected`, {
                             exact: true,
