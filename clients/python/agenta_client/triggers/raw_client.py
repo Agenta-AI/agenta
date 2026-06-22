@@ -1002,7 +1002,7 @@ class RawTriggersClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "triggers/schedules",method="GET",
+            "triggers/schedules/",method="GET",
             request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:
@@ -1034,7 +1034,7 @@ class RawTriggersClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "triggers/schedules",method="POST",
+            "triggers/schedules/",method="POST",
             json={
                 "schedule": convert_and_respect_annotation_metadata(object_=schedule, annotation=TriggerScheduleCreate, direction="write"),
             }
@@ -2399,7 +2399,7 @@ class AsyncRawTriggersClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "triggers/schedules",method="GET",
+            "triggers/schedules/",method="GET",
             request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:
@@ -2431,7 +2431,7 @@ class AsyncRawTriggersClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "triggers/schedules",method="POST",
+            "triggers/schedules/",method="POST",
             json={
                 "schedule": convert_and_respect_annotation_metadata(object_=schedule, annotation=TriggerScheduleCreate, direction="write"),
             }

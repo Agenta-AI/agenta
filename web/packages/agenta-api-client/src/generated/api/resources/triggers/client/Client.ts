@@ -1766,7 +1766,7 @@ export class TriggersClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                "triggers/schedules",
+                "triggers/schedules/",
             ),
             method: "GET",
             headers: _headers,
@@ -1790,7 +1790,7 @@ export class TriggersClient {
             });
         }
 
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/triggers/schedules");
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/triggers/schedules/");
     }
 
     /**
@@ -1831,7 +1831,7 @@ export class TriggersClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                "triggers/schedules",
+                "triggers/schedules/",
             ),
             method: "POST",
             headers: _headers,
@@ -1866,7 +1866,7 @@ export class TriggersClient {
             }
         }
 
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/triggers/schedules");
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/triggers/schedules/");
     }
 
     /**
