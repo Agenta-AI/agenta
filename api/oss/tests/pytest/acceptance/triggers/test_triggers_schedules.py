@@ -76,7 +76,7 @@ def _schedule_payload(*, name=None, schedule="*/5 * * * *", workflow_slug=None):
 
 class TestTriggerSchedulesReads:
     def test_list_schedules_returns_200_empty(self, authed_api):
-        response = authed_api("GET", "/triggers/schedules")
+        response = authed_api("GET", "/triggers/schedules/")
         assert response.status_code == 200, response.text
         body = response.json()
         assert "count" in body
@@ -156,7 +156,7 @@ class TestTriggerSchedulesLifecycle:
         assert sched["data"]["references"]
 
         # LIST
-        list_resp = authed_api("GET", "/triggers/schedules")
+        list_resp = authed_api("GET", "/triggers/schedules/")
         assert list_resp.status_code == 200, list_resp.text
         listing = list_resp.json()
         assert any(s["id"] == schedule_id for s in listing["schedules"])

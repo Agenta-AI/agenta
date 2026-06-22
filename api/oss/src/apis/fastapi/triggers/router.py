@@ -320,7 +320,7 @@ class TriggersRouter:
 
         # --- Trigger Schedules ---
         self.router.add_api_route(
-            "/schedules",
+            "/schedules/",
             self.create_schedule,
             methods=["POST"],
             operation_id="create_trigger_schedule",
@@ -329,7 +329,7 @@ class TriggersRouter:
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
-            "/schedules",
+            "/schedules/",
             self.list_schedules,
             methods=["GET"],
             operation_id="list_trigger_schedules",
