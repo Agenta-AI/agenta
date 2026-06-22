@@ -227,7 +227,6 @@ export const triggerSubscriptionSchema = z
         slug: z.string().nullish(),
         name: z.string().nullish(),
         description: z.string().nullish(),
-        flags: jsonRecordSchema,
         tags: jsonRecordSchema,
         meta: jsonRecordSchema,
         created_at: z.string().nullish(),

@@ -47,4 +47,11 @@ def downgrade() -> None:
         "ix_webhook_subscriptions_active",
         table_name="webhook_subscriptions",
     )
-    op.execute("UPDATE webhook_subscriptions SET flags = flags - 'is_active'")
+    # Mirror the upgrade: only strip the is_active=true the backfill added to
+    # rows that had no flags. Rows carrying other flags (or is_active=false)
+    # predate this migration's intent and keep their state.
+    op.execute(
+        "UPDATE webhook_subscriptions "
+        "SET flags = flags - 'is_active' "
+        "WHERE flags = '{\"is_active\": true}'::jsonb"
+    )

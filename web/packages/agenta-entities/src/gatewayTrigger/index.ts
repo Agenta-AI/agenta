@@ -58,6 +58,7 @@ export type {
 export {isConnectionActive, isConnectionValid, isEntityActive, isEntityValid} from "./core"
 export {describeCron, nextCronRuns, validateCron} from "./core/cron"
 export type {CronValidationResult} from "./core/cron"
+export {previewValue, resolveSelectorPreview} from "./core/selectorPreview"
 
 // ---------------------------------------------------------------------------
 // API — HTTP wrappers (axios + zod boundary validation)

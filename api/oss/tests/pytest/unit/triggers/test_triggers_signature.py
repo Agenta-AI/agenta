@@ -33,6 +33,9 @@ def _service(*, secret):
     service = TriggersService(
         adapter_registry=MagicMock(),
         catalog_service=MagicMock(),
+        triggers_dao=MagicMock(),
+        connections_service=MagicMock(),
+        workflows_service=MagicMock(),
     )
     service.webhook_secret_resolver.resolve = AsyncMock(return_value=secret)
     return service

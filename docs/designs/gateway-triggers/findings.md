@@ -19,10 +19,10 @@
 | ID | Sev | Status | Area | Summary |
 |----|-----|--------|------|---------|
 | F1 | P0 | fixed | Security | Composio signature compared as **hex**, but provider may send **base64**. **Resolved**: live events confirmed lowercase **hex** (5/5 `matched via HEX`, byte-exact `signed_bytes`, body_len=1068). Collapsed to hex-only; dropped the diagnostic dual-accept + base64 branch. |
-| F2 | P1 | needs-verify | Security/Multitenancy | `verify_signature` fails **open** on empty secret? — actually returns False (OK); but `_verify_composio_signature` in router returned True on missing secret (CodeRabbit says addressed in ce43b26 — verify + close thread). |
+| F2 | P1 | verified-ok | Security/Multitenancy | **Verified not fail-open**: ingress (`router.py:1526`) returns 401 on `verify_signature` False; the service returns False on missing signature AND unresolvable secret (`if not secret: return False`). The flagged `_verify_composio_signature` helper no longer exists — consolidated into the service. No path returns 200 on empty secret. |
 | F3 | P1 | fixed | Multitenancy | DAO `ti_id` subscription lookups. **Fixed locally**: removed dead unscoped `get_subscription_by_trigger_id`; documented the surviving inbound-resolve method as the one sanctioned cross-project read. |
 | F4 | P1 | fixed | Multitenancy | `gateway/connections/dao.py` provider-id lookup/activation. **Fixed locally**: `project_id` now mandatory through DAO→service→tools-service; OAuth callback fails if project_id unresolved. |
-| F5 | P1 | confirmed | Correctness | `TriggersService.__init__` accepts `Optional` deps then calls them unconditionally → `AttributeError` if constructed with defaults. (Not in user's directive list — left open.) |
+| F5 | P1 | fixed | Correctness | `TriggersService.__init__` accepted `Optional` deps then dereferenced them. **Fixed**: `triggers_dao`/`connections_service`/`workflows_service` now required (37 unguarded derefs; comp-root always supplies them). `schedule_dispatch_task` stays `Optional` — legitimately deferred-assigned in the comp-root and guarded at use. Signature unit test updated to pass the three (unused by that path). |
 | F6 | P1 | fixed | API contract | `gateway/connections/interfaces.py` `Dict[str,Any]` returns. **Fixed locally**: `ConnectionStatusResponse` / `ConnectionRefreshResponse` DTOs. |
 | F7 | P1 | fixed (auto) | Correctness | web `projectScopedParams()` lets `extra.project_id` override scoped value. **Unambiguous — fixed locally.** |
 | F8 | P2 | fixed (auto) | Reliability | web catalog hooks auto-prefetch with no `isError` guard → tight failing-fetch loop. **Unambiguous — fixed locally.** |
@@ -30,14 +30,14 @@
 | F10 | P2 | fixed (auto) | Robustness | adapter `ensure_webhook` 409 retry path `again["items"][0]["secret"]` unguarded → `IndexError`/`KeyError` bypasses the `httpx.HTTPError` wrapper. **Fixed locally.** |
 | F11 | P2 | fixed | Correctness | core `delete_subscription` bare `Exception`. **Fixed locally**: narrowed to typed `AdapterError` (best-effort provider cleanup); unexpected errors surface to the route's `@intercept_exceptions`. |
 | F12 | P2 | fixed | Reliability | Enqueue with no timeout. **Fixed locally**: `asyncio.wait_for(..., 5s)` on all 3 PR `.kiq()` sites (ingress→503, schedule dispatch, webhook deliver). Eval-runner `.kiq()` left untouched (pre-existing, not in PR). |
-| F13 | P2 | needs-user-decision | Supply chain | `docker-compose.gh.yml` (oss+ee) composio service runs unpinned runtime `pip install composio httpx`. (Not in directive list — pin targets TBD.) |
+| F13 | P2 | wontfix (dev-only) | Supply chain | composio bridge (`dispatcher_composio.py`, 7 compose files) runs unpinned `pip install composio httpx` at container start. It's a `with-tunnel`-profile **dev container** (the live tunnel that forwards verified events to ingress), not a shipped prod service. **User decision (2026-06-22): keep unpinned.** |
 | F14 | P2 | fixed | API contract | catalog pagination **tuples**. **Fixed locally**: page DTOs across gateway + tools + triggers (integrations, actions, events) per decision "all catalog pagination". |
 | F15 | P2 | fixed (auto) | Robustness | `catalog/registry.py` lookup uses truthiness instead of explicit missing-key detection. **Fixed locally.** |
-| F16 | P2 | confirmed | Testing | No web unit tests for `TriggerScheduleDrawer` / `TriggerSubscriptionDrawer` / `ActiveToggle`. |
-| F17 | P2 | confirmed | Testing | No api unit tests for `verify_signature` (secret rotation), cron fire-gate, dedup, full-PUT edit preservation. |
-| F18 | P2 | confirmed | Testing | Acceptance lifecycle tests (triggers/tools connections, ee+oss) leak provider state on assertion failure — need `try/finally` cleanup. |
+| F16 | P2 | fixed | Testing | Extracted the drawer's selector-preview logic (`resolveSelectorPreview`/`previewValue`, JSONPath-lite + JSON Pointer) into pure `core/selectorPreview.ts` and added 12 unit tests beside the cron suite. The components themselves are thin React with no extractable logic; the package's vitest is `node`-env (no RTL/jsdom), matching the cron-extraction precedent. `ActiveToggle` render-testing would need DOM infra this codebase doesn't have. |
+| F17 | P2 | fixed | Testing | Added `test_triggers_schedules_refresh.py` (15 tests): `_validate_schedule` contract + `refresh_schedules` fire-gate (croniter.match, per-tick dedup, deterministic event_id, failure→False). Signature rotation + dedup keys already covered (signature/dispatcher suites). Full-PUT edit preservation stays in acceptance coverage (needs DAO round-trip). |
+| F18 | P2 | fixed | Testing | Wrapped all six lifecycle tests (oss+ee connections, ee subscriptions) in `try/finally` so the created connection/subscription is deleted even on assertion failure. |
 | F19 | P3 | fixed (partial) | Security | Manual operator script. **Fixed locally**: removed the hardcoded public `webhook.site` default URL (`cmd_converge` now requires `AGENTA_WEBHOOK_URL`). Secret prints KEPT — they are the intended output of a manual dev tool (`cmd_register`), confirmed by user. |
-| F20 | P3 | confirmed | Migration | `oss000000004` downgrade JSONB `flags - 'is_active'` is silent if key/row absent (cosmetic; backfill is unreleased). |
+| F20 | P3 | fixed | Migration | Made the `oss000000004` downgrade symmetric with the upgrade: only strips `is_active` from rows whose flags are exactly `{"is_active": true}` (the backfill's own output), so pre-existing/richer flags survive a rollback. |
 | F21 | — | wontfix | Migration | In-place edit of `oss000000003` flagged by scan as Alembic-immutability violation — **this is the documented, decided strategy** (unreleased migration, fresh-DB-only, `--nuke` required). Not a bug. See Notes. |
 | F22 | P3 | fixed | API contract | `connections/service.py` `type: ignore` dict assignment. **Fixed locally**: widened `ConnectionCreate.data` to `Union[ConnectionCreateData, Json]`; dropped the `type: ignore`. |
 | F23 | P0 | wontfix (false-positive) | Correctness | "Schedule dispatch task never wired" — **verified false**: `routers.py:713` assigns `triggers_service.schedule_dispatch_task = _triggers_worker.dispatch_schedule` after worker construction. CodeRabbit saw only the `:684` ctor call, not the deferred assignment. |
@@ -53,9 +53,10 @@
 | F33 | P2 | fixed | Migration/Perf | Added `ix_trigger_deliveries_schedule_id_created_at` (+ downgrade) in `oss000000003`. |
 | F34 | P3 | fixed | Testing | `test_triggers_schedules.py` list flows assert status before `.json()`. |
 | F35 | P3 | fixed | Docs | `AGENTS.md` test-run example rewritten as `cd <area>` with an explicit area list. |
-| F37 | P3 | confirmed | Testing | `test_triggers_ingress.py:113` dedup test gates only on `COMPOSIO_TEST_CONNECTED_ACCOUNT` and can resolve an empty secret → 401 flakiness unrelated to dedup. Add `@_requires_composio` + guard the secret. |
+| F37 | P3 | fixed | Testing | Class already had `@_requires_composio`/`@_requires_connected_account`; added a `pytest.skip` when `_resolve_webhook_secret()` returns empty so a missing secret skips rather than 401-flaking the dedup assertion. |
 | F38 | P0 | fixed | Wiring/Reliability | Triggers worker entrypoint crash-loops: the dispatcher refactor added a required `triggers_dao` kwarg to `TriggersWorker`, wired in `routers.py` but **missed in `worker_triggers.py`**. Ingress verified+enqueued every event (202) but nothing consumed the queue. **Found via live run** (worker container restarting every ~7s); **fixed locally** by passing `triggers_dao` (already constructed). Confirmed: worker boots, 2 deliveries written. |
-| F39 | P2 | needs-user-decision | Testing | `test_triggers_connections.py:24` reads config via `os.getenv` instead of the shared API `env` object (CodeRabbit refactor suggestion). Distinct from F18 (cleanup) on the same file. |
+| F39 | P2 | wontfix (convention) | Testing | The `os.getenv("COMPOSIO_API_KEY")` at line 24 is a pytest skip-gate, **identical** to the sibling `test_tools_connections.py:19` and every other trigger/tool acceptance test. "Do as other tests" = leave it; the shared `env` app-config object is for application code, not test-collection preconditions. CodeRabbit false positive. |
+| F40 | P1 | fixed | Web/Build | `gatewayTrigger/core/types.ts` subscription schema defined `flags` twice (generic `jsonRecordSchema` + typed `triggerSubscriptionFlagsSchema`) → TS1117 duplicate-key, **broke `@agenta/entities` build** on the branch. Surfaced while building for F16. Removed the stray generic `flags`; the schedule schema's typed-flags-then-generic-tags/meta ordering is the correct pattern. |
 
 ## Notes
 
@@ -87,61 +88,7 @@ gateway **connection ID** (`connection_id`, the `ca_*`), trigger **subscription 
 
 ## Open Findings
 
-### [OPEN] F2 — Router signature fail-open on missing secret (verify upstream fix)
-- **Origin** sync (CodeRabbit) · **Severity** P1 · **Confidence** medium · **Status** needs-verify
-- **Files** `api/oss/src/apis/fastapi/triggers/router.py:~94`
-- **Evidence** CodeRabbit: `if not secret: return True` is an auth bypass on misconfig; marked "✅ Addressed in commit ce43b26". Core `verify_signature` already returns `False` on empty secret.
-- **Suggested Fix** Confirm the router path now returns `False`/rejects on the pushed HEAD; if so, resolve the thread. Re-open only if the working tree still returns True.
-
-### [OPEN] F5 — `TriggersService` constructor accepts None deps then dereferences them
-- **Origin** sync (CodeRabbit) + scan · **Severity** P1 · **Confidence** high · **Status** confirmed
-- **Files** `api/oss/src/core/triggers/service.py` (init), call sites throughout
-- **Evidence** `triggers_dao: Optional[...] = None`, `connections_service: Optional[...] = None`; methods call `self.dao.*` / `self.connections_service.*` unconditionally.
-- **Suggested Fix** Drop the `Optional`/defaults (make required) per CodeRabbit, OR validate non-None in `__init__`. Not in the user's directive list this pass — left open.
-
-### [OPEN] F13 — unpinned runtime `pip install` in composio compose service
-- **Origin** sync (CodeRabbit) + scan · **Severity** P2 · **Confidence** high · **Status** needs-user-decision
-- **Files** `hosting/docker-compose/oss/docker-compose.gh.yml:~554`; `hosting/docker-compose/ee/docker-compose.gh.yml` (same)
-- **Evidence** `pip install --quiet --root-user-action=ignore composio httpx` — no version pins; latest-at-runtime breaks reproducibility.
-- **Suggested Fix** Pin versions, or move composio/httpx into the image's deps. Pin targets TBD.
-
-### [OPEN] F16 — no web unit tests for schedule/subscription drawers + ActiveToggle
-- **Origin** scan · **Severity** P2 · **Confidence** high · **Status** confirmed · **Category** Testing
-- **Files** `web/packages/agenta-entity-ui/src/gatewayTrigger/drawers/*`, `components/ActiveToggle.tsx`
-- **Suggested Fix** Add unit tests (cron input, prefill, play/pause transitions, error display).
-
-### [OPEN] F17 — missing api unit tests (signature rotation, cron gate, dedup, full-PUT)
-- **Origin** scan · **Severity** P2 · **Confidence** high · **Status** confirmed · **Category** Testing
-- **Files** `api/oss/src/core/triggers/service.py`, dispatcher
-- **Suggested Fix** Unit-test `verify_signature` (now exercises hex + base64 paths), `croniter.match` gate, dedup keys, edit field preservation.
-
-### [OPEN] F18 — acceptance lifecycle tests leak provider state on failure
-- **Origin** sync (CodeRabbit) · **Severity** P2 · **Confidence** high · **Status** confirmed · **Category** Testing
-- **Files** `api/ee/tests/pytest/acceptance/triggers/test_triggers_subscriptions.py:182-227`, `.../test_triggers_connections.py:160`, `api/oss/.../test_triggers_connections.py:71`
-- **Suggested Fix** `try/finally` cleanup + assert delete response.
-
-### [OPEN] F20 — `oss000000004` downgrade JSONB subtraction silent on absent key
-- **Origin** scan · **Severity** P3 · **Confidence** medium · **Status** confirmed · **Category** Migration
-- **Files** `api/oss/databases/postgres/migrations/core_oss/versions/oss000000004_add_webhook_subscription_flags.py:~47`
-- **Suggested Fix** Cosmetic; backfill is unreleased. Optional `CASE WHEN flags IS NULL` guard.
-
-### [OPEN] F24 — Schedule refresh admin endpoint skips auth/entitlement
-- **Origin** sync (CodeRabbit) · **Severity** — · **Confidence** high · **Status** wontfix (convention)
-- **Files** `api/oss/src/apis/fastapi/triggers/router.py:1426`
-- **Evidence** Verified: matches the platform convention — the evaluations `refresh_runs` admin cron (our reuse anchor) has the identical `# NO CHECK FOR PERMISSIONS / ENTITLEMENTS`; `/admin/*` is network-isolated and the cron POSTs to `http://api:8000`. Not a new bug. Kept open as a tracked decision rather than silently resolved.
-- **Suggested Fix** None unless we decide to add internal-auth to ALL `/admin/*` crons as a platform-wide change.
-
-### [OPEN] F37 — ingress dedup test precondition can 401-flake
-- **Origin** sync (CodeRabbit, minor) · **Severity** P3 · **Confidence** medium · **Status** confirmed · **Category** Testing
-- **Files** `api/oss/tests/pytest/acceptance/triggers/test_triggers_ingress.py:113`
-- **Evidence** The dedup test gates only on `COMPOSIO_TEST_CONNECTED_ACCOUNT` and can resolve an empty webhook secret → 401 failures unrelated to dedup → flaky.
-- **Suggested Fix** Add `@_requires_composio` and guard the resolved secret before signing.
-
-### [OPEN] F39 — connection test reads config via `os.getenv`
-- **Origin** sync (CodeRabbit, refactor) · **Severity** P2 · **Confidence** medium · **Status** needs-user-decision · **Category** Testing
-- **Files** `api/oss/tests/pytest/acceptance/triggers/test_triggers_connections.py:24`
-- **Evidence** Reads env directly with `os.getenv` instead of the shared API `env` object (`api/CLAUDE.md`: avoid `os.getenv` for application config). Distinct from F18 (cleanup) on the same file.
-- **Suggested Fix** Source the value from the shared `env` object, or confirm test-scope `os.getenv` is acceptable here (tests aren't application config).
+None — all findings (F1–F40) are resolved, verified-ok, or dispositioned wontfix. See Closed Findings.
 
 ## Closed Findings
 
@@ -287,3 +234,58 @@ gateway **connection ID** (`connection_id`, the `ca_*`), trigger **subscription 
 - **Origin** live run (manual E2E) · **Severity** P0 · **Status** fixed
 - **Files** `api/entrypoints/worker_triggers.py`
 - **Fix applied** The dispatcher refactor (dedup + `is_valid` 409 gate) added a required `triggers_dao` kwarg to `TriggersWorker.__init__`. `routers.py` was updated; `worker_triggers.py:94` was not, so the worker container raised `TypeError: ... missing 'triggers_dao'` and restarted every ~7s. Ingress kept returning 202 (verify + enqueue succeed) but nothing drained `queues:triggers` → no deliveries. Passed `triggers_dao=triggers_dao` (already constructed at line 58). Worker now boots (`Listening started`); confirmed against live DB — 2 deliveries written, one per path (subscription event + cron schedule). Tests didn't catch it: unit tests construct the worker with the dao directly; nothing exercises entrypoint wiring.
+
+### [CLOSED] F2 — Router signature fail-open on missing secret
+- **Origin** sync (CodeRabbit) · **Severity** P1 · **Status** verified-ok
+- **Files** `api/oss/src/apis/fastapi/triggers/router.py:1526`
+- **Fix applied** Verified against HEAD — not fail-open. Ingress returns 401 when `verify_signature` is False; the service returns False on both missing signature and unresolvable secret (`if not secret: return False`). The flagged `_verify_composio_signature` helper no longer exists (consolidated into the service). No path returns 200 on empty secret. Thread resolved.
+
+### [CLOSED] F5 — `TriggersService` constructor accepts None deps then dereferences them
+- **Origin** sync (CodeRabbit) + scan · **Severity** P1 · **Status** fixed
+- **Files** `api/oss/src/core/triggers/service.py`, `api/oss/tests/pytest/unit/triggers/test_triggers_signature.py`
+- **Fix applied** Made `triggers_dao`/`connections_service`/`workflows_service` required (37 unguarded derefs; the composition root always supplies them). `schedule_dispatch_task` stays `Optional` — it's legitimately assigned post-construction in the comp-root (`routers.py:713`) and guarded at use (`if self.schedule_dispatch_task is None`). Updated the signature unit test to pass the three (unused by that path).
+
+### [CLOSED] F16 — web unit tests for the trigger drawers
+- **Origin** scan · **Severity** P2 · **Status** fixed
+- **Files** `web/packages/agenta-entities/src/gatewayTrigger/core/selectorPreview.ts` (new), `tests/unit/gatewayTriggerSelectorPreview.test.ts` (new), `web/packages/agenta-entity-ui/.../TriggerSubscriptionDrawer.tsx`
+- **Fix applied** Extracted the only real pure logic in the drawers — selector resolution (`resolveSelectorPreview`/`previewValue`, JSONPath-lite + JSON Pointer + escape decoding) — into `core/selectorPreview.ts`, mirroring the `core/cron.ts` precedent, and added 12 unit tests. The components are otherwise thin React; the package's vitest is `node`-env (no RTL/jsdom), so rendering `ActiveToggle`/drawers would require DOM infra this codebase doesn't use. Cron + API-client mapping already had unit coverage.
+
+### [CLOSED] F17 — api unit tests for the cron fire-gate
+- **Origin** scan · **Severity** P2 · **Status** fixed
+- **Files** `api/oss/tests/pytest/unit/triggers/test_triggers_schedules_refresh.py` (new)
+- **Fix applied** 15 tests: `_validate_schedule` (accepts valid 5-field, rejects wrong field count / unparseable / non-string) + `refresh_schedules` (croniter.match gate fires only matching ticks, per-tick dedup skip, deterministic `event_id`, dispatch failure → False, no-timestamp/unconfigured-task → False). Signature rotation and dedup keys were already covered (signature + dispatcher suites); full-PUT edit preservation stays in acceptance coverage (needs a DAO round-trip).
+
+### [CLOSED] F18 — acceptance lifecycle tests leak provider state on failure
+- **Origin** sync (CodeRabbit) · **Severity** P2 · **Status** fixed
+- **Files** `api/oss/.../test_triggers_connections.py`, `api/ee/.../test_triggers_connections.py`, `api/ee/.../test_triggers_subscriptions.py`
+- **Fix applied** Wrapped all six live-resource tests in `try/finally` so the created connection (and subscription) is deleted even when an assertion fails mid-test.
+
+### [CLOSED] F20 — `oss000000004` downgrade JSONB subtraction not symmetric
+- **Origin** scan · **Severity** P3 · **Status** fixed
+- **Files** `.../oss000000004_add_webhook_subscription_flags.py`
+- **Fix applied** Downgrade now strips `is_active` only from rows whose flags are exactly `{"is_active": true}` (what the backfill created from NULL/empty), so rows carrying other flags or `is_active=false` keep their state on rollback. Mirrors the upgrade's "only touch what we added" intent.
+
+### [CLOSED] F37 — ingress dedup test precondition can 401-flake
+- **Origin** sync (CodeRabbit, minor) · **Severity** P3 · **Status** fixed
+- **Files** `api/oss/tests/pytest/acceptance/triggers/test_triggers_ingress.py`
+- **Fix applied** The class already carried `@_requires_composio`/`@_requires_connected_account`; added a `pytest.skip` when `_resolve_webhook_secret()` returns empty, so a missing secret skips cleanly instead of 401-flaking the dedup assertion.
+
+### [CLOSED] F39 — connection test reads config via `os.getenv` (wontfix, convention)
+- **Origin** sync (CodeRabbit, refactor) · **Severity** P2 · **Status** wontfix
+- **Files** `api/oss/tests/pytest/acceptance/triggers/test_triggers_connections.py:24`
+- **Fix applied** None — per "do as other tests". The `os.getenv("COMPOSIO_API_KEY")` is a pytest skip-gate identical to `test_tools_connections.py:19` and every sibling trigger/tool acceptance test. The shared `env` app-config object is for application code, not test-collection preconditions. CodeRabbit false positive; thread resolved.
+
+### [CLOSED] F40 — duplicate `flags` key breaks `@agenta/entities` build
+- **Origin** build (surfaced during F16) · **Severity** P1 · **Status** fixed
+- **Files** `web/packages/agenta-entities/src/gatewayTrigger/core/types.ts`
+- **Fix applied** The subscription zod schema declared `flags` twice — generic `jsonRecordSchema` and typed `triggerSubscriptionFlagsSchema` — a TS1117 duplicate-key that failed `tsc --noEmit` for the whole package. Removed the stray generic `flags`, keeping the typed one (the schedule schema's typed-flags + generic-tags/meta ordering is the correct template; `tags`/`meta` are legitimately open `jsonRecordSchema` dicts).
+
+### [CLOSED] F13 — unpinned `pip install` in composio bridge (wontfix, dev-only)
+- **Origin** sync (CodeRabbit) + scan · **Severity** P2 · **Status** wontfix
+- **Files** `dispatcher_composio.py` invoked from 7 compose files (oss+ee `.dev`/`.gh`/`.gh.local`/`.gh.ssl`)
+- **Fix applied** None. The composio bridge is a `with-tunnel`-profile dev container (the local tunnel that `composio.triggers.subscribe()`s and forwards verified events to ingress), not a shipped production service, so runtime `pip install composio httpx` reproducibility isn't a prod-supply-chain concern. **User decision (2026-06-22): keep unpinned.** Thread resolved.
+
+### [CLOSED] F24 — Schedule refresh admin endpoint skips auth/entitlement (wontfix)
+- **Origin** sync (CodeRabbit) · **Severity** — · **Status** wontfix (convention)
+- **Files** `api/oss/src/apis/fastapi/triggers/router.py:1426`
+- **Fix applied** None. Verified to match the platform convention — the evaluations `refresh_runs` admin cron (our reuse anchor) carries the identical `# NO CHECK FOR PERMISSIONS / ENTITLEMENTS`; `/admin/*` is network-isolated and the cron POSTs to `http://api:8000`. Not a new bug. **User confirmed wontfix (2026-06-22).** Would only change as a platform-wide decision to add internal-auth to ALL `/admin/*` crons. Thread resolved.

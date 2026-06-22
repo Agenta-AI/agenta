@@ -3,6 +3,8 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {
     isEntityActive,
     isEntityValid,
+    previewValue,
+    resolveSelectorPreview,
     triggerApiErrorMessage,
     triggerSubscriptionDrawerAtom,
     useTriggerCatalogEvents,
@@ -612,56 +614,4 @@ function analyzeMapping(
         })
     }
     return {leaves, parseError: null}
-}
-
-function previewValue(value: unknown): string {
-    if (typeof value === "string") return value
-    try {
-        return JSON.stringify(value)
-    } catch {
-        return String(value)
-    }
-}
-
-/** Best-effort resolution of `$.a.b[0]` / `$["a"]["b"]` / `/a/b/0`. */
-function resolveSelectorPreview(selector: string, data: Record<string, unknown>): unknown {
-    try {
-        if (selector === "$") return data
-        if (selector.startsWith("/")) {
-            const tokens = selector
-                .split("/")
-                .slice(1)
-                .map((t) => t.replace(/~1/g, "/").replace(/~0/g, "~"))
-            return walk(data, tokens)
-        }
-        if (selector.startsWith("$")) {
-            const tokens = selector
-                .slice(1)
-                .replace(/\[(\d+)\]/g, ".$1")
-                .replace(/\[["'](.*?)["']\]/g, ".$1")
-                .split(".")
-                .filter((t) => t.length > 0)
-            return walk(data, tokens)
-        }
-    } catch {
-        return undefined
-    }
-    return undefined
-}
-
-function walk(data: unknown, tokens: string[]): unknown {
-    let cur: unknown = data
-    for (const token of tokens) {
-        if (cur == null) return undefined
-        if (Array.isArray(cur)) {
-            const idx = Number(token)
-            if (!Number.isInteger(idx)) return undefined
-            cur = cur[idx]
-        } else if (typeof cur === "object") {
-            cur = (cur as Record<string, unknown>)[token]
-        } else {
-            return undefined
-        }
-    }
-    return cur
 }

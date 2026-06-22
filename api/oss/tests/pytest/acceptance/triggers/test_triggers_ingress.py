@@ -159,6 +159,8 @@ class TestTriggerIngressDedup:
         body = json.dumps(envelope).encode()
         timestamp = "1700000000"
         secret = _resolve_webhook_secret()
+        if not secret:
+            pytest.skip("no Composio webhook secret resolvable; signing would 401")
         headers = {
             "Content-Type": "application/json",
             "webhook-id": event_id,

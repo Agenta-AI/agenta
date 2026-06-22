@@ -66,9 +66,10 @@ class TriggersService:
         *,
         adapter_registry: TriggersGatewayRegistry,
         catalog_service: CatalogService,
-        triggers_dao: Optional[TriggersDAOInterface] = None,
-        connections_service: Optional[ConnectionsService] = None,
-        workflows_service: Optional[WorkflowsService] = None,
+        triggers_dao: TriggersDAOInterface,
+        connections_service: ConnectionsService,
+        workflows_service: WorkflowsService,
+        # Assigned post-construction in the composition root (worker wiring); guarded at use.
         schedule_dispatch_task: Optional[Any] = None,
     ):
         self.adapter_registry = adapter_registry

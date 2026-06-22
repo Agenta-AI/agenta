@@ -62,12 +62,13 @@ class TestTriggersConnectionsLifecycle:
         assert create.status_code == 200, create.text
         connection_id = create.json()["connection"]["id"]
 
-        revoke = authed_api("POST", f"/triggers/connections/{connection_id}/revoke")
-        assert revoke.status_code == 200, revoke.text
-        assert revoke.json()["connection"]["flags"]["is_valid"] is False
-
-        delete = authed_api("DELETE", f"/triggers/connections/{connection_id}")
-        assert delete.status_code == 204, delete.text
+        try:
+            revoke = authed_api("POST", f"/triggers/connections/{connection_id}/revoke")
+            assert revoke.status_code == 200, revoke.text
+            assert revoke.json()["connection"]["flags"]["is_valid"] is False
+        finally:
+            delete = authed_api("DELETE", f"/triggers/connections/{connection_id}")
+            assert delete.status_code == 204, delete.text
 
 
 @_requires_composio
@@ -92,21 +93,22 @@ class TestConnectionsCrossVisibility:
         assert create.status_code == 200, create.text
         connection_id = create.json()["connection"]["id"]
 
-        # Visible via the tools query surface…
-        tools_ids = [
-            c["id"]
-            for c in authed_api("POST", "/tools/connections/query").json()[
-                "connections"
+        try:
+            # Visible via the tools query surface…
+            tools_ids = [
+                c["id"]
+                for c in authed_api("POST", "/tools/connections/query").json()[
+                    "connections"
+                ]
             ]
-        ]
-        assert connection_id in tools_ids
+            assert connection_id in tools_ids
 
-        # …and fetchable + manageable via the tools surface.
-        fetched = authed_api("GET", f"/tools/connections/{connection_id}")
-        assert fetched.status_code == 200, fetched.text
-
-        delete = authed_api("DELETE", f"/tools/connections/{connection_id}")
-        assert delete.status_code == 204, delete.text
+            # …and fetchable + manageable via the tools surface.
+            fetched = authed_api("GET", f"/tools/connections/{connection_id}")
+            assert fetched.status_code == 200, fetched.text
+        finally:
+            delete = authed_api("DELETE", f"/tools/connections/{connection_id}")
+            assert delete.status_code == 204, delete.text
 
     def test_created_on_tools_is_visible_on_triggers(self, authed_api):
         slug = f"acc-{uuid4().hex[:8]}"
@@ -125,16 +127,17 @@ class TestConnectionsCrossVisibility:
         assert create.status_code == 200, create.text
         connection_id = create.json()["connection"]["id"]
 
-        trigger_ids = [
-            c["id"]
-            for c in authed_api("POST", "/triggers/connections/query").json()[
-                "connections"
+        try:
+            trigger_ids = [
+                c["id"]
+                for c in authed_api("POST", "/triggers/connections/query").json()[
+                    "connections"
+                ]
             ]
-        ]
-        assert connection_id in trigger_ids
+            assert connection_id in trigger_ids
 
-        fetched = authed_api("GET", f"/triggers/connections/{connection_id}")
-        assert fetched.status_code == 200, fetched.text
-
-        delete = authed_api("DELETE", f"/triggers/connections/{connection_id}")
-        assert delete.status_code == 204, delete.text
+            fetched = authed_api("GET", f"/triggers/connections/{connection_id}")
+            assert fetched.status_code == 200, fetched.text
+        finally:
+            delete = authed_api("DELETE", f"/triggers/connections/{connection_id}")
+            assert delete.status_code == 204, delete.text

@@ -190,45 +190,48 @@ class TestTriggerSubscriptionsLifecycle:
     def test_create_list_disable_delete_keeps_connection(self, triggers_api):
         connection_id = self._create_connection(triggers_api)
 
-        create = triggers_api(
-            "POST",
-            "/triggers/subscriptions/",
-            json={
-                "subscription": {
-                    "name": f"sub-{uuid4().hex[:8]}",
-                    "connection_id": connection_id,
-                    "data": {
-                        "event_key": "GITHUB_STAR_ADDED_EVENT",
-                        "trigger_config": {"owner": "acme", "repo": "widgets"},
-                        "inputs_fields": {"repo": "$.event.attributes.repository"},
-                        "references": {"workflow": {"slug": "triage"}},
-                    },
-                }
-            },
-        )
-        assert create.status_code == 200, create.text
-        sub = create.json()["subscription"]
-        subscription_id = sub["id"]
-        assert sub["connection_id"] == connection_id
-        assert sub["trigger_id"] is not None
+        try:
+            create = triggers_api(
+                "POST",
+                "/triggers/subscriptions/",
+                json={
+                    "subscription": {
+                        "name": f"sub-{uuid4().hex[:8]}",
+                        "connection_id": connection_id,
+                        "data": {
+                            "event_key": "GITHUB_STAR_ADDED_EVENT",
+                            "trigger_config": {"owner": "acme", "repo": "widgets"},
+                            "inputs_fields": {"repo": "$.event.attributes.repository"},
+                            "references": {"workflow": {"slug": "triage"}},
+                        },
+                    }
+                },
+            )
+            assert create.status_code == 200, create.text
+            sub = create.json()["subscription"]
+            subscription_id = sub["id"]
+            assert sub["connection_id"] == connection_id
+            assert sub["trigger_id"] is not None
 
-        listing = triggers_api("GET", "/triggers/subscriptions/").json()
-        assert any(s["id"] == subscription_id for s in listing["subscriptions"])
+            listing = triggers_api("GET", "/triggers/subscriptions/").json()
+            assert any(s["id"] == subscription_id for s in listing["subscriptions"])
 
-        revoke = triggers_api(
-            "POST", f"/triggers/subscriptions/{subscription_id}/revoke"
-        )
-        assert revoke.status_code == 200, revoke.text
-        assert revoke.json()["subscription"]["enabled"] is False
+            revoke = triggers_api(
+                "POST", f"/triggers/subscriptions/{subscription_id}/revoke"
+            )
+            assert revoke.status_code == 200, revoke.text
+            assert revoke.json()["subscription"]["enabled"] is False
 
-        delete = triggers_api("DELETE", f"/triggers/subscriptions/{subscription_id}")
-        assert delete.status_code == 204
+            delete = triggers_api(
+                "DELETE", f"/triggers/subscriptions/{subscription_id}"
+            )
+            assert delete.status_code == 204
 
-        fetch = triggers_api("GET", f"/triggers/subscriptions/{subscription_id}")
-        assert fetch.status_code == 404
+            fetch = triggers_api("GET", f"/triggers/subscriptions/{subscription_id}")
+            assert fetch.status_code == 404
 
-        # C7: deleting the subscription must NOT delete/revoke the connection.
-        conn = triggers_api("GET", f"/tools/connections/{connection_id}")
-        assert conn.status_code == 200, conn.text
-
-        triggers_api("DELETE", f"/tools/connections/{connection_id}")
+            # C7: deleting the subscription must NOT delete/revoke the connection.
+            conn = triggers_api("GET", f"/tools/connections/{connection_id}")
+            assert conn.status_code == 200, conn.text
+        finally:
+            triggers_api("DELETE", f"/tools/connections/{connection_id}")
