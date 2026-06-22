@@ -188,7 +188,9 @@ function buildPlaywrightArgs(grepPatterns: string[], playwrightArgs: string[]): 
  */
 function runVitestLayer(targetLayer: TestLayer, grepPatterns: string[]): number {
     const script = LAYER_PACKAGE_SCRIPT[targetLayer]
-    const pnpmArgs = ["-r", "--if-present", "run", script]
+    // Exclude this orchestration workspace: its test:acceptance script invokes
+    // this runner and would recursively run the acceptance suite a second time.
+    const pnpmArgs = ["--filter", "!agenta-web-tests", "-r", "--if-present", "run", script]
 
     // Forward dimension markers to vitest as a name filter, mirroring how the
     // Playwright phase turns them into --grep. Args after `--` reach vitest.
