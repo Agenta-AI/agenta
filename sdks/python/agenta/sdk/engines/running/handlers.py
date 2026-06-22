@@ -1040,12 +1040,11 @@ async def auto_ai_critique_v0(
         ) from e
 
     try:
-        with mockllm.user_aws_credentials_from(_coerce_credentials(provider_settings)):
-            response = await mockllm.acompletion(
-                messages=formatted_prompt_template,
-                response_format=response_format,
-                **provider_settings,
-            )
+        response = await mockllm.acompletion(
+            messages=formatted_prompt_template,
+            response_format=response_format,
+            **_normalize_aws_provider_settings(provider_settings),
+        )
 
         _outputs = response.choices[0].message.content.strip()  # type: ignore
 
@@ -1791,21 +1790,50 @@ class SinglePromptConfig(BaseModel):
     )
 
 
-def _coerce_credentials(provider_settings: Dict) -> Dict:
-    return {
-        "AWS_ACCESS_KEY_ID": provider_settings.get("AWS_ACCESS_KEY_ID")
-        or provider_settings.get("aws_access_key_id"),
-        "AWS_SECRET_ACCESS_KEY": provider_settings.get("AWS_SECRET_ACCESS_KEY")
-        or provider_settings.get("aws_secret_access_key"),
-        "AWS_SESSION_TOKEN": provider_settings.get("AWS_SESSION_TOKEN")
-        or provider_settings.get("aws_session_token"),
-        "AWS_REGION": provider_settings.get("AWS_REGION")
-        or provider_settings.get("aws_region")
-        or provider_settings.get("aws_region_name"),
-        "AWS_DEFAULT_REGION": provider_settings.get("AWS_DEFAULT_REGION")
-        or provider_settings.get("aws_default_region")
-        or provider_settings.get("aws_region_name"),
-    }
+# LiteLLM resolves Bedrock/Sagemaker auth from explicit ``aws_*`` call kwargs, which
+# keeps credentials request-scoped. Secret extras may store those credentials under
+# several spellings (env-style uppercase, ``aws_region`` vs ``aws_region_name``), so we
+# fold each alias into LiteLLM's canonical parameter name. Region aliases are ordered by
+# precedence.
+_AWS_PARAM_ALIASES: Dict[str, tuple] = {
+    "aws_access_key_id": ("aws_access_key_id", "AWS_ACCESS_KEY_ID"),
+    "aws_secret_access_key": ("aws_secret_access_key", "AWS_SECRET_ACCESS_KEY"),
+    "aws_session_token": ("aws_session_token", "AWS_SESSION_TOKEN"),
+    "aws_region_name": (
+        "aws_region_name",
+        "AWS_REGION_NAME",
+        "aws_region",
+        "AWS_REGION",
+        "aws_default_region",
+        "AWS_DEFAULT_REGION",
+    ),
+}
+
+
+def _normalize_aws_provider_settings(provider_settings: Dict) -> Dict:
+    """Fold AWS credential aliases into LiteLLM's canonical request-scoped params.
+
+    Passing the resolved credentials as ``aws_*`` call kwargs keeps them scoped to the
+    single request, instead of mutating process-global ``os.environ`` (which can leak
+    between concurrent calls in the same worker). Non-canonical alias keys are dropped so
+    they are not forwarded to LiteLLM as unrecognized kwargs. Non-AWS settings pass
+    through untouched.
+    """
+
+    settings = dict(provider_settings)
+    for canonical, aliases in _AWS_PARAM_ALIASES.items():
+        value = next(
+            (settings[alias] for alias in aliases if settings.get(alias) is not None),
+            None,
+        )
+        for alias in aliases:
+            if alias != canonical:
+                settings.pop(alias, None)
+        if value is not None:
+            settings[canonical] = value
+        else:
+            settings.pop(canonical, None)
+    return settings
 
 
 def _apply_responses_bridge_if_needed(
@@ -2034,13 +2062,10 @@ async def _run_prompt_llm_config_with_retry(
             if messages is not None:
                 openai_kwargs["messages"] = [*openai_kwargs["messages"], *messages]
 
-            with mockllm.user_aws_credentials_from(
-                _coerce_credentials(provider_settings)
-            ):
-                return await mockllm.acompletion(
-                    **{k: v for k, v in openai_kwargs.items() if k != "model"},
-                    **provider_settings,
-                )
+            return await mockllm.acompletion(
+                **{k: v for k, v in openai_kwargs.items() if k != "model"},
+                **_normalize_aws_provider_settings(provider_settings),
+            )
         except Exception as exc:
             last_error = exc
             if attempt >= attempts - 1 or not _should_retry(
