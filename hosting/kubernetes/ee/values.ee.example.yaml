@@ -463,6 +463,9 @@ posthog:
 # workerEvents:
 #   enabled: true
 #   replicas: 1
+# workerTriggers:
+#   enabled: true
+#   replicas: 1
 # cron:
 #   enabled: true
 #   replicas: 1
