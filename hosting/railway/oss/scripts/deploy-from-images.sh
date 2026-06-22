@@ -45,7 +45,7 @@ redeploy_service_if_exists() {
     local service="$1"
 
     if railway_call service "$service" >/dev/null 2>&1; then
-        railway_call redeploy --service "$service" --environment "$ENV_NAME" --yes >/dev/null
+        railway_call redeploy --yes >/dev/null
     fi
 }
 
