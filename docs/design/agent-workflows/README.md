@@ -36,6 +36,9 @@ to the sibling PR that carries it. Historical work-package notes and old RFCs li
 12. [Agenta Harness](adapters/agenta.md): the experimental Agenta-flavored Pi harness.
 13. [SDK Local Tools](sdk-local-tools/): planned and partly implemented work for standalone
    SDK tool resolution. This remains blocked by `LocalBackend`.
+    - [Provider, Model, and Auth](provider-model-auth/): research and design for how a harness
+      selects its provider/model and gets the right credential injected (provider concept,
+      multi-account connections, OAuth/sidecar auth, least-privilege secret injection).
 14. [PR Stack](pr-stack.md): functional breakpoints for reviewable stacked PRs.
 15. [Implementation Review](implementation-review.md): high-level cleanup risks and PR
     slicing notes.
@@ -49,7 +52,7 @@ The agent workflow runs a coding harness as an Agenta workflow. It supports:
 - An agent-only `/messages` path that accepts Vercel `UIMessage` input and can stream a
   Vercel UI Message Stream over SSE.
 - A `/load-session` route with the right contract but no durable storage by default.
-- Pi and Claude harnesses through the rivet runner.
+- Pi and Claude harnesses through the sandbox-agent runner.
 - Pi and the experimental `agenta` harness through the in-process Pi backend.
 - Server-resolved tool specs, code tool execution, callback tools, and MCP plumbing behind
   a feature flag.

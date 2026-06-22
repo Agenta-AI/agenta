@@ -29,7 +29,7 @@ import agenta as ag
 params = ag.ConfigManager.get_from_registry(app_slug="my-agent")
 agent = ag.AgentConfig.from_params(params)
 
-# 2. Build a local engine. No Agenta service, no rivet sidecar.
+# 2. Build a local engine. No Agenta service, no sandbox-agent sidecar.
 harness = ag.make_harness("pi", ag.Environment(ag.LocalBackend()))
 
 # 3. Run the agent locally, WITH its tools.
@@ -50,7 +50,7 @@ throughout:
 
 - **Offline-standalone**: the run touches no network except the model provider. Every tool
   resolves from data the user already holds. This is the strict reading.
-- **Connected-standalone**: the run uses no Agenta *service deployment* (no rivet sidecar,
+- **Connected-standalone**: the run uses no Agenta *service deployment* (no sandbox-agent sidecar,
   no self-hosted agent service), but it may call the Agenta public API to resolve a tool or
   fetch a secret. This is the loose reading.
 

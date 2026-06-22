@@ -52,7 +52,7 @@ the create-or-resume behavior is intended, but not implemented beyond id propaga
 
 Current docs mostly describe `SessionStore` as durable chat history with `load` and
 `save_turn`. The meeting discussed a second concern: saving and loading the harness session
-state itself, such as a Rivet/ACP session blob, before teardown and during setup.
+state itself, such as a sandbox-agent/ACP session blob, before teardown and during setup.
 
 That state snapshot is not implemented and is not represented clearly enough in the current
 ports. Message-history persistence is enough for the MVP cold replay path. It is not enough
@@ -106,7 +106,7 @@ just documentation polish.
 - Add a storage-backed `SessionStore` for cold replay history.
 - Add a separate future-facing session snapshot interface for harness state, with
   `save_session` and `load_session` semantics around cleanup/setup.
-- Research Rivet/ACP session representation and expected blob size before choosing
+- Research sandbox-agent/ACP session representation and expected blob size before choosing
   Postgres, object storage, or another backend.
 - Define retention in days, not years, unless product requirements change.
 - Make pre-message operations, such as file upload, use the same implicit session creation

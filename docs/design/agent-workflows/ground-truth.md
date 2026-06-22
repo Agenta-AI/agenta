@@ -14,11 +14,11 @@ treat this page and the referenced code as the source of truth.
 | Browser protocol adapter | `sdks/python/agenta/sdk/agents/adapters/vercel/` | Converts Vercel `UIMessage` input and emits Vercel UI Message Stream parts. |
 | SDK runtime DTOs | `sdks/python/agenta/sdk/agents/dtos.py` | Defines `AgentConfig`, `RunSelection`, `SessionConfig`, messages, events, capabilities, and harness configs. |
 | SDK runtime ports | `sdks/python/agenta/sdk/agents/interfaces.py` | Defines `Backend`, `Environment`, `Sandbox`, `Session`, `Harness`, `SessionStore`, and `NoopSessionStore`. |
-| Backend adapters | `sdks/python/agenta/sdk/agents/adapters/in_process.py`, `rivet.py`, `local.py` | Implement in-process Pi and rivet backends. `LocalBackend` is a stub. |
+| Backend adapters | `sdks/python/agenta/sdk/agents/adapters/in_process.py`, `sandbox_agent.py`, `local.py` | Implement in-process Pi and sandbox-agent backends. `LocalBackend` is a stub. |
 | Harness adapters | `sdks/python/agenta/sdk/agents/adapters/harnesses.py` | Maps neutral session config into Pi, Claude, and Agenta harness-specific config. |
 | Runner wire | `sdks/python/agenta/sdk/agents/utils/wire.py`, `services/agent/src/protocol.ts` | Keeps the Python and TypeScript `/run` payloads in sync. |
 | Runner transports | `sdks/python/agenta/sdk/agents/utils/ts_runner.py`, `services/agent/src/server.ts`, `services/agent/src/cli.ts` | Send one-shot JSON or live NDJSON records to and from the runner. |
-| Runner engines | `services/agent/src/engines/pi.ts`, `services/agent/src/engines/rivet.ts` | Run Pi in process or run a harness over ACP through rivet. |
+| Runner engines | `services/agent/src/engines/pi.ts`, `services/agent/src/engines/sandbox_agent.ts` | Run Pi in process or run a harness over ACP through sandbox-agent. |
 | Tool execution | `sdks/python/agenta/sdk/agents/tools/`, `services/oss/src/agent/tools/`, `services/agent/src/tools/` | Parse tool config, resolve runnable specs, and execute callback, code, and MCP-delivered tools. |
 | Tracing | `services/oss/src/agent/tracing.py`, `services/agent/src/tracing/otel.ts`, `services/agent/src/extensions/agenta.ts` | Thread trace context into the run and emit agent spans plus usage. |
 | UI config controls | `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentConfigControl.tsx` | Edits the typed agent config shape in the playground. |
@@ -34,7 +34,7 @@ treat this page and the referenced code as the source of truth.
 - Streaming runs over a runner NDJSON stream internally. The browser edge projects those
   events into Vercel UI Message Stream parts and appends `[DONE]`.
 - `InProcessPiBackend` supports `pi` and `agenta` on local.
-- `RivetBackend` supports `pi` and `claude` on local or Daytona.
+- `SandboxAgentBackend` supports `pi` and `claude` on local or Daytona.
 - `PiHarness`, `ClaudeHarness`, and `AgentaHarness` exist and validate backend support.
 - The tool resolver package exists in the SDK. The service composes SDK tool and MCP
   resolvers with service-owned gateway and vault adapters.
@@ -51,13 +51,14 @@ treat this page and the referenced code as the source of truth.
 - `SessionStore` has no production adapter. The default `NoopSessionStore` returns empty
   history and discards writes.
 - Completed `/messages` turns are not persisted to a session store by default.
-- Harness session snapshots, such as Rivet/ACP state save/load around cleanup/setup, are
+- Harness session snapshots, such as sandbox-agent/ACP state save/load around cleanup/setup, are
   not represented by a production port yet.
 - Warm daemon sessions, ACP `session/load`, and session fork are not wired.
-- `AgentaHarness` does not run on rivet or Daytona.
-- `AgentaHarness` ships placeholder Agenta preamble, persona, and skill set.
+- `AgentaHarness` ships placeholder Agenta preamble, persona, and skill set. (It does run on
+  sandbox-agent local and Daytona, verified by the QA matrix; the earlier "does not run on sandbox-agent" note
+  was stale.)
 - The agent is not registered as a first-class built-in workflow type.
-- Pi `systemPrompt` and `appendSystemPrompt` are not delivered on the rivet ACP path.
+- Pi `systemPrompt` and `appendSystemPrompt` are not delivered on the sandbox-agent ACP path.
 - Remote MCP servers are skipped by the active-stack runner path. Local stdio MCP is the path
   represented by the bridge.
 - Trigger lifecycle, Compose.io trigger integration, and event-to-agent mapping are not
@@ -71,7 +72,7 @@ treat this page and the referenced code as the source of truth.
   standalone SDK tool resolution. It remains blocked on `LocalBackend`.
 - Durable server-owned sessions need a real `SessionStore`, a write path from completed
   turns, ownership checks, and a decision on platform versus local storage.
-- Stateful session resume needs research into Rivet/ACP session representation and a
+- Stateful session resume needs research into sandbox-agent/ACP session representation and a
   future save/load snapshot interface separate from chat history.
 - Trigger integration needs a provider port, a Compose.io adapter, Agenta-owned trigger
   state, and event-to-agent mapping.

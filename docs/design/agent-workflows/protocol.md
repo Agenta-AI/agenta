@@ -123,12 +123,12 @@ Request fields include:
 
 | Field | Meaning |
 | --- | --- |
-| `backend` | Runner engine: `pi` or `rivet`. |
+| `backend` | Runner engine: `pi` or `sandbox-agent`. |
 | `harness` | Harness id: `pi`, `claude`, or `agenta` depending on backend support. |
 | `sandbox` | Sandbox id, usually `local` or `daytona`. |
 | `sessionId` | External conversation id. The runtime is still cold and receives history in `messages`. |
 | `agentsMd` | Instructions that become `AGENTS.md`. |
-| `systemPrompt`, `appendSystemPrompt` | Pi prompt overrides. Not delivered on the rivet Pi path yet. |
+| `systemPrompt`, `appendSystemPrompt` | Pi prompt overrides. Not delivered on the sandbox-agent Pi path yet. |
 | `model` | Requested model id. |
 | `messages` | Conversation history and current turn. |
 | `secrets` | Provider env vars resolved by the service. |

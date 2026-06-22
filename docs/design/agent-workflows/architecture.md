@@ -15,7 +15,7 @@ The implementation keeps two choices configurable:
 - **Harness:** which agent runs. Supported values are `pi`, `claude`, and experimental
   `agenta`.
 - **Sandbox:** where the run happens. Supported values are `local` and `daytona` on the
-  rivet path. The in-process Pi path is local only.
+  sandbox-agent path. The in-process Pi path is local only.
 
 The platform still exposes the agent through normal workflow routing. `/invoke` remains the
 batch contract. Agent routes also register `/messages` and `/load-session` for the browser
@@ -37,15 +37,15 @@ services container
     | POST /run, or spawn the runner CLI in local checkout mode
     v
 agent runner sidecar
-    compose service: agent-pi
+    compose service: sandbox-agent
     Node HTTP server
     services/agent/src/server.ts
     |
     +-- in-process Pi engine
     |   services/agent/src/engines/pi.ts
     |
-    +-- rivet engine
-        services/agent/src/engines/rivet.ts
+    +-- sandbox-agent engine
+        services/agent/src/engines/sandbox_agent.ts
         |
         +-- sandbox-agent daemon
             |
@@ -56,9 +56,9 @@ agent runner sidecar
 
 The `services` container owns Agenta concerns: workflow routing, config parsing, provider
 secret resolution, tool resolution, and trace context. The agent runner sidecar owns the
-agent run: it drives Pi directly or drives a harness over ACP through rivet. In Docker
-Compose this service is still named `agent-pi`, and the service reaches it through
-`AGENTA_AGENT_PI_URL`.
+agent run: it drives Pi directly or drives a harness over ACP through sandbox-agent. In Docker
+Compose this service is still named `sandbox-agent`, and the service reaches it through
+`AGENTA_AGENT_RUNNER_URL`.
 
 The sidecar deliberately does not inherit the full stack environment. Provider keys and
 tool credentials are resolved by the service and passed only in the scoped run payloads
@@ -71,12 +71,13 @@ The SDK runtime models engines as `Backend` adapters.
 | Backend | Status | Harnesses | Sandbox support | Notes |
 | --- | --- | --- | --- | --- |
 | `InProcessPiBackend` | Implemented | `pi`, `agenta` | `local` only | Drives `services/agent/src/engines/pi.ts`. This is the simple local Pi path. |
-| `RivetBackend` | Implemented | `pi`, `claude` | `local`, `daytona` | Drives `services/agent/src/engines/rivet.ts`, which starts `sandbox-agent` and an ACP adapter. |
+| `SandboxAgentBackend` | Implemented | `pi`, `claude` | `local`, `daytona` | Drives `services/agent/src/engines/sandbox_agent.ts`, which starts `sandbox-agent` and an ACP adapter. |
 | `LocalBackend` | Not implemented | Intended: `pi`, `claude` | Local machine | Public class exists, but `create_sandbox` and `create_session` raise `NotImplementedError`. |
 
-`services/oss/src/agent/app.py` chooses the backend per request. Pi and `agenta` on local
-default to `InProcessPiBackend`. Claude, non-local sandboxes, or
-`AGENTA_AGENT_RUNTIME=rivet` select `RivetBackend`.
+`services/oss/src/agent/app.py` uses `SandboxAgentBackend` for the deployed service path.
+`AGENTA_AGENT_RUNNER_URL` selects the HTTP runner transport when set; otherwise a source
+checkout uses the local TypeScript runner CLI. `InProcessPiBackend` remains a local/example
+contrast path.
 
 ## Harnesses
 
@@ -84,11 +85,11 @@ The SDK runtime models agent-specific behavior as `Harness` adapters.
 
 | Harness | Status | Backend path | Notes |
 | --- | --- | --- | --- |
-| `PiHarness` | Implemented | In-process Pi or rivet | Native Pi tools, Pi prompt overrides, Pi tracing extension. |
-| `ClaudeHarness` | Implemented | Rivet only | MCP tools, permission policy, runner-built tracing. |
+| `PiHarness` | Implemented | In-process Pi or sandbox-agent | Native Pi tools, Pi prompt overrides, Pi tracing extension. |
+| `ClaudeHarness` | Implemented | sandbox-agent only | MCP tools, permission policy, runner-built tracing. |
 | `AgentaHarness` | Experimental | In-process Pi only | Pi with forced tools, forced skill names, and placeholder Agenta prompt layers. |
 
-`AgentaHarness` with `daytona` or any rivet path is intentionally unsupported today. It
+`AgentaHarness` with `daytona` or any sandbox-agent path is intentionally unsupported today. It
 raises through the normal harness/backend compatibility check instead of silently running
 without its forced skills.
 
@@ -136,7 +137,7 @@ work.
   from completed turns.
 - `AgentaHarness` uses placeholder preamble, persona, and skill content.
 - `AgentaHarness` is local in-process only.
-- Pi system prompt overrides are not delivered on the rivet ACP path.
+- Pi system prompt overrides are not delivered on the sandbox-agent ACP path.
 - The agent is still registered as a custom workflow handler, not as a first-class builtin
   URI such as `agenta:builtin:agent:v0`.
 - Historical work-package labels remain in several sibling code comments. They should be

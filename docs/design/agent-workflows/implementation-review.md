@@ -38,7 +38,7 @@ lands.
 
 There is a second session gap beyond history: future harness session snapshots. The meeting
 discussion called out saving state during cleanup and loading it during setup, especially
-for Rivet/ACP-style sessions. That is not the same as storing chat messages and should be a
+for sandbox-agent/ACP-style sessions. That is not the same as storing chat messages and should be a
 separate design decision.
 
 ### Agent Template Boundaries Are Not Stable Yet
@@ -70,7 +70,7 @@ Keep contract tests around the boundaries:
 placeholder product content. It also only works on the in-process Pi path.
 
 Treat this as an experimental harness. It should not be positioned as production until the
-forced content is real and the unsupported rivet/Daytona path is either implemented or
+forced content is real and the unsupported sandbox-agent/Daytona path is either implemented or
 hidden from config.
 
 ### Tool Resolution Is Cleaner, But The Runtime Matrix Is Uneven
@@ -107,7 +107,7 @@ being hidden inside tool or session work.
 
 The agent config schema and playground controls expose MCP server configuration. The
 runtime path is narrower: service resolution is behind `AGENTA_AGENT_ENABLE_MCP`, Pi reports
-no MCP capability, rivet delivers MCP only for non-Pi harnesses, and remote MCP servers are
+no MCP capability, sandbox-agent delivers MCP only for non-Pi harnesses, and remote MCP servers are
 not executed on the active-stack runner path.
 
 The UI should either surface those constraints or hide MCP controls until the selected
@@ -126,12 +126,12 @@ the cross-turn responder and session persistence land together.
 
 Several implementation comments still use old work-package labels. Those labels helped
 during the build, but they now make the active-stack architecture harder to read. Replace them
-with stable names such as "runner sidecar", "callback tools", "rivet backend", or
+with stable names such as "runner sidecar", "callback tools", "sandbox-agent backend", or
 "Vercel messages route".
 
 ### Prompt Override Behavior Differs By Path
 
-Pi `systemPrompt` and `appendSystemPrompt` work on the in-process path. The rivet ACP path
+Pi `systemPrompt` and `appendSystemPrompt` work on the in-process path. The sandbox-agent ACP path
 logs that it ignores them. This is documented in the Pi adapter page, but it remains a
 product-facing behavior difference under the same harness name.
 
@@ -152,7 +152,7 @@ the warning and surface it to users.
 3. Agent template contract: identity/config/runtime split, skills serialization, tool
    contract.
 4. Session persistence: real `SessionStore`, write path, ownership checks, load behavior.
-5. Session snapshot design: Rivet/ACP representation, save/load lifecycle, storage choice.
+5. Session snapshot design: sandbox-agent/ACP representation, save/load lifecycle, storage choice.
 6. Trigger POC: provider port, Compose.io adapter, event mapping, target invocation.
 7. Agenta harness productization: real preamble, persona, skills, and config gating.
 8. Local SDK backend: implement or hide `LocalBackend`.

@@ -16,8 +16,9 @@ Usage:
 The agent service returns only the final assistant message, so a scenario proves a capability
 by forcing an output token the model cannot produce without using the capability (a constant
 embedded in a code tool, an environment value from bash, a script's computed output). Where
-the token alone is weak, check the agent-pi sidecar logs for the tool-call.
+the token alone is weak, check the sandbox-agent runner logs for the tool-call.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -87,7 +88,9 @@ SCENARIOS = [
         "group": "core",
         "capability": "chat+instructions+model",
         "harness": "pi",
-        "agent": {"agents_md": "Reply with exactly the requested word and nothing else."},
+        "agent": {
+            "agents_md": "Reply with exactly the requested word and nothing else."
+        },
         "msg": "Reply with exactly: PONG",
         "check": lambda r: r.strip() == "PONG",
         "expect": "exactly PONG",
@@ -97,7 +100,9 @@ SCENARIOS = [
         "group": "core",
         "capability": "chat+instructions+model",
         "harness": "agenta",
-        "agent": {"agents_md": "When asked to reply with a word, output exactly that word."},
+        "agent": {
+            "agents_md": "When asked to reply with a word, output exactly that word."
+        },
         "msg": "Reply with exactly: PONG",
         "check": lambda r: "PONG" in r,
         "expect": "contains PONG",
@@ -160,11 +165,15 @@ SCENARIOS = [
         "harness": "pi",
         "agent": {
             "agents_md": "Be brief.",
-            "harness_options": {"pi": {"append_system": "Always end every reply with the exact token ZK-9-END."}},
+            "harness_options": {
+                "pi": {
+                    "append_system": "Always end every reply with the exact token ZK-9-END."
+                }
+            },
         },
         "msg": "Say hello in one short sentence.",
         "check": lambda r: r.rstrip().endswith("ZK-9-END") or "ZK-9-END" in r,
-        "expect": "reply contains ZK-9-END (F-001: dropped on rivet, works in-process)",
+        "expect": "reply contains ZK-9-END (F-001: dropped on sandbox-agent, works in-process)",
     },
     # Claude cells: run against a project whose vault has an Anthropic key (e.g. pi-agents)
     # with that project's own API key. Use the alias `haiku` (a full model id is dropped to the
@@ -174,7 +183,10 @@ SCENARIOS = [
         "group": "claude",
         "capability": "claude chat (cheap model)",
         "harness": "claude",
-        "agent": {"model": "haiku", "agents_md": "Reply with exactly the requested token, nothing else."},
+        "agent": {
+            "model": "haiku",
+            "agents_md": "Reply with exactly the requested token, nothing else.",
+        },
         "msg": "Reply with exactly: CLAUDE-HAIKU-OK",
         "check": lambda r: "CLAUDE-HAIKU-OK" in r,
         "expect": "CLAUDE-HAIKU-OK on model haiku",
@@ -202,7 +214,12 @@ SCENARIOS = [
             "model": "haiku",
             "agents_md": "Use the get_secret_record MCP tool to fetch the record; do not guess.",
             "mcp_servers": [
-                {"name": "qa", "transport": "stdio", "command": "node", "args": ["/tmp/mcp_qa_server.mjs"]}
+                {
+                    "name": "qa",
+                    "transport": "stdio",
+                    "command": "node",
+                    "args": ["/tmp/mcp_qa_server.mjs"],
+                }
             ],
         },
         "msg": "Use the get_secret_record tool to fetch the record, then reply with exactly the record text.",
@@ -239,7 +256,13 @@ def run(sc: dict, sandbox: str, env_label: str, timeout: float) -> dict:
         "request": body,
     }
     try:
-        resp = httpx.post(url, params={"project_id": PROJ}, headers=headers, json=body, timeout=timeout)
+        resp = httpx.post(
+            url,
+            params={"project_id": PROJ},
+            headers=headers,
+            json=body,
+            timeout=timeout,
+        )
         rec["http_status"] = resp.status_code
         try:
             rec["response"] = resp.json()
@@ -251,7 +274,9 @@ def run(sc: dict, sandbox: str, env_label: str, timeout: float) -> dict:
 
     reply = reply_text(rec["response"]) if isinstance(rec["response"], dict) else ""
     rec["reply"] = reply
-    rec["status_message"] = status_msg(rec["response"]) if isinstance(rec["response"], dict) else ""
+    rec["status_message"] = (
+        status_msg(rec["response"]) if isinstance(rec["response"], dict) else ""
+    )
     try:
         rec["passed"] = bool(reply) and sc["check"](reply)
     except Exception as exc:  # noqa: BLE001
@@ -292,9 +317,19 @@ def main() -> None:
         results.append(rec)
         cap = RUNS / f"{args.env_label}__{sc['id']}.json"
         cap.write_text(json.dumps(rec, indent=2, default=str))
-        mark = "PASS" if rec["passed"] else ("ERR " if rec["http_status"] != 200 else "FAIL")
-        extra = "" if rec["passed"] else f"  got={rec['reply'][:80]!r} status={rec.get('status_message','')[:80]!r}"
-        print(f"[{mark}] {args.env_label} {sc['id']:24} http={rec['http_status']}{extra}")
+        mark = (
+            "PASS"
+            if rec["passed"]
+            else ("ERR " if rec["http_status"] != 200 else "FAIL")
+        )
+        extra = (
+            ""
+            if rec["passed"]
+            else f"  got={rec['reply'][:80]!r} status={rec.get('status_message', '')[:80]!r}"
+        )
+        print(
+            f"[{mark}] {args.env_label} {sc['id']:24} http={rec['http_status']}{extra}"
+        )
 
     n_pass = sum(1 for r in results if r["passed"])
     print(f"\n{n_pass}/{len(results)} passed on {args.env_label}/{args.sandbox}")

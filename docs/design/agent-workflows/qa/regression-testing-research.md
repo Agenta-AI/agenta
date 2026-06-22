@@ -30,7 +30,7 @@ One boundary, named precisely so the redaction and replay points are unambiguous
   (`sdks/python/agenta/sdk/agents/utils/wire.py`).
 - The transport ships it: `deliver_subprocess` / `deliver_http` (and the streaming pair) in
   `sdks/python/agenta/sdk/agents/utils/ts_runner.py`. A backend's `_deliver` picks one
-  (`sdks/python/agenta/sdk/agents/adapters/in_process.py`, `.../adapters/rivet.py`).
+  (`sdks/python/agenta/sdk/agents/adapters/in_process.py`, `.../adapters/sandbox_agent.py`).
 - The runner (`services/agent/`) drives the harness and the model. This is the only step
   that costs money and flakes.
 - The SDK parses the result in `result_from_wire` (same `wire.py`).

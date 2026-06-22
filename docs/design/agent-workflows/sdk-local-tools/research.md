@@ -117,13 +117,13 @@ The important and under-appreciated fact: the **in-process Pi engine already exe
 - `client`: skipped in-process; there is no browser to answer (`pi.ts:165`).
 
 `code.ts`'s own header says it is "Shared by every delivery path that runs code locally:
-engines/pi.ts (in-process Pi), extensions/agenta.ts (Pi under rivet), tools/mcp-server.ts."
+engines/pi.ts (in-process Pi), extensions/agenta.ts (Pi under sandbox-agent), tools/mcp-server.ts."
 This matters because `LocalBackend`'s Pi path is the **bundled in-process Pi engine**. So once
 `LocalBackend` ships that bundle, code-tool *execution* comes nearly for free. The work is to
 hand the engine a correctly resolved code spec with its env filled in, which is stages 2 and 3.
 
 What the in-process Pi engine does **not** do is MCP. `pi.ts:58` hard-codes
-`mcpTools: false`. MCP delivery and execution live only on the rivet path (`rivet.ts`, the
+`mcpTools: false`. MCP delivery and execution live only on the sandbox-agent path (`sandbox_agent.ts`, the
 capability gate at `:799`), which the standalone user does not have. MCP local support is
 therefore a later phase that needs its own executor, not a reuse of the Pi engine.
 

@@ -44,7 +44,7 @@ patterns worth following from legacy or inconsistent code that should not become
   `ToolsGatewayInterface`). Consistency within one subsystem matters more than copying one
   suffix globally.
 - Implementations identify their mechanism or provider:
-  `InProcessPiBackend`, `RivetBackend`, `ToolsGatewayRegistry`.
+  `InProcessPiBackend`, `SandboxAgentBackend`, `ToolsGatewayRegistry`.
 - Domain exceptions generally end in `Error` and often inherit from a domain base, as in
   `ToolsError`, `EmbedError`, and `UnsupportedHarnessError`.
 - The codebase usually capitalizes well-known acronyms in class names (`API`, `LLM`), though

@@ -104,13 +104,13 @@ Vercel `UIMessage` history.
 
 Examples of state that may not be recoverable from messages alone:
 
-- Rivet or ACP session blobs.
+- sandbox-agent or ACP session blobs.
 - Tool or harness state created during setup.
 - Filesystem or process metadata needed to resume a warm-ish session after a cold restart.
 
 The interface is not designed yet. It likely needs explicit `save_session` and
 `load_session` semantics around harness cleanup/setup, plus a storage decision after we
-understand the size and shape of Rivet/ACP session data. Small JSON blobs may fit in
+understand the size and shape of sandbox-agent/ACP session data. Small JSON blobs may fit in
 Postgres. Large opaque blobs may need object storage.
 
 Retention should be short by default, measured in days. Traces may have a different

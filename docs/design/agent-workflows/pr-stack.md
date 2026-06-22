@@ -123,7 +123,7 @@ Purpose: prepare for stateful resume without blocking cold replay persistence.
 
 Scope:
 
-- Inspect Rivet/ACP session representation and blob size.
+- Inspect sandbox-agent/ACP session representation and blob size.
 - Define save/load lifecycle around harness setup and cleanup.
 - Decide storage class: database, object storage, or another session store.
 - Define retention and cleanup policy.
@@ -194,7 +194,7 @@ Purpose: stop the experimental `agenta` harness from looking production-ready be
 Scope:
 
 - Replace placeholder preamble, persona, and skill list, or hide the harness.
-- Gate invalid `agenta` + rivet/Daytona selections before they reach runtime failure.
+- Gate invalid `agenta` + sandbox-agent/Daytona selections before they reach runtime failure.
 - Decide whether missing forced skills should fail hard or remain soft-fail.
 
 Out of scope: generic Pi or Claude behavior.

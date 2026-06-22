@@ -1,7 +1,7 @@
 # SDK local tools
 
 This folder plans one feature: letting a standalone Agenta Python SDK user run an agent's
-**tools** during a fully local run, with no Agenta backend service and no rivet sidecar.
+**tools** during a fully local run, with no Agenta backend service and no sandbox-agent sidecar.
 
 It complements the sibling effort in
 [`../trash/sdk-local-backend/status.md`](../trash/sdk-local-backend/status.md). That one

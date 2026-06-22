@@ -10,39 +10,46 @@ Ids are `F-NNN`. Severity is `blocker`, `major`, `minor`, or `docs`. Triage is o
 
 ## Findings
 
-### F-001 Pi system-prompt overrides are silently dropped on the Rivet ACP path
+### F-001 Pi system-prompt overrides are silently dropped on the sandbox-agent ACP path
 
-**Status:** open
+**Status:** resolved (2026-06-20, main-workspace `sandbox_agent.ts`; pending port to PR #4778 +
+reviewer). Fix: the sandbox-agent engine now writes `SYSTEM.md`/`APPEND_SYSTEM.md` into the per-run Pi
+agent dir (Pi reads them from the agent dir with no trust gate, the filesystem analogue of the
+in-process loader override). `system` replaces, `append_system` extends; written only into the
+throwaway per-run dir so it never leaks into later runs; Daytona wired via the sandbox FS API.
+Verified live: the injected token now appears on sandbox-agent. typecheck clean, 60/60 runner tests.
+Reviewer APPROVED (leak-safety, replace/append semantics vs Pi source, Daytona path, no
+regression all confirmed). Port to PR #4778 as just the system-prompt delta.
 **Severity:** major
-**Triage:** fix-now (candidate; confirm the home of the fix is the rivet engine wire path)
+**Triage:** done
 **Added:** 2026-06-20
 **Commit:** 80cda5aae8 (branch `gitbutler/workspace`)
-**Found in:** E2 Rivet local and E3 Rivet Daytona, harness `pi`, capability system-prompt
+**Found in:** E2 sandbox-agent local and E3 sandbox-agent Daytona, harness `pi`, capability system-prompt
 override (`harness_options.pi.append_system` / `system`)
 **Source:** prior `feature-matrix-test.md` live run; matches the gap noted in
-`ground-truth.md` ("Pi systemPrompt and appendSystemPrompt are not delivered on the rivet ACP
+`ground-truth.md` ("Pi systemPrompt and appendSystemPrompt are not delivered on the sandbox-agent ACP
 path")
 
 **The problem.** With `harness_options.pi.append_system` set to inject a token, the
-in-process Pi backend (E1) includes the token in the model's behavior and the Rivet backend
-(E2, E3) does not, in both local and Daytona. The override has no effect on Rivet. It fails
+in-process Pi backend (E1) includes the token in the model's behavior and the sandbox-agent backend
+(E2, E3) does not, in both local and Daytona. The override has no effect on sandbox-agent. It fails
 quietly: the run still returns HTTP 200 with a normal reply, the injected instruction is just
-absent. So a user who sets a Pi system-prompt layer and runs on Rivet gets a silent no-op,
+absent. So a user who sets a Pi system-prompt layer and runs on sandbox-agent gets a silent no-op,
 which is worse than an error because nothing signals the loss.
 
 **Why it matters.** `system` and `append_system` are the documented Pi knobs for shaping the
-agent's behavior beyond `agents_md`. Dropping them on Rivet means the same config behaves
+agent's behavior beyond `agents_md`. Dropping them on sandbox-agent means the same config behaves
 differently on two backends that are supposed to be interchangeable for the `pi` harness.
 
 **What to decide or do.** Trace where `systemPrompt` and `appendSystemPrompt` leave the wire
-payload and where the Rivet engine should pass them into the ACP session for Pi. The
-in-process path (`services/agent/src/engines/pi.ts`) already honors them; the Rivet path
-(`services/agent/src/engines/rivet.ts`) does not thread them to the Pi ACP agent. Confirm
+payload and where the sandbox-agent engine should pass them into the ACP session for Pi. The
+in-process path (`services/agent/src/engines/pi.ts`) already honors them; the sandbox-agent path
+(`services/agent/src/engines/sandbox_agent.ts`) does not thread them to the Pi ACP agent. Confirm
 whether ACP for Pi exposes a system-prompt channel at all. If it does, wire it. If it does
 not, the fix is to surface a clear error or warning rather than drop silently, and document
 the limitation. Add the `append_system` Gherkin scenario as the regression guard once fixed.
 
-### F-002 ground-truth.md says AgentaHarness does not run on Rivet, but it does
+### F-002 ground-truth.md says AgentaHarness does not run on sandbox-agent, but it does
 
 **Status:** open
 **Severity:** docs
@@ -51,20 +58,20 @@ the limitation. Add the `append_system` Gherkin scenario as the regression guard
 **Commit:** 80cda5aae8 (branch `gitbutler/workspace`)
 **Found in:** doc review against code and the prior live run
 **Source:** comparing `ground-truth.md` "Not Implemented" against `feature-matrix-test.md`
-results and `sdks/python/agenta/sdk/agents/adapters/rivet.py`
+results and `sdks/python/agenta/sdk/agents/adapters/sandbox_agent.py`
 
-**The problem.** `ground-truth.md` lists "AgentaHarness does not run on rivet or Daytona"
+**The problem.** `ground-truth.md` lists "AgentaHarness does not run on sandbox-agent or Daytona"
 under Not Implemented, and `status.md` repeats "AgentaHarness still uses placeholder product
-content and only works on the in-process Pi path." But `RivetBackend.supported_harnesses`
-includes `AGENTA`, and the prior live matrix run shows the agenta harness passing on Rivet
+content and only works on the in-process Pi path." But `SandboxAgentBackend.supported_harnesses`
+includes `AGENTA`, and the prior live matrix run shows the agenta harness passing on sandbox-agent
 local and Daytona for chat, instructions, model override, forced tools, and forced skills.
 The docs and the code disagree. A reader trusting the docs would skip a path that works.
 
 **Why it matters.** `ground-truth.md` is declared the source of truth for active-stack
 behavior. A stale "Not Implemented" line there sends fixers and testers the wrong way.
 
-**What to decide or do.** Verify agenta-on-Rivet during the QA run (it should pass). Then
-correct `ground-truth.md` and `status.md` to say AgentaHarness runs on Rivet local and
+**What to decide or do.** Verify agenta-on-sandbox-agent during the QA run (it should pass). Then
+correct `ground-truth.md` and `status.md` to say AgentaHarness runs on sandbox-agent local and
 Daytona, keeping any genuinely accurate caveat (for example placeholder preamble or persona
 content, if that is still true). Keep the edit narrow and code-backed.
 
@@ -108,7 +115,7 @@ blocker is Anthropic account credit, which is billing, not code.
 **Triage:** none (top up the Anthropic account to finish the Claude and MCP rows)
 **Added:** 2026-06-20
 **Commit:** 80cda5aae8 (branch `gitbutler/workspace`)
-**Found in:** harness `claude` on Rivet, run against the `pi-agents` project
+**Found in:** harness `claude` on sandbox-agent, run against the `pi-agents` project
 **Source:** corrected by driving the UI after the initial API scan misread the project
 
 **The problem and the correction.** The first pass concluded no project had an Anthropic key,
@@ -131,21 +138,21 @@ conclusion here.
 **What to do.** Top up the Anthropic account behind the `pi-agents` key, then re-run the Claude
 rows and the Claude-borne MCP scenario with the `pi-agents` API key. No code change.
 
-### F-005 Dev agent-pi ships a stale Pi extension bundle, silently breaking custom tools on Rivet
+### F-005 Dev sandbox-agent ships a stale Pi extension bundle, silently breaking custom tools on sandbox-agent
 
 **Status:** fix applied (compose `command:` + Dockerfile.dev), reviewed, pending container rebuild
 **Severity:** major
 **Triage:** fix-now (done in working tree; live container hot-patched)
 **Added:** 2026-06-20
 **Commit:** 80cda5aae8 (branch `gitbutler/workspace`)
-**Found in:** E2 Rivet local and E3 Daytona, harness `pi` and `agenta`, capability code tools
+**Found in:** E2 sandbox-agent local and E3 Daytona, harness `pi` and `agenta`, capability code tools
 **Source:** QA run `code_tool_pi` / `code_tool_agenta` failed; root-caused live
 
 **The problem.** Custom `code` tools (python and node) were not delivered to the model on the
-Pi-over-Rivet path. The model never saw the tool, so it improvised by running the tool name as
+Pi-over-sandbox-agent path. The model never saw the tool, so it improvised by running the tool name as
 a shell command and returned `command not found`. Root cause: the runner advertises custom
 tools to Pi through the Agenta Pi extension via `AGENTA_TOOL_PUBLIC_SPECS`
-(`services/agent/src/extensions/agenta.ts:38-75`, `registerTools`). The `agent-pi` dev image
+(`services/agent/src/extensions/agenta.ts:38-75`, `registerTools`). The `sandbox-agent` dev image
 bakes the extension bundle at build time (`Dockerfile.dev: RUN pnpm run build:extension`) and
 bind-mounts only `src`, not `dist`. The extension source was edited (commit `2c2bac7519`
 "relay child tools") after the running image was built, so the baked bundle predates
@@ -160,7 +167,7 @@ container (`node scripts/build-extension.mjs`) the reply is the tool's constant.
 
 **The fix.** Rebuild the extension bundle from the mounted source on container start, so a
 restart picks up edited extension source without a full image rebuild. A reviewer caught that
-the dev `agent-pi` compose service overrides the image CMD with its own `command:`
+the dev `sandbox-agent` compose service overrides the image CMD with its own `command:`
 (`hosting/docker-compose/ee/docker-compose.dev.yml:435-437`), so a Dockerfile CMD edit alone is
 inert on the deployed stack. The rebuild now lives in that compose `command:` (runs
 `node scripts/build-extension.mjs` before `exec ... tsx src/server.ts`), with the Dockerfile.dev
@@ -175,12 +182,12 @@ after a container rebuild: `code_tool_pi` and `code_tool_agenta` should pass on 
 **Triage:** fix-now (done in working tree; live container hot-patched)
 **Added:** 2026-06-20
 **Commit:** 80cda5aae8 (branch `gitbutler/workspace`)
-**Found in:** E2 Rivet local, harness `pi`, capability code tool (python runtime)
+**Found in:** E2 sandbox-agent local, harness `pi`, capability code tool (python runtime)
 **Source:** QA run; isolated after fixing F-005 (the python tool then failed with
 `spawn python3 ENOENT` while the node tool passed)
 
 **The problem.** A `code` tool with `runtime: "python"` is executed by the runner relaying the
-call and spawning `python3` (`services/agent/src/tools/code.ts:128`). The `agent-pi` image
+call and spawning `python3` (`services/agent/src/tools/code.ts:128`). The `sandbox-agent` image
 (both `docker/Dockerfile` and `docker/Dockerfile.dev`) installs only `ca-certificates git`, no
 `python3`. So every python code tool fails with `spawn python3 ENOENT`, surfaced to the model
 as the tool result. Node code tools are unaffected (node is the runtime). This affects
@@ -195,22 +202,22 @@ runner regardless of sandbox.
 the python code tool returned its computed value `QA-CODE-OK-43`. Retest after the image
 rebuild.
 
-### F-007 Per-request model override is rejected on the Pi-over-Rivet ACP path
+### F-007 Per-request model override is rejected on the Pi-over-sandbox-agent ACP path
 
 **Status:** open (confirmed; impact understood)
 **Severity:** major (a user silently gets a different, often pricier, model)
 **Triage:** defer (decide: validate against the allowed set, or fail loud)
 **Added:** 2026-06-20
 **Commit:** 80cda5aae8 (branch `gitbutler/workspace`)
-**Found in:** Rivet local, harness `pi` and `claude`, capability model override
+**Found in:** sandbox-agent local, harness `pi` and `claude`, capability model override
 **Source:** sidecar logs across several runs
 
-**The problem.** The Rivet ACP session only accepts a fixed, harness-specific set of model
+**The problem.** The sandbox-agent ACP session only accepts a fixed, harness-specific set of model
 values for the `model` config category, and silently falls back to the harness default for
-anything else (`applyModel`, `rivet.ts:961`). What the set is depends on the harness:
+anything else (`applyModel`, `sandbox_agent.ts:961`). What the set is depends on the harness:
 
 - **pi**: allowed values are just `default`. Any model id (`gpt-5.5`, `gpt-4o-mini`) is
-  rejected and dropped. So the pi-over-Rivet path effectively cannot pick a model.
+  rejected and dropped. So the pi-over-sandbox-agent path effectively cannot pick a model.
 - **claude**: allowed values are `default, sonnet[1m], opus[1m], haiku`. The aliases work
   (`model: "haiku"` was applied, verified by the absence of a "not settable" warning and by
   cost), but a full id like `claude-haiku-4-5-20251001` is rejected and falls back to the
@@ -220,21 +227,26 @@ anything else (`applyModel`, `rivet.ts:961`). What the set is depends on the har
 This is the cost trap: testing with `model: "claude-haiku-4-5-20251001"` actually billed
 Sonnet until the alias `haiku` was used. The run always succeeds, so the drop is invisible.
 
-**Why it matters.** A user who picks a model and runs on Rivet may silently get a different
+**Why it matters.** A user who picks a model and runs on sandbox-agent may silently get a different
 model. Two backends that are meant to be interchangeable for the `pi` harness diverge.
 
 **What to decide or do.** Confirm whether any non-default model is accepted by pi-acp. If not,
-decide whether to make the override an error on Rivet (fail loud) or to document Rivet as
+decide whether to make the override an error on sandbox-agent (fail loud) or to document sandbox-agent as
 default-model-only and constrain the UI. Capture as a regression scenario once decided.
 
 ### F-008 A skill that ships a helper script cannot run it via a relative path
 
-**Status:** open
-**Severity:** major (blocks "skills with code" from the model's view)
-**Triage:** defer (needs the skill-path contract decided; small once decided)
+**Status:** downgraded to verify-only (2026-06-20). The Codex review of the skills proposal
+found Pi 0.79.4 already emits the skill's `<location>` plus a relative-path resolution
+instruction in the prompt, so a relative `scripts/foo.py` should resolve. The original repro
+likely failed for another reason (the model not reading the skill, see the no-code test). This
+is now "re-run the with-code skill test and confirm" rather than a guaranteed bug. Tracked
+under the skills proposal (`docs/design/agent-workflows/skills-config/`).
+**Severity:** minor (verify; likely already handled by Pi)
+**Triage:** verify (re-test; fix only if it actually fails)
 **Added:** 2026-06-20
 **Commit:** 80cda5aae8 (branch `gitbutler/workspace`)
-**Found in:** E2 Rivet local, harness `agenta`, capability skills with code
+**Found in:** E2 sandbox-agent local, harness `agenta`, capability skills with code
 **Source:** QA run; provisioned a `scripts/daily_code.py` into the loaded skill and asked for
 its output
 
@@ -242,7 +254,7 @@ its output
 agent skills dir, and the script runs correctly: when the agent is told to `find` the file and
 run it, it returns the script's unguessable token (`QA-SKILL-CODE-32bb25c6`). But when the
 SKILL.md says `run scripts/daily_code.py` (a relative path, the normal skill-authoring
-convention), the model resolves it against the run CWD (`/tmp/agenta-rivet-XXesc/scripts/`),
+convention), the model resolves it against the run CWD (`/tmp/agenta-sandbox-agent-XXesc/scripts/`),
 not the skill's install directory, and reports the script "does not exist." The model is never
 told the skill's absolute location, so a relative script reference in SKILL.md does not
 resolve. The infra works end to end; the path contract does not.
@@ -266,8 +278,8 @@ mismatch below.
 **Triage:** defer (decide whether to hide `mcp_servers` for pi/agenta)
 **Added:** 2026-06-20
 **Commit:** 80cda5aae8 (branch `gitbutler/workspace`)
-**Found in:** Claude harness on Rivet local, `pi-agents` project, MCP flag on
-**Source:** `services/agent/src/engines/rivet.ts:933-949` and a live MCP run
+**Found in:** Claude harness on sandbox-agent local, `pi-agents` project, MCP flag on
+**Source:** `services/agent/src/engines/sandbox_agent.ts:933-949` and a live MCP run
 
 **Verified.** With `AGENTA_AGENT_ENABLE_MCP=true` and Anthropic credit, a Claude run with a
 stdio `mcp_servers` entry (`node qa/scripts/mcp_qa_server.mjs`, exposing `get_secret_record`)
@@ -296,8 +308,8 @@ user-declared servers: tool-delivery MCP for Claude (code/gateway tools over the
 **Source:** reviewer subagent on the runner Dockerfile fixes; `services/agent/src/tools/code.ts`
 
 **The problem.** A `code` tool's author-supplied snippet runs in the runner process (the
-`agent-pi` sidecar), not inside the Daytona sandbox, for every sandbox axis: in-process Pi via
-`tools/dispatch.ts:110` and Rivet local and Daytona via `tools/relay.ts:101`, both landing in
+`sandbox-agent` sidecar), not inside the Daytona sandbox, for every sandbox axis: in-process Pi via
+`tools/dispatch.ts:110` and sandbox-agent local and Daytona via `tools/relay.ts:101`, both landing in
 `runCodeTool` (`code.ts`). The env is allowlisted well: `BASE_ENV_ALLOWLIST` copies only
 PATH/HOME/locale/temp, `buildChildEnv` adds only the tool's scoped secrets, and there is a
 per-call SIGKILL timeout and a temp-dir-only working directory. But the snippet still runs
@@ -316,9 +328,17 @@ and needs a security design decision.
 
 ### F-011 Cannot create a connection for a no-auth Composio toolkit
 
-**Status:** open
+**Status:** shipped as PR #4785 (2026-06-21), based on `feat/agent-service` (the gateway
+tool-resolution API, not yet in main). Root cause: the adapter always POSTs an auth config,
+which Composio 400s for a no-auth toolkit, and resolve/execute also required a connected-account
+id no-auth toolkits do not have. Fix: detect a no-auth toolkit, persist a usable connection with
+no Composio account, omit the account id on resolve/execute, and make connection validity
+server-owned (a client can no longer send `flags.is_valid`). Subagent-found, reviewed by a
+second subagent and Codex (their one blocker, client-settable `is_valid`, is fixed), 15/15 tools
+tests pass, ruff clean. Verified live: create 500 to 200, resolve 200, `/tools/call` ran
+`print(6*7)` and returned `42`.
 **Severity:** major (blocks the only no-OAuth path to test gateway tools)
-**Triage:** defer (real bug in the tools API, separate subsystem from agent-workflows)
+**Triage:** done
 **Added:** 2026-06-20
 **Commit:** 80cda5aae8 (branch `gitbutler/workspace`)
 **Found in:** trying to set up a Composio gateway tool to test the gateway capability
@@ -344,6 +364,43 @@ catalog's no-auth signal) and skip auth-config creation: either create the conne
 without an auth config per Composio's no-auth flow, or model a no-auth "connection" in Agenta
 that resolution and execution can use directly. Then a `codeinterpreter` gateway tool can be
 configured and the gateway path tested with no OAuth.
+
+### F-012 Together AI vault key never reaches the harness (wrong env var name)
+
+**Status:** open
+**Severity:** minor (one provider) but a real silent-drop
+**Triage:** fix-now (one line)
+**Added:** 2026-06-20
+**Commit:** 80cda5aae8 (branch `gitbutler/workspace`)
+**Found in:** Codex review of the model-config (F-007) proposal
+**Source:** `services/oss/src/agent/secrets.py` (the `_PROVIDER_ENV_VARS` map)
+
+**The problem.** `resolve_harness_secrets` maps the vault provider kind `together_ai` to the
+env var `TOGETHERAI_API_KEY`, but Pi and litellm read `TOGETHER_API_KEY`. So a Together AI key
+configured in the project vault is injected under a name the harness never reads, and Together
+models silently fall back, the same silent-drop class as F-007.
+
+**What to do.** Change the mapping to `TOGETHER_API_KEY`. While there, verify the `mistralai`,
+`groq`, and `openrouter` env var names against what Pi/litellm actually read, since the same
+typo class could hide there. One-line fix per provider.
+
+### F-013 Rename the runner to `sandbox-agent`
+
+**Status:** fixed
+**Severity:** clarity (naming) but a real source of confusion
+**Triage:** fixed by sidecar deployment proposal implementation
+**Added:** 2026-06-20
+**Commit:** 80cda5aae8 (branch `gitbutler/workspace`)
+**Found in:** reviewing the code-tool-sandbox explainer with the product owner
+**Source:** `hosting/docker-compose/ee/docker-compose.dev.yml`, service env naming
+
+**The problem.** The runner used Pi-specific service/env naming even though it is
+harness-agnostic: it drives Pi today, Claude Code and other harnesses next. The old names
+wrongly implied the issue was Pi-specific when the issue was in the shared runner.
+
+**Resolution.** The deployable service is now `sandbox-agent`, and the services container
+uses `AGENTA_AGENT_RUNNER_URL` for the service-to-runner URL. Runner provider settings moved
+to `SANDBOX_AGENT_*` env vars on the runner service.
 
 ## How to add a finding during a run
 

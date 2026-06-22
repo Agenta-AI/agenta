@@ -49,7 +49,7 @@ runner returned. Two ways to get them:
 - Service path: capture the request body you POST and the JSON response. The `/invoke`
   response also carries `span_id` / `trace_id` for provenance.
 - SDK path: temporarily log the dict passed to `request_to_wire` and the dict returned by
-  `_deliver` (in `adapters/in_process.py` or `adapters/rivet.py`). Copy both verbatim.
+  `_deliver` (in `adapters/in_process.py` or `adapters/sandbox_agent.py`). Copy both verbatim.
 
 Save the raw pair to `docs/design/agent-workflows/qa/runs/<cell>.json` as
 `{"request": {...}, "result": {...}}`. `<cell>` is environment-harness-capability, e.g.

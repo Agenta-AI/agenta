@@ -3,7 +3,7 @@
 Claude Code is the second harness. It proves the central claim of this PoC: that swapping
 the agent is one config value. Where the [Pi adapter](pi.md) does much of its work inside Pi
 through an extension, Claude does its work through standard ACP. That makes Claude the
-template for any MCP-capable harness rivet can drive.
+template for any MCP-capable harness sandbox-agent can drive.
 
 Read the [architecture](../architecture.md) and [ports and adapters](../ports-and-adapters.md)
 pages first.
@@ -59,7 +59,7 @@ invoke_agent            (AGENT)
     execute_tool <name> (TOOL)   one per ACP tool_call
 ```
 
-This is the general path. Any harness rivet drives that does not bring its own
+This is the general path. Any harness sandbox-agent drives that does not bring its own
 instrumentation gets traced this way. Pi is the exception that traces itself; Claude is the
 rule.
 
@@ -87,9 +87,9 @@ use.
 
 Claude is the proof that the seam works. Adding it took a `ClaudeHarness` (which holds its
 Pi-versus-Claude config mapping) and no change to the workflow handler above the ports; the
-same `RivetBackend` drives it. It also exercises the capability-driven branches the design is
+same `SandboxAgentBackend` drives it. It also exercises the capability-driven branches the design is
 built on: tools over MCP because it reports `mcpTools`, a permission answer because it gates
 tools, and event-stream tracing because it does not self-instrument. A future harness that
-rivet can drive would reuse this exact path. A future harness that rivet cannot drive would
-instead get its own backend beside `RivetBackend` and `InProcessPiBackend`, behind the same
+sandbox-agent can drive would reuse this exact path. A future harness that sandbox-agent cannot drive would
+instead get its own backend beside `SandboxAgentBackend` and `InProcessPiBackend`, behind the same
 `/run` contract.

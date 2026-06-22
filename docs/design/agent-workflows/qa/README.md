@@ -28,15 +28,15 @@ each cell valid, not-applicable, or blocked. Do not test cells that cannot exist
 
 **Environment** (the execution path that actually runs the harness):
 
-- `E1` service / in-process Pi. `AGENTA_AGENT_RUNTIME=pi`, `sandbox=local`. The `services`
-  container drives Pi through the `agent-pi` sidecar. Sidecar logs show `[pi-wrapper]`.
-- `E2` service / Rivet local. `AGENTA_AGENT_RUNTIME=rivet` (or any cell that forces Rivet),
-  `sandbox=local`. The harness runs over ACP through `sandbox-agent` in local mode. Sidecar
-  logs show `[rivet-wrapper]`.
-- `E3` service / Rivet Daytona. `sandbox=daytona`. Same as E2 but the sandbox is a Daytona
-  cloud workspace. Always Rivet. Slower to start.
+- `E1` direct in-process Pi. Local contrast path only, used to isolate Pi-specific behavior.
+  It is not the production deployment default.
+- `E2` service / sandbox-agent local. The `services` container reaches the runner through
+  `AGENTA_AGENT_RUNNER_URL`; `sandbox=local`. The harness runs over ACP through
+  `sandbox-agent` in local mode. Runner logs show `[sandbox-agent]`.
+- `E3` service / sandbox-agent Daytona. `sandbox=daytona`. Same as E2 but the sandbox is a Daytona
+  cloud workspace. Always sandbox-agent. Slower to start.
 - `E4` local SDK backend. No service. A standalone Python script pulls the agent config from
-  Agenta and runs it on the host through the SDK (`InProcessPiBackend` or `RivetBackend`).
+  Agenta and runs it on the host through the SDK (`InProcessPiBackend` or `SandboxAgentBackend`).
   This is the path a user takes when they run their agent outside the platform.
 
 **Harness**: `pi`, `agenta`, `claude`.
@@ -46,16 +46,12 @@ tools (Composio), MCP, skills without code, skills with code, client tools.
 
 ## How the backend is chosen
 
-`select_backend` in `services/oss/src/agent/app.py` picks the engine from
-`AGENTA_AGENT_RUNTIME` plus the request's harness and sandbox:
+`select_backend` in `services/oss/src/agent/app.py` always uses `SandboxAgentBackend` for
+the deployed service path. The transport is selected by `AGENTA_AGENT_RUNNER_URL`: HTTP to
+the `sandbox-agent` service when set, or the local TypeScript runner CLI in a source checkout.
 
-- `AGENTA_AGENT_RUNTIME=rivet` routes every run to Rivet.
-- `AGENTA_AGENT_RUNTIME=pi` routes `pi` and `agenta` plus `local` to in-process Pi.
-- A `daytona` sandbox, or the `claude` harness, always forces Rivet regardless of the env.
-
-To switch a deployment between E1 and E2/E3, recreate the `services` container with the
-chosen runtime. The command is under "Configuring the environment" below. The harness and
-sandbox themselves come from the request body, not from a container restart.
+Harness and sandbox are request/agent-config axes. Direct in-process Pi remains available to
+local SDK or runner examples for contrast testing, but it is not selected by service env.
 
 ## Configuring the agent
 
@@ -69,7 +65,7 @@ Two ways to set the agent config, and the choice matters for which environment y
    (E4) needs this, because the whole point of E4 is to pull the real stored config and run
    it off-platform.
 
-Drive E1/E2/E3 with per-request overrides for speed. For E4, commit the config under test to
+Drive E2/E3 with per-request overrides for speed. For E1, use a local direct-Pi script. For E4, commit the config under test to
 a variant first, then point the SDK script at it.
 
 ## Running each environment
@@ -91,19 +87,10 @@ The response is one JSON assistant message. That makes pass and fail easy to ass
 the reply for the token the scenario asked the agent to produce. The response also carries
 `span_id` and `trace_id`.
 
-Switch runtime for E1 vs E2/E3 (restore `rivet` after a `pi` phase):
+Confirm the active service path in the runner logs:
 
 ```bash
-D=hosting/docker-compose/ee
-ENV_FILE=.env.ee.dev.local DOCKER_NETWORK_MODE=bridge AGENTA_AGENT_RUNTIME=pi \
-  docker compose -p agenta-ee-dev-wp-b2-rendering -f $D/docker-compose.dev.yml \
-  --env-file $D/.env.ee.dev.local up -d --no-deps --force-recreate services
-```
-
-Confirm the active path in the sidecar logs:
-
-```bash
-docker logs --tail 50 agenta-ee-dev-wp-b2-rendering-agent-pi-1 2>&1 | grep -E 'pi-wrapper|rivet-wrapper'
+docker logs --tail 50 agenta-ee-dev-wp-b2-rendering-sandbox-agent-1 2>&1 | grep '[sandbox-agent]'
 ```
 
 ### Local SDK path (E4)
@@ -112,7 +99,7 @@ Write a `uv run` script (per repo convention, inline `# /// script` deps) that:
 
 1. Pulls the committed agent config from Agenta with the SDK or the config API.
 2. Builds a `SessionConfig` from it.
-3. Picks a backend (`InProcessPiBackend()` for Pi/Agenta, `RivetBackend(sandbox=...)` for
+3. Picks a backend (`InProcessPiBackend()` for Pi/Agenta, `SandboxAgentBackend(sandbox=...)` for
    Claude or Daytona) and a harness with `make_harness`.
 4. Runs `harness.setup()` then `harness.prompt(config, messages)` then `harness.cleanup()`.
 5. Asserts the reply contains the scenario's expected token.

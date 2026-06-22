@@ -22,6 +22,9 @@ history is not implemented. Harness session snapshots are not designed yet.
   active-stack code.
 - Narrowed current-state docs so old work-package labels stay in archive pages or pending
   cleanup notes.
+- Revised `sidecar-deployment-proposal/proposal.md` into an agent runner deployment proposal:
+  first-class `sandbox-agent` service, runner URL contract, Compose/Helm/Railway plan,
+  and provider/auth boundary alignment.
 
 ## Decisions
 
@@ -38,10 +41,10 @@ history is not implemented. Harness session snapshots are not designed yet.
 
 - `LocalBackend` is still a stub.
 - `SessionStore` has no production adapter and completed turns are not persisted.
-- There is no future-facing session snapshot port for Rivet/ACP or harness state.
+- There is no future-facing session snapshot port for sandbox-agent/ACP or harness state.
 - Trigger lifecycle and event-to-agent mapping are not implemented.
-- `AgentaHarness` still uses placeholder product content and only works on the in-process
-  Pi path.
+- `AgentaHarness` still uses placeholder product content. (It runs on sandbox-agent local and Daytona
+  too; the earlier in-process-only note was stale, see the QA matrix.)
 - MCP and HITL are visible in the protocol/config surface before the full runtime support is
   finished.
 
@@ -51,7 +54,7 @@ history is not implemented. Harness session snapshots are not designed yet.
 - Should MCP controls be hidden or constrained by selected harness/backend?
 - Should `agenta` be hidden from non-local sandbox selections?
 - Which storage backend should own agent session history first?
-- What is the Rivet/ACP session representation, and does it belong in Postgres, object
+- What is the sandbox-agent/ACP session representation, and does it belong in Postgres, object
   storage, or a separate session store?
 - Should sandbox/runtime remain user-selectable after the POC, or become deployment
   infrastructure only?

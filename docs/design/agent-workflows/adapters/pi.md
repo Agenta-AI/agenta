@@ -11,8 +11,8 @@ pages first. This page assumes the relay and the wire contract.
 
 Pi runs through one of two engines, both behind the same port:
 
-- **Over ACP, through rivet** (`engines/rivet.ts` with `harness: pi`). This is the main
-  path and the one the rest of this page describes. The rivet daemon starts the `pi-acp`
+- **Over ACP, through sandbox-agent** (`engines/sandbox_agent.ts` with `harness: pi`). This is the main
+  path and the one the rest of this page describes. The sandbox-agent daemon starts the `pi-acp`
   adapter, which starts the `pi` CLI.
 - **In-process** (`engines/pi.ts`). This drives the Pi SDK directly inside the sidecar, with
   no daemon, no adapter, and no ACP. It is the simplest local path and a fallback. The last
@@ -94,7 +94,7 @@ The **in-process Pi engine** honors both. It feeds them through the resource loa
 `systemPromptOverride` / `appendSystemPromptOverride`, so the run stays hermetic: only what
 the request carries applies, never a `SYSTEM.md` or `APPEND_SYSTEM.md` left on disk.
 
-The **ACP (rivet) path does not deliver them yet**. It drives Pi through `pi-acp`, which gives
+The **ACP (sandbox-agent) path does not deliver them yet**. It drives Pi through `pi-acp`, which gives
 us no per-run hook to set the prompt: a project `.pi/SYSTEM.md` is trust-gated, and the CLI
 `--system-prompt` flag cannot be set per session through the adapter. The engine logs a
 warning when these fields are set on that path so the gap is visible, not silent. `AGENTS.md`
@@ -119,7 +119,7 @@ extension starts `invoke_agent` as a child of that span, so the whole Pi run joi
 trace as the `/invoke` request. Because Pi self-instruments with real provider data, its
 spans carry true per-call token counts, not estimates.
 
-This is why the rivet engine does not also build spans for Pi. It would double them. The
+This is why the sandbox-agent engine does not also build spans for Pi. It would double them. The
 engine emits its own spans only for harnesses that do not self-instrument (see the
 [Claude Code adapter](claude-code.md)).
 
@@ -147,7 +147,7 @@ appends them in order to build the final answer.
 
 ## Daytona notes
 
-Two things differ on Daytona. The rivet `-full` image ships the `pi-acp` adapter but not the
+Two things differ on Daytona. The sandbox-agent `-full` image ships the `pi-acp` adapter but not the
 `pi` CLI, so the runner either installs `pi` into the sandbox at session time or runs from a
 pre-baked snapshot that already has it (the snapshot path avoids a slow per-run install).
 And auth comes from the provider key in the sandbox env when present, or from an uploaded
@@ -155,13 +155,13 @@ And auth comes from the provider key in the sandbox env when present, or from an
 
 ## The in-process engine
 
-The in-process Pi engine (`engines/pi.ts`, selected by the `InProcessPiBackend`) skips rivet
+The in-process Pi engine (`engines/pi.ts`, selected by the `InProcessPiBackend`) skips sandbox-agent
 entirely. It drives Pi's `createAgentSession` directly, with everything in memory: AGENTS.md
 injected through the resource loader, the session and settings managers in memory, and a
 throwaway working directory. It registers the same tools as Pi `customTools` (the same
 POST-back-to-`/tools/call` body) and traces with the same extension logic, just wired in
 process rather than loaded from disk.
 
-It returns the same `/run` result as the rivet path, which is the whole point of the ports:
+It returns the same `/run` result as the sandbox-agent path, which is the whole point of the ports:
 the workflow author cannot tell which engine ran. It exists for the simplest local case and
-as a path that does not depend on the rivet daemon being present.
+as a path that does not depend on the sandbox-agent daemon being present.

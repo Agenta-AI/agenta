@@ -6,7 +6,7 @@ each one and what a pass looks like. See `README.md` for how to configure and ru
 
 ## Legend
 
-Environments: `E1` service / in-process Pi, `E2` service / Rivet local, `E3` service / Rivet
+Environments: `E1` service / in-process Pi, `E2` service / sandbox-agent local, `E3` service / sandbox-agent
 Daytona, `E4` local SDK backend.
 
 Harnesses: `pi`, `agenta`, `claude`.
@@ -24,8 +24,8 @@ These come from the code and the prior `feature-matrix-test.md` run. They are th
 the full product is much smaller than it looks.
 
 1. **In-process Pi does not support Claude.** `InProcessPiBackend.supported_harnesses` is
-   `{pi, agenta}`. So every `claude` cell on E1 is `n/a`. Claude only runs on Rivet (E2, E3)
-   or on E4 when the script uses `RivetBackend`.
+   `{pi, agenta}`. So every `claude` cell on E1 is `n/a`. Claude only runs on sandbox-agent (E2, E3)
+   or on E4 when the script uses `SandboxAgentBackend`.
 2. **Claude is blocked on an Anthropic key.** The harness is wired but returns HTTP 500
    `claude: model authentication failed` with no Anthropic key in the project vault. Every
    `claude` cell is `blocked:anthropic-key` until a key is added.
@@ -39,11 +39,11 @@ the full product is much smaller than it looks.
    finding, not an assumption.
 5. **MCP is delivered to non-Pi harnesses only, and is flag-gated.** Per `ground-truth.md`
    MCP delivery exists through the stdio bridge for non-Pi harnesses, and in-process Pi
-   reports `mcpTools: false`. So MCP is `valid` on `claude` (Rivet) and `n/a` or
+   reports `mcpTools: false`. So MCP is `valid` on `claude` (sandbox-agent) and `n/a` or
    to-be-verified on `pi`/`agenta`. Every MCP cell is also `blocked:mcp-flag` until
    `AGENTA_AGENT_ENABLE_MCP=true`, and `blocked:stdio-server` until a reachable stdio MCP
    server is configured. Because MCP currently lands on Claude, it inherits
-   `blocked:anthropic-key` too. Whether `pi` over Rivet can take MCP is an open question the
+   `blocked:anthropic-key` too. Whether `pi` over sandbox-agent can take MCP is an open question the
    run should answer.
 6. **Gateway tools need a Composio connection.** A `gateway` tool resolves to a callback to
    `/tools/call`, but it only does anything if a real Composio integration, action, and
@@ -78,7 +78,7 @@ this QA program must drive. `?` means status unknown until run.
 
 ### Valid cell x environment (where each valid capability should run)
 
-| Capability / harness | E1 in-proc Pi | E2 Rivet local | E3 Rivet Daytona | E4 local SDK |
+| Capability / harness | E1 in-proc Pi | E2 sandbox-agent local | E3 sandbox-agent Daytona | E4 local SDK |
 | --- | --- | --- | --- | --- |
 | code tool / pi | valid | valid | valid | valid |
 | code tool / agenta | valid | valid | valid | valid |
@@ -208,7 +208,7 @@ Scenario Outline: the agent reads from a stdio MCP server
     | claude  | E2  | everything (stdio example)  |
     | pi      | E2  | everything (stdio example)  |
 # blocked:mcp-flag + stdio-server; claude also blocked:anthropic-key.
-# Verify whether pi-over-Rivet accepts MCP or only claude does. Record the answer.
+# Verify whether pi-over-sandbox-agent accepts MCP or only claude does. Record the answer.
 ```
 
 ### Skills without code
@@ -301,7 +301,7 @@ These captures are the seed for the replayable regression tests in phase 7.
 Run against `localhost:8280`, project `Default` (`019e8df5-2a58-...`), model `gpt-4o-mini`,
 via `qa/scripts/run_matrix.py`. Captures in `qa/runs/`.
 
-| Capability / harness | E2 Rivet local | E3 Daytona | Notes |
+| Capability / harness | E2 sandbox-agent local | E3 Daytona | Notes |
 | --- | --- | --- | --- |
 | chat+instructions+model / pi | pass | pass | |
 | chat+instructions+model / agenta | pass | pass | |
@@ -312,7 +312,7 @@ via `qa/scripts/run_matrix.py`. Captures in `qa/runs/`.
 | builtin bash / agenta (forced) | pass | n/t | |
 | skill no-code / agenta | pass | n/t | model follows SKILL.md directive when it reads the skill |
 | skill with-code / agenta | infra-pass, contract-fail | n/t | script copies + runs; relative path unresolved (F-008) |
-| append_system / pi | fail (F-001) | fail (F-001) | dropped on Rivet by design (rivet.ts:875) |
+| append_system / pi | fail (F-001) | fail (F-001) | dropped on sandbox-agent by design (sandbox_agent.ts:875) |
 | model override / pi | suspect-ignored (F-007) | n/t | ACP allows only `default` model |
 | gateway (Composio) / pi | pass | n/t | github tool returned the real connected login `mmabrouk` (pi-agents project, `github-tvn` connection) |
 | gateway (Composio) / agenta | pass | n/t | same, agenta harness |
@@ -324,12 +324,12 @@ via `qa/scripts/run_matrix.py`. Captures in `qa/runs/`.
 spin-ups). The fixes were validated on both E2 and E3, so the n/t code-tool and skill cells
 inherit the same runner behavior.
 
-### E1 (in-process Pi) contrast run
+### E1 (direct in-process Pi) contrast run
 
-Flipped the deployment to `AGENTA_AGENT_RUNTIME=pi` and ran the full batch, then restored to
-`rivet`. Result: **7/7 pass**, including `append_system_pi`, which fails on E2/E3. This is the
-clean contrast that confirms F-001 is Rivet-specific: in-process Pi honors `append_system`
-(reply ended with the injected `ZK-9-END`), the ACP path drops it (`rivet.ts:875`). Code tools
+Ran the direct in-process Pi contrast batch outside the deployed service path. Result:
+**7/7 pass**, including `append_system_pi`, which fails on E2/E3. This is the
+clean contrast that confirms F-001 is sandbox-agent-specific: in-process Pi honors `append_system`
+(reply ended with the injected `ZK-9-END`), the ACP path drops it (`sandbox_agent.ts:875`). Code tools
 also pass natively in-process (python3 is present in that path).
 
 | Capability / harness | E1 in-process Pi |

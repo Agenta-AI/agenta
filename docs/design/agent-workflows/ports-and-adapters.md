@@ -11,7 +11,7 @@ The SDK runtime lives under `sdks/python/agenta/sdk/agents/`.
 | --- | --- | --- |
 | DTOs | `dtos.py` | `AgentConfig`, `RunSelection`, `SessionConfig`, messages, events, capabilities, and harness-specific config models. |
 | Ports | `interfaces.py` | `Backend`, `Environment`, `Sandbox`, `Session`, `Harness`, `SessionStore`. |
-| Backend adapters | `adapters/in_process.py`, `adapters/rivet.py`, `adapters/local.py` | Engines that can run a harness. |
+| Backend adapters | `adapters/in_process.py`, `adapters/sandbox_agent.py`, `adapters/local.py` | Engines that can run a harness. |
 | Harness adapters | `adapters/harnesses.py` | Per-harness mapping from neutral session config to harness-specific config. |
 | Browser adapter | `adapters/vercel/` | Vercel `UIMessage` input and Vercel UI Message Stream output. |
 | Runner plumbing | `utils/wire.py`, `utils/ts_runner.py` | `/run` serialization and runner transports. |
@@ -29,7 +29,7 @@ sessions. It does not know how Pi or Claude wants tools shaped.
 Current backends:
 
 - `InProcessPiBackend`: implemented, supports `pi` and `agenta`, local only.
-- `RivetBackend`: implemented, supports `pi` and `claude`, local or Daytona.
+- `SandboxAgentBackend`: implemented, supports `pi` and `claude`, local or Daytona.
 - `LocalBackend`: planned, public class exists, methods raise.
 
 ### Environment
@@ -70,7 +70,7 @@ adapter is `NoopSessionStore`, which returns no messages and discards writes.
 This is intentional scaffolding. Server-owned session history is not implemented yet.
 
 A separate future port is still needed for harness session snapshots. Durable message
-history can reload a transcript, but it cannot necessarily restore Rivet/ACP session state,
+history can reload a transcript, but it cannot necessarily restore sandbox-agent/ACP session state,
 tool state, or setup artifacts. That future port should be designed after we inspect the
 actual session representation and storage size.
 
@@ -147,7 +147,7 @@ result fields should update both sides and the wire tests in the same PR.
 - `SessionStore` has no production adapter and the current runtime does not call
   `save_turn` after completed `/messages` turns.
 - `AgentaHarness` policy content is placeholder product copy.
-- `AgentaHarness` cannot run on rivet or Daytona.
+- `AgentaHarness` cannot run on sandbox-agent or Daytona.
 - MCP server resolution is disabled unless `AGENTA_AGENT_ENABLE_MCP` is truthy.
 - The code still has historical WP labels in comments. Those labels should not guide new
   design decisions.

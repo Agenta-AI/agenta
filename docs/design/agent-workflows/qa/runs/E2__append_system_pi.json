@@ -51,5 +51,5 @@
   "reply": "Hello! How can I assist you today?",
   "status_message": "Success",
   "passed": false,
-  "expect": "reply contains ZK-9-END (F-001: dropped on rivet, works in-process)"
+  "expect": "reply contains ZK-9-END (F-001: dropped on sandbox-agent, works in-process)"
 }
