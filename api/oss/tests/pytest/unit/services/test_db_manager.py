@@ -55,7 +55,9 @@ def _patch_core_session(monkeypatch, memberships):
 
 
 @pytest.mark.asyncio
-async def test_get_default_workspace_id_prefers_owner_membership(monkeypatch):
+async def test_get_default_workspace_id_ignores_owner_role(monkeypatch):
+    # Owner-role is NOT preferred: under multi-org an invitee owns their own
+    # empty personal workspace, so the oldest membership wins regardless of role.
     owner_workspace_id = uuid4()
     editor_workspace_id = uuid4()
 
@@ -77,7 +79,7 @@ async def test_get_default_workspace_id_prefers_owner_membership(monkeypatch):
 
     workspace_id = await db_manager.get_default_workspace_id(str(uuid4()))
 
-    assert workspace_id == str(owner_workspace_id)
+    assert workspace_id == str(editor_workspace_id)
 
 
 @pytest.mark.asyncio

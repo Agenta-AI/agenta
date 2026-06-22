@@ -117,8 +117,13 @@ export function $insertLinesWithSelectionAndIndent({
         }
     }
 
-    // Clone trailing lines before removal
-    const clonedTrailingLines = linesAfter.map((l) => $copyNode(l))
+    // Capture trailing-line TEXT before removal, then rebuild fresh nodes after
+    // insertion (see re-insertion below). We can't element-clone these lines:
+    // `$copyNode` assigns the clone a fresh key, and Lexical's ElementNode only
+    // carries child pointers when the key is unchanged — so a cloned CodeLineNode
+    // comes back EMPTY, wiping every line below the paste point. Rebuilding from
+    // text mirrors the large-paste fast path and preserves the content faithfully.
+    const trailingLineTexts = linesAfter.map((l) => l.getTextContent())
     linesAfter.forEach((l) => l.remove())
     // Remove current line
     currentLine.remove()
@@ -174,11 +179,12 @@ export function $insertLinesWithSelectionAndIndent({
         insertIdx++
     }
 
-    // Add trailing lines (use clones)
-    clonedTrailingLines.forEach((l, i) => {
+    // Add trailing lines (rebuilt from captured text — see note above)
+    const trailingLanguage = parentBlock.getLanguage()
+    trailingLineTexts.forEach((text, i) => {
         const prevChild = $getLineAtIndex(parentBlock, insertIdx - 1 + i)
         if (prevChild) {
-            prevChild.insertAfter(l)
+            prevChild.insertAfter($createNodeForLineWithTabs(text, trailingLanguage))
         }
     })
 
