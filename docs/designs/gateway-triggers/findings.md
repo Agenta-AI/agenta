@@ -57,6 +57,7 @@
 | F38 | P0 | fixed | Wiring/Reliability | Triggers worker entrypoint crash-loops: the dispatcher refactor added a required `triggers_dao` kwarg to `TriggersWorker`, wired in `routers.py` but **missed in `worker_triggers.py`**. Ingress verified+enqueued every event (202) but nothing consumed the queue. **Found via live run** (worker container restarting every ~7s); **fixed locally** by passing `triggers_dao` (already constructed). Confirmed: worker boots, 2 deliveries written. |
 | F39 | P2 | wontfix (convention) | Testing | The `os.getenv("COMPOSIO_API_KEY")` at line 24 is a pytest skip-gate, **identical** to the sibling `test_tools_connections.py:19` and every other trigger/tool acceptance test. "Do as other tests" = leave it; the shared `env` app-config object is for application code, not test-collection preconditions. CodeRabbit false positive. |
 | F40 | P1 | fixed | Web/Build | `gatewayTrigger/core/types.ts` subscription schema defined `flags` twice (generic `jsonRecordSchema` + typed `triggerSubscriptionFlagsSchema`) → TS1117 duplicate-key, **broke `@agenta/entities` build** on the branch. Surfaced while building for F16. Removed the stray generic `flags`; the schedule schema's typed-flags-then-generic-tags/meta ordering is the correct pattern. |
+| F41 | P0 | fixed | Hosting/Deploy | Triggers queue consumer (`entrypoints.worker_triggers`) wired into **every docker-compose variant** but **absent from the Helm chart** — no deployment template, helper, or values knob. Helm-deployed clusters would ingest+enqueue events (and tick schedules via the baked crontab) but have nothing consuming the queue → no delivery ever fires (the F38 gap, permanent on k8s). **Fixed locally**: added `worker-triggers-deployment.yaml` (modeled on worker-webhooks — image, commonEnv, init containers, NewRelic branch, pgrep liveness), `agenta.workerTriggers.enabled/.replicas` helpers, and the `workerTriggers` block in both values examples. Verified with `helm template` (all branches) + `helm lint` (0 failed). |
 
 ## Notes
 
@@ -88,7 +89,7 @@ gateway **connection ID** (`connection_id`, the `ca_*`), trigger **subscription 
 
 ## Open Findings
 
-None — all findings (F1–F40) are resolved, verified-ok, or dispositioned wontfix. See Closed Findings.
+None — all findings (F1–F41) are resolved, verified-ok, or dispositioned wontfix. See Closed Findings.
 
 ## Closed Findings
 
