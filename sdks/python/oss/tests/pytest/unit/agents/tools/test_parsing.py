@@ -45,6 +45,31 @@ def test_compat_parser_accepts_playground_gateway_slug_and_metadata():
     assert gateway.render == {"kind": "component", "component": "User"}
 
 
+def test_compat_parser_does_not_flip_string_false_needs_approval():
+    # Legacy payloads may carry the flag as the string "false"; it must not coerce to True
+    # (a plain ``bool("false")`` would).
+    gateway = coerce_tool_config(
+        {
+            "function": {"name": "tools__composio__github__GET_USER__c1"},
+            "needs_approval": "false",
+        }
+    )
+    assert gateway.needs_approval is False
+
+    approved = coerce_tool_config(
+        {
+            "function": {"name": "tools__composio__github__GET_USER__c1"},
+            "needs_approval": "true",
+        }
+    )
+    assert approved.needs_approval is True
+
+
+def test_coerce_tool_configs_rejects_invalid_on_error():
+    with pytest.raises(ValueError):
+        coerce_tool_configs(["read"], on_error="bogus")  # type: ignore[arg-type]
+
+
 def test_collect_mode_reports_invalid_entries():
     result = coerce_tool_configs(
         ["read", {"invalid": True}, None],

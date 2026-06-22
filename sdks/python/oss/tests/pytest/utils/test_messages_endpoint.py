@@ -193,8 +193,18 @@ def test_messages_sse_streams_with_done_and_session_in_start(client):
     _assert_vercel_message_protocol(res)
     assert res.headers["x-vercel-ai-ui-message-stream"] == "v1"
     text = res.text
-    assert '"sessionId": "sess_abc"' in text  # stamped onto the start part
-    assert '"type": "text-delta"' in text
+    # Parse the SSE payloads so the check survives serializer formatting changes (whitespace,
+    # key order) rather than matching a literal JSON substring.
+    payloads = [
+        json.loads(line.removeprefix("data: "))
+        for line in text.splitlines()
+        if line.startswith("data: ") and line != "data: [DONE]"
+    ]
+    start = next(p for p in payloads if p.get("type") == "start")
+    assert (
+        start["messageMetadata"]["sessionId"] == "sess_abc"
+    )  # stamped onto the start part
+    assert any(p.get("type") == "text-delta" for p in payloads)
     assert "data: [DONE]" in text
 
 

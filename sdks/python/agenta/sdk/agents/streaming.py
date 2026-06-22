@@ -62,6 +62,7 @@ class AgentRun:
         return self
 
     async def __aiter__(self) -> AsyncIterator[AgentEvent]:
+        saw_terminal = False
         try:
             async for record in self._records:
                 kind = record.get("kind")
@@ -74,7 +75,14 @@ class AgentRun:
                     self._result = result_from_wire(record.get("result") or {})
                     for hook in self._result_hooks:
                         hook(self._result)
+                    saw_terminal = True
                     return
+            if not saw_terminal:
+                # A truncated stream (runner disconnect/early exit) would otherwise leave
+                # ``result()`` raising an opaque "not available" later; fail loud here instead.
+                raise RuntimeError(
+                    "AgentRun stream ended without a terminal result record"
+                )
         finally:
             for cleanup in self._cleanups:
                 try:

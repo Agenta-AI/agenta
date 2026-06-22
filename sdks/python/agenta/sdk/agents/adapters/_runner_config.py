@@ -18,10 +18,24 @@ def resolve_runner_command(
     command: Optional[Sequence[str]],
     cwd: Optional[str],
 ) -> List[str]:
+    def _validated_command(raw: Sequence[str]) -> List[str]:
+        cmd = list(raw)
+        if not cmd:
+            raise AgentRunnerConfigurationError(
+                f"{backend_name} received an empty command. Pass a non-empty command, "
+                "pass url for an HTTP runner, or set cwd to a runner directory containing "
+                f"{RUNNER_CLI_PATH.as_posix()}."
+            )
+        return cmd
+
     if url:
-        return list(command) if command is not None else list(DEFAULT_RUNNER_COMMAND)
+        return (
+            _validated_command(command)
+            if command is not None
+            else list(DEFAULT_RUNNER_COMMAND)
+        )
     if command is not None:
-        return list(command)
+        return _validated_command(command)
     if not cwd:
         raise AgentRunnerConfigurationError(
             f"{backend_name} requires a runner transport: pass url for an HTTP runner, "

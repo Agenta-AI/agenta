@@ -13,6 +13,7 @@ and transport helpers.
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, AsyncIterator, Dict, List, Mapping, Optional, Sequence
 
@@ -35,6 +36,8 @@ from ..utils import (
     result_from_wire,
 )
 from ._runner_config import resolve_runner_command
+
+_log = logging.getLogger(__name__)
 
 
 class SandboxAgentSandbox(Sandbox):
@@ -193,4 +196,6 @@ def _emit_events(result: AgentResult, on_event: Optional[EventSink]) -> None:
         try:
             on_event(event)
         except Exception:  # pylint: disable=broad-except
-            pass
+            # The sink is caller-provided; don't let it crash the result. Log at debug so a
+            # misbehaving sink is still diagnosable.
+            _log.debug("event sink raised; suppressing", exc_info=True)

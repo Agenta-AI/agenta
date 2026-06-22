@@ -51,7 +51,9 @@ def _copy_tool_metadata(
 ) -> dict[str, Any]:
     result = dict(target)
     if "needs_approval" in source:
-        result["needs_approval"] = bool(source["needs_approval"])
+        # Pass the raw value through; the model's bool field coerces it correctly. Using
+        # ``bool(...)`` here would flip legacy string payloads (``"false"`` -> ``True``).
+        result["needs_approval"] = source["needs_approval"]
     if isinstance(source.get("render"), dict):
         result["render"] = dict(source["render"])
     return result
@@ -102,6 +104,9 @@ def coerce_tool_configs(
     on_error: Literal["raise", "collect"] = "raise",
 ) -> ToolConfigParseResult:
     """Convert legacy values, either raising or returning structured diagnostics."""
+    if on_error not in {"raise", "collect"}:
+        raise ValueError("on_error must be 'raise' or 'collect'")
+
     tool_configs: list[ToolConfig] = []
     diagnostics: list[ToolConfigDiagnostic] = []
     for index, value in enumerate(values or []):

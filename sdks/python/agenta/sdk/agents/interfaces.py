@@ -17,6 +17,7 @@ The ``Harness`` port (with its ``PiHarness`` / ``ClaudeHarness`` adapters) sits 
 
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
 from typing import ClassVar, FrozenSet, Mapping, Optional, Sequence
 
@@ -185,6 +186,7 @@ class Environment:
         self._backend = backend
         self._sandbox_per_session = sandbox_per_session
         self._shared: Optional[Sandbox] = None
+        self._shared_lock = asyncio.Lock()
 
     @property
     def backend(self) -> Backend:
@@ -203,7 +205,9 @@ class Environment:
         if self._sandbox_per_session:
             return await self._backend.create_sandbox()
         if self._shared is None:
-            self._shared = await self._backend.create_sandbox()
+            async with self._shared_lock:
+                if self._shared is None:
+                    self._shared = await self._backend.create_sandbox()
         return self._shared
 
     async def create_session(

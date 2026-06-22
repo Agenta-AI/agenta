@@ -54,12 +54,14 @@ class InProcessPiSession(Session):
         backend: "InProcessPiBackend",
         config: HarnessAgentConfig,
         *,
+        harness: HarnessType,
         secrets: Optional[Mapping[str, str]],
         trace: Optional[TraceContext],
         session_id: Optional[str],
     ) -> None:
         self._backend = backend
         self._config = config
+        self._harness = harness
         self._secrets = dict(secrets or {})
         self._trace = trace
         self._session_id = session_id
@@ -72,7 +74,7 @@ class InProcessPiSession(Session):
         """The ``/run`` request JSON for this turn (shared by ``prompt`` and ``stream``)."""
         return request_to_wire(
             engine=InProcessPiBackend._ENGINE,
-            harness=HarnessType.PI,
+            harness=self._harness,
             sandbox="local",
             config=self._config,
             messages=messages,
@@ -151,6 +153,7 @@ class InProcessPiBackend(Backend):
         return InProcessPiSession(
             self,
             config,
+            harness=harness,
             secrets=secrets,
             trace=trace,
             session_id=session_id,

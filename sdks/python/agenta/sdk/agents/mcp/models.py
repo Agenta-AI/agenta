@@ -39,6 +39,14 @@ class ResolvedMCPServer(BaseModel):
     url: Optional[str] = None
     tools: List[str] = Field(default_factory=list)
 
+    @model_validator(mode="after")
+    def _validate_transport(self) -> "ResolvedMCPServer":
+        if self.transport == "stdio" and not self.command:
+            raise ValueError("stdio MCP server requires command")
+        if self.transport == "http" and not self.url:
+            raise ValueError("http MCP server requires url")
+        return self
+
     def to_wire(self) -> Dict[str, Any]:
         wire: Dict[str, Any] = {
             "name": self.name,

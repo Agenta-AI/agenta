@@ -11,7 +11,7 @@ translates them to and from its engine's own shapes at its edge.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Tuple, Union
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
@@ -47,7 +47,7 @@ class HarnessType(str, Enum):
 
 # Permission policy for harness tool use in a headless run. ``auto`` approves (tools are
 # backend-resolved and trusted, no human to prompt); ``deny`` rejects.
-PermissionPolicy = str  # "auto" | "deny"
+PermissionPolicy = Literal["auto", "deny"]
 
 
 # ---------------------------------------------------------------------------
@@ -180,10 +180,18 @@ MessageContent = Union[str, List[ContentBlock]]
 
 
 class Message(BaseModel):
-    """A chat message in the conversation. ``content`` is text or content blocks.
+    """A chat message in an agent-runtime conversation. ``content`` is text or content blocks.
 
-    This is the runtime's own message type, distinct from the SDK's prompt ``Message``
-    (``agenta.Message``); the two serve different layers.
+    Two unrelated types share the name ``Message`` in this SDK, on purpose, for two layers:
+
+    - this one — the agent runtime's conversation message, imported from
+      ``agenta.sdk.agents`` (it is deliberately *not* re-exported as ``agenta.Message``);
+    - the prompt-template message ``agenta.Message`` (``agenta.sdk.utils.types.Message``),
+      used by the prompt/completion layer.
+
+    They never appear together in the same call, so the namespacing (top-level vs.
+    ``agenta.sdk.agents``) is what keeps them apart. Import the agents one explicitly when you
+    need both in one module.
     """
 
     role: str

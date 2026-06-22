@@ -26,7 +26,9 @@ async def deliver_http(
     url = base_url.rstrip("/") + "/run"
     async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.post(url, json=payload)
-    if response.status_code >= 500:
+    # Any non-2xx is a transport failure; 4xx left to fall through surfaces as an opaque
+    # JSON parse error instead of a clear runner failure.
+    if response.status_code >= 400:
         raise RuntimeError(
             f"Agent runner HTTP {response.status_code}: {response.text[:1000]}"
         )
@@ -101,11 +103,12 @@ async def deliver_http_stream(
 
     url = base_url.rstrip("/") + "/run"
     headers = {"Accept": "application/x-ndjson"}
+    saw_result = False
     async with httpx.AsyncClient(timeout=timeout) as client:
         async with client.stream(
             "POST", url, json=payload, headers=headers
         ) as response:
-            if response.status_code >= 500:
+            if response.status_code >= 400:
                 body = await response.aread()
                 raise RuntimeError(
                     f"Agent runner HTTP {response.status_code}: {body[:1000]!r}"
@@ -113,7 +116,12 @@ async def deliver_http_stream(
             async for line in response.aiter_lines():
                 line = line.strip()
                 if line:
-                    yield json.loads(line)
+                    record = json.loads(line)
+                    if record.get("kind") == "result":
+                        saw_result = True
+                    yield record
+    if not saw_result:
+        raise RuntimeError("Agent runner stream ended without a terminal result record")
 
 
 async def deliver_subprocess_stream(
@@ -143,6 +151,7 @@ async def deliver_subprocess_stream(
     proc.stdin.close()
     loop = asyncio.get_event_loop()
     deadline = loop.time() + timeout
+    saw_result = False
     try:
         while True:
             remaining = deadline - loop.time()
@@ -155,8 +164,21 @@ async def deliver_subprocess_stream(
                 break
             line = raw.decode("utf-8", "replace").strip()
             if line:
-                yield json.loads(line)
+                record = json.loads(line)
+                if record.get("kind") == "result":
+                    saw_result = True
+                yield record
         await proc.wait()
+        # A clean drain that never produced a terminal result means the runner exited or
+        # disconnected early; fail loud rather than leaving the consumer without a result.
+        if not saw_result:
+            err = b""
+            if proc.stderr is not None:
+                err = await proc.stderr.read()
+            raise RuntimeError(
+                "Agent runner stream ended without a terminal result record. "
+                f"exit={proc.returncode} stderr={err.decode('utf-8', 'replace')[-2000:]}"
+            )
     finally:
         if proc.returncode is None:
             proc.kill()

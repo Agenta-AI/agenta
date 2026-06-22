@@ -156,6 +156,18 @@ def make_load_session_endpoint(
     store = session_store or NoopSessionStore()
 
     async def load_session_endpoint(req: Request, request: LoadSessionRequest):
+        # Gate the id with the same charset/length bound as ``/messages`` before it reaches
+        # the store, so both endpoints share one trust boundary. Unlike ``/messages`` we never
+        # mint here: loading needs an existing id, so an absent/invalid one is a 400.
+        if not _SESSION_ID_RE.match(request.session_id or ""):
+            return set_vercel_message_protocol_headers(
+                JSONResponse(
+                    status_code=400,
+                    content={
+                        "detail": "session_id violates the allowed charset/length"
+                    },
+                )
+            )
         messages = await store.load(request.session_id)
         response = LoadSessionResponse(
             session_id=request.session_id,
