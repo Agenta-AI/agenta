@@ -94,6 +94,7 @@ triggers_dispatcher = TriggersDispatcher(
 triggers_worker = TriggersWorker(
     broker=broker,
     dispatcher=triggers_dispatcher,
+    triggers_dao=triggers_dao,
 )
 
 

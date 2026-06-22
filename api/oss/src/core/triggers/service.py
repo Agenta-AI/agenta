@@ -1,5 +1,4 @@
 import asyncio
-import base64
 import hashlib
 import hmac
 from datetime import datetime
@@ -937,10 +936,7 @@ class TriggersService:
     ) -> bool:
         """Verify Composio's HMAC over ``{webhook-id}.{webhook-timestamp}.{body}``.
 
-        Composio's encoding (hex vs base64) is not yet confirmed against a real
-        event, so we compute both digests and accept either, logging which one
-        matched plus the raw inputs at debug. This is intentionally permissive
-        for now — once the logs confirm the real encoding, collapse to one.
+        Confirmed against live events: Composio sends a lowercase hex digest.
 
         On mismatch, refresh the secret once (it rotates if the subscription is
         recreated) and retry before rejecting.
@@ -963,30 +959,12 @@ class TriggersService:
             )
             if not secret:
                 return False
-            digest = hmac.new(secret.encode("utf-8"), signed_bytes, hashlib.sha256)
-            expected_hex = digest.hexdigest()
-            expected_b64 = base64.b64encode(digest.digest()).decode("ascii")
+            expected = hmac.new(
+                secret.encode("utf-8"), signed_bytes, hashlib.sha256
+            ).hexdigest()
 
-            log.debug(
-                "[TRIGGER SIGNATURE] webhook_id=%s timestamp=%s body_len=%d "
-                "provided=%s expected_hex=%s expected_b64=%s force_refresh=%s",
-                webhook_id,
-                timestamp,
-                len(body),
-                provided,
-                expected_hex,
-                expected_b64,
-                force_refresh,
-            )
-
-            if hmac.compare_digest(expected_hex, provided):
-                log.info("[TRIGGER SIGNATURE] matched via HEX encoding")
-                return True
-            if hmac.compare_digest(expected_b64, provided):
-                log.info("[TRIGGER SIGNATURE] matched via BASE64 encoding")
+            if hmac.compare_digest(expected, provided):
                 return True
 
-        log.warning(
-            "[TRIGGER SIGNATURE] no match (hex or base64) webhook_id=%s", webhook_id
-        )
+        log.warning("[TRIGGER SIGNATURE] no match webhook_id=%s", webhook_id)
         return False

@@ -18,7 +18,7 @@
 
 | ID | Sev | Status | Area | Summary |
 |----|-----|--------|------|---------|
-| F1 | P0→ | fixed (diag) | Security | Composio signature compared as **hex**, but provider may send **base64**. **Fixed locally**: now computes both, accepts either, logs which matched + raw inputs (diagnostic-first per decision). |
+| F1 | P0 | fixed | Security | Composio signature compared as **hex**, but provider may send **base64**. **Resolved**: live events confirmed lowercase **hex** (5/5 `matched via HEX`, byte-exact `signed_bytes`, body_len=1068). Collapsed to hex-only; dropped the diagnostic dual-accept + base64 branch. |
 | F2 | P1 | needs-verify | Security/Multitenancy | `verify_signature` fails **open** on empty secret? — actually returns False (OK); but `_verify_composio_signature` in router returned True on missing secret (CodeRabbit says addressed in ce43b26 — verify + close thread). |
 | F3 | P1 | fixed | Multitenancy | DAO `ti_id` subscription lookups. **Fixed locally**: removed dead unscoped `get_subscription_by_trigger_id`; documented the surviving inbound-resolve method as the one sanctioned cross-project read. |
 | F4 | P1 | fixed | Multitenancy | `gateway/connections/dao.py` provider-id lookup/activation. **Fixed locally**: `project_id` now mandatory through DAO→service→tools-service; OAuth callback fails if project_id unresolved. |
@@ -53,6 +53,8 @@
 | F33 | P2 | fixed | Migration/Perf | Added `ix_trigger_deliveries_schedule_id_created_at` (+ downgrade) in `oss000000003`. |
 | F34 | P3 | fixed | Testing | `test_triggers_schedules.py` list flows assert status before `.json()`. |
 | F35 | P3 | fixed | Docs | `AGENTS.md` test-run example rewritten as `cd <area>` with an explicit area list. |
+| F37 | P3 | confirmed | Testing | `test_triggers_ingress.py:113` dedup test gates only on `COMPOSIO_TEST_CONNECTED_ACCOUNT` and can resolve an empty secret → 401 flakiness unrelated to dedup. Add `@_requires_composio` + guard the secret. |
+| F38 | P0 | fixed | Wiring/Reliability | Triggers worker entrypoint crash-loops: the dispatcher refactor added a required `triggers_dao` kwarg to `TriggersWorker`, wired in `routers.py` but **missed in `worker_triggers.py`**. Ingress verified+enqueued every event (202) but nothing consumed the queue. **Found via live run** (worker container restarting every ~7s); **fixed locally** by passing `triggers_dao` (already constructed). Confirmed: worker boots, 2 deliveries written. |
 
 ## Notes
 
@@ -83,83 +85,6 @@ gateway **connection ID** (`connection_id`, the `ca_*`), trigger **subscription 
 - Resolve/close clearly-stale or already-fixed PR threads **without** leaving comments.
 
 ## Open Findings
-
-### [OPEN] F23 — Schedule dispatch task never wired into `TriggersService`
-- **Origin** sync (CodeRabbit, critical) · **Severity** P0 · **Confidence** high · **Status** confirmed
-- **Files** `api/entrypoints/routers.py:684`; `api/oss/src/core/triggers/service.py:73` (ctor), `:777-782` (`refresh_schedules`)
-- **Evidence** Verified: the entrypoint `TriggersService(...)` passes `adapter_registry/catalog_service/triggers_dao/connections_service/workflows_service` but **omits** `schedule_dispatch_task` (defaults to `None`). `refresh_schedules()` therefore always takes the "Taskiq client not configured" branch — scheduled triggers never enqueue.
-- **Suggested Fix** Pass a schedule dispatch task into `TriggersService` at construction (a `triggers.dispatch_schedule` producer task, mirroring how the ingress dispatch task is wired), or fail fast when schedules are enabled but the task is missing.
-
-### [OPEN] F24 — Schedule refresh admin endpoint skips auth/entitlement
-- **Origin** sync (CodeRabbit) · **Severity** P1 · **Confidence** medium · **Status** confirmed
-- **Files** `api/oss/src/apis/fastapi/triggers/router.py:1426`
-- **Evidence** The `/admin/triggers/schedules/refresh` route explicitly skips auth/entitlement; it scans schedules and enqueues dispatches. If `/admin/triggers` is reachable off a trusted network it is an unauthenticated trigger/DoS surface.
-- **Suggested Fix** Confirm it carries the same internal-auth posture as the other `/admin/*` cron endpoints (e.g. `AGENTA_AUTH_KEY` access header) and is never mounted on public surfaces. If already gated like the sibling crons, this is informational.
-
-### [OPEN] F25 — Dispatcher has no `is_valid` gate before invoking workflows
-- **Origin** sync (CodeRabbit) · **Severity** P1 · **Confidence** high · **Status** confirmed
-- **Files** `api/oss/src/tasks/asyncio/triggers/dispatcher.py:95-168`
-- **Evidence** Verified: the comment at :95 says invalid subscriptions fall through to the failed-delivery path, but no `entity.flags.is_valid` check exists before `invoke_workflow` (:168). Invalid/revoked subscriptions still execute. The existing unit test `test_invalid_subscription_is_not_silently_skipped` only asserts `write_delivery` was awaited (true on success too), so it does not catch this.
-- **Suggested Fix** Add an `is_valid` gate (subscriptions only) that writes a failed delivery (e.g. `409`) and returns before invoke; strengthen the unit test to assert `invoke_workflow` was NOT awaited and the delivery status is the failure code.
-
-### [OPEN] F26 — `refresh_schedules` reports success after dispatch failures
-- **Origin** sync (CodeRabbit) · **Severity** P1 · **Confidence** high · **Status** confirmed
-- **Files** `api/oss/src/core/triggers/service.py:~829` (per-schedule `except Exception` loop), returns `True`
-- **Evidence** Enqueue/broker failures inside the per-schedule loop are logged and swallowed; the method still returns `True`, so the cron/admin caller sees success while runs were dropped.
-- **Suggested Fix** Track failures across the batch; return/raise a failure signal (or report count) so the caller can surface non-200.
-
-### [OPEN] F27 — `oss000000004` backfill overwrites existing `is_active`
-- **Origin** sync (CodeRabbit) · **Severity** P1 · **Confidence** high · **Status** confirmed · **Category** Migration
-- **Files** `api/oss/databases/postgres/migrations/core_oss/versions/oss000000004_add_webhook_subscription_flags.py:~27`
-- **Evidence** `UPDATE ... SET flags = COALESCE(flags,'{}') || '{"is_active": true}'` sets `is_active=true` for **every** row, overwriting already-disabled subs. (Supersedes the cosmetic F20 downgrade note.)
-- **Suggested Fix** `jsonb_set(..., true) WHERE flags IS NULL OR flags ->> 'is_active' IS NULL` — only backfill where the key is absent. Webhook flags are unreleased, so a `--nuke` dev DB is unaffected, but the migration should still be correct.
-
-### [OPEN] F28 — Webhook edit resurrects paused subscriptions
-- **Origin** sync (CodeRabbit) · **Severity** P1 · **Confidence** high · **Status** confirmed
-- **Files** `api/oss/src/core/webhooks/types.py:149` (`WebhookSubscriptionEdit`), edit mapping
-- **Evidence** Edit materializes missing `flags` as `is_active=True` and the mapping persists `subscription.flags`; a normal PUT omitting flags (older client) silently resumes a paused subscription. **Note:** this is the webhook-domain analogue of the full-PUT rule — edit must merge with the current DB value, not default.
-- **Suggested Fix** Make edit `flags` optional and merge with the existing DB value before writing (full-PUT-from-current), or require clients to round-trip flags.
-
-### [OPEN] F29 — `triggers.sh` aborts at the top of every hour (`00` minute)
-- **Origin** sync (CodeRabbit) · **Severity** P1 · **Confidence** high · **Status** confirmed
-- **Files** `api/oss/src/crons/triggers.sh:7-8`
-- **Evidence** `MINUTE=$(date -u +%M | sed 's/^0*//')` turns `"00"` into `""`; the next `$(( ... ))` arithmetic fails and the job aborts every hour at :00.
-- **Suggested Fix** `MINUTE="${MINUTE:-0}"` after the strip. (CodeRabbit committable suggestion.)
-
-### [OPEN] F30 — `triggers.sh` masks curl failures, no timeouts
-- **Origin** sync (CodeRabbit) · **Severity** P2 · **Confidence** high · **Status** confirmed
-- **Files** `api/oss/src/crons/triggers.sh:22`
-- **Evidence** `curl -s ... || echo "❌ CURL failed"` swallows the failure; no `--fail`/`--connect-timeout`/`--max-time` → hidden failures and possible hangs.
-- **Suggested Fix** `-sS --fail --connect-timeout 5 --max-time 30`, drop the `|| echo`. (CodeRabbit committable suggestion.)
-
-### [OPEN] F31 — Provider enablement computed inconsistently
-- **Origin** sync (CodeRabbit) · **Severity** P2 · **Confidence** medium · **Status** confirmed
-- **Files** `api/oss/src/core/triggers/service.py:~454` (edit), `:530-604` (`_set_valid`/`set_subscription_active`)
-- **Evidence** `edit_subscription` syncs provider with `is_active` only, `_set_valid` with `is_valid` only, `set_subscription_active` not at all → paths disagree and can re-enable a revoked/paused provider trigger.
-- **Suggested Fix** One helper computing provider `enabled = is_active and is_valid`, used by edit/start/stop/refresh/revoke.
-
-### [OPEN] F32 — `TriggerScheduleInvalid` lacks structured context
-- **Origin** sync (CodeRabbit) · **Severity** P2 · **Confidence** high · **Status** confirmed · **Category** API contract
-- **Files** `api/oss/src/core/triggers/exceptions.py:53`
-- **Evidence** Carries only a message, unlike the not-found errors that expose IDs. Guideline: domain exceptions should include structured context.
-- **Suggested Fix** Add `schedule` / `reason` fields so the router builds richer 422s without parsing text.
-
-### [OPEN] F33 — Missing schedule-delivery ordering index
-- **Origin** sync (CodeRabbit) · **Severity** P2 · **Confidence** medium · **Status** confirmed · **Category** Migration/Perf
-- **Files** `api/oss/databases/postgres/migrations/core_oss/versions/oss000000003_...py:238`
-- **Evidence** The subscription-delivery ordering index exists but the schedule-delivery equivalent was not added. (In-place edit OK — migration unreleased.)
-- **Suggested Fix** Add the parallel `(schedule_id, created_at)`-style ordering index in `oss000000003`.
-
-### [OPEN] F34 — schedules acceptance test consumes body before status assert
-- **Origin** sync (CodeRabbit) · **Severity** P3 · **Confidence** high · **Status** confirmed · **Category** Testing
-- **Files** `api/oss/tests/pytest/acceptance/triggers/test_triggers_schedules.py:83`
-- **Evidence** List-flow tests call `.json()` before asserting `status_code == 200`, masking the real failure on a non-200.
-- **Suggested Fix** Assert status first, then read body.
-
-### [OPEN] F35 — AGENTS.md test-run command example syntax error
-- **Origin** sync (CodeRabbit) · **Severity** P3 · **Confidence** high · **Status** confirmed · **Category** Docs
-- **Files** `AGENTS.md:195`
-- **Suggested Fix** Fix the quoted `cd "sdks/python"|"api"|"services"` example syntax.
 
 ### [OPEN] F2 — Router signature fail-open on missing secret (verify upstream fix)
 - **Origin** sync (CodeRabbit) · **Severity** P1 · **Confidence** medium · **Status** needs-verify
@@ -199,12 +124,24 @@ gateway **connection ID** (`connection_id`, the `ca_*`), trigger **subscription 
 - **Files** `api/oss/databases/postgres/migrations/core_oss/versions/oss000000004_add_webhook_subscription_flags.py:~47`
 - **Suggested Fix** Cosmetic; backfill is unreleased. Optional `CASE WHEN flags IS NULL` guard.
 
+### [OPEN] F24 — Schedule refresh admin endpoint skips auth/entitlement
+- **Origin** sync (CodeRabbit) · **Severity** — · **Confidence** high · **Status** wontfix (convention)
+- **Files** `api/oss/src/apis/fastapi/triggers/router.py:1426`
+- **Evidence** Verified: matches the platform convention — the evaluations `refresh_runs` admin cron (our reuse anchor) has the identical `# NO CHECK FOR PERMISSIONS / ENTITLEMENTS`; `/admin/*` is network-isolated and the cron POSTs to `http://api:8000`. Not a new bug. Kept open as a tracked decision rather than silently resolved.
+- **Suggested Fix** None unless we decide to add internal-auth to ALL `/admin/*` crons as a platform-wide change.
+
+### [OPEN] F37 — ingress dedup test precondition can 401-flake
+- **Origin** sync (CodeRabbit, minor) · **Severity** P3 · **Confidence** medium · **Status** confirmed · **Category** Testing
+- **Files** `api/oss/tests/pytest/acceptance/triggers/test_triggers_ingress.py:113`
+- **Evidence** The dedup test gates only on `COMPOSIO_TEST_CONNECTED_ACCOUNT` and can resolve an empty webhook secret → 401 failures unrelated to dedup → flaky.
+- **Suggested Fix** Add `@_requires_composio` and guard the resolved secret before signing.
+
 ## Closed Findings
 
-### [CLOSED] F1 — Composio signature hex vs base64 (diagnostic-first)
-- **Origin** sync (CodeRabbit, critical) + scan · **Severity** P0 · **Status** fixed (diagnostic)
+### [CLOSED] F1 — Composio signature hex vs base64 (resolved against live events)
+- **Origin** sync (CodeRabbit, critical) + scan · **Severity** P0 · **Status** fixed
 - **Files** `api/oss/src/core/triggers/service.py` `verify_signature`
-- **Fix applied** Per decision: do NOT blind-switch. Now computes both hex and base64 HMAC digests, accepts whichever matches, and logs the raw inputs + which encoding matched (`matched via HEX` / `matched via BASE64`) at debug/info. A real event will reveal the true encoding; collapse to one afterward.
+- **Fix applied** Diagnostic-first per decision: temporarily computed both hex and base64 digests, accepted either, logged which matched + raw inputs. Live Composio events then resolved it — **5/5 matched via HEX**, `force_refresh=False`, byte-exact `signed_bytes` (body_len=1068), never base64. Collapsed to hex-only: dropped the base64 branch, the dual-accept, the debug dump, and the now-unused `base64` import. Negative-path test (forged `deadbeef`) still rejects; signature unit suite unaffected (it signs with hex).
 
 ### [CLOSED] F3 — `ti_id` subscription lookups lack tenant scope
 - **Origin** sync + scan · **Severity** P1 · **Status** fixed
@@ -274,3 +211,72 @@ gateway **connection ID** (`connection_id`, the `ca_*`), trigger **subscription 
 - **Origin** scan · **Severity** P3 · **Status** fixed
 - **Files** `api/oss/src/core/gateway/connections/{dtos,service}.py`
 - **Fix applied** Widened `ConnectionCreate.data` to `Optional[Union[ConnectionCreateData, Json]]` (the service builds a provider-shaped persistence dict); dropped the `# type: ignore`.
+
+### [CLOSED] F23 — Schedule dispatch task wiring (false positive)
+- **Origin** sync (CodeRabbit, critical) · **Severity** P0 · **Status** wontfix (false-positive)
+- **Files** `api/entrypoints/routers.py:713`
+- **Verdict** CodeRabbit saw only the `TriggersService(...)` ctor at :684 and missed the deferred assignment at `:713` (`triggers_service.schedule_dispatch_task = _triggers_worker.dispatch_schedule`). The task IS wired; `refresh_schedules` does not hit the unconfigured branch. Validated green on nuke+redeploy.
+
+### [CLOSED] F25 — Dispatcher `is_valid` gate
+- **Origin** sync (CodeRabbit) · **Severity** P1 · **Status** fixed (committed `af24dad`)
+- **Files** `api/oss/src/tasks/asyncio/triggers/dispatcher.py`
+- **Fix applied** `dispatch_subscription` writes a 409 failed delivery and returns before invoke when `is_valid` is false; unit test asserts `invoke_workflow` not awaited + status 409.
+
+### [CLOSED] F26 — `refresh_schedules` success after dispatch failures
+- **Origin** sync (CodeRabbit) · **Severity** P1 · **Status** fixed (committed `af24dad`)
+- **Files** `api/oss/src/core/triggers/service.py`
+- **Fix applied** Counts `failures`; returns `failures == 0`.
+
+### [CLOSED] F27 — `oss000000004` backfill overwrites existing `is_active`
+- **Origin** sync (CodeRabbit) · **Severity** P1 · **Status** fixed (committed `af24dad`)
+- **Files** `.../oss000000004_add_webhook_subscription_flags.py`
+- **Fix applied** `jsonb_set(...) WHERE flags IS NULL OR flags ->> 'is_active' IS NULL`. (Subsumes F20's upgrade concern.)
+
+### [CLOSED] F28 — Webhook edit resurrects paused subscriptions
+- **Origin** sync (CodeRabbit) · **Severity** P1 · **Status** fixed (committed `af24dad`)
+- **Files** `api/oss/src/apis/fastapi/webhooks/router.py`
+- **Fix applied** Kept `flags` required (full-PUT, per the edits-are-full-PUT rule — reverted the optional/merge misstep); the `test_subscription` server-side builder now carries `flags=existing.flags`. The main edit route already passes the client's full body.
+
+### [CLOSED] F29 — `triggers.sh` aborts at `:00` minute
+- **Origin** sync (CodeRabbit) · **Severity** P1 · **Status** fixed (committed `af24dad`)
+- **Files** `api/oss/src/crons/triggers.sh`, `queries.sh`
+- **Fix applied** `MINUTE="${MINUTE:-0}"` in both crons.
+
+### [CLOSED] F30 — cron curl masks failures / no timeouts
+- **Origin** sync (CodeRabbit) · **Severity** P2 · **Status** fixed (committed `af24dad`)
+- **Files** `api/oss/src/crons/triggers.sh`, `queries.sh`
+- **Fix applied** Both OSS crons brought to the EE pattern (`--connect-timeout`/`--max-time`, curl-exit decode, HTTP-status check) rather than inventing a new `--fail` style.
+
+### [CLOSED] F31 — Provider enablement computed inconsistently
+- **Origin** sync (CodeRabbit) · **Severity** P2 · **Status** fixed (committed `af24dad`)
+- **Files** `api/oss/src/core/triggers/service.py`
+- **Fix applied** `_sync_provider_enabled` helper computes `enabled = is_active and is_valid`, used by edit/start/stop/refresh/revoke.
+
+### [CLOSED] F32 — `TriggerScheduleInvalid` structured context
+- **Origin** sync (CodeRabbit) · **Severity** P2 · **Status** fixed (committed `af24dad`)
+- **Files** `api/oss/src/core/triggers/exceptions.py`, `service.py`
+- **Fix applied** Added `schedule`/`reason`; raise sites populate them.
+
+### [CLOSED] F33 — Missing schedule-delivery ordering index
+- **Origin** sync (CodeRabbit) · **Severity** P2 · **Status** fixed (committed `af24dad`)
+- **Files** `.../oss000000003_...py`
+- **Fix applied** Added `ix_trigger_deliveries_schedule_id_created_at` (+ downgrade).
+
+### [CLOSED] F34 — schedules test consumes body before status assert
+- **Origin** sync (CodeRabbit) · **Severity** P3 · **Status** fixed (committed `af24dad`)
+- **Files** `api/oss/tests/pytest/acceptance/triggers/test_triggers_schedules.py`
+- **Fix applied** Assert status before `.json()` in both list flows.
+
+### [CLOSED] F35 — AGENTS.md test-run example syntax
+- **Origin** sync (CodeRabbit) · **Severity** P3 · **Status** fixed (committed `af24dad`)
+- **Files** `AGENTS.md`
+- **Fix applied** Rewritten as `cd <area>` with an explicit area list.
+
+### [CLOSED] F36 — `ti_id` → `trigger_id` naming consistency
+- **Origin** user · **Status** fixed (committed `af24dad`)
+- **Fix applied** See the "Naming consistency pass" note above. Validated green on nuke+redeploy (1007 sdk / 1862 api / 158 services).
+
+### [CLOSED] F38 — Triggers worker entrypoint crash-loop (missing `triggers_dao`)
+- **Origin** live run (manual E2E) · **Severity** P0 · **Status** fixed
+- **Files** `api/entrypoints/worker_triggers.py`
+- **Fix applied** The dispatcher refactor (dedup + `is_valid` 409 gate) added a required `triggers_dao` kwarg to `TriggersWorker.__init__`. `routers.py` was updated; `worker_triggers.py:94` was not, so the worker container raised `TypeError: ... missing 'triggers_dao'` and restarted every ~7s. Ingress kept returning 202 (verify + enqueue succeed) but nothing drained `queues:triggers` → no deliveries. Passed `triggers_dao=triggers_dao` (already constructed at line 58). Worker now boots (`Listening started`); confirmed against live DB — 2 deliveries written, one per path (subscription event + cron schedule). Tests didn't catch it: unit tests construct the worker with the dao directly; nothing exercises entrypoint wiring.
