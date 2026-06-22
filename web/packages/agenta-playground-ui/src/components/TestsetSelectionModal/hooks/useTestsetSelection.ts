@@ -98,12 +98,16 @@ export function useTestsetSelection(
             setSelectedRevisionId(revisionId)
             setSelectedTestsetId(testsetId)
 
-            // Initialize selection draft with preselected testcases
-            if (revisionId) {
+            // Only reset the selection draft when the revision actually changes.
+            // If the same revision is re-selected (e.g. AutoSelectHandler fires a
+            // second time because the user clicked the already-selected parent),
+            // preserving the existing draft prevents a spurious selection reset
+            // that would undo testcase selections the user already made.
+            if (revisionId && revisionId !== selectedRevisionId) {
                 initSelectionDraft(revisionId, preselectedIds)
             }
         },
-        [initSelectionDraft, preselectedIds],
+        [initSelectionDraft, preselectedIds, selectedRevisionId],
     )
 
     return {
