@@ -92,16 +92,16 @@ repair_path() {
 
     case "$path" in
         "/w")
-            railway service web >/dev/null && railway redeploy --yes >/dev/null
-            railway service gateway >/dev/null && railway redeploy --yes >/dev/null
+            railway service web >/dev/null && railway redeploy --service web --environment "$ENV_NAME" --yes >/dev/null
+            railway service gateway >/dev/null && railway redeploy --service gateway --environment "$ENV_NAME" --yes >/dev/null
             ;;
         "/api/health")
-            railway service api >/dev/null && railway redeploy --yes >/dev/null
-            railway service gateway >/dev/null && railway redeploy --yes >/dev/null
+            railway service api >/dev/null && railway redeploy --service api --environment "$ENV_NAME" --yes >/dev/null
+            railway service gateway >/dev/null && railway redeploy --service gateway --environment "$ENV_NAME" --yes >/dev/null
             ;;
         "/services/health")
-            railway service services >/dev/null && railway redeploy --yes >/dev/null
-            railway service gateway >/dev/null && railway redeploy --yes >/dev/null
+            railway service services >/dev/null && railway redeploy --service services --environment "$ENV_NAME" --yes >/dev/null
+            railway service gateway >/dev/null && railway redeploy --service gateway --environment "$ENV_NAME" --yes >/dev/null
             ;;
         *)
             return 1
