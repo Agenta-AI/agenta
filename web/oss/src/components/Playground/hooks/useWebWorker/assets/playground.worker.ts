@@ -1,3 +1,9 @@
+import {
+    MISSING_INVOCATION_URL_ERROR,
+    describeUnreachableService,
+    isHtmlBody,
+} from "@agenta/entities/shared/execution/invocationErrors"
+
 interface RunVariantRowPayload {
     rowId: string
     entityId: string
@@ -64,7 +70,7 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
     return value as Record<string, unknown>
 }
 
-const parseErrorMessage = (status: number, data: unknown, fallbackText = ""): string => {
+const parseErrorMessage = (status: number, data: unknown, fallbackText = "", url = ""): string => {
     if (status === 429) {
         const detailRec = asRecord(data)
         const detail =
@@ -86,6 +92,9 @@ const parseErrorMessage = (status: number, data: unknown, fallbackText = ""): st
     if (typeof rec?.detail === "string" && rec.detail.trim().length > 0) {
         return rec.detail
     }
+    if (isHtmlBody(fallbackText)) {
+        return describeUnreachableService(url, status)
+    }
     if (typeof fallbackText === "string" && fallbackText.trim().length > 0) {
         return fallbackText
     }
@@ -93,6 +102,17 @@ const parseErrorMessage = (status: number, data: unknown, fallbackText = ""): st
 }
 
 const executeRequest = async (payload: RunVariantRowPayload, controller: AbortController) => {
+    if (!payload.invocationUrl) {
+        return {
+            response: undefined,
+            error: MISSING_INVOCATION_URL_ERROR,
+            metadata: {
+                timestamp: new Date().toISOString(),
+                type: "configuration_error",
+            },
+        }
+    }
+
     try {
         const response = await fetch(payload.invocationUrl, {
             method: "POST",
@@ -124,7 +144,12 @@ const executeRequest = async (payload: RunVariantRowPayload, controller: AbortCo
         if (!response.ok) {
             return {
                 response: undefined,
-                error: parseErrorMessage(response.status, data, responseText),
+                error: parseErrorMessage(
+                    response.status,
+                    data,
+                    responseText,
+                    payload.invocationUrl,
+                ),
                 metadata: {
                     timestamp: new Date().toISOString(),
                     statusCode: response.status,
