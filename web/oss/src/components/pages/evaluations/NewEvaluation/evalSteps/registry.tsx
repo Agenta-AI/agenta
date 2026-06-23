@@ -31,7 +31,11 @@ import SelectVariantSection from "../Components/SelectVariantSection"
 import SelectWorkflowSection from "../Components/SelectWorkflowSection"
 import TracesSourceSection from "../Components/TracesSourceSection"
 
-import {buildTraceIdFilter} from "./sourceHelpers"
+import {
+    buildTraceEvaluationQueryName,
+    buildTraceIdFilter,
+    TRACE_EVALUATION_QUERY_SOURCE,
+} from "./sourceHelpers"
 import type {
     EvalStepDescriptorRegistry,
     EvalStepContext,
@@ -341,13 +345,16 @@ export const evalStepRegistry: EvalStepDescriptorRegistry = {
             if (!value.length) {
                 throw new Error("Select at least one trace before creating an evaluation.")
             }
-            const {revisionId} = await createSimpleQuery({
+            const queryName = buildTraceEvaluationQueryName(context.getEvaluationName())
+            const {queryId, revisionId} = await createSimpleQuery({
                 projectId: context.projectId,
                 query: {
-                    name: "trace-eval",
+                    name: queryName,
+                    meta: {source: TRACE_EVALUATION_QUERY_SOURCE},
                     data: {filtering: buildTraceIdFilter(value)},
                 },
             })
+            context.onQueryCreated({queryId, revisionId, name: queryName})
             invalidateQueryCache()
             return {query_steps: {[revisionId]: "auto"}}
         },

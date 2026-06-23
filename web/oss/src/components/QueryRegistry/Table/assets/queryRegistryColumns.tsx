@@ -192,10 +192,12 @@ export function createQueryRegistryColumns(
                 // Revision (child) row in the active expand: indent + version badge.
                 if (record.__isRevisionChild) {
                     return (
-                        <div className="flex h-full items-center gap-2 pl-7">
-                            <Text className="text-xs">{record.name}</Text>
+                        <div className="flex h-full min-w-0 items-center gap-2 pl-7">
+                            <Text className="min-w-0 text-xs" ellipsis={{tooltip: record.name}}>
+                                {record.name}
+                            </Text>
                             {record.version ? (
-                                <Tag className="m-0 text-xs">v{record.version}</Tag>
+                                <Tag className="m-0 shrink-0 text-xs">v{record.version}</Tag>
                             ) : null}
                         </div>
                     )
@@ -206,13 +208,17 @@ export function createQueryRegistryColumns(
                     return (
                         <div className="flex h-full min-w-0 items-center gap-2">
                             <span className="w-4 shrink-0" />
-                            <Text type="secondary" className="text-xs">
+                            <Text
+                                type="secondary"
+                                className="min-w-0 text-xs"
+                                ellipsis={{tooltip: record.name}}
+                            >
                                 {record.name}
                             </Text>
                             {record.version ? (
-                                <Tag className="m-0 text-xs">v{record.version}</Tag>
+                                <Tag className="m-0 shrink-0 text-xs">v{record.version}</Tag>
                             ) : null}
-                            <Tag className="m-0 text-xs">Archived</Tag>
+                            <Tag className="m-0 shrink-0 text-xs">Archived</Tag>
                         </div>
                     )
                 }
@@ -238,13 +244,18 @@ export function createQueryRegistryColumns(
                         ) : (
                             <span className="w-4 shrink-0" />
                         )}
-                        <Text className="text-xs font-medium">{record.name}</Text>
+                        <Text
+                            className="min-w-0 text-xs font-medium"
+                            ellipsis={{tooltip: record.name}}
+                        >
+                            {record.name}
+                        </Text>
                         {record.version ? (
-                            <Tag className="m-0 text-xs">v{record.version}</Tag>
+                            <Tag className="m-0 shrink-0 text-xs">v{record.version}</Tag>
                         ) : null}
                         {/* Parent row is the head revision — flag it as the latest. */}
                         {record.version ? (
-                            <span className="flex items-center gap-1.5">
+                            <span className="flex shrink-0 items-center gap-1.5">
                                 <Tag color="blue" className="m-0 text-xs">
                                     Last modified
                                 </Tag>

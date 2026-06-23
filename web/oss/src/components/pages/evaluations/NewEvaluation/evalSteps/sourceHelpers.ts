@@ -15,6 +15,18 @@ export const buildTraceIdFilter = (ids: string[]): TraceIdFilter => ({
     conditions: [{field: "trace_id", operator: "in", value: ids}],
 })
 
+/**
+ * Stamped on queries created by "run evaluation from traces" so the Query
+ * Registry can tell apart queries born from a trace-evaluation run from ones the
+ * user authored by hand. Stored under `meta.source`; read back via the same key.
+ */
+export const TRACE_EVALUATION_QUERY_SOURCE = "trace_evaluation"
+
+export const buildTraceEvaluationQueryName = (evaluationName: string): string => {
+    const trimmedName = evaluationName.trim()
+    return trimmedName || "Trace evaluation source"
+}
+
 export const rootKeysForTraceIds = (traces: TraceSpanNode[], ids: string[]): Key[] => {
     const selectedTraceIds = new Set(ids)
     return traces

@@ -47,8 +47,9 @@ import {
     evalStepRegistry,
     getDefaultEvalSteps,
 } from "../evalSteps/registry"
-import {activeEvalStepAtom, evalStepValuesAtom} from "../evalSteps/state"
+import {activeEvalStepAtom, evalStepValuesAtom, evaluationNameAtom} from "../evalSteps/state"
 import type {
+    CreatedSourceQuery,
     EvalStepContext,
     EvalStepKind,
     EvalStepRuntime,
@@ -71,6 +72,7 @@ const TOUR_PANEL_TO_STEP: Record<string, EvalStepKind> = {
 }
 
 const MUTUALLY_EXCLUSIVE_STEP_GROUPS: EvalStepKind[][] = [["traces", "query"]]
+const TRACE_EVALUATION_SUBMIT_MESSAGE_KEY = "trace-evaluation-submit"
 
 const cloneDefaultValue = <Kind extends EvalStepKind>(kind: Kind): EvalStepValueMap[Kind] =>
     structuredClone(evalStepRegistry[kind].defaultValue)
@@ -101,6 +103,14 @@ const NewEvaluationModalInner = ({
     const {apps: availableApps = []} = useAppsData()
     const [stepValues, setStepValues] = useAtom(evalStepValuesAtom)
     const stepValuesRef = useRef(stepValues)
+    const [evaluationName, setEvaluationName] = useAtom(evaluationNameAtom)
+    const evaluationNameRef = useRef(evaluationName)
+    evaluationNameRef.current = evaluationName
+    const [nameFocused, setNameFocused] = useState(false)
+    const lastAutoNameRef = useRef("")
+    const lastBaseRef = useRef("")
+    const randomWordRef = useRef("")
+    const createdSourceQueryRef = useRef<CreatedSourceQuery | null>(null)
     const setActiveStep = useSetAtom(activeEvalStepAtom)
     const setRegistryWorkflowIdOverride = useSetAtom(registryWorkflowIdOverrideAtom)
 
@@ -222,6 +232,12 @@ const NewEvaluationModalInner = ({
         [],
     )
 
+    const handleQueryCreated = useCallback((query: CreatedSourceQuery) => {
+        createdSourceQueryRef.current = query
+    }, [])
+    const getCreatedSourceQuery = useCallback(() => createdSourceQueryRef.current, [])
+    const getEvaluationName = useCallback(() => evaluationNameRef.current, [])
+
     const isVisible = useCallback(
         (slot: EvaluationStepSlot<EvalStepKind>) =>
             !slot.hidden &&
@@ -231,12 +247,22 @@ const NewEvaluationModalInner = ({
                 evaluationType,
                 preview,
                 liveCompatibleEvaluatorsOnly,
+                getEvaluationName,
+                onQueryCreated: handleQueryCreated,
                 getStepValue,
                 setStepValue: () => undefined,
                 advanceFrom: () => undefined,
             }) ??
                 true),
-        [evaluationType, getStepValue, liveCompatibleEvaluatorsOnly, preview, projectId],
+        [
+            evaluationType,
+            getEvaluationName,
+            getStepValue,
+            handleQueryCreated,
+            liveCompatibleEvaluatorsOnly,
+            preview,
+            projectId,
+        ],
     )
 
     const baseContext = useMemo(
@@ -246,8 +272,18 @@ const NewEvaluationModalInner = ({
             evaluationType,
             preview,
             liveCompatibleEvaluatorsOnly,
+            getEvaluationName,
+            onQueryCreated: handleQueryCreated,
         }),
-        [evaluationType, liveCompatibleEvaluatorsOnly, preview, projectId, selectedWorkflowId],
+        [
+            evaluationType,
+            getEvaluationName,
+            handleQueryCreated,
+            liveCompatibleEvaluatorsOnly,
+            preview,
+            projectId,
+            selectedWorkflowId,
+        ],
     )
 
     const advanceFrom = useCallback(
@@ -419,7 +455,10 @@ const NewEvaluationModalInner = ({
     )
     const generatedNameBase = useMemo(() => {
         if (nameBuilder) return nameBuilder(stepValues)
-        if (resolvedSteps.some((slot) => slot.kind === "traces")) return "trace-eval"
+        if (resolvedSteps.some((slot) => slot.kind === "traces")) {
+            const traceCount = stepValues.traces?.length ?? 0
+            return `trace-evaluation-${traceCount}-${traceCount === 1 ? "trace" : "traces"}`
+        }
         if (resolvedSteps.some((slot) => slot.kind === "query")) {
             const query = stepValues.query as EvalStepValueMap["query"] | undefined
             return query?.name ? `${query.name}-eval` : "query-eval"
@@ -438,12 +477,6 @@ const NewEvaluationModalInner = ({
         stepValues,
         testset.name,
     ])
-
-    const [evaluationName, setEvaluationName] = useState("")
-    const [nameFocused, setNameFocused] = useState(false)
-    const lastAutoNameRef = useRef("")
-    const lastBaseRef = useRef("")
-    const randomWordRef = useRef("")
 
     useEffect(() => {
         const value = globalThis.crypto?.getRandomValues?.(new Uint32Array(1))?.[0] ?? 0
@@ -600,6 +633,16 @@ const NewEvaluationModalInner = ({
                 return
             }
 
+            const createsSourceQuery = resolvedSteps.some((slot) => slot.kind === "traces")
+            createdSourceQueryRef.current = null
+            if (createsSourceQuery) {
+                message.loading({
+                    content: "Creating source query and starting evaluation…",
+                    key: TRACE_EVALUATION_SUBMIT_MESSAGE_KEY,
+                    duration: 0,
+                })
+            }
+
             const payload = await composeEvaluationStepPayload(
                 resolvedSteps,
                 evalStepEngineRegistry,
@@ -610,8 +653,12 @@ const NewEvaluationModalInner = ({
                 name: evaluationName,
                 data: payload,
             })
+            const createdSourceQuery = getCreatedSourceQuery()
             const runCount = response.runs.length
             const runId = response.data.evaluation?.id
+            const queryRegistryUrl = `${projectURL}/queries`
+            const startedLabel =
+                runCount > 1 ? `${runCount} evaluations started.` : "Evaluation started."
             if (runId) {
                 const resultsUrl = buildEvaluationNavigationUrl({
                     scope:
@@ -623,9 +670,9 @@ const NewEvaluationModalInner = ({
                     appId: selectedWorkflowId || undefined,
                     path: `/evaluations/results/${runId}`,
                 })
-                message.success(
+                const successContent = (
                     <span>
-                        {runCount > 1 ? `${runCount} evaluations started.` : "Evaluation started."}{" "}
+                        {startedLabel}{" "}
                         <a
                             href={resultsUrl}
                             onClick={(event) => {
@@ -636,17 +683,78 @@ const NewEvaluationModalInner = ({
                         >
                             View progress
                         </a>
-                    </span>,
+                    </span>
+                )
+                message.success(
+                    createsSourceQuery
+                        ? {
+                              content: successContent,
+                              key: TRACE_EVALUATION_SUBMIT_MESSAGE_KEY,
+                          }
+                        : successContent,
                 )
             } else {
                 message.success(
-                    runCount > 1 ? `${runCount} evaluations started` : "Evaluation started",
+                    createsSourceQuery
+                        ? {
+                              content: startedLabel,
+                              key: TRACE_EVALUATION_SUBMIT_MESSAGE_KEY,
+                          }
+                        : startedLabel,
+                )
+            }
+            if (createdSourceQuery) {
+                message.success(
+                    <span>
+                        A query named{" "}
+                        <a
+                            href={queryRegistryUrl}
+                            onClick={(event) => {
+                                event.preventDefault()
+                                router.push(queryRegistryUrl)
+                            }}
+                            className="underline font-medium"
+                        >
+                            {createdSourceQuery.name}
+                        </a>{" "}
+                        has been created.
+                    </span>,
                 )
             }
             onSuccess?.()
         } catch (error) {
             console.error("[NewEvaluationModal] Error creating evaluation:", error)
-            message.error("Unable to start evaluation")
+            const createsSourceQuery = resolvedSteps.some((slot) => slot.kind === "traces")
+            const createdSourceQuery = getCreatedSourceQuery()
+            if (createsSourceQuery && createdSourceQuery) {
+                const queryRegistryUrl = `${projectURL}/queries`
+                message.error({
+                    content: (
+                        <span>
+                            A query named{" "}
+                            <a
+                                href={queryRegistryUrl}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    router.push(queryRegistryUrl)
+                                }}
+                                className="underline font-medium"
+                            >
+                                {createdSourceQuery.name}
+                            </a>{" "}
+                            was created, but the evaluation could not be started.
+                        </span>
+                    ),
+                    key: TRACE_EVALUATION_SUBMIT_MESSAGE_KEY,
+                })
+            } else if (createsSourceQuery) {
+                message.error({
+                    content: "Unable to create the source query. Evaluation was not started.",
+                    key: TRACE_EVALUATION_SUBMIT_MESSAGE_KEY,
+                })
+            } else {
+                message.error("Unable to start evaluation")
+            }
         } finally {
             onSubmitStateChange?.(false)
         }
@@ -660,6 +768,7 @@ const NewEvaluationModalInner = ({
         evaluatorRowsByRevisionId,
         filteredVariants,
         getStepValue,
+        getCreatedSourceQuery,
         isAppScoped,
         onSubmitStateChange,
         onSuccess,
