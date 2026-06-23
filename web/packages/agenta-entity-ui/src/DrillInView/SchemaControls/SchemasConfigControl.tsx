@@ -79,8 +79,7 @@ const SchemaEditor = memo(function SchemaEditor({
         </div>
     )
 
-    // !min-h-0 drops EditorProvider's min-h-[70px] so collapsed cards hug their
-    // header (mirrors the tools list in PromptSchemaControl).
+// `!min-h-0` removes EditorProvider's min height so collapsed cards hug the header.
     return (
         <EditorProvider
             codeOnly
