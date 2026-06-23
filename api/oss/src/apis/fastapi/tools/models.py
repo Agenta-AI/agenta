@@ -1,6 +1,12 @@
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
-from pydantic import BaseModel
+from agenta.sdk.agents.tools import (
+    BuiltinToolConfig,
+    GatewayToolConfig,
+    ToolConfigurationError,
+    coerce_tool_configs,
+)
+from pydantic import BaseModel, Field, field_validator
 
 from oss.src.core.tools.dtos import (
     # Tool Catalog
@@ -15,6 +21,9 @@ from oss.src.core.tools.dtos import (
     ToolConnectionCreate,
     # Tool Calls
     ToolResult,
+    # Agent tools
+    AgentToolReference,
+    ResolvedAgentTool,
 )
 
 
@@ -87,3 +96,34 @@ class ToolConnectionsResponse(BaseModel):
 
 class ToolCallResponse(BaseModel):
     call: ToolResult
+
+
+# ---------------------------------------------------------------------------
+# Agent tool resolution
+# ---------------------------------------------------------------------------
+
+
+class ToolResolveRequest(BaseModel):
+    tools: List[AgentToolReference] = Field(default_factory=list)
+
+    @field_validator("tools", mode="before")
+    @classmethod
+    def _coerce_tools(cls, value: Any) -> List[AgentToolReference]:
+        try:
+            configs = coerce_tool_configs(value or []).tool_configs
+        except ToolConfigurationError as exc:
+            raise ValueError(str(exc)) from exc
+        unsupported = [
+            config
+            for config in configs
+            if not isinstance(config, (BuiltinToolConfig, GatewayToolConfig))
+        ]
+        if unsupported:
+            raise ValueError("/tools/resolve accepts only builtin and gateway tools")
+        return configs
+
+
+class ToolResolveResponse(BaseModel):
+    count: int = 0
+    builtins: List[str] = Field(default_factory=list)
+    custom: List[ResolvedAgentTool] = Field(default_factory=list)
