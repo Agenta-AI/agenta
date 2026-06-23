@@ -100,7 +100,7 @@ export async function fetchEnvironmentRevisionsList({
         `${getAgentaApiUrl()}/environments/revisions/query`,
         {
             environment_refs: [{id: environmentId}],
-            ...(applicationId ? {application_refs: [{id: applicationId}]} : {}),
+            ...(applicationId ? {references: [{id: applicationId}]} : {}),
             ...(hasRevisionQuery ? {environment_revision: {message}} : {}),
             windowing: {limit: 100, order: "descending"},
         },

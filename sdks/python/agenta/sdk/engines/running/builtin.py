@@ -166,12 +166,16 @@ def auto_custom_code_run(
     correct_answer_key: Optional[str] = "correct_answer",
     threshold: Optional[float] = 0.5,
     runtime: Optional[str] = "python",
+    version: Optional[str] = "3",
 ) -> Workflow:
     parameters = dict(
         code=code,
         correct_answer_key=correct_answer_key,
         threshold=threshold,
         runtime=runtime,
+        # A falsy version would silently select the legacy v1 contract in the
+        # handler; coerce it back to the current default.
+        version=version or "3",
     )
 
     return evaluator(

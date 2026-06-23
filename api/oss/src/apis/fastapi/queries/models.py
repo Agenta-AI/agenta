@@ -12,6 +12,8 @@ from oss.src.core.queries.dtos import (
     QueryCreate,
     QueryEdit,
     QueryQuery,
+    QueryFork,
+    QueryVariantFork,
     #
     QueryVariant,
     QueryVariantCreate,
@@ -40,6 +42,12 @@ class QueryCreateRequest(BaseModel):
 
 class QueryEditRequest(BaseModel):
     query: QueryEdit
+
+
+class QueryForkRequest(BaseModel):
+    query: QueryFork = Field(
+        description="Fork specification. Supply the source variant and optional revision to fork from, plus slug/name for the new variant.",
+    )
 
 
 class QueryQueryRequest(BaseModel):
@@ -85,13 +93,16 @@ class QueryVariantQueryRequest(BaseModel):
 
 
 class QueryVariantForkRequest(BaseModel):
-    source_query_variant_ref: Reference
-    target_query_ref: Reference
-    #
-    slug: Optional[str] = None
-    #
-    name: Optional[str] = None
-    description: Optional[str] = None
+    query_variant: QueryVariantFork = Field(
+        description="Config for the new variant (slug, name, description, flags).",
+    )
+    query_variant_ref: Reference = Field(
+        description="Source variant to fork from.",
+    )
+    query_revision_ref: Optional[Reference] = Field(
+        default=None,
+        description="Pin the fork to this revision; defaults to the source variant's head.",
+    )
 
 
 class QueryVariantResponse(BaseModel):
@@ -128,7 +139,7 @@ class QueryRevisionQueryRequest(BaseModel):
 
 
 class QueryRevisionCommitRequest(BaseModel):
-    query_revision_commit: QueryRevisionCommit
+    query_revision: QueryRevisionCommit
 
 
 class QueryRevisionsLogRequest(BaseModel):

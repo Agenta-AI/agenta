@@ -13,7 +13,6 @@ import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {generateId} from "@agenta/shared/utils"
 import type {Getter, Setter} from "jotai"
-import {getDefaultStore} from "jotai/vanilla"
 
 import {messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat/messageAtoms"
 import {SHARED_SESSION_ID, type ChatMessage} from "../chat/messageTypes"
@@ -107,6 +106,50 @@ function normalizeApplicationReferences(
     return Object.keys(normalized).length > 0 ? normalized : undefined
 }
 
+function normalizeEvaluatorReferences(
+    references: RequestPayloadData["references"],
+): TraceReferenceMap | undefined {
+    if (!references) return undefined
+
+    const evaluatorRef = asRecord(references.evaluator)
+    const evaluatorVariantRef = asRecord(references.evaluator_variant)
+    const evaluatorRevisionRef = asRecord(references.evaluator_revision)
+    const normalized: TraceReferenceMap = {}
+
+    const evaluatorId = readString(evaluatorRef?.id)
+    const evaluatorSlug = readString(evaluatorRef?.slug)
+    if (evaluatorId || evaluatorSlug) {
+        normalized.evaluator = {
+            ...(evaluatorId ? {id: evaluatorId} : {}),
+            ...(evaluatorSlug ? {slug: evaluatorSlug} : {}),
+        }
+    }
+
+    const evaluatorVariantId =
+        readString(evaluatorVariantRef?.id) || readString(evaluatorRef?.variant_id)
+    const evaluatorVariantSlug = readString(evaluatorVariantRef?.slug)
+    if (evaluatorVariantId || evaluatorVariantSlug) {
+        normalized.evaluator_variant = {
+            ...(evaluatorVariantId ? {id: evaluatorVariantId} : {}),
+            ...(evaluatorVariantSlug ? {slug: evaluatorVariantSlug} : {}),
+        }
+    }
+
+    const evaluatorRevisionId =
+        readString(evaluatorRevisionRef?.id) || readString(evaluatorRef?.revision_id)
+    const evaluatorRevisionSlug = readString(evaluatorRevisionRef?.slug)
+    const evaluatorRevisionVersion = readString(evaluatorRevisionRef?.version)
+    if (evaluatorRevisionId || evaluatorRevisionSlug || evaluatorRevisionVersion) {
+        normalized.evaluator_revision = {
+            ...(evaluatorRevisionId ? {id: evaluatorRevisionId} : {}),
+            ...(evaluatorRevisionSlug ? {slug: evaluatorRevisionSlug} : {}),
+            ...(evaluatorRevisionVersion ? {version: evaluatorRevisionVersion} : {}),
+        }
+    }
+
+    return Object.keys(normalized).length > 0 ? normalized : undefined
+}
+
 function toRunnableNode(node: PlaygroundNode): RunnableNode {
     return {
         id: node.id,
@@ -161,7 +204,65 @@ function buildUpstreamReferences(params: {
         workflowMolecule.selectors.requestPayload(sourceNode.entity.id),
     ) as RequestPayloadData | null
 
-    return normalizeApplicationReferences(sourcePayload?.references)
+    return (
+        normalizeApplicationReferences(sourcePayload?.references) ??
+        buildApplicationSelfReferences({
+            get: params.get,
+            revisionId: sourceNode.entity.id,
+        })
+    )
+}
+
+function buildApplicationSelfReferences(params: {
+    get: Getter
+    revisionId: string
+}): TraceReferenceMap | undefined {
+    const revision = params.get(workflowMolecule.selectors.data(params.revisionId)) as
+        | (Record<string, unknown> & {flags?: Record<string, unknown> | null})
+        | null
+    if (!revision || revision.flags?.is_evaluator === true) return undefined
+
+    const realId = (value: unknown): string | undefined => {
+        const s = readString(value)
+        return s && !isLocalDraftId(s) ? s : undefined
+    }
+
+    const refs: TraceReferenceMap = {}
+
+    const workflowId = realId(revision.workflow_id) ?? realId(revision.artifact_id)
+    const workflowSlug = readString(revision.workflow_slug) ?? readString(revision.artifact_slug)
+    if (workflowId || workflowSlug) {
+        refs.application = {
+            ...(workflowId ? {id: workflowId} : {}),
+            ...(workflowSlug ? {slug: workflowSlug} : {}),
+        }
+    }
+
+    const variantId = realId(revision.workflow_variant_id) ?? realId(revision.variant_id)
+    const variantSlug =
+        readString(revision.workflow_variant_slug) ?? readString(revision.variant_slug)
+    if (variantId || variantSlug) {
+        refs.application_variant = {
+            ...(variantId ? {id: variantId} : {}),
+            ...(variantSlug ? {slug: variantSlug} : {}),
+        }
+    }
+
+    const revisionId = realId(revision.id) ?? realId(params.revisionId)
+    const revisionSlug = readString(revision.slug)
+    const revisionVersion =
+        typeof revision.version === "number"
+            ? String(revision.version)
+            : readString(revision.version)
+    if (revisionId || revisionSlug || revisionVersion) {
+        refs.application_revision = {
+            ...(revisionId ? {id: revisionId} : {}),
+            ...(revisionSlug ? {slug: revisionSlug} : {}),
+            ...(revisionVersion ? {version: revisionVersion} : {}),
+        }
+    }
+
+    return Object.keys(refs).length > 0 ? refs : undefined
 }
 
 /**
@@ -192,6 +293,12 @@ function buildEvaluatorSelfReferences(params: {
     get: Getter
     revisionId: string
 }): TraceReferenceMap | undefined {
+    const requestPayload = params.get(
+        workflowMolecule.selectors.requestPayload(params.revisionId),
+    ) as RequestPayloadData | null
+    const requestRefs = normalizeEvaluatorReferences(requestPayload?.references)
+    if (requestRefs) return requestRefs
+
     const revision = params.get(workflowMolecule.selectors.data(params.revisionId)) as
         | (Record<string, unknown> & {flags?: Record<string, unknown> | null})
         | null
@@ -525,11 +632,10 @@ export async function executeStepForSessionWithExecutionItems(
                             const upstreamOutput =
                                 upstreamResult?.output ?? upstreamResult?.structuredOutput
 
-                            const evalStore = getDefaultStore()
-                            const stageConfiguration = evalStore.get(
+                            const stageConfiguration = get(
                                 workflowMolecule.selectors.configuration(targetEntityId),
                             )
-                            const stageSchemas = evalStore.get(
+                            const stageSchemas = get(
                                 workflowMolecule.selectors.ioSchemas(targetEntityId),
                             )
                             const inputSchema =
@@ -610,24 +716,18 @@ export async function executeStepForSessionWithExecutionItems(
                             : undefined
                     const stageReferences = (() => {
                         if (node.depth === 0) return undefined
-                        const upstream = buildUpstreamReferences({
+                        const selfEval = buildEvaluatorSelfReferences({
+                            get,
+                            revisionId: node.entity.id as string,
+                        })
+                        if (selfEval) return selfEval
+                        return buildUpstreamReferences({
                             get,
                             incomingConnection: allConnections.find(
                                 (connection) => connection.targetNodeId === nodeId,
                             ),
                             runnableNodes,
                         })
-                        // For evaluator stages, also attach the evaluator's
-                        // own identity so the emitted trace can be found via
-                        // `references.evaluator.slug` on the evaluator's
-                        // /apps/<evalId>/traces page. Merges with upstream
-                        // application refs (the app being scored).
-                        const selfEval = buildEvaluatorSelfReferences({
-                            get,
-                            revisionId: node.entity.id as string,
-                        })
-                        if (!upstream && !selfEval) return undefined
-                        return {...(upstream ?? {}), ...(selfEval ?? {})}
                     })()
 
                     const stageExecutionItem = stageHandle.run({

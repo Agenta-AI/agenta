@@ -303,95 +303,67 @@ const testcaseBatchFetcher = createBatchFetcher<
     serializeKey: ({projectId, testcaseId}) => `${projectId}:${testcaseId}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, Testcase | null>()
+        serializedKeys.forEach((key) => results.set(key, null))
 
-        // Check cache first (grouped by project for efficiency)
-        const cacheCheckGroups = new Map<
-            string,
-            {
-                queryClient: import("@tanstack/react-query").QueryClient
-                testcaseIds: string[]
-                keyMap: Map<string, string>
-            }
-        >()
-
-        requests.forEach((req, idx) => {
-            const key = serializedKeys[idx]
-            if (req.queryClient && req.projectId && req.testcaseId && isValidUUID(req.testcaseId)) {
-                const groupKey = req.projectId
-                const existing = cacheCheckGroups.get(groupKey)
-                if (existing) {
-                    existing.testcaseIds.push(req.testcaseId)
-                    existing.keyMap.set(req.testcaseId, key)
-                } else {
-                    cacheCheckGroups.set(groupKey, {
-                        queryClient: req.queryClient,
-                        testcaseIds: [req.testcaseId],
-                        keyMap: new Map([[req.testcaseId, key]]),
-                    })
-                }
-            }
-        })
-
-        // Look up in cache
-        for (const [projectId, {queryClient, testcaseIds, keyMap}] of cacheCheckGroups) {
-            const found = findMultipleInCache(queryClient, projectId, testcaseIds)
-            for (const [testcaseId, testcase] of found) {
-                const serializedKey = keyMap.get(testcaseId)
-                if (serializedKey) {
-                    results.set(serializedKey, testcase)
-                }
-            }
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("testcaseBatchFetcher: requests span multiple projects")
         }
 
-        // Fetch remaining from API
-        const byProject = new Map<string, {ids: string[]; keys: string[]}>()
+        // Check the TanStack cache first
+        const queryClient = requests.find((req) => req.queryClient)?.queryClient
+        if (queryClient) {
+            const validIds = requests
+                .map((req) => req.testcaseId)
+                .filter((id) => id && isValidUUID(id))
+            const found = findMultipleInCache(queryClient, projectId, validIds)
+            requests.forEach((req, idx) => {
+                const cached = found.get(req.testcaseId)
+                if (cached) {
+                    results.set(serializedKeys[idx], cached)
+                }
+            })
+        }
+
+        // Fetch the rest from the API
+        const toFetch: {id: string; key: string}[] = []
         requests.forEach((req, idx) => {
             const key = serializedKeys[idx]
-            if (results.has(key)) return
-            if (!req.projectId || !req.testcaseId || !isValidUUID(req.testcaseId)) {
-                results.set(key, null)
-                return
-            }
-            const existing = byProject.get(req.projectId)
-            if (existing) {
-                existing.ids.push(req.testcaseId)
-                existing.keys.push(key)
-            } else {
-                byProject.set(req.projectId, {ids: [req.testcaseId], keys: [key]})
-            }
+            if (!req.testcaseId || !isValidUUID(req.testcaseId)) return
+            if (results.get(key)) return
+            toFetch.push({id: req.testcaseId, key})
         })
 
-        await Promise.all(
-            Array.from(byProject.entries()).map(async ([projectId, {ids, keys}]) => {
+        if (toFetch.length === 0) return results
+
+        try {
+            const response = await axios.post(
+                `${getAgentaApiUrl()}/testcases/query`,
+                {testcase_ids: toFetch.map((entry) => entry.id)},
+                {params: {project_id: projectId}},
+            )
+            const testcases = response.data?.testcases ?? []
+            const byId = new Map<string, Testcase>()
+
+            testcases.forEach((tc: unknown) => {
                 try {
-                    const response = await axios.post(
-                        `${getAgentaApiUrl()}/testcases/query`,
-                        {testcase_ids: ids},
-                        {params: {project_id: projectId}},
-                    )
-                    const testcases = response.data?.testcases ?? []
-                    const byId = new Map<string, Testcase>()
-
-                    testcases.forEach((tc: unknown) => {
-                        try {
-                            const validated = testcaseSchema.parse(tc)
-                            if (validated.id) {
-                                byId.set(validated.id, validated)
-                            }
-                        } catch (e) {
-                            console.error("[testcaseBatchFetcher] Validation error:", e)
-                        }
-                    })
-
-                    ids.forEach((id, idx) => {
-                        results.set(keys[idx], byId.get(id) ?? null)
-                    })
-                } catch (error) {
-                    console.error("[testcaseBatchFetcher] Fetch error:", error)
-                    keys.forEach((key) => results.set(key, null))
+                    const validated = testcaseSchema.parse(tc)
+                    if (validated.id) {
+                        byId.set(validated.id, validated)
+                    }
+                } catch (e) {
+                    console.error("[testcaseBatchFetcher] Validation error:", e)
                 }
-            }),
-        )
+            })
+
+            toFetch.forEach(({id, key}) => {
+                results.set(key, byId.get(id) ?? null)
+            })
+        } catch (error) {
+            console.error("[testcaseBatchFetcher] Fetch error:", error)
+        }
 
         return results
     },

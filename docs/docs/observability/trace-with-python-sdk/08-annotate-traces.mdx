@@ -112,7 +112,7 @@ Every annotation references an `Evaluator` by slug. The evaluator:
 - Defines what your annotation should contain
 - Provides context for interpreting the annotation
 
-Annotations accept any slug in `references.evaluator.slug`. The call succeeds even if no evaluator entity with that slug exists yet. To see the evaluator (and its aggregated stats) in the Agenta UI, create the evaluator explicitly through `POST /api/simple/evaluators/` or from the UI. Evaluators are not auto-created from the annotation payload.
+Annotations accept any slug in `references.evaluator.slug`. The first time Agenta sees a new slug, it creates the evaluator for you and infers its output schema from the annotation data. The evaluator then shows up in the UI with its aggregated stats. If you want an explicit schema (fixed labels, required fields, or value ranges), create the evaluator first through `POST /api/simple/evaluators/` or from the UI before you send annotations.
 
 You can add multiple annotations from the same evaluator to a single span, which is useful for collecting feedback from different sources.
 
@@ -236,7 +236,7 @@ createAnnotation();
 </Tabs>
 
 :::info
-Annotations accept any evaluator slug. To make the evaluator appear in the UI with aggregated stats, create it explicitly via `POST /api/simple/evaluators/` or from the Agenta UI.
+Annotations accept any evaluator slug. Agenta auto-creates the evaluator on the first annotation and infers its output schema from your data. To control the schema (fixed labels, required fields, or value ranges), create the evaluator first via `POST /api/simple/evaluators/` or from the Agenta UI.
 :::
 
 ## Understanding the Response

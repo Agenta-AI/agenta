@@ -55,7 +55,13 @@ const DrawerHeader = ({entityId, onClose}: {entityId: string; onClose: () => voi
     const entityData = useAtomValue(
         useMemo(() => workflowMolecule.selectors.data(entityId), [entityId]),
     )
-    const name = entityData?.name?.trim() || entityData?.slug?.trim() || "New Evaluator"
+    // Entity display name lives on the artifact; the revision's own `name`
+    // carries the variant name ("default"). Falls back to the entity name
+    // for ephemeral drafts that have no artifact yet.
+    const artifactName = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.artifactName(entityId), [entityId]),
+    )
+    const name = artifactName?.trim() || entityData?.slug?.trim() || "New Evaluator"
 
     return (
         <div className="flex items-center justify-between px-4 py-3 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">

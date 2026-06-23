@@ -199,7 +199,7 @@ class SubscriptionsService:
 
         return subscription
 
-    async def provision_signup_subscription(
+    async def provision_subscription(
         self,
         *,
         organization_id: str,
@@ -234,6 +234,40 @@ class SubscriptionsService:
             organization_id=organization_id,
             plan=get_default_plan(),
         )
+
+    async def cancel_subscription(
+        self,
+        *,
+        organization_id: str,
+    ) -> bool:
+        """Cancel an organization's Stripe subscription, if any.
+
+        Used by org/account deletion to stop billing before the local rows are
+        removed. Returns True if a live subscription was cancelled at Stripe,
+        False when there was nothing to cancel (no subscription, or Stripe
+        disabled). Raises on a genuine Stripe failure so the caller can decide
+        whether to treat it as best-effort.
+        """
+        subscription = await self.read(organization_id=organization_id)
+
+        if not subscription or not subscription.subscription_id:
+            return False
+
+        stripe = _load_stripe()
+        if stripe is None:
+            return False
+
+        stripe_subscription = stripe.Subscription.retrieve(
+            subscription.subscription_id,
+        )
+
+        status = getattr(stripe_subscription, "status", None)
+        if status == "canceled":
+            return False
+
+        stripe.Subscription.cancel(subscription.subscription_id)
+
+        return True
 
     async def process_event(
         self,

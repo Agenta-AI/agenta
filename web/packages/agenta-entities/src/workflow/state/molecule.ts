@@ -88,6 +88,8 @@ import {
     workflowAppSchemaAtomFamily,
     workflowInterfaceSchemasAtomFamily,
     workflowDraftAtomFamily,
+    workflowArtifactQueryAtomFamily,
+    workflowVariantsQueryAtomFamily,
     workflowBaseEntityAtomFamily,
     workflowEntityAtomFamily,
     workflowLocalServerDataAtomFamily,
@@ -428,6 +430,48 @@ const nameAtomFamily = atomFamily((workflowId: string) =>
     atom<string | null>((get) => {
         const entity = get(workflowBaseEntityAtomFamily(workflowId))
         return entity?.name ?? null
+    }),
+)
+
+/**
+ * Entity display name resolved from the workflow ARTIFACT.
+ *
+ * Revision `name` carries the variant name ("default"), not the entity name,
+ * so surfaces that label the entity (evaluator tables, annotation cells, page
+ * headers) must read the artifact's name. Accepts a revision id or a workflow
+ * id; falls back to the entity's own name for local drafts without an artifact.
+ */
+const artifactNameAtomFamily = atomFamily((entityId: string) =>
+    atom<string | null>((get) => {
+        if (!entityId) return null
+        const entity = get(workflowBaseEntityAtomFamily(entityId))
+        const artifactId = entity?.workflow_id ?? entityId
+        const artifactQuery = get(workflowArtifactQueryAtomFamily(artifactId))
+        return artifactQuery.data?.name ?? entity?.name ?? null
+    }),
+)
+
+/**
+ * Variant label resolved from the VARIANT entity.
+ *
+ * The label is `variant.name`, then `variant.slug` (SDK-created variants
+ * carry no name; their slug is "default"). Never labels from revision
+ * fields: a revision's `name` is unreliable and its slug is an opaque hex.
+ * Accepts a revision id or a workflow id; for a workflow id the latest
+ * revision's variant label is returned.
+ */
+const variantLabelAtomFamily = atomFamily((entityId: string) =>
+    atom<string | null>((get) => {
+        if (!entityId) return null
+        const entity = get(workflowBaseEntityAtomFamily(entityId))
+        const workflowId = entity?.workflow_id ?? null
+        const variantId = entity?.workflow_variant_id ?? entity?.variant_id ?? null
+        if (!workflowId || !variantId) return null
+        const variantsQuery = get(workflowVariantsQueryAtomFamily(workflowId))
+        const variant = (variantsQuery.data?.workflow_variants ?? []).find(
+            (v) => v.id === variantId,
+        )
+        return variant?.name ?? variant?.slug ?? null
     }),
 )
 
@@ -1128,7 +1172,7 @@ const outputPortsAtomFamily = atomFamily((workflowId: string) =>
                     type: "string",
                 }))
             }
-            return [{key: "output", name: "output", type: "string"}]
+            return [{key: "output", name: "output", type: "string", isFallback: true}]
         }
 
         const schemaOutputs = extractOutputPortsFromSchema(entity?.data?.schemas?.outputs)
@@ -1181,11 +1225,11 @@ const outputPortsAtomFamily = atomFamily((workflowId: string) =>
                 }))
             }
             if (schemaOutputs.length > 0) return schemaOutputs
-            return [{key: "score", name: "Score", type: "number"}]
+            return [{key: "score", name: "Score", type: "number", isFallback: true}]
         }
 
         if (schemaOutputs.length > 0) return schemaOutputs
-        return [{key: "output", name: "output", type: "string"}]
+        return [{key: "output", name: "output", type: "string", isFallback: true}]
     }),
 )
 
@@ -1316,6 +1360,10 @@ export const workflowMolecule = {
         outputSchema: outputSchemaAtomFamily,
         /** Workflow name */
         name: nameAtomFamily,
+        /** Entity display name from the workflow artifact (revision names carry the variant name) */
+        artifactName: artifactNameAtomFamily,
+        /** Variant label from the variant entity (name, then slug) */
+        variantLabel: variantLabelAtomFamily,
         /** Workflow slug */
         slug: slugAtomFamily,
 
@@ -1461,6 +1509,10 @@ export const workflowMolecule = {
             getStore(options).get(parametersAtomFamily(workflowId)),
         name: (workflowId: string, options?: StoreOptions) =>
             getStore(options).get(nameAtomFamily(workflowId)),
+        artifactName: (entityId: string, options?: StoreOptions) =>
+            getStore(options).get(artifactNameAtomFamily(entityId)),
+        variantLabel: (entityId: string, options?: StoreOptions) =>
+            getStore(options).get(variantLabelAtomFamily(entityId)),
         // Raw flags
         flags: (workflowId: string, options?: StoreOptions) =>
             getStore(options).get(flagsAtomFamily(workflowId)),

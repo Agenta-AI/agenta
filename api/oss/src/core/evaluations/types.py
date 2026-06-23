@@ -35,6 +35,7 @@ CURRENT_VERSION = "2025-07-14"
 # engine is the package that ships it. Importers keep using
 # `core.evaluations.types.EvaluationStatus` unchanged.
 from agenta.sdk.models.evaluations import EvaluationStatus  # noqa: E402
+from agenta.sdk.models.workflows import JsonSchemas  # noqa: E402
 
 
 class EvaluationClosedConflict(Exception):
@@ -247,7 +248,7 @@ class EvaluationRunQueryFlags(BaseModel):
     has_auto: Optional[bool] = None  # Indicates if the run has auto evaluators
 
 
-class EvaluationRunDataStepInput(BaseModel):
+class EvaluationRunDataStepInputKey(BaseModel):
     key: str
 
 
@@ -256,7 +257,11 @@ class EvaluationRunDataStep(BaseModel):
     type: Type
     origin: Origin
     references: Dict[str, Reference]
-    inputs: Optional[List[EvaluationRunDataStepInput]] = None
+    inputs: Optional[List[EvaluationRunDataStepInputKey]] = None
+    # Outputs schema inferred from traces when the evaluator declares none.
+    # Run-scoped (reflects this run's observed outputs), so the immutable
+    # evaluator revision is never rewritten. Only `outputs` is populated.
+    schemas: Optional[JsonSchemas] = None
 
 
 class EvaluationRunDataMappingColumn(BaseModel):

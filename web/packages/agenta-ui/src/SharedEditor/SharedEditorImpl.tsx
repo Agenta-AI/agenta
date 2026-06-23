@@ -453,12 +453,24 @@ const SharedEditor = ({
             style={
                 {
                     ...props.style,
-                    interpolateSize: "allow-keywords",
                     height: "var(--editor-h, auto)",
                     overflow: "hidden",
-                    transitionProperty: "height",
-                    transitionDuration: "300ms",
-                    transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
+                    // The height transition exists only to animate the collapse
+                    // toggle (which sets `--editor-h` to a fixed px ↔ auto). Code
+                    // editors never use that toggle, so `--editor-h` stays `auto`
+                    // and `interpolate-size: allow-keywords` would instead animate
+                    // EVERY content-height change while typing/pasting — making the
+                    // editor grow over 300ms and lurching the surrounding drawer's
+                    // scroll. Disable the animation for codeOnly so growth is
+                    // instant; keep it for the collapsible rich-text/prompt editors.
+                    ...(editorProps?.codeOnly
+                        ? {}
+                        : {
+                              interpolateSize: "allow-keywords",
+                              transitionProperty: "height",
+                              transitionDuration: "300ms",
+                              transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
+                          }),
                 } as React.CSSProperties
             }
             onPasteCapture={handlePasteCapture}

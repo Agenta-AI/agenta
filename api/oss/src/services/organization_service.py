@@ -11,6 +11,34 @@ from oss.src.utils import emailing
 from oss.src.models.api.workspace_models import InviteRequest, ResendInviteRequest
 
 
+class InviteNotFoundError(Exception):
+    """No invitation matches the org + email + token."""
+
+    code = "INVITE_NOT_FOUND"
+
+
+class InviteExpiredError(Exception):
+    """An invitation exists but has passed its expiration date and was never used."""
+
+    code = "INVITE_EXPIRED"
+
+
+class InviteAlreadyAcceptedError(Exception):
+    """An invitation exists but has already been consumed (e.g. at signup)."""
+
+    code = "INVITE_ALREADY_ACCEPTED"
+
+
+class InviteEmailMismatchError(Exception):
+    """The signed-in user's email does not match the invitation's email."""
+
+    code = "INVITE_EMAIL_MISMATCH"
+
+    def __init__(self, invited_email: str):
+        self.invited_email = invited_email
+        super().__init__("Invitation is addressed to a different user.")
+
+
 def generate_invitation_token(token_length: int = 16):
     token = secrets.token_urlsafe(token_length)
     return token
@@ -67,56 +95,6 @@ async def check_existing_organization_invitation(organization_id: str, email: st
     return None, role
 
 
-async def check_valid_invitation(project_id: str, email: str, token: str):
-    """
-    Check if a project invitation is valid for a given user and token.
-
-    Args:
-        project_id (str): The ID of the project for which the invitation is being checked.
-        email (str): The email address of whom the invitation is being verified.
-        token (str): The invitation token to be validated.
-
-    Returns:
-        InvitationDB or None: Returns the invitation object if it's valid and not expired.
-                              Returns None if the invitation is not found or has expired.
-    """
-
-    invitation = await db_manager.get_project_invitation_by_token_and_email(
-        project_id, token, email
-    )
-    if invitation is not None and invitation.expiration_date > datetime.now(
-        timezone.utc
-    ):
-        return invitation
-
-    return None
-
-
-async def check_valid_organization_invitation(
-    organization_id: str,
-    email: str,
-    token: str,
-):
-    """
-    Check if an organization invitation is valid, regardless of the project
-    that held the invitation row.
-    """
-
-    invitation = (
-        await db_manager.get_project_invitation_by_organization_token_and_email(
-            organization_id=organization_id, token=token, email=email
-        )
-    )
-    if (
-        invitation is not None
-        and not invitation.used
-        and invitation.expiration_date > datetime.now(timezone.utc)
-    ):
-        return invitation
-
-    return None
-
-
 async def send_invitation_email(
     email: str,
     token: str,
@@ -155,8 +133,8 @@ async def send_invitation_email(
         f"&project_id={project_param}"
     )
 
-    # If Sendgrid is not configured, return the link for manual sharing (URL-based invitation)
-    if not env.sendgrid.enabled:
+    # If email delivery is not configured, return the link for manual sharing.
+    if not (env.smtp.enabled or env.sendgrid.enabled):
         return invite_link
 
     await emailing.send_email(
@@ -343,6 +321,7 @@ async def accept_organization_invitation(
     token: str,
     organization_id: str,
     email: str,
+    session_email: str,
 ) -> bool:
     """
     Accept an invitation to a workspace.
@@ -350,7 +329,8 @@ async def accept_organization_invitation(
     Args:
         token (str): The invitation token.
         organization_id (str): The ID of the organization that the workspace belongs to.
-        user_uid (str): The user uid.
+        email (str): The email the invitation is addressed to (from the link).
+        session_email (str): The signed-in user's email (the actor).
 
     Returns:
         bool: True if the user was successfully added to the workspace, False otherwise
@@ -359,26 +339,65 @@ async def accept_organization_invitation(
         HTTPException: If there is an error retrieving the workspace.
     """
 
-    try:
-        user_exists = await db_manager.get_user_with_email(email=email)
-        if user_exists is None:
-            raise HTTPException(status_code=400, detail="User does not exist")
+    user_exists = await db_manager.get_user_with_email(
+        email=email,
+    )
+    if user_exists is None:
+        raise HTTPException(status_code=400, detail="User does not exist")
 
-        invitation = await check_valid_organization_invitation(
+    invitation = (
+        await db_manager.get_project_invitation_by_organization_token_and_email(
             organization_id=organization_id,
             email=email,
             token=token,
         )
-        if invitation is not None:
-            await db_manager.update_invitation(
-                str(invitation.id), values_to_update={"used": True}
-            )
-            return True
+    )
 
-        else:
-            # Existing invitation is expired
-            raise HTTPException(
-                status_code=400, detail="Invitation has expired or does not exist"
-            )
-    except Exception as e:
-        raise e
+    if invitation is None:
+        raise InviteNotFoundError()
+
+    # The signed-in user must be the invitee. Reject before any state check so a
+    # different logged-in user (e.g. the org owner) can't consume someone else's
+    # invite or get a misleading "already joined".
+    if (invitation.email or "").lower() != (session_email or "").lower():
+        raise InviteEmailMismatchError(
+            invited_email=invitation.email,
+        )
+
+    # OSS consumes the invitation at signup, so the most common "failure" here is
+    # an invitation this same user already accepted. Treat that as idempotent.
+    if invitation.used:
+        raise InviteAlreadyAcceptedError()
+
+    if invitation.expiration_date <= datetime.now(timezone.utc):
+        raise InviteExpiredError()
+
+    project = await db_manager.get_project_by_id(
+        project_id=str(invitation.project_id),
+    )
+    if project is None:
+        raise HTTPException(status_code=400, detail="Invited project no longer exists")
+
+    organization = await db_manager.get_organization_by_id(
+        organization_id=str(project.organization_id)
+    )
+    workspace = await db_manager.get_workspace(
+        workspace_id=str(project.workspace_id),
+    )
+
+    await db_manager.add_user_to_workspace_and_org(
+        organization=organization,
+        workspace=workspace,
+        user=user_exists,
+        project_id=str(project.id),
+        role=invitation.role,
+    )
+
+    await db_manager.update_invitation(
+        str(invitation.id),
+        values_to_update={
+            "user_id": str(user_exists.id),
+            "used": True,
+        },
+    )
+    return True

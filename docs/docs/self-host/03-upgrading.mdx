@@ -11,6 +11,10 @@ Agenta follows semantic versioning with new releases every week. Stay updated by
 - Following our [GitHub repository](https://github.com/Agenta-AI/agenta) releases
 - Reading our [changelog](/changelog) for detailed updates
 
+:::caution Upgrading an open source instance to the multi-organization release
+The multi-organization release flips OSS from invite-only to open signup. If your instance is reachable beyond a trusted network, set `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` (and optionally `AGENTA_ACCESS_ALLOWED_DOMAINS`) before upgrading. See [Migrate to Multi-Organization OSS](/self-host/upgrades/multi-org-migration).
+:::
+
 ## Standard Upgrade Process
 
 For most upgrades, follow these steps to update your Agenta instance:

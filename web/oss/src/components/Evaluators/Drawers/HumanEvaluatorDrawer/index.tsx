@@ -10,7 +10,7 @@
  */
 import {memo, useCallback, useMemo} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {workflowArtifactQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {getDefaultStore} from "jotai"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -39,12 +39,26 @@ const HumanEvaluatorDrawer = () => {
     // Read full entity data through the molecule using the revision ID
     // passed directly by the caller (table row). No extra fetch needed.
     const entityData = useAtomValue(workflowMolecule.selectors.data(revisionId ?? ""))
+    // Identity fields must come from the ARTIFACT: the revision's `name` is
+    // the variant name ("default"), and the form writes the prefilled name
+    // back to the artifact via PUT /workflows/{id} on save — prefilling from
+    // the revision would permanently rename the evaluator to "default".
+    const artifactQuery = useAtomValue(
+        workflowArtifactQueryAtomFamily(workflowId ?? entityData?.workflow_id ?? ""),
+    )
+    const artifact = artifactQuery.data
     // Override `id` with the workflow ID — the entity data is keyed by
     // revision ID, but CreateEvaluator uses `evaluator.id` for the
     // update API call which expects a workflow ID.
     const evaluatorWorkflow =
         mode === "edit" && revisionId && entityData
-            ? {...entityData, id: workflowId ?? entityData.workflow_id ?? entityData.id}
+            ? {
+                  ...entityData,
+                  id: workflowId ?? entityData.workflow_id ?? entityData.id,
+                  name: artifact?.name ?? entityData.name,
+                  slug: artifact?.slug ?? entityData.slug,
+                  description: artifact?.description ?? entityData.description,
+              }
             : null
     const closeDrawer = useSetAtom(closeHumanEvaluatorDrawerAtom)
 

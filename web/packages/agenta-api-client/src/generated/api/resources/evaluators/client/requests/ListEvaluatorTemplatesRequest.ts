@@ -5,5 +5,5 @@
  *     {}
  */
 export interface ListEvaluatorTemplatesRequest {
-    include_archived?: boolean;
+    include_archived?: boolean | null;
 }
