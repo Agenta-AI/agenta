@@ -139,9 +139,19 @@ What shipped, including decisions refined during implementation:
   `PLANS`/`DEFAULT_PLAN*` and the role overrides are EE.
 - **Tests (WP6):** relocated the broken role-override unit tests in
   `ee/tests/.../test_access_controls.py` to import from `role_overrides`; added
-  `oss/tests/.../unit/access/test_role_controls_oss.py` (OSS ignores custom-role env;
-  66 EE + 8 OSS unit tests green). Added cross-edition acceptance tests:
-  `oss/.../test_rbac_enforcement.py` and `ee/.../test_rbac_enforcement_ee.py` (owner
-  allowed / viewer denied; EE also asserts the not-entitled allow-all bypass).
+  `oss/tests/.../unit/access/test_role_controls_oss.py` (OSS ignores custom-role env).
+  Added cross-edition acceptance tests `oss/.../test_rbac_enforcement.py` and
+  `ee/.../test_rbac_enforcement_ee.py` (owner allowed / viewer denied). These suites
+  test **permissions only**: the `Flag.RBAC`-not-entitled allow-all bypass is an
+  entitlements behavior and is left to the entitlements suite — permissions and
+  entitlements are tested independently, not bridged through the enforcement path.
+- **Audit fixes (post-implementation):** a deep-dive audit caught one real defect —
+  `edit_simple_environment` had its base `EDIT_ENVIRONMENTS` check still inside
+  `if is_ee():`, so OSS performed no permission check on `PUT /simple/environments/{id}`;
+  hoisted to match `archive_simple_environment` (base check both editions, inner
+  guarded-deploy check EE-only). Also: the behavior flip made `check_action_access` run
+  in OSS unit paths, so `test_commit_validation.py` now stubs it; and the api-key
+  acceptance helper passes `options.return_api_keys=True` (project-scoped keys).
 - **Verification:** `ruff format` + `ruff check` clean across `api/`; every touched
-  module imports in both `AGENTA_LICENSE=oss` and `=ee`.
+  module imports in both editions; full suites green in both — EE 1797 passed,
+  OSS 1527 passed (api), with SDK/services green.
