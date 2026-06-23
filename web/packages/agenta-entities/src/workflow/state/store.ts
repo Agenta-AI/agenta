@@ -1740,10 +1740,7 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
             }
         }
 
-        // Effective current data: base entity (server/clone + draft overlay).
-        // isDirty diffs the whole data object (parameters, schemas, url, headers,
-        // script, runtime); evaluator parameters and schemas are nested to match
-        // the entity side before comparison.
+// Compare the full `data` object (parameters + sibling fields), normalizing params/schemas to avoid false positives.
         const entityData = get(workflowBaseEntityAtomFamily(workflowId))
 
         // Get the comparison baseline — for local drafts this redirects to the
