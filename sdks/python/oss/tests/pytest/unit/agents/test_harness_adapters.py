@@ -156,12 +156,6 @@ def test_agenta_passes_through_user_pi_options(make_env):
     assert result.append_system.endswith("Be terse.")
 
 
-def test_agenta_is_in_process_pi_supported():
-    from agenta.sdk.agents import InProcessPiBackend
-
-    assert InProcessPiBackend(url="http://runner").supports(HarnessType.AGENTA)
-
-
 def test_agenta_is_sandbox_agent_supported():
     # Agenta is Pi with an opinion, so the sandbox-agent backend drives it too (on the `pi` ACP
     # agent, with the runner laying the forced skills into the sandbox). This is what lets

@@ -102,5 +102,5 @@ same `SandboxAgentBackend` drives it. It also exercises the capability-driven br
 built on: tools over MCP because it reports `mcpTools`, a permission answer because it gates
 tools, and event-stream tracing because it does not self-instrument. A future harness that
 sandbox-agent can drive would reuse this exact path. A future harness that sandbox-agent cannot drive would
-instead get its own backend beside `SandboxAgentBackend` and `InProcessPiBackend`, behind the same
+instead get its own backend beside `SandboxAgentBackend`, behind the same
 `/run` contract.

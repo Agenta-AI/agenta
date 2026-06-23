@@ -1,12 +1,10 @@
-"""InProcessPiBackend: drive Pi in-process through the TS runner, no sandbox-agent daemon.
+"""Test-only in-process backend: drive Pi in-process through the TS runner over a
+subprocess, no sandbox-agent daemon.
 
-This was the first backend implementation and stays as the simplest one: a single harness
-(Pi), a single place (local), the legacy in-process Pi engine (``engines/pi.ts``). It is the
-reference to read when writing a new backend.
-
-It is its own class and hard-codes its differences (the ``pi`` engine, Pi-only support,
-local-only). It is deliberately NOT a subclass of ``SandboxAgentBackend``; the two are different
-engines that happen to share the ``utils`` wire and transport helpers.
+This is NOT a deployment backend. The service always uses ``SandboxAgentBackend``. This
+class lives here, beside the transport round-trip test, only to exercise the real wire and
+subprocess transport against a fake runner. It used to ship in the SDK as a public
+"reference backend", which was misleading, so it now lives in the test tree.
 """
 
 from __future__ import annotations
@@ -14,7 +12,7 @@ from __future__ import annotations
 import os
 from typing import Any, AsyncIterator, Dict, List, Mapping, Optional, Sequence
 
-from ..dtos import (
+from agenta.sdk.agents.dtos import (
     AgentResult,
     EventSink,
     HarnessAgentConfig,
@@ -22,9 +20,9 @@ from ..dtos import (
     Message,
     TraceContext,
 )
-from ..interfaces import Backend, Sandbox, Session
-from ..streaming import AgentRun
-from ..utils import (
+from agenta.sdk.agents.interfaces import Backend, Sandbox, Session
+from agenta.sdk.agents.streaming import AgentRun
+from agenta.sdk.agents.utils import (
     deliver_http,
     deliver_http_stream,
     deliver_subprocess,
@@ -32,7 +30,7 @@ from ..utils import (
     request_to_wire,
     result_from_wire,
 )
-from ._runner_config import resolve_runner_command
+from agenta.sdk.agents.adapters._runner_config import resolve_runner_command
 
 
 class InProcessSandbox(Sandbox):

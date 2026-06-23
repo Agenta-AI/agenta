@@ -2,6 +2,31 @@
 
 Date: 2026-06-23. Read-only investigation. No code changed.
 
+## Actions taken (2026-06-23, after review)
+
+Mahmoud reviewed this report inline. Done in this pass:
+
+- Deleted: `shutdownTracing` (otel.ts), `is_import_safe` (running/sandbox.py),
+  `engines/running/registry.py` (whole file), `tools/wire.py` (`tool_spec_to_wire` /
+  `tool_specs_to_wire`, whole file), `parse_tool_configs` (parsing.py),
+  `agents/ui_messages.py` (whole file), and `services/oss/src/agent/client.py` (whole file).
+  All `__init__` re-exports for these were removed too.
+- `InProcessPiBackend`: removed from the public SDK (it was a confusing POC "reference
+  backend"). The class moved to a test-only helper
+  (`sdks/python/oss/tests/pytest/integration/agents/_in_process_backend.py`) so the transport
+  round-trip integration test still runs. Public exports, the two unit tests, and the design
+  docs were updated. If you want it gone entirely (dropping that integration test), say so.
+- Kept on request: the `engines/sandbox_agent.ts:74-75` test re-exports, `LocalBackend`,
+  `ClaudeHarness` / `AgentaHarness`.
+- Left for later (your question, not a delete): the service re-export shims `secrets.py`,
+  `tools/secrets.py`, `tools/gateway.py`. Confirmed the agent does NOT use them at runtime
+  (`app.py` resolves via `agenta.sdk.agents.platform` and `tools/resolver`); they are
+  backward-compat shims used only by tests. Deletable once those tests repoint.
+- Not touched (unmarked low/cosmetic): `mcp_server_to_wire` singular, `MessageContent`,
+  the `coerce_tool_configs` diagnostics surface.
+
+The original report follows.
+
 ## What "the code is not really doing anything" means here
 
 The premise is partly true and partly false. The live runtime path is wired and
@@ -33,7 +58,7 @@ surface `agenta/__init__.py`.
 
 ## SERVICE - `services/oss/src/agent/`
 
-### DEAD (high): `client.py` whole file
+### DEAD (high): `client.py` whole file [[[delete]]]
 
 - File: `services/oss/src/agent/client.py` (`agenta_api_base`, `request_authorization`,
   `TOOLS_TIMEOUT`).
@@ -47,7 +72,7 @@ surface `agenta/__init__.py`.
   file.
 - Action: delete.
 
-### DEAD (medium): `secrets.py` and `tools/secrets.py` and `tools/gateway.py` shims (tests-only)
+### DEAD (medium): `secrets.py` and `tools/secrets.py` and `tools/gateway.py` shims (tests-only)  [[[doesnt the agent use these?]]]
 
 - Files: `services/oss/src/agent/secrets.py` (`resolve_harness_secrets`,
   `_PROVIDER_ENV_VARS`), `services/oss/src/agent/tools/secrets.py`
@@ -85,7 +110,7 @@ surface `agenta/__init__.py`.
 
 ---
 
-## RUNNER - `services/agent/src/` (TypeScript sandbox-agent)
+## RUNNER - `services/agent/src/` (TypeScript sandbox-agent) 
 
 Entry points confirmed via `package.json`: `cli.ts` (`run:cli`) and `server.ts` (`serve`).
 Engine dispatch is `backend === "pi" ? runPi(...) : runSandboxAgent(...)` at
@@ -94,7 +119,7 @@ SDK `InProcessPiBackend` sets `AGENT_BACKEND=pi`, `SandboxAgentBackend` sets
 `sandbox-agent`. Keep both engines, both tool executors, all of `tools/`, `protocol.ts`,
 `responder.ts`.
 
-### DEAD (high): `shutdownTracing`
+### DEAD (high): `shutdownTracing`  [[[delete]]]
 
 - File: `services/agent/src/tracing/otel.ts:179`, function `shutdownTracing`.
 - Verdict: dead. Zero callers in `src`, `tests`, or the Python side.
@@ -104,7 +129,7 @@ SDK `InProcessPiBackend` sets `AGENT_BACKEND=pi`, `SandboxAgentBackend` sets
   `docs/.../archive/wp-1-pi-tracing/poc/`, a different file.
 - Action: delete.
 
-### DEAD (medium): test-only re-export aliases on the engine surface
+### DEAD (medium): test-only re-export aliases on the engine surface  [[dont delete]]
 
 - File: `services/agent/src/engines/sandbox_agent.ts:74-75`. Re-exports `buildTurnText`,
   `messageTranscript` (from `./sandbox_agent/transcript.ts`) and `toAcpMcpServers` (from
@@ -136,7 +161,7 @@ SDK `InProcessPiBackend` sets `AGENT_BACKEND=pi`, `SandboxAgentBackend` sets
 
 ## SDK - `sdks/python/agenta/sdk/agents/` and `sdk/engines/running/`
 
-### DEAD (high): broken `engines/running/registry.py`
+### DEAD (high): broken `engines/running/registry.py`  [[[check who added it and why]]]
 
 - File: `sdks/python/agenta/sdk/engines/running/registry.py` (only symbol
   `exact_match_v1`).
@@ -150,7 +175,7 @@ SDK `InProcessPiBackend` sets `AGENT_BACKEND=pi`, `SandboxAgentBackend` sets
   imports `engines.running`.
 - Action: delete file.
 
-### DEAD (high): `is_import_safe`
+### DEAD (high): `is_import_safe` [[[delete]]]
 
 - File: `sdks/python/agenta/sdk/engines/running/sandbox.py:9`, function `is_import_safe`.
 - Verdict: dead. Zero callers.
@@ -158,7 +183,7 @@ SDK `InProcessPiBackend` sets `AGENT_BACKEND=pi`, `SandboxAgentBackend` sets
   in that file is `execute_code_safely` (called from `handlers.py`).
 - Action: delete function.
 
-### DEAD (high): `tool_spec_to_wire` and `tool_specs_to_wire`
+### DEAD (high): `tool_spec_to_wire` and `tool_specs_to_wire`  [[[[deelete]]]]
 
 - File: `sdks/python/agenta/sdk/agents/tools/wire.py:10,14`.
 - Verdict: dead standalone functions. The live serialization path uses the
@@ -167,7 +192,7 @@ SDK `InProcessPiBackend` sets `AGENT_BACKEND=pi`, `SandboxAgentBackend` sets
   re-export in `tools/__init__.py:38,65-66`. No real caller.
 - Action: delete the functions and the `__init__` re-exports.
 
-### DEAD (high): `ui_messages.py` whole module
+### DEAD (high): `ui_messages.py` whole module  [[[this is strange i thought this was our internal represenation]]]
 
 - File: `sdks/python/agenta/sdk/agents/ui_messages.py`.
 - Verdict: dead compat shim re-exporting `from_ui_messages`/`to_ui_message`/
@@ -179,7 +204,7 @@ SDK `InProcessPiBackend` sets `AGENT_BACKEND=pi`, `SandboxAgentBackend` sets
   `ui_message_stream = agent_run_to_vercel_parts` in `adapters/vercel/messages.py:218-219`
   and `adapters/vercel/stream.py:216` have no real callers either and can go with it.
 
-### DEAD (high): `parse_tool_configs` (plural-of-the-wrong-name)
+### DEAD (high): `parse_tool_configs` (plural-of-the-wrong-name)  [[[[double check but then delete if so ]]]]
 
 - File: `sdks/python/agenta/sdk/agents/tools/parsing.py`.
 - Verdict: dead. Zero references anywhere, not even tests.
@@ -190,7 +215,7 @@ SDK `InProcessPiBackend` sets `AGENT_BACKEND=pi`, `SandboxAgentBackend` sets
   (singular) are tests-only plus internal `compat.py` use; keep for now or fold into test
   fixtures (medium, human call).
 
-### DEAD-ish (medium): `InProcessPiBackend` (tests-only, but a public export)
+### DEAD-ish (medium): `InProcessPiBackend` (tests-only, but a public export)  [[[lets remove that part of the code it was a poc and it is now confusing]]]
 
 - File: `sdks/python/agenta/sdk/agents/adapters/in_process.py`, class `InProcessPiBackend`.
 - Verdict: never selected by the service. Constructed only in tests
@@ -203,7 +228,7 @@ SDK `InProcessPiBackend` sets `AGENT_BACKEND=pi`, `SandboxAgentBackend` sets
   but only tests and explicit non-default callers reach it. Keep as a documented reference
   backend or demote to a test fixture.
 
-### DEAD (medium): `LocalBackend` (never instantiated, unimplemented)
+### DEAD (medium): `LocalBackend` (never instantiated, unimplemented) [[[keep]]]
 
 - File: `sdks/python/agenta/sdk/agents/adapters/local.py`, class `LocalBackend`.
 - Verdict: never instantiated anywhere; every method raises `NotImplementedError`.
@@ -212,7 +237,7 @@ SDK `InProcessPiBackend` sets `AGENT_BACKEND=pi`, `SandboxAgentBackend` sets
 - Action: keep-but-wire (a tracked Phase 3/4 stub) or delete if no longer planned. Dead
   today by design.
 
-### REACHABLE-BUT-NEVER-DEFAULT (medium): `ClaudeHarness`, `AgentaHarness` (+ `agenta_builtins.py`)
+### REACHABLE-BUT-NEVER-DEFAULT (medium): `ClaudeHarness`, `AgentaHarness` (+ `agenta_builtins.py`) [[[keeep]]]
 
 - File: `sdks/python/agenta/sdk/agents/adapters/harnesses.py:77,105`, plus the forced
   tools/skills machinery in `adapters/agenta_builtins.py`.

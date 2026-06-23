@@ -13,7 +13,7 @@ this page and the referenced code as the source of truth.
 | Browser protocol adapter | `sdks/python/agenta/sdk/agents/adapters/vercel/` | Converts Vercel `UIMessage` input and emits Vercel UI Message Stream parts. |
 | SDK runtime DTOs | `sdks/python/agenta/sdk/agents/dtos.py` | Defines `AgentConfig`, `RunSelection`, `SessionConfig`, messages, events, capabilities, and harness configs. |
 | SDK runtime ports | `sdks/python/agenta/sdk/agents/interfaces.py` | Defines `Backend`, `Environment`, `Sandbox`, `Session`, `Harness`, `SessionStore`, and `NoopSessionStore`. |
-| Backend adapters | `sdks/python/agenta/sdk/agents/adapters/in_process.py`, `sandbox_agent.py`, `local.py` | Implement in-process Pi and sandbox-agent backends. `LocalBackend` is a stub. |
+| Backend adapters | `sdks/python/agenta/sdk/agents/adapters/sandbox_agent.py`, `local.py` | Implement the sandbox-agent backend. `LocalBackend` is a stub. |
 | Harness adapters | `sdks/python/agenta/sdk/agents/adapters/harnesses.py` | Maps neutral session config into Pi, Claude, and Agenta harness-specific config. |
 | Runner wire | `sdks/python/agenta/sdk/agents/utils/wire.py`, `services/agent/src/protocol.ts` | Keeps the Python and TypeScript `/run` payloads in sync. |
 | Runner transports | `sdks/python/agenta/sdk/agents/utils/ts_runner.py`, `services/agent/src/server.ts`, `services/agent/src/cli.ts` | Send one-shot JSON or live NDJSON records to and from the runner. |
@@ -35,8 +35,9 @@ this page and the referenced code as the source of truth.
 - The deployed service always uses `SandboxAgentBackend` (`services/oss/src/agent/app.py:49`).
   It does not select a backend per harness.
 - `SandboxAgentBackend` supports `pi`, `claude`, and `agenta` on local or Daytona.
-- `InProcessPiBackend` supports `pi` and `agenta` on local. It is the reference backend and is
-  not selected by the deployed service.
+- The sidecar's in-process `pi` engine (`engines/pi.ts`) is still reachable with
+  `backend: "pi"`, but the SDK no longer ships a backend adapter for it. A test-only helper
+  drives it in the transport round-trip test.
 - `PiHarness`, `ClaudeHarness`, and `AgentaHarness` exist and validate backend support.
 - Pi `systemPrompt` and `appendSystemPrompt` overrides are delivered on both the in-process Pi
   path and the sandbox-agent Pi path. The sandbox-agent engine writes `SYSTEM.md` /
