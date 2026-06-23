@@ -12,7 +12,6 @@ from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import invalidate_cache
 
 from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
@@ -32,9 +31,9 @@ from oss.src.services.db_manager import (  # noqa: F401 — moved OSS-ward, re-e
     get_project_members,
     get_user_org_and_workspace_id,
     get_project_by_workspace,
+    update_user_roles,
 )
 from ee.src.core.workspaces.types import (
-    UserRole,
     UpdateWorkspace,
     CreateWorkspace,
     WorkspaceResponse,
@@ -500,113 +499,6 @@ async def check_user_in_workspace_with_email(email: str, workspace_id: str) -> b
         )
         workspace_member = result.scalars().first()
         return False if workspace_member is None else True
-
-
-async def update_user_roles(
-    workspace_id: str,
-    payload: UserRole,
-    delete: bool = False,
-) -> bool:
-    """
-    Update a user's roles in a workspace.
-
-    Args:
-        workspace_id (str): The ID of the workspace.
-        payload (UserRole): The payload containing the user email and role to update.
-        delete (bool): Whether to delete the user's role or not.
-
-    Returns:
-        bool: True if the user's roles were successfully updated, False otherwise.
-
-    Raises:
-        Exception: If there is an error updating the user's roles.
-    """
-
-    user = await db_manager.get_user_with_email(payload.email)
-    projects = await db_manager.fetch_projects_by_workspace(workspace_id)
-    if not projects:
-        raise NoResultFound(
-            f"No projects found for the provided workspace_id {workspace_id}"
-        )
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        workspace_member_result = await session.execute(
-            select(WorkspaceMemberDB).filter_by(
-                workspace_id=uuid.UUID(workspace_id), user_id=user.id
-            )
-        )
-        workspace_member = workspace_member_result.scalars().first()
-        if not workspace_member:
-            raise NoResultFound(
-                f"User with id {str(user.id)} is not part of the workspace member."
-            )
-
-        if workspace_member.role == "owner":
-            raise HTTPException(
-                403,
-                {
-                    "message": "You do not have permission to perform this action. Please contact your Organization Owner"
-                },
-            )
-
-        project_ids = [project.id for project in projects]
-        project_members_result = await session.execute(
-            select(ProjectMemberDB).filter(
-                ProjectMemberDB.project_id.in_(project_ids),
-                ProjectMemberDB.user_id == user.id,
-            )
-        )
-        project_members = project_members_result.scalars().all()
-        if len(project_members) != len(project_ids):
-            for project in projects:
-                await db_manager.sync_workspace_members_to_project(
-                    str(project.id), session=session
-                )
-
-            project_members_result = await session.execute(
-                select(ProjectMemberDB).filter(
-                    ProjectMemberDB.project_id.in_(project_ids),
-                    ProjectMemberDB.user_id == user.id,
-                )
-            )
-            project_members = project_members_result.scalars().all()
-
-        if len(project_members) != len(project_ids):
-            raise NoResultFound(
-                f"User with id {str(user.id)} is not part of all project memberships."
-            )
-
-        if not delete:
-            workspace_member.role = payload.role
-            for member in project_members:
-                member.role = payload.role
-
-        await session.commit()
-
-        default_project_id = next(
-            (project.id for project in projects if project.is_default),
-            projects[0].id,
-        )
-        default_project_member = next(
-            (
-                member
-                for member in project_members
-                if member.project_id == default_project_id
-            ),
-            None,
-        )
-        if default_project_member:
-            await session.refresh(default_project_member)
-
-    for project in projects:
-        await invalidate_cache(
-            namespace="check_action_access",
-            project_id=str(project.id),
-        )
-
-    return True
 
 
 async def update_organization(

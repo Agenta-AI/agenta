@@ -1,16 +1,19 @@
 from typing import List, Dict
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager
 from oss.src.utils.common import APIRouter, is_ee
-from oss.src.models.api.workspace_models import Workspace
+from oss.src.models.api.workspace_models import Workspace, UserRole
 
-from oss.src.core.access.permissions.service import check_rbac_permission
-from oss.src.core.access.permissions.types import RequiredRole
-from oss.src.core.access.controls import get_roles
+from oss.src.core.access.permissions.service import (
+    check_action_access,
+    check_rbac_permission,
+)
+from oss.src.core.access.permissions.types import Permission, RequiredRole
+from oss.src.core.access.controls import get_role, get_roles
 from oss.src.services.db_manager import (
     get_user_org_and_workspace_id,
     get_project_by_workspace,
@@ -84,6 +87,101 @@ async def get_all_workspace_roles(request: Request) -> List[Dict[str, str]]:
     ]
 
     return workspace_roles_with_description
+
+
+@router.post("/{workspace_id}/roles/", operation_id="assign_role_to_user")
+async def assign_role_to_user(
+    payload: UserRole,
+    workspace_id: str,
+    request: Request,
+):
+    """
+    Assign a role to a user in a workspace.
+
+    Args:
+        payload (UserRole): The organization id, user email, and role to assign.
+        workspace_id (str): The ID of the workspace.
+    """
+
+    try:
+        project = await get_project_by_workspace(workspace_id)
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(project.id),
+            permission=Permission.MODIFY_USER_ROLES,
+        )
+        if not has_permission:
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": "You do not have permission to perform this action. Please contact your Organization Owner"
+                },
+            )
+
+        if not payload.role or get_role("workspace", payload.role) is None:
+            return JSONResponse(
+                status_code=400, content={"detail": "Workspace role is invalid."}
+            )
+
+        return await db_manager.update_user_roles(workspace_id, payload)
+    except HTTPException as ex:
+        raise ex
+    except Exception:
+        log.error("Unexpected error while assigning role to user", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while assigning role to user.",
+        )
+
+
+@router.delete("/{workspace_id}/roles/", operation_id="unassign_role_from_user")
+async def unassign_role_from_user(
+    email: str,
+    organization_id: str,
+    role: str,
+    workspace_id: str,
+    request: Request,
+):
+    """
+    Remove a role assignment from a user in a workspace.
+
+    Args:
+        email (str): The email of the user.
+        organization_id (str): The ID of the organization.
+        role (str): The role to remove.
+        workspace_id (str): The ID of the workspace.
+    """
+
+    try:
+        project = await get_project_by_workspace(workspace_id)
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(project.id),
+            permission=Permission.MODIFY_USER_ROLES,
+        )
+        if not has_permission:
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": "You do not have permission to perform this action. Please contact your Organization Owner"
+                },
+            )
+
+        payload = UserRole(
+            email=email,
+            organization_id=organization_id,
+            role=role,
+        )
+
+        return await db_manager.update_user_roles(workspace_id, payload, delete=True)
+    except HTTPException as ex:
+        raise ex
+    except Exception:
+        log.error("Unexpected error while unassigning role from user", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while unassigning role from user.",
+        )
 
 
 @router.delete("/{workspace_id}/users/", operation_id="remove_user_from_workspace")

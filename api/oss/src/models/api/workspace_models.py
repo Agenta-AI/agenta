@@ -30,6 +30,13 @@ class ResendInviteRequest(BaseModel):
     email: str
 
 
+class UserRole(BaseModel):
+    email: str
+    role: Optional[str] = None
+
+    organization_id: str
+
+
 class WorkspaceResponse(TimestampModel):
     id: str
     name: str
