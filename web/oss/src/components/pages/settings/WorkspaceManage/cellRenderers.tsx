@@ -8,7 +8,7 @@ import {Button, Dropdown, Input, Modal, Space, Tag, Tooltip, Typography} from "a
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
-import {isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
+import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
 import {WorkspaceMember} from "@/oss/lib/Types"
@@ -226,7 +226,7 @@ export const Roles: React.FC<{
                     </Tag>
                 </Tooltip>
             )}
-            {!readOnly && !loading && canModifyRoles && hasRBAC && (
+            {!readOnly && !loading && canModifyRoles && (!isEE() || hasRBAC) && (
                 <Dropdown
                     trigger={["click"]}
                     menu={{
