@@ -2221,7 +2221,10 @@ async def chat_v0(
 
     message = response.choices[0].message  # type: ignore
 
-    return message.model_dump(exclude_none=True)  # type: ignore
+    # Normalize to the canonical Message shape (drops provider-specific fields).
+    return Message.model_validate(message.model_dump(exclude_none=True)).model_dump(
+        exclude_none=True
+    )
 
 
 def _extract_revision_field(value: Optional[Data], field: str) -> Optional[Any]:

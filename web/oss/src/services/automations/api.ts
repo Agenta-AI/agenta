@@ -14,45 +14,64 @@ import {
 
 const createWebhookSubscription = async (
     data: WebhookSubscriptionCreateRequest,
+    projectId?: string,
 ): Promise<WebhookSubscriptionResponse> => {
-    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/subscriptions/`, data)
+    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/subscriptions/`, data, {
+        params: projectId ? {project_id: projectId} : undefined,
+    })
     return response.data
 }
 
 const editWebhookSubscription = async (
     webhookSubscriptionId: string,
     data: WebhookSubscriptionEditRequest,
+    projectId?: string,
 ): Promise<WebhookSubscriptionResponse> => {
-    // Backend path requires {subscription_id}; body also requires it inside data
     const response = await axios.put(
         `${getAgentaApiUrl()}/webhooks/subscriptions/${webhookSubscriptionId}`,
         data,
+        {params: projectId ? {project_id: projectId} : undefined},
     )
     return response.data
 }
 
-const deleteWebhookSubscription = async (webhookSubscriptionId: string): Promise<void> => {
-    await axios.delete(`${getAgentaApiUrl()}/webhooks/subscriptions/${webhookSubscriptionId}`)
+const deleteWebhookSubscription = async (
+    webhookSubscriptionId: string,
+    projectId?: string,
+): Promise<void> => {
+    await axios.delete(`${getAgentaApiUrl()}/webhooks/subscriptions/${webhookSubscriptionId}`, {
+        params: projectId ? {project_id: projectId} : undefined,
+    })
 }
 
-const queryWebhookSubscriptions = async (): Promise<WebhookSubscriptionsResponse> => {
-    // Backend uses POST /api/webhooks/subscriptions/query
-    // Scoping to project_id happens via auth session injected on backend
-    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/subscriptions/query`, {})
+const queryWebhookSubscriptions = async (
+    projectId?: string,
+): Promise<WebhookSubscriptionsResponse> => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/webhooks/subscriptions/query`,
+        {},
+        {params: projectId ? {project_id: projectId} : undefined},
+    )
     return response.data
 }
 
 const testWebhookSubscription = async (
     data: WebhookSubscriptionTestRequest,
+    projectId?: string,
 ): Promise<WebhookDeliveryResponse> => {
-    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/subscriptions/test`, data)
+    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/subscriptions/test`, data, {
+        params: projectId ? {project_id: projectId} : undefined,
+    })
     return response.data
 }
 
 const queryWebhookDeliveries = async (
     data: WebhookDeliveriesQueryRequest,
+    projectId?: string,
 ): Promise<WebhookDeliveriesResponse> => {
-    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/deliveries/query`, data)
+    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/deliveries/query`, data, {
+        params: projectId ? {project_id: projectId} : undefined,
+    })
     return response.data
 }
 

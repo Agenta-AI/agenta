@@ -1,4 +1,4 @@
-from sqlalchemy import Column, UUID, PrimaryKeyConstraint, Index, desc, text
+from sqlalchemy import PrimaryKeyConstraint, Index, desc, text
 
 from oss.src.dbs.postgres.shared.base import Base
 from oss.src.dbs.postgres.events.dbas import EventDBA
@@ -13,8 +13,6 @@ class EventDBE(
     LifecycleDBA,
     EventDBA,
 ):
-    # Events are system-generated; override to allow NULL when no user actor exists
-    created_by_id = Column(UUID(as_uuid=True), nullable=True)
     __tablename__ = "events"
 
     __table_args__ = (

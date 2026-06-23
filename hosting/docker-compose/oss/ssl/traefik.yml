@@ -25,4 +25,5 @@ certificatesResolvers:
         entryPoint: "web" # Validates domain ownership via port 80
 
 providers:
-  docker: {}
+  docker:
+    constraints: "Label(`com.docker.compose.project`,`agenta-gh-ssl`)"

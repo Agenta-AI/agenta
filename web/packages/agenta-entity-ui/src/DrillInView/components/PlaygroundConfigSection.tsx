@@ -591,6 +591,15 @@ export interface PlaygroundConfigSectionProps {
     onRefinePrompt?: (promptKey: string) => void
     /** View mode controlled from parent (form/json/yaml) */
     viewMode?: ConfigViewMode
+    /**
+     * Top offset (px) for the sticky section headers. Defaults to 48 to clear
+     * the sticky `PlaygroundVariantConfigHeader` (h-[48px], `sticky top-0`) that
+     * sits above the config in the full playground. In the embedded drawer that
+     * header is rendered non-sticky (`grow`), so there is nothing to clear —
+     * pass 0 there to keep the section headers flush with the scroll top instead
+     * of floating 48px down into the editor content.
+     */
+    stickyHeaderTop?: number
 }
 
 function PlaygroundConfigSection({
@@ -601,6 +610,7 @@ function PlaygroundConfigSection({
     moleculeAdapter,
     onRefinePrompt,
     viewMode: externalViewMode,
+    stickyHeaderTop = 48,
 }: PlaygroundConfigSectionProps) {
     const {llmProviderConfig} = useDrillInUI()
 
@@ -1530,10 +1540,11 @@ function PlaygroundConfigSection({
             return (
                 <div
                     className={clsx(
-                        "flex items-center justify-between w-full px-3 py-2 bg-[var(--ag-c-FAFAFB)] cursor-pointer select-none sticky top-[48px] z-[2]",
+                        "flex items-center justify-between w-full px-3 py-2 bg-[var(--ag-c-FAFAFB)] cursor-pointer select-none sticky z-[2]",
                         // Space above the code/hook section when params precede it.
                         isSibling && hasParameters(activeData) && "mt-4",
                     )}
+                    style={{top: stickyHeaderTop}}
                     onClick={() => toggleSection(fieldKey)}
                 >
                     <div className="flex items-center gap-1">
@@ -1810,7 +1821,10 @@ function PlaygroundConfigSection({
             ) : (
                 <>
                     {!hasTopLevelObjectSection && (
-                        <div className="flex items-center w-full px-3 py-2 bg-[var(--ag-c-FAFAFB)] sticky top-[48px] z-[2]">
+                        <div
+                            className="flex items-center w-full px-3 py-2 bg-[var(--ag-c-FAFAFB)] sticky z-[2]"
+                            style={{top: stickyHeaderTop}}
+                        >
                             <span className="capitalize font-medium text-sm">Config</span>
                         </div>
                     )}
