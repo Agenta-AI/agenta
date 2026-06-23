@@ -18,7 +18,6 @@ from agenta.sdk.agents import (
 from agenta.sdk.agents.adapters.agenta_builtins import AGENTA_FORCED_SKILLS
 
 from oss.src.agent import app
-from oss.src.agent.tools import ResolvedAgentResources
 
 
 def _patch_handler(monkeypatch, backend, *, builtins=(), tool_callback=None):
@@ -30,19 +29,21 @@ def _patch_handler(monkeypatch, backend, *, builtins=(), tool_callback=None):
     """
     recorded = {}
 
-    async def _resources(*, tools, mcp_servers):
-        return ResolvedAgentResources(
-            tools=ResolvedToolSet(
-                builtin_names=list(builtins),
-                tool_callback=tool_callback,
-            )
+    async def _tools(tools, **_kw):
+        return ResolvedToolSet(
+            builtin_names=list(builtins),
+            tool_callback=tool_callback,
         )
+
+    async def _no_mcp(mcp_servers, **_kw):
+        return []
 
     async def _no_secrets():
         return {}
 
-    monkeypatch.setattr(app, "resolve_agent_resources", _resources)
-    monkeypatch.setattr(app, "resolve_harness_secrets", _no_secrets)
+    monkeypatch.setattr(app, "resolve_tools", _tools)
+    monkeypatch.setattr(app, "resolve_mcp_servers", _no_mcp)
+    monkeypatch.setattr(app, "resolve_secrets", _no_secrets)
     monkeypatch.setattr(app, "trace_context", lambda: None)
     monkeypatch.setattr(
         app, "record_usage", lambda usage: recorded.__setitem__("usage", usage)
@@ -170,10 +171,10 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
 async def test_stream_tool_resolution_failure_is_raised_before_backend_setup(
     monkeypatch,
 ):
-    async def _failure(*, tools, mcp_servers):
+    async def _failure(tools, **_kw):
         raise GatewayToolResolutionError("gateway unavailable")
 
-    monkeypatch.setattr(app, "resolve_agent_resources", _failure)
+    monkeypatch.setattr(app, "resolve_tools", _failure)
     monkeypatch.setattr(
         app,
         "_default_agent_config",

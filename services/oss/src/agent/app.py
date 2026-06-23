@@ -28,10 +28,11 @@ from agenta.sdk.agents import (
 )
 from agenta.sdk.agents.adapters.vercel import agent_run_to_vercel_parts
 
+from agenta.sdk.agents.platform import resolve_secrets
+
 from oss.src.agent.config import load_config, runner_dir, runner_url
 from oss.src.agent.schemas import AGENT_SCHEMAS
-from oss.src.agent.secrets import resolve_harness_secrets
-from oss.src.agent.tools import resolve_agent_resources
+from oss.src.agent.tools import resolve_mcp_servers, resolve_tools
 from oss.src.agent.tracing import record_usage, trace_context
 
 
@@ -72,21 +73,21 @@ async def _agent(
     selection = RunSelection.from_params(params)
 
     msgs = to_messages(messages or (inputs or {}).get("messages") or [])
-    resources = await resolve_agent_resources(
-        tools=agent_config.tools,
-        mcp_servers=agent_config.mcp_servers,
-    )
+    # Three independent resolutions (tools, MCP, provider-key secrets), not one aggregate:
+    # the boundary resolves; the backend later decides how each tool executes.
+    resolved_tools = await resolve_tools(agent_config.tools)
+    resolved_mcp = await resolve_mcp_servers(agent_config.mcp_servers)
 
     session_config = SessionConfig(
         agent=agent_config,
-        secrets=await resolve_harness_secrets(),
+        secrets=await resolve_secrets(),
         permission_policy=selection.permission_policy,
         trace=trace_context(),
         session_id=session_id,
-        builtin_names=resources.tools.builtin_names,
-        tool_specs=resources.tools.tool_specs,
-        tool_callback=resources.tools.tool_callback,
-        mcp_servers=resources.mcp_servers,
+        builtin_names=resolved_tools.builtin_names,
+        tool_specs=resolved_tools.tool_specs,
+        tool_callback=resolved_tools.tool_callback,
+        mcp_servers=resolved_mcp,
     )
 
     # The harness validates that the chosen backend can drive it. Unsupported combinations
@@ -94,18 +95,22 @@ async def _agent(
     # setup/cleanup own the backend lifecycle; prompt/stream run one cold turn.
     harness = make_harness(selection.harness, Environment(select_backend(selection)))
 
-    # The `/messages` SSE path sets `stream`: return the Vercel UI Message Stream as an async
-    # generator (the normalizer turns it into a streaming response). `/invoke` and the
-    # `/messages` JSON path leave it unset and take the batch path below.
+    # Both paths hand off to a helper that owns the environment lifecycle (setup/cleanup).
+    # They differ only in shape, as they must: the `/messages` SSE path (`stream` set) returns
+    # the Vercel UI Message Stream as an async generator the normalizer turns into a streaming
+    # response; `/invoke` and the `/messages` JSON path return the batch assistant message.
     if stream:
         return _agent_vercel_stream(harness, session_config, msgs)
+    return await _agent_batch(harness, session_config, msgs)
 
+
+async def _agent_batch(harness, session_config, msgs):
+    """Run one batch turn and return the assistant message. Owns the environment lifecycle."""
     await harness.setup()
     try:
         result = await harness.prompt(session_config, msgs)
     finally:
         await harness.cleanup()
-
     record_usage(result.usage)
     return {"role": "assistant", "content": result.output}
 
@@ -132,9 +137,10 @@ async def _agent_vercel_stream(harness, session_config, msgs):
 
 def create_agent_app():
     app = ag.create_app()
-    # No builtin URI yet: registering the agent as a first-class workflow type
-    # (`agenta:builtin:agent:v0`) is still future work. Here we register the handler
-    # directly, so it gets an auto URI (`user:custom:...`) and runs locally.
+    # The builtin agent workflow interface (`agenta:builtin:agent:v0`, `agent_v0_interface`
+    # in the SDK) now exists, but this service still registers the handler directly, so it
+    # gets an auto URI (`user:custom:...`) and runs locally. Binding the handler to the
+    # builtin URI is the remaining step.
     routed = ag.workflow(schemas=AGENT_SCHEMAS)(_agent)
     # is_agent gates the agent-only `/messages` + `/load-session` routes (next to /invoke).
     ag.route("/", app=app, flags={"is_chat": True, "is_agent": True})(routed)
