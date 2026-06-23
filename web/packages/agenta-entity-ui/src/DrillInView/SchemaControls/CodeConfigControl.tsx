@@ -11,8 +11,7 @@ import clsx from "clsx"
 
 type EditorLanguage = "python" | "javascript" | "typescript"
 
-// Map the runtime selection to an editor language (1:1 today; map shields
-// against runtime values that don't match an editor language).
+// Map runtime selection to an editor language (defaulting safely when unknown).
 const RUNTIME_TO_LANGUAGE: Record<string, EditorLanguage> = {
     python: "python",
     javascript: "javascript",
