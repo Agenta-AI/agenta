@@ -111,6 +111,7 @@ function TextEditor({
     markdown,
     onChange,
     readOnly,
+    noTypeInference,
 }: {
     editorId: string
     value: unknown
@@ -118,14 +119,19 @@ function TextEditor({
     markdown?: boolean
     onChange: (value: unknown) => void
     readOnly?: boolean
+    noTypeInference?: boolean
 }) {
     // Auto-infer native types from typed text so number / boolean values
     // stop getting stored as strings. Anything that doesn't look exactly
     // like a clean number or boolean literal stays a string — see
     // inferPrimitiveFromText for the precise rules.
+    //
+    // When noTypeInference is true (Text or Markdown view mode), skip
+    // inference and store the raw string — the user explicitly chose a text
+    // view so values like "False" or "42" should remain strings.
     const handleChange = useCallback(
-        (next: string) => onChange(inferPrimitiveFromText(next)),
-        [onChange],
+        (next: string) => onChange(noTypeInference ? next : inferPrimitiveFromText(next)),
+        [onChange, noTypeInference],
     )
 
     return (
@@ -250,6 +256,7 @@ export function TestcaseDrillInFieldRenderer({
                 markdown
                 onChange={onChange}
                 readOnly={!editable}
+                noTypeInference
             />
         )
     }
@@ -262,6 +269,7 @@ export function TestcaseDrillInFieldRenderer({
                 displayValue={displayValue}
                 onChange={onChange}
                 readOnly={!editable}
+                noTypeInference
             />
         )
     }
