@@ -1,12 +1,12 @@
 import type {ComponentType, ReactNode, SetStateAction} from "react"
 
 import type {EvaluationStepSlot as CoreEvaluationStepSlot} from "@agenta/evaluations/core"
+import type {getAgentaSdkClient} from "@agenta/sdk"
 
-import type {NewEvaluationAppOption} from "../types"
 import type {EvaluationConcurrencySettings} from "../types"
 
 export type EvalStepKind =
-    | "application"
+    | "invocation"
     | "revision"
     | "testset"
     | "evaluator"
@@ -14,10 +14,9 @@ export type EvalStepKind =
     | "traces"
     | "query"
 
-export interface ApplicationStepValue {
+export interface InvocationStepValue {
     id: string
     label?: string
-    isEvaluator?: boolean
 }
 
 export interface TestsetStepValue {
@@ -34,7 +33,7 @@ export interface QueryStepValue {
 }
 
 export interface EvalStepValueMap {
-    application: ApplicationStepValue
+    invocation: InvocationStepValue
     revision: string[]
     testset: TestsetStepValue
     evaluator: string[]
@@ -43,18 +42,13 @@ export interface EvalStepValueMap {
     query: QueryStepValue
 }
 
-type EvalStepSlotBase = Omit<CoreEvaluationStepSlot<EvalStepKind>, "kind" | "preset">
-
-export type EvalStepSlot = {
-    [Kind in EvalStepKind]: EvalStepSlotBase & {
-        kind: Kind
-        preset?: EvalStepValueMap[Kind]
-    }
-}[EvalStepKind]
+export type EvalStepSlot<Kind extends EvalStepKind = EvalStepKind> = {
+    [StepKind in Kind]: CoreEvaluationStepSlot<EvalStepKind, StepKind, EvalStepValueMap[StepKind]>
+}[Kind]
 
 export interface EvalStepContext {
     projectId?: string
-    appId?: string
+    workflowId?: string
     evaluationType: "auto" | "human"
     preview: boolean
     liveCompatibleEvaluatorsOnly: boolean
@@ -67,23 +61,17 @@ export interface EvalStepContext {
 }
 
 export interface EvalStepRuntime {
-    appOptions: NewEvaluationAppOption[]
     allowTestsetAutoAdvance: boolean
-    onSelectApplication: (value: ApplicationStepValue) => void
     onEvaluatorCreated?: (configId?: string) => void
 }
 
-export type EvalStepTarget = string[] | Record<string, "custom" | "human" | "auto">
+type AgentaSdkClient = ReturnType<typeof getAgentaSdkClient>
+type SimpleEvaluationCreateRequest = Parameters<
+    AgentaSdkClient["evaluations"]["createSimpleEvaluation"]
+>[0]
+type SimpleEvaluationCreate = SimpleEvaluationCreateRequest["evaluation"]
 
-export interface SimpleEvaluationDataPayload {
-    status?: string | null
-    query_steps?: EvalStepTarget | null
-    testset_steps?: EvalStepTarget | null
-    application_steps?: EvalStepTarget | null
-    evaluator_steps?: EvalStepTarget | null
-    repeats?: number | null
-    concurrency?: EvaluationConcurrencySettings | null
-}
+export type SimpleEvaluationDataPayload = NonNullable<SimpleEvaluationCreate["data"]>
 
 export interface EvalStepSectionProps<Value> {
     value: Value
@@ -92,8 +80,8 @@ export interface EvalStepSectionProps<Value> {
     runtime: EvalStepRuntime
 }
 
-export interface EvalStepDescriptor<Value = unknown> {
-    kind: EvalStepKind
+export interface EvalStepDescriptor<Kind extends EvalStepKind, Value> {
+    kind: Kind
     title: string
     Section: ComponentType<EvalStepSectionProps<Value>>
     defaultValue: Value
@@ -108,5 +96,5 @@ export interface EvalStepDescriptor<Value = unknown> {
 }
 
 export type EvalStepDescriptorRegistry = {
-    [Kind in EvalStepKind]: EvalStepDescriptor<EvalStepValueMap[Kind]>
+    [Kind in EvalStepKind]: EvalStepDescriptor<Kind, EvalStepValueMap[Kind]>
 }

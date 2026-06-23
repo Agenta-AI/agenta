@@ -47,14 +47,14 @@ import {
     evalStepRegistry,
     getDefaultEvalSteps,
 } from "../evalSteps/registry"
-import {activeEvalStepAtom, evalStepsConfigAtom, evalStepValuesAtom} from "../evalSteps/state"
+import {activeEvalStepAtom, evalStepValuesAtom} from "../evalSteps/state"
 import type {
-    ApplicationStepValue,
     EvalStepContext,
     EvalStepKind,
     EvalStepRuntime,
     EvalStepSlot,
     EvalStepValueMap,
+    InvocationStepValue,
 } from "../evalSteps/types"
 import type {NewEvaluationModalInnerProps} from "../types"
 
@@ -63,7 +63,7 @@ const NewEvaluationModalContent = dynamic(() => import("./NewEvaluationModalCont
 })
 
 const TOUR_PANEL_TO_STEP: Record<string, EvalStepKind> = {
-    appPanel: "application",
+    appPanel: "invocation",
     variantPanel: "revision",
     testsetPanel: "testset",
     evaluatorPanel: "evaluator",
@@ -102,7 +102,6 @@ const NewEvaluationModalInner = ({
     const [stepValues, setStepValues] = useAtom(evalStepValuesAtom)
     const stepValuesRef = useRef(stepValues)
     const setActiveStep = useSetAtom(activeEvalStepAtom)
-    const setStepsConfig = useSetAtom(evalStepsConfigAtom)
     const setRegistryWorkflowIdOverride = useSetAtom(registryWorkflowIdOverrideAtom)
 
     const sanitizedPreSelectedAppId = useMemo(() => {
@@ -125,7 +124,7 @@ const NewEvaluationModalInner = ({
     if (!resolvedStepsRef.current) {
         const configured = (steps ?? getDefaultEvalSteps()).map((slot) => ({...slot}))
         const initialSteps = configured.map((slot) => {
-            if (slot.kind === "application" && effectiveAppId && slot.preset === undefined) {
+            if (slot.kind === "invocation" && effectiveAppId && slot.preset === undefined) {
                 return {
                     ...slot,
                     preset: {id: effectiveAppId},
@@ -164,18 +163,16 @@ const NewEvaluationModalInner = ({
         }
         stepValuesRef.current = initialValues
         setStepValues(initialValues)
-        setStepsConfig(resolvedSteps)
         return () => {
             stepValuesRef.current = {}
             setStepValues({})
-            setStepsConfig([])
             setActiveStep(null)
         }
-    }, [resolvedSteps, setActiveStep, setStepValues, setStepsConfig])
+    }, [resolvedSteps, setActiveStep, setStepValues])
 
-    const application = (stepValues.application ??
-        evalStepRegistry.application.defaultValue) as ApplicationStepValue
-    const selectedAppId = application.id
+    const invocation = (stepValues.invocation ??
+        evalStepRegistry.invocation.defaultValue) as InvocationStepValue
+    const selectedWorkflowId = invocation.id
     const revisionIds = (stepValues.revision ?? evalStepRegistry.revision.defaultValue) as string[]
     const testset = (stepValues.testset ??
         evalStepRegistry.testset.defaultValue) as EvalStepValueMap["testset"]
@@ -185,60 +182,37 @@ const NewEvaluationModalInner = ({
         evalStepRegistry.advanced.defaultValue) as EvalStepValueMap["advanced"]
 
     useEffect(() => {
-        setRegistryWorkflowIdOverride(selectedAppId || null)
+        setRegistryWorkflowIdOverride(selectedWorkflowId || null)
         return () => setRegistryWorkflowIdOverride(null)
-    }, [selectedAppId, setRegistryWorkflowIdOverride])
+    }, [selectedWorkflowId, setRegistryWorkflowIdOverride])
 
-    const appOptions = useMemo(() => {
-        const options = availableApps.map((app) => ({
-            label: app.name ?? app.slug ?? "",
-            value: app.id,
-            type: app.flags?.is_custom
-                ? "custom"
-                : app.flags?.is_chat
-                  ? "chat"
-                  : ("completion" as string | null),
-            createdAt: app.created_at ?? null,
-            updatedAt: app.updated_at ?? null,
-        }))
-        if (selectedAppId && !options.some((option) => option.value === selectedAppId)) {
-            const evaluator = evaluatorWorkflows.find((workflow) => workflow.id === selectedAppId)
-            options.push({
-                label: application.label ?? evaluator?.name ?? evaluator?.slug ?? selectedAppId,
-                value: selectedAppId,
-                type: (application.isEvaluator ?? Boolean(evaluator)) ? "evaluator" : null,
-                createdAt: null,
-                updatedAt: null,
-            })
-        }
-        return options
-    }, [
-        application.isEvaluator,
-        application.label,
-        availableApps,
-        evaluatorWorkflows,
-        selectedAppId,
-    ])
+    const selectedWorkflowLabel = useMemo(() => {
+        if (!selectedWorkflowId) return undefined
+        const app = availableApps.find((candidate) => candidate.id === selectedWorkflowId)
+        if (app) return app.name ?? app.slug ?? undefined
+        const evaluator = evaluatorWorkflows.find(
+            (candidate) => candidate.id === selectedWorkflowId,
+        )
+        return evaluator?.name ?? evaluator?.slug ?? undefined
+    }, [availableApps, evaluatorWorkflows, selectedWorkflowId])
 
     useEffect(() => {
-        if (!selectedAppId || application.label) return
-        const option = appOptions.find((candidate) => candidate.value === selectedAppId)
-        if (!option?.label) return
+        if (!selectedWorkflowId || invocation.label || !selectedWorkflowLabel) return
         updateStepValues((current) => ({
             ...current,
-            application: {...application, label: option.label},
+            invocation: {...invocation, label: selectedWorkflowLabel},
         }))
-    }, [appOptions, application, selectedAppId, updateStepValues])
+    }, [invocation, selectedWorkflowId, selectedWorkflowLabel, updateStepValues])
 
     const workflowRevisions = useAtomValue(
         useMemo(
-            () => workflowRevisionsByWorkflowListDataAtomFamily(selectedAppId || ""),
-            [selectedAppId],
+            () => workflowRevisionsByWorkflowListDataAtomFamily(selectedWorkflowId || ""),
+            [selectedWorkflowId],
         ),
     )
     const filteredVariants = useMemo(
-        () => (selectedAppId ? workflowRevisions || [] : []),
-        [selectedAppId, workflowRevisions],
+        () => (selectedWorkflowId ? workflowRevisions || [] : []),
+        [selectedWorkflowId, workflowRevisions],
     )
 
     const getStepValue = useCallback(
@@ -253,7 +227,7 @@ const NewEvaluationModalInner = ({
             !slot.hidden &&
             (evalStepRegistry[slot.kind].isVisible?.({
                 projectId,
-                appId: getStepValue("application").id || undefined,
+                workflowId: getStepValue("invocation").id || undefined,
                 evaluationType,
                 preview,
                 liveCompatibleEvaluatorsOnly,
@@ -268,12 +242,12 @@ const NewEvaluationModalInner = ({
     const baseContext = useMemo(
         () => ({
             projectId,
-            appId: selectedAppId || undefined,
+            workflowId: selectedWorkflowId || undefined,
             evaluationType,
             preview,
             liveCompatibleEvaluatorsOnly,
         }),
-        [evaluationType, liveCompatibleEvaluatorsOnly, preview, projectId, selectedAppId],
+        [evaluationType, liveCompatibleEvaluatorsOnly, preview, projectId, selectedWorkflowId],
     )
 
     const advanceFrom = useCallback(
@@ -297,43 +271,43 @@ const NewEvaluationModalInner = ({
         [baseContext, getStepValue, isVisible, resolvedSteps, setActiveStep],
     )
 
-    const handleApplicationSelection = useCallback(
-        (nextApplication: ApplicationStepValue) => {
-            const nextValues = {...stepValuesRef.current, application: nextApplication}
-            const dependsOnApplication = (slot: EvalStepSlot): boolean => {
+    const handleInvocationSelection = useCallback(
+        (nextInvocation: InvocationStepValue) => {
+            const nextValues = {...stepValuesRef.current, invocation: nextInvocation}
+            const dependsOnInvocation = (slot: EvalStepSlot): boolean => {
                 const dependencies = slot.dependsOn ?? []
                 return dependencies.some((dependency) => {
-                    if (dependency === "application") return true
+                    if (dependency === "invocation") return true
                     const dependencySlot = resolvedSteps.find(
                         (candidate) => candidate.kind === dependency,
                     )
-                    return dependencySlot ? dependsOnApplication(dependencySlot) : false
+                    return dependencySlot ? dependsOnInvocation(dependencySlot) : false
                 })
             }
             for (const slot of resolvedSteps) {
-                if (slot.kind === "application" || !dependsOnApplication(slot)) continue
+                if (slot.kind === "invocation" || !dependsOnInvocation(slot)) continue
                 nextValues[slot.kind] = resolveSlotValue(slot) as never
             }
             updateStepValues(nextValues)
             const nextContext = {
                 ...baseContext,
-                appId: nextApplication.id || undefined,
+                workflowId: nextInvocation.id || undefined,
                 getStepValue: <Kind extends EvalStepKind>(kind: Kind) =>
                     (nextValues[kind] ??
                         evalStepRegistry[kind].defaultValue) as EvalStepValueMap[Kind],
                 setStepValue: () => undefined,
                 advanceFrom: () => undefined,
             } as EvalStepContext
-            const next = nextApplication.id
+            const next = nextInvocation.id
                 ? findNextEvaluationStep(
-                      "application",
+                      "invocation",
                       resolvedSteps,
                       evalStepEngineRegistry,
                       nextContext.getStepValue,
                       nextContext,
                       isVisible,
                   )
-                : "application"
+                : "invocation"
             setActiveStep(next)
             setEvaluationName("")
         },
@@ -349,13 +323,13 @@ const NewEvaluationModalInner = ({
                           current,
                       )
                     : action
-            if (kind === "application") {
-                handleApplicationSelection(value as ApplicationStepValue)
+            if (kind === "invocation") {
+                handleInvocationSelection(value as InvocationStepValue)
                 return
             }
             updateStepValues((existing) => ({...existing, [kind]: value}))
         },
-        [getStepValue, handleApplicationSelection, updateStepValues],
+        [getStepValue, handleInvocationSelection, updateStepValues],
     )
 
     const context = useMemo<EvalStepContext>(
@@ -418,7 +392,7 @@ const NewEvaluationModalInner = ({
 
     const isCustomApp = useAtomValue(currentAppContextAtom)?.appType === "custom"
     const {createNewRun: createPreviewEvaluationRun} = usePreviewEvaluations({
-        appId: selectedAppId || routeAppId || undefined,
+        appId: selectedWorkflowId || routeAppId || undefined,
         skip: false,
         isCustomApp,
     })
@@ -598,13 +572,13 @@ const NewEvaluationModalInner = ({
                     concurrency: advanceSettings,
                 }
                 if (
-                    !selectedAppId ||
+                    !selectedWorkflowId ||
                     !selectionData.revisions.length ||
                     !selectionData.testset ||
                     !selectionData.evaluators.length
                 ) {
                     message.error(
-                        "Human evaluations require an application, revision, testset, and evaluator.",
+                        "Human evaluations require a workflow, revision, testset, and evaluator.",
                     )
                     return
                 }
@@ -615,7 +589,7 @@ const NewEvaluationModalInner = ({
                     scope: isAppScoped ? "app" : "project",
                     baseAppURL,
                     projectURL,
-                    appId: selectedAppId,
+                    appId: selectedWorkflowId,
                     path: `/evaluations/results/${data.runId}`,
                 })
                 onSuccess?.()
@@ -641,12 +615,12 @@ const NewEvaluationModalInner = ({
             if (runId) {
                 const resultsUrl = buildEvaluationNavigationUrl({
                     scope:
-                        resolvedSteps.some((slot) => slot.kind === "application") && isAppScoped
+                        resolvedSteps.some((slot) => slot.kind === "invocation") && isAppScoped
                             ? "app"
                             : "project",
                     baseAppURL,
                     projectURL,
-                    appId: selectedAppId || undefined,
+                    appId: selectedWorkflowId || undefined,
                     path: `/evaluations/results/${runId}`,
                 })
                 message.success(
@@ -694,7 +668,7 @@ const NewEvaluationModalInner = ({
         resolvedSteps,
         revisionIds,
         router,
-        selectedAppId,
+        selectedWorkflowId,
         testset,
         validateSubmission,
     ])
@@ -712,12 +686,10 @@ const NewEvaluationModalInner = ({
 
     const runtime = useMemo<EvalStepRuntime>(
         () => ({
-            appOptions,
             allowTestsetAutoAdvance,
-            onSelectApplication: handleApplicationSelection,
             onEvaluatorCreated: handleEvaluatorCreated,
         }),
-        [allowTestsetAutoAdvance, appOptions, handleApplicationSelection, handleEvaluatorCreated],
+        [allowTestsetAutoAdvance, handleEvaluatorCreated],
     )
 
     return (

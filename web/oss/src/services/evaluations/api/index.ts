@@ -1,5 +1,5 @@
 import {EvaluationStatus} from "@agenta/entities/evaluationRun"
-import {splitEvaluationPayloadByApplicationStep} from "@agenta/evaluations/core"
+import {splitEvaluationPayloadByInvocationStep} from "@agenta/evaluations/core"
 import {getAgentaSdkClient} from "@agenta/sdk"
 import {getAgentaApiUrl} from "@agenta/shared/api"
 
@@ -143,41 +143,24 @@ export const fetchEvaluationStatus = async (evaluationId: string) => {
     return {status: run.status} as {status: _Evaluation["status"]}
 }
 
-type EvaluationStepTarget = string[] | Record<string, "custom" | "human" | "auto">
-
-interface SimpleEvaluationDataPayload {
-    status?: string | null
-    query_steps?: EvaluationStepTarget | null
-    testset_steps?: EvaluationStepTarget | null
-    application_steps?: EvaluationStepTarget | null
-    evaluator_steps?: EvaluationStepTarget | null
-    repeats?: number | null
-    concurrency?: {
-        batch_size: number
-        max_retries: number
-        retry_delay: number
-    } | null
-}
+type AgentaSdkClient = ReturnType<typeof getAgentaSdkClient>
+type CreateSimpleEvaluation = AgentaSdkClient["evaluations"]["createSimpleEvaluation"]
+type SimpleEvaluationCreateRequest = Parameters<CreateSimpleEvaluation>[0]
+type SimpleEvaluationCreate = SimpleEvaluationCreateRequest["evaluation"]
+type SimpleEvaluationData = NonNullable<SimpleEvaluationCreate["data"]>
+type EvaluationRunFlags = NonNullable<SimpleEvaluationCreate["flags"]>
+type SimpleEvaluationResponse = Awaited<ReturnType<CreateSimpleEvaluation>>
 
 export interface CreateEvaluationData {
     name: string
-    data: Partial<SimpleEvaluationDataPayload>
-    flags?: {
-        is_live?: boolean | null
-        is_active?: boolean | null
-        is_closed?: boolean | null
-    }
-}
-
-interface SimpleEvaluationResponsePayload {
-    count?: number
-    evaluation?: {id?: string | null} | null
+    data: SimpleEvaluationData
+    flags?: EvaluationRunFlags
 }
 
 export interface CreateEvaluationResult {
-    data: SimpleEvaluationResponsePayload
-    runs: SimpleEvaluationResponsePayload[]
-    additionalRuns: SimpleEvaluationResponsePayload[]
+    data: SimpleEvaluationResponse
+    runs: SimpleEvaluationResponse[]
+    additionalRuns: SimpleEvaluationResponse[]
 }
 
 export const createEvaluation = async ({
@@ -187,19 +170,19 @@ export const createEvaluation = async ({
 }: CreateEvaluationData): Promise<CreateEvaluationResult> => {
     const {projectId} = getProjectValues()
     const client = getAgentaSdkClient({host: getAgentaApiUrl()})
-    const payloads = splitEvaluationPayloadByApplicationStep(data)
+    const payloads = splitEvaluationPayloadByInvocationStep(data)
     const responses = await Promise.all(
         payloads.map((runData) =>
             client.evaluations.createSimpleEvaluation(
                 {
                     evaluation: {
                         name,
-                        data: runData as never,
-                        flags: (flags ?? {
+                        data: runData,
+                        flags: flags ?? {
                             is_live: false,
                             is_active: true,
                             is_closed: false,
-                        }) as never,
+                        },
                     },
                 },
                 {queryParams: {project_id: projectId}},

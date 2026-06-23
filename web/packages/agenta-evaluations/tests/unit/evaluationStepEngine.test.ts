@@ -7,21 +7,21 @@ import {
     findInitialEvaluationStep,
     findNextEvaluationStep,
     isEvaluationStepEnabled,
-    splitEvaluationPayloadByApplicationStep,
+    splitEvaluationPayloadByInvocationStep,
     type EvaluationStepDescriptorMap,
     type EvaluationStepSlot,
 } from "../../src/core/evaluationStepEngine"
 
-type Kind = "application" | "revision" | "evaluator" | "advanced" | "traces" | "query"
+type Kind = "invocation" | "revision" | "evaluator" | "advanced" | "traces" | "query"
 type Values = Partial<Record<Kind, unknown>>
 interface Payload {
     application_steps?: Record<string, "auto">
     evaluator_steps?: Record<string, "auto">
 }
 
-const descriptors: EvaluationStepDescriptorMap<Kind, Values, Payload> = {
-    application: {
-        kind: "application",
+const descriptors: EvaluationStepDescriptorMap<Kind, Values, Values, Payload> = {
+    invocation: {
+        kind: "invocation",
         defaultValue: "",
         isComplete: (value) => Boolean(value),
         toPayload: async (_value, context) => ({
@@ -67,7 +67,7 @@ const getValue = (values: Values) => (kind: Kind) => values[kind]
 describe("evaluation step engine", () => {
     it("validates missing, duplicate, and cyclic dependencies", () => {
         const knownKinds = new Set<Kind>([
-            "application",
+            "invocation",
             "revision",
             "evaluator",
             "advanced",
@@ -75,16 +75,16 @@ describe("evaluation step engine", () => {
             "query",
         ])
         expect(() =>
-            assertValidStepConfig([{kind: "revision", dependsOn: ["application"]}], knownKinds),
+            assertValidStepConfig([{kind: "revision", dependsOn: ["invocation"]}], knownKinds),
         ).toThrow(/missing step/)
         expect(() =>
-            assertValidStepConfig([{kind: "application"}, {kind: "application"}], knownKinds),
+            assertValidStepConfig([{kind: "invocation"}, {kind: "invocation"}], knownKinds),
         ).toThrow(/Duplicate/)
         expect(() =>
             assertValidStepConfig(
                 [
-                    {kind: "application", dependsOn: ["revision"]},
-                    {kind: "revision", dependsOn: ["application"]},
+                    {kind: "invocation", dependsOn: ["revision"]},
+                    {kind: "revision", dependsOn: ["invocation"]},
                 ],
                 knownKinds,
             ),
@@ -93,7 +93,7 @@ describe("evaluation step engine", () => {
 
     it("validates mutually exclusive step groups", () => {
         const knownKinds = new Set<Kind>([
-            "application",
+            "invocation",
             "revision",
             "evaluator",
             "advanced",
@@ -122,10 +122,10 @@ describe("evaluation step engine", () => {
     })
 
     it("gates steps only on declared dependencies", () => {
-        const values: Values = {application: "", revision: [], evaluator: [], advanced: {}}
+        const values: Values = {invocation: "", revision: [], evaluator: [], advanced: {}}
         const revision: EvaluationStepSlot<Kind> = {
             kind: "revision",
-            dependsOn: ["application"],
+            dependsOn: ["invocation"],
         }
         expect(isEvaluationStepEnabled(revision, descriptors, getValue(values), values)).toBe(false)
         expect(
@@ -135,13 +135,13 @@ describe("evaluation step engine", () => {
 
     it("chooses and advances through enabled incomplete steps in config order", () => {
         const slots: EvaluationStepSlot<Kind>[] = [
-            {kind: "application"},
-            {kind: "revision", dependsOn: ["application"]},
-            {kind: "evaluator", dependsOn: ["application"]},
+            {kind: "invocation"},
+            {kind: "revision", dependsOn: ["invocation"]},
+            {kind: "evaluator", dependsOn: ["invocation"]},
             {kind: "advanced"},
         ]
         const values: Values = {
-            application: "app-1",
+            invocation: "workflow-1",
             revision: ["rev-1"],
             evaluator: [],
             advanced: {},
@@ -159,7 +159,7 @@ describe("evaluation step engine", () => {
             {kind: "evaluator", required: true},
             {kind: "advanced"},
         ]
-        const values: Values = {application: "", revision: [], evaluator: [], advanced: {}}
+        const values: Values = {invocation: "", revision: [], evaluator: [], advanced: {}}
         expect(findFirstIncompleteRequiredStep(slots, descriptors, getValue(values), values)).toBe(
             "evaluator",
         )
@@ -171,14 +171,14 @@ describe("evaluation step engine", () => {
 
     it("composes payload only from configured descriptors", async () => {
         const values: Values = {
-            application: "",
+            invocation: "",
             revision: ["rev-1"],
             evaluator: ["eval-1"],
             advanced: {},
         }
         await expect(
             composeEvaluationStepPayload(
-                [{kind: "application"}, {kind: "revision"}, {kind: "evaluator"}],
+                [{kind: "invocation"}, {kind: "revision"}, {kind: "evaluator"}],
                 descriptors,
                 getValue(values),
                 values,
@@ -200,15 +200,15 @@ describe("evaluation step engine", () => {
         })
     })
 
-    it("fans out application steps while preserving no-application payloads", () => {
+    it("fans out invocation payload entries while preserving payloads without invocations", () => {
         expect(
-            splitEvaluationPayloadByApplicationStep({
+            splitEvaluationPayloadByInvocationStep({
                 evaluator_steps: {"eval-1": "auto"},
             }),
         ).toEqual([{evaluator_steps: {"eval-1": "auto"}}])
 
         expect(
-            splitEvaluationPayloadByApplicationStep({
+            splitEvaluationPayloadByInvocationStep({
                 application_steps: {"rev-1": "auto", "rev-2": "custom"},
                 evaluator_steps: {"eval-1": "auto"},
             }),

@@ -1,23 +1,31 @@
-export interface EvaluationStepSlot<Kind extends string> {
-    kind: Kind
+export interface EvaluationStepSlot<
+    Kind extends string,
+    SlotKind extends Kind = Kind,
+    Preset = unknown,
+> {
+    kind: SlotKind
     required?: boolean
     hidden?: boolean
     locked?: boolean
-    preset?: unknown
+    preset?: Preset
     dependsOn?: Kind[]
 }
 
-export interface EvaluationStepDescriptor<Value, Context, Payload> {
-    kind: string
+export interface EvaluationStepDescriptor<Kind extends string, Value, Context, Payload> {
+    kind: Kind
     defaultValue: Value
     isComplete: (value: Value, context: Context) => boolean
     toPayload?: (value: Value, context: Context) => Promise<Partial<Payload>>
 }
 
-export type EvaluationStepDescriptorMap<Kind extends string, Context, Payload> = Record<
-    Kind,
-    EvaluationStepDescriptor<never, Context, Payload>
->
+export type EvaluationStepDescriptorMap<
+    Kind extends string,
+    Values extends Record<Kind, unknown>,
+    Context,
+    Payload,
+> = {
+    [StepKind in Kind]: EvaluationStepDescriptor<StepKind, Values[StepKind], Context, Payload>
+}
 
 export const assertValidStepConfig = <Kind extends string>(
     slots: EvaluationStepSlot<Kind>[],
@@ -70,20 +78,27 @@ export const assertValidStepConfig = <Kind extends string>(
     for (const slot of slots) visit(slot.kind)
 }
 
-export const isEvaluationStepEnabled = <Kind extends string, Context, Payload>(
+export const isEvaluationStepEnabled = <
+    Kind extends string,
+    Values extends Record<Kind, unknown>,
+    Context,
+    Payload,
+>(
     slot: EvaluationStepSlot<Kind>,
-    descriptors: EvaluationStepDescriptorMap<Kind, Context, Payload>,
-    getValue: (kind: Kind) => unknown,
+    descriptors: EvaluationStepDescriptorMap<Kind, Values, Context, Payload>,
+    getValue: <StepKind extends Kind>(kind: StepKind) => Values[StepKind],
     context: Context,
-) =>
-    (slot.dependsOn ?? []).every((kind) =>
-        descriptors[kind].isComplete(getValue(kind) as never, context),
-    )
+) => (slot.dependsOn ?? []).every((kind) => descriptors[kind].isComplete(getValue(kind), context))
 
-export const findInitialEvaluationStep = <Kind extends string, Context, Payload>(
+export const findInitialEvaluationStep = <
+    Kind extends string,
+    Values extends Record<Kind, unknown>,
+    Context,
+    Payload,
+>(
     slots: EvaluationStepSlot<Kind>[],
-    descriptors: EvaluationStepDescriptorMap<Kind, Context, Payload>,
-    getValue: (kind: Kind) => unknown,
+    descriptors: EvaluationStepDescriptorMap<Kind, Values, Context, Payload>,
+    getValue: <StepKind extends Kind>(kind: StepKind) => Values[StepKind],
     context: Context,
     isVisible: (slot: EvaluationStepSlot<Kind>) => boolean = (slot) => !slot.hidden,
 ) => {
@@ -91,19 +106,23 @@ export const findInitialEvaluationStep = <Kind extends string, Context, Payload>
         (slot) => isVisible(slot) && isEvaluationStepEnabled(slot, descriptors, getValue, context),
     )
     return (
-        candidates.find(
-            (slot) => !descriptors[slot.kind].isComplete(getValue(slot.kind) as never, context),
-        )?.kind ??
+        candidates.find((slot) => !descriptors[slot.kind].isComplete(getValue(slot.kind), context))
+            ?.kind ??
         candidates[0]?.kind ??
         null
     )
 }
 
-export const findNextEvaluationStep = <Kind extends string, Context, Payload>(
+export const findNextEvaluationStep = <
+    Kind extends string,
+    Values extends Record<Kind, unknown>,
+    Context,
+    Payload,
+>(
     currentKind: Kind,
     slots: EvaluationStepSlot<Kind>[],
-    descriptors: EvaluationStepDescriptorMap<Kind, Context, Payload>,
-    getValue: (kind: Kind) => unknown,
+    descriptors: EvaluationStepDescriptorMap<Kind, Values, Context, Payload>,
+    getValue: <StepKind extends Kind>(kind: StepKind) => Values[StepKind],
     context: Context,
     isVisible: (slot: EvaluationStepSlot<Kind>) => boolean = (slot) => !slot.hidden,
 ) => {
@@ -114,31 +133,35 @@ export const findNextEvaluationStep = <Kind extends string, Context, Payload>(
             (slot) =>
                 isVisible(slot) &&
                 isEvaluationStepEnabled(slot, descriptors, getValue, context) &&
-                !descriptors[slot.kind].isComplete(getValue(slot.kind) as never, context),
+                !descriptors[slot.kind].isComplete(getValue(slot.kind), context),
         )?.kind ?? null
     )
 }
 
-export const findFirstIncompleteRequiredStep = <Kind extends string, Context, Payload>(
+export const findFirstIncompleteRequiredStep = <
+    Kind extends string,
+    Values extends Record<Kind, unknown>,
+    Context,
+    Payload,
+>(
     slots: EvaluationStepSlot<Kind>[],
-    descriptors: EvaluationStepDescriptorMap<Kind, Context, Payload>,
-    getValue: (kind: Kind) => unknown,
+    descriptors: EvaluationStepDescriptorMap<Kind, Values, Context, Payload>,
+    getValue: <StepKind extends Kind>(kind: StepKind) => Values[StepKind],
     context: Context,
 ) =>
     slots.find(
-        (slot) =>
-            slot.required &&
-            !descriptors[slot.kind].isComplete(getValue(slot.kind) as never, context),
+        (slot) => slot.required && !descriptors[slot.kind].isComplete(getValue(slot.kind), context),
     )?.kind ?? null
 
 export const composeEvaluationStepPayload = async <
     Kind extends string,
+    Values extends Record<Kind, unknown>,
     Context,
     Payload extends object,
 >(
     slots: EvaluationStepSlot<Kind>[],
-    descriptors: EvaluationStepDescriptorMap<Kind, Context, Payload>,
-    getValue: (kind: Kind) => unknown,
+    descriptors: EvaluationStepDescriptorMap<Kind, Values, Context, Payload>,
+    getValue: <StepKind extends Kind>(kind: StepKind) => Values[StepKind],
     context: Context,
 ): Promise<Partial<Payload>> => {
     let payload: Partial<Payload> = {}
@@ -147,13 +170,13 @@ export const composeEvaluationStepPayload = async <
         if (!descriptor.toPayload) continue
         payload = {
             ...payload,
-            ...(await descriptor.toPayload(getValue(slot.kind) as never, context)),
+            ...(await descriptor.toPayload(getValue(slot.kind), context)),
         }
     }
     return payload
 }
 
-export const splitEvaluationPayloadByApplicationStep = <
+export const splitEvaluationPayloadByInvocationStep = <
     Payload extends {
         application_steps?: string[] | Record<string, unknown> | null
     },

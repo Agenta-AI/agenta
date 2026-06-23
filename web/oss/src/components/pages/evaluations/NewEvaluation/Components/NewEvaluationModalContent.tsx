@@ -41,6 +41,7 @@ const NewEvaluationModalContent = ({
                 })
                 .map((slot) => {
                     const descriptor = evalStepRegistry[slot.kind] as EvalStepDescriptor<
+                        EvalStepKind,
                         EvalStepValueMap[EvalStepKind]
                     >
                     const value = values[slot.kind] ?? descriptor.defaultValue
