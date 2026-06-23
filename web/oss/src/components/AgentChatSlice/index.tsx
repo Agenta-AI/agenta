@@ -1,16 +1,20 @@
 import {useEffect, useRef, useState} from "react"
 
 import {Segmented, Tabs, Tooltip, Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
+import {useRouter} from "next/router"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 
 import {type AgentChatTrack, DEFAULT_TRACK} from "./assets/constants"
+import {loadSessionMessages} from "./assets/loadSession"
 import AgentChatConversation from "./components/AgentChatConversation"
+import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import SessionTabLabel from "./components/SessionTabLabel"
 import {
     activeSessionIdAtom,
     addSessionAtom,
+    adoptSessionAtom,
     closeSessionAtom,
     renameSessionAtom,
     sessionLabel,
@@ -42,14 +46,54 @@ const {Text, Title} = Typography
 const AgentChatSlice = () => {
     const [track, setTrack] = useState<AgentChatTrack>(DEFAULT_TRACK)
     const appId = useAtomValue(routerAppIdAtom)
+    const store = useStore()
+    const router = useRouter()
 
     const sessions = useAtomValue(sessionsListAtom)
     const rawActiveId = useAtomValue(activeSessionIdAtom)
     const allMessages = useAtomValue(sessionMessagesAtom)
     const addSession = useSetAtom(addSessionAtom)
+    const adoptSession = useSetAtom(adoptSessionAtom)
     const closeSession = useSetAtom(closeSessionAtom)
     const renameSession = useSetAtom(renameSessionAtom)
     const setActiveSession = useSetAtom(setActiveSessionAtom)
+
+    // Open-from-observability: a `?session=<id>` deep link (from a trace / session drawer)
+    // opens that session as a tab. Hydrate its messages first — from localStorage if this
+    // browser ran it, else from the server seam (`loadSessionMessages`, inert until a backend
+    // SessionStore exists) — THEN adopt, so the conversation seeds with whatever we found. The
+    // param is stripped afterwards so a reload / tab switch doesn't re-adopt.
+    const sessionParam = router.query.session
+    useEffect(() => {
+        if (!router.isReady) return
+        const id = Array.isArray(sessionParam) ? sessionParam[0] : sessionParam
+        if (!id) return
+        let cancelled = false
+        const open = () => {
+            if (!cancelled) adoptSession({id})
+        }
+        const existing = store.get(sessionMessagesAtom)[id]
+        if (existing && existing.length) {
+            open()
+        } else {
+            loadSessionMessages(id).then((msgs) => {
+                if (cancelled) return
+                if (msgs && msgs.length) {
+                    store.set(sessionMessagesAtom, {
+                        ...store.get(sessionMessagesAtom),
+                        [id]: msgs,
+                    })
+                }
+                open()
+            })
+        }
+        const rest = {...router.query}
+        delete rest.session
+        router.replace({pathname: router.pathname, query: rest}, undefined, {shallow: true})
+        return () => {
+            cancelled = true
+        }
+    }, [router.isReady, sessionParam])
 
     // Always keep at least one tab. Re-arms when the list drains (e.g. switching to an app
     // with no sessions yet) without double-firing under StrictMode.
@@ -88,23 +132,26 @@ const AgentChatSlice = () => {
                 }}
                 tabBarExtraContent={{
                     right: (
-                        <Tooltip
-                            title={
-                                track === "agenta"
-                                    ? "Dev: Track B — FE adapts to Agenta {role, content} + tool_approvals"
-                                    : "Dev: Track A — useChat posts UIMessage[] parts verbatim"
-                            }
-                        >
-                            <Segmented<AgentChatTrack>
-                                size="small"
-                                value={track}
-                                onChange={setTrack}
-                                options={[
-                                    {label: "A", value: "uimessage"},
-                                    {label: "B", value: "agenta"},
-                                ]}
-                            />
-                        </Tooltip>
+                        <div className="flex items-center gap-2">
+                            <SessionHistoryMenu />
+                            <Tooltip
+                                title={
+                                    track === "agenta"
+                                        ? "Dev: Track B — FE adapts to Agenta {role, content} + tool_approvals"
+                                        : "Dev: Track A — useChat posts UIMessage[] parts verbatim"
+                                }
+                            >
+                                <Segmented<AgentChatTrack>
+                                    size="small"
+                                    value={track}
+                                    onChange={setTrack}
+                                    options={[
+                                        {label: "A", value: "uimessage"},
+                                        {label: "B", value: "agenta"},
+                                    ]}
+                                />
+                            </Tooltip>
+                        </div>
                     ),
                 }}
                 items={sessions.map((session, index) => ({

@@ -32,3 +32,33 @@ export const getMessageTraceId = (message: UIMessage): string | undefined => {
     if (!tracePart?.data) return undefined
     return tracePart.data.traceId || parseTraceIdFromUrl(tracePart.data.url)
 }
+
+/** Token/cost fields in `ExecutionMetricsDisplay`'s shape. */
+export interface MessageUsageMetrics {
+    promptTokens?: number
+    completionTokens?: number
+    totalTokens?: number
+    totalCost?: number
+}
+
+/**
+ * Usage (tokens + cost) the service stamps onto `message.metadata.usage` via the
+ * `finish` part's messageMetadata (`{input, output, total, cost}`), mapped to the
+ * metrics-display field names. The trace supplies latency; this supplies tokens/cost
+ * (the agent-run trace summary doesn't surface them on the Pi/local path).
+ */
+export const getMessageUsage = (message: UIMessage): MessageUsageMetrics | undefined => {
+    const usage = (message.metadata as {usage?: Record<string, unknown>} | undefined)?.usage
+    if (!usage || typeof usage !== "object") return undefined
+    const num = (v: unknown): number | undefined => (typeof v === "number" ? v : undefined)
+    const out: MessageUsageMetrics = {}
+    const input = num(usage.input)
+    const output = num(usage.output)
+    const total = num(usage.total)
+    const cost = num(usage.cost)
+    if (input !== undefined) out.promptTokens = input
+    if (output !== undefined) out.completionTokens = output
+    if (total !== undefined) out.totalTokens = total
+    if (cost !== undefined) out.totalCost = cost
+    return Object.keys(out).length > 0 ? out : undefined
+}

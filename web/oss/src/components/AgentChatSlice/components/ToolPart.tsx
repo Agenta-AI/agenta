@@ -55,7 +55,7 @@ const JsonBlock = ({value, typewriter = false}: {value: unknown; typewriter?: bo
     const full = typeof value === "string" ? value : JSON.stringify(value, null, 2)
     const text = useTypewriter(full, typewriter)
     return (
-        <pre className="m-0 max-w-full min-w-0 overflow-x-auto rounded bg-colorFillTertiary p-2 text-xs leading-relaxed text-colorTextSecondary">
+        <pre className="m-0 mt-1 max-h-60 max-w-full min-w-0 overflow-auto rounded bg-colorFillTertiary p-2 text-xs leading-relaxed text-colorTextSecondary">
             {text}
         </pre>
     )
@@ -98,11 +98,11 @@ const ToolPart = ({part, onApprovalResponse, disabled}: ToolPartProps) => {
                   : Wrench
 
     return (
-        <div className="my-2 w-full min-w-0 overflow-hidden rounded-md border border-solid border-colorBorderSecondary bg-colorBgContainer">
+        <div className="w-full min-w-0 overflow-hidden rounded-md border border-solid border-colorBorderSecondary bg-colorBgContainer">
             <button
                 type="button"
                 onClick={() => setOpen((o) => !o)}
-                className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2 text-left"
+                className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2 text-left transition-colors hover:bg-[var(--ag-rgba-051729-04)]"
             >
                 {expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 <StateIcon

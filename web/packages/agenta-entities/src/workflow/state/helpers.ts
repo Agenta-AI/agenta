@@ -233,6 +233,7 @@ export function deriveWorkflowTypeFromRevision(
     }
 
     // Apps: URI is the source of truth. Format: provider:kind:key:version.
+    if (uriKey === "agent") return "agent"
     if (uriKey === "chat") return "chat"
     if (uriKey === "completion") return "completion"
     if (uriKey === "llm") return "llm"
@@ -241,7 +242,9 @@ export function deriveWorkflowTypeFromRevision(
     if (uriKey === "match") return "match"
     if (uriKey === "feedback") return "human"
 
-    // Fallback to flags for apps without a matching URI kind.
+    // Fallback to flags for apps without a matching URI kind. Agent wins over
+    // is_custom/is_chat (an agent currently surfaces as custom + is_chat).
+    if (flags?.is_agent) return "agent"
     if (flags?.is_custom) return "custom"
     if (flags?.is_chat) return "chat"
 

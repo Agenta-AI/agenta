@@ -67,6 +67,12 @@ export {loadTestsetNormalizedMutationAtom} from "./state"
 
 export {filterUnreferencedColumnsForSource} from "./state"
 
+// Agent generation lane (consumed by OSS AgentChatPanel): per-entity mode flag
+// + the request builder that reuses the playground pipeline but bypasses
+// buffered-fetch execution (useChat streams the v6 conversation).
+export {isAgentModeAtomFamily, buildAgentRequest, buildAgentReferences} from "./state"
+export type {AgentRequest} from "./state"
+
 // ============================================================================
 // ENTITY CONTEXT (Dependency Injection)
 // ============================================================================

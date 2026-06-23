@@ -199,11 +199,12 @@ const AgentChatConversation = ({
                         Ask a question to start the agent conversation.
                     </div>
                 )}
-                {messages.map((message) => (
+                {messages.map((message, index) => (
                     <AgentMessage
                         key={message.id}
                         message={message}
                         busy={busy}
+                        isStreaming={busy && index === messages.length - 1}
                         onRewind={() => handleRewind(message)}
                         onApprovalResponse={addToolApprovalResponse}
                     />

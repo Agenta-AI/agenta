@@ -77,8 +77,9 @@ const withQuery = (url: string, params: Record<string, string | undefined>): str
  * the way the playground pipeline builds them so the page can hit a real backend. */
 async function requestMeta(track: AgentChatTrack, appId?: string | null) {
     const jwt = await getJWT()
-    // `/messages` streams the Vercel UI Message Stream only when the client asks for SSE; without
-    // this header the server returns a batch JSON body that `useChat` cannot render as a stream.
+    // `Accept: text/event-stream` makes the agent `/messages` endpoint serve the v6 SSE
+    // stream useChat consumes; without it the endpoint negotiates down to batch JSON
+    // (the AI-SDK transport sets no Accept), which useChat can't render.
     const headers: Record<string, string> = {Accept: "text/event-stream"}
     if (jwt) headers.Authorization = `Bearer ${jwt}`
     const projectId = getDefaultStore().get(projectIdAtom) || undefined

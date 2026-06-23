@@ -73,7 +73,7 @@ export function AgentConfigControl({
     disabled,
     className,
 }: AgentConfigControlProps) {
-    const {EditorProvider} = useDrillInUI()
+    const {EditorProvider, gatewayTools} = useDrillInUI()
     const config = (value ?? {}) as Record<string, unknown>
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
 
@@ -245,7 +245,8 @@ export function AgentConfigControl({
                             selectedToolNames={selectedToolNames}
                             selectedTools={tools as ToolObj[]}
                             existingToolCount={tools.length}
-                        />
+
+                            gatewayTools={gatewayTools}                        />
                     </div>
                 )}
             </div>

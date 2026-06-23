@@ -34,7 +34,32 @@ export const getLatency = (span?: TraceSpanNode) =>
 
 export const getTraceInputs = (span?: TraceSpanNode) => span?.attributes?.ag?.data?.inputs ?? null
 
-export const getTraceOutputs = (span?: TraceSpanNode) => span?.attributes?.ag?.data?.outputs ?? null
+// A streamed agent run's ROOT span returns a generator, so its `ag.data.outputs` is the
+// generator object's repr (`<async_generator object ... at 0x...>`), not the reply — the span
+// is closed before the stream produces text. The real assistant output lives on the nested
+// `agent`-type span (`invoke_agent`).
+const GENERATOR_REPR = /^<(?:async_)?generator object/
+
+const spanOutputs = (span: TraceSpanNode): unknown => (span.attributes as any)?.ag?.data?.outputs
+
+export const getTraceOutputs = (span?: TraceSpanNode): unknown => {
+    if (!span) return null
+    // Prefer the nested agent span's output (the assistant's reply) over the root's generator.
+    let agentOutput: unknown
+    const visit = (node: TraceSpanNode) => {
+        if (agentOutput !== undefined) return
+        if (node.span_type === "agent") {
+            const out = spanOutputs(node)
+            if (out !== undefined && out !== null) agentOutput = out
+        }
+        node.children?.forEach((child) => visit(child as TraceSpanNode))
+    }
+    visit(span)
+    if (agentOutput !== undefined) return agentOutput
+
+    const own = spanOutputs(span) ?? null
+    return typeof own === "string" && GENERATOR_REPR.test(own) ? null : own
+}
 
 // General attribute helpers ----------------------------------------------------
 export const getAgMetaConfiguration = (span?: TraceSpanNode) =>
