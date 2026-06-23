@@ -364,8 +364,7 @@ function hasRenderableConfigSections(data: unknown): boolean {
     return SIBLING_GROUP_KEYS.some((group) => record[group] !== undefined)
 }
 
-// Tagged `{__siblingData}` payloads route to the raw draft action (merges
-// `data`, keeps `parameters`); everything else is a parameter write.
+// Route tagged `__siblingData` payloads to `actions.update`; otherwise treat as parameter updates.
 const configUpdateRouterAtom = atom(
     null,
     (_get, set, id: string, changes: Record<string, unknown>) => {
