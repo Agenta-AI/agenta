@@ -67,8 +67,8 @@ export const useOrgData = () => {
         async (
             organizationId: string,
         ): Promise<{workspaceId: string | null; preferredProject: ProjectsResponse | null}> => {
+            // Fast path: check already-loaded projects by org ID
             const matchingProject = pickPreferredProjectForWorkspace(projects, organizationId)
-
             if (matchingProject) {
                 return {
                     workspaceId: matchingProject.workspace_id || organizationId,
@@ -76,27 +76,9 @@ export const useOrgData = () => {
                 }
             }
 
-            const fetchedProjects = await queryClient
-                .fetchQuery({
-                    queryKey: ["projects", "switch-org", organizationId],
-                    queryFn: () => fetchAllProjects(),
-                    staleTime: 30_000,
-                })
-                .catch(() => null)
-
-            if (Array.isArray(fetchedProjects)) {
-                const fetchedMatch = pickPreferredProjectForWorkspace(
-                    fetchedProjects,
-                    organizationId,
-                )
-                if (fetchedMatch) {
-                    return {
-                        workspaceId: fetchedMatch.workspace_id || organizationId,
-                        preferredProject: fetchedMatch,
-                    }
-                }
-            }
-
+            // Fetch org details first to resolve the actual workspace ID. This is
+            // required for newly created orgs where the workspace ID is not yet
+            // known and passing org ID to the projects API would yield no results.
             const cachedDetails = queryClient.getQueryData<OrgDetails | null>([
                 "selectedOrg",
                 organizationId,
@@ -113,6 +95,26 @@ export const useOrgData = () => {
 
             if (resolvedDetails?.default_workspace?.id) {
                 cacheWorkspaceOrgPair(resolvedDetails.default_workspace.id, resolvedDetails.id)
+            }
+
+            // Fetch projects scoped to the resolved workspace ID so the backend
+            // returns the correct workspace's projects instead of the user's default.
+            const fetchedProjects = await queryClient
+                .fetchQuery({
+                    queryKey: ["projects", "switch-org", workspaceId],
+                    queryFn: () => fetchAllProjects(workspaceId),
+                    staleTime: 30_000,
+                })
+                .catch(() => null)
+
+            if (Array.isArray(fetchedProjects)) {
+                const fetchedMatch = pickPreferredProjectForWorkspace(fetchedProjects, workspaceId)
+                if (fetchedMatch) {
+                    return {
+                        workspaceId: fetchedMatch.workspace_id || workspaceId,
+                        preferredProject: fetchedMatch,
+                    }
+                }
             }
 
             return {

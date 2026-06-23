@@ -33,3 +33,13 @@ class OrganizationMember(TimestampModel):
 
 class OrganizationDetails(Organization):
     default_workspace: Optional[Dict[str, Any]] = None
+
+
+class CreateOrganizationPayload(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+class UpdateOrganizationPayload(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None

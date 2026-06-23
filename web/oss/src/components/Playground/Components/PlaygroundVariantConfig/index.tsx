@@ -239,6 +239,10 @@ const PlaygroundVariantConfig: React.FC<
                                 revisionId={variantId}
                                 onRefinePrompt={handleRefinePrompt}
                                 viewMode={viewMode}
+                                // Embedded (drawer) renders the variant config
+                                // header non-sticky, so the section headers have
+                                // nothing to clear — pin them at the scroll top.
+                                stickyHeaderTop={embedded ? 0 : 48}
                             />
                         </PlaygroundNodeTokenPathProvider>
                     </FieldsDetectionProvider>

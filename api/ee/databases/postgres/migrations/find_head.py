@@ -7,7 +7,7 @@ database = sys.argv[1]
 
 MIGRATIONS_DIR = f"./{database}/versions/"
 
-revision_pattern = re.compile(r'revision\s*:\s*str\s*=\s*"([a-f0-9]+)"')
+revision_pattern = re.compile(r'revision\s*:\s*str\s*=\s*"([^"]+)"')
 down_revision_pattern = re.compile(
     r'down_revision\s*:\s*Union\[str,\s*None\]\s*=\s*(?:"([^"]+)"|None)'
 )

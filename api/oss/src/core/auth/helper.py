@@ -3,7 +3,6 @@ from typing import Any, Optional, Set
 
 from oss.src.utils.exceptions import UnauthorizedException
 from oss.src.utils.caching import get_cache, set_cache
-from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.utils.lazy import _load_posthog
 from oss.src.utils.logging import get_module_logger
@@ -134,9 +133,6 @@ def matches_exact_or_subdomain(
 
 
 async def is_auth_info_blocked(auth_info: AuthInfo) -> bool:
-    if not is_ee():
-        return False
-
     if auth_info.email in await get_blocked_emails():
         return True
 

@@ -891,8 +891,11 @@ export const workflowLatestRevisionIdAtomFamily = atomFamily((workflowId: string
  * when used inside InfiniteVirtualTable cells, which render in an isolated store.
  */
 export const workflowAppTypeAtomFamily = atomFamily((workflowId: string) =>
-    atom((get) => {
+    atom<ReturnType<typeof deriveWorkflowTypeFromRevision> | null>((get) => {
         const query = get(workflowLatestRevisionQueryAtomFamily(workflowId))
+
+        if (query.isPending || !query.data) return null
+
         return deriveWorkflowTypeFromRevision(query.data)
     }),
 )

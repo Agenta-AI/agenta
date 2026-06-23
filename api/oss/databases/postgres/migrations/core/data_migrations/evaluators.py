@@ -10,7 +10,7 @@ from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 from oss.src.models.db_models import ProjectDB as ProjectDBE
-from oss.src.models.db_models import EvaluatorConfigDB
+from oss.src.models.deprecated_models import EvaluatorConfigDB
 from oss.src.dbs.postgres.workflows.dbes import (
     WorkflowArtifactDBE,
     WorkflowVariantDBE,
