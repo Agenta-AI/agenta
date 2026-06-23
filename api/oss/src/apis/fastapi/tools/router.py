@@ -29,6 +29,9 @@ from oss.src.apis.fastapi.tools.models import (
     ToolConnectionsResponse,
     #
     ToolCallResponse,
+    #
+    ToolResolveRequest,
+    ToolResolveResponse,
 )
 
 from oss.src.core.shared.dtos import Status
@@ -42,10 +45,12 @@ from oss.src.core.tools.dtos import (
     ToolResultData,
 )
 from oss.src.core.tools.exceptions import (
+    ActionNotFoundError,
     AdapterError,
     ConnectionInactiveError,
     ConnectionInvalidError,
     ConnectionNotFoundError,
+    ToolSlugInvalidError,
 )
 from oss.src.core.tools.service import (
     ToolsService,
@@ -208,6 +213,14 @@ class ToolsRouter:
         )
 
         # --- Tool operations ---
+        self.router.add_api_route(
+            "/resolve",
+            self.resolve_tools,
+            methods=["POST"],
+            operation_id="resolve_agent_tools",
+            response_model=ToolResolveResponse,
+            response_model_exclude_none=True,
+        )
         self.router.add_api_route(
             "/call",
             self.call_tool,
@@ -888,6 +901,51 @@ class ToolsRouter:
 
     @intercept_exceptions()
     @handle_adapter_exceptions()
+    async def resolve_tools(
+        self,
+        request: Request,
+        *,
+        body: ToolResolveRequest,
+    ) -> ToolResolveResponse:
+        """Resolve an agent's tool references into model-ready specs.
+
+        Validates Composio connections up front and enriches each action from the
+        catalog, so a running agent (e.g. Pi) gets ``customTools`` whose ``execute``
+        routes back through ``POST /tools/call`` — provider keys stay server-side.
+        """
+        if is_ee():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_TOOLS,
+            )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION
+
+        try:
+            resolution = await self.tools_service.resolve_agent_tools(
+                project_id=UUID(request.state.project_id),
+                tools=body.tools,
+            )
+        except ConnectionNotFoundError as e:
+            raise HTTPException(status_code=404, detail=e.message) from e
+        except ConnectionInactiveError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
+        except ConnectionInvalidError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
+        except ToolSlugInvalidError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
+        except ActionNotFoundError as e:
+            raise HTTPException(status_code=404, detail=e.message) from e
+
+        return ToolResolveResponse(
+            count=len(resolution.builtins) + len(resolution.custom),
+            builtins=resolution.builtins,
+            custom=resolution.custom,
+        )
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
     async def call_tool(
         self,
         request: Request,
@@ -931,39 +989,12 @@ class ToolsRouter:
         connection_slug = slug_parts[4]
 
         try:
-            connections = await self.tools_service.query_connections(
+            connection = await self.tools_service.resolve_connection_by_slug(
                 project_id=UUID(request.state.project_id),
                 provider_key=provider_key,
                 integration_key=integration_key,
+                connection_slug=connection_slug,
             )
-
-            connection = next(
-                (c for c in connections if c.slug == connection_slug), None
-            )
-
-            if not connection:
-                raise ConnectionNotFoundError(
-                    connection_slug=connection_slug,
-                    provider_key=provider_key,
-                    integration_key=integration_key,
-                )
-
-            if not connection.is_active:
-                raise ConnectionInactiveError(connection_id=connection_slug)
-
-            if not connection.is_valid:
-                raise ConnectionInvalidError(
-                    connection_slug=connection_slug,
-                    detail="Please refresh the connection.",
-                )
-
-            if not connection.provider_connection_id:
-                raise ConnectionNotFoundError(
-                    connection_slug=connection_slug,
-                    provider_key=provider_key,
-                    integration_key=integration_key,
-                )
-
         except ConnectionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
         except ConnectionInactiveError as e:

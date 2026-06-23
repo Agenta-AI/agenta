@@ -24,6 +24,18 @@ log = get_module_logger(__name__)
 COMPOSIO_DEFAULT_API_URL = "https://backend.composio.dev/api/v3"
 
 
+def _is_no_auth_toolkit(toolkit: Dict[str, Any]) -> bool:
+    """A toolkit needs no auth when every auth_config_details entry is NO_AUTH.
+
+    Composio's GET /toolkits/{slug} reports a single ``{"mode": "NO_AUTH"}`` entry
+    for toolkits like ``codeinterpreter`` and the ``composio`` meta-toolkit.
+    """
+    details = toolkit.get("auth_config_details") or []
+    if not details:
+        return False
+    return all((detail.get("mode") or "").upper() == "NO_AUTH" for detail in details)
+
+
 class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
     """Composio V3 API adapter — uses httpx directly (no SDK).
 
@@ -199,15 +211,25 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
                 detail=str(e),
             ) from e
 
-        # Step 2: create an auth config for this integration.
-        # api_key → use_custom_auth; Composio's redirect UI collects the credentials.
-        # oauth / None → use_composio_managed_auth.
         log.info(
             "initiate_connection: integration_key=%s auth_scheme=%r",
             integration_key,
             auth_scheme,
         )
 
+        # No-auth toolkits (e.g. codeinterpreter) reject auth-config creation with a
+        # 400. They need neither an auth config nor a connected account — their tools
+        # execute directly. Return a marked connection the service persists as valid.
+        if _is_no_auth_toolkit(toolkit):
+            return ToolConnectionResponse(
+                provider_connection_id="",
+                redirect_url=None,
+                connection_data={"no_auth": True},
+            )
+
+        # Step 2: create an auth config for this integration.
+        # api_key → use_custom_auth; Composio's redirect UI collects the credentials.
+        # oauth / None → use_composio_managed_auth.
         if auth_scheme == "api_key":
             # Derive Composio authScheme from toolkit's auth_config_details.
             # Fall back to "API_KEY" as the common default.
@@ -388,10 +410,10 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
             action_key=request.action_key,
         )
 
-        payload: Dict[str, Any] = {
-            "arguments": request.arguments,
-            "connected_account_id": request.provider_connection_id,
-        }
+        payload: Dict[str, Any] = {"arguments": request.arguments}
+        # No-auth toolkits run without a connected account; only send the id when set.
+        if request.provider_connection_id:
+            payload["connected_account_id"] = request.provider_connection_id
         if request.user_id:
             payload["user_id"] = request.user_id
 

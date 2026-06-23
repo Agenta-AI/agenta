@@ -1,8 +1,9 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
+from agenta.sdk.agents.tools import BuiltinToolConfig, GatewayToolConfig
 from agenta.sdk.models.workflows import JsonSchemas
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from oss.src.core.shared.dtos import (
     Header,
@@ -125,6 +126,13 @@ class ToolConnection(
         return None
 
     @property
+    def is_no_auth(self) -> bool:
+        """True for a no-auth toolkit connection (no Composio auth config/account)."""
+        return bool(
+            self.data and isinstance(self.data, dict) and self.data.get("no_auth")
+        )
+
+    @property
     def is_active(self) -> bool:
         """Check if connection is active (not deleted)."""
         if self.flags and isinstance(self.flags, dict):
@@ -227,7 +235,7 @@ class ToolExecutionRequest(BaseModel):
 
     integration_key: str
     action_key: str
-    provider_connection_id: str
+    provider_connection_id: Optional[str] = None  # absent for no-auth toolkits
     user_id: Optional[str] = None
     arguments: Dict[str, Any] = {}
 
@@ -238,3 +246,42 @@ class ToolExecutionResponse(BaseModel):
     data: Optional[Json] = None
     error: Optional[str] = None
     successful: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Agent tools (config references + resolution)
+# ---------------------------------------------------------------------------
+
+# A provider-agnostic list of tool references lives under an agent revision's
+# ``parameters["tools"]``. Each entry is a discriminated union on ``type``: config
+# holds references and display metadata only, never secrets. The backend resolves
+# them into model-ready specs at invoke time (see ToolsService.resolve_agent_tools).
+
+
+AgentBuiltinTool = BuiltinToolConfig
+AgentComposioTool = GatewayToolConfig
+AgentToolReference = Union[BuiltinToolConfig, GatewayToolConfig]
+
+
+class ResolvedAgentTool(BaseModel):
+    """A runnable reference resolved into a model-ready tool spec.
+
+    ``call_ref`` is the ``tools.{provider}.{integration}.{action}.{connection}`` slug
+    the execution bridge sends back to ``POST /tools/call``.
+    """
+
+    name: str
+    description: Optional[str] = None
+    input_schema: Optional[Dict[str, Any]] = None
+    call_ref: str
+
+
+class AgentToolsResolution(BaseModel):
+    """Outcome of resolving an agent's ``tools`` list.
+
+    ``builtins`` pass straight into Pi's ``tools: string[]``; ``custom`` become Pi
+    ``customTools`` whose ``execute`` routes through ``/tools/call``.
+    """
+
+    builtins: List[str] = Field(default_factory=list)
+    custom: List[ResolvedAgentTool] = Field(default_factory=list)
