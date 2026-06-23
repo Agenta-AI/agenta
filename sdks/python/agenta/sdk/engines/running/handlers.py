@@ -1043,7 +1043,9 @@ async def auto_ai_critique_v0(
         response = await mockllm.acompletion(
             messages=formatted_prompt_template,
             response_format=response_format,
-            **_normalize_aws_provider_settings(provider_settings),
+            **_normalize_aws_provider_settings(
+                _resolve_aws_role_arn(provider_settings)
+            ),
         )
 
         _outputs = response.choices[0].message.content.strip()  # type: ignore
@@ -1836,6 +1838,86 @@ def _normalize_aws_provider_settings(provider_settings: Dict) -> Dict:
     return settings
 
 
+# A Bedrock/Sagemaker secret may carry a role to assume instead of (or in addition to)
+# static keys. The role ARN is consumed here, never forwarded to LiteLLM.
+_AWS_ROLE_ARN_ALIASES: tuple = ("aws_role_arn", "AWS_ROLE_ARN")
+_AWS_ROLE_SESSION_NAME = "agenta-bedrock"
+
+
+def _first_alias_value(settings: Dict, aliases: tuple) -> Any:
+    return next(
+        (settings[alias] for alias in aliases if settings.get(alias) is not None),
+        None,
+    )
+
+
+def _resolve_aws_role_arn(provider_settings: Dict) -> Dict:
+    """Exchange an ``aws_role_arn`` for short-lived STS session credentials.
+
+    When a Bedrock/Sagemaker secret carries a role ARN, the long-lived keys are used only
+    to sign a single ``sts:AssumeRole`` call; the temporary session credentials it returns
+    are what get forwarded to LiteLLM (via :func:`_normalize_aws_provider_settings`). The
+    role ARN itself is dropped so it is never passed to LiteLLM as an unknown kwarg.
+
+    Resolution is request-scoped and never touches ``os.environ`` (see #4244), so it stays
+    safe under concurrency. Settings without a role ARN pass through unchanged.
+    """
+
+    role_arn = _first_alias_value(provider_settings, _AWS_ROLE_ARN_ALIASES)
+    if not role_arn:
+        return provider_settings
+
+    try:
+        import boto3
+    except ImportError as exc:
+        raise ImportError(
+            "boto3 is required to assume an AWS role (aws_role_arn)."
+        ) from exc
+
+    access_key = _first_alias_value(
+        provider_settings, _AWS_PARAM_ALIASES["aws_access_key_id"]
+    )
+    secret_key = _first_alias_value(
+        provider_settings, _AWS_PARAM_ALIASES["aws_secret_access_key"]
+    )
+    session_token = _first_alias_value(
+        provider_settings, _AWS_PARAM_ALIASES["aws_session_token"]
+    )
+    region = (
+        _first_alias_value(provider_settings, _AWS_PARAM_ALIASES["aws_region_name"])
+        or "us-east-1"
+    )
+
+    sts = boto3.client(
+        "sts",
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        aws_session_token=session_token,
+        region_name=region,
+    )
+    credentials = sts.assume_role(
+        RoleArn=role_arn,
+        RoleSessionName=_AWS_ROLE_SESSION_NAME,
+    )["Credentials"]
+
+    settings = dict(provider_settings)
+    for alias in _AWS_ROLE_ARN_ALIASES:
+        settings.pop(alias, None)
+    # Drop any pre-existing static keys (either casing) so the freshly minted session
+    # credentials are the only ones `_normalize_aws_provider_settings` can pick up.
+    for canonical in (
+        "aws_access_key_id",
+        "aws_secret_access_key",
+        "aws_session_token",
+    ):
+        for alias in _AWS_PARAM_ALIASES[canonical]:
+            settings.pop(alias, None)
+    settings["aws_access_key_id"] = credentials["AccessKeyId"]
+    settings["aws_secret_access_key"] = credentials["SecretAccessKey"]
+    settings["aws_session_token"] = credentials["SessionToken"]
+    return settings
+
+
 def _apply_responses_bridge_if_needed(
     provider_settings: Dict,
     llm_config: ModelConfig,
@@ -2064,7 +2146,9 @@ async def _run_prompt_llm_config_with_retry(
 
             return await mockllm.acompletion(
                 **{k: v for k, v in openai_kwargs.items() if k != "model"},
-                **_normalize_aws_provider_settings(provider_settings),
+                **_normalize_aws_provider_settings(
+                    _resolve_aws_role_arn(provider_settings)
+                ),
             )
         except Exception as exc:
             last_error = exc
