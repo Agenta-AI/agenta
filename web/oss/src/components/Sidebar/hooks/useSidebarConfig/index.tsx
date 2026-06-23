@@ -27,7 +27,7 @@ import useURL from "@/oss/hooks/useURL"
 import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {openWidgetAtom} from "@/oss/lib/onboarding"
-import {useAppsData} from "@/oss/state/app"
+import {useCurrentAppLite} from "@/oss/state/app"
 import {useAppState} from "@/oss/state/appState"
 import {useOrgData} from "@/oss/state/org"
 
@@ -35,11 +35,11 @@ import {SidebarConfig} from "../../types"
 
 export const useSidebarConfig = () => {
     const {doesSessionExist} = useSession()
-    const {currentApp, recentlyVisitedAppId} = useAppsData()
+    const {currentApp, recentlyVisitedAppId} = useCurrentAppLite()
     const {appId: routedAppId, routeLayer} = useAppState()
     const {selectedOrg} = useOrgData()
     const {canInviteMembers} = useWorkspacePermissions()
-    const {toggle, isVisible, isCrispEnabled} = useCrispChat()
+    const {toggle, isVisible, isCrispEnabled} = {}
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
     const openWidget = useSetAtom(openWidgetAtom)
     const hasProjectURL = Boolean(projectURL)

@@ -1,6 +1,7 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {
+    activateEvaluatorEnrichmentAtom,
     nonHumanEvaluatorsAtom,
     nonArchivedAppWorkflowsAtom,
     nonArchivedEvaluatorsAtom,
@@ -14,7 +15,7 @@ import {WorkflowTypeTag} from "@agenta/entity-ui/workflow"
 import {ArrowsLeftRight, X} from "@phosphor-icons/react"
 import {Button, Dropdown, type MenuProps, Tooltip} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import useURL from "@/oss/hooks/useURL"
 import {recentAppIdAtom, routerAppNavigationAtom} from "@/oss/state/app/atoms/fetcher"
@@ -29,7 +30,11 @@ interface WorkflowEntityCardProps {
     collapsed: boolean
 }
 
-const EMPTY_WORKFLOWS: readonly Workflow[] = []
+// Stable empty atom read while the switcher is dormant, so swapping it in for
+// `nonHumanEvaluatorsAtom` keeps the evaluator latest-revision fan-out unmounted
+// until the switcher is first opened.
+const EMPTY_EVALUATORS: readonly Workflow[] = []
+const EMPTY_EVALUATORS_ATOM = atom<readonly Workflow[]>(EMPTY_EVALUATORS)
 
 /**
  * Single row inside the switcher dropdown — name + per-kind type tag.
@@ -115,8 +120,26 @@ const SWITCHER_MENU_CLASS = clsx(
  */
 const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     const ctx = useAtomValue(currentWorkflowContextAtom)
-    const apps = useAtomValue(nonArchivedAppWorkflowsAtom) as readonly Workflow[]
-    const evaluators = useAtomValue(nonArchivedEvaluatorsAtom) as readonly Workflow[]
+    // Latch: flips true on first switcher-open and never resets, so the full
+    // apps/evaluators catalogs resolve LAZILY (on open) instead of on sidebar
+    // mount, then stay warm (cached, no flicker on reopen).
+    const [switcherActivated, setSwitcherActivated] = useState(false)
+    // The full apps + evaluators lists are needed in exactly two situations: to
+    // populate the switcher dropdown (once opened), and to resolve a recently
+    // visited workflow for the no-current-workflow fallback (routes that point at
+    // no workflow, e.g. /home). On a workflow route with the switcher closed we
+    // need NEITHER, so we read stable empty atoms to avoid pulling the whole apps
+    // and evaluator catalogs on every page load. Gate on `workflowId` (the URL id,
+    // parsed synchronously from the initial location → truthy from the FIRST
+    // render), NOT on `workflow` (null while resolution is in flight, which would
+    // still fire the catalogs during the loading window).
+    const wantWorkflowLists = !ctx.workflowId || switcherActivated
+    const apps = useAtomValue(
+        wantWorkflowLists ? nonArchivedAppWorkflowsAtom : EMPTY_EVALUATORS_ATOM,
+    ) as readonly Workflow[]
+    const evaluators = useAtomValue(
+        wantWorkflowLists ? nonArchivedEvaluatorsAtom : EMPTY_EVALUATORS_ATOM,
+    ) as readonly Workflow[]
     // The switcher lists every AUTOMATIC evaluator — LLM, code, AND the
     // declarative classifiers (exact match, regex, similarity / semantic
     // similarity, json diff, contains json, …). `nonHumanEvaluatorsAtom`
@@ -128,17 +151,24 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     // evaluators leaked in (QA 2026-06-05). It drops ONLY human (`is_feedback`)
     // evaluators; navigation lands on the workflow's current sub-page (Overview/
     // Evaluations are valid for every evaluator), so matchers no longer dead-end.
-    const automaticEvaluators = useAtomValue(nonHumanEvaluatorsAtom) as readonly Workflow[]
-    // Gated by `EVALUATOR_FULL_PAGE_NAV_ENABLED`: while the flag is off, the
-    // switcher dropdown hides the "Evaluators" group entirely.
-    const switcherEvaluators: readonly Workflow[] = useMemo(() => {
-        if (!EVALUATOR_FULL_PAGE_NAV_ENABLED) return EMPTY_WORKFLOWS
-        return automaticEvaluators
-    }, [automaticEvaluators])
+    //
+    // LAZY: that latest-revision resolution fans out one batched
+    // POST /workflows/revisions/query over EVERY evaluator in the project, and
+    // it's only needed to populate the switcher dropdown. `nonHumanEvaluatorsAtom`
+    // sits behind the shared enrichment gate (dormant → empty until activated),
+    // and we activate it on first switcher-open (see `handleSwitcherOpenChange`),
+    // so a plain sidebar mount never triggers the fan-out. While the
+    // `EVALUATOR_FULL_PAGE_NAV_ENABLED` flag is off we read a stable empty atom
+    // instead, so the "Evaluators" group stays hidden regardless of whether some
+    // other consumer has activated the gate.
+    const switcherEvaluators = useAtomValue(
+        EVALUATOR_FULL_PAGE_NAV_ENABLED ? nonHumanEvaluatorsAtom : EMPTY_EVALUATORS_ATOM,
+    ) as readonly Workflow[]
     const recentAppId = useAtomValue(recentAppIdAtom)
     const recentEvaluatorId = useAtomValue(recentEvaluatorIdAtom)
     const navigateToWorkflow = useSetAtom(routerAppNavigationAtom)
     const requestNavigation = useSetAtom(requestNavigationAtom)
+    const activateEvaluatorEnrichment = useSetAtom(activateEvaluatorEnrichmentAtom)
     const {baseAppURL} = useURL()
     const [switcherOpen, setSwitcherOpen] = useState(false)
 
@@ -148,13 +178,23 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     // meaningful instead of a placeholder.
     const fallbackWorkflow = useMemo<Workflow | null>(() => {
         if (ctx.workflow) return null
+        // The fallback exists only for routes that point at NO workflow (e.g.
+        // /home showing the recently-visited section). While the URL's own
+        // workflow is still resolving (`isResolving`), do NOT substitute a stale
+        // recent workflow: on an app route the recent entry is often a recent
+        // EVALUATOR, and flashing its tag mounts `EvaluatorTag`, which fires
+        // GET /evaluators/catalog/templates for a card that's about to swap to
+        // the app's own type. Waiting one tick costs nothing and avoids the
+        // wasted catalog fetch. Settled states (not-found, /home) keep the
+        // recent-workflow fallback.
+        if (ctx.isResolving) return null
         const fromEvaluators = recentEvaluatorId
             ? (evaluators.find((w) => w.id === recentEvaluatorId) ?? null)
             : null
         if (fromEvaluators) return fromEvaluators
         const fromApps = recentAppId ? (apps.find((w) => w.id === recentAppId) ?? null) : null
         return fromApps
-    }, [ctx.workflow, evaluators, apps, recentEvaluatorId, recentAppId])
+    }, [ctx.workflow, ctx.isResolving, evaluators, apps, recentEvaluatorId, recentAppId])
 
     const workflow = ctx.workflow ?? fallbackWorkflow
     const isEvaluator = ctx.workflow
@@ -213,6 +253,22 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
         [navigateToWorkflow, workflowId],
     )
 
+    // Opening the switcher activates (a) the local latch — so the apps + evaluator
+    // lists that populate the dropdown resolve now instead of on mount — and (b)
+    // the shared evaluator-enrichment gate, so the batched latest-revision fetch
+    // (type tags) happens on first open too. Both are one-way + cached, so
+    // reopening is instant.
+    const handleSwitcherOpenChange = useCallback(
+        (open: boolean) => {
+            setSwitcherOpen(open)
+            if (open) {
+                setSwitcherActivated(true)
+                if (EVALUATOR_FULL_PAGE_NAV_ENABLED) activateEvaluatorEnrichment()
+            }
+        },
+        [activateEvaluatorEnrichment],
+    )
+
     const handleClose = useCallback(() => {
         // Exit the entity context — go back to the apps listing. We replace
         // (not push) so the back button doesn't bring the user straight back
@@ -231,7 +287,7 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
                     placement="bottomLeft"
                     destroyOnHidden
                     open={switcherOpen}
-                    onOpenChange={setSwitcherOpen}
+                    onOpenChange={handleSwitcherOpenChange}
                     styles={{root: {zIndex: 2000, minWidth: 280}}}
                     menu={{
                         items: switcherItems,
@@ -270,7 +326,7 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
                         placement="bottomRight"
                         destroyOnHidden
                         open={switcherOpen}
-                        onOpenChange={setSwitcherOpen}
+                        onOpenChange={handleSwitcherOpenChange}
                         styles={{root: {zIndex: 2000, minWidth: 280}}}
                         menu={{
                             items: switcherItems,

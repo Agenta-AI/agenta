@@ -196,6 +196,8 @@ export {
     appWorkflowsListDataAtom,
     nonArchivedAppWorkflowsAtom,
     appWorkflowsListQueryStateAtom,
+    // Single workflow artifact by id (current-workflow resolution without listing all)
+    workflowDetailQueryAtomFamily,
     // Union atoms (app + evaluator combined)
     workflowsListDataAtom,
     nonArchivedWorkflowsAtom,
@@ -295,6 +297,9 @@ export {
     nonArchivedEvaluatorsAtom,
     fullPagePlaygroundEvaluatorsAtom,
     nonHumanEvaluatorsAtom,
+    // Lazy enrichment gate (defers the per-evaluator latest-revision fan-out)
+    evaluatorEnrichmentActivatedAtom,
+    activateEvaluatorEnrichmentAtom,
     // Templates
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,

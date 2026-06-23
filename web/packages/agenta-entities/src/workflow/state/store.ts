@@ -414,6 +414,41 @@ export const appWorkflowsListQueryAtom = atomWithQuery((get) => {
 })
 
 /**
+ * Query atom family for a SINGLE workflow artifact by id.
+ *
+ * Resolves one workflow (app OR evaluator) via `workflow_refs`, returning the
+ * artifact directly — name + role flags (`is_application`/`is_evaluator`), and
+ * NOT a revision, so it's immune to the version-0 flag-merge gap. Lets callers
+ * resolve "the current workflow" by id WITHOUT listing the entire evaluator
+ * catalog: check the (load-bearing) apps list first, and only subscribe here
+ * when the id isn't an app (i.e. an evaluator or not-found).
+ */
+export const workflowDetailQueryAtomFamily = atomFamily((workflowId: string | null) =>
+    atomWithQuery((get) => {
+        const projectId = get(workflowProjectIdAtom)
+        return {
+            queryKey: ["workflows", "detail", projectId, workflowId],
+            queryFn: async (): Promise<Workflow | null> => {
+                if (!projectId || !workflowId) return null
+                // `include_archived: true` so this single query satisfies BOTH
+                // consumers — `currentWorkflowContextAtom` (which filters archived
+                // out via `deleted_at`) and the app-state `currentAppQueryAtom`
+                // (which resolves archived apps). One shared query = one request,
+                // instead of two by-id fetches differing only on this flag.
+                const response = await queryWorkflows({
+                    projectId,
+                    workflowRefs: [{id: workflowId}],
+                    includeArchived: true,
+                })
+                return (response.workflows?.[0] as Workflow | undefined) ?? null
+            },
+            enabled: get(sessionAtom) && !!projectId && !!workflowId,
+            staleTime: 30_000,
+        }
+    }),
+)
+
+/**
  * Derived atom for app (non-evaluator) workflows list data.
  * Returns workflow-level objects directly from the query cache.
  */

@@ -4,7 +4,11 @@ import {memo, useCallback, useMemo, useState} from "react"
 
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {parseEvaluatorKeyFromUri, workflowMolecule} from "@agenta/entities/workflow"
-import {evaluatorTemplatesDataAtom, evaluatorPresetsAtomFamily} from "@agenta/entities/workflow"
+import {
+    evaluatorTemplatesDataAtom,
+    evaluatorPresetsAtomFamily,
+    type EvaluatorCatalogTemplate,
+} from "@agenta/entities/workflow"
 import {
     PlaygroundConfigSection,
     LoadEvaluatorPresetModal,
@@ -15,7 +19,7 @@ import {
 import {hasPendingHydrationAtomFamily} from "@agenta/playground"
 import {Select} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {extractJsonPaths, safeParseJson} from "@/oss/lib/helpers/extractJsonPaths"
@@ -26,6 +30,9 @@ import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeade
 import type {VariantConfigComponentProps} from "./types"
 
 const RefinePromptModal = dynamic(() => import("../Modals/RefinePromptModal"), {ssr: false})
+
+// Stable empty catalog read for non-evaluator workflows (avoids the templates fetch).
+const EMPTY_TEMPLATES_DATA_ATOM = atom<EvaluatorCatalogTemplate[]>([])
 
 /**
  * PlaygroundVariantConfig manages the configuration interface for a single variant.
@@ -62,17 +69,32 @@ const PlaygroundVariantConfig: React.FC<
 
     // Get workflow data for evaluator detection
     const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId))
+    const isEvaluator = useAtomValue(workflowMolecule.selectors.isEvaluator(variantId))
     const dispatchUpdate = useSetAtom(workflowMolecule.actions.updateConfiguration)
 
-    // Read evaluator template definitions (workflow-based)
-    const evaluatorDefinitions = useAtomValue(evaluatorTemplatesDataAtom)
-
-    // Determine if this is an evaluator workflow
+    // Determine if this is an evaluator workflow.
+    //
+    // Gate on the canonical `is_evaluator` FLAG, not the URI prefix alone:
+    // builtin APPS (chat/completion) also carry an `agenta:builtin:` URI, so a
+    // prefix-only check misclassifies them as evaluators — which then reads
+    // `evaluatorTemplatesDataAtom` below and fetches the entire evaluator catalog
+    // (GET /evaluators/catalog/templates) on a plain app playground load. Mirrors
+    // the workflow molecule's own gate (`molecule.ts` `parametersSchemaAtomFamily`,
+    // which checks `entity.flags.is_evaluator`).
     const evaluatorKey = useMemo(() => {
+        if (!isEvaluator) return null
         const uri = runnableData?.data?.uri as string | undefined
         if (!uri || !uri.startsWith("agenta:builtin:")) return null
         return parseEvaluatorKeyFromUri(uri)
-    }, [runnableData?.data?.uri])
+    }, [isEvaluator, runnableData?.data?.uri])
+
+    // Read the evaluator template catalog only for evaluator workflows — apps
+    // never use it, and an unconditional read fetches GET /evaluators/catalog/
+    // templates on every playground load (mirrors the workflow molecule, which
+    // also reads the catalog only once an evaluatorKey is resolved).
+    const evaluatorDefinitions = useAtomValue(
+        evaluatorKey ? evaluatorTemplatesDataAtom : EMPTY_TEMPLATES_DATA_ATOM,
+    )
 
     const evaluatorDef = useMemo(() => {
         if (!evaluatorKey) return null

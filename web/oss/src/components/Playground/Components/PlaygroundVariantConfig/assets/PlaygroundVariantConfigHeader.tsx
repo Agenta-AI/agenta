@@ -64,8 +64,14 @@ const PlaygroundVariantConfigHeader = ({
               (entityData as {flags?: {is_evaluator?: boolean} | null} | null)?.flags?.is_evaluator,
           )
 
-    // Browse adapters: evaluator-only or app-only (non-evaluator, non-human)
-    const evaluatorOnlyAdapter = useEnrichedEvaluatorOnlyAdapter()
+    // Browse adapters: evaluator-only or app-only (non-evaluator, non-human).
+    // The evaluator adapter is only USED when this is an evaluator entity (see
+    // `browseAdapter` below); on an app playground it's built but unused, so keep
+    // its evaluator-enrichment fan-out dormant (`lazy`) there. For evaluator
+    // entities it's needed, so activate eagerly.
+    const evaluatorOnlyAdapter = useEnrichedEvaluatorOnlyAdapter(undefined, {
+        lazy: !isEvaluatorEntity,
+    })
     const appOnlyAdapter = useMemo(
         () =>
             createWorkflowRevisionAdapter({
