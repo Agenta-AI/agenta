@@ -1,15 +1,14 @@
 # Ground Truth
 
-This page maps the active agent-workflows PR stack. It describes the code after the
-sibling code PRs are considered together. The docs PR commit itself is docs-only and does
-not contain every file listed below. If another design page disagrees with this page,
-treat this page and the referenced code as the source of truth.
+This page maps what the agent-workflows code does, what is wired, and what is missing. It is
+verified against the files it cites. If another design page disagrees with this page, treat
+this page and the referenced code as the source of truth.
 
 ## Code Surface
 
 | Area | Files | Active-stack role |
 | --- | --- | --- |
-| Agent service handler | `services/oss/src/agent/app.py` | Parses agent config, resolves secrets and tools, chooses a backend, runs batch or streaming turns. |
+| Agent service handler | `services/oss/src/agent/app.py` | Parses agent config, resolves secrets and tools, builds `SandboxAgentBackend`, runs batch or streaming turns. |
 | Agent route wiring | `sdks/python/agenta/sdk/decorators/routing.py` | Registers `/invoke`, `/inspect`, and agent-only `/messages` plus `/load-session`. |
 | Browser protocol adapter | `sdks/python/agenta/sdk/agents/adapters/vercel/` | Converts Vercel `UIMessage` input and emits Vercel UI Message Stream parts. |
 | SDK runtime DTOs | `sdks/python/agenta/sdk/agents/dtos.py` | Defines `AgentConfig`, `RunSelection`, `SessionConfig`, messages, events, capabilities, and harness configs. |
@@ -33,9 +32,16 @@ treat this page and the referenced code as the source of truth.
   runtime messages, and supports JSON or Vercel SSE based on `Accept`.
 - Streaming runs over a runner NDJSON stream internally. The browser edge projects those
   events into Vercel UI Message Stream parts and appends `[DONE]`.
-- `InProcessPiBackend` supports `pi` and `agenta` on local.
-- `SandboxAgentBackend` supports `pi` and `claude` on local or Daytona.
+- The deployed service always uses `SandboxAgentBackend` (`services/oss/src/agent/app.py:49`).
+  It does not select a backend per harness.
+- `SandboxAgentBackend` supports `pi`, `claude`, and `agenta` on local or Daytona.
+- `InProcessPiBackend` supports `pi` and `agenta` on local. It is the reference backend and is
+  not selected by the deployed service.
 - `PiHarness`, `ClaudeHarness`, and `AgentaHarness` exist and validate backend support.
+- Pi `systemPrompt` and `appendSystemPrompt` overrides are delivered on both the in-process Pi
+  path and the sandbox-agent Pi path. The sandbox-agent engine writes `SYSTEM.md` /
+  `APPEND_SYSTEM.md` into the per-run Pi agent dir, local and Daytona
+  (`services/agent/src/engines/sandbox_agent/pi-assets.ts`).
 - The tool resolver package exists in the SDK. The service composes SDK tool and MCP
   resolvers with service-owned gateway and vault adapters.
 - Code tools execute in a subprocess with a minimal allowlisted environment plus scoped
@@ -54,12 +60,13 @@ treat this page and the referenced code as the source of truth.
 - Harness session snapshots, such as sandbox-agent/ACP state save/load around cleanup/setup, are
   not represented by a production port yet.
 - Warm daemon sessions, ACP `session/load`, and session fork are not wired.
-- `AgentaHarness` ships placeholder Agenta preamble, persona, and skill set. (It does run on
-  sandbox-agent local and Daytona, verified by the QA matrix; the earlier "does not run on sandbox-agent" note
-  was stale.)
-- The agent is not registered as a first-class built-in workflow type.
-- Pi `systemPrompt` and `appendSystemPrompt` are not delivered on the sandbox-agent ACP path.
-- Remote MCP servers are skipped by the active-stack runner path. Local stdio MCP is the path
+- `AgentaHarness` ships placeholder Agenta preamble, persona, and skill set. It does run on
+  sandbox-agent local and Daytona, verified by the QA matrix (`projects/qa/findings.md`, F-002).
+- The agent is not registered as a first-class built-in workflow type. The builtin interface
+  exists in the SDK, but the handler is still bound directly (`services/oss/src/agent/app.py:138`).
+- Per-request model override is not honored on the Pi-over-sandbox-agent ACP path. pi-acp
+  accepts only its default model and silently falls back (`projects/qa/findings.md`, F-007).
+- Remote (`http`) MCP servers are skipped by the runner path. Local stdio MCP is the path
   represented by the bridge.
 - Trigger lifecycle, Compose.io trigger integration, and event-to-agent mapping are not
   implemented in the agent workflow code.
@@ -68,16 +75,16 @@ treat this page and the referenced code as the source of truth.
 
 ## Planned Or Blocked Work
 
-- [SDK Local Tools](sdk-local-tools/) is a planned and partly implemented workspace for
-  standalone SDK tool resolution. It remains blocked on `LocalBackend`.
+- [SDK Local Tools](../projects/sdk-local-tools/) is a planned and partly implemented
+  workspace for standalone SDK tool resolution. It remains blocked on `LocalBackend`.
 - Durable server-owned sessions need a real `SessionStore`, a write path from completed
   turns, ownership checks, and a decision on platform versus local storage.
 - Stateful session resume needs research into sandbox-agent/ACP session representation and a
   future save/load snapshot interface separate from chat history.
 - Trigger integration needs a provider port, a Compose.io adapter, Agenta-owned trigger
   state, and event-to-agent mapping.
-- The old streaming RFCs are archived in [trash/old-rfcs/](trash/old-rfcs/). They explain
-  why the protocol exists but no longer describe the exact active-stack state.
+- The old streaming RFCs are archived in [../archive/old-rfcs/](../archive/old-rfcs/). They
+  explain why the protocol exists but no longer describe the exact current state.
 
 ## Verification Pointers
 
@@ -85,4 +92,4 @@ treat this page and the referenced code as the source of truth.
   `sdks/python/oss/tests/pytest/utils/test_messages_endpoint.py`.
 - Agent service handler tests live in `services/oss/tests/pytest/unit/agent/`.
 - Wire-contract tests live in `sdks/python/oss/tests/pytest/unit/agents/test_wire_contract.py`.
-- Runner tool tests live in `services/agent/test/`.
+- Runner tests live in `services/agent/tests/unit/`.

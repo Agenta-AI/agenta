@@ -24,17 +24,28 @@ Anthropic key" rather than a stack trace.
 
 ## Tools over MCP
 
-Claude advertises the `mcpTools` capability, so the runner delivers tools to Claude the
-standard ACP way, over MCP. This is the branch that the [capability probe](../ports-and-adapters.md)
-chooses: deliver over MCP when the harness reports `mcpTools`, not when the harness name is
-something in particular.
+Claude reports the `mcpTools` capability, so the runner delivers tools to Claude the standard
+ACP way, over MCP. This is the branch that `buildSessionMcpServers`
+(`engines/sandbox_agent/mcp.ts`) chooses: deliver over MCP when the harness reports `mcpTools`,
+not when the harness name is something in particular. In practice the capability comes from the
+static per-harness fallback (`engines/sandbox_agent/capabilities.ts`): the daemon rarely fills
+a real `info.capabilities`, so the runner uses `mcpTools: true` for any non-Pi harness.
 
-The mechanism is a small stdio MCP server (`tools/mcp-server.ts`) that the daemon launches
-and attaches to the session. Its tool bodies POST back to Agenta's `/tools/call` with the
-same callback-tool envelope the Pi path uses. The resolved specs and the callback endpoint reach the
-MCP server through its environment, so nothing tool-specific is written to a file the agent
-can read. The safety property is identical to Pi's: the provider key and the connection auth
-stay server-side, and the agent only ever asks Agenta to run a named tool.
+The mechanism is a small stdio MCP server named `agenta-tools` (`tools/mcp-server.ts`, launched
+by `tools/mcp-bridge.ts`) that the daemon attaches to the session. This is an Agenta tool
+DELIVERY vehicle, not a user-declared MCP server: it carries the same gateway and code specs
+the Pi extension would register, just exposed over MCP because Claude cannot take a native
+tool. Its env carries only public metadata (names, descriptions, schemas) and a relay
+directory; the `call_ref`, the code, the scoped secrets, and the callback auth never reach it.
+When the model calls a tool, the server relays the request back to the runner over the file
+relay (`tools/relay.ts`), and the runner runs the private spec from memory and POSTs to
+`/tools/call`. The safety property is identical to Pi's: the provider key and the connection
+auth stay server-side, and the agent only ever asks Agenta to run a named tool.
+
+User-declared `mcp_servers` are a separate thing and effectively off today. They would reach
+Claude through `toAcpMcpServers` as additional ACP stdio servers, but only when
+`AGENTA_AGENT_ENABLE_MCP` is set (off by default), so in practice no user MCP server is
+attached. See [tools.md](../tools.md#status-and-known-gaps).
 
 ## Permissions
 

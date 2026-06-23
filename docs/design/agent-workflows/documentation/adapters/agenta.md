@@ -5,12 +5,12 @@ adapter](pi.md) and produces a Pi-shaped config, so it inherits everything Pi do
 tools, the system-prompt layers, tracing). What it adds is a fixed set of Agenta-shipped
 extras that the agent author cannot turn off:
 
-- **Forced tools** — always unioned into the agent's resolved tools. At minimum `read`
+- **Forced tools**: always unioned into the agent's resolved tools. At minimum `read`
   (Pi only renders the skills section when `read` is enabled) and `bash` (so skills can run
   their helper scripts).
-- **Forced skills** — Agenta-shipped Pi skills loaded on every run.
-- **A base AGENTS.md preamble** — the author's `instructions` are appended after it.
-- **A base persona** — forced onto Pi's `append_system`, with any author-supplied
+- **Forced skills**: Agenta-shipped Pi skills loaded on every run.
+- **A base AGENTS.md preamble**: the author's `instructions` are appended after it.
+- **A base persona**: forced onto Pi's `append_system`, with any author-supplied
   `append_system` appended after it.
 
 Read the [architecture](../architecture.md), [ports and adapters](../ports-and-adapters.md),
@@ -30,7 +30,16 @@ disk because they reference relative scripts and assets, so they cannot ride the
 text. The contract between the two halves is the skill **name**: `AGENTA_FORCED_SKILLS` lists
 names, and each must match a committed directory under the runner's skills root.
 
+Because the Agenta harness IS Pi, its tools are delivered the Pi-native way (through the
+extension on the ACP path, through `buildCustomTools` in process), never over MCP. The forced
+`read` and `bash` tools are Pi built-ins, so they ride the wire as built-in names, not resolved
+specs.
+
 ## How a skill reaches the model
+
+The flow below is for the in-process engine. The deployed path (sandbox-agent over ACP) reaches the
+same end state by a different mechanism, described in
+[On the sandbox-agent (ACP) path](#on-the-sandbox-agent-acp-path) below.
 
 1. `AgentaHarness._to_harness_config` puts the forced skill names on the `skills` field of
    the `/run` request (`AgentaAgentConfig.wire_tools`).
@@ -59,7 +68,7 @@ remains available for local/example contrast runs.
 ## On the sandbox-agent (ACP) path
 
 `SandboxAgentBackend` also lists `HarnessType.AGENTA` as supported, so `agenta` runs over ACP through
-the sandbox-agent daemon as well — this is what lets it use the Daytona sandbox. The Agenta harness is
+the sandbox-agent daemon as well. This is what lets it use the Daytona sandbox. The Agenta harness is
 Pi with an opinion, and the sandbox-agent daemon only knows real agents (`pi`, `claude`, …), so the
 runner maps `agenta` onto the `pi` ACP agent (`acpAgent` in `engines/sandbox_agent.ts`) and treats it
 as Pi for capabilities, model resolution, and tracing.
@@ -68,7 +77,7 @@ The forced *skills* cannot ride the `/run` wire as text (a skill is a directory 
 reference relative scripts and assets), so the wire carries only the skill **names** and the
 runner lays the bundled directories into the Pi **agent dir**'s `skills/` (user scope).
 `runSandboxAgent` resolves the names against the bundled `skills/` root (`engines/skills.ts`, shared
-with the in-process engine). The agent dir is deliberate — Pi auto-discovers and enables
+with the in-process engine). The agent dir is deliberate. Pi auto-discovers and enables
 user-scope skills (`<agentDir>/skills/`) on every run, whereas project skills
 (`<cwd>/.pi/skills/`) are trust-gated and would not load in this headless run.
 
