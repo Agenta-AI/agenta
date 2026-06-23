@@ -51,6 +51,7 @@ from oss.src.models.db_models import (
 )
 from oss.src.dbs.postgres.webhooks.dbes import WebhookSubscriptionDBE
 from oss.src.models.api.workspace_models import UserRole
+from oss.src.core.access.permissions.types import DefaultRole
 from oss.src.core.testcases.dtos import Testcase
 from oss.src.core.testsets.dtos import (
     TestsetRevisionData,
@@ -1632,6 +1633,12 @@ async def update_user_roles(
             workspace_member.role = payload.role
             for member in project_members:
                 member.role = payload.role
+        elif workspace_member.role == payload.role:
+            # Removing the active role reverts the member to the default floor role.
+            workspace_member.role = DefaultRole.VIEWER.value
+            for member in project_members:
+                if member.role == payload.role:
+                    member.role = DefaultRole.VIEWER.value
 
         await session.commit()
 
