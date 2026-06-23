@@ -5,7 +5,7 @@ Layers (Agenta's hexagonal vocabulary):
 - ``dtos.py`` — data contracts (``AgentConfig``, ``SessionConfig``, ``Message``, ...).
 - ``interfaces.py`` — the ports (ABCs): ``Backend``, ``Environment``, ``Sandbox``,
   ``Session``, ``Harness``.
-- ``adapters/`` — implementations: ``SandboxAgentBackend`` / ``InProcessPiBackend`` / ``LocalBackend``
+- ``adapters/`` — implementations: ``SandboxAgentBackend`` / ``LocalBackend``
   and ``PiHarness`` / ``ClaudeHarness``.
 - ``utils/`` — shared plumbing (the ``/run`` wire and the transports to the TS runner).
 
@@ -23,7 +23,6 @@ Standalone usage::
 from .adapters import (
     AgentaHarness,
     ClaudeHarness,
-    InProcessPiBackend,
     LocalBackend,
     PiHarness,
     SandboxAgentBackend,
@@ -98,7 +97,6 @@ from .tools import (
     coerce_tool_config,
     coerce_tool_configs,
     parse_tool_config,
-    parse_tool_configs,
 )
 from .adapters.vercel import (
     from_ui_messages,
@@ -148,7 +146,6 @@ __all__ = [
     "EnvironmentToolSecretProvider",
     "MissingSecretPolicy",
     "parse_tool_config",
-    "parse_tool_configs",
     "coerce_tool_config",
     "coerce_tool_configs",
     "ToolError",
@@ -179,7 +176,6 @@ __all__ = [
     "ToolResolutionError",
     # Adapters
     "SandboxAgentBackend",
-    "InProcessPiBackend",
     "LocalBackend",
     "PiHarness",
     "ClaudeHarness",

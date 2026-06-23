@@ -72,12 +72,13 @@ The deployed handler always uses `SandboxAgentBackend`. `select_backend` in
 of harness. So `pi`, `claude`, and `agenta` all run through the sandbox-agent daemon over ACP
 on the deployed path.
 
-`InProcessPiBackend` exists and works, but the service never selects it. It is the simplest
-backend and the reference to read when writing a new one. It is also the engine the `pi`
-engine file (`services/agent/src/engines/pi.ts`) drives directly. The sidecar still has a `pi`
-engine: a `/run` request with `backend: "pi"` runs Pi in-process inside the sidecar without
-the daemon. The deployed Python service does not send that; standalone SDK scripts and tests
-can.
+The sidecar still has an in-process `pi` engine (`services/agent/src/engines/pi.ts`): a
+`/run` request with `backend: "pi"` runs Pi in-process inside the sidecar without the daemon.
+The deployed Python service never sends that. The SDK used to ship an `InProcessPiBackend`
+adapter that drove this engine, presented as a "reference backend", but it was a confusing
+POC and was removed. A test-only helper
+(`sdks/python/oss/tests/pytest/integration/agents/_in_process_backend.py`) still drives the
+`pi` engine in the transport round-trip test.
 
 This split matters when reading the code. There are two `pi` paths:
 
@@ -93,8 +94,11 @@ The SDK runtime models engines as `Backend` adapters
 | Backend | Status | Harnesses | Sandbox support | Notes |
 | --- | --- | --- | --- | --- |
 | `SandboxAgentBackend` | Implemented | `pi`, `claude`, `agenta` | `local`, `daytona` | The deployed path. Drives `engines/sandbox_agent.ts`: starts the sandbox-agent daemon and an ACP adapter. `supported_harnesses` is `{pi, claude, agenta}` (`adapters/sandbox_agent.py:121`). |
-| `InProcessPiBackend` | Implemented | `pi`, `agenta` | `local` only | Drives `engines/pi.ts` (in-process Pi). Not selected by the deployed service; used by standalone scripts and tests (`adapters/in_process.py:119`). |
 | `LocalBackend` | Not implemented | Intended: `pi`, `claude` | Local machine | Public class exists; `create_sandbox` and `create_session` raise `NotImplementedError` (`adapters/local.py:34`). |
+
+The sidecar's in-process `pi` engine (`engines/pi.ts`) is still reachable with
+`backend: "pi"`, but the SDK no longer ships a backend adapter for it. A test-only helper
+drives it in the transport round-trip test.
 
 ## Harnesses
 

@@ -11,7 +11,7 @@ The SDK runtime lives under `sdks/python/agenta/sdk/agents/`.
 | --- | --- | --- |
 | DTOs | `dtos.py` | `AgentConfig`, `RunSelection`, `SessionConfig`, messages, events, capabilities, and harness-specific config models. |
 | Ports | `interfaces.py` | `Backend`, `Environment`, `Sandbox`, `Session`, `Harness`, `SessionStore`. |
-| Backend adapters | `adapters/in_process.py`, `adapters/sandbox_agent.py`, `adapters/local.py` | Engines that can run a harness. |
+| Backend adapters | `adapters/sandbox_agent.py`, `adapters/local.py` | Engines that can run a harness. |
 | Harness adapters | `adapters/harnesses.py` | Per-harness mapping from neutral session config to harness-specific config. |
 | Browser adapter | `adapters/vercel/` | Vercel `UIMessage` input and Vercel UI Message Stream output. |
 | Runner plumbing | `utils/wire.py`, `utils/ts_runner.py` | `/run` serialization and runner transports. |
@@ -30,9 +30,11 @@ Current backends:
 
 - `SandboxAgentBackend`: implemented, supports `pi`, `claude`, and `agenta`, local or Daytona.
   This is the backend the deployed service always uses (`services/oss/src/agent/app.py:49`).
-- `InProcessPiBackend`: implemented, supports `pi` and `agenta`, local only. The reference
-  backend; not selected by the deployed service.
 - `LocalBackend`: planned, public class exists, methods raise.
+
+The sidecar's in-process `pi` engine (`engines/pi.ts`) is still reachable with `backend: "pi"`,
+but the SDK no longer ships a backend adapter for it; a test-only helper drives it in the
+transport round-trip test.
 
 ### Environment
 
@@ -53,7 +55,7 @@ Current harnesses:
   permission policy.
 - `AgentaHarness` is Pi with forced Agenta policy layered on top: a base AGENTS.md preamble,
   a forced persona, forced tools, and forced skills (`adapters/agenta_builtins.py`). It runs
-  on both `SandboxAgentBackend` and `InProcessPiBackend`.
+  on `SandboxAgentBackend`.
 
 ### Session
 
