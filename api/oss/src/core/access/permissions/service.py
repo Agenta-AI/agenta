@@ -171,9 +171,9 @@ async def check_user_access_to_workspace(
 
 async def check_action_access(
     user_uid: str,
-    project_id: str = None,
-    permission: Permission = None,
-    role: str = None,
+    project_id: Optional[str] = None,
+    permission: Optional[Permission] = None,
+    role: Optional[Union[RequiredRole, str]] = None,
 ) -> bool:
     """
     Check if a user belongs to a workspace and has a certain permission.
@@ -231,9 +231,9 @@ async def check_action_access(
 
 async def check_rbac_permission(
     user_org_workspace_data: Dict[str, Union[str, list]],
-    project_id: str = None,
-    permission: Permission = None,
-    role: str = None,
+    project_id: Optional[str] = None,
+    permission: Optional[Permission] = None,
+    role: Optional[Union[RequiredRole, str]] = None,
 ) -> bool:
     """
     Check if a user belongs to a workspace and has a certain permission.
@@ -289,8 +289,8 @@ async def check_rbac_permission(
 async def check_project_has_role_or_permission(
     project: ProjectDB,
     user_id: str,
-    role: Optional[str] = None,
-    permission: Optional[str] = None,
+    role: Optional[Union[RequiredRole, str]] = None,
+    permission: Optional[Permission] = None,
 ):
     """Check if a user has the provided role or permission in a project.
 

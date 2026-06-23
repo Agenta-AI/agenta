@@ -34,7 +34,7 @@ from oss.src.services.db_manager import get_user_org_and_workspace_id
 
 def _role_description(role: str) -> str:
     """Resolve a workspace-role description from the effective access-controls
-    catalog (env-overridable via AGENTA_ACCESS_ROLES)."""
+    catalog (env-overridable via AGENTA_ACCESS_ROLES in EE; OSS uses defaults)."""
     from oss.src.core.access.controls import get_role_description
 
     return get_role_description("workspace", role) or ""
