@@ -3,9 +3,13 @@ from typing import TYPE_CHECKING
 
 from agenta.sdk.engines.running.runners.base import CodeRunner
 from agenta.sdk.engines.running.runners.local import LocalRunner
+from agenta.sdk.engines.running.runners.restricted import RestrictedRunner
+from agenta.sdk.utils.logging import get_module_logger
 
 if TYPE_CHECKING:
     from agenta.sdk.engines.running.runners.daytona import DaytonaRunner
+
+log = get_module_logger(__name__)
 
 
 def _get_daytona_runner() -> "DaytonaRunner":
@@ -20,34 +24,44 @@ def get_runner() -> CodeRunner:
 
     Reads AGENTA_SERVICES_CODE_SANDBOX_RUNNER (canonical, v0.100.3+) with a
     fallback to the legacy AGENTA_SERVICES_SANDBOX_RUNNER.
-    - "local" (default): Uses current container for local execution
-    - "daytona": Uses Daytona remote sandbox
+    - "restricted" (default): In-process RestrictedPython sandbox (allowlisted imports).
+    - "local": Raw exec in the current process — no sandbox. Trusted deployments only.
+    - "daytona": Remote Daytona sandbox (strongest isolation).
 
     Returns:
-        CodeRunner: An instance of LocalRunner or DaytonaRunner
+        CodeRunner: An instance of RestrictedRunner, LocalRunner, or DaytonaRunner
 
     Raises:
-        ValueError: If Daytona runner is selected but required environment variables are missing
+        ValueError: If an unknown runner is selected, or Daytona is selected but its
+            required environment variables are missing.
     """
     runner_type = (
         os.getenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER")
         or os.getenv("AGENTA_SERVICES_SANDBOX_RUNNER")
-        or "local"
+        or "restricted"
     ).lower()
 
-    if runner_type == "daytona":
+    if runner_type == "restricted":
+        return RestrictedRunner()
+    elif runner_type == "local":
+        log.warning(
+            "Custom-code evaluators are using the 'local' runner: user code runs with "
+            "raw exec() and no sandbox in this process. Use it only for trusted/"
+            "single-tenant deployments. Set AGENTA_SERVICES_CODE_SANDBOX_RUNNER=restricted "
+            "(default) or =daytona for untrusted evaluator authors."
+        )
+        return LocalRunner()
+    elif runner_type == "daytona":
         try:
             return _get_daytona_runner()
         except ImportError as exc:
             raise ValueError(
                 "Daytona runner requires the 'daytona' package. "
                 "Install optional dependencies or set "
-                "AGENTA_SERVICES_CODE_SANDBOX_RUNNER=local."
+                "AGENTA_SERVICES_CODE_SANDBOX_RUNNER=restricted."
             ) from exc
-    elif runner_type == "local":
-        return LocalRunner()
     else:
         raise ValueError(
             f"Unknown AGENTA_SERVICES_CODE_SANDBOX_RUNNER value: {runner_type}. "
-            f"Supported values: 'local', 'daytona'"
+            f"Supported values: 'restricted', 'local', 'daytona'"
         )
