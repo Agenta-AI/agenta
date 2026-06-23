@@ -87,7 +87,7 @@ SDK. There is no LiteLLM call in `api/` at completion time.
   `"{slug}/custom/{model}"` -> `"openai/{model}"` and `url`->`api_base`.
   (`sdks/python/agenta/sdk/managers/secrets.py:147-150`)
 - A pluggable `SecretResolver` already exists from the sdk-local-tools work (env default,
-  vault adapter optional). It is the precedent for the model-access resolver.
+  vault adapter optional). It is the precedent for the `ConnectionResolver`.
 
 ### 1.5 What is weak, summarized
 

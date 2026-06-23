@@ -1,351 +1,337 @@
 # Design
 
-This is the converged design. It adopts the vocabulary and the cuts from two Codex reviews
-(an architecture pass and a CTO pass). The plain-language version is in
-[explainer.md](explainer.md). The earlier first draft used different names
-(`ModelRef`, `Connection`, `InjectionPlan`, `ConnectionResolver`) and put the account choice
-in the wrong place; this page supersedes it.
+How an agent harness picks its provider and model and gets exactly one credential injected. The
+plain-language version is in [explainer.md](explainer.md); the codebase findings are in
+[research.md](research.md); the work is sliced in [plan.md](plan.md).
 
-The proposal in one sentence: split provider/model/auth into **three concerns**, keep model
-intent portable in the agent config, keep the chosen account on the run (never in the
-committed revision), and resolve the two into one least-privilege access contract that the
-harness adapter consumes.
+## The shape in one paragraph
+
+Model intent and its credential connection live together in one `ModelRef` in the agent config. A
+connection is a portable reference (a project default, self-managed, or a named connection) into
+the existing secret vault, never a database id and never a raw secret. A `ConnectionResolver`
+reads one connection from the vault and returns one least-privilege `ResolvedConnection` (env vars
+plus a non-secret endpoint) that the harness adapter applies. The vault is the one credential
+store; v1 adds a read view and a resolve over it, and changes no storage. Which providers and
+connection modes a harness can reach is declared in the harness-capabilities table, and the
+resolver rejects anything outside it.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ MODEL INTENT (portable)             part of the committed agent config    │
-│   ModelSpec { provider, model, params }                                   │
-│   no secret, no base_url, no account; translates to every harness         │
-└───────────────┬─────────────────────────────────────────────────────────┘
-                │
-                │   chosen at run time (NOT committed):
-                │   ModelAccessBinding { source, account_ref? }
-                │   on the invoke request, or an environment default
+│ ModelRef (in the agent config, committed and portable)                    │
+│   { provider, model, params, connection }                                 │
+│   connection = default | self_managed | { agenta, slug }                  │
+│   a slug, never a project-local id; no secret value                       │
+└───────────────┬───────────────────────────────────────────────────────────┘
+                │  a test invoke sends this config inline; a committed
+                │  revision carries it. The connection is always in the config.
                 ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ ACCOUNT RESOLUTION                  our infra, service-side               │
-│   ModelAccessResolver.resolve(model, binding, ctx) -> ResolvedModelAccess │
-│   ProviderAccount = a read/resolve view over the existing vault           │
-└───────────────┬─────────────────────────────────────────────────────────┘
-                │   ResolvedModelAccess { provider, model, deployment,
-                │     credential_mode, env, endpoint }
+│ ConnectionResolver.resolve(model, ctx) -> ResolvedConnection              │
+│   ctx = { project (from request context), harness, backend }              │
+│   reads ONE connection from the existing vault; no new store              │
+└───────────────┬───────────────────────────────────────────────────────────┘
+                │  ResolvedConnection { provider, model, deployment,
+                │    credential_mode, env, endpoint }   (env = only secret channel)
                 ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ INJECTION                           the existing Harness adapter          │
-│   translates one ResolvedModelAccess into Pi / Codex / Claude             │
+│ Harness adapter (Pi / Codex / Claude)                                     │
+│   applies env + endpoint + model; never sees a vault, connection, or slug │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-The port question, answered: the **Harness adapter never sees a vault or an account**. It
-consumes a neutral `ResolvedModelAccess`. The **mapping lives in a new `ModelAccessResolver`
-port**, owned by the SDK as an interface and implemented by the service as a vault-backed
-adapter, by the standalone SDK as an env adapter, and by an SDK user as a bring-your-own
-adapter. This mirrors the existing tool-resolver split.
-
 ---
 
-## Concern 1: model intent (portable, in the agent config)
+## Concern 1: ModelRef in the agent config
 
-Replace the bare `AgentConfig.model: str` with a structured spec. Keep string coercion so
-`"gpt-5.5"` and `"openai/gpt-5.5"` still parse.
+`AgentConfig.model` becomes a structured ref carrying model intent and the credential connection.
+A bare string still parses, with the default connection.
 
 ```python
-class ModelSpec(BaseModel):
-    provider: Optional[str] = None     # logical family: "openai" | "anthropic" | "google" | <custom-name>
-    model: str                         # model id in that provider's namespace: "gpt-5.5", "claude-opus-4-8"
-    params: Dict[str, Any] = {}        # neutral knobs all harnesses understand: reasoning_effort, ...
+class ModelRef(BaseModel):
+    provider: Optional[str] = None   # logical family: "openai" | "anthropic" | "google" | <custom-slug>
+    model: str                       # model id in that provider's namespace: "gpt-5.5", "claude-opus-4-8"
+    params: Dict[str, Any] = {}      # neutral knobs all harnesses understand: reasoning_effort, ...
+    connection: Connection = Connection()   # where the credential comes from
 
-    # "openai/gpt-5.5" -> ModelSpec(provider="openai", model="gpt-5.5")
-    # "gpt-5.5"        -> ModelSpec(provider=None, model="gpt-5.5")  (provider inferred downstream)
+    # "openai/gpt-5.5" -> ModelRef(provider="openai", model="gpt-5.5", connection=default)
+    # "gpt-5.5"        -> ModelRef(provider=None, model="gpt-5.5", connection=default)
 ```
 
-`ModelSpec` holds no secret, no base URL, no account. It describes intent, so it stays
-portable across projects and harnesses. The committed workflow revision carries it. Codex
-needs `provider` and `model` separately, Pi builds a `Model` object from the pair, and Claude
-takes the bare model plus a backend flag. Research [research.md](research.md), Part 2.1.
-
-### A portable default credential mode, but never a concrete account
-
-The committed config may carry a portable **mode** that names no project-local id:
-
-- nothing (the implicit default: use the project's default account for the provider), or
-- `self_managed` (this agent brings its own credentials; Agenta injects nothing).
-
-It must not carry a concrete account id or slug, for the reason in the next section.
-
----
-
-## The run binding: which account (never committed)
+`provider` is logically required for resolution. When it is absent (a bare-string `model`), the
+resolver infers it from the model id or from the matched connection, and errors if it cannot. The
+committed revision carries the whole `ModelRef`, including the connection.
 
 ```python
-class ModelAccessBinding(BaseModel):
-    source: Literal["project_account", "project_default", "runtime"]
-    account_ref: Optional[str] = None   # slug or id; only for source == "project_account"
+class Connection(BaseModel):
+    mode: Literal["default", "self_managed", "agenta"] = "default"
+    slug: Optional[str] = None   # required iff mode == "agenta"; the secret's name, never a db id
 ```
 
-`source` meaning:
+- `default`: use the project's connection for `provider` (resolution rules below). Names nothing
+  project-local. This mirrors how a prompt resolves its key today.
+- `self_managed`: Agenta injects nothing. The sandbox, sidecar, local backend, local SDK env, or
+  the harness's own OAuth login owns auth. Names nothing project-local. Covers OAuth subscriptions
+  and self-hosting.
+- `agenta` + `slug`: use the named connection in the project vault.
 
-- `project_account`: use a specific stored account (named by `account_ref`).
-- `project_default`: use the project's default account for the model's provider.
-- `runtime`: inject nothing; the sandbox, sidecar, local env, or harness login already owns
-  auth. This is the "self-managed" case.
+### The connection is a portable logical binding, not a physical-account guarantee
 
-Where the binding lives. **Not on `WorkflowRevisionData`.** That model is committed,
-exported, and shared across projects. A concrete `account_ref` baked into it breaks the
-moment a revision is reused elsewhere: an id is project-local, and a slug can resolve to a
-different credential in another project. So the binding lives on the run:
+A stored connection names a role, like "this project's `openai-prod` connection." On reuse in
+another project the slug resolves against that project's vault by name, to that project's
+`openai-prod`. A credential value is a project-scoped secret and never travels with the revision.
 
-- **Invoke request override** (playground and testing): a top-level field on the request,
-  sibling to `data` / `references` / `selector` / `stream`. This is how a tester pins an
-  account for one run.
-- **Saved environment default**: environment or deployment configuration holds the default
-  account for a deployed agent. This is the durable, per-environment choice (dev vs prod
-  accounts fall out of this later).
-- **The committed revision** carries at most the portable mode (`project_default` implicitly,
-  or `self_managed`), never `project_account` with a concrete ref.
+This is the right behavior for "use my prod OpenAI connection," with one limit stated plainly: if
+two projects both have an `openai-prod` connection but holding *different* OpenAI accounts, the
+slug resolves to each project's own account. That is by-name-correct but a different physical
+account than the origin project's, and the provider-match rule does not catch it because both are
+OpenAI. We accept that, and we record the resolved slug on every run (Security, rule 7) so an
+operator can always see which connection paid. Guaranteeing that an exported revision keeps using
+the exact origin account would require a cross-project credential identity, which is out of scope.
 
-Resolution always uses the project from the request context, never a project id from the
-body. See Security below.
-
----
-
-## Concern 2: the ProviderAccount (a view over the existing vault)
-
-A **ProviderAccount** is a named, reusable way to reach a provider with one credential. For
-v1 it is a **read/resolve view over the existing `secrets` table**, not a new storage model
-and not a new write path. This is the key cut: we get multi-account and custom-endpoint
-naming without a vault rewrite.
-
-```python
-class ProviderAccount(BaseModel):
-    slug: str                       # stable reference (from the secret's Header.name); NOT the display name
-    display_name: str
-    provider: str                   # logical provider served
-    deployment: Deployment          # "direct" | "azure" | "bedrock" | "vertex" | "custom"
-    endpoint: Optional[Endpoint]    # base_url, api_version, region, headers, extras (non-direct)
-    is_default: bool = False
-    # the credential value stays in the vault; ProviderAccount never exposes it over the API
-```
-
-How it maps onto today's vault:
-
-- A standard `provider_key` secret reads as a `direct` ProviderAccount, `slug` from
-  `Header.name` (or `"default"` for a legacy unnamed key), credential from `provider.key`.
-- A `custom_provider` secret reads as a non-direct ProviderAccount, `endpoint` from
-  `{url, version, extras}`, credential from `key`/`extras`, `slug` from `provider_slug`.
-
-The vault storage shape, the `pgp_sym_encrypt` column, and the existing `/secrets` CRUD do
-not change. Creating and editing accounts stays on the existing secrets UI and API. We add
-only a read list and a resolve. Full `ProviderAccount` CRUD and a storage migration are
-later work, not v1.
-
-Multi-account falls out: a project holds `openai/default` and `openai/acme` side by side as
-two `provider_key` secrets with different `Header.name`, and both resolve by slug. The only
-behavior change is that we stop deduping by provider kind, so the second key stops being
-silently dropped.
-
-### Self-managed credentials (the OAuth case)
-
-Research [research.md](research.md), Part 2.3 is unambiguous: Claude, Codex, and Pi all
-**rewrite their OAuth credential file at run time** when the access token expires. Storing a
-frozen `auth.json` as a secret is wrong, because it goes stale the moment the harness rotates
-it, and a vault snapshot cannot be written back to the user's real login store.
-
-So we never store the rotating file. The self-managed mode (`source: runtime`) covers it:
-the credential lives outside Agenta (the user's own sidecar login, an env var, or a cloud
-identity), and Agenta injects nothing. A managed-OAuth path that stores a long-lived refresh
-token and mints access tokens through each harness's credential-helper hook stays deferred.
+There is no separate run-level override. The agent invoke handler already receives the config in
+`parameters` (`services/oss/src/agent/app.py`), so testing a different connection for one run is
+just sending a different `connection` in the config you test, the same way any config is tested
+before it is committed.
 
 ---
 
-## Concern 3: ResolvedModelAccess and the resolver port
+## Concern 2: a connection is a vault secret (reuse, no new store)
 
-The resolver's output is one neutral, least-privilege contract:
+The vault already stores connections, so v1 reuses it. No new storage model, no write path, no
+migration, no `/secrets` change.
+
+- A `provider_key` secret is a **direct** connection: `slug` from the secret name, `provider` from
+  `data.kind`, credential from `data.provider.key` (`api/oss/src/core/secrets/dtos.py:17-23`).
+- A `custom_provider` secret is a connection that **already carries an endpoint**: base URL,
+  version, extras, a `models[]` list, and a `provider_slug` from the secret name
+  (`api/oss/src/core/secrets/dtos.py:38-45`, `:225-230`). It maps cleanly to Pi's
+  `registerProvider({ baseUrl, apiKey, models })` and Claude's `ANTHROPIC_BASE_URL`.
+
+We add a read list and a resolve over these secrets. Creating and editing connections stays on the
+existing secrets UI and API.
+
+The prompt/completion path keeps its own reader (`SecretsManager.get_provider_settings`,
+`sdks/python/agenta/sdk/managers/secrets.py:158`), which produces LiteLLM kwargs and does a
+custom-provider model rewrite. v1 does **not** couple the agent path to that code. Both read the
+same vault; they are independent readers. Unifying them onto one shared core later (so a user
+configures a connection once) is a separate follow-up, not v1.
+
+### Self-managed credentials (OAuth)
+
+Claude, Codex, and Pi all rewrite their OAuth credential file at run time when the token rotates
+([research.md](research.md), Part 2.3). A frozen copy in the vault goes stale, and a vault snapshot
+cannot be written back to the user's login store. So we never store the rotating file:
+`connection.mode = self_managed` resolves to `credential_mode = runtime_provided`, and Agenta
+injects nothing. Managed OAuth (a stored refresh token minted through each harness's
+credential-helper hook) is deferred.
+
+---
+
+## Concern 3: ResolvedConnection and the resolver port
 
 ```python
-class ResolvedModelAccess(BaseModel):
+class ResolvedConnection(BaseModel):
     provider: str
     model: str                     # possibly rewritten for the deployment (e.g. a bedrock id)
-    deployment: str = "direct"
+    deployment: str = "direct"     # "direct" | "azure" | "bedrock" | "vertex" | "custom"
     credential_mode: Literal["env", "runtime_provided", "none"]
-    env: Dict[str, str] = {}       # the ONLY secret-bearing channel; one provider's vars, not the vault
-    endpoint: Optional[Endpoint] = None   # base_url, api_version, region, headers, extras (non-secret)
+    env: Dict[str, str] = {}       # the ONLY secret-bearing channel; one provider's vars
+    endpoint: Optional[Endpoint] = None   # NON-secret only: base_url, api_version, region, public headers
 ```
 
-`SessionConfig` gains `resolved_model_access`. The existing `secrets` field stays as a
-compatibility alias for the plan's `env` during the transition, so nothing downstream breaks
-on day one.
+`env` is the only channel that carries secret values. The `custom_provider` secret's `key` and any
+secret-bearing `extras` (auth tokens, secret headers) are projected into `env`, never into
+`endpoint`. `endpoint` carries only non-secret connection config.
 
-The port:
+`SessionConfig` gains `resolved_connection`. The existing `secrets` field
+(`sdks/python/agenta/sdk/agents/dtos.py:583`) stays as a compatibility alias for `env` during the
+transition.
 
 ```python
-class ModelAccessResolver(Protocol):
-    async def resolve(
-        self, *, model: ModelSpec, binding: Optional[ModelAccessBinding], context: RuntimeAuthContext
-    ) -> ResolvedModelAccess: ...
+class RuntimeAuthContext(BaseModel):
+    project_id: UUID         # from request.state, never from the request body
+    harness: str             # "pi" | "claude" | "codex"; for the capability check
+    backend: Optional[str] = None   # sandbox-agent local / daytona / in-process / local SDK
+
+class ConnectionResolver(Protocol):
+    async def resolve(self, *, model: ModelRef, context: RuntimeAuthContext) -> ResolvedConnection: ...
 ```
 
-Adapters:
+The context carries the harness (and backend) so the resolver can reject a provider or connection
+mode the selected harness cannot reach (Concern 3b). Adapters:
 
-- `VaultModelAccessResolver` (service): calls a new **`POST /vault/model-access/resolve`**
-  that takes `{model, binding}` and returns one `ResolvedModelAccess`, scoped to the caller's
-  project. This replaces the whole-vault dump in `services/oss/src/agent/secrets.py`.
-- `EnvModelAccessResolver` (SDK default, standalone): reads `OPENAI_API_KEY` etc. from the
-  process env for the requested provider. Offline, no Agenta dependency.
-- `StaticModelAccessResolver` (SDK bring-your-own): the SDK user passes a credential at
-  instantiation. This is the "inject my own secrets" path.
+- `VaultConnectionResolver` (service): calls `POST /vault/connections/resolve`, scoped to
+  `context.project_id`, returning one `ResolvedConnection`. Replaces the whole-vault dump in
+  `resolve_provider_keys` (`sdks/python/agenta/sdk/agents/platform/secrets.py:105-141`).
+- `EnvConnectionResolver` (SDK default, standalone): reads `OPENAI_API_KEY` etc. from the process
+  env for the requested provider. Offline.
+- `StaticConnectionResolver` (SDK bring-your-own): the SDK user passes a credential at
+  instantiation.
 
-The resolver is the future shared core for both agents and completions. We do **not** extend
-the current LiteLLM-shaped `SecretsManager.get_provider_settings` to get there; that function
-returns LiteLLM kwargs, reads route/run context, shadows duplicate keys, and rewrites custom
-models into OpenAI-compatible strings. v1 serves agents only. A later step migrates the
-completion path onto this resolver. See "Relationship to LiteLLM."
+### Resolution rules (deterministic; no `is_default` field exists in v1)
+
+The vault has no default flag, and secret names are not unique today, so resolution must be
+explicit, not a guess:
+
+1. `mode == self_managed` -> `credential_mode = runtime_provided`, empty `env`. Done.
+2. `mode == agenta` with no `slug` -> error (a named connection must name one).
+3. `mode == agenta` with `slug` -> the connection whose name equals `slug` for `provider`. If none
+   exists -> error ("connection `<slug>` not found"). If more than one matches
+   `(project, provider, slug)` -> error (ambiguous; names must be unique to resolve).
+4. `mode == default` -> if exactly one connection exists for `provider`, use it. Else if exactly
+   one connection for `provider` is named `default`, use it. Else -> error ("multiple connections
+   for `<provider>`; name one in the config"). Multiple unnamed legacy keys for one provider are
+   ambiguous and error the same way.
+5. **Provider match.** The resolved connection's provider must equal `ModelRef.provider`. Reject a
+   mismatch.
+
+These rules never silently pick a key by iteration order, which is what the two existing readers do
+differently today (agent path first-wins, `platform/secrets.py:140`; completion path last-wins,
+`managers/secrets.py:219`). Uniqueness of `(project, provider, name)` is not enforced by storage in
+v1; the resolver enforces it at read time and errors on a collision. (A future storage migration can
+add a uniqueness constraint and an explicit default flag; out of scope here.)
 
 ### How each harness consumes the contract
 
-The harness adapter (`adapters/harnesses.py` plus the TS engines) translates
-`ResolvedModelAccess`. It never sees a vault, an account, or a binding.
+The harness adapter (`adapters/harnesses.py` plus the TS engines) applies `ResolvedConnection`. It
+never sees a vault, a connection, or a slug.
 
 | Contract field | Pi | Codex | Claude Code |
 | --- | --- | --- | --- |
-| `provider` + `model` | `getModel(provider, id)` then `createAgentSession({ model })`; exact match, no silent fallback | `model` + `model_provider` | `--model` / `ANTHROPIC_MODEL`; provider via the flags below |
+| `provider` + `model` | `getModel(provider, id)` then `createAgentSession({ model })`; exact match | `model` + `model_provider` | `--model` / `ANTHROPIC_MODEL`; provider via flags below |
 | `env` (api key) | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / ... or `AuthStorage.setRuntimeApiKey` | `OPENAI_API_KEY` or the provider block's `env_key` | `ANTHROPIC_API_KEY` |
 | `endpoint.base_url` | `Model.baseUrl` / `registerProvider({ baseUrl })` | `[model_providers.<id>].base_url` | `ANTHROPIC_BASE_URL` |
 | `deployment` azure/bedrock/vertex | provider `azure-openai-responses` / `amazon-bedrock` / `google-vertex` + creds | `model_providers` base_url + `query_params` + AWS/GCP env | `CLAUDE_CODE_USE_BEDROCK` / `CLAUDE_CODE_USE_VERTEX` + AWS/GCP env |
 | `credential_mode = runtime_provided` | inject nothing; do not upload a fallback `auth.json`; harness uses its own login | inject nothing; uses `~/.codex/auth.json` | inject nothing; uses `.credentials.json` / inherited `CLAUDE_CODE_OAUTH_TOKEN` |
 | `credential_mode = none` | inject nothing | inject nothing | inject nothing |
 
-All three harnesses agree on the env-var key plane and treat provider as first-class, so one
-contract covers them. Each adapter absorbs its own differences (Codex needs a global config
-block, Claude needs a backend flag, Pi can take it in-process).
+For Pi, the `env` + `endpoint` are written into the per-run agent dir as `auth.json`/`models.json`
+by the mechanism [../model-config/](../model-config/) Part 1 owns. This project chooses which
+connection feeds that write.
+
+---
+
+## Concern 3b: which providers and connection modes a harness allows
+
+The frontend needs to know each harness's reachable providers and credential modes (Claude is
+narrow: Anthropic via direct/Bedrock/Vertex; Pi is broad). That table mechanism lives in the
+[../harness-capabilities/](../harness-capabilities/) project (a static per-harness table in
+`sdks/python/agenta/sdk/agents/capabilities.py`, exposed on `/inspect`, cross-referenced by the
+frontend). This project contributes two entries:
+
+- `providers`: the provider families the harness can reach, with allowed `deployment`s.
+- `connection_modes`: which `Connection.mode` values and deployments the harness supports (e.g.
+  `self_managed` on all three; custom `base_url` on all three, but Codex needs it in global
+  config; `self_managed` may be marked unavailable on a managed-cloud backend).
+
+The resolver and backend **reject** a `ModelRef` whose provider or connection mode is outside the
+selected harness's entry, fail-loud, using `context.harness`/`context.backend`. This rejection lands
+with the resolver behavior (server-side), not only in the frontend, so a direct API caller is also
+guarded.
 
 ---
 
 ## Security non-negotiables
 
-1. **Project from the request context, never the body.** Resolve an account by
-   `(request.state.project_id, provider, account_ref)`. A request must not pass a project id
-   and reach another project's accounts.
-2. **Provider match.** The resolved account's provider must equal `ModelSpec.provider`.
-   Reject a binding that points an OpenAI model at an Anthropic account.
-3. **Resolve is service plumbing, not a secret reader.** `POST /vault/model-access/resolve`
-   returns a plaintext credential in its `env`. It must not be callable from the browser as a
-   general secret-read API. Only the agent service calls it, server-side.
+1. **Project from the request context, never the body.** Resolve by
+   `(context.project_id, provider, slug)`.
+2. **Provider match.** The resolved connection's provider must equal `ModelRef.provider`.
+3. **Resolve is internal service plumbing, not a browser secret reader.**
+   `POST /vault/connections/resolve` returns plaintext credentials in `env`. It must not be mounted
+   as a browser-callable vault API. Note the existing `GET /secrets/` (`list_secrets`,
+   `api/oss/src/apis/fastapi/vault/router.py`) already returns key material in
+   `SecretResponseDTO`; the resolve must use internal service auth or stay inside server-side agent
+   plumbing, not follow that pattern.
 4. **No secret values in logs, traces, errors, or the raw-JSON playground echo.** Traces carry
-   provider, model, deployment, and the account slug that ran. They never carry `env`.
-5. **Clear inherited provider env before applying the plan.** On Agenta-managed runs the
-   runner must clear known provider env vars it would otherwise inherit, then apply only the
-   resolved plan. Today sandbox-agent copies process-env provider keys
-   (`services/agent/src/engines/sandbox_agent.ts:309`) and Daytona spreads `secrets` into the sandbox
-   (`:530`); both need the clear-then-apply discipline.
-6. **`runtime` gates off the OAuth fallback.** `credential_mode = runtime_provided` must
-   inject nothing and must not upload Pi's fallback `auth.json`. The existing upload becomes
-   an explicit-mode behavior, not a default.
-7. **Audit every resolve**: provider, model, account slug/id, credential mode, user, project.
-   Never the key material.
+   provider, model, deployment, and the resolved connection slug. Never `env`.
+5. **Clear-then-apply env on managed runs.** The runner clears all known provider env vars it would
+   otherwise inherit, then applies only the resolved `env`. Today the runner copies inherited
+   provider env (`services/agent/src/engines/sandbox_agent/daemon.ts`) and overlays request secrets
+   (`services/agent/src/engines/sandbox_agent.ts`), and in-process Pi only mutates the keys present
+   in `request.secrets` (`services/agent/src/engines/pi.ts`); none of these clears the full known
+   set first. Fix all three.
+6. **`self_managed` gates off the OAuth fallback.** `credential_mode = runtime_provided` injects
+   nothing and must not upload Pi's fallback `auth.json`.
+7. **Audit every resolve**: provider, model, connection slug, credential mode, user, project. Never
+   the key material.
 8. **Flagged, not fixed here.** `AGENTA_CRYPT_KEY` defaults to `"replace-me"`
-   (`api/oss/src/utils/env.py:410`). Out of scope; tracked in [status.md](status.md).
-
----
-
-## The duplicate-key landmine (must handle in v1)
-
-The two existing paths disagree on duplicate keys today. The agent path uses `setdefault`, so
-the first key for a provider wins (`services/oss/src/agent/secrets.py:71`). The completion
-path overwrites as it iterates, so the last key wins
-(`sdks/python/agenta/sdk/managers/secrets.py:219`). A project may already hold two keys for
-one provider.
-
-So the v1 resolve must not silently "pick the default." Rules:
-
-- Exactly one account for the provider: use it.
-- A binding names an account: use that one.
-- Multiple accounts, no binding, one flagged `is_default`: use the default and record which.
-- Multiple accounts, no binding, none flagged: return a clear error asking the user to pick.
-  Do not guess.
-
-This preserves correctness and forces the choice into the open instead of inheriting an
-accidental ordering.
-
----
-
-## Backward compatibility with prompts and completions
-
-Prompts and completions keep working, untouched. They resolve through the older
-LiteLLM-shaped path that reads the same vault. We do not change that path, the vault storage,
-or the `/secrets` API. We add an additive read view (provider accounts) and a service-side
-resolve. The completion path never calls either. Existing keys read as accounts named from
-their `Header.name`, or `"default"` when unnamed; no existing field changes meaning.
-
-Later, both paths can share this resolver so a user configures accounts once. That migration
-has its own plan and is not in this stack.
+   (`api/oss/src/utils/env.py:410`). Tracked as a follow-up.
 
 ---
 
 ## Multi-account, end to end
 
-1. A project holds two OpenAI accounts in the vault: `default` and `acme` (two `provider_key`
-   secrets with different `Header.name`).
-2. The agent config sets `model: { provider: openai, model: gpt-5.5 }`. The run binds an
-   account: the playground sends `binding: { source: project_account, account_ref: acme }`,
-   or a deployed environment holds that default.
-3. `VaultModelAccessResolver.resolve` looks up `(project, provider=openai, acme)` and returns
-   `{ credential_mode: env, env: { OPENAI_API_KEY: <acme key> }, model: gpt-5.5 }`.
-4. The Pi/Codex/Claude adapter injects that one key. The other account, and every other
-   provider's key, never enters the run.
+1. A project holds two OpenAI connections in the vault, named `openai-prod` and `openai-dev` (two
+   `provider_key` secrets).
+2. The config sets `model: { provider: openai, model: gpt-5.5, connection: { mode: agenta, slug:
+   openai-prod } }`. The committed revision carries that, portably (slug, not id). To test against
+   `openai-dev` for one run, send the config inline with `connection.slug = openai-dev`; nothing new
+   is committed.
+3. `VaultConnectionResolver.resolve` looks up `(project, provider=openai, slug=openai-prod)` and
+   returns `{ credential_mode: env, env: { OPENAI_API_KEY: <prod key> }, model: gpt-5.5 }`.
+4. The harness adapter injects that one key. The other connection, and every other provider's key,
+   never enters the run.
 
-With no binding and a single OpenAI account, the run uses it. With `source: runtime`, the
-resolver returns `credential_mode: runtime_provided` and injects nothing.
-
----
-
-## Relationship to LiteLLM
-
-LiteLLM is the prompt-workflow completion path, not the agent path. Its current design is the
-weak part: it keeps one key per provider via a dedup that shadows the second
-(`sdks/python/agenta/sdk/managers/secrets.py:219`), uses a static model catalog
-(`assets.py`), and forces custom providers to look OpenAI-compatible
-(`secrets.py:147-150`). The resolver is the right place to unify both paths eventually. v1
-builds it for agents and leaves completions on their path behind a compatibility read of the
-same secrets. The unification is a separate, later step.
+With `mode: default` and a single OpenAI connection, the run uses it. With two OpenAI connections
+and neither named `default`, `mode: default` errors and asks the config to name one. With
+`mode: self_managed`, the resolver returns `runtime_provided` and injects nothing.
 
 ---
 
-## Deferred, out of scope for v1
+## Relationship to the sibling projects
 
-Codex's CTO pass named gaps worth deciding later, not building now:
-
-- Full `ProviderAccount` storage model, write path, and CRUD endpoints.
-- Managed OAuth (`OAuthCredentialRef`): a stored refresh token plus credential-helper minting.
-- Cloud identity beyond today's custom `extras` (first-class Bedrock/Vertex plumbing).
-- Cost and rate attribution per account, usage observability, audit log surface.
-- Key rotation, disabled/revoked account state, and the resolver's failure behavior on a
-  revoked key.
-- Per-environment dev/prod default accounts, and team/org scope above project scope.
-- LiteLLM proxy/gateway support, and the completion-path migration onto this resolver.
-- Model allowlists/aliases per account, and slug-rename semantics.
+- [../model-config/](../model-config/): makes a requested model settable on each harness (the Pi
+  `auth.json`/`models.json` write into the per-run agent dir, fail-loud on an unsettable model,
+  model choices in the schema, the `_PROVIDER_ENV_VARS` Together fix). This project decides which
+  connection's credential that write uses; model-config owns the write and the staged strict-model
+  rollout (`AGENTA_AGENT_MODEL_STRICT`).
+- [../harness-capabilities/](../harness-capabilities/): the capability-table mechanism. This project
+  contributes the `providers` and `connection_modes` entries.
+- [../capability-config/](../capability-config/): the three permission layers (harness config,
+  sandbox permission, tool permission). Orthogonal to credentials.
 
 ---
 
-## What changes, by file (preview for the plan)
+## Deferred (out of scope for v1)
 
-- SDK DTOs and port: `ModelSpec`, `ModelAccessBinding`, `ResolvedModelAccess`,
-  `RuntimeAuthContext`, the `ModelAccessResolver` Protocol, `EnvModelAccessResolver`,
-  `StaticModelAccessResolver` (`sdks/python/agenta/sdk/agents/dtos.py`, `interfaces.py`, a new
-  `model_access/` module).
-- Wire: add non-secret fields (`provider`, `deployment`, `endpoint`, `credential_mode`) to the
-  `/run` contract (`sdks/python/agenta/sdk/agents/utils/wire.py`,
-  `services/agent/src/protocol.ts`) with golden-test updates.
-- Service: `VaultModelAccessResolver`; new `POST /vault/model-access/resolve` and
-  `GET /vault/provider-accounts` (read list); delete the whole-vault dump
-  (`services/oss/src/agent/secrets.py`, `api/oss/src/apis/fastapi/vault/`,
-  `api/oss/src/core/secrets/`).
-- Run binding: a request-level binding field and an environment default
-  (`api/oss/src/core/workflows/`, the invoke request models, `services/oss/src/agent/app.py`).
-- TS engines: consume `ResolvedModelAccess`; exact model resolution; `runtime_provided`/`none`
-  modes; clear-then-apply env; drop the harness-name->provider guess
-  (`services/agent/src/engines/pi.ts`, `sandbox_agent.ts`).
-- Frontend: provider/model + account override + self-managed toggle + raw-JSON escape hatch on
-  the agent form.
+- A first-class `Connection` storage model with a uniqueness constraint and an explicit default
+  flag, a write path, and CRUD endpoints.
+- Migrating the prompt/completion path onto a shared resolution core.
+- Managed OAuth (stored refresh token plus credential-helper minting).
+- First-class cloud identity beyond today's custom `extras` (Bedrock/Vertex). *v1 implementation
+  note:* a `custom_provider` connection whose deployment is azure/bedrock/vertex resolves to a
+  fail-loud `UnsupportedDeployment` error (422) rather than silently dropping the key, since v1
+  does not wire cloud credential delivery (AWS/GCP env, `CLAUDE_CODE_USE_*`). Direct and
+  OpenAI-compatible custom endpoints are the v1 surfaces.
+- A durable per-environment default connection for a deployed agent.
+- Cost/usage attribution per connection, audit surface, key rotation, revoked state, team/org scope.
+- Cross-project credential identity (the exact-origin-account guarantee).
+- Encryption hardening (replace the `"replace-me"` `AGENTA_CRYPT_KEY` default).
 
-The slicing is in [plan.md](plan.md).
+---
+
+## What changes, by file
+
+- SDK DTOs and port: `ModelRef` (with `connection`), `Connection`, `ResolvedConnection`,
+  `Endpoint`, `RuntimeAuthContext`, the `ConnectionResolver` Protocol, `EnvConnectionResolver`,
+  `StaticConnectionResolver` (`sdks/python/agenta/sdk/agents/dtos.py:324,419,583`, `interfaces.py`,
+  a new `connections/` module). Bare-string `model` coercion.
+- Wire: add the non-secret fields (`provider`, `connection`, `deployment`, `endpoint`,
+  `credential_mode`) to the `/run` contract on both sides
+  (`sdks/python/agenta/sdk/agents/utils/wire.py`, `services/agent/src/protocol.ts`) with golden-test
+  updates in one PR.
+- Service/API: `VaultConnectionResolver`; new `GET /vault/connections` (read list over existing
+  secrets) and `POST /vault/connections/resolve` (internal-only); delete the dump in
+  `resolve_provider_keys` (`sdks/python/agenta/sdk/agents/platform/secrets.py`) and its re-export
+  (`services/oss/src/agent/secrets.py`); the deterministic resolution rules; include
+  `custom_provider` connections (`api/oss/src/apis/fastapi/vault/`, `api/oss/src/core/secrets/`).
+- Resolution wiring: thread `ModelRef.connection` plus `RuntimeAuthContext` into the resolver call
+  in `services/oss/src/agent/app.py`. The connection rides `parameters`; no new request field.
+- Capability entries: `providers` and `connection_modes` in
+  `sdks/python/agenta/sdk/agents/capabilities.py`, with the resolver/backend reject.
+- TS engines: apply `ResolvedConnection` (exact model, `endpoint.base_url`, `runtime_provided`/
+  `none`, clear-then-apply env); drop the harness-name->provider guess
+  (`services/agent/src/engines/pi.ts`, `sandbox_agent.ts`). Pi `auth.json`/`models.json` write
+  coordinated with model-config Part 1.
+- Frontend: a form on the agent config that exposes provider, model, params, connection mode, and
+  connection slug directly, plus a raw-JSON escape hatch, gated by the harness-capabilities map.

@@ -1,109 +1,85 @@
-# What we are changing, in plain words
+# In plain words
 
-A plain-language version of [design.md](design.md), with the naming and structure from the
-Codex review folded in. This page explains the idea, what it means for the playground, and
-whether it touches prompts and completions. The formal data structures stay in
-[design.md](design.md).
+A plain-language version of [design.md](design.md). The formal data structures stay there.
 
-## The problem today
+## The problem
 
-When an agent runs, it needs two things: a model, and permission to call that model. Agenta
-handles the first and fumbles the second.
+When an agent runs, it needs a model and permission to call that model. Agenta picks the model
+loosely and hands out permission bluntly.
 
-Today you pick a model as one piece of text, like `gpt-5.5`. Agenta does not know which
-provider that text belongs to. So when the run starts, Agenta grabs every API key in your
-project vault and hands all of them to the agent. The agent keeps the one it needs and
-ignores the rest.
+Today you pick a model as one piece of text, like `gpt-5.5`. Agenta does not know which provider it
+belongs to, so at run time it grabs every API key in your project vault and gives them all to the
+agent. That carries four problems:
 
-That works, but it carries four problems:
-
-- You can store only one key per provider. A second OpenAI key gets dropped.
-- You cannot point an agent at a custom endpoint (Azure, Bedrock, a proxy).
-- The agent receives keys it never uses. That is wider exposure than the run needs.
+- You can store only one key per provider; a second key for the same provider is dropped.
+- You cannot point an agent at a custom endpoint (Azure, Bedrock, a proxy), even though the vault
+  already knows how to store one.
+- The agent receives keys it never uses, which is wider exposure than the run needs.
 - Subscription logins (a ChatGPT or Claude plan) do not fit, because they are not keys.
 
 ## The idea
 
-Split the one fuzzy choice into two clear ones.
+Keep the model and its connection together in the agent config, as one thing.
 
-1. **Which model.** A provider and a model, for example OpenAI and `gpt-5.5`. This stays in
-   the agent config. It is portable and describes intent, not secrets.
-2. **Whose credentials.** Which account authorizes and pays for the call. This is not part of
-   the agent's portable identity, so it does not live in the committed config. It rides the
-   run instead: a tester pins an account on the request, and a deployed environment holds a
-   default account. (An earlier draft put this on the workflow revision. We moved it off,
-   because a revision gets exported and shared across projects, and a project-local account id
-   would break the moment the revision is reused elsewhere.)
+1. **Which model.** A provider and a model, for example OpenAI and `gpt-5.5`.
+2. **Which connection.** Which credential authorizes and pays for the call. This is part of the
+   model choice, in the same place in the config.
 
-A **provider account** is a named credential: "OpenAI prod", "OpenAI sandbox", "Azure
-eastus". You can keep several per provider. That is how multi-account works. When a run
-starts, Agenta turns the chosen model plus the chosen account into one thing: the single
-credential that run needs, and nothing more.
+A **connection** is a named credential: "OpenAI prod", "OpenAI sandbox", "Azure eastus". You can
+keep several per provider, which is how multi-account works. When a run starts, Agenta turns the
+model plus the connection into one thing: the single credential that run needs, and nothing more.
+
+## We reuse the vault you already have
+
+We are not building a new place to store keys. Your project vault already stores connections: a
+plain provider key is a connection, and a custom provider with its base URL is a connection too.
+The prompt path reads those today. The agent path will read the same ones. Nothing about how you
+store keys changes.
+
+## The connection lives in the config, and stays portable
+
+The connection is part of the config, so it travels with the agent. It stays portable because it
+stores a name, not a database id:
+
+- **Project default**: the config just says "the default OpenAI connection." That works in any
+  project.
+- **Self-managed**: the config says "the agent brings its own login." That works anywhere too.
+- **A specific connection**: the config stores its name. In another project, that name resolves to
+  that project's connection of the same name. If there is none, the run stops with a clear message
+  asking you to pick one. It never quietly uses a key for the wrong provider.
+
+One honest limit: a name is a role, not a frozen account. If two projects each have an "OpenAI prod"
+connection holding different OpenAI keys, the name resolves to each project's own key. That is what
+you want for "use my prod connection," and every run records which connection it actually used.
+
+To try a different connection for a single test run, you change it in the config you send when you
+test, the same way you test any config before committing it. There is no separate override.
 
 ## "Our stuff" versus "not our stuff"
 
-This is the part that was unclear. An agent can get its credentials in two ways.
+An agent can get its credentials two ways:
 
-- **Agenta-stored, our stuff.** You saved an API key in Agenta. Agenta injects it. This is
-  exactly how prompts work today.
-- **Self-managed, not our stuff.** Agenta holds no key. The agent gets its login from
-  somewhere else: a harness already logged in inside your own sandbox, an environment
-  variable on your machine, or a cloud identity.
+- **Agenta-managed.** You saved a key in Agenta. Agenta injects it. This is how prompts work today.
+- **Self-managed.** Agenta holds no key. The agent uses a login from somewhere else: a harness
+  already logged in inside your own sandbox, an environment variable on your machine, or a cloud
+  identity. You pick this when self-hosting or running a local backend.
 
-Why does the second way exist? Coding agents like Claude Code and Codex support subscription
-logins, your ChatGPT or Claude plan. That login lives in a file the tool rewrites itself
-every time the token refreshes. You cannot paste a moving file into a vault and expect it to
-keep working. So for those logins the only honest answer is this: Agenta injects nothing, and
-the agent uses its own login. We call that self-managed.
-
-Self-managed only matters for agents. Prompts and completions always use a stored key, so
-they never meet this choice.
+Self-managed exists mainly for subscription logins. Claude Code and Codex can use your ChatGPT or
+Claude plan, whose login lives in a file the tool rewrites every time the token refreshes. You
+cannot paste a moving file into a vault and expect it to keep working. So Agenta injects nothing and
+the agent uses its own login. Self-managed only matters for agents; prompts always use a stored key.
 
 ## What the playground shows
 
-Today the model picker lets you see your configured providers, add a custom provider, and see
-each provider's models. That stays.
-
-For agents we add one small choice next to the model: where its credentials come from.
-
-- **Use an Agenta account** (the default). Pick which account, or let the run use the
-  project's default for that provider. This is today's behavior, plus the ability to name and
-  choose among several accounts.
-- **Self-managed.** Agenta injects nothing. A short hint says the sandbox or harness must
-  already be logged in.
-
-Adding a custom endpoint does not change. You still add a provider account that carries a
-base URL.
-
-For the first version we keep it minimal: provider, model, an optional account, a
-self-managed toggle, and a raw-JSON box. The JSON box lets you send exactly what you want
-while we build the real control.
+For agents we add a small set of controls next to the model: a provider, a model, its params, and
+where the credentials come from (a specific connection, the project default, or self-managed), plus
+a raw-JSON box for the exact value. The form also knows what each harness can do: Claude Code only
+reaches Anthropic models, Pi reaches many providers, so the options change with the selected
+harness and hide what it cannot use. Adding a custom endpoint stays on the existing secrets screen.
 
 ## Does this break prompts and completions?
 
-No. They keep working, untouched. Three reasons.
-
-- Prompts and completions resolve their key through a different, older path that reads the
-  same vault. We do not change that path, the vault storage, or the existing `/secrets` API.
-- We add a new read-only view on top for agents (provider accounts) and a new resolve step
-  that returns one credential instead of all of them. The completion path never calls it.
-- Existing keys get a default account name through an additive backfill. No existing field
-  changes meaning. The only behavior we replace is the agent's "grab every key" step, and
-  that touches agent runs only.
-
-Later we can move prompts and completions onto the same accounts, so you configure your
-accounts once and both paths use them. That is a separate, optional step with its own
-migration. It is not in this first stack.
-
-## The names, old and new
-
-The Codex review renamed most of the proposal. The vocabulary we are adopting:
-
-| Old (first draft) | New |
-| --- | --- |
-| `ModelRef` (with a connection inside) | `ModelSpec` (provider, model, params only) |
-| `Connection` | `ProviderAccount` (user term: "provider account") |
-| the connection reference, inside the agent config | `ModelAccessBinding`, on the run (request override or environment default), not on the committed revision |
-| `InjectionPlan` | `ResolvedModelAccess` (the resolved access contract) |
-| `ConnectionResolver` | `ModelAccessResolver` |
-| `SidecarAuth` | `RuntimeProvidedAuth` (user term: "self-managed credentials") |
+No. They keep working, untouched. They read the same vault through their own reader. We add a
+separate reader for agents and a resolve step that returns one credential instead of all of them.
+The prompt path never calls it. Later we can move both onto the same step so you configure a
+connection once; that is a separate, optional follow-up.

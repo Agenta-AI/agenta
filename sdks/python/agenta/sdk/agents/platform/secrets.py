@@ -110,6 +110,15 @@ async def resolve_provider_keys(
 
     Empty when the vault has none, in which case the harness falls back to its own
     login/OAuth (self-managed Pi/Claude sidecars), so absence is valid, never an error.
+
+    DEPRECATED: this is the model-blind whole-vault dump (it injects *every* provider key the
+    project holds, ignoring which model/connection the run actually uses, and never reads
+    ``custom_provider`` secrets). It is superseded by
+    :func:`agenta.sdk.agents.platform.resolve_connection` /
+    :class:`agenta.sdk.agents.platform.VaultConnectionResolver`, which resolve exactly one
+    least-privilege connection and fail loud. Kept callable here only because the running agent
+    service still calls it via ``resolve_secrets`` in ``services/oss/src/agent/app.py``; removing
+    that call site (and this function) is Slice 3, so each slice stays green.
     """
     connection = connection or PlatformConnection()
     api_base = connection.base_url()
