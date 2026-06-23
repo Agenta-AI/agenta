@@ -23,16 +23,17 @@ import SelectVariantSection from "../Components/SelectVariantSection"
 import SelectWorkflowSection from "../Components/SelectWorkflowSection"
 
 import type {
-    ApplicationStepValue,
     EvalStepDescriptorRegistry,
     EvalStepContext,
     EvalStepKind,
     EvalStepSectionProps,
+    EvalStepValueMap,
+    InvocationStepValue,
     SimpleEvaluationDataPayload,
     TestsetStepValue,
 } from "./types"
 
-const EMPTY_APPLICATION: ApplicationStepValue = {id: ""}
+const EMPTY_INVOCATION: InvocationStepValue = {id: ""}
 const EMPTY_TESTSET: TestsetStepValue = {
     id: "",
     revisionId: "",
@@ -40,11 +41,11 @@ const EMPTY_TESTSET: TestsetStepValue = {
     version: null,
 }
 
-const ApplicationSection = ({value, slot, runtime}: EvalStepSectionProps<ApplicationStepValue>) => (
+const InvocationSection = ({value, slot, context}: EvalStepSectionProps<InvocationStepValue>) => (
     <SelectWorkflowSection
         selectedWorkflowId={value.id}
         onSelectWorkflow={(id, meta) => {
-            runtime.onSelectApplication({id, ...meta})
+            context.setStepValue("invocation", {id, ...meta})
         }}
         disabled={slot.locked}
     />
@@ -148,7 +149,7 @@ const EvaluatorSection = ({value, context, runtime}: EvalStepSectionProps<string
                 context.setStepValue("evaluator", resolved)
             }}
             preview={context.preview}
-            selectedAppId={context.appId}
+            selectedWorkflowId={context.workflowId}
             onSelectTemplate={handleSelectTemplate}
             onCreateHumanEvaluator={handleCreateHumanEvaluator}
             className="pt-2"
@@ -190,18 +191,18 @@ const EvaluatorLabel = memo(({id}: {id: string}) => {
 })
 
 export const evalStepRegistry: EvalStepDescriptorRegistry = {
-    application: {
-        kind: "application",
-        title: "Application",
-        Section: ApplicationSection,
-        defaultValue: EMPTY_APPLICATION,
+    invocation: {
+        kind: "invocation",
+        title: "Workflow",
+        Section: InvocationSection,
+        defaultValue: EMPTY_INVOCATION,
         isComplete: (value) => Boolean(value.id),
         renderSummary: (value, context, slot) =>
             value.id ? (
                 <Tag
                     closable={!slot.locked}
                     closeIcon={<CloseCircleOutlined />}
-                    onClose={() => context.setStepValue("application", EMPTY_APPLICATION)}
+                    onClose={() => context.setStepValue("invocation", EMPTY_INVOCATION)}
                 >
                     {value.label ?? value.id}
                 </Tag>
@@ -211,7 +212,7 @@ export const evalStepRegistry: EvalStepDescriptorRegistry = {
                 context.getStepValue("revision").map((id) => [id, "auto" as const]),
             ),
         }),
-        incompleteMessage: "Please select an application",
+        incompleteMessage: "Please select a workflow",
     },
     revision: {
         kind: "revision",
@@ -307,20 +308,21 @@ export const evalStepRegistry: EvalStepDescriptorRegistry = {
     },
 }
 
-export const evalStepEngineRegistry = evalStepRegistry as unknown as EvaluationStepDescriptorMap<
+export const evalStepEngineRegistry: EvaluationStepDescriptorMap<
     EvalStepKind,
+    EvalStepValueMap,
     EvalStepContext,
     SimpleEvaluationDataPayload
->
+> = evalStepRegistry
 
 export const EVAL_STEP_KINDS = new Set(
     Object.keys(evalStepRegistry) as (keyof typeof evalStepRegistry)[],
 )
 
 export const getDefaultEvalSteps = (): import("./types").EvalStepSlot[] => [
-    {kind: "application", required: false},
-    {kind: "revision", required: false, dependsOn: ["application"]},
-    {kind: "testset", required: false, dependsOn: ["application"]},
-    {kind: "evaluator", required: true, dependsOn: ["application"]},
+    {kind: "invocation", required: false},
+    {kind: "revision", required: false, dependsOn: ["invocation"]},
+    {kind: "testset", required: false, dependsOn: ["invocation"]},
+    {kind: "evaluator", required: true, dependsOn: ["invocation"]},
     {kind: "advanced", required: true},
 ]

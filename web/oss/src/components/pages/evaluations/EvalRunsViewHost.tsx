@@ -84,10 +84,10 @@ import {
 } from "@/oss/state/workspace/atoms/selectors"
 
 const EVALUATION_PAGE_STEPS: EvalStepSlot[] = [
-    {kind: "application", required: true},
-    {kind: "revision", required: true, dependsOn: ["application"]},
-    {kind: "testset", required: true, dependsOn: ["application"]},
-    {kind: "evaluator", required: true, dependsOn: ["application"]},
+    {kind: "invocation", required: true},
+    {kind: "revision", required: true, dependsOn: ["invocation"]},
+    {kind: "testset", required: true, dependsOn: ["invocation"]},
+    {kind: "evaluator", required: true, dependsOn: ["invocation"]},
     {kind: "advanced", required: true},
 ]
 

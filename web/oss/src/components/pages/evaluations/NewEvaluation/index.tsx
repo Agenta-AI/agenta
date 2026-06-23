@@ -25,14 +25,14 @@ const NewEvaluationModalInner = dynamic(() => import("./Components/NewEvaluation
  * - `onSuccess`: Called after an evaluation is created.
  * - `evaluationType`: Controls the title and auto-only steps (`"auto"` or `"human"`).
  * - `preview`: Uses the human/preview submission flow when `true`.
- * - `preSelectedAppId`: Preselects and locks the application step.
+ * - `preSelectedAppId`: Preselects and locks the invocation workflow.
  * - `preSelectedVariantIds`: Preselects revision IDs.
  * - `steps`: Controls step order, requiredness, dependencies, visibility, locking, and presets.
  * - `nameBuilder`: Builds the base for the generated evaluation name from current step values.
  * - Remaining Ant Design `ModalProps` are forwarded to the modal.
  *
  * Each `steps` item supports:
- * - `kind`: `"application" | "revision" | "testset" | "evaluator" | "advanced"`.
+ * - `kind`: `"invocation" | "revision" | "testset" | "evaluator" | "advanced"`.
  * - `required`: Requires the step to be complete before submission.
  * - `dependsOn`: Disables the step until the listed steps are complete.
  * - `hidden`: Keeps the step in state and submission but removes its tab.
@@ -47,8 +47,8 @@ const NewEvaluationModalInner = dynamic(() => import("./Components/NewEvaluation
  *     evaluationType="auto"
  *     preview={false}
  *     steps={[
- *         {kind: "application", required: true},
- *         {kind: "revision", required: true, dependsOn: ["application"]},
+ *         {kind: "invocation", required: true},
+ *         {kind: "revision", required: true, dependsOn: ["invocation"]},
  *         {kind: "evaluator", required: true},
  *         {kind: "advanced", required: true},
  *     ]}
@@ -72,9 +72,10 @@ const NewEvaluationModal = <Preview extends boolean = true>({
 
     const onSubmit = useCallback(async () => {
         // Call the submit handler from the inner component
-        if (typeof window !== "undefined" && (window as any).__newEvalModalSubmit) {
-            await (window as any).__newEvalModalSubmit()
-        }
+        if (typeof window === "undefined") return
+        const submit = (window as typeof window & {__newEvalModalSubmit?: () => Promise<void>})
+            .__newEvalModalSubmit
+        await submit?.()
     }, [])
 
     return (

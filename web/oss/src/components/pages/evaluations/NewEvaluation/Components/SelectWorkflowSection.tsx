@@ -31,7 +31,7 @@ interface SelectWorkflowSectionProps {
      * callers can render the selection (e.g. in a tag) without an extra fetch;
      * fire with an empty id to clear the selection.
      */
-    onSelectWorkflow: (value: string, meta?: {label?: string; isEvaluator?: boolean}) => void
+    onSelectWorkflow: (value: string, meta?: {label?: string}) => void
     /** When true, locks the picker to apps-only (used on app-scoped evaluation page) */
     disabled?: boolean
     /** Whether evaluators are visible by default. Off (apps-only) is the right
@@ -183,7 +183,6 @@ const SelectWorkflowSection = ({
             const row = tableRows.find((r) => r.workflowId === selectedId)
             onSelectWorkflow(selectedId, {
                 label: row?.name,
-                isEvaluator: row?.isEvaluator,
             })
         },
         [disabled, onSelectWorkflow, tableRows],

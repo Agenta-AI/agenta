@@ -12,14 +12,6 @@ import type {
     EvalStepValueMap,
 } from "./evalSteps/types"
 
-export interface NewEvaluationAppOption {
-    label: string
-    value: string
-    type?: string | null
-    createdAt?: string | null
-    updatedAt?: string | null
-}
-
 export interface EvaluationConcurrencySettings {
     batch_size: number
     max_retries: number
@@ -34,7 +26,7 @@ export interface NewEvaluationModalProps extends ModalProps {
     preSelectedVariantIds?: string[]
     /** Pre-selected app ID (e.g., from playground context) */
     preSelectedAppId?: string
-    /** Declarative modal steps. Omit to use the existing application evaluation flow. */
+    /** Declarative modal steps. Omit to use the existing invocation workflow. */
     steps?: EvalStepSlot[]
     /** Builds the deterministic base used by automatic evaluation-name suggestions. */
     nameBuilder?: (values: Readonly<Partial<EvalStepValueMap>>) => string
@@ -77,7 +69,7 @@ export interface SelectEvaluatorSectionProps extends HTMLProps<HTMLDivElement> {
     selectedEvalConfigs: string[]
     setSelectedEvalConfigs: Dispatch<SetStateAction<string[]>>
     preview?: boolean
-    selectedAppId?: string
+    selectedWorkflowId?: string
     /** Callback when an evaluator template is selected from the dropdown (for inline creation) */
     onSelectTemplate?: (evaluator: EvaluatorCatalogTemplate) => void
     /** Callback when the "Create new" button is clicked in preview/human mode (for inline creation) */

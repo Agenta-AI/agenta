@@ -27,7 +27,7 @@ export {
     findInitialEvaluationStep,
     findNextEvaluationStep,
     isEvaluationStepEnabled,
-    splitEvaluationPayloadByApplicationStep,
+    splitEvaluationPayloadByInvocationStep,
 } from "./evaluationStepEngine"
 export type {
     EvaluationStepDescriptor,
