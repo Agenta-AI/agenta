@@ -5,6 +5,7 @@
  */
 
 import {atom, type PrimitiveAtom} from "jotai"
+import {getDefaultStore} from "jotai/vanilla"
 
 import type {PlaygroundNode, PlaygroundAction, ConnectedTestset, ExtraColumn} from "../types"
 
@@ -54,6 +55,12 @@ export const mappingModalOpenAtom = atom<boolean>(false) as PrimitiveAtom<boolea
  * ID of connection being edited in mapping modal
  */
 export const editingConnectionIdAtom = atom<string | null>(null) as PrimitiveAtom<string | null>
+
+/**
+ * Store used by the current playground session for imperative subscriptions
+ * that cannot be expressed through an atom's get/set pair.
+ */
+export const playgroundStoreAtom = atom<ReturnType<typeof getDefaultStore>>(getDefaultStore())
 
 // ============================================================================
 // DERIVED PLAYGROUND ATOMS

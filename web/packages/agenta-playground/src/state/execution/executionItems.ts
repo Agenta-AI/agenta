@@ -12,7 +12,6 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {getAgentaApiUrl} from "@agenta/shared/api/env"
 import {generateId} from "@agenta/shared/utils"
 import {atom, type Getter, type Setter} from "jotai"
-import {getDefaultStore} from "jotai/vanilla"
 
 import {entityIdsAtom} from "../atoms/playground"
 import {messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat/messageAtoms"
@@ -363,8 +362,7 @@ function cancelExecutionItemRun(
 
     if (existing.runId) {
         abortRun(existing.runId)
-        const store = getDefaultStore()
-        const adapter = store.get(executionAdapterAtom)
+        const adapter = get(executionAdapterAtom)
         adapter.cancel?.(existing.runId)
     }
 

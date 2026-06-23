@@ -6,23 +6,6 @@ from agenta.sdk.engines.running.runners import get_runner
 _runner = None
 
 
-def is_import_safe(python_code: Text) -> bool:
-    """Checks if the imports in the python code contains a system-level import.
-
-    Args:
-        python_code (str): The Python code to be executed
-
-    Returns:
-        bool - module is secured or not
-    """
-
-    disallowed_imports = ["os", "subprocess", "threading", "multiprocessing"]
-    for import_ in disallowed_imports:
-        if import_ in python_code:
-            return False
-    return True
-
-
 def execute_code_safely(
     app_params: Dict[str, Any],
     inputs: Dict[str, Any],

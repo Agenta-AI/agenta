@@ -3,7 +3,12 @@ import type {Store} from "jotai/vanilla/store"
 
 import type {ProjectsResponse} from "@/oss/services/project/types"
 import {appIdentifiersAtom} from "@/oss/state/appState"
-import {orgsAtom, resolvePreferredWorkspaceId, selectedOrgIdAtom} from "@/oss/state/org"
+import {
+    orgsAtom,
+    resolvePreferredWorkspaceId,
+    resolveWorkspaceIdForOrg,
+    selectedOrgIdAtom,
+} from "@/oss/state/org"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {projectAtom, projectsAtom} from "@/oss/state/project"
 
@@ -155,4 +160,23 @@ export const buildPostLoginPath = ({workspaceId, projectId}: WorkspaceContext) =
         return `/w/${encodeURIComponent(workspaceId)}`
     }
     return "/w"
+}
+
+// context.workspaceId may be an org id (the org list carries no workspace id);
+// translate it to default_workspace.id before it lands in a /w/<id> segment.
+export const buildPostLoginPathResolved = async (context: WorkspaceContext): Promise<string> => {
+    const store = getDefaultStore()
+    const orgs = store.get(orgsAtom)
+    const isOrgId =
+        context.workspaceId &&
+        Array.isArray(orgs) &&
+        orgs.some((org) => org.id === context.workspaceId)
+
+    if (!isOrgId) return buildPostLoginPath(context)
+
+    const realWorkspaceId = await resolveWorkspaceIdForOrg(context.workspaceId)
+    return buildPostLoginPath({
+        workspaceId: realWorkspaceId ?? context.workspaceId,
+        projectId: realWorkspaceId ? null : context.projectId,
+    })
 }

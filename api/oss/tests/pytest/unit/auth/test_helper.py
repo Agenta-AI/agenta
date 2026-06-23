@@ -13,7 +13,6 @@ from supertokens_python.recipe.thirdparty.interfaces import SignInUpNotAllowed
 async def test_ensure_auth_info_not_blocked_rejects_explicitly_blocked_email(
     monkeypatch,
 ):
-    monkeypatch.setattr(auth_helper, "is_ee", lambda: True)
     monkeypatch.setattr(
         auth_helper,
         "get_blocked_emails",
@@ -38,7 +37,6 @@ async def test_ensure_auth_info_not_blocked_rejects_explicitly_blocked_email(
 
 @pytest.mark.asyncio
 async def test_ensure_auth_info_not_blocked_rejects_disallowed_domain(monkeypatch):
-    monkeypatch.setattr(auth_helper, "is_ee", lambda: True)
     monkeypatch.setattr(
         auth_helper,
         "get_blocked_emails",

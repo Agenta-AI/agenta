@@ -39,14 +39,10 @@ function logAuthEmail(event: string, email: string): void {
     console.log(`[global-setup] ${event}: ${email}`)
 }
 
-function getOssOwnerEmail(): string {
-    const configuredEmail = process.env.AGENTA_TEST_OSS_OWNER_EMAIL?.trim().toLowerCase()
-
-    if (configuredEmail) {
-        return configuredEmail
-    }
-
-    return createTestEmail("oss-owner")
+function getConfiguredTestEmail(): string | null {
+    // Optional fixed account (persistent CI deployments). When unset, a fresh
+    // user signs up directly; multi-org OSS needs no owner bootstrap or invite.
+    return process.env.AGENTA_TEST_OSS_OWNER_EMAIL?.trim().toLowerCase() || null
 }
 
 async function fillOTPDigits(page: Page, otp: string, delay: number): Promise<void> {
@@ -845,66 +841,11 @@ async function authenticateUserImpl({
     await waitForSettledAuthenticatedPage(page, timeout)
 }
 
-async function inviteOssUser({
-    page,
-    apiURL,
-    baseURL,
-    email,
-}: {
-    page: Page
-    apiURL: string
-    baseURL: string
-    email: string
-}): Promise<string> {
-    const projectsResponse = await page.request.get(`${apiURL}/projects/`)
-    if (!projectsResponse.ok()) {
-        throw new Error(
-            `[global-setup] Failed to fetch OSS projects for invite bootstrap (${projectsResponse.status()}): ${await projectsResponse.text()}`,
-        )
-    }
-
-    const projects = (await projectsResponse.json()) as {
-        organization_id?: string
-        workspace_id?: string
-        project_id?: string
-        is_default_project?: boolean
-    }[]
-
-    const project = projects.find((candidate) => candidate.is_default_project) ?? projects[0]
-    if (!project?.organization_id || !project.workspace_id || !project.project_id) {
-        throw new Error("[global-setup] Could not derive OSS organization/workspace/project ids")
-    }
-
-    const inviteResponse = await page.request.post(
-        `${apiURL}/organizations/${project.organization_id}/workspaces/${project.workspace_id}/invite?project_id=${project.project_id}`,
-        {
-            data: [{email}],
-        },
-    )
-
-    if (!inviteResponse.ok()) {
-        throw new Error(
-            `[global-setup] Failed to invite OSS test user (${inviteResponse.status()}): ${await inviteResponse.text()}`,
-        )
-    }
-
-    const invitePayload = (await inviteResponse.json()) as {url?: string}
-    if (!invitePayload.url) {
-        throw new Error("[global-setup] OSS invite response did not include an invite URL")
-    }
-
-    return new URL(invitePayload.url, baseURL).toString()
-}
-
 async function globalSetup() {
     console.log("[global-setup] Starting global setup for authentication")
 
     const baseURL = process.env.AGENTA_WEB_URL || "http://localhost:3000"
-    const apiURL = getApiURL(baseURL)
     const license = process.env.AGENTA_LICENSE || "oss"
-    const ossAuthUser = (process.env.AGENTA_TEST_OSS_AUTH_USER || "owner").trim().toLowerCase()
-    const useOssInvitedUser =
-        ossAuthUser === "invite" || ossAuthUser === "invitee" || ossAuthUser === "invited"
     const storageState = getStorageStatePath()
     console.log(`[global-setup] Base URL: ${baseURL}, License: ${license}`)
 
@@ -915,14 +856,16 @@ async function globalSetup() {
         process.env.TESTMAIL_API_KEY && process.env.TESTMAIL_NAMESPACE,
     )
     const testmail = hasTestmailConfig ? getTestmailClient() : null
-    const ownerEmail = getOssOwnerEmail()
-    const userEmail = createTestEmail(`${license}-user`)
-    const ownerPassword =
+    const configuredEmail = getConfiguredTestEmail()
+    const userEmail = configuredEmail || createTestEmail(`${license}-user`)
+    const configuredPassword =
         process.env.AGENTA_TEST_OSS_OWNER_PASSWORD ||
         process.env.AGENTA_ADMIN_PASSWORD ||
         process.env.AGENTA_TEST_PASSWORD ||
         "TestPass123!"
-    const userPassword = process.env.AGENTA_TEST_PASSWORD || ownerPassword
+    const userPassword = configuredEmail
+        ? configuredPassword
+        : process.env.AGENTA_TEST_PASSWORD || configuredPassword
 
     console.log("[global-setup] Launching browser")
     const browser = await chromium.launch(getChromiumLaunchOptions())
@@ -931,76 +874,22 @@ async function globalSetup() {
     let authenticatedPage: Page | null = null
 
     try {
-        if (license === "oss") {
-            let ownerContext: BrowserContext | null = null
+        // Same flow for OSS and EE: sign up (or sign in) directly. Each new
+        // user gets their own organization, so no owner-invite bootstrap.
+        authenticatedContext = await browser.newContext()
+        authenticatedPage = await authenticatedContext.newPage()
 
-            try {
-                console.log("[global-setup] Creating owner context")
-                ownerContext = await browser.newContext()
-                console.log("[global-setup] Owner context created, opening page")
-                const ownerPage = await ownerContext.newPage()
-                console.log("[global-setup] Owner page opened")
-
-                console.log(`[global-setup] Authenticating OSS owner: ${ownerEmail}`)
-                await authenticateUser({
-                    page: ownerPage,
-                    entryUrl: `${baseURL}/auth`,
-                    email: ownerEmail,
-                    password: ownerPassword,
-                    authMode,
-                    timeout,
-                    inputDelay,
-                    testmail,
-                })
-
-                if (useOssInvitedUser) {
-                    console.log(`[global-setup] Inviting OSS test user: ${userEmail}`)
-                    const inviteUrl = await inviteOssUser({
-                        page: ownerPage,
-                        apiURL,
-                        baseURL,
-                        email: userEmail,
-                    })
-
-                    authenticatedContext = await browser.newContext()
-                    authenticatedPage = await authenticatedContext.newPage()
-
-                    console.log(`[global-setup] Authenticating invited OSS user: ${userEmail}`)
-                    await authenticateUser({
-                        page: authenticatedPage,
-                        entryUrl: inviteUrl,
-                        email: userEmail,
-                        password: userPassword,
-                        authMode,
-                        timeout,
-                        inputDelay,
-                        testmail,
-                    })
-                } else {
-                    console.log("[global-setup] Reusing OSS owner session for tests")
-                    authenticatedContext = ownerContext
-                    authenticatedPage = ownerPage
-                    ownerContext = null
-                }
-            } finally {
-                await ownerContext?.close()
-            }
-        } else {
-            authenticatedContext = await browser.newContext()
-            authenticatedPage = await authenticatedContext.newPage()
-
-            console.log(`[global-setup] Authenticating EE user: ${userEmail}`)
-            await authenticateUser({
-                page: authenticatedPage,
-                entryUrl: `${baseURL}/auth`,
-                email: userEmail,
-                password: userPassword,
-                authMode,
-                timeout,
-                inputDelay,
-                testmail,
-            })
-        }
+        console.log(`[global-setup] Authenticating ${license} user: ${userEmail}`)
+        await authenticateUser({
+            page: authenticatedPage,
+            entryUrl: `${baseURL}/auth`,
+            email: userEmail,
+            password: userPassword,
+            authMode,
+            timeout,
+            inputDelay,
+            testmail,
+        })
 
         mkdirSync(dirname(storageState), {recursive: true})
         await authenticatedPage.context().storageState({path: storageState})
