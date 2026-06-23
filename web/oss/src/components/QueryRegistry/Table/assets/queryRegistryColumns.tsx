@@ -11,7 +11,18 @@ import {
 } from "@phosphor-icons/react"
 import {Popover, Tag, Typography} from "antd"
 
+import {TRACE_EVALUATION_QUERY_SOURCE} from "@/oss/components/pages/evaluations/NewEvaluation/evalSteps/sourceHelpers"
+
 import type {QueryRegistryRow} from "../../store/queryRegistryStore"
+
+/**
+ * Friendly labels for a query's provenance (`row.source`, read from `meta.source`).
+ * `"trace_evaluation"` is stamped by "run evaluation from traces"; queries the
+ * user created by hand carry no source and leave the cell blank.
+ */
+const SOURCE_LABELS: Record<string, string> = {
+    [TRACE_EVALUATION_QUERY_SOURCE]: "Auto evaluation",
+}
 
 /** Controlled expand state for the version-history rows (mirrors the registry table). */
 export interface QueryExpandState {
@@ -327,6 +338,27 @@ export function createQueryRegistryColumns(
                             ) : null}
                         </span>
                     </Popover>
+                )
+            },
+        },
+        {
+            type: "text",
+            key: "source",
+            title: "Source",
+            width: 140,
+            render: (_value, record) => {
+                if (record.__isSkeleton) return <SkeletonLine width="50%" />
+                // Source is a query-level value — only the top-level query row
+                // carries it; version (child) rows leave the cell blank.
+                if (record.__isRevisionChild || record.__isArchivedRevision) {
+                    return null
+                }
+                const label = record.source ? (SOURCE_LABELS[record.source] ?? record.source) : null
+                if (!label) return null
+                return (
+                    <div className="flex h-full items-center">
+                        <Tag className="m-0 text-xs">{label}</Tag>
+                    </div>
                 )
             },
         },

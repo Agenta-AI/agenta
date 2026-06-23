@@ -39,6 +39,12 @@ export interface QueryRegistryRow {
     windowing: unknown
     createdAt: string | null
     createdById: string | null
+    /**
+     * Provenance, read from the query's `meta.source`. `"trace_evaluation"` marks
+     * queries auto-created by "run evaluation from traces"; undefined for queries
+     * the user authored by hand. Available for a future "Source" column.
+     */
+    source?: string | null
     /** Revision version label, shown as a badge on expanded history rows. */
     version?: string | null
     /** Git-style commit message for this revision (head row = head revision's). */
@@ -99,6 +105,11 @@ const toQueryRegistryRow = (query: SimpleQuery): QueryRegistryRow => ({
     windowing: query.data?.windowing ?? null,
     createdAt: query.created_at ?? null,
     createdById: query.created_by_id ?? null,
+    // Only carry `source` when the query actually has one — omit the property
+    // entirely for hand-authored queries rather than stamping `source: null`.
+    ...(typeof query.meta?.source === "string" && query.meta.source
+        ? {source: query.meta.source}
+        : {}),
 })
 
 // ============================================================================
