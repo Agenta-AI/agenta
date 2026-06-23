@@ -236,8 +236,14 @@ const testcaseBatchFetcher = createBatchFetcher<
             }
         }
 
-        // Second pass: group remaining (non-cached) requests by projectId
-        const byProject = new Map<string, {ids: string[]; keys: string[]}>()
+        // Second pass: collect remaining (non-cached) requests.
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (projectId && requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("testcaseBatchFetcher: requests span multiple projects")
+        }
+
+        const toFetch: {id: string; key: string}[] = []
         requests.forEach((req, idx) => {
             const key = serializedKeys[idx]
 
@@ -250,64 +256,56 @@ const testcaseBatchFetcher = createBatchFetcher<
                 return
             }
 
-            const existing = byProject.get(req.projectId)
-            if (existing) {
-                existing.ids.push(req.testcaseId)
-                existing.keys.push(key)
-            } else {
-                byProject.set(req.projectId, {ids: [req.testcaseId], keys: [key]})
-            }
+            toFetch.push({id: req.testcaseId, key})
         })
 
-        // Fetch each project's testcases in batch (only those not in cache)
-        await Promise.all(
-            Array.from(byProject.entries()).map(async ([projectId, {ids, keys}]) => {
-                try {
-                    const response = await axios.post(
-                        `${getAgentaApiUrl()}/testcases/query`,
-                        {testcase_ids: ids},
-                        {params: {project_id: projectId}},
-                    )
-                    const testcases = response.data?.testcases ?? []
+        // Fetch the remaining testcases in one call
+        if (projectId && toFetch.length > 0) {
+            const ids = toFetch.map((entry) => entry.id)
+            try {
+                const response = await axios.post(
+                    `${getAgentaApiUrl()}/testcases/query`,
+                    {testcase_ids: ids},
+                    {params: {project_id: projectId}},
+                )
+                const testcases = response.data?.testcases ?? []
 
-                    // Map results by ID
-                    const byId = new Map<string, FlattenedTestcase>()
-                    testcases.forEach((tc: unknown, tcIdx: number) => {
-                        try {
-                            const validated = testcaseSchema.parse(tc)
-                            const flattened = flattenTestcase(validated)
-                            if (flattened.id) {
-                                byId.set(flattened.id, flattened)
-                            }
-                        } catch (validationError) {
-                            // Log validation errors for debugging
-                            console.error(
-                                `[testcaseBatchFetcher] Failed to validate testcase at index ${tcIdx}:`,
-                                validationError instanceof Error
-                                    ? validationError.message
-                                    : validationError,
-                                {testcase: tc},
-                            )
+                // Map results by ID
+                const byId = new Map<string, FlattenedTestcase>()
+                testcases.forEach((tc: unknown, tcIdx: number) => {
+                    try {
+                        const validated = testcaseSchema.parse(tc)
+                        const flattened = flattenTestcase(validated)
+                        if (flattened.id) {
+                            byId.set(flattened.id, flattened)
                         }
-                    })
+                    } catch (validationError) {
+                        // Log validation errors for debugging
+                        console.error(
+                            `[testcaseBatchFetcher] Failed to validate testcase at index ${tcIdx}:`,
+                            validationError instanceof Error
+                                ? validationError.message
+                                : validationError,
+                            {testcase: tc},
+                        )
+                    }
+                })
 
-                    // Resolve each request
-                    ids.forEach((id, idx) => {
-                        const key = keys[idx]
-                        results.set(key, byId.get(id) ?? null)
-                    })
-                } catch (error) {
-                    // Log batch fetch errors for debugging
-                    console.error(
-                        `[testcaseBatchFetcher] Failed to fetch testcases for project ${projectId}:`,
-                        error instanceof Error ? error.message : String(error),
-                        {projectId, testcaseIds: ids, error},
-                    )
-                    // Set null for all failed requests
-                    keys.forEach((key) => results.set(key, null))
-                }
-            }),
-        )
+                // Resolve each request
+                toFetch.forEach(({id, key}) => {
+                    results.set(key, byId.get(id) ?? null)
+                })
+            } catch (error) {
+                // Log batch fetch errors for debugging
+                console.error(
+                    `[testcaseBatchFetcher] Failed to fetch testcases for project ${projectId}:`,
+                    error instanceof Error ? error.message : String(error),
+                    {projectId, testcaseIds: ids, error},
+                )
+                // Set null for all failed requests
+                toFetch.forEach(({key}) => results.set(key, null))
+            }
+        }
 
         return results
     },

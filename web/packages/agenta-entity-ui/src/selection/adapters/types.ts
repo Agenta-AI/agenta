@@ -143,6 +143,11 @@ export interface CreateHierarchyLevelOptions<T = unknown> {
     getDescription?: (entity: T) => string | undefined
 
     /**
+     * Get a suffix node rendered after the label block, before the chevron
+     */
+    getSuffixNode?: (entity: T) => ReactNode
+
+    /**
      * Callback to enable/prepare the query before loading children.
      * Called with the parent ID when navigating into this level.
      * Use this for lazy-enabled queries that require explicit activation.

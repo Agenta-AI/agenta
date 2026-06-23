@@ -23,6 +23,9 @@ if is_ee():
 
 log = get_module_logger(__name__)
 
+# Bound the stream so acked entries are trimmed; without this it grows unbounded.
+MAXLEN_QUEUES_WEBHOOKS = 100_000
+
 
 async def main_async() -> int:
     try:
@@ -47,6 +50,8 @@ async def main_async() -> int:
             url=env.redis.uri_durable,
             queue_name="queues:webhooks",
             consumer_group_name="worker-events-webhooks-dispatcher",
+            maxlen=MAXLEN_QUEUES_WEBHOOKS,
+            approximate=True,
         )
         await broker.startup()
 

@@ -409,6 +409,7 @@ services:
         command:
             - --api.dashboard=true
             - --providers.docker
+            - --providers.docker.constraints=Label(`com.docker.compose.project`,`${COMPOSE_PROJECT_NAME:-agenta-oss-gh-local}`)
             - --entrypoints.web.address=:80
         # === STORAGE ============================================== #
         volumes:

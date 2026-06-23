@@ -34,6 +34,7 @@ export {
     commitModalErrorAtom,
     // Derived state
     commitModalEntityNameAtom,
+    commitModalOriginalEntityNameAtom,
     commitModalCanCommitAtom,
     commitModalCanProceedAtom,
     commitModalContextAtom,

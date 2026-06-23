@@ -86,95 +86,76 @@ const environmentBatchFetcher = createBatchFetcher<EnvironmentRequest, Environme
     serializeKey: (req) => `${req.projectId}:${req.environmentId}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, Environment | null>()
-        const byProject = new Map<
-            string,
-            {environmentIds: string[]; keys: string[]; queryClients: Set<QueryClient>}
-        >()
+        serializedKeys.forEach((key) => results.set(key, null))
+
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("environmentBatchFetcher: requests span multiple projects")
+        }
+
+        // Resolve from cache first
+        const pending: {environmentId: string; key: string}[] = []
+        const queryClients = new Set<QueryClient>()
 
         requests.forEach((req, index) => {
             const key = serializedKeys[index]
-            if (!req.projectId || !req.environmentId || !isValidUUID(req.environmentId)) {
-                results.set(key, null)
-                return
-            }
+            if (!req.environmentId || !isValidUUID(req.environmentId)) return
 
             if (req.queryClient) {
-                const cached = findEnvironmentInCache(
-                    req.queryClient,
-                    req.projectId,
-                    req.environmentId,
-                )
+                const cached = findEnvironmentInCache(req.queryClient, projectId, req.environmentId)
                 if (cached) {
                     results.set(key, cached)
                     return
                 }
+                queryClients.add(req.queryClient)
             }
 
-            const existing = byProject.get(req.projectId)
-            if (existing) {
-                existing.environmentIds.push(req.environmentId)
-                existing.keys.push(key)
-                if (req.queryClient) existing.queryClients.add(req.queryClient)
-            } else {
-                byProject.set(req.projectId, {
-                    environmentIds: [req.environmentId],
-                    keys: [key],
-                    queryClients: new Set(req.queryClient ? [req.queryClient] : []),
-                })
-            }
+            pending.push({environmentId: req.environmentId, key})
         })
 
-        await Promise.all(
-            Array.from(byProject.entries()).map(async ([projectId, group]) => {
-                try {
-                    const environmentMap = await fetchEnvironmentsBatch(
-                        projectId,
-                        group.environmentIds,
-                    )
+        if (pending.length === 0) return results
 
-                    group.environmentIds.forEach((environmentId, index) => {
-                        const key = group.keys[index]
-                        const environment = environmentMap.get(environmentId) ?? null
+        const primeCaches = (environment: Environment) => {
+            queryClients.forEach((queryClient) => {
+                primeEnvironmentDetailCache(queryClient, projectId, environment)
+            })
+        }
+
+        try {
+            const environmentMap = await fetchEnvironmentsBatch(
+                projectId,
+                pending.map((entry) => entry.environmentId),
+            )
+
+            pending.forEach(({environmentId, key}) => {
+                const environment = environmentMap.get(environmentId) ?? null
+                results.set(key, environment)
+                if (environment) primeCaches(environment)
+            })
+        } catch (error) {
+            console.error("[environmentBatchFetcher] Batch fetch failed, falling back:", error)
+
+            await Promise.all(
+                pending.map(async ({environmentId, key}) => {
+                    try {
+                        const environment = await fetchEnvironmentDetail({
+                            id: environmentId,
+                            projectId,
+                        })
                         results.set(key, environment)
-
-                        if (environment) {
-                            group.queryClients.forEach((queryClient) => {
-                                primeEnvironmentDetailCache(queryClient, projectId, environment)
-                            })
-                        }
-                    })
-                } catch (error) {
-                    console.error(
-                        "[environmentBatchFetcher] Batch fetch failed, falling back:",
-                        group.environmentIds,
-                        error,
-                    )
-
-                    await Promise.all(
-                        group.environmentIds.map(async (environmentId, index) => {
-                            const key = group.keys[index]
-                            try {
-                                const environment = await fetchEnvironmentDetail({
-                                    id: environmentId,
-                                    projectId,
-                                })
-                                results.set(key, environment)
-                                group.queryClients.forEach((queryClient) => {
-                                    primeEnvironmentDetailCache(queryClient, projectId, environment)
-                                })
-                            } catch (individualError) {
-                                console.error(
-                                    "[environmentBatchFetcher] Individual fetch failed:",
-                                    environmentId,
-                                    individualError,
-                                )
-                                results.set(key, null)
-                            }
-                        }),
-                    )
-                }
-            }),
-        )
+                        if (environment) primeCaches(environment)
+                    } catch (individualError) {
+                        console.error(
+                            "[environmentBatchFetcher] Individual fetch failed:",
+                            environmentId,
+                            individualError,
+                        )
+                    }
+                }),
+            )
+        }
 
         return results
     },
