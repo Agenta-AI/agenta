@@ -8,7 +8,7 @@ import {
 } from "@agenta/entities/workflow"
 import type {MenuProps} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {recentAppIdAtom, routerAppNavigationAtom} from "@/oss/state/app/atoms/fetcher"
 import {
@@ -23,6 +23,10 @@ import WorkflowIdentity from "../components/WorkflowIdentity"
 import {resolveIsEvaluatorWorkflow} from "./workflowSwitcherHelpers"
 
 const EMPTY_WORKFLOWS: readonly Workflow[] = []
+// Stable empty atom read while the switcher is dormant, so the apps/evaluator
+// list atoms (and the evaluator latest-revision fan-out behind them) stay
+// unsubscribed until the switcher is first opened.
+const EMPTY_WORKFLOWS_ATOM = atom<readonly Workflow[]>(EMPTY_WORKFLOWS)
 
 const getWorkflowActivityTime = (workflow: Workflow) => {
     const timestamp = workflow.updated_at ?? workflow.created_at
@@ -39,35 +43,70 @@ export const WORKFLOW_SWITCHER_MENU_CLASS = clsx(
 
 export const useWorkflowSwitcher = () => {
     const context = useAtomValue(currentWorkflowContextAtom)
-    const apps = useAtomValue(nonArchivedAppWorkflowsAtom) as readonly Workflow[]
-    const evaluators = useAtomValue(nonArchivedEvaluatorsAtom) as readonly Workflow[]
-    const nonDeterministicEvaluators = useAtomValue(
-        nonDeterministicEvaluatorsAtom,
+    const [open, setOpenState] = useState(false)
+    // Latch: flips true on first switcher-open and never resets, so the full
+    // apps/evaluators catalogs (and the evaluator revision fan-out) resolve
+    // LAZILY on open instead of on every sidebar mount, then stay warm.
+    const [switcherActivated, setSwitcherActivated] = useState(false)
+    const setOpen = useCallback((next: boolean) => {
+        setOpenState(next)
+        if (next) setSwitcherActivated(true)
+    }, [])
+
+    // The full apps + evaluators lists are needed only to populate the switcher
+    // (once opened) or to resolve the recent-workflow fallback on a route that
+    // points at NO workflow (e.g. /home). On a workflow route with the switcher
+    // closed we need neither, so we read stable empty atoms to avoid pulling the
+    // whole apps/evaluator catalogs on every page load. Gate on `workflowId` (the
+    // URL id, truthy from the first render), NOT on `workflow` (null while
+    // resolution is in flight, which would still fire the catalogs).
+    const wantWorkflowLists = !context.workflowId || switcherActivated
+    const apps = useAtomValue(
+        wantWorkflowLists ? nonArchivedAppWorkflowsAtom : EMPTY_WORKFLOWS_ATOM,
+    ) as readonly Workflow[]
+    const evaluators = useAtomValue(
+        wantWorkflowLists ? nonArchivedEvaluatorsAtom : EMPTY_WORKFLOWS_ATOM,
     ) as readonly Workflow[]
     const recentAppId = useAtomValue(recentAppIdAtom)
     const recentEvaluatorId = useAtomValue(recentEvaluatorIdAtom)
     const navigateToWorkflow = useSetAtom(routerAppNavigationAtom)
-    const [open, setOpen] = useState(false)
 
     // Product decision: the workflow switcher is intentionally narrower than
     // full-page routing. It includes non-deterministic automatic evaluators
     // (LLM/code/hook/online-capable), but not deterministic matchers or humans.
-    const switcherEvaluators = EVALUATOR_FULL_PAGE_NAV_ENABLED
-        ? nonDeterministicEvaluators
-        : EMPTY_WORKFLOWS
+    // LAZY: reading `nonDeterministicEvaluatorsAtom` fans out one batched
+    // POST /workflows/revisions/query over every evaluator, and it's only needed
+    // to populate the switcher dropdown — so subscribe to it only once opened.
+    const switcherEvaluators = useAtomValue(
+        EVALUATOR_FULL_PAGE_NAV_ENABLED && switcherActivated
+            ? nonDeterministicEvaluatorsAtom
+            : EMPTY_WORKFLOWS_ATOM,
+    ) as readonly Workflow[]
 
-    const workflow = useMemo<Workflow | null>(
-        () =>
-            resolveWorkflowEntitySelection({
-                currentWorkflow: context.workflow,
-                currentWorkflowId: context.workflowId,
-                apps,
-                evaluators,
-                recentAppId,
-                recentEvaluatorId,
-            }),
-        [apps, context.workflow, context.workflowId, evaluators, recentAppId, recentEvaluatorId],
-    )
+    const workflow = useMemo<Workflow | null>(() => {
+        if (context.workflow) return context.workflow
+        // While the URL's own workflow is still resolving, do NOT substitute a
+        // stale recent workflow: on an app route the recent entry is often a
+        // recent EVALUATOR, and flashing its tag fires the evaluator catalog for
+        // a card about to swap to the app's own type. Waiting one tick avoids it.
+        if (context.isResolving) return null
+        return resolveWorkflowEntitySelection({
+            currentWorkflow: context.workflow,
+            currentWorkflowId: context.workflowId,
+            apps,
+            evaluators,
+            recentAppId,
+            recentEvaluatorId,
+        })
+    }, [
+        apps,
+        context.workflow,
+        context.workflowId,
+        context.isResolving,
+        evaluators,
+        recentAppId,
+        recentEvaluatorId,
+    ])
 
     const workflowId = workflow?.id ?? null
     const displayName = workflow?.name ?? workflow?.slug ?? workflowId ?? "Select workflow"

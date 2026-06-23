@@ -1,13 +1,12 @@
 import {
     appWorkflowsListQueryAtom,
     nonArchivedAppWorkflowsAtom,
-    queryWorkflows,
+    workflowDetailQueryAtomFamily,
 } from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
-import {projectIdAtom, sessionAtom, stringStorage} from "@agenta/shared/state"
+import {stringStorage} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
-import {atomWithQuery} from "jotai-tanstack-query"
 
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 
@@ -71,30 +70,14 @@ export const routerAppNavigationAtom = atom(null, (get, set, next: string | null
 
 export const recentAppIdAtom = atomWithStorage<string | null>(LS_APP_KEY, null, stringStorage)
 
-export const currentAppQueryAtom = atomWithQuery<Workflow | null>((get) => {
-    const projectId = get(projectIdAtom)
+export const currentAppQueryAtom = atom((get) => {
     const appId = get(routerAppIdAtom) || get(recentAppIdAtom)
-    const liveApps = get(nonArchivedAppWorkflowsAtom)
-    const liveApp = appId ? (liveApps.find((app) => app.id === appId) ?? null) : null
-
-    return {
-        queryKey: ["currentApp", projectId, appId],
-        queryFn: async () => {
-            if (!projectId || !appId) return null
-
-            const response = await queryWorkflows({
-                projectId,
-                workflowRefs: [{id: appId}],
-                includeArchived: true,
-            })
-
-            return response.workflows.find((workflow) => workflow.id === appId) ?? null
-        },
-        enabled: get(sessionAtom) && !!projectId && !!appId && !liveApp,
-        initialData: liveApp ?? undefined,
-        staleTime: 30_000,
-        refetchOnWindowFocus: false,
-    }
+    // Resolve via the SHARED by-id workflow query (`workflowDetailQueryAtomFamily`)
+    // so app-state dedupes with workflow-state (`currentWorkflowContextAtom`),
+    // which reads the same family for the same id. Previously this was a separate
+    // `atomWithQuery` with its own key + `include_archived`, so the current
+    // workflow was fetched TWICE on every app page (once per state tree).
+    return get(workflowDetailQueryAtomFamily(appId))
 })
 
 interface WorkflowListQueryState {

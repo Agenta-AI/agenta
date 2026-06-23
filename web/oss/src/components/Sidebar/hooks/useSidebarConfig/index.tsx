@@ -15,7 +15,7 @@ import {
 
 import {getEntityKindIcon} from "@/oss/components/References"
 import useURL from "@/oss/hooks/useURL"
-import {useAppsData} from "@/oss/state/app"
+import {useCurrentAppLite} from "@/oss/state/app"
 import {useAppState} from "@/oss/state/appState"
 
 import {
@@ -36,7 +36,7 @@ export interface MainSidebarItems {
 }
 
 export const useSidebarConfig = (): MainSidebarItems => {
-    const {currentApp, recentlyVisitedAppId} = useAppsData()
+    const {currentApp, recentlyVisitedAppId} = useCurrentAppLite()
     const {appId: routedAppId, routeLayer} = useAppState()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
     const dynamicChildren = useSidebarDynamicChildren()

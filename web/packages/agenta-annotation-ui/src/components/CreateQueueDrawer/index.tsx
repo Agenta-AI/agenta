@@ -6,7 +6,10 @@ import {
     type CreateSimpleQueuePayload,
 } from "@agenta/entities/simpleQueue"
 import {evaluatorWorkflowMetaMapAtom} from "@agenta/entities/workflow"
-import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
+import {
+    type WorkflowRevisionSelectionResult,
+    useEnsureEvaluatorEnrichment,
+} from "@agenta/entity-ui/selection"
 import {projectIdAtom} from "@agenta/shared/state"
 import {ModalContent, ModalFooter, message} from "@agenta/ui"
 import {Divider, Drawer, Form, Input, Select, Typography} from "antd"
@@ -126,6 +129,10 @@ function CreateQueueDrawerContent({
 
         return map
     }, [selectedEvaluators])
+    // This drawer needs every evaluator's version count, so activate the shared
+    // enrichment gate (the drawer only mounts when opened, so this never runs on
+    // a plain page load).
+    useEnsureEvaluatorEnrichment()
     const evaluatorWorkflowMetaMap = useAtomValue(evaluatorWorkflowMetaMapAtom)
     const totalRevisionsByEvaluator = useMemo(() => {
         const map = new Map<string, number>()

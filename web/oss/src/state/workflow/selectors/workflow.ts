@@ -1,9 +1,12 @@
-import type {Workflow, WorkflowFlags} from "@agenta/entities/workflow"
+import {
+    workflowDetailQueryAtomFamily,
+    type Workflow,
+    type WorkflowFlags,
+} from "@agenta/entities/workflow"
 import {atom} from "jotai"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 
-import {workflowsByIdMapAtom} from "../atoms/fetcher"
 import type {WorkflowKind} from "../destinations"
 
 /**
@@ -49,13 +52,9 @@ export function deriveWorkflowKind(flags: WorkflowFlags | null | undefined): Wor
  * `currentWorkflowContextAtom` (which exposes `isResolving` / `isNotFound` /
  * `isError`).
  */
-export const currentWorkflowAtom = atom<Workflow | null>((get) => {
-    const id = get(routerAppIdAtom)
-    if (!id) return null
-    const {data, isLoading} = get(workflowsByIdMapAtom)
-    if (isLoading) return null
-    return data.get(id) ?? null
-})
+export const currentWorkflowAtom = atom<Workflow | null>(
+    (get) => get(currentWorkflowContextAtom).workflow,
+)
 
 /**
  * Minimal context shape for current workflow (eng review decision 2.1).
@@ -85,7 +84,6 @@ export interface CurrentWorkflowContext {
 
 export const currentWorkflowContextAtom = atom<CurrentWorkflowContext>((get) => {
     const id = get(routerAppIdAtom)
-    const {data, isLoading, isError} = get(workflowsByIdMapAtom)
 
     if (!id) {
         return {
@@ -98,7 +96,12 @@ export const currentWorkflowContextAtom = atom<CurrentWorkflowContext>((get) => 
         }
     }
 
-    if (isLoading) {
+    // Resolve THIS ONE workflow by id (app or evaluator) — instead of listing
+    // every app AND every evaluator in the project just to look one up. The by-id
+    // artifact carries name + role flags (`is_application`/`is_evaluator`), so it's
+    // enough to classify the current workflow.
+    const detail = get(workflowDetailQueryAtomFamily(id))
+    if (detail.isPending) {
         return {
             workflow: null,
             workflowId: id,
@@ -108,8 +111,7 @@ export const currentWorkflowContextAtom = atom<CurrentWorkflowContext>((get) => 
             isError: false,
         }
     }
-
-    if (isError) {
+    if (detail.isError) {
         return {
             workflow: null,
             workflowId: id,
@@ -120,8 +122,12 @@ export const currentWorkflowContextAtom = atom<CurrentWorkflowContext>((get) => 
         }
     }
 
-    const workflow = data.get(id) ?? null
-    if (!workflow) {
+    // The shared by-id query includes archived workflows (so app-state can resolve
+    // archived apps off the same request). Treat archived as not-found here to
+    // preserve this atom's non-archived contract — the old list-based resolution
+    // read non-archived lists, so an archived id reported `isNotFound`.
+    const workflow = (detail.data ?? null) as (Workflow & {deleted_at?: string | null}) | null
+    if (!workflow || workflow.deleted_at) {
         return {
             workflow: null,
             workflowId: id,

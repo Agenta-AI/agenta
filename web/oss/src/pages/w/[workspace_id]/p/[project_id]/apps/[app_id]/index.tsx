@@ -1,12 +1,17 @@
 import {useEffect} from "react"
 
-import {appWorkflowsListQueryAtom} from "@agenta/entities/workflow"
+import {projectIdAtom} from "@agenta/shared/state"
+import {useQueryClient} from "@tanstack/react-query"
 import {Spin} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import WorkflowNotFound from "@/oss/components/WorkflowNotFound"
 import {currentWorkflowContextAtom} from "@/oss/state/workflow"
+
+interface AppsListCache {
+    refs?: {id: string; flags?: {is_evaluator?: boolean}}[]
+}
 
 const ensureString = (value: string | string[] | undefined) => {
     if (!value) return null
@@ -30,20 +35,31 @@ const ensureString = (value: string | string[] | undefined) => {
 const AppOverviewRedirect = () => {
     const router = useRouter()
     const ctx = useAtomValue(currentWorkflowContextAtom)
-    const appsQuery = useAtomValue(appWorkflowsListQueryAtom)
+    // Atom projectId matches the apps-list query key (which uses workflowProjectIdAtom).
+    const cacheProjectId = useAtomValue(projectIdAtom)
+    const queryClient = useQueryClient()
 
     const workspaceId = ensureString(router.query.workspace_id)
     const projectId = ensureString(router.query.project_id)
     const appId = ensureString(router.query.app_id)
 
-    // Synchronous fast-path: read the app query cache without waiting.
-    // If the workflow is already there AND it's an app, redirect now.
+    // Synchronous fast-path: PEEK the apps-list cache without SUBSCRIBING. A
+    // `useAtomValue(appWorkflowsListQueryAtom)` here would trigger the full apps
+    // list fetch on every `/apps/[id]` navigation — but on a cold load it isn't
+    // cached anyway (so the fetch is wasted) and the slow-path below resolves the
+    // workflow by id via `ctx`. `getQueryData` reads the cache only if it was
+    // already warmed elsewhere (e.g. coming from app-management), giving the
+    // flicker-free fast redirect without ever initiating the request.
     const synchronousAppHit = (() => {
-        if (!appId || !appsQuery.data?.refs) return null
-        const refs = appsQuery.data.refs as {id: string; flags?: {is_evaluator?: boolean}}[]
-        const match = refs.find((w) => w.id === appId)
-        if (!match) return null
-        if (match.flags?.is_evaluator) return null
+        if (!appId) return null
+        const cached = queryClient.getQueryData<AppsListCache>([
+            "workflows",
+            "apps",
+            "list",
+            cacheProjectId,
+        ])
+        const match = cached?.refs?.find((w) => w.id === appId)
+        if (!match || match.flags?.is_evaluator) return null
         return match
     })()
 
