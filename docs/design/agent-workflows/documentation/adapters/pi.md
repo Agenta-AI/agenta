@@ -33,9 +33,15 @@ variables, so the extension stays inert when none are set and is safe to install
 
 ## Tools, the Pi-native way
 
-Pi 0.79.4 does not support MCP. So we do not deliver tools over MCP to Pi. Instead the
-extension reads the resolved tool specs from `AGENTA_TOOL_SPECS` and registers each one with
-Pi directly through `pi.registerTool`. Pi then sees them as native tools and runs the loop.
+Pi 0.79.4 does not support MCP, and `pi-acp` does not forward MCP servers either. So we do not
+deliver anything over MCP to Pi: the runner's tool-delivery fork
+(`buildSessionMcpServers` in `engines/sandbox_agent/mcp.ts`) returns an empty MCP list for Pi,
+and tools come through the extension instead. The extension reads the resolved tool specs from
+`AGENTA_TOOL_PUBLIC_SPECS` (public metadata only: name, description, input schema) and
+registers each one with Pi directly through `pi.registerTool`. Pi then sees them as native
+tools and runs the loop. The private parts of each spec (the `call_ref`, the code, the scoped
+secrets, the callback auth) never reach the extension; they stay in runner memory and the
+extension relays every call back.
 
 Each registered tool's body does one thing: it POSTs the call back to Agenta's `/tools/call`
 with the tool's `callRef` (the callback-tool envelope). The model picks the tool and supplies the
@@ -158,9 +164,14 @@ And auth comes from the provider key in the sandbox env when present, or from an
 The in-process Pi engine (`engines/pi.ts`, selected by the `InProcessPiBackend`) skips sandbox-agent
 entirely. It drives Pi's `createAgentSession` directly, with everything in memory: AGENTS.md
 injected through the resource loader, the session and settings managers in memory, and a
-throwaway working directory. It registers the same tools as Pi `customTools` (the same
-POST-back-to-`/tools/call` body) and traces with the same extension logic, just wired in
-process rather than loaded from disk.
+throwaway working directory. It registers the same tools as Pi `customTools` through
+`buildCustomTools`, and traces with the same extension logic, just wired in process rather than
+loaded from disk. One difference from the ACP path: there is no file relay. Because the engine
+runs in the same process as the runner, each tool body executes directly through
+`runResolvedTool` (a gateway tool POSTs to `/tools/call`, a code tool spawns a local
+subprocess). The relay only exists on the ACP path, where a separate Pi process or a Daytona
+sandbox cannot reach Agenta or hold the private spec. The in-process engine also ignores
+`mcp_servers` entirely (`PI_CAPABILITIES.mcpTools` is false).
 
 It returns the same `/run` result as the sandbox-agent path, which is the whole point of the ports:
 the workflow author cannot tell which engine ran. It exists for the simplest local case and

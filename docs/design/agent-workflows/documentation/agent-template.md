@@ -57,3 +57,9 @@ experimental and not a general template system.
 Hooks, assets, extra code snippets, and a generic permissions overlay are deferred. The POC
 should leave space for them without pretending they are supported.
 
+## See also
+
+For the live config contract today, from the playground form through the catalog type and
+SDK interface down to what the runtime reads, see `agent-configuration.md`. This page is the
+intended shape; that page is the current reality, field by field.
+
