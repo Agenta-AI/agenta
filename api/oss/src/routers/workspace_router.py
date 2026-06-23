@@ -8,12 +8,16 @@ from oss.src.services import db_manager
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.workspace_models import Workspace
 
+from oss.src.core.access.permissions.service import check_rbac_permission
+from oss.src.core.access.permissions.types import RequiredRole
+from oss.src.core.access.controls import get_roles
+from oss.src.services.db_manager import (
+    get_user_org_and_workspace_id,
+    get_project_by_workspace,
+)
+
 if is_ee():
-    from ee.src.core.access.permissions.service import check_rbac_permission
-    from ee.src.core.access.permissions.types import RequiredRole
-    from ee.src.services.db_manager_ee import get_user_org_and_workspace_id
-    from ee.src.services import db_manager_ee, workspace_manager
-    from ee.src.core.access.controls import get_roles
+    from ee.src.services import workspace_manager
 
     from ee.src.core.access.entitlements.service import (
         check_entitlements,
@@ -70,27 +74,14 @@ async def get_all_workspace_roles(request: Request) -> List[Dict[str, str]]:
         HTTPException: If an error occurs while retrieving the workspace roles.
     """
 
-    if is_ee():
-        # Resolve via access-controls (env-overridable via AGENTA_ACCESS_ROLES).
-        workspace_roles_with_description = [
-            {
-                "role_name": role["role"],
-                "role_description": role.get("description") or "",
-            }
-            for role in get_roles("workspace")
-        ]
-
-    else:
-        workspace_roles_with_description = [
-            {
-                "role_name": "owner",
-                "role_description": "Can fully manage the workspace, including adding and removing members.",
-            },
-            {
-                "role_name": "admin",
-                "role_description": "Can manage workspace settings and members but cannot delete the workspace.",
-            },
-        ]
+    # Resolve via access-controls (env-overridable via AGENTA_ACCESS_ROLES).
+    workspace_roles_with_description = [
+        {
+            "role_name": role["role"],
+            "role_description": role.get("description") or "",
+        }
+        for role in get_roles("workspace")
+    ]
 
     return workspace_roles_with_description
 
@@ -109,24 +100,22 @@ async def remove_user_from_workspace(
         workspace_id (str): The ID of the workspace.
     """
 
-    if is_ee():
-        user_org_workspace_data = await get_user_org_and_workspace_id(
-            request.state.user_id
+    user_org_workspace_data = await get_user_org_and_workspace_id(request.state.user_id)
+    project = await get_project_by_workspace(workspace_id)
+    has_permission = await check_rbac_permission(
+        user_org_workspace_data=user_org_workspace_data,
+        project_id=str(project.id),
+        role=RequiredRole.ADMIN,
+    )
+    if not has_permission:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "detail": "You do not have permission to perform this action. Please contact your Organization Owner"
+            },
         )
-        project = await db_manager_ee.get_project_by_workspace(workspace_id)
-        has_permission = await check_rbac_permission(
-            user_org_workspace_data=user_org_workspace_data,
-            project_id=str(project.id),
-            role=RequiredRole.ADMIN,
-        )
-        if not has_permission:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "detail": "You do not have permission to perform this action. Please contact your Organization Owner"
-                },
-            )
 
+    if is_ee():
         # Load the owner of the *target* workspace's org (not the caller's
         # ambient org) so the agenta.ai skip-meter exemption and the meter
         # decrement below agree on which organization is being acted on.

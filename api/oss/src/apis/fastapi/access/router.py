@@ -7,11 +7,12 @@ from fastapi.responses import JSONResponse
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.context import get_auth_context, get_auth_scope
-from oss.src.utils.common import is_ee, is_oss
+from oss.src.utils.common import is_ee
+
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
 
 if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import check_action_access
     from ee.src.core.access.entitlements.service import check_entitlements, Counter
 
 
@@ -67,6 +68,11 @@ async def _check_resource_access(
         allow_resource = True
 
     if resource_type == "local_secrets":
+        # EE meters local secret usage against the credits counter. OSS has no
+        # credits meter, so it just grants access to authorized callers.
+        if not is_ee():
+            return True
+
         check, meter, _ = await check_entitlements(  # type: ignore
             key=Counter.CREDITS_CONSUMED,  # type: ignore
             delta=1,
@@ -116,9 +122,6 @@ class AccessRouter:
         }
 
         try:
-            if is_oss():
-                return Allow(credentials_header)
-
             if not action or not resource_type:
                 log.warn("Missing required parameters: action, resource_type")
                 raise Deny()

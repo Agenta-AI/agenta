@@ -61,14 +61,15 @@ from oss.src.core.tracing.dtos import (
 )
 from oss.src.core.shared.dtos import Link
 
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import (
+    check_action_access,
+    FORBIDDEN_EXCEPTION,
+)
+
 log = get_module_logger(__name__)
 
 if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import (
-        check_action_access,
-        FORBIDDEN_EXCEPTION,
-    )
     from ee.src.core.access.entitlements.service import check_entitlements, Counter
 
 
@@ -263,14 +264,14 @@ class TracingRouter:
         }
         ```
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if is_ee():
             delta = (
                 len(spans_request.traces)
                 if spans_request.traces
@@ -336,13 +337,12 @@ class TracingRouter:
         the same shape that `POST /tracing/spans/ingest` accepts as its
         `traces` field.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         body_json = None
         query_from_body = None
@@ -465,13 +465,12 @@ class TracingRouter:
         namespace](/reference/api-guide/tracing#the-ag-attribute-namespace)
         for the cumulative/incremental metric layout on each span.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         body_json = None
         analytics_from_body = (None, None)
@@ -523,13 +522,12 @@ class TracingRouter:
         which accepts `specs` and can summarize arbitrary span attributes,
         not just the four fixed metrics.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         body_json = None
         query_from_body = None
@@ -591,14 +589,14 @@ class TracingRouter:
         single-trace restriction) or `POST /simple/traces/` (helper for a
         one-span payload).
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if is_ee():
             allowed, _, _ = await check_entitlements(  # type: ignore
                 key=Counter.TRACES_INGESTED,  # type: ignore
                 delta=1,
@@ -647,13 +645,12 @@ class TracingRouter:
         For flat-list retrieval across many traces, use
         `POST /tracing/spans/query` with `focus="span"`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         try:
             trace = await self.service.fetch_trace(
@@ -709,14 +706,14 @@ class TracingRouter:
         `202 Accepted` response reports how many spans entered the stream.
         The worker reconciles the trace asynchronously.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if is_ee():
             allowed, _, _ = await check_entitlements(  # type: ignore
                 key=Counter.TRACES_INGESTED,  # type: ignore
                 delta=1,
@@ -798,13 +795,12 @@ class TracingRouter:
         single-trace simple annotation, prefer
         `DELETE /simple/traces/{trace_id}`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         try:
             links = await self.service.delete_trace(
@@ -850,13 +846,12 @@ class TracingRouter:
         The response includes a `windowing` cursor; pass it as `windowing.next`
         on the next call to continue.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         session_ids, activity_cursor = await self.service.sessions(
             project_id=request.state.project_id,
@@ -895,13 +890,12 @@ class TracingRouter:
         `POST /tracing/sessions/query`; pass the returned `windowing.next`
         cursor on subsequent calls.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         user_ids, activity_cursor = await self.service.users(
             project_id=request.state.project_id,
@@ -1072,13 +1066,12 @@ class SpansRouter:
         `POST /traces/query` or `POST /tracing/spans/query` with
         `focus="trace"` instead.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         project_id = UUID(request.state.project_id)
         has_query_refs = bool(
@@ -1087,13 +1080,12 @@ class SpansRouter:
             or spans_query_request.query_revision_ref
         )
         if has_query_refs:
-            if is_ee():
-                if not await check_action_access(  # type: ignore
-                    user_uid=request.state.user_id,
-                    project_id=request.state.project_id,
-                    permission=Permission.VIEW_QUERIES,  # type: ignore
-                ):
-                    raise FORBIDDEN_EXCEPTION  # type: ignore
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_QUERIES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
 
         try:
             query = await self.service.resolve_query_request(
@@ -1175,13 +1167,12 @@ class SpansRouter:
         Returns `400` when neither IDs nor trace IDs are supplied.
         For filter-based retrieval, use `POST /spans/query`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         trace_id_values = self._ids_from_query_params(trace_id, trace_ids)
         span_id_values = self._ids_from_query_params(span_id, span_ids)
@@ -1244,13 +1235,12 @@ class SpansRouter:
         Both IDs are required path parameters. Use this to drill in on one
         span from a trace waterfall without pulling the full tree.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         try:
             span = await self.service.fetch_span(
@@ -1293,13 +1283,12 @@ class SpansRouter:
             parse_analytics_from_params_request
         ),
     ) -> AnalyticsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         analytics_from_body = (None, None)
         try:
@@ -1334,13 +1323,12 @@ class SpansRouter:
         request: Request,
         sessions_query_request: SessionsQueryRequest,
     ) -> SessionIdsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         session_ids, activity_cursor = await self.service.sessions(
             project_id=request.state.project_id,
@@ -1365,13 +1353,12 @@ class SpansRouter:
         request: Request,
         users_query_request: UsersQueryRequest,
     ) -> UserIdsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         user_ids, activity_cursor = await self.service.users(
             project_id=request.state.project_id,
@@ -1539,13 +1526,12 @@ class TracesRouter:
         keyed by `trace_id`, call `POST /tracing/spans/query` with
         `focus="trace"`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         project_id = UUID(request.state.project_id)
         has_query_refs = bool(
@@ -1554,13 +1540,12 @@ class TracesRouter:
             or traces_query_request.query_revision_ref
         )
         if has_query_refs:
-            if is_ee():
-                if not await check_action_access(  # type: ignore
-                    user_uid=request.state.user_id,
-                    project_id=request.state.project_id,
-                    permission=Permission.VIEW_QUERIES,  # type: ignore
-                ):
-                    raise FORBIDDEN_EXCEPTION  # type: ignore
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_QUERIES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
 
         try:
             query = await self.service.resolve_query_request(
@@ -1642,14 +1627,14 @@ class TracesRouter:
         list-shaped `Trace` payload. For flat-list ingestion or multiple
         traces in one call, use `POST /traces/ingest` (plural).
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if is_ee():
             allowed, _, _ = await check_entitlements(  # type: ignore
                 key=Counter.TRACES_INGESTED,  # type: ignore
                 delta=1,
@@ -1703,14 +1688,14 @@ class TracesRouter:
         contract](/reference/api-guide/tracing#async-write-contract-202)
         for what `count` means here.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if is_ee():
             delta = len(traces_request.traces) if traces_request.traces else 0
             # Skip the soft check for zero-count requests so an already-over
             # meter doesn't 429 a request that wouldn't add any usage.
@@ -1766,14 +1751,14 @@ class TracesRouter:
         `POST /tracing/spans/ingest`. Returns `202 Accepted` once the
         spans are queued. The worker reconciles the trace asynchronously.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if is_ee():
             allowed, _, _ = await check_entitlements(  # type: ignore
                 key=Counter.TRACES_INGESTED,  # type: ignore
                 delta=1,
@@ -1845,13 +1830,12 @@ class TracesRouter:
         no IDs are supplied. Use `POST /traces/query` for filter-based
         retrieval.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         ids: List[str] = list(trace_id or [])
         if trace_ids:
@@ -1921,13 +1905,12 @@ class TracesRouter:
                 detail=f"GET /traces/{trace_id} is not supported.",
             )
 
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         try:
             trace = await self.service.fetch_trace(
@@ -1973,13 +1956,12 @@ class TracesRouter:
         request: Request,
         trace_id: str,
     ) -> TraceIdResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         try:
             links = await self.service.delete_trace(

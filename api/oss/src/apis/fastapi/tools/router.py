@@ -14,7 +14,6 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
-from oss.src.utils.common import is_ee
 
 from oss.src.apis.fastapi.tools.models import (
     ToolCatalogActionResponse,
@@ -53,14 +52,13 @@ from oss.src.core.tools.service import (
 from oss.src.core.tools.utils import decode_oauth_state
 from oss.src.utils.env import env
 
-_SLUG_SEGMENT_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import (
+    check_action_access,
+    FORBIDDEN_EXCEPTION,
+)
 
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import (
-        check_action_access,
-        FORBIDDEN_EXCEPTION,
-    )
+_SLUG_SEGMENT_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 log = get_module_logger(__name__)
 
@@ -229,14 +227,13 @@ class ToolsRouter:
         *,
         full_details: bool = Query(default=False),
     ) -> ToolCatalogProvidersResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                project_id=request.state.project_id,
-                user_uid=request.state.user_id,
-                permission=Permission.VIEW_TOOLS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            project_id=request.state.project_id,
+            user_uid=request.state.user_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         cache_key = {
             "full_details": full_details,
@@ -277,14 +274,13 @@ class ToolsRouter:
         *,
         full_details: bool = Query(default=True),
     ) -> ToolCatalogProviderResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TOOLS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         cache_key = {
             "provider_key": provider_key,
@@ -336,14 +332,13 @@ class ToolsRouter:
         cursor: Optional[str] = Query(default=None),
         full_details: bool = Query(default=False),
     ) -> ToolCatalogIntegrationsResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TOOLS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         cache_key = {
             "provider_key": provider_key,
@@ -398,14 +393,13 @@ class ToolsRouter:
         *,
         full_details: bool = Query(default=True),
     ) -> ToolCatalogIntegrationResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TOOLS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         cache_key = {
             "provider_key": provider_key,
@@ -460,14 +454,13 @@ class ToolsRouter:
         cursor: Optional[str] = Query(default=None),
         full_details: bool = Query(default=False),
     ) -> ToolCatalogActionsResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TOOLS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         cache_key = {
             "provider_key": provider_key,
@@ -544,14 +537,13 @@ class ToolsRouter:
         *,
         full_details: bool = Query(default=True),
     ) -> ToolCatalogActionResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TOOLS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         cache_key = {
             "provider_key": provider_key,
@@ -607,14 +599,13 @@ class ToolsRouter:
         integration_key: Optional[str] = Query(default=None),
     ) -> ToolConnectionsResponse:
         """Query connections with optional filtering."""
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TOOLS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         connections = await self.tools_service.query_connections(
             project_id=UUID(request.state.project_id),
@@ -634,14 +625,13 @@ class ToolsRouter:
         body: ToolConnectionCreateRequest,
     ) -> ToolConnectionResponse:
         """Create a new tool connection."""
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TOOLS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         slug = body.connection.slug
         if "." in slug or "__" in slug:
@@ -682,14 +672,13 @@ class ToolsRouter:
         connection_id: UUID,
     ) -> ToolConnectionResponse:
         """Get a connection by ID."""
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TOOLS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         connection = await self.tools_service.get_connection(
             project_id=UUID(request.state.project_id),
@@ -713,14 +702,13 @@ class ToolsRouter:
         connection_id: UUID,
     ) -> None:
         """Delete a connection by ID."""
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TOOLS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         await self.tools_service.delete_connection(
             project_id=UUID(request.state.project_id),
@@ -736,14 +724,13 @@ class ToolsRouter:
         force: bool = Query(default=False),
     ) -> ToolConnectionResponse:
         """Refresh a connection's credentials."""
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TOOLS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         connection = await self.tools_service.refresh_connection(
             project_id=UUID(request.state.project_id),
@@ -763,14 +750,13 @@ class ToolsRouter:
         connection_id: UUID,
     ) -> ToolConnectionResponse:
         """Mark a connection invalid locally (does not revoke at the provider)."""
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TOOLS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         connection = await self.tools_service.revoke_connection(
             project_id=UUID(request.state.project_id),
@@ -895,14 +881,13 @@ class ToolsRouter:
         body: ToolCall,
     ) -> ToolCallResponse:
         """Call a tool action with a connection."""
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.RUN_TOOLS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.RUN_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         # Parse tool slug — accept both dot and double-underscore formats.
         # Double-underscore is used for LLM function names where dots are forbidden.

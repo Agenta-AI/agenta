@@ -3,7 +3,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, status, Response, HTTPException
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.core.events.utils import publish_trace_fetched, publish_trace_queried
@@ -19,12 +18,11 @@ from oss.src.apis.fastapi.traces.models import (
     SimpleTraceLinkResponse,
 )
 
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import (
-        check_action_access,
-        FORBIDDEN_EXCEPTION,
-    )
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import (
+    check_action_access,
+    FORBIDDEN_EXCEPTION,
+)
 
 
 log = get_module_logger(__name__)
@@ -137,13 +135,12 @@ class SimpleTracesRouter:
         [Tracing — References and links](/reference/api-guide/tracing#references-and-entity-linking)
         for when to use `references` vs. `links`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         trace = await self.simple_traces_service.create(
             organization_id=UUID(request.state.organization_id),
@@ -174,13 +171,12 @@ class SimpleTracesRouter:
         created via `POST /simple/traces/`. For the span-level view of the
         same trace, call `GET /tracing/traces/{trace_id}`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         trace = await self.simple_traces_service.fetch(
             project_id=UUID(request.state.project_id),
@@ -218,13 +214,12 @@ class SimpleTracesRouter:
         where the `data.outputs` is the part that typically gets revised.
         For span-level edits, use `PUT /tracing/traces/{trace_id}`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         trace = await self.simple_traces_service.edit(
             organization_id=UUID(request.state.organization_id),
@@ -256,13 +251,12 @@ class SimpleTracesRouter:
         `DELETE /tracing/traces/{trace_id}` when operating on a
         multi-span trace.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         trace_link = await self.simple_traces_service.delete(
             project_id=UUID(request.state.project_id),
@@ -297,13 +291,12 @@ class SimpleTracesRouter:
         For span-level queries across all trace types, use
         `POST /tracing/spans/query`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_SPANS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         traces = await self.simple_traces_service.query(
             project_id=UUID(request.state.project_id),

@@ -3,7 +3,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, HTTPException, status
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 
@@ -30,12 +29,11 @@ from oss.src.core.folders.types import (
     FolderPathLengthExceeded,
 )
 
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import (
-        check_action_access,
-        FORBIDDEN_EXCEPTION,
-    )
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import (
+    check_action_access,
+    FORBIDDEN_EXCEPTION,
+)
 
 
 log = get_module_logger(__name__)
@@ -154,13 +152,12 @@ class FoldersRouter:
         `parent_id` that does not exist returns `404`. Paths are capped at
         10 levels of nesting and slugs at 64 characters.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_FOLDERS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_FOLDERS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         folder = await self.folders_service.create(
             project_id=UUID(str(request.state.project_id)),
@@ -190,13 +187,12 @@ class FoldersRouter:
         Returns a single `folder` envelope. If the folder does not exist in
         the caller's project, `count` is `0` and `folder` is omitted.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_FOLDERS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_FOLDERS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         folder = await self.folders_service.fetch(
             project_id=UUID(str(request.state.project_id)),
@@ -229,13 +225,12 @@ class FoldersRouter:
         from create apply: invalid names return `400`, a path collision
         returns `409`, and a missing `parent_id` returns `404`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_FOLDERS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_FOLDERS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if folder_id != folder_edit_request.folder.id:
             raise HTTPException(
@@ -273,13 +268,12 @@ class FoldersRouter:
         that were assigned to any of the removed folders continue to
         exist and are no longer reachable through the deleted folder.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_FOLDERS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_FOLDERS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         _folder_id = await self.folders_service.delete(
             project_id=UUID(str(request.state.project_id)),
@@ -314,13 +308,12 @@ class FoldersRouter:
         `parent_id`/`parent_ids` (use `parent_id: null` for root folders),
         `path`/`paths`, and `prefix`/`prefixes` for subtree lookup.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_FOLDERS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_FOLDERS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         folders = await self.folders_service.query(
             project_id=UUID(str(request.state.project_id)),

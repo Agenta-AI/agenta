@@ -21,7 +21,6 @@ from fastapi import (
     HTTPException,
 )
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import set_cache, get_cache
@@ -91,12 +90,11 @@ from oss.src.apis.fastapi.testsets.utils import (
     TESTSETS_SIZE_EXCEPTION,
 )
 
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import (
-        check_action_access,
-        FORBIDDEN_EXCEPTION,
-    )
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import (
+    check_action_access,
+    FORBIDDEN_EXCEPTION,
+)
 
 
 log = get_module_logger(__name__)
@@ -553,13 +551,12 @@ class TestsetsRouter:
         `/testsets/revisions/commit`, or use `/simple/testsets/` to create
         a testset with seed rows in a single call.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset = await self.testsets_service.create_testset(
             project_id=UUID(request.state.project_id),
@@ -591,13 +588,12 @@ class TestsetsRouter:
         must be fetched via `/testsets/revisions/retrieve` or
         `/testcases/query`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset = await self.testsets_service.fetch_testset(
             project_id=UUID(request.state.project_id),
@@ -627,13 +623,12 @@ class TestsetsRouter:
         meta, folder) are editable here. Testcase changes are committed as
         new revisions via `/testsets/revisions/commit`.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(testset_id) != str(testset_edit_request.testset.id):
             return TestsetResponse()
@@ -665,13 +660,12 @@ class TestsetsRouter:
         from `/testsets/query` unless `include_archived` is true. Use
         `/testsets/{testset_id}/unarchive` to restore.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset = await self.testsets_service.archive_testset(
             project_id=UUID(request.state.project_id),
@@ -698,13 +692,12 @@ class TestsetsRouter:
 
         Clears `deleted_at` on the testset so it shows up in queries again.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset = await self.testsets_service.unarchive_testset(
             project_id=UUID(request.state.project_id),
@@ -735,13 +728,12 @@ class TestsetsRouter:
         pagination via `windowing`. Only artifact rows are returned — no
         testcases. See the Query Pattern guide for the full body shape.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testsets = await self.testsets_service.query_testsets(
             project_id=UUID(request.state.project_id),
@@ -784,13 +776,12 @@ class TestsetsRouter:
         maintain parallel revision histories (for example, a staging branch
         separate from the main one).
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset_variant = await self.testsets_service.create_testset_variant(
             project_id=UUID(request.state.project_id),
@@ -817,13 +808,12 @@ class TestsetsRouter:
         `/testsets/revisions/retrieve` to get the latest revision on this
         variant.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset_variant = await self.testsets_service.fetch_testset_variant(
             project_id=UUID(request.state.project_id),
@@ -852,13 +842,12 @@ class TestsetsRouter:
         Variants hold only branch-level metadata (name, description, slug,
         flags, tags, meta). Testcase content belongs to revisions.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(testset_variant_id) != str(
             testset_variant_edit_request.testset_variant.id
@@ -892,13 +881,12 @@ class TestsetsRouter:
         unless `include_archived` is true. Its revisions stay in place and
         can still be retrieved by ID.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset_variant = await self.testsets_service.archive_testset_variant(
             project_id=UUID(request.state.project_id),
@@ -922,13 +910,12 @@ class TestsetsRouter:
         testset_variant_id: UUID,
     ) -> TestsetVariantResponse:
         """Restore a previously archived testset variant."""
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset_variant = await self.testsets_service.unarchive_testset_variant(
             project_id=UUID(request.state.project_id),
@@ -957,13 +944,12 @@ class TestsetsRouter:
         Use `testset_refs` to scope to one or more parent testsets. Use
         `testset_variant_refs` to restrict by specific variant id/slug.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset_variants = await self.testsets_service.query_variants(
             project_id=UUID(request.state.project_id),
@@ -999,13 +985,12 @@ class TestsetsRouter:
         pinned revision if `testset_revision_ref` is provided). Provide `slug`
         and `name` in the fork body to identify the new variant.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset_variant = await self.testsets_service.fork_testset_variant(
             project_id=UUID(request.state.project_id),
@@ -1038,13 +1023,12 @@ class TestsetsRouter:
         initial revision with the `initial` guard, preventing duplicate
         initial revisions for the same variant.
         """
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset_revision = await self.testsets_service.commit_testset_revision(
             project_id=UUID(request.state.project_id),
@@ -1081,13 +1065,12 @@ class TestsetsRouter:
             description="Include full testcase objects. Default (null/true): include testcases. False: return only testcase IDs.",
         ),
     ) -> TestsetRevisionResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset_revision = await self.testsets_service.fetch_testset_revision(
             project_id=UUID(request.state.project_id),
@@ -1120,13 +1103,12 @@ class TestsetsRouter:
         #
         testset_revision_edit_request: TestsetRevisionEditRequest,
     ) -> TestsetRevisionResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(testset_revision_id) != str(
             testset_revision_edit_request.testset_revision.id
@@ -1155,13 +1137,12 @@ class TestsetsRouter:
         *,
         testset_revision_id: UUID,
     ) -> TestsetRevisionResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset_revision = await self.testsets_service.archive_testset_revision(
             project_id=UUID(request.state.project_id),
@@ -1184,13 +1165,12 @@ class TestsetsRouter:
         *,
         testset_revision_id: UUID,
     ) -> TestsetRevisionResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset_revision = await self.testsets_service.unarchive_testset_revision(
             project_id=UUID(request.state.project_id),
@@ -1222,13 +1202,12 @@ class TestsetsRouter:
             description="Optional custom filename for the download.",
         ),
     ) -> StreamingResponse:  # type: ignore
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if file_type is None or file_type not in ["csv", "json"]:
             raise HTTPException(
@@ -1317,13 +1296,12 @@ class TestsetsRouter:
         #
         include_testcases: Optional[bool] = Form(None),
     ) -> TestsetRevisionResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if file_type is None or file_type not in ["csv", "json"]:
             raise HTTPException(
@@ -1425,13 +1403,12 @@ class TestsetsRouter:
         *,
         testset_revision_query_request: TestsetRevisionQueryRequest,
     ) -> TestsetRevisionsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset_revisions = await self.testsets_service.query_testset_revisions(
             project_id=UUID(request.state.project_id),
@@ -1470,13 +1447,12 @@ class TestsetsRouter:
         *,
         testset_revision_commit_request: TestsetRevisionCommitRequest,
     ) -> TestsetRevisionResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         commit = testset_revision_commit_request.testset_revision
         if commit.data and commit.delta:
@@ -1516,13 +1492,12 @@ class TestsetsRouter:
         *,
         testset_revision_retrieve_request: TestsetRevisionRetrieveRequest,
     ) -> TestsetRevisionResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         cache_key = {
             "artifact_ref": _to_plain_dict(
@@ -1618,13 +1593,12 @@ class TestsetsRouter:
         *,
         testset_revisions_log_request: TestsetRevisionsLogRequest,
     ) -> TestsetRevisionsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset_revisions = await self.testsets_service.log_testset_revisions(
             project_id=UUID(request.state.project_id),
@@ -1774,13 +1748,12 @@ class SimpleTestsetsRouter:
         #
         simple_testset_create_request: SimpleTestsetCreateRequest,
     ) -> SimpleTestsetResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         _normalize_testcase_dedup_ids_in_request(
             simple_testset_create_request.testset.data.testcases
@@ -1810,13 +1783,12 @@ class SimpleTestsetsRouter:
         *,
         testset_id: UUID,
     ) -> SimpleTestsetResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset = await self.simple_testsets_service.testsets_service.fetch_testset(
             project_id=UUID(request.state.project_id),
@@ -1886,13 +1858,12 @@ class SimpleTestsetsRouter:
         #
         simple_testset_edit_request: SimpleTestsetEditRequest,
     ) -> SimpleTestsetResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(testset_id) != str(simple_testset_edit_request.testset.id):
             raise HTTPException(
@@ -1941,13 +1912,12 @@ class SimpleTestsetsRouter:
         *,
         testset_id: UUID,
     ) -> SimpleTestsetResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset = await self.simple_testsets_service.testsets_service.archive_testset(
             project_id=UUID(request.state.project_id),
@@ -1992,13 +1962,12 @@ class SimpleTestsetsRouter:
         *,
         testset_id: UUID,
     ) -> SimpleTestsetResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset = await self.simple_testsets_service.testsets_service.unarchive_testset(
             project_id=UUID(request.state.project_id),
@@ -2050,13 +2019,12 @@ class SimpleTestsetsRouter:
         testset_tags: Optional[str] = Form(None),
         testset_meta: Optional[str] = Form(None),
     ) -> SimpleTestsetResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if file_type is None or file_type not in ["csv", "json"]:
             raise HTTPException(
@@ -2192,13 +2160,12 @@ class SimpleTestsetsRouter:
         file_type: Optional[Literal["csv", "json"]] = None,
         file_name: Optional[str] = None,
     ) -> StreamingResponse:  # type: ignore
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if file_type is None or file_type not in ["csv", "json"]:
             raise HTTPException(
@@ -2277,13 +2244,12 @@ class SimpleTestsetsRouter:
         *,
         simple_testset_query_request: SimpleTestsetQueryRequest,
     ) -> SimpleTestsetsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testsets = await self.simple_testsets_service.testsets_service.query_testsets(
             project_id=UUID(request.state.project_id),
@@ -2361,13 +2327,12 @@ class SimpleTestsetsRouter:
         testset_tags: Optional[str] = Form(None),
         testset_meta: Optional[str] = Form(None),
     ) -> SimpleTestsetResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if file_type is None or file_type not in ["csv", "json"]:
             raise HTTPException(

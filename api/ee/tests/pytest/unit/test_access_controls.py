@@ -1,19 +1,22 @@
-"""Unit tests for the access-controls parsers in
-``ee.src.core.access.controls``.
+"""Unit tests for the EE access-controls parsers.
 
-These exercise the pure parser functions (`_parse_plans_override`,
-`_parse_roles_override`) so we don't have to manipulate process env vars at
-test time — the parsers take already-decoded payloads.
+Plan parsers live in ``ee.src.core.access.entitlements.controls``; role-override
+parsers (custom roles are an EE feature) live in
+``ee.src.core.access.permissions.role_overrides``. These exercise the pure parser
+functions (`_parse_plans_override`, `_parse_roles_override`) so we don't have to
+manipulate process env vars at test time — the parsers take already-decoded
+payloads.
 
 The module-level accessors (`get_plans`, `get_roles`, etc.) are also covered
-in the no-env-override case, which exercises the code-default builders.
+in the no-env-override case, which exercises the code-default builders (the role
+defaults now live in OSS; EE re-exports the `get_role*` accessors).
 """
 
 import pytest
 
 from ee.src.core.access import controls
 from ee.src.core.access.entitlements import controls as entitlement_controls
-from ee.src.core.access.permissions import controls as permission_controls
+from ee.src.core.access.permissions import role_overrides as permission_controls
 from ee.src.core.access.entitlements.types import DefaultPlan, Tracker
 from ee.src.core.access.permissions.types import Permission, DefaultRole, RequiredRole
 

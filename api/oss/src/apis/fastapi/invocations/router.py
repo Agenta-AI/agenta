@@ -3,7 +3,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, status, Response, HTTPException
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 
@@ -23,12 +22,11 @@ from oss.src.apis.fastapi.invocations.models import (
     InvocationLinkResponse,
 )
 
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import (
-        check_action_access,
-        FORBIDDEN_EXCEPTION,
-    )
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import (
+    check_action_access,
+    FORBIDDEN_EXCEPTION,
+)
 
 
 log = get_module_logger(__name__)
@@ -110,13 +108,12 @@ class InvocationsRouter:
         *,
         invocation_create_request: InvocationCreateRequest,
     ) -> InvocationResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_INVOCATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_INVOCATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         invocation = await self.invocations_service.create(
             organization_id=UUID(request.state.organization_id),
@@ -142,13 +139,12 @@ class InvocationsRouter:
         trace_id: str,
         span_id: Optional[str] = None,
     ) -> Union[Response, InvocationResponse]:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_INVOCATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_INVOCATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         invocation = await self.invocations_service.fetch(
             project_id=UUID(request.state.project_id),
@@ -175,13 +171,12 @@ class InvocationsRouter:
         #
         invocation_edit_request: InvocationEditRequest,
     ) -> InvocationResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_INVOCATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_INVOCATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         invocation = await self.invocations_service.edit(
             organization_id=UUID(request.state.organization_id),
@@ -209,13 +204,12 @@ class InvocationsRouter:
         trace_id: str,
         span_id: Optional[str] = None,
     ) -> InvocationLinkResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_INVOCATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_INVOCATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         invocation_link: Optional[Link] = await self.invocations_service.delete(
             project_id=UUID(request.state.project_id),
@@ -240,13 +234,12 @@ class InvocationsRouter:
         *,
         invocation_query_request: InvocationQueryRequest,
     ) -> InvocationsResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_INVOCATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_INVOCATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         invocations = await self.invocations_service.query(
             project_id=UUID(request.state.project_id),

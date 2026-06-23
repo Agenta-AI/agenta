@@ -27,29 +27,21 @@ from oss.src.models.api.workspace_models import (
     ResendInviteRequest,
     InviteToken,
 )
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.permissions.types import Permission
+from oss.src.services.db_manager import get_user_org_and_workspace_id
 
 
 def _role_description(role: str) -> str:
-    """Resolve a workspace-role description.
-
-    In EE, source from the effective access-controls catalog (env-overridable
-    via AGENTA_ACCESS_ROLES). In OSS, no role catalog is enforced, so return
-    an empty string — invitations carry a role slug for display only.
-    """
-    if not is_ee():
-        return ""
-    from ee.src.core.access.controls import get_role_description
+    """Resolve a workspace-role description from the effective access-controls
+    catalog (env-overridable via AGENTA_ACCESS_ROLES)."""
+    from oss.src.core.access.controls import get_role_description
 
     return get_role_description("workspace", role) or ""
 
 
 if is_ee():
-    from ee.src.core.access.permissions.service import check_action_access
-    from ee.src.core.access.permissions.types import Permission
     from ee.src.services import db_manager_ee, workspace_manager
-    from ee.src.services.db_manager_ee import (
-        get_user_org_and_workspace_id,
-    )
     from ee.src.services.organization_service import notify_org_admin_invitation
 
     from ee.src.core.access.entitlements.service import (
@@ -261,21 +253,21 @@ async def invite_user_to_organization(
                 content={"detail": "Only one user can be invited at a time."},
             )
 
-        if is_ee():
-            project = await db_manager_ee.get_project_by_workspace(workspace_id)
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(project.id),
-                permission=Permission.ADD_USER_TO_WORKSPACE,
+        project = await db_manager.get_project_by_workspace(workspace_id)
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(project.id),
+            permission=Permission.ADD_USER_TO_WORKSPACE,
+        )
+        if not has_permission:
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": "You do not have permission to perform this action. Please contact your Organization Owner"
+                },
             )
-            if not has_permission:
-                return JSONResponse(
-                    status_code=403,
-                    content={
-                        "detail": "You do not have permission to perform this action. Please contact your Organization Owner"
-                    },
-                )
 
+        if is_ee():
             owner = await db_manager.get_organization_owner(organization_id)
             owner_domain = owner.email.split("@")[-1].lower() if owner else ""
             user_domain = payload[0].email.split("@")[-1].lower()
@@ -355,21 +347,21 @@ async def resend_user_invitation_to_organization(
         JSONResponse: Resent invitation to user; status_code: 200
     """
 
-    if is_ee():
-        project = await db_manager_ee.get_project_by_workspace(workspace_id)
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=str(project.id),
-            permission=Permission.ADD_USER_TO_WORKSPACE,
+    project = await db_manager.get_project_by_workspace(workspace_id)
+    has_permission = await check_action_access(
+        user_uid=request.state.user_id,
+        project_id=str(project.id),
+        permission=Permission.ADD_USER_TO_WORKSPACE,
+    )
+    if not has_permission:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "detail": "You do not have permission to perform this action. Please contact your Organization Owner"
+            },
         )
-        if not has_permission:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "detail": "You do not have permission to perform this action. Please contact your Organization Owner"
-                },
-            )
 
+    if is_ee():
         invite_user = await workspace_manager.resend_user_workspace_invite(
             payload=payload,
             project_id=request.state.project_id,

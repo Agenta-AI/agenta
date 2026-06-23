@@ -3,7 +3,7 @@ import uuid
 import json
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from fastapi import HTTPException
 from sqlalchemy.future import select
@@ -101,6 +101,34 @@ async def fetch_projects_by_workspace(
             .order_by(ProjectDB.created_at.asc())
         )
         return result.scalars().all()
+
+
+async def get_project_by_workspace(
+    workspace_id: str,
+    *,
+    use_default: bool = True,
+) -> ProjectDB:
+    """Get the (default) project for a workspace."""
+
+    assert workspace_id is not None, "Workspace ID is required to retrieve project"
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        stmt = select(ProjectDB).where(
+            ProjectDB.workspace_id == uuid.UUID(workspace_id),
+        )
+        if use_default:
+            stmt = stmt.order_by(
+                ProjectDB.is_default.desc(), ProjectDB.created_at.asc()
+            )
+        else:
+            stmt = stmt.order_by(ProjectDB.created_at.asc())
+
+        project_query = await session.execute(stmt)
+        project = project_query.scalars().first()
+        if project is None:
+            raise NoResultFound(f"No project with workspace IDs ({workspace_id}) found")
+        return project
 
 
 async def fetch_project_memberships_by_user_id(
@@ -827,7 +855,7 @@ async def add_user_to_workspace_and_org(
 
     async with engine.session() as session:
         user_organization = OrganizationMemberDB(
-            user_id=user.id, organization_id=organization.id
+            user_id=user.id, organization_id=organization.id, role=role
         )
 
         session.add(user_organization)
@@ -2281,3 +2309,88 @@ async def admin_transfer_org_ownership_batch(
                 )
             )
         await session.commit()
+
+
+# ---------------------------------------------------------------------------
+# RBAC lookups (relational reads used by access enforcement)
+# ---------------------------------------------------------------------------
+
+
+async def get_organization(organization_id: str) -> OrganizationDB:
+    """Fetch an organization by its ID."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
+        )
+        organization = result.scalars().first()
+        return organization
+
+
+async def get_workspace_members(workspace_id: str) -> List[WorkspaceMemberDB]:
+    """Return all membership rows for a given workspace."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(WorkspaceMemberDB).where(
+                WorkspaceMemberDB.workspace_id == workspace_id
+            )
+        )
+        return list(result.scalars().all())
+
+
+async def get_project_members(project_id: str):
+    """Get the members of a project."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        members_query = await session.execute(
+            select(ProjectMemberDB)
+            .filter(ProjectMemberDB.project_id == uuid.UUID(project_id))
+            .options(joinedload(ProjectMemberDB.user))
+        )
+        project_members = members_query.scalars().all()
+        return project_members
+
+
+async def get_user_org_and_workspace_id(
+    user_uid,
+) -> Dict[str, Union[str, List[str]]]:
+    """Return the user's id/uid plus the org and workspace IDs they belong to."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        user = await get_user_with_id(user_id=user_uid)
+        if not user:
+            raise NoResultFound(f"User with uid {user_uid} not found")
+
+        user_org_result = await session.execute(
+            select(OrganizationMemberDB)
+            .filter_by(user_id=user.id)
+            .options(load_only(OrganizationMemberDB.organization_id))  # type: ignore
+        )
+        orgs = user_org_result.scalars().all()
+        organization_ids = [str(user_org.organization_id) for user_org in orgs]
+
+        member_in_workspaces_result = await session.execute(
+            select(WorkspaceMemberDB)
+            .filter_by(user_id=user.id)
+            .options(load_only(WorkspaceMemberDB.workspace_id))  # type: ignore
+        )
+        workspaces_ids = [
+            str(user_workspace.workspace_id)
+            for user_workspace in member_in_workspaces_result.scalars().all()
+        ]
+
+        return {
+            "id": str(user.id),
+            "uid": str(user.uid),
+            "workspace_ids": workspaces_ids,
+            "organization_ids": organization_ids,
+        }

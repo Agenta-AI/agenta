@@ -14,15 +14,13 @@ from oss.src.core.applications.service import ApplicationsService
 from oss.src.core.environments.dtos import EnvironmentRevision
 from oss.src.core.environments.service import EnvironmentsService
 from oss.src.core.shared.dtos import Reference
-from oss.src.utils.common import is_ee
 from oss.src.utils.exceptions import intercept_exceptions
 
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import (
-        FORBIDDEN_EXCEPTION,
-        check_action_access,
-    )
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import (
+    FORBIDDEN_EXCEPTION,
+    check_action_access,
+)
 
 
 def _as_reference(ref: Optional[ReferenceRequestModel]) -> Optional[Reference]:
@@ -87,13 +85,12 @@ class LegacyVariantsRouter:
         )
 
     async def _check_view_access(self, request: Request) -> None:
-        if is_ee():
-            if not await check_action_access(  # type: ignore[name-defined]
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_APPLICATIONS,  # type: ignore[name-defined]
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore[name-defined]
+        if not await check_action_access(  # type: ignore[name-defined]
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATIONS,  # type: ignore[name-defined]
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore[name-defined]
 
     async def _application_slug(
         self,
