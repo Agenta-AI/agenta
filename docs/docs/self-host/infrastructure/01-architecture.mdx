@@ -122,6 +122,17 @@ Agenta follows a modern microservices architecture with clear separation of conc
 - **Error Handling**: Robust error handling for LLM API failures
 - **Endpoint Groups**: Includes `/services/completion/*` and `/services/chat/*`
 
+### sandbox-agent Runner
+- **Technology**: Node.js TypeScript runner plus sandbox-agent daemon
+- **Port**: 8765 (internal)
+- **Purpose**: Executes agent workflows for the Services API
+
+**Key Responsibilities**:
+- **Agent Runs**: Receives `/run` requests from the Services API through `AGENTA_AGENT_RUNNER_URL`
+- **Harness Launch**: Starts Pi, Claude Code, or other supported harness adapters over ACP
+- **Sandbox Provider**: Runs local sandboxes or creates Daytona sandboxes using runner-scoped `SANDBOX_AGENT_*` configuration
+- **Tool Relay**: Relays server-side tools back to the Services API without exposing the full stack environment to the harness process
+
 ## Infrastructure Services
 
 ### PostgreSQL (Database)
@@ -175,6 +186,11 @@ API Service depends on:
 ├── Redis (task queue, caching, sessions)
 ├── SuperTokens (authentication)
 └── Worker pool (async task execution)
+
+Services API depends on:
+├── PostgreSQL (agent and service state)
+├── LLM providers (model calls)
+└── sandbox-agent runner (agent workflow execution)
 ```
 
 ### Worker Dependencies
