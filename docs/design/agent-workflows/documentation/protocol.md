@@ -123,13 +123,14 @@ Request fields include:
 
 | Field | Meaning |
 | --- | --- |
-| `backend` | Runner engine: `pi` or `sandbox-agent`. |
-| `harness` | Harness id: `pi`, `claude`, or `agenta` depending on backend support. |
+| `backend` | Runner engine: `sandbox-agent` (default) or `pi` (in-process). The deployed service always sends `sandbox-agent`. |
+| `harness` | Harness id: `pi`, `claude`, or `agenta`. On the sandbox-agent path `agenta` maps to the `pi` ACP agent plus forced skills and prompt extras. |
 | `sandbox` | Sandbox id, usually `local` or `daytona`. |
-| `sessionId` | External conversation id. The runtime is still cold and receives history in `messages`. |
+| `sessionId` | External conversation id. The runtime is cold and receives history in `messages`. |
 | `agentsMd` | Instructions that become `AGENTS.md`. |
-| `systemPrompt`, `appendSystemPrompt` | Pi prompt overrides. Not delivered on the sandbox-agent Pi path yet. |
-| `model` | Requested model id. |
+| `systemPrompt`, `appendSystemPrompt` | Pi prompt overrides. Delivered on both the in-process Pi path and the sandbox-agent Pi path (the sandbox-agent engine writes `SYSTEM.md` / `APPEND_SYSTEM.md` into the per-run Pi agent dir, local and Daytona). |
+| `skills` | Bundled skill directory names to force-load (the `agenta` harness, Pi only). |
+| `model` | Requested model id. Not honored on the Pi-over-sandbox-agent path; pi-acp accepts only its default model (see Ground Truth). |
 | `messages` | Conversation history and current turn. |
 | `secrets` | Provider env vars resolved by the service. |
 | `tools`, `customTools`, `toolCallback`, `mcpServers` | Resolved tool delivery. |

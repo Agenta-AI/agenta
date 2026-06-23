@@ -28,8 +28,10 @@ sessions. It does not know how Pi or Claude wants tools shaped.
 
 Current backends:
 
-- `InProcessPiBackend`: implemented, supports `pi` and `agenta`, local only.
-- `SandboxAgentBackend`: implemented, supports `pi` and `claude`, local or Daytona.
+- `SandboxAgentBackend`: implemented, supports `pi`, `claude`, and `agenta`, local or Daytona.
+  This is the backend the deployed service always uses (`services/oss/src/agent/app.py:49`).
+- `InProcessPiBackend`: implemented, supports `pi` and `agenta`, local only. The reference
+  backend; not selected by the deployed service.
 - `LocalBackend`: planned, public class exists, methods raise.
 
 ### Environment
@@ -45,11 +47,13 @@ turn.
 
 Current harnesses:
 
-- `PiHarness` keeps built-in tool names, resolved tool specs, Pi prompt overrides, and Pi
-  native tool delivery.
+- `PiHarness` keeps built-in tool names, resolved tool specs, Pi prompt overrides (`system`
+  and `append_system` from `harness_options.pi`), and Pi native tool delivery.
 - `ClaudeHarness` drops Pi built-ins, carries MCP-delivered specs, and carries the
   permission policy.
-- `AgentaHarness` is Pi with forced Agenta policy layered on top.
+- `AgentaHarness` is Pi with forced Agenta policy layered on top: a base AGENTS.md preamble,
+  a forced persona, forced tools, and forced skills (`adapters/agenta_builtins.py`). It runs
+  on both `SandboxAgentBackend` and `InProcessPiBackend`.
 
 ### Session
 
@@ -104,8 +108,10 @@ tools, resolved MCP servers, trace context, and the session id.
 2. Resolve provider secrets.
 3. Resolve tools and, when enabled, MCP servers.
 4. Build `SessionConfig`.
-5. Choose a backend.
-6. Build the harness.
+5. Build the backend. The service always builds `SandboxAgentBackend`, passing the run's
+   sandbox (`local` or `daytona`) and the runner transport. It does not branch on harness.
+6. Build the harness over an `Environment` wrapping that backend. The harness validates that
+   the backend supports it.
 7. Run `prompt` or `stream`.
 
 Tool and MCP resolution are split cleanly:
@@ -147,7 +153,6 @@ result fields should update both sides and the wire tests in the same PR.
 - `SessionStore` has no production adapter and the current runtime does not call
   `save_turn` after completed `/messages` turns.
 - `AgentaHarness` policy content is placeholder product copy.
-- `AgentaHarness` cannot run on sandbox-agent or Daytona.
 - MCP server resolution is disabled unless `AGENTA_AGENT_ENABLE_MCP` is truthy.
-- The code still has historical WP labels in comments. Those labels should not guide new
+- The code still has historical WP labels in some comments. Those labels should not guide new
   design decisions.
