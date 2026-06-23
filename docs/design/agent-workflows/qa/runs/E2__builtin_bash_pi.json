@@ -1,0 +1,56 @@
+{
+  "id": "builtin_bash_pi",
+  "group": "core",
+  "capability": "builtin bash",
+  "env_label": "E2",
+  "sandbox": "local",
+  "harness": "pi",
+  "model": "gpt-4o-mini",
+  "ts": "2026-06-20T11:00:59.571162+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Use the bash tool to run: echo \"QA-BASH-$(uname -m)\" and reply with exactly its stdout."
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi",
+          "sandbox": "local",
+          "model": "gpt-4o-mini",
+          "agents_md": "Use the bash tool when asked to run a command. Report only its stdout.",
+          "tools": [
+            {
+              "type": "builtin",
+              "name": "bash"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "http_status": 200,
+  "response": {
+    "span_id": "c75c8e5852357e84",
+    "trace_id": "69adfbcb3ca1459e0c203bbb496104be",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "QA-BASH-x86_64"
+      }
+    }
+  },
+  "reply": "QA-BASH-x86_64",
+  "status_message": "Success",
+  "passed": true,
+  "expect": "QA-BASH-<arch from uname -m>"
+}

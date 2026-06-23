@@ -1,0 +1,50 @@
+{
+  "id": "builtin_bash_agenta",
+  "group": "core",
+  "capability": "builtin bash (forced)",
+  "env_label": "E2",
+  "sandbox": "local",
+  "harness": "agenta",
+  "model": "gpt-4o-mini",
+  "ts": "2026-06-20T11:01:03.659378+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Use the bash tool to run: echo \"QA-BASH-$(uname -m)\" and reply with exactly its stdout."
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "agenta",
+          "sandbox": "local",
+          "model": "gpt-4o-mini",
+          "agents_md": "Use the bash tool when asked to run a command. Report only its stdout."
+        }
+      }
+    }
+  },
+  "http_status": 200,
+  "response": {
+    "span_id": "f58c8dbd9397cef9",
+    "trace_id": "5cb07a97476fc68b4624ce87326e16cb",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "QA-BASH-x86_64"
+      }
+    }
+  },
+  "reply": "QA-BASH-x86_64",
+  "status_message": "Success",
+  "passed": true,
+  "expect": "QA-BASH-<arch>; bash is forced for agenta"
+}
