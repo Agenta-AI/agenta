@@ -79,7 +79,7 @@ const SchemaEditor = memo(function SchemaEditor({
         </div>
     )
 
-// `!min-h-0` removes EditorProvider's min height so collapsed cards hug the header.
+    // `!min-h-0` removes EditorProvider's min height so collapsed cards hug the header.
     return (
         <EditorProvider
             codeOnly

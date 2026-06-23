@@ -1740,7 +1740,7 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
             }
         }
 
-// Compare the full `data` object (parameters + sibling fields), normalizing params/schemas to avoid false positives.
+        // Compare the full `data` object (parameters + sibling fields), normalizing params/schemas to avoid false positives.
         const entityData = get(workflowBaseEntityAtomFamily(workflowId))
 
         // Get the comparison baseline — for local drafts this redirects to the
