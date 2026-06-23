@@ -86,18 +86,19 @@ function prepareCommitParameters(
 
 /**
  * Prepare schemas for the commit API.
- * For evaluator workflows the UI applies a display-only nesting transform to
- * `schemas.parameters` — use the flat server schemas instead so the transform
- * is never persisted.
+ * Commits the edited `data.schemas` so input/output schema edits persist.
+ * For evaluators the `parameters` subkey carries a display-only nesting transform
+ * with no flatten inverse, so it is restored from the flat server schema.
  */
 function prepareCommitSchemas(
     entity: Workflow,
     flatSchemas: WorkflowData["schemas"] | null,
 ): WorkflowData["schemas"] | undefined {
-    if (entity.flags?.is_evaluator) {
-        return flatSchemas ?? entity.data?.schemas
+    const edited = entity.data?.schemas
+    if (!entity.flags?.is_evaluator || !edited) {
+        return edited
     }
-    return entity.data?.schemas
+    return {...edited, parameters: flatSchemas?.parameters ?? edited.parameters}
 }
 
 // ============================================================================

@@ -2865,11 +2865,28 @@ async def code_v0(
             got=parameters,
         )
 
-    if "code" not in parameters:
-        raise MissingConfigurationParameterV0Error(path="code")
+    from agenta.sdk.contexts.running import RunningContext
 
-    code = str(parameters["code"])
-    runtime = str(parameters.get("runtime") or "python")
+    ctx = RunningContext.get()
+
+    # Canonical source is the revision data; legacy `parameters["code"]` is the fallback.
+    code = (
+        _extract_revision_field(revision, "script")
+        or _extract_revision_field(ctx.revision, "script")
+        or parameters.get("code")
+    )
+    if code is None:
+        raise MissingConfigurationParameterV0Error(path="script")
+
+    runtime = (
+        _extract_revision_field(revision, "runtime")
+        or _extract_revision_field(ctx.revision, "runtime")
+        or parameters.get("runtime")
+        or "python"
+    )
+
+    code = str(code)
+    runtime = str(runtime)
 
     if runtime not in ["python", "javascript", "typescript"]:
         raise InvalidConfigurationParameterV0Error(

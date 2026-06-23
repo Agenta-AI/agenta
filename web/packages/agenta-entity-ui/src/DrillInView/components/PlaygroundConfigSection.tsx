@@ -400,7 +400,7 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
             serverData: memoAtom((id: string) =>
                 atom((get) => {
                     const config = get(workflowMolecule.selectors.serverConfiguration(id))
-                    const full = get(workflowMolecule.selectors.data(id))
+                    const full = get(workflowMolecule.selectors.serverData(id))
                     return mergeSiblingFields(config as Record<string, unknown> | null, full)
                 }),
             ),
