@@ -62,8 +62,7 @@ instructions are the `AGENTS.md`. An author's own `system` / `append_system` (vi
 
 `agenta` is a harness option alongside `pi` and `claude` (the playground dropdown, the
 `harness` field). The deployed service path routes it through `SandboxAgentBackend`, which
-drives Pi over ACP and layers the Agenta persona and tools on top. `InProcessPiBackend`
-remains available for local/example contrast runs.
+drives Pi over ACP and layers the Agenta persona and tools on top.
 
 ## On the sandbox-agent (ACP) path
 

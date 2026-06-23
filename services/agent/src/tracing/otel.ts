@@ -175,19 +175,6 @@ export async function flushTrace(traceId?: string): Promise<void> {
   await processor.flush(traceId);
 }
 
-/** Flush and shut down all exporters. Call once on process exit, not per run. */
-export async function shutdownTracing(): Promise<void> {
-  if (!provider) return;
-  try {
-    await provider.forceFlush();
-    await provider.shutdown();
-  } finally {
-    provider = undefined;
-    processor = undefined;
-    exporterCache.clear();
-  }
-}
-
 /**
  * Order spans parent-before-child (preorder DFS). Agenta stores timestamps at
  * millisecond resolution and builds its roll-up tree by sorting on start_time,
