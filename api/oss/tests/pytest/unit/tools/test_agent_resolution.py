@@ -59,6 +59,7 @@ async def test_api_resolution_returns_stable_call_reference(monkeypatch):
             schemas=SimpleNamespace(
                 inputs={"type": "object", "properties": {}},
             ),
+            read_only=True,
         )
 
     monkeypatch.setattr(service, "resolve_connection_by_slug", _connection)
@@ -77,3 +78,4 @@ async def test_api_resolution_returns_stable_call_reference(monkeypatch):
     )
     assert result.builtins == ["read"]
     assert result.custom[0].call_ref == "tools.composio.github.GET_USER.c1"
+    assert result.custom[0].read_only is True

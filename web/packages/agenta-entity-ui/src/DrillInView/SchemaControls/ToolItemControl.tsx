@@ -23,7 +23,7 @@ import {CollapseToggleButton, getCollapseStyle} from "@agenta/ui/components/pres
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {CopySimple, MinusCircle} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
+import {Button, Select, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 
 import {TOOL_PROVIDERS_META, TOOL_SPECS, parseGatewayFunctionName, type ToolObj} from "./toolUtils"
@@ -435,6 +435,98 @@ function defaultRenderProviderIcon(providerKey: string): React.ReactNode {
     return <Icon className="w-4 h-4" />
 }
 
+// ============================================================================
+// PER-TOOL DISPOSITION (Layer 3: allow / ask / deny)
+// ============================================================================
+
+/**
+ * The tool-use disposition vocabulary. Stored as a TOP-LEVEL `disposition` key on the tool
+ * object (not inside `agenta_metadata`, which `stripAgentaMetadataDeep` removes on every
+ * save/run path). The SDK tool config/spec deserializes it with no mapping
+ * (`AliasChoices("disposition", "permission_mode", "permissionMode")`). Unset means the tool
+ * inherits the global permission policy.
+ */
+type ToolDisposition = "allow" | "ask" | "deny"
+
+const DISPOSITION_OPTIONS: {value: ToolDisposition; label: string}[] = [
+    {value: "allow", label: "Allow"},
+    {value: "ask", label: "Ask"},
+    {value: "deny", label: "Deny"},
+]
+
+/**
+ * Default the disposition from the tool's `read_only` metadata, when the catalog supplied it:
+ * `read_only === true` → allow (no side effect), `read_only === false` → ask, unknown → unset
+ * (inherit the global policy). This is a display default only — it is not written back unless
+ * the author changes it.
+ */
+function defaultDispositionFromReadOnly(
+    metadata: Record<string, unknown> | undefined,
+): ToolDisposition | undefined {
+    const readOnly = metadata?.read_only
+    if (readOnly === true) return "allow"
+    if (readOnly === false) return "ask"
+    return undefined
+}
+
+function isDisposition(value: unknown): value is ToolDisposition {
+    return value === "allow" || value === "ask" || value === "deny"
+}
+
+/**
+ * Read the stored disposition. Canonical home is the TOP-LEVEL `disposition` key (it survives
+ * `stripAgentaMetadataDeep`); fall back to any legacy `agenta_metadata.permission_mode` so values
+ * written before this change still display.
+ */
+function readDisposition(
+    topLevel: unknown,
+    metadata: Record<string, unknown> | undefined,
+): ToolDisposition | undefined {
+    if (isDisposition(topLevel)) return topLevel
+    if (isDisposition(metadata?.permission_mode)) return metadata.permission_mode
+    return undefined
+}
+
+interface ToolDispositionControlProps {
+    /** The current top-level `disposition` value on the tool (canonical store). */
+    disposition: unknown
+    /** The current `agenta_metadata` of the tool (read for the read_only default + legacy mode). */
+    metadata: Record<string, unknown> | undefined
+    /** Called with the chosen disposition (or null to clear back to the global policy). */
+    onChange: (disposition: ToolDisposition | null) => void
+    disabled?: boolean
+}
+
+/** Compact allow/ask/deny selector for one tool. Displays the read_only-derived default unwritten. */
+function ToolDispositionControl({
+    disposition,
+    metadata,
+    onChange,
+    disabled,
+}: ToolDispositionControlProps) {
+    const stored = readDisposition(disposition, metadata)
+    const displayDefault = defaultDispositionFromReadOnly(metadata)
+    return (
+        <div className="flex items-center gap-2 px-1 py-0.5">
+            <Tooltip title="How tool-use is gated: allow auto-approves, ask prompts, deny blocks. Unset inherits the global permission policy.">
+                <Typography.Text type="secondary" className="text-xs">
+                    Permission
+                </Typography.Text>
+            </Tooltip>
+            <Select<ToolDisposition>
+                value={stored ?? undefined}
+                onChange={(v) => onChange(v ?? null)}
+                options={DISPOSITION_OPTIONS}
+                disabled={disabled}
+                placeholder={displayDefault ? `${displayDefault} (default)` : "Inherit policy"}
+                allowClear
+                size="small"
+                className="w-[160px]"
+            />
+        </div>
+    )
+}
+
 export interface ToolItemControlProps {
     /** Tool value (object or JSON string) */
     value: unknown
@@ -498,6 +590,49 @@ export const ToolItemControl = memo(function ToolItemControl({
             onChange(merged)
         },
         [onChange, agentaMetadata],
+    )
+
+    // The current `agenta_metadata` as an object (read for the disposition control's read_only
+    // default and any legacy `permission_mode`).
+    const metadataObj = useMemo(
+        () =>
+            agentaMetadata && typeof agentaMetadata === "object" && !Array.isArray(agentaMetadata)
+                ? (agentaMetadata as Record<string, unknown>)
+                : undefined,
+        [agentaMetadata],
+    )
+
+    // The current top-level `disposition` on the tool (canonical store, survives metadata strip).
+    const topLevelDisposition = useMemo(
+        () =>
+            cleanedValue && typeof cleanedValue === "object" && !Array.isArray(cleanedValue)
+                ? (cleanedValue as Record<string, unknown>).disposition
+                : undefined,
+        [cleanedValue],
+    )
+
+    // Set (or clear) the TOP-LEVEL `disposition` key on this tool, leaving the rest of the tool
+    // definition intact. It lives at the top level (not inside `agenta_metadata`) so it survives
+    // `stripAgentaMetadataDeep` on the save/run path. Clearing removes the key (and any legacy
+    // `agenta_metadata.permission_mode`) so the tool falls back to the global policy.
+    const handleDispositionChange = useCallback(
+        (disposition: "allow" | "ask" | "deny" | null) => {
+            if (!onChange) return
+            const base = (
+                cleanedValue && typeof cleanedValue === "object" ? cleanedValue : {}
+            ) as Record<string, unknown>
+            const {disposition: _dropDisposition, ...restBase} = base
+            // Drop any legacy `permission_mode` stored inside `agenta_metadata`; the top-level key
+            // is now canonical.
+            const {permission_mode: _dropLegacy, ...restMeta} = metadataObj ?? {}
+            const withMeta =
+                Object.keys(restMeta).length > 0
+                    ? {...restBase, agenta_metadata: restMeta}
+                    : restBase
+            const merged = disposition ? {...withMeta, disposition} : withMeta
+            onChange(merged as ToolObj)
+        },
+        [onChange, metadataObj, cleanedValue],
     )
 
     const {
@@ -655,12 +790,20 @@ export const ToolItemControl = memo(function ToolItemControl({
                     containerRef={containerRef}
                 />
                 {!minimized && (
-                    <textarea
-                        className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
-                        value={editorText}
-                        onChange={(e) => onEditorChange(e.target.value)}
-                        readOnly={isReadOnly}
-                    />
+                    <>
+                        <textarea
+                            className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
+                            value={editorText}
+                            onChange={(e) => onEditorChange(e.target.value)}
+                            readOnly={isReadOnly}
+                        />
+                        <ToolDispositionControl
+                            disposition={topLevelDisposition}
+                            metadata={metadataObj}
+                            onChange={handleDispositionChange}
+                            disabled={isReadOnly}
+                        />
+                    </>
                 )}
             </div>
         )
@@ -727,6 +870,14 @@ export const ToolItemControl = memo(function ToolItemControl({
                     />
                 }
             />
+            {!minimized && (
+                <ToolDispositionControl
+                    disposition={topLevelDisposition}
+                    metadata={metadataObj}
+                    onChange={handleDispositionChange}
+                    disabled={isReadOnly}
+                />
+            )}
         </div>
     )
 })

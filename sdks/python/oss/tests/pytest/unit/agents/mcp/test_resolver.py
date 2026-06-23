@@ -60,6 +60,32 @@ async def test_missing_mcp_secret_is_explicit():
         )
 
 
+async def test_disposition_rides_the_wire_when_set():
+    # An author's per-server disposition is carried onto the resolved server and serialized.
+    servers = await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
+        [MCPServerConfig(name="github", command="npx", disposition="ask")]
+    )
+    assert servers[0].disposition == "ask"
+    assert servers[0].to_wire()["disposition"] == "ask"
+
+
+async def test_disposition_absent_from_wire_when_unset():
+    # No disposition declared -> no `disposition` key (a server has no read_only to default from).
+    servers = await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
+        [MCPServerConfig(name="github", command="npx")]
+    )
+    assert servers[0].disposition is None
+    assert "disposition" not in servers[0].to_wire()
+
+
+def test_disposition_accepts_fe_permission_mode_alias():
+    # The playground writes `permission_mode`; the server config deserializes it.
+    config = MCPServerConfig.model_validate(
+        {"name": "github", "command": "npx", "permission_mode": "deny"}
+    )
+    assert config.disposition == "deny"
+
+
 async def test_mcp_compatibility_policy_can_omit_missing_secret():
     servers = await MCPResolver(
         secret_provider=DictSecretProvider({}),

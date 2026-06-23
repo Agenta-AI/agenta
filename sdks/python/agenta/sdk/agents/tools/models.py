@@ -19,13 +19,30 @@ def _empty_object_schema() -> Dict[str, Any]:
     return {"type": "object", "properties": {}}
 
 
+# Layer-3 per-tool permission disposition: ``allow`` runs with no prompt, ``ask`` raises a
+# human-in-the-loop request, ``deny`` never runs. Absent means "fall back to the global
+# ``permissionPolicy`` default" (the runner resolves that, in a later slice).
+Disposition = Literal["allow", "ask", "deny"]
+
+
 class ToolConfigBase(BaseModel):
     """Fields shared by every persisted tool declaration."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     needs_approval: bool = False
     render: Optional[Dict[str, Any]] = None
+    # Layer-3 permission disposition the author set on this tool. Mirrors
+    # ``ToolSpecBase.disposition``: accepts ``permission_mode``/``permissionMode`` too (the keys
+    # the playground writes), so an FE-set value deserializes onto the ``extra="forbid"`` config
+    # without a breaking change. ``_apply_tool_metadata`` then carries it onto the resolved spec.
+    disposition: Optional[Disposition] = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "disposition", "permission_mode", "permissionMode"
+        ),
+        serialization_alias="disposition",
+    )
 
 
 class BuiltinToolConfig(ToolConfigBase):
@@ -114,6 +131,43 @@ class ToolSpecBase(BaseModel):
         serialization_alias="needsApproval",
     )
     render: Optional[Dict[str, Any]] = None
+    read_only: Optional[bool] = Field(
+        default=None,
+        validation_alias=AliasChoices("read_only", "readOnly"),
+        serialization_alias="readOnly",
+    )
+    # Layer-3 permission disposition the author set on this tool. Accepts ``permission_mode``
+    # too, the key the playground writes into ``agenta_metadata``, so an FE-set value
+    # deserializes without a later breaking change. Unset means "no explicit author choice";
+    # ``effective_disposition`` then derives a default from ``read_only`` / ``needs_approval``.
+    disposition: Optional[Disposition] = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "disposition", "permission_mode", "permissionMode"
+        ),
+        serialization_alias="disposition",
+    )
+
+    def effective_disposition(self) -> Optional[Disposition]:
+        """Resolve the disposition that rides the wire, by this precedence:
+
+        1. An explicit author ``disposition`` wins outright.
+        2. Else, when ``needs_approval`` is set, the default is ``"ask"`` (approval beats the
+           read-only auto-allow: an author who asked to be prompted still gets prompted).
+        3. Else, default from ``read_only``: ``True`` -> ``"allow"`` (read-only tools are safe to
+           auto-run), ``False`` -> ``"ask"`` (mutating tools prompt).
+        4. Else (``read_only`` is ``None`` and nothing explicit) -> ``None`` (unset), so the runner
+           falls back to the global ``permissionPolicy`` default in a later slice.
+        """
+        if self.disposition is not None:
+            return self.disposition
+        if self.needs_approval:
+            return "ask"
+        if self.read_only is True:
+            return "allow"
+        if self.read_only is False:
+            return "ask"
+        return None
 
     def to_wire(self) -> Dict[str, Any]:
         wire = self.model_dump(
@@ -125,6 +179,11 @@ class ToolSpecBase(BaseModel):
             wire.pop("needsApproval", None)
         if not wire.get("env"):
             wire.pop("env", None)
+        disposition = self.effective_disposition()
+        if disposition is not None:
+            wire["disposition"] = disposition
+        else:
+            wire.pop("disposition", None)
         return wire
 
 

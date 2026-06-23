@@ -16,7 +16,10 @@ from oss.src.core.tools.dtos import (
 )
 from oss.src.core.tools.interfaces import ToolsGatewayInterface
 from oss.src.core.tools.exceptions import AdapterError
-from oss.src.core.tools.providers.composio.catalog import ComposioCatalogClient
+from oss.src.core.tools.providers.composio.catalog import (
+    ComposioCatalogClient,
+    _derive_read_only,
+)
 
 
 log = get_module_logger(__name__)
@@ -173,6 +176,7 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
             if input_params or output_params
             else None,
             scopes=item.get("scopes") or None,
+            read_only=_derive_read_only(item.get("tags")),
         )
 
     # -----------------------------------------------------------------------

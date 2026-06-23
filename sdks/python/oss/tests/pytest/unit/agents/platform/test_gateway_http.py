@@ -42,6 +42,7 @@ async def test_gateway_metadata_and_description_fallback_are_preserved(
                     "description": None,
                     "input_schema": {"type": "object"},
                     "call_ref": "tools.composio.github.GET_USER.c1",
+                    "read_only": True,
                 }
             ]
         },
@@ -58,7 +59,9 @@ async def test_gateway_metadata_and_description_fallback_are_preserved(
     assert spec.description == "get_user"  # falls back to name when null
     assert spec.needs_approval is True
     assert spec.render == {"kind": "component", "component": "User"}
+    assert spec.read_only is True  # the catalog read-only hint reaches the spec
     assert spec.to_wire()["needsApproval"] is True
+    assert spec.to_wire()["readOnly"] is True
     assert isinstance(resolved.tool_callback, ToolCallback)
     assert resolved.tool_callback.endpoint == "https://api.x/api/tools/call"
     assert resolved.tool_callback.authorization == "Access tok"
