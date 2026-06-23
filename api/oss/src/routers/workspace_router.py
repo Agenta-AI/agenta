@@ -105,6 +105,11 @@ async def assign_role_to_user(
 
     try:
         project = await get_project_by_workspace(workspace_id)
+        if str(project.organization_id) != str(payload.organization_id):
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Workspace does not belong to the organization."},
+            )
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(project.id),
@@ -154,6 +159,11 @@ async def unassign_role_from_user(
 
     try:
         project = await get_project_by_workspace(workspace_id)
+        if str(project.organization_id) != str(organization_id):
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Workspace does not belong to the organization."},
+            )
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(project.id),
