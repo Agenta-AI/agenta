@@ -35,6 +35,7 @@ dependencies = [
     "orjson>=3,<4",
     "python-jsonpath>=2,<3",
     "daytona>=0.187,<0.188",
+    "RestrictedPython>=8,<9",
 ]
 
 [project.urls]
