@@ -60,7 +60,6 @@ from .sdk.agents import (  # noqa: F401
     AgentConfig,
     ClaudeHarness,
     Environment,
-    InProcessPiBackend,
     LocalBackend,
     PiHarness,
     SandboxAgentBackend,

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 
 from pydantic import ValidationError
 
@@ -20,20 +20,3 @@ def parse_tool_config(value: ToolConfig | Mapping[str, Any]) -> ToolConfig:
             f"{exc.errors(include_url=False, include_input=False)}",
             value=value,
         ) from exc
-
-
-def parse_tool_configs(
-    values: Sequence[ToolConfig | Mapping[str, Any]],
-) -> list[ToolConfig]:
-    """Parse canonical tool mappings and report the failing item index."""
-    parsed: list[ToolConfig] = []
-    for index, value in enumerate(values):
-        try:
-            parsed.append(parse_tool_config(value))
-        except ToolConfigurationError as exc:
-            raise ToolConfigurationError(
-                str(exc),
-                index=index,
-                value=value,
-            ) from exc
-    return parsed

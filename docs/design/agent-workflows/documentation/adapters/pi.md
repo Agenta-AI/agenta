@@ -161,7 +161,7 @@ And auth comes from the provider key in the sandbox env when present, or from an
 
 ## The in-process engine
 
-The in-process Pi engine (`engines/pi.ts`, selected by the `InProcessPiBackend`) skips sandbox-agent
+The in-process Pi engine (`engines/pi.ts`, reached with `backend: "pi"`) skips sandbox-agent
 entirely. It drives Pi's `createAgentSession` directly, with everything in memory: AGENTS.md
 injected through the resource loader, the session and settings managers in memory, and a
 throwaway working directory. It registers the same tools as Pi `customTools` through

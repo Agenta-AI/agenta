@@ -33,9 +33,8 @@ from .models import (
     ToolConfigBase,
     ToolSpec,
 )
-from .parsing import parse_tool_config, parse_tool_configs
+from .parsing import parse_tool_config
 from .resolver import EnvironmentToolSecretProvider, ToolResolver
-from .wire import tool_spec_to_wire, tool_specs_to_wire
 
 __all__ = [
     "ToolConfigBase",
@@ -57,13 +56,10 @@ __all__ = [
     "GatewayToolResolver",
     "EnvironmentToolSecretProvider",
     "parse_tool_config",
-    "parse_tool_configs",
     "coerce_tool_config",
     "coerce_tool_configs",
     "ToolConfigDiagnostic",
     "ToolConfigParseResult",
-    "tool_spec_to_wire",
-    "tool_specs_to_wire",
     "ToolError",
     "ToolConfigError",
     "ToolConfigurationError",
