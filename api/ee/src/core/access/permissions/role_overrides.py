@@ -278,10 +278,10 @@ def _apply_roles_overlay(
                     scope_entries[idx]["permissions"] = list(patch.permissions)
             else:
                 # New role: both fields must be present.
-                if patch.permissions is None:
+                if patch.permissions is None or patch.description is None:
                     raise ValueError(
-                        f"AGENTA_ACCESS_ROLES_OVERLAY['project']['{slug}']: "
-                        f"new role requires 'permissions' (scope '{scope_name}' "
+                        f"AGENTA_ACCESS_ROLES_OVERLAY['{slug}']: new role requires "
+                        f"both 'description' and 'permissions' (scope '{scope_name}' "
                         "has no existing role with this slug to patch)"
                     )
                 scope_entries.append(

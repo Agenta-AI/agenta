@@ -145,7 +145,7 @@ oss/src/routers/user_profile.py
 oss/src/routers/workspace_router.py
 oss/src/tasks/asyncio/events/worker.py
 oss/src/tasks/asyncio/tracing/worker.py
-```
+```text
 
 Consequence: once the enforcement symbols resolve in OSS and the `is_ee()` guards are
 relaxed to "RBAC available", these sites enforce **without per-site logic changes** —

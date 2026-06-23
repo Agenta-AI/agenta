@@ -28,6 +28,7 @@ def _run_oss(env_extra: dict, snippet: str) -> tuple[int, str, str]:
         env=env,
         capture_output=True,
         text=True,
+        timeout=30,
     )
     return proc.returncode, proc.stdout, proc.stderr
 

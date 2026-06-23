@@ -15,6 +15,7 @@ from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
+from oss.src.utils.caching import invalidate_cache
 from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
 )
@@ -839,6 +840,11 @@ async def add_user_to_project(
             membership_id=project_member.id,
         )
 
+    await invalidate_cache(
+        namespace="check_action_access",
+        project_id=str(project_id),
+    )
+
 
 async def add_user_to_workspace_and_org(
     organization: OrganizationDB,
@@ -927,7 +933,13 @@ async def add_user_to_workspace_and_org(
                 membership_id=project_member.id,
             )
 
-        return True
+    for project in projects:
+        await invalidate_cache(
+            namespace="check_action_access",
+            project_id=str(project.id),
+        )
+
+    return True
 
 
 async def count_organizations_by_owner(owner_id: str) -> int:
@@ -1200,7 +1212,13 @@ async def remove_user_from_workspace(workspace_id: str, email: str) -> bool:
 
         await session.commit()
 
-        return True
+    for project_id in project_ids:
+        await invalidate_cache(
+            namespace="check_action_access",
+            project_id=str(project_id),
+        )
+
+    return True
 
 
 async def get_user_with_id(user_id: str) -> UserDB:
@@ -2337,7 +2355,7 @@ async def get_workspace_members(workspace_id: str) -> List[WorkspaceMemberDB]:
     async with engine.session() as session:
         result = await session.execute(
             select(WorkspaceMemberDB).where(
-                WorkspaceMemberDB.workspace_id == workspace_id
+                WorkspaceMemberDB.workspace_id == uuid.UUID(workspace_id)
             )
         )
         return list(result.scalars().all())
@@ -2366,7 +2384,10 @@ async def get_user_org_and_workspace_id(
     engine = get_transactions_engine()
 
     async with engine.session() as session:
-        user = await get_user_with_id(user_id=user_uid)
+        user_result = await session.execute(
+            select(UserDB).filter_by(id=uuid.UUID(str(user_uid)))
+        )
+        user = user_result.scalars().first()
         if not user:
             raise NoResultFound(f"User with uid {user_uid} not found")
 

@@ -17,10 +17,8 @@ from oss.src.core.shared.dtos import Reference
 from oss.src.utils.exceptions import intercept_exceptions
 
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.access.permissions.service import (
-    FORBIDDEN_EXCEPTION,
-    check_action_access,
-)
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 
 def _as_reference(ref: Optional[ReferenceRequestModel]) -> Optional[Reference]:

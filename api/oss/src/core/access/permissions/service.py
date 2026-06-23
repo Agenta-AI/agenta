@@ -1,7 +1,5 @@
 from typing import Dict, List, Union, Optional, Sequence, Any
 
-from fastapi import HTTPException
-
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.common import is_ee
@@ -12,18 +10,17 @@ from oss.src.models.db_models import (
     ProjectDB,
 )
 from oss.src.core.access.permissions.types import Permission, RequiredRole
-from oss.src.core.access.controls import get_role, get_role_permissions
+from oss.src.core.access.controls import (
+    get_role,
+    get_role_permissions,
+    get_controls_hash,
+)
 
 from oss.src.services import db_manager
 from oss.src.services.db_manager import get_user_org_and_workspace_id
 
 
 log = get_module_logger(__name__)
-
-FORBIDDEN_EXCEPTION = HTTPException(
-    status_code=403,
-    detail="You do not have access to perform this action. Please contact your organization admin.",
-)
 
 
 def _get_project_member(
@@ -200,6 +197,7 @@ async def check_action_access(
     cache_key = {
         "permission": permission.value if permission else None,
         "role": role,
+        "controls": get_controls_hash(),
     }
 
     has_permission = await get_cache(

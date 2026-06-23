@@ -32,7 +32,15 @@ def _build_controls() -> tuple[Dict[str, List[Dict[str, Any]]], str]:
     roles, role_source = build_role_controls()
 
     payload = dumps(
-        {"roles": {scope: [r["role"] for r in roles[scope]] for scope in SCOPES}},
+        {
+            "roles": {
+                scope: [
+                    {"role": r["role"], "permissions": sorted(r.get("permissions", []))}
+                    for r in roles[scope]
+                ]
+                for scope in SCOPES
+            }
+        },
         sort_keys=True,
         default=str,
     )

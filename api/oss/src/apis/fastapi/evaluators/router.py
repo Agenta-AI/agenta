@@ -96,10 +96,8 @@ from oss.src.resources.workflows.catalog import (
 )
 
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.access.permissions.service import (
-    check_action_access,
-    FORBIDDEN_EXCEPTION,
-)
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 
 log = get_module_logger(__name__)
@@ -830,7 +828,7 @@ class EvaluatorsRouter:
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
-            permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -864,7 +862,7 @@ class EvaluatorsRouter:
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
-            permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -899,7 +897,7 @@ class EvaluatorsRouter:
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
-            permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -938,7 +936,7 @@ class EvaluatorsRouter:
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
-            permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -967,7 +965,7 @@ class EvaluatorsRouter:
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
-            permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -1003,7 +1001,7 @@ class EvaluatorsRouter:
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
-            permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -1066,7 +1064,7 @@ class EvaluatorsRouter:
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
-            permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+            permission=Permission.EDIT_EVALUATORS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -1680,7 +1678,7 @@ class EvaluatorsRouter:
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
-            permission=Permission.VIEW_WORKFLOWS,  # type: ignore
+            permission=Permission.VIEW_EVALUATORS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 

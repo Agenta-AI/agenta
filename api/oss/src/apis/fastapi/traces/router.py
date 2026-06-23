@@ -19,10 +19,8 @@ from oss.src.apis.fastapi.traces.models import (
 )
 
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.access.permissions.service import (
-    check_action_access,
-    FORBIDDEN_EXCEPTION,
-)
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 
 log = get_module_logger(__name__)

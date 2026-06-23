@@ -7,8 +7,8 @@ inside the OSS service via an `is_ee()`-guarded, function-local import — see
 Kept so existing EE imports (`ee.src.core.access.permissions.service`) keep working.
 """
 
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION  # noqa: F401
 from oss.src.core.access.permissions.service import (  # noqa: F401
-    FORBIDDEN_EXCEPTION,
     check_action_access,
     check_rbac_permission,
     check_user_org_access,

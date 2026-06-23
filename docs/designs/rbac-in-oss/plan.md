@@ -92,7 +92,7 @@ Do this **first** — it's the gate on the behavior flip being safe.
 
 ## Dependency graph
 
-```
+```text
 WP0 ─┬─> WP1 ───────────────┐
      ├─> WP2 ─> WP4 ─┐       │
      └─> WP3 ─> WP4 ─┴> WP5 ─┴> WP6 ─> WP7

@@ -19,10 +19,8 @@ from oss.src.apis.fastapi.otlp.opentelemetry.otlp import parse_otlp_stream
 from oss.src.apis.fastapi.otlp.utils.processing import parse_from_otel_span_dto
 
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.access.permissions.service import (
-    check_action_access,
-    FORBIDDEN_EXCEPTION,
-)
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 if is_ee():
     from ee.src.core.access.entitlements.service import check_entitlements, Counter

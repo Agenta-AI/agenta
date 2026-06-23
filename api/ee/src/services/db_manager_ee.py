@@ -12,6 +12,7 @@ from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.caching import invalidate_cache
 
 from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
@@ -599,7 +600,13 @@ async def update_user_roles(
         if default_project_member:
             await session.refresh(default_project_member)
 
-        return True
+    for project in projects:
+        await invalidate_cache(
+            namespace="check_action_access",
+            project_id=str(project.id),
+        )
+
+    return True
 
 
 async def update_organization(

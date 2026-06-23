@@ -24,7 +24,7 @@ subscription/plan entitlement gate and billing-specific meters.
 
 ## Target architecture
 
-```
+```text
 oss/src/core/access/permissions/
     types.py        # Permission, DefaultRole, RequiredRole   (moved from EE)
     controls.py     # build_role_controls + get_role* accessors (moved from EE)

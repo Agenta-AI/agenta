@@ -53,12 +53,10 @@ from oss.src.core.tools.utils import decode_oauth_state
 from oss.src.utils.env import env
 
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.access.permissions.service import (
-    check_action_access,
-    FORBIDDEN_EXCEPTION,
-)
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
-_SLUG_SEGMENT_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+_SLUG_SEGMENT_RE = re.compile(r"[a-zA-Z0-9_-]+")
 
 log = get_module_logger(__name__)
 
@@ -904,7 +902,7 @@ class ToolsRouter:
 
         # Validate each segment against safe allowlist to prevent injection.
         for segment in slug_parts[1:]:
-            if not _SLUG_SEGMENT_RE.match(segment):
+            if not _SLUG_SEGMENT_RE.fullmatch(segment):
                 raise HTTPException(
                     status_code=400,
                     detail=f"Invalid characters in tool slug segment: {segment!r}",

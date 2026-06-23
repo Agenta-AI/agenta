@@ -5,26 +5,26 @@ Verified against the codebase before implementation. This is the coverage ledger
 
 ## Modules to move (EE → OSS)
 
-- [ ] `ee/src/core/access/permissions/types.py` → `oss/src/core/access/permissions/types.py`
+- [x] `ee/src/core/access/permissions/types.py` → `oss/src/core/access/permissions/types.py`
       — `Permission`, `DefaultRole`, `RequiredRole`. Pure enums, zero deps.
-- [ ] `ee/src/core/access/permissions/controls.py` → `oss/src/core/access/permissions/controls.py`
+- [x] `ee/src/core/access/permissions/controls.py` → `oss/src/core/access/permissions/controls.py`
       — `build_role_controls` + parsers. Deps: enums, `oss.src.utils.env`, and the
       `SCOPES` / `OWNER_PERMISSIONS` constants (defined locally in OSS).
-- [ ] `ee/src/core/access/permissions/service.py` → `oss/src/core/access/permissions/service.py`
+- [x] `ee/src/core/access/permissions/service.py` → `oss/src/core/access/permissions/service.py`
       — enforcement. The entitlement gate becomes `is_ee()`-guarded function-local import.
-- [ ] role half of `ee/src/core/access/controls.py` (`get_roles`/`get_role`/
+- [x] role half of `ee/src/core/access/controls.py` (`get_roles`/`get_role`/
       `get_role_permissions`/`get_role_description`) → OSS controls module. Plan half stays EE.
-- [ ] 4 DB lookups in `ee/src/services/db_manager_ee.py` → `oss/src/services/db_manager.py`:
+- [x] 4 DB lookups in `ee/src/services/db_manager_ee.py` → `oss/src/services/db_manager.py`:
       `get_organization` (L78), `get_workspace_members` (L165), `get_project_members` (L1070),
       `get_user_org_and_workspace_id` (L1449).
 
 ## Re-export shims left at vacated EE paths
 
-- [ ] `ee/.../permissions/types.py` → re-export from OSS
-- [ ] `ee/.../permissions/controls.py` → re-export from OSS
-- [ ] `ee/.../permissions/service.py` → re-export from OSS
-- [ ] `ee/.../access/controls.py` → keep plan accessors, re-export role accessors from OSS
-- [ ] `ee/.../db_manager_ee.py` → re-export the 4 lookups from OSS db_manager
+- [x] `ee/.../permissions/types.py` → re-export from OSS
+- [x] `ee/.../permissions/controls.py` → re-export from OSS
+- [x] `ee/.../permissions/service.py` → re-export from OSS
+- [x] `ee/.../access/controls.py` → keep plan accessors, re-export role accessors from OSS
+- [x] `ee/.../db_manager_ee.py` → re-export the 4 lookups from OSS db_manager
 
 ## WP5 un-gate ledger — 31 OSS files importing `ee.src.core.access`
 
@@ -71,7 +71,7 @@ EE-only callers (unchanged, import via re-export): `ee/src/routers/workspace_rou
 
 ## WP1 seeding (done first)
 
-- [ ] `add_user_to_workspace_and_org`: org member row gets explicit `role=role`
+- [x] `add_user_to_workspace_and_org`: org member row gets explicit `role=role`
       (was silently `viewer`). Both callers pass `invitation.role`. (db_manager.py:829)
 - [x] `commoners.create_organization` seeds `owner` across all scopes (verified, no change).
 - [x] admin account creation defaults to `owner` (verified, no change).
