@@ -46,6 +46,9 @@ class ToolCatalogAction(BaseModel):
     #
     categories: List[str] = []
     logo: Optional[str] = None
+    #
+    # From the MCP behavioral hints: True (read-only), False (mutating), None (unknown).
+    read_only: Optional[bool] = None
 
 
 class ToolCatalogActionDetails(ToolCatalogAction):
@@ -274,6 +277,7 @@ class ResolvedAgentTool(BaseModel):
     description: Optional[str] = None
     input_schema: Optional[Dict[str, Any]] = None
     call_ref: str
+    read_only: Optional[bool] = None
 
 
 class AgentToolsResolution(BaseModel):

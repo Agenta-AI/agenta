@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+
+
+# Layer-3 per-server permission (same value set as a tool's): ``allow`` runs with
+# no prompt, ``ask`` raises a human-in-the-loop request, ``deny`` never runs. Absent means the
+# runner falls back to the global ``permissionPolicy`` default. An MCP server carries no
+# ``read_only`` hint, so there is no default to compute: an explicit author value or nothing.
+Permission = Literal["allow", "ask", "deny"]
 
 
 class MCPServerConfig(BaseModel):
@@ -18,6 +25,12 @@ class MCPServerConfig(BaseModel):
     url: Optional[str] = None
     secrets: Dict[str, str] = Field(default_factory=dict)
     tools: List[str] = Field(default_factory=list)
+    permission: Optional[Permission] = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "permission", "permission_mode", "permissionMode"
+        ),
+    )
 
     @model_validator(mode="after")
     def _validate_transport(self) -> "MCPServerConfig":
@@ -38,6 +51,7 @@ class ResolvedMCPServer(BaseModel):
     env: Dict[str, str] = Field(default_factory=dict, repr=False)
     url: Optional[str] = None
     tools: List[str] = Field(default_factory=list)
+    permission: Optional[Permission] = None
 
     @model_validator(mode="after")
     def _validate_transport(self) -> "ResolvedMCPServer":
@@ -62,4 +76,6 @@ class ResolvedMCPServer(BaseModel):
             wire["url"] = self.url
         if self.tools:
             wire["tools"] = list(self.tools)
+        if self.permission is not None:
+            wire["permission"] = self.permission
         return wire

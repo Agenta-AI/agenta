@@ -56,6 +56,12 @@ def _copy_tool_metadata(
         result["needs_approval"] = source["needs_approval"]
     if isinstance(source.get("render"), dict):
         result["render"] = dict(source["render"])
+    # Layer-3 permission: accept any of the keys the FE may write (the playground used
+    # ``permission_mode``); the config model's ``Permission`` field validates the value.
+    for key in ("permission", "permission_mode", "permissionMode"):
+        if key in source:
+            result["permission"] = source[key]
+            break
     return result
 
 
