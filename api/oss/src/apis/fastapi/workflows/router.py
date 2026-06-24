@@ -14,6 +14,7 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
+from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
 from oss.src.core.workflows.service import (
     WorkflowsService,
     SimpleWorkflowsService,
@@ -598,6 +599,7 @@ class WorkflowsRouter:
     # WORKFLOWS ----------------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     async def create_workflow(
         self,
         request: Request,
@@ -877,6 +879,7 @@ class WorkflowsRouter:
     # WORKFLOW VARIANTS --------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     async def create_workflow_variant(
         self,
         request: Request,
@@ -1151,6 +1154,7 @@ class WorkflowsRouter:
         return workflow_variants_response
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     @handle_git_exceptions()
     async def fork_workflow_variant(
         self,
@@ -1188,6 +1192,7 @@ class WorkflowsRouter:
     # WORKFLOW REVISIONS -------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     @handle_git_exceptions()
     async def create_workflow_revision(
         self,
@@ -1438,6 +1443,7 @@ class WorkflowsRouter:
         return workflow_revisions_response
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     async def commit_workflow_revision(
         self,
         request: Request,
@@ -1929,6 +1935,7 @@ class SimpleWorkflowsRouter:
     # SIMPLE WORKFLOWS ---------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     async def create_simple_workflow(
         self,
         request: Request,

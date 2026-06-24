@@ -17,12 +17,20 @@
       "description": "Get a user",
       "inputSchema": {"type": "object", "properties": {}},
       "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
-      "kind": "callback"
+      "kind": "callback",
+      "readOnly": true,
+      "permission": "allow"
     }
   ],
   "toolCallback": {
     "endpoint": "https://api.example/tools/call",
     "authorization": "Access tok-123"
   },
-  "permissionPolicy": "deny"
+  "permissionPolicy": "deny",
+  "harnessFiles": [
+    {
+      "path": ".claude/settings.json",
+      "content": "{\n  \"permissions\": {\n    \"defaultMode\": \"acceptEdits\",\n    \"allow\": [\n      \"Read\",\n      \"Bash(npm run:*)\"\n    ],\n    \"deny\": [\n      \"WebFetch\"\n    ]\n  }\n}"
+    }
+  ]
 }

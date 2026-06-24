@@ -43,6 +43,7 @@ class FakeGatewayResolver:
                     call_ref=tool.reference,
                     needs_approval=tool.needs_approval,
                     render=tool.render,
+                    permission=tool.permission,
                 )
                 for tool in tools
             ],
@@ -113,6 +114,38 @@ async def test_gateway_metadata_survives_resolution():
     spec = resolved.tool_specs[0]
     assert spec.needs_approval is True
     assert spec.render == {"kind": "component", "component": "User"}
+
+
+async def test_authored_permission_lands_on_resolved_code_spec_wire():
+    # An author's Layer-3 permission on a config rides through resolution onto the wire.
+    resolved = await ToolResolver().resolve(
+        [CodeToolConfig(name="calc", script="...", permission="deny")]
+    )
+    spec = resolved.tool_specs[0]
+    assert spec.permission == "deny"
+    assert spec.to_wire()["permission"] == "deny"
+
+
+async def test_authored_permission_lands_on_resolved_gateway_spec_wire():
+    resolved = await ToolResolver(gateway_resolver=FakeGatewayResolver()).resolve(
+        [
+            GatewayToolConfig(
+                integration="github",
+                action="GET_USER",
+                connection="c1",
+                permission="deny",
+            )
+        ]
+    )
+    spec = resolved.tool_specs[0]
+    assert spec.permission == "deny"
+    assert spec.to_wire()["permission"] == "deny"
+
+
+async def test_resolved_spec_omits_permission_when_unset():
+    # Backward compatible: no authored permission -> no `permission` key on the wire.
+    resolved = await ToolResolver().resolve([CodeToolConfig(name="calc", script="...")])
+    assert "permission" not in resolved.tool_specs[0].to_wire()
 
 
 @pytest.mark.parametrize(

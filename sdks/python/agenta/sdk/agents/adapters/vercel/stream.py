@@ -2,11 +2,45 @@
 
 from __future__ import annotations
 
-from typing import Any, AsyncIterator, Dict, Optional
+from typing import Any, AsyncIterator, Dict, Iterator, Optional
 
 from ...dtos import AgentResult
 from ...streaming import AgentRun
 from .messages import TOOL_APPROVAL_REQUEST
+
+
+# The AI SDK UI message stream (`ai@6`) validates the `finish` frame's
+# `finishReason` against this closed set. The runner surfaces the model's raw
+# stop reason (e.g. Anthropic `end_turn`, OpenAI `length`), so map it on the way
+# out; an unmapped reason falls back to `unknown` rather than failing validation.
+_AI_SDK_FINISH_REASONS = frozenset(
+    {"stop", "length", "content-filter", "tool-calls", "error", "other", "unknown"}
+)
+
+_FINISH_REASON_MAP = {
+    "end_turn": "stop",
+    "stop_sequence": "stop",
+    "max_tokens": "length",
+    "tool_use": "tool-calls",
+    "tool_calls": "tool-calls",
+    "function_call": "tool-calls",
+    "refusal": "content-filter",
+    "content_filter": "content-filter",
+}
+
+
+def _map_finish_reason(stop_reason: Optional[str]) -> Optional[str]:
+    """Map a raw model stop reason onto the AI SDK ``finishReason`` enum.
+
+    Returns ``None`` when there is no stop reason (the frame then omits it).
+    Already-valid values pass through; unknown reasons become ``"unknown"``.
+    """
+    if stop_reason is None:
+        return None
+    normalized = stop_reason.strip().lower()
+    if normalized in _AI_SDK_FINISH_REASONS:
+        return normalized
+    return _FINISH_REASON_MAP.get(normalized, "unknown")
 
 
 async def agent_run_to_vercel_parts(
@@ -27,6 +61,9 @@ async def agent_run_to_vercel_parts(
     reasoning_seq = 0
     usage: Optional[Dict[str, Any]] = None
     stop_reason: Optional[str] = None
+    # Tool-call ids already surfaced as a tool part. An approval request attaches
+    # to its tool part by id, so we synthesize one only when none preceded it.
+    seen_tool_calls: set = set()
 
     try:
         async for event in run:
@@ -72,20 +109,20 @@ async def agent_run_to_vercel_parts(
             elif etype == "tool_call":
                 tool_call_id = data.get("id")
                 tool_name = data.get("name")
+                seen_tool_calls.add(tool_call_id)
                 yield {
                     "type": "tool-input-start",
                     "toolCallId": tool_call_id,
                     "toolName": tool_name,
                 }
-                available: Dict[str, Any] = {
+                yield {
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
                     "toolName": tool_name,
                     "input": data.get("input"),
                 }
                 if data.get("render") is not None:
-                    available["render"] = data["render"]
-                yield available
+                    yield _render_part(tool_call_id, data["render"])
             elif etype == "tool_result":
                 tool_call_id = data.get("id")
                 if data.get("denied"):
@@ -102,16 +139,16 @@ async def agent_run_to_vercel_parts(
                 else:
                     structured = data.get("data")
                     out = structured if structured is not None else data.get("output")
-                    available = {
+                    yield {
                         "type": "tool-output-available",
                         "toolCallId": tool_call_id,
                         "output": out,
                     }
                     if data.get("render") is not None:
-                        available["render"] = data["render"]
-                    yield available
+                        yield _render_part(tool_call_id, data["render"])
             elif etype == "interaction_request":
-                yield _interaction_part(data)
+                for part in _interaction_parts(data, seen_tool_calls):
+                    yield part
             elif etype == "data":
                 part: Dict[str, Any] = {
                     "type": f"data-{data.get('name', 'data')}",
@@ -148,8 +185,9 @@ async def agent_run_to_vercel_parts(
 
     yield {"type": "finish-step"}
     finish: Dict[str, Any] = {"type": "finish"}
-    if stop_reason is not None:
-        finish["finishReason"] = stop_reason
+    finish_reason = _map_finish_reason(stop_reason)
+    if finish_reason is not None:
+        finish["finishReason"] = finish_reason
     metadata: Dict[str, Any] = {}
     if usage:
         metadata["usage"] = usage
@@ -160,24 +198,68 @@ async def agent_run_to_vercel_parts(
     yield finish
 
 
-def _interaction_part(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Project a neutral ``interaction_request`` event to a Vercel stream part."""
+def _interaction_parts(
+    data: Dict[str, Any], seen_tool_calls: set
+) -> Iterator[Dict[str, Any]]:
+    """Project a neutral ``interaction_request`` event to Vercel stream parts.
+
+    A ``permission`` request becomes the AI SDK ``tool-approval-request`` chunk,
+    which is a strict object (only ``type``/``approvalId``/``toolCallId``) and
+    attaches to the tool part with the same ``toolCallId``. The runner normally
+    emits that tool call first; if it didn't, synthesize a tool part from the
+    request payload so the approval has something to render against.
+    """
     kind = data.get("kind")
     payload = data.get("payload") or {}
     if kind == "permission":
-        return {
+        tool_call_id = _approval_tool_call_id(payload)
+        tool_call = payload.get("toolCall")
+        if (
+            tool_call_id is not None
+            and tool_call_id not in seen_tool_calls
+            and isinstance(tool_call, dict)
+        ):
+            seen_tool_calls.add(tool_call_id)
+            tool_name = (
+                tool_call.get("name") or tool_call.get("title") or tool_call.get("kind")
+            )
+            yield {
+                "type": "tool-input-start",
+                "toolCallId": tool_call_id,
+                "toolName": tool_name,
+            }
+            yield {
+                "type": "tool-input-available",
+                "toolCallId": tool_call_id,
+                "toolName": tool_name,
+                "input": tool_call.get("rawInput") or tool_call.get("input"),
+            }
+        yield {
             "type": TOOL_APPROVAL_REQUEST,
             "approvalId": data.get("id"),
-            "toolCallId": _approval_tool_call_id(payload),
-            "availableReplies": payload.get("availableReplies"),
-            "toolCall": payload.get("toolCall"),
+            "toolCallId": tool_call_id,
         }
+        return
     if kind == "input":
-        return {"type": "data-input-request", "id": data.get("id"), "data": payload}
-    return {
+        yield {"type": "data-input-request", "id": data.get("id"), "data": payload}
+        return
+    yield {
         "type": "data-interaction",
         "id": data.get("id"),
         "data": {"kind": kind, "payload": payload},
+    }
+
+
+def _render_part(tool_call_id: Any, render: Any) -> Dict[str, Any]:
+    """Carry an agenta render hint as a custom ``data-render`` part.
+
+    The AI SDK ``tool-input/output-available`` chunks are strict objects with no
+    ``render`` field, so the hint rides a sibling data part keyed by
+    ``toolCallId`` instead of inline on the tool part.
+    """
+    return {
+        "type": "data-render",
+        "data": {"toolCallId": tool_call_id, "render": render},
     }
 
 

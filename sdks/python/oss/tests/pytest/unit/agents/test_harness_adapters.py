@@ -2,8 +2,10 @@
 
 Pi and Claude genuinely differ (Pi takes built-ins and never gates tool use; Claude has no
 built-ins, delivers tools over MCP, and gates on a permission policy). Agenta is Pi with a
-fixed opinion: a forced preamble, persona, tools, and skills. These tests lock that the
-translation honors those differences and that ``make_harness`` validates support.
+fixed opinion: a forced preamble, persona, and tools. Skills ride the neutral config as
+resolved inline packages (seeding platform default skills is a separate workstream). These
+tests lock that the translation honors those differences and that ``make_harness`` validates
+support.
 """
 
 from __future__ import annotations
@@ -28,7 +30,6 @@ from agenta.sdk.agents import (
 from agenta.sdk.agents.adapters import harnesses
 from agenta.sdk.agents.adapters.agenta_builtins import (
     AGENTA_FORCED_APPEND_SYSTEM,
-    AGENTA_FORCED_SKILLS,
     AGENTA_FORCED_TOOLS,
     AGENTA_PREAMBLE,
 )
@@ -102,10 +103,15 @@ def test_pi_drops_blank_harness_options(make_env):
 # ------------------------------------------------------------------------- Agenta
 
 
-def test_agenta_forces_skills_tools_preamble_and_persona(make_env):
+def test_agenta_forces_tools_preamble_and_persona_and_carries_skills(make_env):
     harness = AgentaHarness(make_env(supported=[HarnessType.AGENTA]))
+    skill = {
+        "name": "release-notes",
+        "description": "Draft release notes.",
+        "body": "Read the changelog, then write notes.",
+    }
     config = _session_config(
-        agent=AgentConfig(instructions="My project rules.", model="m"),
+        agent=AgentConfig(instructions="My project rules.", model="m", skills=[skill]),
         builtin_tools=["web_search"],
         custom_tools=[{"name": "t", "callRef": "ref"}],
         tool_callback=_CALLBACK,
@@ -122,9 +128,10 @@ def test_agenta_forces_skills_tools_preamble_and_persona(make_env):
         assert forced in result.builtin_tools
     assert "web_search" in result.builtin_tools
     assert "read" in result.builtin_tools
-    # Forced skills ride the config and reach the wire.
-    assert result.skills == list(AGENTA_FORCED_SKILLS)
-    assert result.wire_tools()["skills"] == list(AGENTA_FORCED_SKILLS)
+    # The author's resolved inline skills ride the config and reach the wire on their own seam.
+    assert [s.name for s in result.skills] == ["release-notes"]
+    assert "skills" not in result.wire_tools()
+    assert result.wire_skills()["skills"][0]["name"] == "release-notes"
     # The persona is forced onto append_system; custom tools and callback pass through.
     assert result.append_system.startswith(AGENTA_FORCED_APPEND_SYSTEM)
     assert result.custom_tools[0]["name"] == "t"
@@ -191,6 +198,25 @@ def test_claude_drops_builtins_and_warns(make_env, monkeypatch):
     assert recorded, "expected a warning when built-ins are dropped"
 
 
+def test_claude_carries_skills_for_project_local_materialization(make_env):
+    harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
+    skill = {
+        "name": "release-notes",
+        "description": "Draft release notes.",
+        "body": "Read the changelog, then write notes.",
+    }
+    config = _session_config(
+        agent=AgentConfig(instructions="hi", model="m", skills=[skill])
+    )
+
+    result = harness._to_harness_config(config)
+
+    # Claude keeps resolved inline packages on the config. The runner materializes them under
+    # `.claude/skills/<name>` in the session cwd, matching Claude's project-local skill layout.
+    assert [s.name for s in result.skills] == ["release-notes"]
+    assert result.wire_skills()["skills"][0]["name"] == "release-notes"
+
+
 def test_claude_no_warning_without_builtins(make_env, monkeypatch):
     recorded = []
     monkeypatch.setattr(
@@ -203,6 +229,47 @@ def test_claude_no_warning_without_builtins(make_env, monkeypatch):
     harness._to_harness_config(_session_config(permission_policy="auto"))
 
     assert recorded == []
+
+
+def test_claude_threads_options_and_renders_settings_file(make_env):
+    import json
+
+    harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
+    options = {
+        "claude": {
+            "permissions": {
+                "default_mode": "acceptEdits",
+                "allow": ["Read"],
+                "deny": ["Write", "Edit"],
+            }
+        },
+        "pi": {"system": "ignored for Claude"},
+    }
+    agent = AgentConfig(instructions="hi", model="m", harness_options=options)
+
+    result = harness._to_harness_config(_session_config(agent=agent))
+
+    # The whole map is threaded onto the config; the claude config's `wire_harness_files` (the
+    # Python claude adapter) translates its own `claude.permissions` slice into a rendered file.
+    assert result.harness_options == options
+    wire = result.wire_harness_files()
+    assert wire["harnessFiles"][0]["path"] == ".claude/settings.json"
+    assert json.loads(wire["harnessFiles"][0]["content"]) == {
+        "permissions": {
+            "defaultMode": "acceptEdits",
+            "allow": ["Read"],
+            "deny": ["Write", "Edit"],
+        }
+    }
+
+
+def test_claude_without_harness_options_renders_no_files(make_env):
+    harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
+
+    result = harness._to_harness_config(_session_config())
+
+    assert result.harness_options == {}
+    assert result.wire_harness_files() == {}
 
 
 # --------------------------------------------------------------- _normalize_tool_specs

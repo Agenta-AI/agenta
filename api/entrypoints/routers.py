@@ -87,6 +87,7 @@ from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.service import SimpleWorkflowsService
+from oss.src.core.workflows.platform_catalog import PlatformWorkflowCatalog
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.environments.service import EnvironmentsService
@@ -495,6 +496,7 @@ folders_service = FoldersService(
 
 workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
+    platform_catalog=PlatformWorkflowCatalog(),
 )
 
 environments_service = EnvironmentsService(

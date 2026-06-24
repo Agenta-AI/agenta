@@ -42,6 +42,14 @@ AGENT_INPUTS_SCHEMA = {
 # The catalog type keeps the typed tools/mcp_servers shape in one place; this schema only
 # carries the default that the playground pre-fills. The agent handler reads it from
 # `parameters.agent` in app.py.
+# Reserved slug of the platform default skill, served from code by the PlatformWorkflowCatalog
+# (api/oss/src/core/workflows/platform_catalog.py), never the database. The default config
+# references it by stable slug through an @ag.embed; the embed resolver inlines the catalogue's
+# SkillConfig (at the canonical parameters.skill selector) before the runner sees it. The
+# `_agenta.` prefix is reserved: a user cannot author or shadow it. This replaces both
+# AGENTA_FORCED_SKILLS and the old per-project skill seeder.
+_DEFAULT_SKILL_SLUG = "_agenta.agenta-getting-started"
+
 _DEFAULT_AGENT_CONFIG = {
     "agents_md": _DEFAULT_AGENTS_MD,
     "model": _DEFAULT_MODEL,
@@ -50,6 +58,25 @@ _DEFAULT_AGENT_CONFIG = {
     "harness": "pi",
     "sandbox": "local",
     "permission_policy": "auto",
+    # The declared sandbox boundary the playground pre-fills (Layer 2). Network egress on by
+    # default; the runner does not enforce it yet (plumbing-only slice).
+    "sandbox_permission": {
+        "network": {"mode": "on", "allowlist": []},
+        "enforcement": "strict",
+    },
+    "skills": [
+        {
+            "@ag.embed": {
+                # Reference the skill at the ARTIFACT level (resolves to its latest revision).
+                # A `workflow_revision` slug matches the revision's own hash slug, not the
+                # author-facing artifact slug, so a bare revision slug with no version 500s;
+                # `workflow.slug` is the correct "use the latest" shape. Pin a version with
+                # `{"workflow_revision": {"slug": <artifact-slug>, "version": "v3"}}`.
+                "@ag.references": {"workflow": {"slug": _DEFAULT_SKILL_SLUG}},
+                "@ag.selector": {"path": "parameters.skill"},
+            }
+        }
+    ],
 }
 
 AGENT_CONFIG_SCHEMA = {

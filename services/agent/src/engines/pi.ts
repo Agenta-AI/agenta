@@ -43,6 +43,7 @@ import {
   resolveRunSessionId,
   resolvePromptText,
 } from "../protocol.ts";
+import { KNOWN_PROVIDER_ENV_VARS } from "./sandbox_agent/daemon.ts";
 import { EMPTY_OBJECT_SCHEMA } from "../tools/callback.ts";
 import { runResolvedTool } from "../tools/dispatch.ts";
 import { resolveSkillDirs } from "./skills.ts";
@@ -71,14 +72,29 @@ function log(message: string): void {
 // exactly so one request's vault keys cannot leak into the next request.
 let providerEnvQueue: Promise<void> = Promise.resolve();
 
-async function withRequestProviderEnv<T>(
+export async function withRequestProviderEnv<T>(
   secrets: Record<string, string> | undefined,
   fn: () => Promise<T>,
+  // Clear-then-apply (Security rule 5 in the provider-model-auth design): on a MANAGED run
+  // (`credentialMode === "env"`) clear ALL `KNOWN_PROVIDER_ENV_VARS` first so an inherited key
+  // for another provider cannot leak in, then apply only `secrets`. For runtime_provided/none/
+  // un-migrated runs the in-process Pi uses its own env/login, so we do NOT clear.
+  credentialMode?: string,
 ): Promise<T> {
+  const clearProviderEnv = credentialMode === "env";
   const run = providerEnvQueue.then(async () => {
+    // Snapshot every var we touch so the finally restores the prior process env exactly. The
+    // managed case snapshots the whole known set (it clears them); every case snapshots the
+    // keys it applies. A var that appears in both is snapshotted once (Map keys dedupe).
     const previous = new Map<string, string | undefined>();
+    if (clearProviderEnv) {
+      for (const key of KNOWN_PROVIDER_ENV_VARS) {
+        if (!previous.has(key)) previous.set(key, process.env[key]);
+        delete process.env[key];
+      }
+    }
     for (const [key, value] of Object.entries(secrets ?? {})) {
-      previous.set(key, process.env[key]);
+      if (!previous.has(key)) previous.set(key, process.env[key]);
       if (value) process.env[key] = value;
       else delete process.env[key];
     }
@@ -102,7 +118,9 @@ async function withRequestProviderEnv<T>(
 function pickModel(available: any[], wanted?: string): any {
   return (
     (wanted &&
-      available.find((m) => m.id === wanted || `${m.provider}/${m.id}` === wanted)) ||
+      available.find(
+        (m) => m.id === wanted || `${m.provider}/${m.id}` === wanted,
+      )) ||
     available.find((m) => m.id === "gpt-5.5") ||
     available.find((m) => !/spark|mini/i.test(m.id)) ||
     available[0]
@@ -160,22 +178,36 @@ export function buildCustomTools(
       parameters: (spec.inputSchema as any) ?? EMPTY_OBJECT_SCHEMA,
     };
     if (spec.kind === "client") {
-      log(`skipping client tool '${spec.name}' (browser-fulfilled; not available in-process)`);
+      log(
+        `skipping client tool '${spec.name}' (browser-fulfilled; not available in-process)`,
+      );
       continue;
     }
     if (spec.kind === "code") {
       tools.push({
         ...base,
-        async execute(toolCallId: string, params: unknown, signal?: AbortSignal) {
-          const text = await runResolvedTool(spec, params, { toolCallId, signal });
-          return { content: [{ type: "text", text }], details: { kind: "code" } };
+        async execute(
+          toolCallId: string,
+          params: unknown,
+          signal?: AbortSignal,
+        ) {
+          const text = await runResolvedTool(spec, params, {
+            toolCallId,
+            signal,
+          });
+          return {
+            content: [{ type: "text", text }],
+            details: { kind: "code" },
+          };
         },
       });
       continue;
     }
     // callback (default): route back to Agenta's /tools/call.
     if (!callback?.endpoint) {
-      log(`skipping callback tool '${spec.name}': missing toolCallback endpoint`);
+      log(
+        `skipping callback tool '${spec.name}': missing toolCallback endpoint`,
+      );
       continue;
     }
     tools.push({
@@ -201,7 +233,37 @@ export async function runPi(
   request: AgentRunRequest,
   emit?: EmitEvent,
 ): Promise<AgentRunResult> {
-  return withRequestProviderEnv(request.secrets, () => runPiWithEnv(request, emit));
+  return withRequestProviderEnv(
+    request.secrets,
+    () => runPiWithEnv(request, emit),
+    request.credentialMode,
+  );
+}
+
+/**
+ * The in-process Pi engine has no sandbox and runs tools directly (no relay), so it cannot honor
+ * the capability layers the sandbox-agent engine enforces. Rather than silently ignore a
+ * restrictive policy, fail loud and point at the enforcing backend. (Layer 1 Claude settings are
+ * not checked here: Claude always runs over sandbox-agent, never this engine.)
+ */
+export function unenforceableCapabilityConfig(
+  request: AgentRunRequest,
+): string | undefined {
+  const net = request.sandboxPermission?.network?.mode;
+  if (net && net !== "on") {
+    return `the in-process 'pi' backend cannot enforce sandbox_permission.network='${net}' (it has no sandbox); use the 'sandbox-agent' backend.`;
+  }
+  const fs = request.sandboxPermission?.filesystem;
+  if (fs && fs !== "on") {
+    return `the in-process 'pi' backend cannot enforce sandbox_permission.filesystem='${fs}'; use the 'sandbox-agent' backend.`;
+  }
+  const gated = (request.customTools as { name?: string; permission?: string }[] | undefined)
+    ?.filter((t) => t?.permission === "deny" || t?.permission === "ask")
+    .map((t) => t?.name ?? "?");
+  if (gated && gated.length > 0) {
+    return `the in-process 'pi' backend does not enforce tool permissions (deny/ask) for [${gated.join(", ")}]; use the 'sandbox-agent' backend.`;
+  }
+  return undefined;
 }
 
 async function runPiWithEnv(
@@ -210,10 +272,21 @@ async function runPiWithEnv(
 ): Promise<AgentRunResult> {
   const prompt = resolvePromptText(request);
   if (!prompt) {
-    return { ok: false, error: "No user message to send (prompt/messages empty)." };
+    return {
+      ok: false,
+      error: "No user message to send (prompt/messages empty).",
+    };
+  }
+
+  const unenforceable = unenforceableCapabilityConfig(request);
+  if (unenforceable) {
+    return { ok: false, error: `Capability config rejected: ${unenforceable}` };
   }
 
   const cwd = mkdtempSync(join(tmpdir(), "agenta-agent-"));
+  // Removes the per-run skills temp root; assigned once skills materialize and always run in
+  // the outer `finally`. No-op until then.
+  let skillsCleanup: () => void = () => {};
 
   try {
     const authStorage = AuthStorage.create();
@@ -227,8 +300,22 @@ async function runPiWithEnv(
       };
     }
 
+    // `request.model` is the resolved exact model (the Python wire sets it from the resolved
+    // connection when one exists). The fallback chain in pickModel stays: model-config owns the
+    // staged strict-fail rollout, this slice does not flip strict on.
     const model = pickModel(available, request.model);
     log(`model: ${model.provider}/${model.id}`);
+
+    // A custom OpenAI-compatible base_url for in-process Pi (registerProvider / models.json
+    // write into the agent dir) is OWNED by the model-config sibling project (Part 1) and not
+    // landed here. Log it so a configured-but-not-applied endpoint is visible rather than
+    // silently ignored. The Claude path applies ANTHROPIC_BASE_URL in the sandbox-agent engine.
+    if (request.endpoint?.baseUrl) {
+      log(
+        `endpoint.baseUrl '${request.endpoint.baseUrl}' is not applied in-process yet ` +
+          `(Pi custom-endpoint write is owned by the model-config project); ignoring for this run`,
+      );
+    }
 
     // Tracing: turn this run into OTel spans. When the caller passed a traceparent,
     // invoke_agent nests under their /invoke span so the whole agent run is part of the
@@ -249,22 +336,26 @@ async function runPiWithEnv(
     // request carries applies, never a SYSTEM.md / APPEND_SYSTEM.md left on disk.
     const systemPrompt = request.systemPrompt?.trim();
     const appendSystemPrompt = request.appendSystemPrompt?.trim();
-    // Forced skills (the Agenta harness): load exactly the bundled dirs the request names.
+    // Skills: materialize each resolved inline package into a fresh dir and load exactly those.
     // `noSkills` suppresses host/global discovery so the run is deterministic; the loader still
-    // merges `additionalSkillPaths` on top, so the bundled skills load. They only surface in
-    // the prompt when `read` is enabled (the harness forces it).
-    const skillDirs = resolveSkillDirs(request.skills, log);
-    if (skillDirs.length > 0) {
-      log(`skills: ${skillDirs.join(", ")}`);
+    // merges `additionalSkillPaths` on top, so the materialized skills load. They only surface
+    // in the prompt when `read` is enabled (the harness forces it). The temp root is removed in
+    // the outer `finally` (skillsCleanup) on both success and error.
+    const skillsResult = resolveSkillDirs(request.skills, log);
+    const skills = skillsResult.skills;
+    skillsCleanup = skillsResult.cleanup;
+    if (skills.length > 0) {
+      log(`skills: ${skills.map((s) => s.name).join(", ")}`);
     }
     const loader = new DefaultResourceLoader({
       cwd,
       agentDir: getAgentDir(),
       noContextFiles: true,
       noSkills: true,
-      additionalSkillPaths: skillDirs,
+      additionalSkillPaths: skills.map((s) => s.dir),
       systemPromptOverride: () => systemPrompt || undefined,
-      appendSystemPromptOverride: () => (appendSystemPrompt ? [appendSystemPrompt] : []),
+      appendSystemPromptOverride: () =>
+        appendSystemPrompt ? [appendSystemPrompt] : [],
       agentsFilesOverride: () => ({
         agentsFiles: agentsMd
           ? [{ path: "/virtual/AGENTS.md", content: agentsMd }]
@@ -276,7 +367,10 @@ async function runPiWithEnv(
 
     // Build runnable tools from the resolved specs. Pi's allowlist gates custom tools too,
     // so their names must be in `tools` for the model to see them.
-    const customTools = buildCustomTools(request.customTools ?? [], request.toolCallback);
+    const customTools = buildCustomTools(
+      request.customTools ?? [],
+      request.toolCallback,
+    );
     const toolAllowlist = [
       ...(request.tools ?? []),
       ...customTools.map((tool) => tool.name),
@@ -287,7 +381,9 @@ async function runPiWithEnv(
 
     // Created before the prompt so a throw mid-run still flushes the partial trace and
     // disposes the session (the inner finally below). Mirrors the sandbox-agent engine's pattern.
-    let session: Awaited<ReturnType<typeof createAgentSession>>["session"] | undefined;
+    let session:
+      | Awaited<ReturnType<typeof createAgentSession>>["session"]
+      | undefined;
     try {
       ({ session } = await createAgentSession({
         cwd,
@@ -394,6 +490,7 @@ async function runPiWithEnv(
       session?.dispose();
     }
   } finally {
+    skillsCleanup();
     try {
       rmSync(cwd, { recursive: true, force: true });
     } catch {

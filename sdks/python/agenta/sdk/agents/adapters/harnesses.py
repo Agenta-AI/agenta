@@ -9,7 +9,10 @@ turning the neutral :class:`SessionConfig` into the harness's own config, especi
 - **Claude** has no built-in tools (they are a Pi concept), delivers tools over MCP, and
   gates tool use, so the permission policy applies.
 - **Agenta** is Pi with an opinion: the same engine and config shape, plus a fixed set of
-  forced tools, skills, a base AGENTS.md preamble, and a persona (see :mod:`.agenta_builtins`).
+  forced tools, a base AGENTS.md preamble, and a persona (see :mod:`.agenta_builtins`).
+  Skills ride the neutral config as resolved inline packages. Pi and Agenta install them
+  through Pi skill dirs; Claude carries them so the runner can write project-local
+  `.claude/skills` packages. Seeding platform default skills is a separate workstream.
 
 The backend below stays pure plumbing; this layer owns the harness knowledge.
 """
@@ -30,7 +33,6 @@ from ..dtos import (
 from ..interfaces import Environment, Harness
 from ..tools.models import ToolSpec, coerce_tool_spec
 from .agenta_builtins import (
-    AGENTA_FORCED_SKILLS,
     compose_append_system,
     compose_instructions,
     force_tools,
@@ -64,10 +66,14 @@ class PiHarness(Harness):
         return PiAgentConfig(
             agents_md=config.agent.instructions,
             model=config.agent.model,
+            resolved_connection=config.resolved_connection,
             builtin_names=list(config.builtin_names),
             tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
             mcp_servers=list(config.mcp_servers),
+            skills=list(config.agent.skills),
+            sandbox_permission=config.agent.sandbox_permission,
+            harness_options=config.agent.harness_options,
             system=_opt_str(pi_options.get("system")),
             append_system=_opt_str(pi_options.get("append_system")),
         )
@@ -85,12 +91,23 @@ class ClaudeHarness(Harness):
                 "ClaudeHarness ignores %d built-in tool(s); built-ins are a Pi concept",
                 len(config.builtin_names),
             )
+        # Skills stay on the harness config; the runner materializes them under `.claude/skills`
+        # in the session cwd so Claude ACP can load the same resolved inline packages.
+        # The whole neutral harness_options bag (plus sandbox_permission + mcp_servers) is threaded
+        # onto the ClaudeAgentConfig; the config's `wire_harness_files` (the Python claude adapter)
+        # parses the `claude.permissions` slice and renders `.claude/settings.json` as a generic
+        # `harnessFiles` entry. No claude-specific parsing happens here; the runner just writes the
+        # files into the cwd.
         return ClaudeAgentConfig(
             agents_md=config.agent.instructions,
             model=config.agent.model,
+            resolved_connection=config.resolved_connection,
             tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
             mcp_servers=list(config.mcp_servers),
+            skills=list(config.agent.skills),
+            sandbox_permission=config.agent.sandbox_permission,
+            harness_options=config.agent.harness_options,
             permission_policy=config.permission_policy,
         )
 
@@ -98,9 +115,10 @@ class ClaudeHarness(Harness):
 class AgentaHarness(Harness):
     """Pi with an Agenta opinion. Same engine as :class:`PiHarness`, but every run carries the
     forced Agenta extras (see :mod:`.agenta_builtins`): a base AGENTS.md preamble the author's
-    instructions are appended to, a forced persona ``append_system``, forced tools, and forced
-    skills. The author's own Pi ``harness_options`` (``system`` / ``append_system``) still
-    apply, layered after the forced bits."""
+    instructions are appended to, a forced persona ``append_system``, and forced tools. The
+    author's own Pi ``harness_options`` (``system`` / ``append_system``) still apply, layered
+    after the forced bits. Skills come from the neutral config as resolved inline packages;
+    seeding platform default skills is a separate project-creation workstream."""
 
     harness_type = HarnessType.AGENTA
 
@@ -111,15 +129,18 @@ class AgentaHarness(Harness):
         return AgentaAgentConfig(
             agents_md=compose_instructions(config.agent.instructions),
             model=config.agent.model,
+            resolved_connection=config.resolved_connection,
             builtin_names=force_tools(list(config.builtin_names)),
             tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
             mcp_servers=list(config.mcp_servers),
+            skills=list(config.agent.skills),
+            sandbox_permission=config.agent.sandbox_permission,
+            harness_options=config.agent.harness_options,
             system=_opt_str(pi_options.get("system")),
             append_system=compose_append_system(
                 _opt_str(pi_options.get("append_system"))
             ),
-            skills=list(AGENTA_FORCED_SKILLS),
         )
 
 

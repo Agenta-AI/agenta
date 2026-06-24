@@ -23,7 +23,9 @@
       "description": "Get a user",
       "inputSchema": {"type": "object", "properties": {}},
       "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
-      "kind": "callback"
+      "kind": "callback",
+      "readOnly": true,
+      "permission": "allow"
     }
   ],
   "toolCallback": {
@@ -32,5 +34,21 @@
   },
   "permissionPolicy": "auto",
   "systemPrompt": "You are Pi.",
-  "appendSystemPrompt": "Be terse."
+  "appendSystemPrompt": "Be terse.",
+  "skills": [
+    {
+      "name": "release-notes",
+      "description": "Draft release notes from a changelog.",
+      "body": "Read the changelog, then write release notes.",
+      "files": [
+        {"path": "scripts/draft.py", "content": "print('draft')", "executable": true}
+      ],
+      "disableModelInvocation": true,
+      "allowExecutableFiles": true
+    }
+  ],
+  "sandboxPermission": {
+    "network": {"mode": "off", "allowlist": []},
+    "enforcement": "strict"
+  }
 }
