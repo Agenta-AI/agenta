@@ -1,69 +1,65 @@
 # Agent Workflows
 
-This workspace documents the active agent-workflows PR stack and the work still needed to
-make it production-ready.
+This workspace documents the agent-workflows feature: running a coding harness as an
+Agenta workflow. It is organized into four layers so the living design docs stay separate
+from in-flight project notes and historical archaeology.
 
-The source of truth is the code listed in [Ground Truth](ground-truth.md). Design pages at
-this level describe the active-stack implementation unless they explicitly say "planned",
-"blocked", or "not implemented". The docs PR commit itself is docs-only and does not
-contain every referenced code file. Use [PR Stack](pr-stack.md) to map each code reference
-to the sibling PR that carries it. Historical work-package notes and old RFCs live in
-[trash/](trash/).
+## Layout
 
-## Read In This Order
+- **[documentation/](documentation/)** — the living design docs, kept current with the
+  code. Start here.
+- **[projects/](projects/)** — active, self-contained workstreams. Each has its own
+  `README.md`/`status.md`. These graduate into `documentation/` or fold into the code as
+  they land.
+- **[scratch/](scratch/)** — transient coordination: status, open issues, PR/branch
+  cleanup reports. These drop off and move to `archive/` over time.
+- **[archive/](archive/)** — superseded notes, old RFCs, and finished work-package
+  spikes. Kept for archaeology only; not design truth.
+- **trash/** — truly disposable items, safe to delete.
 
-1. [Ground Truth](ground-truth.md): what the active-stack code does, what is wired, and
+## documentation/ (read in this order)
+
+1. [Ground Truth](documentation/ground-truth.md): what the code does, what is wired, and
    what is still missing.
-2. [Status](status.md): active-stack cleanup state, decisions, blockers, and next steps.
-3. [Meeting Alignment](meeting-alignment.md): where the active work matches the June 18
-   design discussion, where it diverges, and what still needs to be done.
-4. [Architecture](architecture.md): the service, agent runner sidecar, harnesses, and
-   sandboxes.
-5. [Protocol](protocol.md): `/invoke`, `/messages`, `/load-session`, and the runner `/run`
-   wire contract.
-6. [Ports and Adapters](ports-and-adapters.md): the SDK runtime ports, backend adapters,
-   harness adapters, and browser protocol adapter.
-7. [Agent Template](agent-template.md): the intended split between generic agent identity,
-   harness-specific config, and runtime infrastructure.
-8. [Sessions](sessions.md): cold replay, streaming, session ids, and the missing session
-   store.
-9. [Triggers](triggers.md): planned trigger/event integration and the missing Compose.io
-   POC.
-10. [Pi Adapter](adapters/pi.md): Pi-specific tool delivery, prompt layers, tracing, and
-   usage writeback.
-11. [Claude Code Adapter](adapters/claude-code.md): Claude over ACP, MCP tool delivery,
-   permissions, tracing, and usage.
-12. [Agenta Harness](adapters/agenta.md): the experimental Agenta-flavored Pi harness.
-13. [SDK Local Tools](sdk-local-tools/): planned and partly implemented work for standalone
-   SDK tool resolution. This remains blocked by `LocalBackend`.
-    - [Provider, Model, and Auth](provider-model-auth/): research and design for how a harness
-      selects its provider/model and gets the right credential injected (provider concept,
-      multi-account connections, OAuth/sidecar auth, least-privilege secret injection).
-14. [PR Stack](pr-stack.md): functional breakpoints for reviewable stacked PRs.
-15. [Implementation Review](implementation-review.md): high-level cleanup risks and PR
-    slicing notes.
-16. [Open Issues](open-issues.md): deferred decisions that need ownership.
+2. [Architecture](documentation/architecture.md): the service, agent runner sidecar,
+   harnesses, and sandboxes.
+3. [Protocol](documentation/protocol.md): `/invoke`, `/messages`, `/load-session`, and the
+   runner `/run` wire contract.
+4. [Ports and Adapters](documentation/ports-and-adapters.md): the SDK runtime ports,
+   backend adapters, harness adapters, and browser protocol adapter.
+5. [Agent Template](documentation/agent-template.md): the split between generic agent
+   identity, harness-specific config, and runtime infrastructure.
+6. [Sessions](documentation/sessions.md): cold replay, streaming, session ids, and the
+   missing session store.
+7. [Triggers](documentation/triggers.md): planned trigger/event integration.
+8. [Tools](documentation/tools.md): the tool taxonomy and executor model.
+9. Adapters: [Pi](documentation/adapters/pi.md),
+   [Claude Code](documentation/adapters/claude-code.md),
+   [Agenta](documentation/adapters/agenta.md).
+10. [Skills](documentation/skills.md): the development-workflow skills (plan, implement,
+    debug, test, document, branch) and how they chain across a feature's life.
 
-## Active-Stack State
+## projects/
 
-The agent workflow runs a coding harness as an Agenta workflow. It supports:
+- [code-tool-sandbox](projects/code-tool-sandbox/) — sandboxed code-tool execution.
+- [harness-capabilities](projects/harness-capabilities/) — per-harness capability model.
+- [model-config](projects/model-config/) — model selection config.
+- [provider-model-auth](projects/provider-model-auth/) — provider/model/credential
+  injection.
+- [qa](projects/qa/) — manual QA matrix, findings, and regression-test skills.
+- [runner-interface](projects/runner-interface/) — runner `/run` interface notes.
+- [sdk-local-tools](projects/sdk-local-tools/) — standalone SDK tool resolution.
+- [sidecar-deployment-proposal](projects/sidecar-deployment-proposal/) — sidecar to
+  k8s/Helm + prod compose + Railway.
+- [skills-config](projects/skills-config/) — skills configuration.
+- [tool-resolution-layering](projects/tool-resolution-layering/) — SDK tool-resolution
+  layering.
+- [typescript-structure](projects/typescript-structure/) — TS runner structure and tests.
+- [sandbox-agent-refactor](projects/sandbox-agent-refactor/) — sandbox-agent runner
+  refactor plan.
+- [research](projects/research/) — external-architecture research (e.g. OpenCode).
 
-- A batch `/invoke` path that returns the final assistant message.
-- An agent-only `/messages` path that accepts Vercel `UIMessage` input and can stream a
-  Vercel UI Message Stream over SSE.
-- A `/load-session` route with the right contract but no durable storage by default.
-- Pi and Claude harnesses through the sandbox-agent runner.
-- Pi and the experimental `agenta` harness through the in-process Pi backend.
-- Server-resolved tool specs, code tool execution, callback tools, and MCP plumbing behind
-  a feature flag.
+## scratch/
 
-The main missing pieces are durable server-owned sessions, future session snapshot
-interfaces, the agent template/config split, trigger integration, a working standalone
-`LocalBackend`, production Agenta harness content, first-class built-in workflow
-registration, and the final cleanup of historical work-package names in comments and docs.
-
-## Trash
-
-[trash/](trash/) holds old work-package notes, research spikes, and superseded RFCs. It is
-kept for archaeology only. Do not treat it as design truth unless a current page links to a
-specific note as background.
+Status, open issues, PR-stack and branch-cleanup reports, meeting-alignment, the
+implementation review, and the feature-matrix test report. Transient by design.

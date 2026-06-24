@@ -86,6 +86,10 @@ class FakeBackend(Backend):
         # Every harness-shaped config that reached the backend boundary, in call order.
         self.created_configs: list = []
         self.created_session_ids: list[Optional[str]] = []
+        # The injected provider env (``session_config.secrets``) per session, in call order.
+        # This is the credential channel; a Slice 3 test asserts exactly one connection's env
+        # reaches the boundary (or nothing, for a runtime_provided / unconfigured run).
+        self.created_secrets: list[Optional[Mapping[str, str]]] = []
 
     async def setup(self) -> None:
         self.setup_calls += 1
@@ -101,6 +105,7 @@ class FakeBackend(Backend):
     ) -> _FakeSession:
         self.created_configs.append(config)
         self.created_session_ids.append(session_id)
+        self.created_secrets.append(secrets)
         return _FakeSession(self._result)
 
 

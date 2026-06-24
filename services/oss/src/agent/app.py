@@ -3,9 +3,9 @@
 Mirrors the chat/completion services: an Agenta app exposing ``/invoke`` and ``/inspect``
 through ``ag.create_app`` + ``ag.workflow`` + ``ag.route``. The handler parses the request
 into a neutral ``AgentConfig`` + ``RunSelection`` (``agenta.sdk.agents``), resolves tools
-(``tools``) and provider secrets (``secrets``) server-side, threads the trace context
-(``tracing``), then runs one turn through a :class:`Harness` over a backend it picks from
-the selection, and records the run's usage.
+(``tools``) and one least-privilege model connection (``resolve_connection``) server-side,
+threads the trace context (``tracing``), then runs one turn through a :class:`Harness` over a
+backend it picks from the selection, and records the run's usage.
 
 The sandbox-agent-backed backend is the production path. The transport is a deployment
 choice: HTTP to `AGENTA_AGENT_RUNNER_URL`, or a local runner CLI in a source checkout.
@@ -19,7 +19,11 @@ import agenta as ag
 from agenta.sdk.agents import (
     AgentConfig,
     Backend,
+    ConnectionResolutionError,
     Environment,
+    ModelRef,
+    ResolvedConnection,
+    RuntimeAuthContext,
     SandboxAgentBackend,
     RunSelection,
     SessionConfig,
@@ -28,12 +32,28 @@ from agenta.sdk.agents import (
 )
 from agenta.sdk.agents.adapters.vercel import agent_run_to_vercel_parts
 
-from agenta.sdk.agents.platform import resolve_secrets
+from agenta.sdk.agents.capabilities import (
+    harness_allows_deployment,
+    harness_allows_mode,
+    harness_allows_provider,
+    harness_capabilities_document,
+)
+from agenta.sdk.agents.connections import (
+    UnsupportedConnectionModeError,
+    UnsupportedDeploymentError,
+    UnsupportedProviderError,
+)
+
+from agenta.sdk.agents.platform import resolve_connection
+
+from agenta.sdk.utils.logging import get_module_logger
 
 from oss.src.agent.config import load_config, runner_dir, runner_url
 from oss.src.agent.schemas import AGENT_SCHEMAS
 from oss.src.agent.tools import resolve_mcp_servers, resolve_tools
 from oss.src.agent.tracing import record_usage, trace_context
+
+log = get_module_logger(__name__)
 
 
 def _default_agent_config() -> AgentConfig:
@@ -44,6 +64,116 @@ def _default_agent_config() -> AgentConfig:
         model=file_cfg.model,
         tools=file_cfg.tools,
     )
+
+
+def _agent_model_ref(agent_config: AgentConfig) -> Optional[ModelRef]:
+    """The structured model ref for the run, or ``None`` when no model is configured.
+
+    Prefer the parsed ``model_ref`` (populated only when the config's ``model`` arrived as a
+    dict/object carrying a connection); otherwise coerce the back-compat plain ``model`` string.
+    ``None`` means no model at all, in which case the harness uses its own default/login and no
+    connection is resolved.
+    """
+    if agent_config.model_ref is not None:
+        return agent_config.model_ref
+    if isinstance(agent_config.model, str) and agent_config.model.strip():
+        return ModelRef.coerce(agent_config.model)
+    return None
+
+
+def _check_harness_pre_resolve(model_ref: ModelRef, harness: Optional[str]) -> None:
+    """The PRE-resolve half of the agent-layer capability check (design Concern 3b).
+
+    The provider and connection mode are known from the config alone, so reject them before the
+    vault resolve runs. The vault resolve itself is harness-agnostic; this guard (and the
+    post-resolve deployment guard) is the only place the harness gates a credential, and it is
+    server-side so a direct API caller is checked too. An unset harness skips the check.
+    """
+    if not harness:
+        return
+    provider = model_ref.provider
+    if provider and not harness_allows_provider(harness, provider):
+        raise UnsupportedProviderError(provider=provider, harness=harness)
+    mode = model_ref.connection.mode
+    if not harness_allows_mode(harness, mode):
+        raise UnsupportedConnectionModeError(mode=mode, harness=harness)
+
+
+def _check_harness_post_resolve(
+    resolved: ResolvedConnection, harness: Optional[str]
+) -> None:
+    """The POST-resolve half of the capability check: reject an unconsumable deployment.
+
+    A slug-less ``agenta`` connection only reveals its deployment once the vault selects the
+    secret, so the deployment reject runs after the resolve returns (e.g. Claude resolving to
+    ``bedrock`` fails loud here; a Pi run resolving to a cloud deployment fails loud the same
+    way, since Pi cloud consumption stages with model-config in v1).
+    """
+    if not harness:
+        return
+    if not harness_allows_deployment(harness, resolved.deployment):
+        raise UnsupportedDeploymentError(
+            deployment=resolved.deployment, harness=harness
+        )
+
+
+async def _resolve_session_connection(
+    model_ref: ModelRef,
+    context: RuntimeAuthContext,
+) -> ResolvedConnection:
+    """Resolve exactly one least-privilege connection for the run, with graceful degradation.
+
+    The agent-layer capability check is split around the vault resolve: provider + mode are
+    rejected BEFORE the resolve (known from the config), the resolved deployment is rejected
+    AFTER (only known once the vault picks the secret). Both run here, against the SDK capability
+    table; the vault resolve stays harness-agnostic.
+
+    An EXPLICIT named ``agenta`` connection (``slug`` set) fails loud on a resolution failure: the
+    user named a connection, so a missing/ambiguous one is a real error they must fix.
+
+    A project-default connection (``agenta`` with no slug, the common unconfigured case the
+    playground hits on every run) or a ``self_managed`` connection is TOLERANT of a resolution
+    failure: most projects have no configured connection for the default model and rely on the
+    harness's own login / a self-managed sidecar. There a failed resolve (including a network/HTTP
+    error) degrades to an empty ``runtime_provided`` plan so the run still works, exactly as the
+    old whole-vault dump returned ``{}`` and the run proceeded. (A capability reject is NOT
+    tolerated — it is a misconfiguration the user must fix, not a missing credential.)
+
+    The tolerant default is intentional: the model-config staged rollout says NOT to flip
+    strict-fail on by default. When model-config lands its ``AGENTA_AGENT_MODEL_STRICT`` flag, a
+    default-connection resolution failure becomes fail-loud too; that flag is owned by
+    model-config, so no flag is added here.
+    """
+    # PRE-resolve capability reject (fail loud regardless of mode; not a missing-credential case).
+    _check_harness_pre_resolve(model_ref, context.harness)
+
+    connection = model_ref.connection
+    is_named = connection.mode == "agenta" and bool(
+        connection.slug and connection.slug.strip()
+    )
+    if is_named:
+        # Named connection: propagate ConnectionNotFoundError / AmbiguousConnectionError / any
+        # ConnectionResolutionError so the user sees the misconfiguration.
+        resolved = await resolve_connection(model=model_ref, context=context)
+        _check_harness_post_resolve(resolved, context.harness)
+        return resolved
+    try:
+        resolved = await resolve_connection(model=model_ref, context=context)
+    except ConnectionResolutionError:
+        log.warning(
+            "agent: no connection resolved for provider %r (mode=%s); "
+            "running with no injected credential (harness login / self-managed)",
+            model_ref.provider,
+            connection.mode,
+        )
+        return ResolvedConnection(
+            provider=model_ref.provider or "",
+            model=model_ref.model,
+            credential_mode="runtime_provided",
+            env={},
+        )
+    _check_harness_post_resolve(resolved, context.harness)
+    return resolved
 
 
 def select_backend(selection: RunSelection) -> Backend:
@@ -73,14 +203,27 @@ async def _agent(
     selection = RunSelection.from_params(params)
 
     msgs = to_messages(messages or (inputs or {}).get("messages") or [])
-    # Three independent resolutions (tools, MCP, provider-key secrets), not one aggregate:
+    # Three independent resolutions (tools, MCP, the model's one connection), not one aggregate:
     # the boundary resolves; the backend later decides how each tool executes.
     resolved_tools = await resolve_tools(agent_config.tools)
     resolved_mcp = await resolve_mcp_servers(agent_config.mcp_servers)
 
+    # One least-privilege connection for the configured model. The connection rides the config
+    # (inside `parameters`/`agent.model`); there is no new request field and no project id from
+    # the body. project_id is filled server-side from the caller's auth on the resolve call, so
+    # the client-side context leaves it None.
+    model_ref = _agent_model_ref(agent_config)
+    resolved_connection: Optional[ResolvedConnection] = None
+    secrets: Dict[str, str] = {}
+    if model_ref is not None:
+        ctx = RuntimeAuthContext(harness=selection.harness, backend=selection.sandbox)
+        resolved_connection = await _resolve_session_connection(model_ref, ctx)
+        secrets = resolved_connection.env
+
     session_config = SessionConfig(
         agent=agent_config,
-        secrets=await resolve_secrets(),
+        secrets=secrets,  # the env compat alias the wire still reads
+        resolved_connection=resolved_connection,
         permission_policy=selection.permission_policy,
         trace=trace_context(),
         session_id=session_id,
@@ -141,7 +284,16 @@ def create_agent_app():
     # in the SDK) now exists, but this service still registers the handler directly, so it
     # gets an auto URI (`user:custom:...`) and runs locally. Binding the handler to the
     # builtin URI is the remaining step.
-    routed = ag.workflow(schemas=AGENT_SCHEMAS)(_agent)
+    #
+    # The per-harness connection capability rides the inspect response `meta`, NOT a fourth
+    # `AGENT_SCHEMAS` schema key (`JsonSchemas` allows only inputs/parameters/outputs). The
+    # frontend reads `meta.harness_capabilities` and intersects it with the existing `/secrets/`
+    # payload projected as connections; the agent service imports the
+    # SAME SDK table (above) for its server-side reject, never calling its own `/inspect`.
+    routed = ag.workflow(
+        schemas=AGENT_SCHEMAS,
+        meta={"harness_capabilities": harness_capabilities_document()},
+    )(_agent)
     # is_agent gates the agent-only `/messages` + `/load-session` routes (next to /invoke).
     ag.route("/", app=app, flags={"is_chat": True, "is_agent": True})(routed)
     return app

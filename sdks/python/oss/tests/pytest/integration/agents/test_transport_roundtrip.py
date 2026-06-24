@@ -16,11 +16,12 @@ import pytest
 from agenta.sdk.agents import (
     AgentConfig,
     Environment,
-    InProcessPiBackend,
     Message,
     PiHarness,
     SessionConfig,
 )
+
+from ._in_process_backend import InProcessPiBackend
 
 pytestmark = pytest.mark.integration
 

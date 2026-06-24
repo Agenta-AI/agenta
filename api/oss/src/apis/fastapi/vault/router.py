@@ -5,7 +5,6 @@ from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Request, status, HTTPException
 
 from oss.src.utils.common import is_ee
-from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
@@ -19,9 +18,6 @@ from oss.src.core.secrets.dtos import (
 if is_ee():
     from ee.src.core.access.permissions.types import Permission
     from ee.src.core.access.permissions.service import check_action_access
-
-
-log = get_module_logger(__name__)
 
 
 class VaultRouter:

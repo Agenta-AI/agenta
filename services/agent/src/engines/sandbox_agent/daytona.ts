@@ -6,7 +6,7 @@ import {
   uploadSkillsToSandbox,
   uploadSystemPromptToSandbox,
 } from "./pi-assets.ts";
-import type { RunPlan } from "./run-plan.ts";
+import { shouldUploadOwnLogin, type RunPlan } from "./run-plan.ts";
 
 type Log = (message: string) => void;
 
@@ -108,7 +108,13 @@ export interface PrepareDaytonaPiAssetsInput {
   sandbox: any;
   plan: Pick<
     RunPlan,
-    "isPi" | "hasApiKey" | "skillDirs" | "hasSystemPrompt" | "systemPrompt" | "appendSystemPrompt"
+    | "isPi"
+    | "hasApiKey"
+    | "credentialMode"
+    | "skillDirs"
+    | "hasSystemPrompt"
+    | "systemPrompt"
+    | "appendSystemPrompt"
   >;
   log?: Log;
 }
@@ -124,7 +130,11 @@ export async function prepareDaytonaPiAssets({
 }: PrepareDaytonaPiAssetsInput): Promise<void> {
   if (!plan.isPi) return;
 
-  if (!plan.hasApiKey) await uploadPiAuthToSandbox(sandbox, log);
+  // Upload Pi's fallback `auth.json` only when the harness owns its login (Security rule 6):
+  // runtime_provided, or an un-migrated caller with no api key. A resolved key (credentialMode
+  // "env") NEVER triggers the fallback. The decision lives in `shouldUploadOwnLogin` so the rule
+  // is in one place and testable.
+  if (shouldUploadOwnLogin(plan)) await uploadPiAuthToSandbox(sandbox, log);
   await uploadPiExtensionToSandbox(sandbox, DAYTONA_PI_DIR, log);
   if (plan.skillDirs.length > 0) {
     await uploadSkillsToSandbox(sandbox, DAYTONA_PI_DIR, plan.skillDirs, log);
