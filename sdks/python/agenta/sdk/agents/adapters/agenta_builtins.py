@@ -7,11 +7,12 @@ every run carries a fixed set of Agenta-shipped extras the author cannot turn of
 - a base **AGENTS.md preamble** the author's instructions are appended to (``AGENTA_PREAMBLE``),
 - a set of **forced tools** (``AGENTA_FORCED_TOOLS``).
 
-Forced skills are *not* a constant here. They become platform default skills the project-creation
-step seeds as locked workflow revisions and embeds into the agent config (resolved server-side
-into concrete :class:`~agenta.sdk.agents.skills.SkillConfig` packages before the runner). By the
-time this harness runs, those defaults already ride ``AgentConfig.skills``, so the adapter needs
-no name list. That seeding is a separate workstream (see the skills-config proposal).
+Forced skills are *not* a constant here. They are platform default skills served from a
+code-defined ``PlatformWorkflowCatalog`` under the reserved ``_agenta.*`` slug namespace and
+embedded into the agent config (resolved server-side into concrete
+:class:`~agenta.sdk.agents.skills.SkillConfig` packages before the runner). By the time this
+harness runs, those defaults already ride ``AgentConfig.skills``, so the adapter needs no name
+list. The catalogue is a separate workstream (see the skills-config proposal).
 
 Two layers, kept distinct on purpose (matching Pi's own split, see :class:`PiAgentConfig`):
 the *persona* is an ``append_system`` (changes Pi's base prompt), while *project conventions*

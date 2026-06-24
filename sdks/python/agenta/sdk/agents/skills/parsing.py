@@ -27,14 +27,29 @@ _AG_SNIPPET_MARKER = "@{{"
 
 
 def _unresolved_embed_message(value: Any) -> str | None:
-    """Return an error message if ``value`` is still an unresolved embed, else ``None``."""
-    if isinstance(value, Mapping) and _AG_EMBED_MARKER in value:
-        return (
-            "Skill entry is an unresolved @ag.embed reference. Embeds resolve server-side "
-            "before parsing; this usually means resolution was opted out (flags.resolve=False) "
-            "or no resolver ran. Resolve embeds first, or pass an inline skill package."
-        )
-    if isinstance(value, str) and (
+    """Return an error message if ``value`` still contains an unresolved embed, else ``None``.
+
+    Walks nested mappings and sequences so an embed buried in a field (e.g. ``{"body": "@{{...}}"}``
+    or a bundled file's ``content``) is caught here and surfaces the clear, typed error rather than
+    slipping past into a confusing strict-model ``ValidationError``.
+    """
+    if isinstance(value, Mapping):
+        if _AG_EMBED_MARKER in value:
+            return (
+                "Skill entry is an unresolved @ag.embed reference. Embeds resolve server-side "
+                "before parsing; this usually means resolution was opted out (flags.resolve=False) "
+                "or no resolver ran. Resolve embeds first, or pass an inline skill package."
+            )
+        for nested in value.values():
+            message = _unresolved_embed_message(nested)
+            if message is not None:
+                return message
+    elif isinstance(value, (list, tuple)):
+        for nested in value:
+            message = _unresolved_embed_message(nested)
+            if message is not None:
+                return message
+    elif isinstance(value, str) and (
         _AG_EMBED_MARKER in value or _AG_SNIPPET_MARKER in value
     ):
         return (

@@ -90,6 +90,10 @@ class WorkflowFlags(BaseModel):
     is_application: bool = False
     is_evaluator: bool = False
     is_snippet: bool = False
+    is_skill: bool = False
+    # platform-owned (read-only): served from the PlatformWorkflowCatalog under the reserved
+    # `_agenta.*` slug namespace, never the database. A client must not edit or delete it.
+    is_platform: bool = False
 
 
 class WorkflowQueryFlags(BaseModel):
@@ -118,6 +122,8 @@ class WorkflowQueryFlags(BaseModel):
     is_application: Optional[bool] = None
     is_evaluator: Optional[bool] = None
     is_snippet: Optional[bool] = None
+    is_skill: Optional[bool] = None
+    is_platform: Optional[bool] = None
 
 
 class WorkflowRevisionData(BaseModel):

@@ -426,7 +426,7 @@ variant), trigger `What's the weather like today?`
 **The problem.** Embedding a skill with a `workflow_revision` reference that carries a bare
 artifact slug and no version returns HTTP 500 deterministically (~0.02s, not the LLM):
 
-```
+```text
 oss.src.core.embeds.exceptions.EmbedNotFoundError: Referenced entity not found:
   Workflow revision not found: version=None slug='weather-oracle-e2e' id=None
 ```
@@ -459,8 +459,8 @@ covers.
 
 ### F-015 Claude harness drops skills silently (no warning) on the non-Pi path
 
-**Status:** resolved (2026-06-24, warning added at the adapter boundary; coordinate final
-wording with the fix). Was: the drop happened with no log line at all.
+**Status:** resolved (2026-06-24, warning added at the adapter boundary). Was: the drop
+happened with no log line at all.
 **Severity:** minor (observability; the drop itself is by design)
 **Triage:** fix-now (done)
 **Added:** 2026-06-24
@@ -482,7 +482,7 @@ missing warning is the real gap.
 already calls for the Claude adapter to log-and-drop; live, only the drop happened.
 
 **What was done.** A visible warning is emitted at the adapter boundary when skills are dropped
-on a non-Pi harness. Mark resolved once the warning wording lands with the skills-config fix.
+on a non-Pi harness.
 
 ## How to add a finding during a run
 

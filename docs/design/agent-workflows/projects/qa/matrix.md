@@ -38,8 +38,8 @@ the full product is much smaller than it looks.
    Confirm this during the run: if a plain `pi` run can be made to load a skill, that is a
    finding, not an assumption. As of 2026-06-24 the `skills` field carries an author-supplied
    `SkillConfig` (inline or `@ag.embed`), so F-003 is unblocked: skills are no longer
-   forced-only. On Claude the runner drops them by design (it materializes skills for Pi only;
-   the silent-drop observability gap is F-015).
+   forced-only. On Claude the runner drops them by design (it materializes skills for Pi only)
+   and now logs a warning when it does (F-015, resolved 2026-06-24).
 5. **MCP is delivered to non-Pi harnesses only, and is flag-gated.** Per `ground-truth.md`
    MCP delivery exists through the stdio bridge for non-Pi harnesses, and in-process Pi
    reports `mcpTools: false`. So MCP is `valid` on `claude` (sandbox-agent) and `n/a` or
@@ -77,7 +77,7 @@ this QA program must drive. `?` means status unknown until run.
 | MCP (stdio) | n/a? verify | n/a? verify | blocked:mcp-flag + stdio-server + anthropic-key |
 | skills without code | n/a | valid (forced) | n/a |
 | skills with code | n/a | valid | n/a |
-| skill invocation (author config) | n/a | valid (inline + embed) | dropped by design (silent until F-015) |
+| skill invocation (author config) | n/a | valid (inline + embed) | dropped by design (warns; F-015 resolved) |
 | client tools | n/a on /invoke | n/a on /invoke | n/a on /invoke |
 
 ### Valid cell x environment (where each valid capability should run)
@@ -409,7 +409,7 @@ evidence scratchpad (`req_test1_*.json`, `req_test2_*.json`).
 | embed skill (`workflow_revision.slug`) / agenta | fail (F-014) | n/t | bare slug, no version → HTTP 500 `EmbedNotFoundError`; hit the seeded default skill |
 | skill materialization / agenta | n/a | pass | `skills: weather-oracle`, `sandbox=daytona`; skill uploaded into the Daytona sandbox |
 | skill model run / agenta | n/a | blocked:daytona-model-auth | provider key not wired into the Daytona ACP daemon; pre-existing gap, not a skills bug |
-| skill / claude | dropped (silent, F-015) | n/t | runner materializes skills for Pi only; Claude run also blocked:anthropic-key |
+| skill / claude | dropped (warns, F-015 resolved) | n/t | runner materializes skills for Pi only; Claude run also blocked:anthropic-key |
 
 `n/t` = not tested. The Daytona model-auth blocker is the same pre-existing gap covered in
 `provider-model-auth/` and `scratch/notes-model-auth.md` (no QA finding owns it; it is an

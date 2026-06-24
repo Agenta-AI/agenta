@@ -59,6 +59,7 @@ async def test_create_workflow_persists_only_artifact_flags():
 
     artifact_create = workflows_dao.create_artifact.await_args.kwargs["artifact_create"]
     assert artifact_create.flags is not None
+    # is_platform is server-owned and scrubbed from every DB write, so it never appears here.
     assert artifact_create.flags == {
         "is_application": True,
         "is_evaluator": False,

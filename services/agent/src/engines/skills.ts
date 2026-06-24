@@ -67,8 +67,13 @@ function isSafeSkillName(name: unknown): name is string {
  * does not resolve to the skill's own `SKILL.md` at the dir root, which would clobber the
  * frontmatter the runner just composed. The `SKILL.md` check is case-insensitive.
  */
-function safeSkillFilePath(skillDir: string, relPath: string): string | null {
-  if (!relPath || relPath.startsWith("/") || relPath.startsWith("\\"))
+function safeSkillFilePath(skillDir: string, relPath: unknown): string | null {
+  if (
+    typeof relPath !== "string" ||
+    !relPath ||
+    relPath.startsWith("/") ||
+    relPath.startsWith("\\")
+  )
     return null;
   const target = resolve(skillDir, relPath);
   const rel = relative(skillDir, target);
@@ -125,22 +130,30 @@ export function resolveSkillDirs(
     }
   };
   const out: MaterializedSkill[] = [];
+  const seenNames = new Set<string>();
 
   for (const skill of skills) {
     if (!isSafeSkillName(skill?.name)) {
       log(`skipping skill with unsafe name ${JSON.stringify(skill?.name)}`);
       continue;
     }
+    // `dir` is keyed only by `skill.name`; a duplicate would overwrite the earlier skill's
+    // SKILL.md while leaving its bundled files behind, so skip the later entry.
+    if (seenNames.has(skill.name)) {
+      log(`skipping duplicate skill "${skill.name}"`);
+      continue;
+    }
+    seenNames.add(skill.name);
     try {
       const dir = join(root, skill.name);
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, "SKILL.md"), composeSkillMd(skill));
 
       for (const file of skill.files ?? []) {
-        const target = safeSkillFilePath(dir, file.path);
+        const target = safeSkillFilePath(dir, file?.path);
         if (!target) {
           log(
-            `skipping unsafe skill file "${file.path}" in skill "${skill.name}"`,
+            `skipping unsafe skill file ${JSON.stringify(file?.path)} in skill "${skill.name}"`,
           );
           continue;
         }

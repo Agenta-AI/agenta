@@ -678,11 +678,13 @@ def infer_flags_from_data(
         is_evaluator = flags.is_evaluator
         is_snippet = flags.is_snippet
         is_skill = flags.is_skill
+        is_platform = flags.is_platform
     else:
         is_application = default_application
         is_evaluator = default_evaluator
         is_snippet = default_snippet
         is_skill = False
+        is_platform = False
 
     return WorkflowFlags(
         # uri-derived
@@ -704,6 +706,7 @@ def infer_flags_from_data(
         is_application=is_application,
         is_snippet=is_snippet,
         is_skill=is_skill,
+        is_platform=is_platform,
     )
 
 

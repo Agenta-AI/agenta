@@ -3,6 +3,45 @@
 Running log of what was built, what was found live, and the judgment calls made during the
 autonomous implementation push. Companion to `proposal.md` (the spec). Newest first.
 
+## Platform-skills catalogue redesign (2026-06-24)
+
+Replaced the per-project seed-and-lock approach for platform default skills with a code-defined
+**`PlatformWorkflowCatalog`** served under a reserved `_agenta.*` slug namespace (design reviewed
+by Codex xhigh; see proposal.md "Platform skills via a reserved catalogue"). Why: the old seeder
+made per-project DB copies, never reached existing projects with new skill versions, would have
+needed a migration per release, and the lock was unsafe. The catalogue ships with the release and
+every project resolves the same code-defined skill, no seeding and no migration.
+
+What landed (branch `feat/agent-skills`, working tree — not yet committed):
+- New: `core/workflows/interfaces.py` (`PlatformWorkflowProvider` port), `platform_catalog.py`
+  (`PlatformWorkflowCatalog`, synthetic revision + deterministic UUIDv5 ids + `SkillConfig`
+  validation), `core/workflows/types.py` (`ReservedWorkflowSlug`), `apis/fastapi/workflows/
+  exceptions.py` (`handle_workflow_exceptions` → 400), `tests/.../test_platform_catalog.py`.
+- `WorkflowsService.fetch_workflow_revision` short-circuits a `_agenta.*` slug to the catalogue
+  BEFORE any DB call (artifact ref → current, revision ref + version → pinned, unknown → None,
+  never falls through to the DB). `_reject_reserved_slug` on `create_workflow` +
+  `commit_workflow_revision`; catalogue injected at the composition root (`entrypoints/routers.py`).
+- `is_platform` flag added to API + SDK workflow flag models (JSONB, no migration) as the
+  read-only signal; threaded through `infer_flags_from_data`.
+- Default agent config embeds `_agenta.agenta-getting-started`.
+- **Deleted** `core/workflows/defaults.py` (seeder) + its callers (`commoners.py`,
+  `accounts/service.py`, `db_manager_ee.py`) + its tests + any lock code. No compat shim
+  (pre-release).
+- FE: `SkillConfigControl` renders a platform skill (reserved `_agenta.` slug, or resolved
+  `flags.is_platform`) read-only — "Platform skill" tag, slug, version, no edit/delete.
+- Also cleared the open CodeRabbit comments on skills code (parsing.py recursive embed reject,
+  skills.ts file-entry validation + duplicate-name reject, types.py path pattern, qa doc nits).
+
+Review found + fixed: P0 — a look-around `pattern=` on the skill-file path crashed `import agenta`
+(pydantic_core's Rust regex rejects look-ahead); replaced with a look-around-free pattern. P1 —
+`create_workflow_revision` lacked `@handle_workflow_exceptions()` so a reserved-slug rejection
+500'd instead of 400; decorator added. The reported `wire_harness_options` AttributeError was a
+red herring (the P0 import crash surfacing under xdist), confirmed not a real bug.
+
+Tests green: API workflows 46, SDK agents 307, agent-service 24, runner TS skills 174, FE 115.
+Pending: Codex implementation review (security pass on the reserved namespace), live E2E on the
+`:8280` stack, then commit/push under the coordination protocol.
+
 ## Status
 
 - Phase A (SDK `SkillConfig` + `wire_skills()` seam + `ResolverMiddleware` inline-embed fix +

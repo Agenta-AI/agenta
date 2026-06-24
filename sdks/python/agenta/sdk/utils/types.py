@@ -1160,8 +1160,20 @@ class _SkillFileSchema(BaseModel):
     path: str = Field(
         min_length=1,
         max_length=255,
+        # Mirror the runtime SkillFile safe-path rules (skills/models.py): a relative POSIX path
+        # only. Reject a leading '/' (absolute), any backslash (Windows separator), and a '..'
+        # segment (dir escape), so the catalog/editor cannot accept a path the runtime rejects.
+        # Built from '/'-joined segments where each segment excludes '/' and '\' and is never
+        # exactly '..' (look-around free, since pydantic_core's regex engine rejects look-ahead).
+        pattern=(
+            r"^(?:[^/\\]|[^./\\][^/\\]*|\.[^./\\][^/\\]*|\.\.[^/\\]+)"
+            r"(?:/(?:[^/\\]|[^./\\][^/\\]*|\.[^./\\][^/\\]*|\.\.[^/\\]+))*$"
+        ),
         title="Path",
-        description="Relative path beside SKILL.md, e.g. 'scripts/foo.py'.",
+        description=(
+            "Relative path beside SKILL.md, e.g. 'scripts/foo.py'. Must be relative: no leading "
+            "'/', no backslashes, no '..' segment, and not SKILL.md (reserved for the frontmatter)."
+        ),
     )
     content: str = Field(
         max_length=200_000,

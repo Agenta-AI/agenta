@@ -121,6 +121,9 @@ class WorkflowArtifactFlags(BaseModel):
     is_evaluator: bool = False
     is_snippet: bool = False
     is_skill: bool = False
+    # platform-owned (read-only): served from the PlatformWorkflowCatalog under the reserved
+    # `_agenta.*` slug namespace, never the database. Lives in JSONB flags, no migration.
+    is_platform: bool = False
 
 
 class WorkflowVariantFlags(WorkflowArtifactFlags):
@@ -155,6 +158,7 @@ class WorkflowArtifactQueryFlags(BaseModel):
     is_evaluator: Optional[bool] = None
     is_snippet: Optional[bool] = None
     is_skill: Optional[bool] = None
+    is_platform: Optional[bool] = None
 
 
 class WorkflowVariantQueryFlags(WorkflowArtifactQueryFlags):
@@ -200,6 +204,7 @@ class WorkflowCatalogFlags(BaseModel):
     is_evaluator: bool = False
     is_snippet: bool = False
     is_skill: bool = False
+    is_platform: bool = False
 
 
 # workflows --------------------------------------------------------------------

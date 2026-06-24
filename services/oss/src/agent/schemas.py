@@ -42,11 +42,13 @@ AGENT_INPUTS_SCHEMA = {
 # The catalog type keeps the typed tools/mcp_servers shape in one place; this schema only
 # carries the default that the playground pre-fills. The agent handler reads it from
 # `parameters.agent` in app.py.
-# Canonical slug of the platform default skill the backend seeds at project creation
-# (api/oss/src/core/workflows/defaults.py). The default config references it by stable slug
-# through an @ag.embed; the embed resolver inlines the stored SkillConfig (at the canonical
-# parameters.skill selector) before the runner sees it. This replaces AGENTA_FORCED_SKILLS.
-_DEFAULT_SKILL_SLUG = "agenta-getting-started"
+# Reserved slug of the platform default skill, served from code by the PlatformWorkflowCatalog
+# (api/oss/src/core/workflows/platform_catalog.py), never the database. The default config
+# references it by stable slug through an @ag.embed; the embed resolver inlines the catalogue's
+# SkillConfig (at the canonical parameters.skill selector) before the runner sees it. The
+# `_agenta.` prefix is reserved: a user cannot author or shadow it. This replaces both
+# AGENTA_FORCED_SKILLS and the old per-project skill seeder.
+_DEFAULT_SKILL_SLUG = "_agenta.agenta-getting-started"
 
 _DEFAULT_AGENT_CONFIG = {
     "agents_md": _DEFAULT_AGENTS_MD,

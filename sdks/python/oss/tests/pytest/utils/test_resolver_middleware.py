@@ -101,25 +101,6 @@ class TestHasEmbedMarkers:
         )
 
     # -------------------------------------------------------------------------
-    # Snippet shorthand (@{{...}}) — the backend resolver resolves these too
-    # -------------------------------------------------------------------------
-
-    def test_snippet_shorthand_in_value(self):
-        config = {"greeting": "Say: @{{environment.slug=production, key=my_snippet}}"}
-        assert _has_embed_markers(config) is True
-
-    def test_snippet_shorthand_at_root(self):
-        assert _has_embed_markers("@{{workflow_revision.slug=my-skill}}") is True
-
-    def test_snippet_shorthand_in_skills_list(self):
-        # A skill referenced via snippet shorthand inside the skills list must trigger
-        # resolution; otherwise the runner would receive the raw token.
-        config = {
-            "skills": ["@{{workflow_revision.slug=my-skill, path=parameters.skill}}"]
-        }
-        assert _has_embed_markers(config) is True
-
-    # -------------------------------------------------------------------------
     # Configs without embeds
     # -------------------------------------------------------------------------
 

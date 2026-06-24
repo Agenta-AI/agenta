@@ -10,12 +10,30 @@ import {describe, expect, it} from "vitest"
 
 import {
     isEmbedRef,
+    isPlatformSkill,
     parseSkillEditorText,
+    platformEmbedSlug,
 } from "../../src/DrillInView/SchemaControls/SkillConfigControl"
 
 const EMBED_ENTRY = {
     "@ag.embed": {
         "@ag.references": {workflow: {slug: "agenta-getting-started"}},
+        "@ag.selector": {path: "parameters.skill"},
+    },
+}
+
+const PLATFORM_EMBED_ENTRY = {
+    "@ag.embed": {
+        "@ag.references": {workflow: {slug: "_agenta.agenta-getting-started"}},
+        "@ag.selector": {path: "parameters.skill"},
+    },
+}
+
+const PLATFORM_REVISION_EMBED_ENTRY = {
+    "@ag.embed": {
+        "@ag.references": {
+            workflow_revision: {slug: "_agenta.agenta-getting-started", version: "v3"},
+        },
         "@ag.selector": {path: "parameters.skill"},
     },
 }
@@ -33,6 +51,34 @@ describe("SkillConfigControl: isEmbedRef", () => {
 
     it("treats an inline package as not an embed", () => {
         expect(isEmbedRef(INLINE_ENTRY)).toBe(false)
+    })
+})
+
+describe("SkillConfigControl: isPlatformSkill", () => {
+    it("flags an embed whose workflow slug uses the reserved _agenta. namespace", () => {
+        expect(isPlatformSkill(PLATFORM_EMBED_ENTRY)).toBe(true)
+        expect(platformEmbedSlug(PLATFORM_EMBED_ENTRY)).toBe("_agenta.agenta-getting-started")
+    })
+
+    it("flags a pinned workflow_revision embed in the reserved namespace", () => {
+        expect(isPlatformSkill(PLATFORM_REVISION_EMBED_ENTRY)).toBe(true)
+        expect(platformEmbedSlug(PLATFORM_REVISION_EMBED_ENTRY)).toBe(
+            "_agenta.agenta-getting-started",
+        )
+    })
+
+    it("treats a non-reserved embed slug as a normal editable skill", () => {
+        expect(isPlatformSkill(EMBED_ENTRY)).toBe(false)
+    })
+
+    it("treats an inline package as a normal editable skill", () => {
+        expect(isPlatformSkill(INLINE_ENTRY)).toBe(false)
+        expect(platformEmbedSlug(INLINE_ENTRY)).toBeUndefined()
+    })
+
+    it("honours a resolved flags.is_platform === true marker", () => {
+        expect(isPlatformSkill({name: "x", flags: {is_platform: true}})).toBe(true)
+        expect(isPlatformSkill({name: "x", flags: {is_platform: false}})).toBe(false)
     })
 })
 
