@@ -82,6 +82,36 @@ export interface ToolCallbackContext {
 }
 
 /**
+ * One bundled file laid beside SKILL.md by relative `path`. `content` is inline UTF-8 text;
+ * `executable` requests a `chmod +x` that the runner honors only when the skill's
+ * `allowExecutableFiles` is set AND the sandbox/harness policy allows execution (default deny).
+ * `content` is untrusted author code.
+ */
+export interface WireSkillFile {
+  path: string;
+  content: string;
+  executable?: boolean;
+}
+
+/**
+ * A resolved inline skill package. By the time a skill reaches the runner every reference has
+ * been inlined server-side (via `@ag.embed`), so there is one shape: the SKILL.md frontmatter
+ * fields (`name`/`description`), the Markdown `body`, and optional bundled `files`. The runner
+ * materializes this into a skill dir at run time (see `engines/skills.ts`). There is no
+ * name-against-a-bundled-root resolution anymore.
+ */
+export interface WireSkill {
+  name: string;
+  description: string;
+  body: string;
+  files?: WireSkillFile[];
+  /** Pi/Claude: hide from the prompt, invoke only via `/skill:name`. */
+  disableModelInvocation?: boolean;
+  /** Gate the `chmod +x` of executable bundled files (default deny; policy must also allow). */
+  allowExecutableFiles?: boolean;
+}
+
+/**
  * A user-declared MCP server attached to the run. `stdio` launches `command`/`args` with
  * `env` (secret env already resolved server-side); `tools` is an optional allowlist (empty =
  * all). Remote (`http`) carries no auth on the wire by design.
@@ -216,11 +246,12 @@ export interface AgentRunRequest {
   /** Built-in tools to enable. */
   tools?: string[];
   /**
-   * Bundled skill directory names to force-load (the Agenta harness). Each name resolves
-   * against the runner's bundled `skills/` root and is loaded into Pi's resource loader, so
-   * it appears in the system prompt (Pi only renders skills when the `read` tool is enabled).
+   * Resolved inline skill packages. Each rode the wire as concrete content (references
+   * inlined server-side via `@ag.embed`); the runner materializes each into a skill dir and
+   * loads it into Pi's resource loader, so it appears in the system prompt (Pi only renders
+   * skills when the `read` tool is enabled).
    */
-  skills?: string[];
+  skills?: WireSkill[];
   /** Resolved runnable tools (WP-7). */
   customTools?: ResolvedToolSpec[];
   /** User-declared MCP servers, resolved (secret env injected). Omitted when there are none. */

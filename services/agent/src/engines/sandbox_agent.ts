@@ -296,5 +296,7 @@ export async function runSandboxAgent(
     await workspace?.cleanup().catch(() => {});
     // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too.
     if (runAgentDir) rmSync(runAgentDir, { recursive: true, force: true });
+    // Remove the per-run skills temp root the materializer created (success or error).
+    plan.skillsCleanup();
   }
 }

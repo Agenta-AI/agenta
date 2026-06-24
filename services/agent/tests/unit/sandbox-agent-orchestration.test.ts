@@ -124,7 +124,7 @@ function fakeHarness(options: FakeOptions = {}) {
     log: () => {},
     createLocalCwd: () => options.cwd ?? "/tmp/agenta-fake-cwd",
     createDaytonaCwd: () => "/home/sandbox/agenta-fake-cwd",
-    resolveSkillDirs: () => [],
+    resolveSkillDirs: () => ({ skills: [], cleanup: () => {} }),
     buildDaemonEnv: (agent) => {
       calls.daemonAgent = agent;
       return {};

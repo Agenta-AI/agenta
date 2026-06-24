@@ -14,7 +14,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
@@ -116,7 +116,7 @@ describe("writeSystemPromptLocal", () => {
 });
 
 describe("prepareLocalAgentDir", () => {
-  it("seeds auth/settings and installs forced skills into a throwaway dir", () => {
+  it("seeds auth/settings and installs materialized skills into a throwaway dir", () => {
     const source = tempDir("agenta-pi-source-test-");
     writeFileSync(join(source, "auth.json"), "{\"token\":\"x\"}", "utf-8");
     writeFileSync(join(source, "settings.json"), "{\"model\":\"gpt\"}", "utf-8");
@@ -124,14 +124,15 @@ describe("prepareLocalAgentDir", () => {
     const skill = tempDir("agenta-pi-skill-test-");
     writeFileSync(join(skill, "SKILL.md"), "---\nname: skill\n---\n", "utf-8");
 
-    const runDir = prepareLocalAgentDir(source, [skill]);
+    const runDir = prepareLocalAgentDir(source, [{ name: "skill", dir: skill }]);
     dirs.push(runDir);
 
     assert.notEqual(runDir, source);
     assert.equal(readFileSync(join(runDir, "auth.json"), "utf-8"), "{\"token\":\"x\"}");
     assert.equal(readFileSync(join(runDir, "settings.json"), "utf-8"), "{\"model\":\"gpt\"}");
+    // The dest dir is named by the skill's `name`, not the (throwaway) source dir basename.
     assert.equal(
-      readFileSync(join(runDir, "skills", basename(skill), "SKILL.md"), "utf-8"),
+      readFileSync(join(runDir, "skills", "skill", "SKILL.md"), "utf-8"),
       "---\nname: skill\n---\n",
     );
   });
@@ -160,7 +161,7 @@ describe("sandbox uploads", () => {
     ]);
   });
 
-  it("uploads each forced skill under the Pi skills directory", async () => {
+  it("uploads each materialized skill under the Pi skills directory", async () => {
     const skill = tempDir("agenta-pi-skill-upload-test-");
     writeFileSync(join(skill, "SKILL.md"), "skill", "utf-8");
     const written: string[] = [];
@@ -169,9 +170,12 @@ describe("sandbox uploads", () => {
       writeFsFile: async ({ path }: { path: string }) => written.push(path),
     };
 
-    await uploadSkillsToSandbox(sandbox, "/agent", [skill]);
+    await uploadSkillsToSandbox(sandbox, "/agent", [
+      { name: "release-notes", dir: skill },
+    ]);
 
     assert.equal(existsSync(skill), true);
-    assert.deepEqual(written, [`/agent/skills/${basename(skill)}/SKILL.md`]);
+    // The sandbox dest dir is named by the skill's `name`.
+    assert.deepEqual(written, ["/agent/skills/release-notes/SKILL.md"]);
   });
 });

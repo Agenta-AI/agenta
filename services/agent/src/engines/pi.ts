@@ -214,6 +214,9 @@ async function runPiWithEnv(
   }
 
   const cwd = mkdtempSync(join(tmpdir(), "agenta-agent-"));
+  // Removes the per-run skills temp root; assigned once skills materialize and always run in
+  // the outer `finally`. No-op until then.
+  let skillsCleanup: () => void = () => {};
 
   try {
     const authStorage = AuthStorage.create();
@@ -249,20 +252,23 @@ async function runPiWithEnv(
     // request carries applies, never a SYSTEM.md / APPEND_SYSTEM.md left on disk.
     const systemPrompt = request.systemPrompt?.trim();
     const appendSystemPrompt = request.appendSystemPrompt?.trim();
-    // Forced skills (the Agenta harness): load exactly the bundled dirs the request names.
+    // Skills: materialize each resolved inline package into a fresh dir and load exactly those.
     // `noSkills` suppresses host/global discovery so the run is deterministic; the loader still
-    // merges `additionalSkillPaths` on top, so the bundled skills load. They only surface in
-    // the prompt when `read` is enabled (the harness forces it).
-    const skillDirs = resolveSkillDirs(request.skills, log);
-    if (skillDirs.length > 0) {
-      log(`skills: ${skillDirs.join(", ")}`);
+    // merges `additionalSkillPaths` on top, so the materialized skills load. They only surface
+    // in the prompt when `read` is enabled (the harness forces it). The temp root is removed in
+    // the outer `finally` (skillsCleanup) on both success and error.
+    const skillsResult = resolveSkillDirs(request.skills, log);
+    const skills = skillsResult.skills;
+    skillsCleanup = skillsResult.cleanup;
+    if (skills.length > 0) {
+      log(`skills: ${skills.map((s) => s.name).join(", ")}`);
     }
     const loader = new DefaultResourceLoader({
       cwd,
       agentDir: getAgentDir(),
       noContextFiles: true,
       noSkills: true,
-      additionalSkillPaths: skillDirs,
+      additionalSkillPaths: skills.map((s) => s.dir),
       systemPromptOverride: () => systemPrompt || undefined,
       appendSystemPromptOverride: () => (appendSystemPrompt ? [appendSystemPrompt] : []),
       agentsFilesOverride: () => ({
@@ -394,6 +400,7 @@ async function runPiWithEnv(
       session?.dispose();
     }
   } finally {
+    skillsCleanup();
     try {
       rmSync(cwd, { recursive: true, force: true });
     } catch {

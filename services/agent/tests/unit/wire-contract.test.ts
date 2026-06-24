@@ -86,6 +86,17 @@ describe("wire contract: requests (vs Python golden)", () => {
     // Pi exposes the prompt overrides.
     assert.equal(req.systemPrompt, "You are Pi.");
     assert.equal(req.appendSystemPrompt, "Be terse.");
+    // The resolved inline skill package reaches the runner with its full nested shape intact:
+    // the frontmatter fields, the behavior flags, and each bundled file's `executable` bit.
+    const skill = req.skills![0];
+    assert.equal(skill.name, "release-notes");
+    assert.equal(skill.description, "Draft release notes from a changelog.");
+    assert.equal(skill.body, "Read the changelog, then write release notes.");
+    assert.equal(skill.disableModelInvocation, true);
+    assert.equal(skill.allowExecutableFiles, true);
+    assert.equal(skill.files![0].path, "scripts/draft.py");
+    assert.equal(skill.files![0].content, "print('draft')");
+    assert.equal(skill.files![0].executable, true);
   });
 
   it("claude request: gates tool use, no prompt overrides, null session id", () => {

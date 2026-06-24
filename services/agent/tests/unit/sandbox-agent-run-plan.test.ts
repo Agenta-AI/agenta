@@ -46,14 +46,19 @@ describe("buildRunPlan", () => {
           { name: "server_tool", kind: "callback" },
           { name: "client_tool", kind: "client" },
         ],
-        skills: ["alpha"],
+        skills: [
+          { name: "alpha", description: "Alpha skill.", body: "Do alpha." },
+        ],
         secrets: { OPENAI_API_KEY: "key" },
       } as AgentRunRequest,
       {
         createLocalCwd: () => "/tmp/local-cwd",
         resolveSkillDirs: (_skills, log) => {
           (log ?? (() => {}))("resolved alpha");
-          return ["/skills/alpha"];
+          return {
+            skills: [{ name: "alpha", dir: "/skills/alpha" }],
+            cleanup: () => {},
+          };
         },
         log: (message) => logs.push(message),
       },
@@ -79,8 +84,64 @@ describe("buildRunPlan", () => {
       ["server_tool"],
     );
     assert.equal(result.plan.useToolRelay, true);
-    assert.deepEqual(result.plan.skillDirs, ["/skills/alpha"]);
+    assert.deepEqual(result.plan.skillDirs, [
+      { name: "alpha", dir: "/skills/alpha" },
+    ]);
     assert.deepEqual(logs, ["resolved alpha", "skills: alpha"]);
+  });
+
+  it("warns when it drops skills for a non-Pi harness (no silent drop)", () => {
+    // The skills-config "per-harness mapping" requires a VISIBLE log-and-drop when a harness
+    // whose runtime cannot load SKILL.md (the Claude SDK path) is handed skills. Here the wire
+    // still carries skills for a non-Pi harness; the plan must drop them AND warn (count +
+    // harness), never silently.
+    const logs: string[] = [];
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        prompt: "hello",
+        skills: [
+          { name: "alpha", description: "Alpha skill.", body: "Do alpha." },
+          { name: "beta", description: "Beta skill.", body: "Do beta." },
+        ],
+      } as AgentRunRequest,
+      {
+        createDaytonaCwd: () => "/home/sandbox/agenta-fixed",
+        resolveSkillDirs: () => {
+          throw new Error("non-Pi should not resolve skills");
+        },
+        log: (message) => logs.push(message),
+      },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    // The skills are dropped (the runtime never materializes them)...
+    assert.deepEqual(result.plan.skillDirs, []);
+    // ...and the drop is visible, naming the count and the harness.
+    const warning = logs.find((line) => line.startsWith("WARNING: dropping"));
+    assert.ok(warning, "expected a visible warning when skills are dropped");
+    assert.match(warning, /dropping 2 skill\(s\)/);
+    assert.match(warning, /harness "claude"/);
+  });
+
+  it("stays quiet for a non-Pi harness with no skills to drop", () => {
+    // No skills on the wire: a non-Pi run must NOT emit a spurious drop warning.
+    const logs: string[] = [];
+    const result = buildRunPlan(
+      { harness: "claude", sandbox: "daytona", prompt: "hello" },
+      {
+        createDaytonaCwd: () => "/home/sandbox/agenta-fixed",
+        log: (message) => logs.push(message),
+      },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      logs.some((line) => line.startsWith("WARNING: dropping")),
+      false,
+    );
   });
 
   it("normalizes a Daytona Claude run without Pi-only state", () => {

@@ -10,10 +10,11 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 
 import type { AgentRunRequest, ResolvedToolSpec } from "../../protocol.ts";
 import { publicToolSpecs } from "../../tools/public-spec.ts";
+import type { MaterializedSkill } from "../skills.ts";
 import { PKG_ROOT } from "./daemon.ts";
 import type { RunPlan } from "./run-plan.ts";
 
@@ -122,26 +123,30 @@ export async function uploadPiExtensionToSandbox(
   }
 }
 
-/** Install forced skill dirs into a local Pi agent dir's user-scope `skills/`. */
-export function installSkillsLocal(agentDir: string, skillDirs: string[], log: Log = () => {}): void {
-  for (const src of skillDirs) {
+/** Install materialized skill dirs into a local Pi agent dir's user-scope `skills/`. */
+export function installSkillsLocal(
+  agentDir: string,
+  skillDirs: MaterializedSkill[],
+  log: Log = () => {},
+): void {
+  for (const skill of skillDirs) {
     try {
-      const dest = join(agentDir, "skills", basename(src));
+      const dest = join(agentDir, "skills", skill.name);
       mkdirSync(dirname(dest), { recursive: true });
-      cpSync(src, dest, { recursive: true, dereference: true });
+      cpSync(skill.dir, dest, { recursive: true, dereference: true });
     } catch (err) {
-      log(`skill install skipped for ${basename(src)}: ${(err as Error).message}`);
+      log(`skill install skipped for ${skill.name}: ${(err as Error).message}`);
     }
   }
 }
 
 /**
  * Seed a throwaway local Pi agent dir from `sourceAgentDir` and install the Agenta extension
- * plus forced skills into it.
+ * plus the run's materialized skills into it.
  */
 export function prepareLocalAgentDir(
   sourceAgentDir: string,
-  skillDirs: string[],
+  skillDirs: MaterializedSkill[],
   log: Log = () => {},
 ): string {
   const dir = mkdtempSync(join(tmpdir(), "agenta-pi-agentdir-"));
@@ -200,18 +205,22 @@ export function prepareLocalPiAssets({
   return undefined;
 }
 
-/** Upload forced skill dirs into a Daytona sandbox's Pi `skills/` user scope. */
+/** Upload materialized skill dirs into a Daytona sandbox's Pi `skills/` user scope. */
 export async function uploadSkillsToSandbox(
   sandbox: any,
   agentDir: string,
-  skillDirs: string[],
+  skillDirs: MaterializedSkill[],
   log: Log = () => {},
 ): Promise<void> {
-  for (const src of skillDirs) {
+  for (const skill of skillDirs) {
     try {
-      await uploadDirToSandbox(sandbox, src, `${agentDir}/skills/${basename(src)}`);
+      await uploadDirToSandbox(
+        sandbox,
+        skill.dir,
+        `${agentDir}/skills/${skill.name}`,
+      );
     } catch (err) {
-      log(`skill upload skipped for ${basename(src)}: ${(err as Error).message}`);
+      log(`skill upload skipped for ${skill.name}: ${(err as Error).message}`);
     }
   }
 }

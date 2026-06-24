@@ -15,7 +15,6 @@ from agenta.sdk.agents import (
     GatewayToolResolutionError,
     ResolvedToolSet,
 )
-from agenta.sdk.agents.adapters.agenta_builtins import AGENTA_FORCED_SKILLS
 
 from oss.src.agent import app
 
@@ -115,15 +114,22 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
          the handler actually drove ``PiHarness`` / ``ClaudeHarness`` / ``AgentaHarness``,
          each producing its own config.
 
-    The turn carries a built-in tool (``web_search``) and a ``deny`` policy so the divergence
-    is observable: Claude drops Pi built-ins and honors the policy; Pi keeps them and forces
-    ``auto``; Agenta unions the forced tools and ships skills.
+    The turn carries a built-in tool (``web_search``), a ``deny`` policy, and one author skill
+    so the divergence is observable: Claude drops Pi built-ins and honors the policy; Pi keeps
+    them and forces ``auto``; Agenta unions the forced tools. The skill rides the neutral config,
+    so every skill-loading harness emits it on its own ``wire_skills`` seam (never in the tool
+    wire); there is no forced skill-name list anymore.
     """
     backend = fake_backend(result=AgentResult(output="echo", usage={"total": 15}))
     _patch_handler(monkeypatch, backend, builtins=["web_search"])
 
+    skill = {
+        "name": "release-notes",
+        "description": "Draft release notes.",
+        "body": "Read the changelog, then write notes.",
+    }
     bodies = [
-        await _invoke(harness, permission_policy="deny")
+        await _invoke(harness, permission_policy="deny", skills=[skill])
         for harness in ("pi", "agenta", "claude")
     ]
     pi_body, agenta_body, claude_body = bodies
@@ -147,7 +153,7 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
     claude_wire = claude_cfg.wire_tools()
 
     # Pi keeps its built-in tool natively and never gates tool use (policy forced to auto,
-    # the author's `deny` notwithstanding).
+    # the author's `deny` notwithstanding). Skills never ride the tool wire.
     assert pi_wire["tools"] == ["web_search"]
     assert pi_wire["permissionPolicy"] == "auto"
     assert "skills" not in pi_wire
@@ -157,11 +163,17 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
     assert claude_wire["permissionPolicy"] == "deny"
     assert "skills" not in claude_wire
 
-    # Agenta is Pi-with-an-opinion: it unions the forced tools onto the author's set, forces
-    # auto like Pi, and ships the forced skills.
+    # Agenta is Pi-with-an-opinion: it unions the forced tools onto the author's set and forces
+    # auto like Pi. Skills are not tools, so they never appear in the tool wire.
     assert agenta_wire["tools"] == ["web_search", "read", "bash"]
     assert agenta_wire["permissionPolicy"] == "auto"
-    assert agenta_wire["skills"] == list(AGENTA_FORCED_SKILLS)
+    assert "skills" not in agenta_wire
+
+    # Skills ride the dedicated `wire_skills` seam. Pi and Agenta load them; Claude's SDK path
+    # cannot, so it logs-and-drops (graceful degrade), emitting no skills.
+    assert pi_cfg.wire_skills()["skills"][0]["name"] == "release-notes"
+    assert agenta_cfg.wire_skills()["skills"][0]["name"] == "release-notes"
+    assert claude_cfg.wire_skills() == {}
 
     # The configs genuinely differ at the boundary; the body's sameness is not a tautology.
     assert pi_wire != claude_wire
