@@ -103,3 +103,14 @@ global:
 redisDurable:
   persistence:
     size: "5Gi"
+
+# ================================================================== #
+# agentRunner — sandbox-agent-backed agent workflow runner.
+# The services pod calls this over AGENTA_AGENT_RUNNER_URL. Keep provider
+# credentials scoped here instead of putting them in every Agenta container.
+# ================================================================== #
+agentRunner:
+  enabled: true
+  port: 8765
+  provider: "local"
+  enableMcp: false

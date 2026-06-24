@@ -341,6 +341,7 @@
     "api":               { "$ref": "#/$defs/component" },
     "web":               { "$ref": "#/$defs/component" },
     "services":          { "$ref": "#/$defs/component" },
+    "agentRunner":       { "$ref": "#/$defs/agentRunner" },
     "workerEvaluations": { "$ref": "#/$defs/component" },
     "workerTracing":     { "$ref": "#/$defs/component" },
     "workerWebhooks":    { "$ref": "#/$defs/component" },
@@ -374,6 +375,45 @@
             "repository": { "type": "string" },
             "tag":        { "type": "string" },
             "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "resources":   { "type": "object", "additionalProperties": true },
+        "env":         { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+        "labels":      { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "agentRunner": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "sandbox-agent runner deployment. Services receive AGENTA_AGENT_RUNNER_URL from this component unless externalUrl is set.",
+      "properties": {
+        "enabled":     { "type": "boolean" },
+        "replicas":    { "type": "integer", "minimum": 0 },
+        "port":        { "type": ["integer", "string"] },
+        "externalUrl": { "type": "string", "description": "External runner URL. Emitted as AGENTA_AGENT_RUNNER_URL when set." },
+        "provider":    { "type": "string", "enum": ["local", "daytona"], "description": "SANDBOX_AGENT_PROVIDER." },
+        "enableMcp":   { "type": ["boolean", "string"], "description": "AGENTA_AGENT_ENABLE_MCP on the services pod." },
+        "logLevel":    { "type": "string", "description": "SANDBOX_AGENT_LOG_LEVEL." },
+        "image": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "repository": { "type": "string" },
+            "tag":        { "type": "string" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "daytona": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "apiKey":    { "type": "string", "description": "SANDBOX_AGENT_DAYTONA_API_KEY via Secret." },
+            "apiUrl":    { "type": "string", "description": "SANDBOX_AGENT_DAYTONA_API_URL." },
+            "target":    { "type": "string", "description": "SANDBOX_AGENT_DAYTONA_TARGET." },
+            "snapshot":  { "type": "string", "description": "SANDBOX_AGENT_DAYTONA_SNAPSHOT." },
+            "image":     { "type": "string", "description": "SANDBOX_AGENT_DAYTONA_IMAGE." },
+            "installPi": { "type": ["boolean", "string"], "description": "SANDBOX_AGENT_DAYTONA_INSTALL_PI." }
           }
         },
         "resources":   { "type": "object", "additionalProperties": true },

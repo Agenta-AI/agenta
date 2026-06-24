@@ -61,6 +61,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $v := (default dict .Values.services).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
+{{- define "agenta.agentRunner.enabled" -}}
+{{- $v := (default dict .Values.agentRunner).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- end }}
 {{- define "agenta.supertokens.enabled" -}}
 {{- $v := (default dict (include "agenta.values" . | fromYaml).supertokens).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
@@ -112,6 +116,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.api.replicas" -}}{{ default 1 (default dict .Values.api).replicas }}{{- end }}
 {{- define "agenta.web.replicas" -}}{{ default 1 (default dict .Values.web).replicas }}{{- end }}
 {{- define "agenta.services.replicas" -}}{{ default 1 (default dict .Values.services).replicas }}{{- end }}
+{{- define "agenta.agentRunner.replicas" -}}{{ default 1 (default dict .Values.agentRunner).replicas }}{{- end }}
 {{- define "agenta.supertokens.replicas" -}}{{ default 1 (default dict (include "agenta.values" . | fromYaml).supertokens).replicas }}{{- end }}
 {{- /* cron runs supercronic, which doesn't coordinate across replicas:
        N replicas = every scheduled job fires N times. Hard-set to 1.
@@ -134,6 +139,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.api.port" -}}{{ default 8000 (default dict .Values.api).port }}{{- end }}
 {{- define "agenta.web.port" -}}{{ default 3000 (default dict .Values.web).port }}{{- end }}
 {{- define "agenta.services.port" -}}{{ default 80 (default dict .Values.services).port }}{{- end }}
+{{- define "agenta.agentRunner.port" -}}{{ default 8765 (default dict .Values.agentRunner).port }}{{- end }}
 {{- define "agenta.supertokens.port" -}}{{ default 3567 (default dict (include "agenta.values" . | fromYaml).supertokens).port }}{{- end }}
 {{- define "agenta.redisVolatile.port" -}}{{ default 6379 (default dict .Values.redisVolatile).port }}{{- end }}
 {{- define "agenta.redisDurable.port" -}}{{ default 6381 (default dict .Values.redisDurable).port }}{{- end }}
@@ -144,6 +150,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.api.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.api).image).pullPolicy }}{{- end }}
 {{- define "agenta.web.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.web).image).pullPolicy }}{{- end }}
 {{- define "agenta.services.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.services).image).pullPolicy }}{{- end }}
+{{- define "agenta.agentRunner.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.agentRunner).image).pullPolicy }}{{- end }}
 {{- define "agenta.supertokens.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (include "agenta.values" . | fromYaml).supertokens).image).pullPolicy }}{{- end }}
 {{- define "agenta.redisVolatile.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.redisVolatile).image).pullPolicy }}{{- end }}
 {{- define "agenta.redisDurable.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.redisDurable).image).pullPolicy }}{{- end }}
@@ -275,6 +282,44 @@ ghcr.io/agenta-ai/agenta-services
 {{- define "agenta.servicesImage" -}}
 {{- $img := default dict (default dict .Values.services).image -}}
 {{ include "agenta.servicesImageRepository" . }}:{{ $img.tag | default .Chart.AppVersion }}
+{{- end }}
+
+{{- define "agenta.agentRunnerImageRepository" -}}
+{{- $img := default dict (default dict .Values.agentRunner).image -}}
+{{- if $img.repository -}}
+{{- $img.repository -}}
+{{- else -}}
+ghcr.io/agenta-ai/agenta-sandbox-agent
+{{- end -}}
+{{- end }}
+
+{{- define "agenta.agentRunnerImage" -}}
+{{- $img := default dict (default dict .Values.agentRunner).image -}}
+{{ include "agenta.agentRunnerImageRepository" . }}:{{ $img.tag | default .Chart.AppVersion }}
+{{- end }}
+
+{{- define "agenta.agentRunner.serviceName" -}}
+{{ include "agenta.fullname" . }}-sandbox-agent
+{{- end }}
+
+{{- define "agenta.agentRunner.url" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- if $runner.externalUrl -}}
+{{- $runner.externalUrl -}}
+{{- else if eq (include "agenta.agentRunner.enabled" .) "true" -}}
+http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agentRunner.port" . }}
+{{- end -}}
+{{- end }}
+
+{{- define "agenta.agentRunner.servicesEnv" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- $url := include "agenta.agentRunner.url" . -}}
+{{- if $url }}
+- name: AGENTA_AGENT_RUNNER_URL
+  value: {{ $url | quote }}
+{{- end }}
+- name: AGENTA_AGENT_ENABLE_MCP
+  value: {{ default false $runner.enableMcp | quote }}
 {{- end }}
 
 {{/* ================================================================
