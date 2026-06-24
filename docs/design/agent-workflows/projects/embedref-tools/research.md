@@ -73,20 +73,19 @@ The resolver callback routes a `workflow` reference to
 By step 3 it is a concrete tool config. The work is making steps 2-3 (and the schema)
 understand *what* it inlines into.
 
-### The `_agenta.*` platform catalog short-circuit
+### The `_agenta.*` platform catalog short-circuit (background only)
 
 `api/oss/src/core/workflows/platform_catalog.py` defines `PlatformWorkflowCatalog`, a
 code-defined, read-only set of platform workflows keyed by a reserved `_agenta.*` slug.
 `WorkflowsService.fetch_workflow_revision` calls `_resolve_platform_revision` *first*; a
-reserved slug never falls through to Postgres. Each catalog version stores its payload under
-`data.parameters.<key>` — for skills that key is `skill`
-(`parameters={"skill": skill_config...}`), which is why the skill embed's selector path is
-`parameters.skill`.
+reserved slug never falls through to Postgres. This is how the default skill embed resolves
+(`_agenta.agenta-getting-started`).
 
-One hard constraint to note: `_validate_catalog` currently validates **every** catalog
-payload as a `SkillConfig` (`SkillConfig.model_validate(payload)`). To ship a *platform* tool
-workflow, that validation must generalize per payload kind. (User-authored tool workflows
-live in the DB and do not hit this validation.)
+**Not relevant to this design's scope.** Per the PR #4837 review, platform *tools* do **not**
+go in this catalog — they belong in the existing tools endpoints (like gateway). So this design
+does **not** touch `_validate_catalog` (which today validates catalog payloads as `SkillConfig`)
+and does not ship `_agenta.*` tool workflows. User-authored workflows referenced as tools live
+in the DB and never hit this validation.
 
 ### Where the union lives (skills, the template to copy)
 
@@ -141,47 +140,46 @@ tool_callback}`). The TS twin is `ResolvedToolSpec` in `services/agent/src/proto
   POSTs back to `/tools/call`** (directly, or via the Daytona file relay). Absent `kind`
   defaults to `callback`.
 
-### Why `callback` is the right executor for an embedded-workflow tool
+### Why `callback` is the right executor for a *runnable* workflow tool
 
-A workflow tool is **server-executed**: calling it means invoking another Agenta workflow
-revision, which lives behind the API and may itself use connections and secrets. That is
-exactly the gateway tool's safety shape — the harness decides *which* tool and *with what
-arguments*, the service runs it, and no credential reaches the sandbox. So an
-embedded-workflow tool should resolve to a `CallbackToolSpec`:
+The branch that matters is **runnable vs non-runnable** (see [plan.md](plan.md)). The taxonomy
+already has a home for each:
 
-- The runner needs **no new `kind`** — `callback` already dispatches to `callAgentaTool`,
-  works under the Daytona file relay, and is delivered to both Pi (native) and Claude (the
-  `agenta-tools` MCP bridge).
-- The only thing that differs from a gateway tool is the `call_ref` grammar and the
-  server-side execute target: instead of running a Composio action, the service invokes a
+- A **runnable** workflow tool is **server-executed**: calling it means invoking another Agenta
+  workflow revision, which lives behind the API and may itself use connections and secrets. That
+  is exactly the gateway tool's safety shape — the harness decides *which* tool and *with what
+  arguments*, the service runs it, and no credential reaches the sandbox. So it resolves to a
+  `CallbackToolSpec`. The runner needs **no new `kind`** — `callback` already dispatches to
+  `callAgentaTool`, works under the Daytona file relay, and is delivered to both Pi (native) and
+  Claude (the `agenta-tools` MCP bridge). The only difference from a gateway tool is the
+  `call_ref` grammar and the execute target: instead of a Composio action, the service invokes a
   workflow revision.
+- A **non-runnable** (client) workflow tool fits the existing **`client`** executor: the resolve
+  step turns the reference into a concrete `client` tool config, and at run time the runner
+  returns a `client` spec for the browser to fulfill next turn (`models.py:206` —
+  `kind: "client"`). No callback, no server-side execute.
 
 ## Part 3 — The seams to touch (summary)
 
 | Seam | File | Change |
 | --- | --- | --- |
 | Strict schema embed arm | `sdks/python/agenta/sdk/utils/types.py` | add `_ToolEmbedRefSchema`, make `AgentConfigSchema.tools` a `Union[ToolConfig-twin, _ToolEmbedRefSchema]` (mirror skills) |
-| New tool variant | `sdks/python/agenta/sdk/agents/tools/models.py` | add `WorkflowToolConfig(type="workflow")` to the union, carrying the workflow ref + tool surface (name, description, input schema) |
-| Loose coercion allowlist | `sdks/python/agenta/sdk/agents/tools/compat.py` | add `"workflow"` to the accepted `type` set |
-| Resolution branch | `sdks/python/agenta/sdk/agents/tools/resolver.py` + a new platform resolver in `.../platform/` | resolve a `WorkflowToolConfig` to a `CallbackToolSpec` + a `ToolCallback` to the new execute endpoint |
+| Resolve step (runnable vs not) | service resolve step (where references resolve) | decide runnable vs not; runnable → keep the reference for callback resolution; non-runnable → resolve to a concrete `client` tool config |
+| Runnable resolution branch | `sdks/python/agenta/sdk/agents/tools/resolver.py` + a platform resolver in `.../platform/` | resolve a referenced runnable workflow to a `CallbackToolSpec` + a `ToolCallback` to the new execute endpoint (mirror gateway) |
 | Server-side execute | `api/oss/src/apis/fastapi/tools/router.py` (+ core) | a `/tools/call`-style target that invokes the referenced workflow revision and returns the result |
 | Embed resolver | `api/oss/src/core/embeds/utils.py` | **no change** — already walks `tools[]` |
-| Platform catalog validation | `api/oss/src/core/workflows/platform_catalog.py` | generalize `_validate_catalog` IF we ship a platform tool workflow (otherwise unchanged for user workflows) |
-| Wire | `services/agent/src/protocol.ts`, `sdks/python/agenta/sdk/agents/utils/wire.py`, golden fixtures | **no new field** if it resolves to an existing `callback` spec; only the `call_ref` value differs |
-| Docs | `documentation/tools.md`, `interfaces/public-edge/agent-config-schema.md`, the interface inventory | document the new variant + the embed arm |
+| Wire | `services/agent/src/protocol.ts`, `sdks/python/agenta/sdk/agents/utils/wire.py`, golden fixtures | **no new field** — runnable rides as a `callback` spec, non-runnable as a `client` spec; only the `call_ref` content is new |
+| Docs | `documentation/tools.md`, `interfaces/public-edge/agent-config-schema.md`, the interface inventory | document the embed arm + the runnable-vs-not behavior |
+
+No `WorkflowToolConfig` variant, no `compat.py` `"workflow"` allowlist entry, no
+platform-catalog change — all dropped per the PR #4837 review.
 
 ## Open research questions (carried into the plan)
 
-1. **Embed-as-content vs reference-as-tool.** The selector path could inline either a
-   *concrete tool config* (e.g. a `code`/`gateway` config stored in the workflow's
-   parameters — pure reuse, no new variant, no new executor) OR a *workflow reference* that
-   becomes a new `workflow` tool variant (a tool that, when called, runs the workflow). Both
-   are "embedref like skills." They are very different in cost and meaning. See
-   [status.md](status.md#key-decision).
+1. **Where the runnable/not decision is made** — confirm it is the service resolve step (where
+   the referenced workflow is fetched), so the SDK/runner stay schema-driven.
 2. **What does invoking the workflow mean** — call `/workflows/.../invoke` with the model's
    arguments as inputs, and map the workflow output back as the tool result? What is the
    input/output contract between a tool call and a workflow invoke?
-3. **The `call_ref` grammar** for a workflow tool (today's 5-segment gateway grammar is
-   Composio-specific and parsed in both `compat.py` and the API router).
-4. **Platform tool workflows** — do we want `_agenta.*` platform tools (needs the catalog
-   validation generalization), or only user-authored DB workflows at first?
+3. **The `call_ref` grammar** for a runnable workflow tool (today's 5-segment gateway grammar
+   is Composio-specific and parsed in both `compat.py` and the API router).

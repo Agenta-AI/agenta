@@ -20,54 +20,67 @@ close that gap:
 > we should also allow here embedref like skills. these would allow creating tools as
 > workflows and embedding them.
 
-This unlocks **tools-as-workflows**: a tool is authored once as a workflow revision (with its
-own versioning, history, and editing surface), then referenced from any agent config by an
-embed. The agent author does not re-declare the tool's body; they point at it.
+This unlocks **tools-as-workflows**: a tool is just a workflow (with its own versioning,
+history, and editing surface), referenced from any agent config. The agent author does not
+re-declare the tool's body; they point at it. **Any** workflow qualifies — agent, completion,
+channel, chain — there is no special "tool workflow" type.
 
 ## Goals
 
-- Make `tools` accept an `@ag.embed` reference, mirroring the `skills` shape.
-- Define what the embedded workflow inlines into (which tool variant / shape).
-- Define how an embedded-workflow tool becomes a **callable** tool at run time, within the
-  existing three-axis tool taxonomy (executor / approval / render) and the resolved-spec
-  model — without a new runner `kind` if avoidable.
-- Define the resolution path end to end: schema arm -> embed resolution (already generic) ->
-  parse -> tool resolution -> `/run` wire -> runner dispatch -> server-side execute.
-- Keep secrets and connection auth server-side, the same safety property gateway tools have.
+- Make `tools` accept a workflow **reference** (the `@ag.embed` arm), mirroring the `skills`
+  shape.
+- Define the one branch that matters: **runnable vs non-runnable**, and how each is handled
+  (runnable → server-side callback execute, like gateway; non-runnable → resolve-to-value plus
+  the existing client-tool handling).
+- Keep the runner free of a new `kind`: runnable rides as a `callback` spec, non-runnable as a
+  `client` spec.
+- Keep secrets and connection auth server-side for the runnable case, the same safety property
+  gateway tools have.
 
 ## Non-goals
 
 - Back-compat. This is POC / pre-production; we may change the union and the wire freely.
-- Building the workflow-authoring UI for tools (the editor that produces the referenced
-  workflow revision). This design assumes a workflow revision exists; producing it is a
-  separate surface.
+- A `workflow` tool variant. A referenced workflow is just a workflow; no new tool type in the
+  discriminated union.
+- **Platform tools as workflows.** Platform tools belong in the **existing tools endpoints**
+  (the same place gateway tools are added), not in the workflow catalog. The `_agenta.*`
+  tool-workflow / catalog-validation direction is dropped from this design.
+- The `is_tool` flag. It is a later, FE-only display hint so referenced workflows surface in
+  the tool picker; it is noted, not designed here.
+- Building the workflow-authoring UI for tools. This design assumes a workflow revision exists;
+  producing it is a separate surface.
 - Changing the generic embed resolver. It already walks `tools[]`; this design relies on
   that, it does not modify it.
-- A new vault or connection concept. Embedded-workflow tools reuse the existing named-secret
+- A new vault or connection concept. Runnable workflow tools reuse the existing named-secret
   and connection resolution.
 - MCP. `mcp_servers` is a sibling field with its own deferral; out of scope here.
 
 ## The reviewer's ask, restated
 
-Add an embed-ref arm to `tools` so a tool can be created as a workflow and embedded. Two
-mechanisms must meet: the **embedding** mechanism (already exists, generic) and the
-**tool-ness** mechanism (the embedded thing has to end up as a tool the agent can call).
+Add an embed-ref arm to `tools` so a tool can be created as a workflow and referenced. Two
+mechanisms must meet: the **referencing** mechanism (already exists, generic) and the
+**tool-ness** mechanism (the referenced workflow has to end up as a tool the agent can call).
 
-## The one hard difference from skills
+## The one branch that matters: runnable vs non-runnable
 
-A skill and a tool are inlined the same way, but they *do* different things, and that is the
-whole design problem:
+A skill is always passive content (markdown + files; the model reads it, nothing executes).
+A referenced workflow is not uniform — it can be runnable or not — and that is the whole
+design:
 
-- A **skill** is passive content. Once inlined into a `SkillConfig`, it is just markdown +
-  files laid into the workspace. Nothing executes it; the model reads it. So skill embedding
-  needed no executor design at all — inline the content, done.
-- A **tool** is active. Once inlined, the agent must be able to **call** it: select it by
-  name, pass arguments, and get a result. So "inline the workflow into a tool" raises a
-  question skills never had to answer: *what runs when the model calls this tool, and where?*
+- **Runnable** (a completion, an agent, a channel, a chain — anything the platform can
+  invoke). You **reference** it because you want to **call** it. When the model calls the
+  tool, the call routes server-side and Agenta **invokes the workflow revision**, exactly like
+  a gateway tool: the sidecar/runner relays the call back, the service runs it, the result
+  returns to the model. Execution and any connections/secrets stay server-side. This resolves
+  to the existing `callback` executor — **no new runner `kind`**.
 
-The answer this design lands on: an embedded-workflow tool resolves to the existing
-`callback` executor (the same one gateway tools use). When the model calls it, the runner
-posts the call back to an Agenta service endpoint, which **invokes the referenced workflow
-revision** and returns the result. Execution stays server-side; the runner only relays. See
-[research.md](research.md) for why `callback` is the right fit and
-[plan.md](plan.md) for the concrete shape.
+- **Non-runnable** (a client tool — fulfilled in the browser, nothing to execute
+  server-side). Referencing-to-call does not apply. It is handled the way client tools are
+  handled today: the resolve step in the service **resolves the reference into its value** (a
+  concrete `client` tool config), and at run time the model's call is fulfilled client-side
+  next turn, the existing `client` path.
+
+So **what you reference decides the behavior**. The runnable/not decision is made in the
+service / the resolve step, where the referenced workflow is known. A unifying way to say it:
+reference everything as a tool, and **in the sidecar, if it is runnable, run it; if it is not,
+return its schema**. See [plan.md](plan.md) for the concrete shape.

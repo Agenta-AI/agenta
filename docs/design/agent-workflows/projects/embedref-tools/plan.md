@@ -1,183 +1,158 @@
 # Plan
 
-The proposed change to let `tools` accept an `@ag.embed` reference and turn an embedded
-workflow into a callable tool. POC / pre-production: no back-compat.
+Let the agent config `tools` field accept a **reference to a workflow**, so any workflow can
+be used as a tool. POC / pre-production: no back-compat.
 
-The plan has two layers, because "embedref like skills" can mean two genuinely different
-things. The recommended design is **Option B** (reference-as-tool); **Option A**
-(embed-as-content) is the cheaper first step and is fully compatible as a stepping stone.
-Both are detailed; the open questions in [status.md](status.md) decide which we build first.
+## The model (one path, split by runnable vs not)
 
-## Option A — Embed-as-content (cheapest, reuses everything)
+The old plan had two competing options (embed-as-content vs reference-as-tool) and a special
+`workflow` tool variant. That was over-built. The simplified model the author landed on:
 
-An embed in `tools` inlines a **concrete, already-supported tool config** that an author
-committed inside a workflow's parameters. The workflow is just a reusable container for a
-tool declaration.
+**A tool is just a referenced workflow.** You point `tools[i]` at a workflow (by reference,
+not by inlining its config). What happens when the model calls it depends only on whether that
+workflow is **runnable** (executable) or **not**.
 
-How it works:
+- **Runnable** (a completion, an agent, a channel, a chain — anything the platform can
+  invoke): you *reference* it because you want to *call* it. The model's call routes
+  server-side and Agenta **runs the workflow revision**, exactly like a gateway tool. The
+  sidecar relays the call back; the service invokes; the result returns to the model. Secrets
+  and connections the workflow needs stay server-side.
+- **Non-runnable** (a client tool — fulfilled in the browser, nothing to execute
+  server-side): referencing-to-call does not apply. It is handled the way client tools are
+  handled today. Its value is **resolved/embedded into the config** server-side (the resolve
+  step in the service), and at run time the model's call is fulfilled client-side next turn,
+  the existing `client` path.
 
-1. Schema: add the embed-ref arm to `tools` (the only required code change shared by both
-   options). In `sdks/python/agenta/sdk/utils/types.py`, add `_ToolEmbedRefSchema` (copy of
-   `_SkillEmbedRefSchema`) and make `AgentConfigSchema.tools` a
-   `List[Union[ToolConfig, _ToolEmbedRefSchema]]`.
-2. Authoring: a tool workflow stores a tool config under `data.parameters.tool`, e.g.
-   `{"tool": {"type": "gateway", "provider": "composio", ...}}`.
-3. Embed: the agent config references it:
-   ```jsonc
-   { "@ag.embed": { "@ag.references": { "workflow": { "slug": "my-github-issue-tool" } },
-                    "@ag.selector": { "path": "parameters.tool" } } }
-   ```
-4. Resolution: the **generic resolver inlines it** into a concrete `gateway`/`code`/`client`
-   config at `tools[i]`. `resolve_tools` then resolves it on the existing path. **No new tool
-   variant, no new executor, no wire change, no runner change.**
+So **what you reference decides the behavior**: runnable → server-side callback execute;
+non-runnable → resolve-to-value + the existing client handling.
 
-What it buys: reuse and versioning of a tool declaration across agents. What it does not buy:
-a tool whose *body is itself a workflow* — it can only inline tool types we already run.
+### Any workflow qualifies — there is no "tool workflow" type
 
-This is the smallest possible "embedref like skills" and is almost free (one schema arm).
+An invocable tool *is* a workflow. There is no need for a workflow specially marked as a tool.
+Any workflow type — agent, completion, channel, chain — can be referenced as a tool. We do
+**not** add a `WorkflowToolConfig` variant.
 
-## Option B — Reference-as-tool (the real "tools as workflows")
+Later (note only, out of scope here): add an `is_tool` flag on a workflow purely so the
+frontend can list it in the tool picker. It is a display hint; it changes no runtime behavior.
 
-The embedded workflow is **not** a tool config; it is a workflow that *becomes* a tool. When
-the model calls the tool, Agenta **invokes that workflow revision** with the model's arguments
-and returns its output as the tool result. This is what "creating tools as workflows" most
-naturally means: any workflow (a prompt, a chain, an evaluator-style step) is exposed to the
-agent as a single callable tool.
+### One unifying rule for the sidecar
 
-### B1 — New tool variant `workflow`
+Reference everything as a tool. **In the sidecar, if the referenced thing is runnable, run it;
+if it is not runnable, return its schema** (instead of executing). That single rule covers
+both cases without branching the wire by tool kind:
 
-In `sdks/python/agenta/sdk/agents/tools/models.py`, add to the discriminated union:
+- runnable → the callback executes the workflow and returns the result;
+- non-runnable → the callback (or the resolve step) returns the schema/value, and the model is
+  fulfilled the client way.
 
-```python
-class WorkflowToolConfig(ToolConfigBase):
-    type: Literal["workflow"] = "workflow"
-    name: str = Field(min_length=1)            # the tool name the model calls
-    description: Optional[str] = None          # what the tool does (for the model)
-    input_schema: Dict[str, Any] = Field(default_factory=_empty_object_schema)
-    # the referenced workflow (filled by the embed inline, or authored directly):
-    workflow_slug: str = Field(min_length=1)
-    workflow_version: Optional[str] = None     # None = latest revision
-```
+## What the embed inlines into
 
-and add `"workflow"` to the accepted `type` set in `compat.py`.
+The `@ag.embed` resolver is **already generic** and already walks `tools[]` (see
+[research.md](research.md)) — this is the one genuinely-useful research finding and it still
+holds. Embed resolution runs in the SDK `ResolverMiddleware` *before*
+`AgentConfig.from_params` parses the config and *before* `resolve_tools` runs. So a reference
+placed in `tools[i]` is resolved with **zero resolver changes**.
 
-### B2 — What the embed inlines into
+The split decides what the resolve step produces:
 
-The selector path extracts a small ref payload from the workflow revision's parameters and the
-generic resolver substitutes it into a `WorkflowToolConfig` shape at `tools[i]`. Two
-sub-options for the selector target (an open question):
+- **Runnable** → keep the reference. The config carries a workflow reference (slug, optional
+  version) plus the model-facing surface (name, description, input schema). It resolves to the
+  existing `callback` executor: a `CallbackToolSpec` whose `call_ref` encodes the workflow
+  identity, plus the shared `ToolCallback` pointing at a server-side execute target. The runner
+  needs **no new `kind`** — `callback` already dispatches everywhere (direct, Daytona relay, Pi
+  native, the Claude `agenta-tools` bridge).
+- **Non-runnable** → resolve to a value. The resolve step in the service turns the reference
+  into a concrete `client` tool config (name, description, input schema). At run time it is the
+  existing `client` path: the runner returns a `client` spec, the browser fulfills it next
+  turn. No callback, no server-side execute.
 
-- **(b2-i)** The workflow stores a ready tool surface under `parameters.tool`
-  (`{name, description, input_schema, workflow_slug}`), mirroring how skills store
-  `parameters.skill`. The selector path is `parameters.tool`. Cleanest parallel to skills.
-- **(b2-ii)** The embed inlines the *whole revision identity* and the resolver/config derives
-  the tool surface (name/description from the workflow metadata, input schema from the
-  workflow's declared inputs). Less authoring, more inference.
+Where the runnable/not decision is made: in the **service / the embed (resolve) step**, when
+the reference is resolved. That is where we know what the referenced workflow is.
 
-Recommendation: **(b2-i)** for symmetry with skills and to keep the tool's model-facing
-surface explicit and reviewable.
-
-### B3 — Resolution to a `callback` spec
-
-A `WorkflowToolConfig` resolves to the existing `CallbackToolSpec` (resolved `kind:
-"callback"`), so the runner needs no new `kind`. Mirror the gateway path:
-
-- Add a branch in `ToolResolver.resolve` (or, cleaner, a new injected resolver
-  `WorkflowToolResolver` alongside `GatewayToolResolver`) that turns workflow tool configs
-  into `CallbackToolSpec`s and one `ToolCallback`.
-- The `call_ref` encodes the workflow identity. Propose a distinct grammar from the
-  Composio 5-segment one, e.g. `workflow.{slug}` or `workflow.{slug}.{version}` (open
-  question — see status.md). The runner treats `call_ref` as opaque, so only the server-side
-  parser must agree.
-- The `ToolCallback` endpoint points at the execute target (B4).
-
-`ResolvedToolSet` holds a **single** `tool_callback`. If both gateway and workflow tools are
-present in one config, either (a) they share one endpoint that routes by `call_ref` prefix
-(`tools.*` vs `workflow.*`), or (b) `ResolvedToolSet`/the wire grows per-spec callbacks. The
-single-shared-endpoint route (a) is the smaller change and keeps the wire stable.
-
-### B4 — Server-side execute endpoint
-
-A `/tools/call`-style target (extend `api/oss/src/apis/fastapi/tools/router.py` + core) that:
-
-1. Parses the `workflow.*` `call_ref` into a workflow slug/version.
-2. Maps the model's tool-call arguments to the workflow invoke inputs.
-3. Invokes the referenced workflow revision (the same invoke path the platform already uses;
-   reserved `_agenta.*` slugs short-circuit to the catalog).
-4. Maps the workflow output back to the tool result envelope `{call:{data:{content}}}` the
-   runner expects (`callback.ts` reads `parsed.call.data.content`).
-
-Connections and secrets the workflow needs are resolved **server-side** during that invoke,
-exactly like a gateway tool — nothing reaches the sandbox. This is the central safety
-property and the reason `callback` is the right executor.
-
-### B5 — Wire and runner
-
-No new `/run` field. A workflow tool rides the wire as a `callback` `ResolvedToolSpec` with a
-`workflow.*` `callRef` and the shared `toolCallback`. The runner dispatch, the Daytona relay,
-the Pi native delivery, and the Claude `agenta-tools` bridge all already handle `callback`.
-Golden fixtures gain a workflow-tool example; `protocol.ts` and `wire.py` are unchanged in
-shape (only fixture content changes).
-
-### B6 — Platform tool workflows (optional, later)
-
-To ship an `_agenta.*` platform tool workflow, generalize `_validate_catalog` in
-`api/oss/src/core/workflows/platform_catalog.py` (today it hard-validates every payload as
-`SkillConfig`). Store the tool payload under `parameters.tool`. User-authored DB tool
-workflows do not need this; they are not in the catalog.
-
-## Resolution path, end to end (Option B)
+## Resolution path, end to end
 
 ```
-author commits agent config with an @ag.embed in tools[i]
+author commits agent config with a workflow reference in tools[i]
         |
-SDK ResolverMiddleware: _has_embed_markers(parameters) is true (walks lists)
+SDK ResolverMiddleware: _has_embed_markers(parameters) true (walks lists)
         |   POST {api}/workflows/revisions/resolve
-API generic resolver: find_object_embeds -> fetch_workflow_revision(slug)
-        |   selector path "parameters.tool" -> WorkflowToolConfig payload
-        |   set_path substitutes it into parameters.tools[i]
-        v
-_agent: AgentConfig.from_params(...) parses the inlined WorkflowToolConfig
+API generic resolver + service resolve step: fetch the referenced workflow revision
         |
-resolve_tools(agent_config.tools):
-        |   WorkflowToolResolver -> CallbackToolSpec(call_ref="workflow.<slug>") + ToolCallback
-        v
-/run wire: customTools[i] = {kind:"callback", callRef:"workflow.<slug>", ...}, toolCallback
+        |-- runnable?  -> keep the reference -> CallbackToolSpec(call_ref="workflow.<slug>")
+        |                  + the shared ToolCallback to the execute target
         |
-runner dispatch (callback): model calls the tool -> POST /tools/call (or Daytona relay)
+        '-- not runnable -> resolve to a concrete `client` tool config (name/desc/input_schema)
         v
-API execute: parse workflow.* call_ref -> invoke workflow revision with args -> result
+_agent: AgentConfig.from_params(...) parses the now-resolved tools
         |
-result -> {call:{data:{content}}} -> back to the model
+resolve_tools(agent_config.tools): callback spec for runnable; client spec for non-runnable
+        v
+/run wire: customTools[i] = {kind:"callback", callRef:"workflow.<slug>", ...} OR {kind:"client", ...}
+        |
+runner dispatch:
+        |   callback -> model calls -> POST /tools/call -> API invokes the workflow revision
+        |   client   -> returned to the browser, fulfilled next turn
+        v
+result -> back to the model
 ```
+
+## The seams
+
+| Seam | File | Change |
+| --- | --- | --- |
+| Strict schema arm | `sdks/python/agenta/sdk/utils/types.py` | add the embed-ref arm to `AgentConfigSchema.tools` (mirror `_SkillEmbedRefSchema`) so a referenced tool validates in the playground |
+| Resolve step (runnable vs not) | service resolve step (where `@ag.embed`/references resolve) | decide runnable vs not for the referenced workflow; produce a callback-bound reference (runnable) or a concrete `client` config (non-runnable) |
+| Runnable resolution branch | `sdks/python/agenta/sdk/agents/tools/resolver.py` + a platform resolver in `.../platform/` | a referenced runnable workflow resolves to a `CallbackToolSpec` + the shared `ToolCallback`, mirroring the gateway path |
+| Server-side execute | `api/oss/src/apis/fastapi/tools/router.py` (+ core) | a `/tools/call`-style target that parses the `workflow.*` `call_ref`, invokes the referenced workflow revision with the model's arguments, and returns the result envelope |
+| Embed resolver | `api/oss/src/core/embeds/utils.py` | **no change** — already walks `tools[]` |
+| Wire | `services/agent/src/protocol.ts`, `sdks/python/agenta/sdk/agents/utils/wire.py`, golden fixtures | **no new field** — runnable rides as a `callback` spec, non-runnable as a `client` spec; only `call_ref` content is new |
+
+`call_ref` grammar for a runnable workflow: an opaque slug, e.g. `workflow.{slug}` or
+`workflow.{slug}.{version}`. Distinct from the Composio 5-segment grammar
+(`tools.{provider}.{integration}.{action}.{connection}`). The runner treats `call_ref` as
+opaque; only the server-side parser must agree. `ResolvedToolSet` keeps its single shared
+`tool_callback`; if both gateway and workflow tools are present, one endpoint routes by
+`call_ref` prefix (`tools.*` vs `workflow.*`) — the smaller change, keeps the wire stable.
+
+## Out of scope (explicitly dropped from the old plan)
+
+- **No `workflow` tool variant.** A referenced workflow is just a workflow; no
+  `WorkflowToolConfig` in the discriminated union, no `"workflow"` `type` allowlist entry.
+- **No platform tools as workflows.** Platform tools belong in the **existing tools
+  endpoints** (the same place gateway tools are added), not in the workflow catalog. Drop the
+  `_agenta.*` tool-workflow / `_validate_catalog` generalization direction entirely. (PR #4837
+  review [3470356903](https://github.com/Agenta-AI/agenta/pull/4837#discussion_r3470356903).)
+- **No Option A / Option B split.** There is one path; the only branch is runnable vs not.
+- **`is_tool` flag** is a later, FE-only display hint — not built here.
 
 ## Test plan
 
-- **SDK unit:** `WorkflowToolConfig` parses (strict + loose coercion); `_ToolEmbedRefSchema`
-  validates an embed-ref `tools` entry; `WorkflowToolResolver` produces the expected
-  `CallbackToolSpec` + `ToolCallback`.
-- **Schema:** `AgentConfigSchema` JSON Schema emits the embed-ref `oneOf` arm in `tools`
-  (mirror the skills schema test); `CATALOG_TYPES["agent_config"]` still dereferences.
-- **Embed resolution (API):** an `@ag.embed` in `tools[i]` inlines into a `WorkflowToolConfig`
-  (Option B) or a concrete tool config (Option A); cycle/depth guards still hold.
-- **Wire / golden:** a golden `/run` fixture with a workflow tool; `protocol.ts` Zod accepts
-  it as a `callback` spec.
-- **Execute endpoint:** a `/tools/call` with a `workflow.*` `call_ref` invokes the revision
-  and returns the result; a user workflow's secrets/connections stay server-side.
-- **Live matrix (agent-workflows-qa):** force the tool with an unguessable token across
-  pi_core / claude on local + Daytona + SDK; a pass proves the workflow ran server-side and
+- **SDK unit:** the embed-ref `tools` arm validates (mirror the skills schema test); a
+  resolved runnable reference produces the expected `CallbackToolSpec` + `ToolCallback`; a
+  resolved non-runnable reference produces a `client` spec.
+- **Schema:** `AgentConfigSchema` JSON Schema emits the embed-ref `oneOf` arm in `tools`;
+  `CATALOG_TYPES["agent_config"]` still dereferences.
+- **Embed resolution (API/service):** a reference in `tools[i]` resolves to a callback-bound
+  reference (runnable) or a concrete `client` config (non-runnable); cycle/depth guards hold.
+- **Wire / golden:** a golden `/run` fixture with a runnable workflow tool (a `callback` spec)
+  and one with a non-runnable (a `client` spec); `protocol.ts` Zod accepts both.
+- **Execute endpoint:** a `/tools/call` with a `workflow.*` `call_ref` invokes the revision and
+  returns the result; the workflow's secrets/connections stay server-side.
+- **Live matrix (agent-workflows-qa):** force a runnable workflow tool with an unguessable
+  token across pi_core / claude on local + Daytona + SDK; a pass proves it ran server-side and
   the result reached the model. Pin a green cell with agent-replay-test.
 
 ## Rollout
 
-POC, off no flag needed for the schema arm (it is additive and the resolver already handles
-it). The execute endpoint is new surface; gate platform tool workflows (B6) behind the
-existing reserved-namespace trust, not a feature flag. Keep docs in sync in the same
-implementation PR (tools.md, agent-config-schema.md, the interface inventory).
+POC, no flag needed for the schema arm (additive; the resolver already handles it). The
+execute endpoint is new server surface. Keep docs in sync in the same implementation PR
+(`documentation/tools.md`, `interfaces/public-edge/agent-config-schema.md`, the interface
+inventory).
 
 ## Build order (when implemented)
 
-1. Option A schema arm (the shared, almost-free win) — `tools` accepts `@ag.embed`,
-   inlining concrete tool configs. Ships value immediately, validates the embedding half.
-2. Option B variant + resolver + execute endpoint — tools-as-workflows proper.
-3. Option B6 platform tool workflows (catalog validation generalization) if/when wanted.
+1. Schema arm — `tools` accepts a workflow reference (the embed-ref arm), validates in the
+   playground.
+2. Resolve step — decide runnable vs not; runnable → `CallbackToolSpec` + execute endpoint;
+   non-runnable → concrete `client` config.
+3. (Later, FE) `is_tool` flag so referenced workflows surface in the tool picker.
