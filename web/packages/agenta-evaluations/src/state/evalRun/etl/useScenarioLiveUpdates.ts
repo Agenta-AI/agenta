@@ -141,11 +141,14 @@ export const useScenarioLiveUpdates = ({
                         scenarioIds,
                     }),
                 ])
-            }
 
-            // 5. Re-render cells so they re-resolve and (via the cell
-            //    materializer) re-derive testcase / trace slices.
-            bumpHydrationVersion((v) => v + 1)
+                // 5. Re-render cells so they re-resolve and (via the cell
+                //    materializer) re-derive testcase / trace slices. Only when
+                //    something actually changed — bumping every tick re-renders the
+                //    whole table and flickers while a (long-lived, non-terminal)
+                //    human-eval run waits for annotations.
+                bumpHydrationVersion((v) => v + 1)
+            }
         } catch {
             // Transient failure — the next tick retries.
         } finally {

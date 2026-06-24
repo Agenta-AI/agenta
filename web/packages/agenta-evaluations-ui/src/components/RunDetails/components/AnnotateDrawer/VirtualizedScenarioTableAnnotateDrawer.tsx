@@ -347,15 +347,19 @@ const PreviewAnnotateContent = ({
         (primaryInvocation as any)?.testset_id ??
         (primaryInvocation as any)?.testset?.id
 
+    // Existing annotations stay re-submittable so the button never locks after the first
+    // save — a scenario can be re-annotated at any time.
+    const hasExistingAnnotations = combinedAnnotations.length > 0
+
     // Can submit if:
     // - Has trace ID for linking
     // - Has invocation output
-    // - Has pending changes OR new annotation metrics
+    // - Has pending changes, new annotation metrics, or an existing annotation to re-edit
     // - All required fields are filled
     const canSubmitAnnotations =
         !!traceSpanIds.traceId &&
         hasInvocationOutput &&
-        (hasPendingAnnotationChanges || hasNewAnnotationMetrics) &&
+        (hasPendingAnnotationChanges || hasNewAnnotationMetrics || hasExistingAnnotations) &&
         allRequiredFieldsFilled
 
     const handleAnnotate = useCallback(async () => {
@@ -761,6 +765,7 @@ const PreviewAnnotateContent = ({
                     annotations={annotationsForAnnotate}
                     updatedMetrics={annotationMetrics}
                     selectedEvaluators={selectedEvaluators}
+                    evaluators={evaluatorDtos}
                     tempSelectedEvaluators={tempSelectedEvaluators}
                     errorMessage={errorMessage}
                     onCaptureError={(errors: string[], addPrev: boolean) => {
