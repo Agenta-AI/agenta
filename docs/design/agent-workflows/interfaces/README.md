@@ -53,7 +53,7 @@ page. `Status` is read from each page's prose: **stable** (wired and unlikely to
 | [Service to vault and tool providers](cross-service/service-to-vault-and-tool-providers.md) | cross-service (external) | `agent/app.py`, `platform/{resolve,connections}.py`, `agents/capabilities.py`, `tools/router.py` | stable | `unit/agents/connections/`, `unit/agents/platform/`, `unit/agents/tools/` |
 | [Agent service handler](in-service/agent-service-handler.md) | in-service | `services/oss/src/agent/app.py` | stable | `services/oss/tests/pytest/unit/agent/` |
 | [Neutral runtime DTOs](in-service/neutral-runtime-dtos.md) | in-service | `agents/dtos.py` | stable | `unit/agents/test_dtos_*.py` |
-| [Runtime ports](in-service/runtime-ports.md) | in-service | `agents/interfaces.py` | evolving (`SessionStore` noop, `LocalBackend` stub) | `unit/agents/test_environment_lifecycle.py`, `test_harness_adapters.py` |
+| [Runtime ports](in-service/runtime-ports.md) | in-service | `agents/interfaces.py` | evolving (`LocalBackend` stub) | `unit/agents/test_environment_lifecycle.py`, `test_harness_adapters.py` |
 | [Backend adapter](in-service/backend-adapter.md) | in-service | `agents/adapters/sandbox_agent.py` | stable | `unit/agents/test_runner_adapter_config.py`, `test_environment_lifecycle.py` |
 | [Harness adapters](in-service/harness-adapters.md) | in-service | `agents/adapters/harnesses.py`, `agents/dtos.py` | stable | `unit/agents/test_harness_adapters.py`, `test_dtos_harness_configs.py` |
 | [Browser protocol adapter](in-service/browser-protocol-adapter.md) | in-service | `agents/adapters/vercel/{routing,messages,stream,sse}.py` | stable | `unit/agents/test_ui_messages.py`, `utils/test_messages_endpoint.py` |
@@ -66,8 +66,7 @@ page. `Status` is read from each page's prose: **stable** (wired and unlikely to
 
 Paths are relative to the owner package (`sdks/python/agenta/sdk/`, `services/agent/src/`,
 `services/oss/src/`, `api/oss/src/`); test paths are relative to each package's pytest root
-unless prefixed. The `/load-session` shell endpoint is intentionally omitted: it is being
-removed in a sibling change, so it is not listed here.
+unless prefixed.
 
 ## Source of truth
 

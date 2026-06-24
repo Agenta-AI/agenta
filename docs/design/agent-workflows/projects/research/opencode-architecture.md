@@ -562,8 +562,8 @@ Our design is documented under
 
 **Sessions: durable and server-owned versus cold replay.** This is the biggest gap. Our runtime
 is cold. Each turn creates a fresh session, runs one `/run`, and tears it down. The model only
-sees prior context because the client re-sends the full history every turn. Our `SessionStore`
-is a port with only a `NoopSessionStore` behind it, and `/load-session` returns an empty list.
+sees prior context because the client re-sends the full history every turn. We have no durable
+session store and no history-load endpoint.
 Source: [sessions](../sessions.md). OpenCode is the opposite. The server owns the conversation
 as a durable event log, the client sends only the new prompt, and history is a query. Their
 model is what our [sessions](../sessions.md) page calls future work. Their event log is also a

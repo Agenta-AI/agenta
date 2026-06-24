@@ -18,8 +18,7 @@ The runtime keeps two run choices configurable
   `local`.
 
 The platform exposes the agent through normal workflow routing. `/invoke` is the batch
-contract. Agent routes also register `/messages` and `/load-session` for the browser chat
-protocol.
+contract. Agent routes also register `/messages` for the browser chat protocol.
 
 ## Runtime Shape
 
@@ -141,8 +140,8 @@ Agent `/messages` follows the same runtime path after a browser-protocol adapter
 5. The Vercel adapter converts live `AgentEvent` objects into Vercel UI Message Stream parts
    and the routing layer frames them as SSE.
 
-`/load-session` is registered for agent routes, but no durable store is wired. It returns an
-empty message list. See [Sessions](sessions.md).
+The runtime is cold: the client sends the full conversation on each turn and the server does
+not persist history. See [Sessions](sessions.md).
 
 ## Lifecycle
 
@@ -215,8 +214,8 @@ rolls run usage back onto it.
 ## Gaps
 
 - `LocalBackend` is a public adapter shape but does not run anything yet.
-- No durable session store is wired. `/load-session` returns empty history and completed turns
-  are not persisted. See [Sessions](sessions.md).
+- No durable session store is wired. The runtime is cold and completed turns are not
+  persisted. See [Sessions](sessions.md).
 - `AgentaHarness` uses placeholder preamble, persona, and skill content.
 - The agent is registered as a custom workflow handler, not as a first-class builtin URI such
   as `agenta:builtin:agent:v0`. The builtin interface exists in the SDK, but the handler is

@@ -9,10 +9,10 @@ this page and the referenced code as the source of truth.
 | Area | Files | Active-stack role |
 | --- | --- | --- |
 | Agent service handler | `services/oss/src/agent/app.py` | Parses agent config, resolves secrets and tools, builds `SandboxAgentBackend`, runs batch or streaming turns. |
-| Agent route wiring | `sdks/python/agenta/sdk/decorators/routing.py` | Registers `/invoke`, `/inspect`, and agent-only `/messages` plus `/load-session`. |
+| Agent route wiring | `sdks/python/agenta/sdk/decorators/routing.py` | Registers `/invoke`, `/inspect`, and agent-only `/messages`. |
 | Browser protocol adapter | `sdks/python/agenta/sdk/agents/adapters/vercel/` | Converts Vercel `UIMessage` input and emits Vercel UI Message Stream parts. |
 | SDK runtime DTOs | `sdks/python/agenta/sdk/agents/dtos.py` | Defines `AgentConfig`, `RunSelection`, `SessionConfig`, messages, events, capabilities, and harness configs. |
-| SDK runtime ports | `sdks/python/agenta/sdk/agents/interfaces.py` | Defines `Backend`, `Environment`, `Sandbox`, `Session`, `Harness`, `SessionStore`, and `NoopSessionStore`. |
+| SDK runtime ports | `sdks/python/agenta/sdk/agents/interfaces.py` | Defines `Backend`, `Environment`, `Sandbox`, `Session`, and `Harness`. |
 | Backend adapters | `sdks/python/agenta/sdk/agents/adapters/sandbox_agent.py`, `local.py` | Implement the sandbox-agent backend. `LocalBackend` is a stub. |
 | Harness adapters | `sdks/python/agenta/sdk/agents/adapters/harnesses.py` | Maps neutral session config into Pi, Claude, and Agenta harness-specific config. |
 | Runner wire | `sdks/python/agenta/sdk/agents/utils/wire.py`, `services/agent/src/protocol.ts` | Keeps the Python and TypeScript `/run` payloads in sync. |
@@ -27,7 +27,7 @@ this page and the referenced code as the source of truth.
 - The service exposes an agent workflow handler through `ag.create_app`, `ag.workflow`, and
   `ag.route`.
 - `/invoke` runs one cold turn and returns the final assistant message.
-- Agent routes register `/messages` and `/load-session` when `flags={"is_agent": True}`.
+- Agent routes register `/messages` when `flags={"is_agent": True}`.
 - `/messages` validates or mints `session_id`, folds Vercel `UIMessage` input into neutral
   runtime messages, and supports JSON or Vercel SSE based on `Accept`.
 - Streaming runs over a runner NDJSON stream internally. The browser edge projects those
@@ -55,9 +55,8 @@ this page and the referenced code as the source of truth.
 ## Not Implemented
 
 - `LocalBackend` does not run Pi or Claude. It raises `NotImplementedError`.
-- `SessionStore` has no production adapter. The default `NoopSessionStore` returns empty
-  history and discards writes.
-- Completed `/messages` turns are not persisted to a session store by default.
+- There is no durable session store. The runtime is cold and completed `/messages` turns are
+  not persisted; there is no history-load endpoint.
 - Harness session snapshots, such as sandbox-agent/ACP state save/load around cleanup/setup, are
   not represented by a production port yet.
 - Warm daemon sessions, ACP `session/load`, and session fork are not wired.
@@ -78,8 +77,9 @@ this page and the referenced code as the source of truth.
 
 - [SDK Local Tools](../projects/sdk-local-tools/) is a planned and partly implemented
   workspace for standalone SDK tool resolution. It remains blocked on `LocalBackend`.
-- Durable server-owned sessions need a real `SessionStore`, a write path from completed
-  turns, ownership checks, and a decision on platform versus local storage.
+- Durable server-owned sessions need a session store with a port and adapter, a write path
+  from completed turns, a history-load endpoint, ownership checks, and a decision on platform
+  versus local storage.
 - Stateful session resume needs research into sandbox-agent/ACP session representation and a
   future save/load snapshot interface separate from chat history.
 - Trigger integration needs a provider port, a Compose.io adapter, Agenta-owned trigger
@@ -89,7 +89,7 @@ this page and the referenced code as the source of truth.
 
 ## Verification Pointers
 
-- `/messages` and `/load-session` routing tests live in
+- `/messages` routing tests live in
   `sdks/python/oss/tests/pytest/utils/test_messages_endpoint.py`.
 - Agent service handler tests live in `services/oss/tests/pytest/unit/agent/`.
 - Wire-contract tests live in `sdks/python/oss/tests/pytest/unit/agents/test_wire_contract.py`.

@@ -14,7 +14,7 @@ The SDK runtime lives under `sdks/python/agenta/sdk/agents/`.
 | Layer | Files | Role |
 | --- | --- | --- |
 | DTOs | `dtos.py` | `AgentConfig`, `RunSelection`, `SessionConfig`, messages, events, capabilities, and harness-specific config models. |
-| Ports | `interfaces.py` | `Backend`, `Environment`, `Sandbox`, `Session`, `Harness`, `SessionStore`. |
+| Ports | `interfaces.py` | `Backend`, `Environment`, `Sandbox`, `Session`, `Harness`. |
 | Backend adapters | `adapters/sandbox_agent.py`, `adapters/local.py` | Engines that can run a harness. |
 | Harness adapters | `adapters/harnesses.py` | Per-harness mapping from neutral session config to harness-specific config. |
 | Browser adapter | `adapters/vercel/` | Vercel `UIMessage` input and Vercel UI Message Stream output. |
@@ -72,17 +72,16 @@ wrapper around one `/run` call. It exposes both:
 `AgentRun` yields live `AgentEvent` objects and exposes the terminal `AgentResult` after
 the stream drains.
 
-### SessionStore
+### Session persistence
 
-`SessionStore` is the durable-history port. It has `load` and `save_turn`. The only default
-adapter is `NoopSessionStore`, which returns no messages and discards writes.
+There is no durable-history port. The runtime is cold: the client sends the full
+conversation on every turn. Server-owned session history is not implemented, so completed
+turns are not persisted and there is no load path.
 
-This is intentional scaffolding. Server-owned session history is not implemented yet.
-
-A separate future port is still needed for harness session snapshots. Durable message
-history can reload a transcript, but it cannot necessarily restore sandbox-agent/ACP session state,
-tool state, or setup artifacts. That future port should be designed after we inspect the
-actual session representation and storage size.
+A future port for harness session snapshots is still open. Durable message history could
+reload a transcript, but it cannot necessarily restore sandbox-agent/ACP session state,
+tool state, or setup artifacts. That port should be designed after we inspect the actual
+session representation and storage size.
 
 ## Config Ownership
 
@@ -138,7 +137,6 @@ It owns:
 - `session_id` validation and minting.
 - `/messages` stream negotiation.
 - Vercel stream-part encoding.
-- `/load-session` over `SessionStore`.
 
 This keeps Vercel-specific names out of the runtime ports.
 
@@ -156,8 +154,8 @@ result fields should update both sides and the wire tests in the same PR.
 ## Known Weak Points
 
 - `LocalBackend` appears in public exports but is not usable yet.
-- `SessionStore` has no production adapter and the current runtime does not call
-  `save_turn` after completed `/messages` turns.
+- Session history is not persisted: the runtime is cold and completed `/messages` turns are
+  not stored.
 - `AgentaHarness` policy content is placeholder product copy.
 - MCP server resolution is disabled unless `AGENTA_AGENT_ENABLE_MCP` is truthy.
 - The code still has historical WP labels in some comments. Those labels should not guide new
