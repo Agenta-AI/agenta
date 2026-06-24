@@ -63,7 +63,6 @@ from .sdk.agents import (  # noqa: F401
     LocalBackend,
     PiHarness,
     SandboxAgentBackend,
-    RunSelection,
     SessionConfig,
     make_harness,
 )

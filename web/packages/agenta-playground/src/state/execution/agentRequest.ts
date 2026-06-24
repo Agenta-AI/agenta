@@ -19,8 +19,8 @@
  *   { session_id, references, data: { messages, parameters } }
  *  - `parameters` is the DRAFT-AWARE config (`workflowMolecule.selectors.configuration`,
  *    merged draft + server) so unsaved left-panel edits apply to the agent run.
- *  - `harness`/`sandbox` are agent-runtime hints, defaulted but never overriding
- *    a value the resolved config already carries.
+ *  - `harness`/`sandbox` live on the agent config (`parameters.agent`), defaulted but
+ *    never overriding a value the resolved config already carries.
  *  - `project_id` / `application_id` ride the URL QUERY (never the body), and
  *    `project_id` only travels alongside auth — mirroring `executionItems.ts`.
  */
@@ -174,6 +174,24 @@ const hasAnswer = (message: unknown): boolean => {
     return Array.isArray(msg.parts) && msg.parts.some(isAnswerPart)
 }
 
+/**
+ * Default the agent run-selection fields (`harness`/`sandbox`) onto the AGENT CONFIG
+ * (`parameters.agent`), not as top-level params siblings. They are part of one `AgentConfig`
+ * now, so they belong inside the `agent` block. A value the resolved config already carries
+ * always wins; the schema nests the config under `agent`, but a flat config (no `agent` key)
+ * is still defaulted at the top level so a non-schema config keeps working.
+ */
+const withAgentRunDefaults = (config: Record<string, unknown>): Record<string, unknown> => {
+    const agent = config.agent
+    if (agent && typeof agent === "object") {
+        return {
+            ...config,
+            agent: {harness: "pi_core", sandbox: "local", ...(agent as Record<string, unknown>)},
+        }
+    }
+    return {harness: "pi_core", sandbox: "local", ...config}
+}
+
 const withQuery = (url: string, params: Record<string, string | undefined>): string => {
     const qs = new URLSearchParams()
     for (const [key, value] of Object.entries(params)) {
@@ -217,11 +235,13 @@ export async function buildAgentRequest(
         | Record<string, unknown>
         | null
         | undefined
-    const parameters = pruneBlankEntries({
-        harness: "pi_core",
-        sandbox: "local",
-        ...(config ?? {}),
-    }) as Record<string, unknown>
+    // `harness`/`sandbox` are run-selection fields on the AGENT CONFIG (`parameters.agent`), not
+    // top-level params siblings. Default them inside the `agent` block, never overriding values
+    // the resolved config already carries.
+    const parameters = pruneBlankEntries(withAgentRunDefaults(config ?? {})) as Record<
+        string,
+        unknown
+    >
 
     const entity = store.get(workflowMolecule.selectors.data(entityId)) as
         | RevisionLike

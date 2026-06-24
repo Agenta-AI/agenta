@@ -1,8 +1,9 @@
-"""``AgentConfig.from_params`` (the three request shapes) and ``RunSelection.from_params``.
+"""``AgentConfig.from_params`` (the three request shapes), including the run-selection fields.
 
-The handler parses whatever the playground or a stored config sends into a neutral
-``AgentConfig`` plus a ``RunSelection``. This file locks the three accepted shapes, the
-defaults fall-through, the ``harness_options`` escape hatch, and the run-selection parsing.
+The handler parses whatever the playground or a stored config sends into one ``AgentConfig``.
+This file locks the three accepted shapes, the defaults fall-through, the ``harness_kwargs``
+escape hatch, and the run-selection parsing (``harness`` / ``sandbox`` / ``permission_policy``,
+which now live on ``AgentConfig`` rather than a separate ``RunSelection``).
 """
 
 from __future__ import annotations
@@ -10,7 +11,6 @@ from __future__ import annotations
 from agenta.sdk.agents import (
     AgentConfig,
     BuiltinToolConfig,
-    RunSelection,
 )
 
 _DEFAULTS = AgentConfig(instructions="default-md", model="default-model", tools=["d"])
@@ -26,7 +26,7 @@ def test_from_params_agent_element_shape():
                 "instructions": "I",
                 "model": "M",
                 "tools": [{"type": "builtin", "name": "read"}],
-                "harness_options": {"pi_core": {"system": "S"}},
+                "harness_kwargs": {"pi_core": {"system": "S"}},
             }
         },
         defaults=_DEFAULTS,
@@ -34,7 +34,7 @@ def test_from_params_agent_element_shape():
     assert config.instructions == "I"
     assert config.model == "M"
     assert config.tools == [BuiltinToolConfig(name="read")]
-    assert config.harness_options == {"pi_core": {"system": "S"}}
+    assert config.harness_kwargs == {"pi_core": {"system": "S"}}
 
 
 def test_from_params_prompt_template_shape():
@@ -149,34 +149,34 @@ def test_from_params_skills_falls_back_to_defaults_when_absent():
     assert [s.name for s in config.skills] == ["release-notes"]
 
 
-def test_harness_options_drops_malformed_and_lowercases_keys():
+def test_harness_kwargs_drops_malformed_and_lowercases_keys():
     config = AgentConfig.from_params(
         {
             "agent": {
-                "harness_options": {
+                "harness_kwargs": {
                     "PI_CORE": {"system": "S"},  # key lower-cased
                     "claude": "not a dict",  # dropped
                 }
             }
         }
     )
-    assert config.harness_options == {"pi_core": {"system": "S"}}
+    assert config.harness_kwargs == {"pi_core": {"system": "S"}}
 
 
-def test_harness_options_falls_back_to_defaults_when_absent():
-    defaults = AgentConfig(harness_options={"pi_core": {"system": "D"}})
+def test_harness_kwargs_falls_back_to_defaults_when_absent():
+    defaults = AgentConfig(harness_kwargs={"pi_core": {"system": "D"}})
     config = AgentConfig.from_params(
         {"agent": {"instructions": "I"}}, defaults=defaults
     )
-    assert config.harness_options == {"pi_core": {"system": "D"}}
+    assert config.harness_kwargs == {"pi_core": {"system": "D"}}
 
 
-# -------------------------------------------------------------- RunSelection
+# ---------------------------------------------------- run-selection fields
 
 
 def test_run_selection_defaults():
-    sel = RunSelection.from_params({})
-    assert (sel.harness, sel.sandbox, sel.permission_policy) == (
+    config = AgentConfig.from_params({})
+    assert (config.harness, config.sandbox, config.permission_policy) == (
         "pi_core",
         "local",
         "auto",
@@ -184,7 +184,7 @@ def test_run_selection_defaults():
 
 
 def test_run_selection_reads_agent_subdict_and_lowercases():
-    sel = RunSelection.from_params(
+    config = AgentConfig.from_params(
         {
             "agent": {
                 "harness": "Claude",
@@ -193,21 +193,20 @@ def test_run_selection_reads_agent_subdict_and_lowercases():
             }
         }
     )
-    assert (sel.harness, sel.sandbox, sel.permission_policy) == (
+    assert (config.harness, config.sandbox, config.permission_policy) == (
         "claude",
         "daytona",
         "deny",
     )
 
 
-def test_run_selection_honors_custom_defaults():
-    sel = RunSelection.from_params(
-        {}, default_harness="claude", default_sandbox="daytona"
-    )
-    assert sel.harness == "claude"
-    assert sel.sandbox == "daytona"
+def test_run_selection_honors_defaults():
+    defaults = AgentConfig(harness="claude", sandbox="daytona")
+    config = AgentConfig.from_params({}, defaults=defaults)
+    assert config.harness == "claude"
+    assert config.sandbox == "daytona"
 
 
 def test_run_selection_reads_flat_request():
-    sel = RunSelection.from_params({"harness": "claude"})
-    assert sel.harness == "claude"
+    config = AgentConfig.from_params({"harness": "claude"})
+    assert config.harness == "claude"

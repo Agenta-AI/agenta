@@ -13,7 +13,7 @@ The SDK runtime lives under `sdks/python/agenta/sdk/agents/`.
 
 | Layer | Files | Role |
 | --- | --- | --- |
-| DTOs | `dtos.py` | `AgentConfig`, `RunSelection`, `SessionConfig`, messages, events, capabilities, and harness-specific config models. |
+| DTOs | `dtos.py` | `AgentConfig` (incl. the run-selection fields), `SessionConfig`, messages, events, capabilities, and harness-specific config models. |
 | Ports | `interfaces.py` | `Backend`, `Environment`, `Sandbox`, `Session`, `Harness`. |
 | Backend adapters | `adapters/sandbox_agent.py`, `adapters/local.py` | Engines that can run a harness. |
 | Harness adapters | `adapters/harnesses.py` | Per-harness mapping from neutral session config to harness-specific config. |
@@ -54,7 +54,7 @@ turn.
 Current harnesses:
 
 - `PiHarness` keeps built-in tool names, resolved tool specs, Pi prompt overrides (`system`
-  and `append_system` from `harness_options.pi`), and Pi native tool delivery.
+  and `append_system` from the `pi_core` key of `harness_kwargs`), and Pi native tool delivery.
 - `ClaudeHarness` drops Pi built-ins, carries MCP-delivered specs, and carries the
   permission policy.
 - `AgentaHarness` (harness value `pi_agenta`) is Pi with forced Agenta policy layered on top:
@@ -86,9 +86,10 @@ session representation and storage size.
 ## Config Ownership
 
 `AgentConfig` describes the agent itself: instructions, model, tool references, MCP server
-config, and per-harness option bags. It does not choose a backend.
-
-`RunSelection` describes runtime choices: harness, sandbox, and permission policy.
+config, and per-harness option bags. It also carries the run-selection fields `harness`,
+`sandbox`, and `permission_policy`; there is one agent config, not a config plus a separate
+`RunSelection` object. The handler reads `sandbox` to choose a backend, but the backend choice
+itself is not stored on the config.
 
 This is the current POC shape. The long-term split should be stricter:
 
@@ -98,9 +99,9 @@ This is the current POC shape. The long-term split should be stricter:
 - Runtime infrastructure: local versus Daytona, runner sidecar URL, filesystem isolation,
   and secret channels.
 
-Sandbox is currently selectable through `RunSelection` so the POC can exercise local and
-Daytona paths. It should not become durable agent template identity unless product
-requirements explicitly need portable per-template runtime selection.
+Sandbox is currently selectable through the `sandbox` field on `AgentConfig` so the POC can
+exercise local and Daytona paths. It should not become durable agent template identity unless
+product requirements explicitly need portable per-template runtime selection.
 
 `SessionConfig` describes one run: the neutral agent config plus resolved secrets, resolved
 tools, resolved MCP servers, trace context, and the session id.
@@ -109,7 +110,7 @@ tools, resolved MCP servers, trace context, and the session id.
 
 `services/oss/src/agent/app.py` is a thin consumer of the SDK ports:
 
-1. Parse `AgentConfig` and `RunSelection`.
+1. Parse one `AgentConfig` (it carries the run-selection fields too).
 2. Resolve provider secrets.
 3. Resolve tools and, when enabled, MCP servers.
 4. Build `SessionConfig`.

@@ -18,7 +18,7 @@ Each adapter implements `_to_harness_config(...)` and emits a different `/run` w
   tool use.
 - **`ClaudeHarness`** delivers tools over MCP, not natively, and has no Pi built-ins (it warns
   if any are set). It carries `permission_policy` and renders `.claude/settings.json` from
-  `harness_options` and the sandbox permission, shipped as `harnessFiles`. It carries inline
+  `harness_kwargs` and the sandbox permission, shipped as `harnessFiles`. It carries inline
   skill packages on the wire like the others; the runner materializes them under
   `.claude/skills` in the session cwd, matching Claude's project-local skill layout.
 - **`AgentaHarness`** runs on the same Pi engine but forces Agenta's opinion: it composes the
@@ -31,7 +31,7 @@ The wire shapes, side by side:
 |---|---|---|---|
 | built-in tools | yes | no | forced set |
 | custom tools | native | over MCP | native |
-| prompt overrides | `system`/`append_system` | none (reads `harness_options`) | forced `append_system` + author `system` |
+| prompt overrides | `system`/`append_system` | none (reads `harness_kwargs`) | forced `append_system` + author `system` |
 | permission policy | dropped | carried | dropped |
 | inline skills | yes (agent-dir scope) | yes (materialized to `.claude/skills`) | yes (agent-dir scope) |
 | harness files | none | `.claude/settings.json` | none |
@@ -52,5 +52,5 @@ The wire shapes, side by side:
   materializes them under `.claude/skills`. (An earlier revision suppressed Claude's
   `wire_skills()` to `{}`; that override is gone, and `test_claude_carries_skills_for_project_local_materialization`
   now pins the carry-on-wire behavior.)
-- **Harness options.** The `harness_options` bag is keyed by harness; each adapter reads only
+- **Harness options.** The `harness_kwargs` bag is keyed by harness; each adapter reads only
   its own slice.

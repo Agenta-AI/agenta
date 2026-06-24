@@ -123,7 +123,7 @@ def _claude_payload():
         custom_tools=[dict(_CUSTOM_TOOL)],
         tool_callback=_CALLBACK,
         permission_policy="deny",
-        harness_options={
+        harness_kwargs={
             "claude": {
                 "permissions": {
                     "default_mode": "acceptEdits",
@@ -466,7 +466,7 @@ def test_request_to_wire_pi_renders_no_harness_files_from_its_options():
     # config carrying options (even a `claude` slice that is never its concern) emits no
     # `harnessFiles`. The raw options map no longer rides the wire.
     config = PiAgentConfig(
-        harness_options={
+        harness_kwargs={
             "pi": {"system": "You are Pi."},
             "claude": {"permissions": {"default_mode": "plan"}},
         }
@@ -489,7 +489,7 @@ def test_request_to_wire_claude_renders_settings_from_options_and_boundaries():
     # `mcp__<server>` ask. The author's deny keeps its position; derived rules append (deduped).
     config = ClaudeAgentConfig(
         sandbox_permission=SandboxPermission(network={"mode": "off"}),
-        harness_options={"claude": {"permissions": {"default_mode": "plan"}}},
+        harness_kwargs={"claude": {"permissions": {"default_mode": "plan"}}},
         mcp_servers=[
             {
                 "name": "github",

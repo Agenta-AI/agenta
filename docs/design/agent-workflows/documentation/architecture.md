@@ -9,8 +9,8 @@ Agenta already runs prompt workflows that call a model once and return one answe
 workflow runs a coding harness instead. The harness reads instructions, calls a model, calls
 tools, observes the results, and loops until it has an answer.
 
-The runtime keeps two run choices configurable
-(`sdks/python/agenta/sdk/agents/dtos.py:364`, `RunSelection`):
+The runtime keeps two run choices configurable as fields on `AgentConfig`
+(`sdks/python/agenta/sdk/agents/dtos.py`):
 
 - **Harness:** which agent runs. Supported values are `pi_core`, `claude`, and experimental
   `pi_agenta`. Default `pi_core`. `pi_core` and `pi_agenta` both drive the `pi` ACP agent;
@@ -107,8 +107,9 @@ sandbox-agent local and Daytona (`projects/qa/findings.md`, F-002).
 
 Batch `/invoke` follows this path:
 
-1. The workflow route calls `_agent` in `services/oss/src/agent/app.py:63`.
-2. `_agent` parses `AgentConfig` and `RunSelection` from request parameters.
+1. The workflow route calls `_agent` in `services/oss/src/agent/app.py`.
+2. `_agent` parses one `AgentConfig` from request parameters; it carries the run-selection
+   fields `harness`, `sandbox`, and `permission_policy`.
 3. The service resolves three things independently: tools, MCP servers, and provider-key
    secrets. MCP resolution is gated by `AGENTA_AGENT_ENABLE_MCP`
    (`services/oss/src/agent/tools/resolver.py:23`, off by default).

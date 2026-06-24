@@ -2,7 +2,7 @@
 
 This is the translation that used to live in the TS runner's ``claude-settings.ts``. It merges
 three rule sources into one ``.claude/settings.json``: the author's
-``harness_options["claude"]["permissions"]`` slice, the Layer-2 sandbox-boundary derivation, and
+``harness_kwargs["claude"]["permissions"]`` slice, the Layer-2 sandbox-boundary derivation, and
 the per-MCP-server Layer-3 permissions. The runner is now a dumb writer of the rendered
 ``harnessFiles`` entry this produces.
 """

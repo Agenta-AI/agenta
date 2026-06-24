@@ -403,12 +403,19 @@ class AgentResult(BaseModel):
 
 
 class AgentConfig(BaseModel):
-    """What an agent IS, independent of where or how it runs. ``instructions`` becomes
+    """What an agent is and how it runs — the single agent definition. ``instructions`` becomes
     ``AGENTS.md``. ``tools`` are provider-agnostic references; resolving them into runnable
     specs is the caller's job (the Agenta service does it server-side).
 
-    ``harness_options`` is the neutral config's one escape hatch: a map keyed by harness
-    name (``"pi_core"``, ``"claude"``) whose value is a free-form bag of knobs only that harness
+    ``harness`` / ``sandbox`` / ``permission_policy`` are the run-selection fields: which
+    coding agent to drive, where it runs, and how a permission-gating harness answers tool-use
+    prompts in a headless run. They live on ``AgentConfig`` (under ``data.parameters.agent``)
+    rather than a separate object — there is one agent definition, not an agent plus a sidecar
+    selection. ``sandbox`` is a backend/environment concern the caller reads to pick a backend;
+    it never enters ``SessionConfig`` or the neutral run.
+
+    ``harness_kwargs`` is the per-harness escape hatch: a map keyed by harness name
+    (``"pi_core"``, ``"claude"``) whose value is a free-form bag of knobs only that harness
     understands, for example Pi's ``system`` / ``append_system`` prompt overrides. The
     config stays harness-agnostic because each Harness adapter reads only its own slice and
     ignores the rest; a key for a harness that is not running is simply never looked at. Both
@@ -428,8 +435,15 @@ class AgentConfig(BaseModel):
     tools: List[ToolConfig] = Field(default_factory=list)
     mcp_servers: List[MCPServerConfig] = Field(default_factory=list)
     skills: List[SkillConfig] = Field(default_factory=list)
-    harness_options: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    harness_kwargs: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     sandbox_permission: Optional[SandboxPermission] = None
+    # The run-selection fields (formerly the separate ``RunSelection``): the coding agent to
+    # drive, where it runs, and the headless permission policy. The caller reads ``harness`` /
+    # ``sandbox`` to pick a harness class and backend; ``permission_policy`` is the sidecar
+    # action-permission a gating harness (Claude) consults.
+    harness: str = "pi_core"
+    sandbox: str = "local"
+    permission_policy: PermissionPolicy = "auto"
 
     @model_validator(mode="before")
     @classmethod
@@ -463,45 +477,24 @@ class AgentConfig(BaseModel):
         Accepts three shapes, in priority order: the dedicated ``agent`` element, the
         playground ``prompt`` prompt-template (system message -> instructions, ``llm_config``
         -> model + tools), and a flat ``{model, agents_md, tools}``. Unset fields fall back
-        to ``defaults``. ``harness_options`` is read from the ``agent`` element (or the flat
-        request) when present.
+        to ``defaults``. ``harness_kwargs`` and the run-selection fields
+        (``harness`` / ``sandbox`` / ``permission_policy``) are read from the ``agent`` element
+        (or the flat request) when present.
         """
         base = defaults or cls()
         instructions, model, tools = _parse_agent_fields(params, base)
+        harness, sandbox, permission_policy = _parse_run_selection(params, base)
         return cls(
             instructions=instructions,
             model=model,
             tools=_as_list(tools),
             mcp_servers=_parse_mcp_servers_raw(params, base),
             skills=_parse_skills_raw(params, base),
-            harness_options=_parse_harness_options(params, base),
+            harness_kwargs=_parse_harness_kwargs(params, base),
             sandbox_permission=_parse_sandbox_permission(params, base),
-        )
-
-
-class RunSelection(BaseModel):
-    """The run-time choices stored next to the agent config: which harness, which sandbox,
-    the permission policy. Read by the caller to pick a backend and harness class;
-    deliberately not part of the neutral :class:`AgentConfig`."""
-
-    harness: str = "pi_core"
-    sandbox: str = "local"
-    permission_policy: PermissionPolicy = "auto"
-
-    @classmethod
-    def from_params(
-        cls,
-        params: Dict[str, Any],
-        *,
-        default_harness: str = "pi_core",
-        default_sandbox: str = "local",
-    ) -> "RunSelection":
-        agent = params.get("agent")
-        source = agent if isinstance(agent, dict) else params
-        return cls(
-            harness=str(source.get("harness") or default_harness).lower(),
-            sandbox=str(source.get("sandbox") or default_sandbox).lower(),
-            permission_policy=str(source.get("permission_policy") or "auto").lower(),
+            harness=harness,
+            sandbox=sandbox,
+            permission_policy=permission_policy,
         )
 
 
@@ -543,10 +536,10 @@ class HarnessAgentConfig(BaseModel):
     skills: List[SkillConfig] = Field(default_factory=list)
     sandbox_permission: Optional[SandboxPermission] = None
     # The neutral per-harness options bag (a map keyed by harness name), carried verbatim from
-    # ``AgentConfig.harness_options`` by the harness adapter. The active harness's CONFIG translates
+    # ``AgentConfig.harness_kwargs`` by the harness adapter. The active harness's CONFIG translates
     # its own slice into rendered files for the wire (see :meth:`wire_harness_files`); the raw bag
     # itself does not ride the wire anymore.
-    harness_options: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    harness_kwargs: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
@@ -609,7 +602,7 @@ class HarnessAgentConfig(BaseModel):
         renders to drop in the session cwd before the session starts. Empty by default (Pi/Agenta
         render none), so a config that produces no files is unchanged (the golden wire contract).
 
-        This is where the per-harness translation of the generic ``harness_options`` bag happens in
+        This is where the per-harness translation of the generic ``harness_kwargs`` bag happens in
         Python (it used to happen in the TS runner). A harness that turns its own options slice into
         a config file overrides this; the runner is then a dumb writer that materializes each
         ``{path, content}`` entry into the cwd (``path`` relative to cwd) and has no harness
@@ -752,7 +745,7 @@ class ClaudeAgentConfig(HarnessAgentConfig):
     def wire_harness_files(self) -> Dict[str, Any]:
         """Render the Claude harness's permission settings into a ``.claude/settings.json`` file
         the runner drops in the cwd. This is the claude adapter (Layer 1 translation), done in
-        Python: parse the author's ``harness_options["claude"]["permissions"]`` slice, merge the
+        Python: parse the author's ``harness_kwargs["claude"]["permissions"]`` slice, merge the
         Layer-2 ``sandbox_permission`` derivation and the per-MCP-server Layer-3 permissions, and
         emit one ``harnessFiles`` entry. Omitted when Claude has nothing to write (no author options
         and no derived rules), so a boundary-free Claude run is byte-identical to before."""
@@ -762,7 +755,7 @@ class ClaudeAgentConfig(HarnessAgentConfig):
         from .adapters.claude_settings import build_claude_settings_files
 
         files = build_claude_settings_files(
-            self.harness_options, self.sandbox_permission, self.mcp_servers
+            self.harness_kwargs, self.sandbox_permission, self.mcp_servers
         )
         if not files:
             return {}
@@ -785,11 +778,12 @@ class AgentaAgentConfig(PiAgentConfig):
 class SessionConfig(BaseModel):
     """Everything one run needs except where it runs.
 
-    ``agent`` is the neutral definition. ``secrets`` are provider keys injected as harness
+    ``agent`` is the agent definition. ``secrets`` are provider keys injected as harness
     env, never written to the agent filesystem. The ``builtin_tools`` / ``custom_tools`` /
     ``tool_callback`` triple is the resolved tool delivery (Agenta produces it server-side;
-    empty for a bare standalone run). Sandbox is intentionally absent: it is a
-    backend/environment concern."""
+    empty for a bare standalone run). The agent config's ``sandbox`` field is a
+    backend/environment concern: the caller reads it to pick a backend BEFORE the session is
+    built, and the run itself never consumes it (no adapter reads ``agent.sandbox``)."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -912,26 +906,45 @@ def _parse_skills_raw(
     return _as_list(raw)
 
 
-def _parse_harness_options(
+def _parse_harness_kwargs(
     params: Dict[str, Any],
     defaults: AgentConfig,
 ) -> Dict[str, Dict[str, Any]]:
     """Pull the per-harness options bag from a request/config dict, falling back to defaults.
 
-    Reads ``harness_options`` from the ``agent`` element when present, else from the flat
+    Reads ``harness_kwargs`` from the ``agent`` element when present, else from the flat
     request. Keeps only well-formed entries (a harness name mapping to an options dict) and
     lower-cases the harness key so it matches :class:`HarnessType` values.
     """
     agent = params.get("agent")
     source = agent if isinstance(agent, dict) else params
-    raw = source.get("harness_options")
+    raw = source.get("harness_kwargs")
     if not isinstance(raw, dict):
-        return dict(defaults.harness_options)
+        return dict(defaults.harness_kwargs)
     options: Dict[str, Dict[str, Any]] = {}
     for name, opts in raw.items():
         if isinstance(opts, dict):
             options[str(name).lower()] = dict(opts)
-    return options or dict(defaults.harness_options)
+    return options or dict(defaults.harness_kwargs)
+
+
+def _parse_run_selection(
+    params: Dict[str, Any],
+    defaults: AgentConfig,
+) -> Tuple[str, str, "PermissionPolicy"]:
+    """Pull the run-selection trio (harness / sandbox / permission_policy) from a request dict.
+
+    Reads from the ``agent`` element when present, else the flat request, falling back to
+    ``defaults``. Each value is lower-cased so a playground-supplied ``"Claude"`` / ``"Daytona"``
+    matches the bare :class:`HarnessType` / sandbox values the caller selects on."""
+    agent = params.get("agent")
+    source = agent if isinstance(agent, dict) else params
+    harness = str(source.get("harness") or defaults.harness).lower()
+    sandbox = str(source.get("sandbox") or defaults.sandbox).lower()
+    permission_policy = str(
+        source.get("permission_policy") or defaults.permission_policy
+    ).lower()
+    return harness, sandbox, permission_policy
 
 
 def _parse_sandbox_permission(

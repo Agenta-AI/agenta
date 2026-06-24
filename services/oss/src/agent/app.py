@@ -2,14 +2,14 @@
 
 Mirrors the chat/completion services: an Agenta app exposing ``/invoke`` and ``/inspect``
 through ``ag.create_app`` + ``ag.workflow`` + ``ag.route``. The handler parses the request
-into a neutral ``AgentConfig`` + ``RunSelection`` (``agenta.sdk.agents``), resolves tools
-(``tools``) and one least-privilege model connection (``resolve_connection``) server-side,
-threads the trace context (``tracing``), then runs one turn through a :class:`Harness` over a
-backend it picks from the selection, and records the run's usage.
+into one neutral ``AgentConfig`` (``agenta.sdk.agents``), resolves tools (``tools``) and one
+least-privilege model connection (``resolve_connection``) server-side, threads the trace
+context (``tracing``), then runs one turn through a :class:`Harness` over a backend it picks
+from the config's run-selection fields, and records the run's usage.
 
 The sandbox-agent-backed backend is the production path. The transport is a deployment
 choice: HTTP to `AGENTA_AGENT_RUNNER_URL`, or a local runner CLI in a source checkout.
-The harness, sandbox, and permission policy are editable playground config.
+The harness, sandbox, and permission policy are editable fields on the agent config.
 """
 
 from typing import Any, Dict, List, Optional
@@ -25,7 +25,6 @@ from agenta.sdk.agents import (
     ResolvedConnection,
     RuntimeAuthContext,
     SandboxAgentBackend,
-    RunSelection,
     SessionConfig,
     make_harness,
     to_messages,
@@ -184,15 +183,16 @@ async def _resolve_session_connection(
     return resolved
 
 
-def select_backend(selection: RunSelection) -> Backend:
-    """Pick the backend for a run.
+def select_backend(agent_config: AgentConfig) -> Backend:
+    """Pick the backend for a run from the agent config's run-selection fields.
 
     The service always uses the sandbox-agent-backed runner. `AGENTA_AGENT_RUNNER_URL`
     selects HTTP transport in deployed containers. When it is unset, local development
-    spawns the TypeScript runner CLI from the runner dir.
+    spawns the TypeScript runner CLI from the runner dir. Only ``sandbox`` is read here;
+    it is a backend/environment concern that never enters ``SessionConfig``.
     """
     return SandboxAgentBackend(
-        sandbox=selection.sandbox,
+        sandbox=agent_config.sandbox,
         url=runner_url(),
         cwd=str(runner_dir()),
     )
@@ -208,7 +208,6 @@ async def _agent(
     params = parameters or {}
 
     agent_config = AgentConfig.from_params(params, defaults=_default_agent_config())
-    selection = RunSelection.from_params(params)
 
     msgs = to_messages(messages or (inputs or {}).get("messages") or [])
     # Three independent resolutions (tools, MCP, the model's one connection), not one aggregate:
@@ -224,7 +223,9 @@ async def _agent(
     resolved_connection: Optional[ResolvedConnection] = None
     secrets: Dict[str, str] = {}
     if model_ref is not None:
-        ctx = RuntimeAuthContext(harness=selection.harness, backend=selection.sandbox)
+        ctx = RuntimeAuthContext(
+            harness=agent_config.harness, backend=agent_config.sandbox
+        )
         resolved_connection = await _resolve_session_connection(model_ref, ctx)
         secrets = resolved_connection.env
 
@@ -232,7 +233,7 @@ async def _agent(
         agent=agent_config,
         secrets=secrets,  # the env compat alias the wire still reads
         resolved_connection=resolved_connection,
-        permission_policy=selection.permission_policy,
+        permission_policy=agent_config.permission_policy,
         trace=trace_context(),
         session_id=session_id,
         builtin_names=resolved_tools.builtin_names,
@@ -245,7 +246,9 @@ async def _agent(
     # here instead of silently changing runtime behavior. The sandbox-agent backend supports all
     # three harnesses (pi_core, pi_agenta, claude). setup/cleanup own the backend lifecycle;
     # prompt/stream run one cold turn.
-    harness = make_harness(selection.harness, Environment(select_backend(selection)))
+    harness = make_harness(
+        agent_config.harness, Environment(select_backend(agent_config))
+    )
 
     # Both paths hand off to a helper that owns the environment lifecycle (setup/cleanup).
     # They differ only in shape, as they must: the `/messages` SSE path (`stream` set) returns

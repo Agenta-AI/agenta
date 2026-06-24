@@ -148,12 +148,23 @@ describe("buildAgentRequest", () => {
         expect(req!.requestBody.session_id).toBe("s1")
         const data = req!.requestBody.data as any
         expect(data.messages).toEqual([{role: "user"}])
-        // draft-aware config flows through, harness/sandbox defaulted
+        // draft-aware config flows through; a flat config (no `agent` key) is defaulted at top level
         expect(data.parameters).toMatchObject({
             temperature: 0.9,
             prompt: {x: 1},
             harness: "pi_core",
         })
+    })
+
+    it("defaults harness/sandbox INSIDE the agent block when the config nests under `agent`", async () => {
+        // The schema places the run-selection fields on the agent config (`parameters.agent`),
+        // not as top-level params siblings. Defaults land there; an explicit value wins.
+        seed(store, "e", {config: {agent: {model: "gpt-5.5", sandbox: "daytona"}}})
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const agent = (req!.requestBody.data as any).parameters.agent
+        expect(agent).toMatchObject({model: "gpt-5.5", harness: "pi_core", sandbox: "daytona"})
+        // not duplicated at the top level
+        expect((req!.requestBody.data as any).parameters.harness).toBeUndefined()
     })
 
     it("INCLUDES references built from the entity identity", async () => {

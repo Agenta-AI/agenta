@@ -15,7 +15,7 @@ The request is the shared `WorkflowInvokeRequest` envelope. The agent handler re
 things out of it:
 
 - the turn history from `data.inputs.messages` (or `data.messages`),
-- the agent config and run selection from `data.parameters`,
+- the agent config, including its run-selection fields, from `data.parameters.agent`,
 - the trace and reference context from the envelope itself.
 
 ```jsonc
@@ -23,7 +23,7 @@ things out of it:
   "references": { /* application / variant / revision */ },
   "data": {
     "inputs":     { "messages": [ /* chat history */ ] },
-    "parameters": { "agent": { /* config */ }, "harness": "pi_core", "sandbox": "local" }
+    "parameters": { "agent": { /* config, incl. harness, sandbox, permission_policy */ } }
   }
 }
 ```
@@ -35,10 +35,10 @@ assistant message:
 { "data": { "outputs": { "role": "assistant", "content": "..." } } }
 ```
 
-`parameters` carries both the agent config (under `agent`) and the run selection (`harness`,
-`sandbox`, `permission_policy`) in the same object. The handler reads the history from
-`data.messages` first, then falls back to `inputs.messages`. The streaming version of this
-work is [Agent messages](agent-messages.md); this contract is the batch path.
+`parameters` carries the agent config under `agent`, and the run-selection fields (`harness`,
+`sandbox`, `permission_policy`) live inside that same `agent` object. The handler reads the
+history from `data.messages` first, then falls back to `inputs.messages`. The streaming
+version of this work is [Agent messages](agent-messages.md); this contract is the batch path.
 
 ## Owned by
 

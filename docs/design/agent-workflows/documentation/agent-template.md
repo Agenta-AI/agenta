@@ -21,7 +21,7 @@ wire shape JSON-friendly. File bytes can be base64 encoded when plain text is no
 | --- | --- | --- |
 | Generic agent identity | `AGENTS.md`, skills, tool references, template metadata | Intended long-term template surface. Partly represented today by `agents_md` and tool config. |
 | Harness-specific config | Harness id, model, harness option bags, permission policy | Present today. Permissions are not generic yet. |
-| Runtime infrastructure | Local versus Daytona, runner sidecar URL, filesystem isolation, secret channels | Present as a POC selection in `RunSelection`, but should not become durable agent identity by default. |
+| Runtime infrastructure | Local versus Daytona, runner sidecar URL, filesystem isolation, secret channels | Present today as run-selection fields on `AgentConfig` (one agent config), but should not become durable agent identity by default. |
 
 The current code still accepts `sandbox` in request config. That is useful for the POC and
 tests, but the long-term template should not require users to encode where the platform is

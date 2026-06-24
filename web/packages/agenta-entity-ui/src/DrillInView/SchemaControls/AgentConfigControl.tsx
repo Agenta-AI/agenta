@@ -348,34 +348,34 @@ export function AgentConfigControl({
     )
 
     // Layer 1 (Claude-only): the Claude harness's own permission knobs, persisted into the neutral
-    // `harness_options.claude.permissions` bag. Hidden when the harness is not Claude.
-    const harnessOptions = useMemo(
+    // `harness_kwargs.claude.permissions` bag. Hidden when the harness is not Claude.
+    const harnessKwargs = useMemo(
         () =>
-            config.harness_options && typeof config.harness_options === "object"
-                ? (config.harness_options as Record<string, unknown>)
+            config.harness_kwargs && typeof config.harness_kwargs === "object"
+                ? (config.harness_kwargs as Record<string, unknown>)
                 : {},
-        [config.harness_options],
+        [config.harness_kwargs],
     )
     const claudePermissions = useMemo(() => {
-        const claude = harnessOptions.claude
+        const claude = harnessKwargs.claude
         const claudeObj =
             claude && typeof claude === "object" ? (claude as Record<string, unknown>) : undefined
         const perms = claudeObj?.permissions
         return perms && typeof perms === "object" ? (perms as Record<string, unknown>) : null
-    }, [harnessOptions])
-    // Write `harness_options.claude.permissions`, preserving any other harness_options slices.
+    }, [harnessKwargs])
+    // Write `harness_kwargs.claude.permissions`, preserving any other harness_kwargs slices.
     const setClaudePermissions = useCallback(
         (next: Record<string, unknown>) => {
             const claude =
-                harnessOptions.claude && typeof harnessOptions.claude === "object"
-                    ? (harnessOptions.claude as Record<string, unknown>)
+                harnessKwargs.claude && typeof harnessKwargs.claude === "object"
+                    ? (harnessKwargs.claude as Record<string, unknown>)
                     : {}
-            setField("harness_options", {
-                ...harnessOptions,
+            setField("harness_kwargs", {
+                ...harnessKwargs,
                 claude: {...claude, permissions: next},
             })
         },
-        [harnessOptions, setField],
+        [harnessKwargs, setField],
     )
     const [showClaudeAdvanced, setShowClaudeAdvanced] = useState(false)
 
