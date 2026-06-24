@@ -420,20 +420,18 @@ const playgroundTests = () => {
                         loadDialog.locator(".ant-table-row").filter({hasText: "Germany"}).first(),
                     ).toBeVisible({timeout: 30000})
 
-                    // Select all testcases by clicking each row. The table wires
-                    // onRow.onClick to handleRowClick in TestsetPreviewPanelWrapper.
-                    // After each click, assert the running footer count to verify
-                    // the selection registered before proceeding to the next row.
-                    // Use dispatchEvent instead of click() to bypass the CellContentPopover
-                    // portal that opens after mouseEnterDelay (500ms) in CI — the portal
-                    // sits at the row center and intercepts the native click, preventing
-                    // onRow.onClick from firing. dispatchEvent sends directly to the <tr>.
+                    // Select testcases via the row checkbox (ant-table-selection-column).
+                    // Clicking the checkbox fires rowSelection.onChange which hands back
+                    // the full computed key set — safe against any stale-ref issues in
+                    // handleRowClick. The CellContentPopover only appears over data cells,
+                    // so clicking the leftmost checkbox column avoids portal interference.
                     for (let i = 0; i < rows.length; i++) {
                         await loadDialog
                             .locator(".ant-table-row")
                             .filter({hasText: rows[i].country})
                             .first()
-                            .dispatchEvent("click")
+                            .getByRole("checkbox")
+                            .click()
                         await expect(
                             loadDialog.getByText(`${i + 1} of ${rows.length} testcases selected`, {
                                 exact: true,
@@ -562,19 +560,17 @@ const playgroundTests = () => {
                     loadDialog.locator(".ant-table-row").filter({hasText: "Germany"}).first(),
                 ).toBeVisible({timeout: 30000})
                 for (let i = 0; i < rows.length; i++) {
-                    // Select each testcase by clicking its row. The table's
-                    // onRow.onClick handler (handleRowClick in TestsetPreviewPanelWrapper)
-                    // toggles multi-selection without requiring AntD checkboxes
-                    // to be present in the DOM. Assert the running footer count
-                    // after each click to verify the selection registered.
-                    // Use dispatchEvent instead of click() — in CI the hover before
-                    // click triggers the CellContentPopover (mouseEnterDelay 500ms),
-                    // whose portal intercepts the native click at the row coordinates.
+                    // Select testcases via the row checkbox (ant-table-selection-column).
+                    // Clicking the checkbox fires rowSelection.onChange which hands back
+                    // the full computed key set — safe against any stale-ref issues in
+                    // handleRowClick. The CellContentPopover only appears over data cells,
+                    // so clicking the leftmost checkbox column avoids portal interference.
                     await loadDialog
                         .locator(".ant-table-row")
                         .filter({hasText: rows[i].country})
                         .first()
-                        .dispatchEvent("click")
+                        .getByRole("checkbox")
+                        .click()
                     await expect(
                         loadDialog.getByText(`${i + 1} of ${rows.length} testcases selected`, {
                             exact: true,
