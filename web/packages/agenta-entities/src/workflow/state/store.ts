@@ -2176,6 +2176,7 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
             is_match: false,
             is_feedback: false,
             is_chat: isChat,
+            is_agent: false,
             has_url: false,
             has_script: false,
             has_handler: false,

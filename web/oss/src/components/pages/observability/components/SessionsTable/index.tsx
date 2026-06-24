@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
 import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
 import {SessionDrawer} from "@/oss/components/SharedDrawers/SessionDrawer"
@@ -17,6 +17,7 @@ import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
 import EmptySessions from "./assets/EmptySessions"
 import {getSessionColumns, SessionRow} from "./assets/getSessionColumns"
+import {SessionStoreProvider} from "./assets/sessionCellStore"
 
 const ObservabilityHeader = dynamic(() => import("../../components/ObservabilityHeader"), {
     ssr: false,
@@ -48,6 +49,10 @@ const SessionsTable: React.FC = () => {
         isFetchingMore,
         resetSessionPages,
     } = useSessions()
+
+    // The store the page lives in (has projectId + the session/span queries + their data). The
+    // table renders rows in its own isolated store, so cells are handed this one via context.
+    const pageStore = useStore()
 
     const isNewUser = useAtomValue(isNewUserAtom)
     const onboardingStorageUserId = useAtomValue(onboardingStorageUserIdAtom)
@@ -111,44 +116,45 @@ const SessionsTable: React.FC = () => {
     const isEmptyState = sessionIds.length === 0 && !isLoading
 
     return (
-        <div className="flex flex-col gap-6">
-            <ObservabilityHeader
-                columns={columns}
-                componentType="sessions"
-                isLoading={isLoading}
-                onRefresh={handleRefresh}
-                realtimeMode={realtimeMode}
-                setRealtimeMode={setRealtimeMode}
-                autoRefresh={autoRefresh}
-                setAutoRefresh={setAutoRefresh}
-                refreshTrigger={refreshTrigger}
-            />
-
-            {isEmptyState ? (
-                <EmptySessions showOnboarding={showOnboarding} />
-            ) : (
-                <InfiniteVirtualTableFeatureShell<SessionRow>
-                    tableScope={tableScope}
+        <SessionStoreProvider value={pageStore}>
+            <div className="flex h-full min-h-0 flex-col gap-2">
+                <ObservabilityHeader
                     columns={columns}
-                    rowKey="session_id"
-                    pagination={pagination}
-                    autoHeight={false}
-                    resizableColumns
-                    enableExport={false}
-                    useSettingsDropdown={false}
-                    className="[&_.ant-table-tbody_.ant-table-cell]:align-top"
-                    tableProps={{
-                        bordered: true,
-                        loading: isLoading && sessionIds.length === 0,
-                        onRow: (record) => ({
-                            onClick: () => openDrawer({sessionId: record.session_id}),
-                            style: {cursor: "pointer"},
-                        }),
-                    }}
+                    componentType="sessions"
+                    isLoading={isLoading}
+                    onRefresh={handleRefresh}
+                    realtimeMode={realtimeMode}
+                    setRealtimeMode={setRealtimeMode}
+                    autoRefresh={autoRefresh}
+                    setAutoRefresh={setAutoRefresh}
+                    refreshTrigger={refreshTrigger}
                 />
-            )}
-            <SessionDrawer />
-        </div>
+
+                {isEmptyState ? (
+                    <EmptySessions showOnboarding={showOnboarding} />
+                ) : (
+                    <InfiniteVirtualTableFeatureShell<SessionRow>
+                        tableScope={tableScope}
+                        columns={columns}
+                        rowKey="session_id"
+                        pagination={pagination}
+                        resizableColumns
+                        enableExport={false}
+                        useSettingsDropdown={false}
+                        className="flex-1 min-h-0 [&_.ant-table-tbody_.ant-table-cell]:align-top"
+                        tableProps={{
+                            bordered: true,
+                            loading: isLoading && sessionIds.length === 0,
+                            onRow: (record) => ({
+                                onClick: () => openDrawer({sessionId: record.session_id}),
+                                style: {cursor: "pointer"},
+                            }),
+                        }}
+                    />
+                )}
+                <SessionDrawer />
+            </div>
+        </SessionStoreProvider>
     )
 }
 

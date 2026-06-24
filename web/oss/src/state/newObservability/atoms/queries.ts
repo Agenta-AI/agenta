@@ -594,6 +594,32 @@ export const sessionFirstInputAtomFamily = atomFamily((sessionId: string) =>
     }),
 )
 
+// A streamed agent run's ROOT workflow span returns a generator, so its `ag.data.outputs` is
+// the generator object's repr (`<async_generator object ... at 0x...>`), not the reply — the
+// span is already closed by the time the stream produces text. The real assistant output is on
+// the nested `agent`-type span (e.g. `invoke_agent`). So prefer that span's output, falling back
+// to the root's unless it's the meaningless generator repr.
+const GENERATOR_REPR = /^<(?:async_)?generator object/
+
+const traceDisplayOutput = (root: TraceSpanNode): unknown => {
+    let agentOutput: unknown
+    const visit = (node: TraceSpanNode) => {
+        if (agentOutput !== undefined) return
+        if (node.span_type === "agent") {
+            const out = (node.attributes as any)?.ag?.data?.outputs
+            if (out !== undefined) agentOutput = out
+        }
+        node.children?.forEach((child) => visit(child as TraceSpanNode))
+    }
+    visit(root)
+    if (agentOutput !== undefined) return agentOutput
+
+    const rootOutput = (root.attributes as any)?.ag?.data?.outputs
+    return typeof rootOutput === "string" && GENERATOR_REPR.test(rootOutput)
+        ? undefined
+        : rootOutput
+}
+
 export const sessionLastOutputAtomFamily = atomFamily((sessionId: string) =>
     atom((get) => {
         const sorted = get(sessionSortedTracesAtomFamily(sessionId))
@@ -603,7 +629,7 @@ export const sessionLastOutputAtomFamily = atomFamily((sessionId: string) =>
         if (lastTrace.status_code === "STATUS_CODE_ERROR") {
             return lastTrace.status_message
         }
-        return (lastTrace.attributes as any)?.ag?.data?.outputs
+        return traceDisplayOutput(lastTrace)
     }),
 )
 

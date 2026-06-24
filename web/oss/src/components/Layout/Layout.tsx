@@ -321,9 +321,13 @@ const AppWithVariants = memo(
                                 </>
                             ) : (
                                 <Content
-                                    className={clsx("flex gap-4", "h-[calc(100%-30px)]", {
-                                        "pb-0 mb-8": !isFullHeight,
-                                        "flex flex-col min-h-0 grow": isFullHeight,
+                                    className={clsx("flex gap-4", {
+                                        // Non-full-height pages keep the 30px bottom breathing
+                                        // room; full-height pages (playground/evaluator) must
+                                        // fill the content area — the -30px left a dead band
+                                        // below the splitter.
+                                        "h-[calc(100%-30px)] pb-0 mb-8": !isFullHeight,
+                                        "h-full flex flex-col min-h-0 grow": isFullHeight,
                                         "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
                                             isPlayground || isEvaluator,
                                     })}

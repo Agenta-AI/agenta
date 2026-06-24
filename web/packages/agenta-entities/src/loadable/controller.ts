@@ -1596,6 +1596,70 @@ const getRootSpanFromTraceResponse = (
     return spans.find((s) => !s.parent_id) || spans[0]
 }
 
+/**
+ * Scan every span in the trace for an errored one and return its status message. Used to
+ * surface a failed model/tool call (e.g. an OpenAI quota error) that the run swallowed into an
+ * empty turn — the error lands on a leaf span (`chat …`) while the parents stay OK, so we
+ * check all spans, not just the root.
+ */
+const spanErrorMessage = (span: unknown): string | undefined => {
+    const s = span as {
+        status_code?: string
+        status_message?: string
+        status?: {code?: string; message?: string}
+        events?: {name?: string; attributes?: Record<string, unknown>}[]
+    }
+    const code = s.status_code ?? s.status?.code
+    const isError = typeof code === "string" && code.toUpperCase().includes("ERROR")
+
+    // Error text can live on an OTel `exception` event (preferred) or `status_message`.
+    const exc = Array.isArray(s.events)
+        ? s.events.find((e) => e?.name === "exception")?.attributes
+        : undefined
+    const excMsg = exc?.["exception.message"] ?? exc?.message
+    const message =
+        (typeof excMsg === "string" && excMsg.trim() && excMsg.trim()) ||
+        (typeof s.status_message === "string" &&
+            s.status_message.trim() &&
+            s.status_message.trim()) ||
+        (typeof s.status?.message === "string" &&
+            s.status.message.trim() &&
+            s.status.message.trim()) ||
+        undefined
+
+    if (!isError && !message) return undefined
+    return message || "The run failed."
+}
+
+/** Children are nested under each span's `spans` (object map or array), not flat. */
+const childSpans = (span: unknown): unknown[] => {
+    const kids = (span as {spans?: unknown}).spans
+    if (Array.isArray(kids)) return kids
+    if (kids && typeof kids === "object") return Object.values(kids)
+    return []
+}
+
+const getTraceErrorFromResponse = (traceResponse: TracesApiResponse | null): string | undefined => {
+    if (!traceResponse?.traces) return undefined
+    const visit = (span: unknown): string | undefined => {
+        const message = spanErrorMessage(span)
+        if (message) return message
+        for (const child of childSpans(span)) {
+            const m = visit(child)
+            if (m) return m
+        }
+        return undefined
+    }
+    for (const traceEntry of Object.values(traceResponse.traces)) {
+        const spans = traceEntry?.spans ? Object.values(traceEntry.spans) : []
+        for (const span of spans) {
+            const message = visit(span)
+            if (message) return message
+        }
+    }
+    return undefined
+}
+
 // ============================================================================
 // TRACE DATA SUMMARY - Single source of truth for trace-derived data
 // ============================================================================
@@ -1625,6 +1689,8 @@ export interface TraceDataSummary {
     rootSpan: TraceSpan | null
     /** Extracted ag.data object */
     agData: Record<string, unknown> | null
+    /** Status message of the first errored span, if the run failed (e.g. an API/quota error). */
+    error?: string
 }
 
 /**
@@ -1707,10 +1773,14 @@ export const traceDataSummaryAtomFamily = atomFamily((traceId: string | null) =>
             return emptyResult
         }
 
+        // A failed model/tool call (e.g. quota error) lands on a leaf span — capture it so the
+        // caller can surface it even if the run otherwise looks like an empty turn.
+        const error = getTraceErrorFromResponse(traceQuery.data)
+
         // Get the root span
         const rootSpan = getRootSpanFromTraceResponse(traceQuery.data)
         if (!rootSpan) {
-            return emptyResult
+            return {...emptyResult, error}
         }
 
         // Extract ag.data
@@ -1773,6 +1843,7 @@ export const traceDataSummaryAtomFamily = atomFamily((traceId: string | null) =>
             metrics,
             rootSpan,
             agData,
+            error,
         }
     }),
 )

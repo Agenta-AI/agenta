@@ -300,6 +300,11 @@ const isChatAtomFamily = atomFamily((workflowId: string) =>
     atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_chat ?? false),
 )
 
+/** Is an agent workflow (WP-6, backend-owned). */
+const isAgentAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_agent ?? false),
+)
+
 /** Has a webhook/service URL. */
 const hasUrlAtomFamily = atomFamily((workflowId: string) =>
     atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.has_url ?? false),
@@ -356,6 +361,7 @@ export type WorkflowType =
     | "hook"
     | "match"
     | "custom"
+    | "agent"
     | "chat"
     | "completion"
 
@@ -367,6 +373,10 @@ const workflowTypeAtomFamily = atomFamily((workflowId: string) =>
         if (flags?.is_code) return "code"
         if (flags?.is_hook) return "hook"
         if (flags?.is_match) return "match"
+        // Agent wins over `is_custom`/`is_chat`: an SDK-deployed agent currently
+        // surfaces as custom and is forced through chat by also flagging is_chat.
+        // Once WP-6 sets is_agent, that takes precedence so the agent lane is chosen.
+        if (flags?.is_agent) return "agent"
         if (flags?.is_custom) return "custom"
         if (flags?.is_chat) return "chat"
         return "completion"
@@ -1389,6 +1399,8 @@ export const workflowMolecule = {
         // Interface-derived
         /** Has chat/message semantics */
         isChat: isChatAtomFamily,
+        /** Is an agent workflow (WP-6) */
+        isAgent: isAgentAtomFamily,
         /** Has a webhook/service URL */
         hasUrl: hasUrlAtomFamily,
         /** Has embedded script content */
@@ -1532,6 +1544,8 @@ export const workflowMolecule = {
             getStore(options).get(isHumanAtomFamily(workflowId)),
         isChat: (workflowId: string, options?: StoreOptions) =>
             getStore(options).get(isChatAtomFamily(workflowId)),
+        isAgent: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(isAgentAtomFamily(workflowId)),
         hasUrl: (workflowId: string, options?: StoreOptions) =>
             getStore(options).get(hasUrlAtomFamily(workflowId)),
         hasScript: (workflowId: string, options?: StoreOptions) =>
