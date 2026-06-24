@@ -5,6 +5,14 @@ Used by the sandbox-agent backend. The TS side mirrors these names in
 under ``sdks/python/oss/tests/pytest/unit/agents/golden/`` (see ``test_wire_contract.py``).
 The runner drives one engine (the sandbox-agent ACP path); the ``harness`` field selects the
 agent, so there is no engine selector on the wire.
+
+The SCHEMA source of truth for this contract is the dedicated Pydantic wire models in
+``agenta.sdk.agents.wire_models`` (``WireRunRequest`` / ``WireRunResult``). Their exported JSON
+Schema ships in the SDK through ``CATALOG_TYPES`` and is asserted to describe exactly what the
+functions below emit/parse (``test_wire_models.py``). The serializer here stays a hand-built
+dict on purpose: the omit-when-empty behavior lives in this file (and is pinned by the goldens),
+which ``model_json_schema()`` cannot express. Add or rename a wire field in BOTH places (here and
+the wire models) plus ``protocol.ts`` and the goldens — the tests catch a one-sided change.
 """
 
 from __future__ import annotations

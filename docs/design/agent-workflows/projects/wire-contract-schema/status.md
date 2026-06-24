@@ -2,11 +2,56 @@
 
 | | |
 | --- | --- |
-| **Phase** | Plan written + Codex-reviewed, then **revised per the author's PR review on #4830** (2026-06-24). Awaiting re-review. No code. |
+| **Phase** | **Implemented** (2026-06-24). Pydantic wire models are the schema source of truth, exported into the SDK via `CATALOG_TYPES`; the `/inspect` canonical response + typed outputs landed. No runner/validation work (deferred). |
 | **Owner** | wire-contract-schema (A2 in the A1/A2/A3/A10 cohort) |
-| **Lane** | dedicated GitButler lane `feat/agent-wire-contract-schema-plan`, single commit (docs only) |
+| **Lane** | `feat/agent-wire-contract-schema-plan` (PR #4830), re-stacked on `feat/agent-contract-versioning-docs` (#4829). One PR = plan doc + impl. |
 | **Created** | 2026-06-24 |
 | **Revised** | 2026-06-24 (author PR review) |
+| **Implemented** | 2026-06-24 |
+
+## What shipped (the implementation)
+
+The plan's source-of-truth slice plus the folded `/inspect` follow-ups (architecture-followups
+issue 1 + typed outputs). Resolved every open question with the least-code option:
+
+- **Wire models as the single schema source of truth** —
+  `sdks/python/agenta/sdk/agents/wire_models.py`: dedicated camelCase Pydantic models
+  (`WireRunRequest`, `WireRunResult`, sub-objects, and an OPEN `WireAgentEvent` whose `type` is
+  optional so a typeless event is tolerated, mirroring the parser's drop behavior). NOT the
+  snake_case semantic DTOs. `run_contract_schemas()` exports their dereferenced, camelCase JSON
+  Schema.
+- **The JSON interface ships in the SDK** via `CATALOG_TYPES` (`run_request` / `run_result`), the
+  same path `agent_config` takes — so it is `/inspect`-discoverable through
+  `GET /workflows/catalog/types/{type}`. No new endpoint.
+- **Tests, no runtime validation** (`test_wire_models.py`): the committed catalog matches a fresh
+  export (freshness guard), all four goldens validate against the exported schema and parse into
+  the models, `request_to_wire` output validates, and the schema's property set equals
+  `KNOWN_REQUEST_KEYS` (the schema-derived key guard). Nothing gates a live `/run`.
+- **`wire.py` stays the dict producer** — least-code: the omit-when-empty behavior lives there and
+  is pinned by the goldens (a thing `model_json_schema()` cannot express). The models are the
+  *schema* authority and a docstring in `wire.py` points to them. No serializer rewrite.
+- **Issue 1 — canonical `/inspect` response**: `WorkflowInspectResponse` in
+  `sdks/python/agenta/sdk/models/workflows.py`; `handle_inspect_success` normalizes the
+  internally-built `WorkflowInvokeRequest` into it (`_to_inspect_response`), lifting the resolved
+  `WorkflowRevisionData` to a flat top-level `revision`, so schemas live at
+  `response.revision.schemas` (was the latent-broken `data.revision.data.schemas` nesting). The
+  three `/inspect` routes' `response_model` is now `WorkflowInspectResponse`. FE: the
+  `InspectWorkflowResponse` type and the `store.ts` read now resolve against the real body
+  (`revision.schemas`); the deprecated `interface?.schemas` fallback is kept on the type as a
+  migration bridge (two sibling readers still use it).
+- **Issue 4 — typed `/inspect` outputs**: `services/oss/src/agent/schemas.py` `AGENT_OUTPUTS_SCHEMA`
+  is keyed per output surface (`invoke` -> `message`, `messages` -> `messages`). Reuses existing
+  catalog markers, so the catalog-refs guard is unchanged. POC: no flat back-compat output field.
+
+### Deferred (noted in the PR body; NOT built)
+
+- The `/run` `version` field + dispatch (A1 already deferred it).
+- Runner-side request validation (no ajv, no runner dependency).
+- The `GET /capabilities` probe.
+- Generating `protocol.ts` from the schema; the structured-error / cancelled outcome; Fern
+  publication across languages.
+- `services/agent/CLAUDE.md`'s mirroring rule should mention the Pydantic wire models are now the
+  schema source — left for the runner owner (`services/agent/*` is their surface, not touched here).
 
 ## What exists
 

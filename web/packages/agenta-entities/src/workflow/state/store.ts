@@ -1535,11 +1535,13 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
         let resolvedParams: Record<string, unknown> | null | undefined = null
 
         // (a) Inspect — primary source for any workflow with a URI.
-        // Returns interface.schemas.{inputs, parameters, outputs} directly.
+        // The canonical `WorkflowInspectResponse` puts the resolved interface at
+        // `revision.schemas.{inputs, parameters, outputs}` (revision IS the WorkflowRevisionData),
+        // so we read it directly. `outputs` may be typed per output surface ({invoke, messages}).
         const inspectQuery = get(workflowInspectAtomFamily(workflowId))
         const inspectData = inspectQuery.data ?? null
         if (inspectData) {
-            const inspectSchemas = inspectData.revision?.schemas ?? inspectData.interface?.schemas
+            const inspectSchemas = inspectData.revision?.schemas
             if (inspectSchemas) {
                 resolvedInputs = inspectSchemas.inputs
                 resolvedOutputs = inspectSchemas.outputs
