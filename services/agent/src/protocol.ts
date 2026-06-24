@@ -76,12 +76,12 @@ export interface ResolvedToolSpec {
   /** MCP behavioral hint: true (read-only), false (mutating), absent (unknown). */
   readOnly?: boolean;
   /**
-   * Layer-3 permission disposition: `allow` runs with no prompt, `ask` raises a
+   * Layer-3 permission: `allow` runs with no prompt, `ask` raises a
    * human-in-the-loop request, `deny` never runs. Absent = fall back to the global
    * `permissionPolicy`. The SDK derives a default from `readOnly`/`needsApproval` when the
    * author set none. Plumbing only here; enforcement is a later slice.
    */
-  disposition?: "allow" | "ask" | "deny";
+  permission?: "allow" | "ask" | "deny";
 }
 
 /** Where and how to route a tool call back through Agenta. */
@@ -134,12 +134,12 @@ export interface McpServerConfig {
   url?: string;
   tools?: string[];
   /**
-   * Layer-3 permission disposition for the whole server: `allow` / `ask` / `deny`. Absent =
+   * Layer-3 permission for the whole server: `allow` / `ask` / `deny`. Absent =
    * fall back to the global `permissionPolicy`. An MCP server has no `readOnly` hint, so there
    * is no derived default: an explicit author value or nothing. Plumbing only; enforcement is
    * a later slice.
    */
-  disposition?: "allow" | "ask" | "deny";
+  permission?: "allow" | "ask" | "deny";
 }
 
 /**

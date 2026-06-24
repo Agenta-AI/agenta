@@ -46,6 +46,10 @@ function fakeHarness(options: FakeOptions = {}) {
     toolRelayArgs: undefined as unknown[] | undefined,
     toolRelayStops: 0,
     permissionReplies: [] as Array<{ id: string; reply: string }>,
+    applyModelArgs: [] as Array<{
+      model: string | undefined;
+      options: { strict?: boolean } | undefined;
+    }>,
     runFinished: 0,
     runFlushed: 0,
   };
@@ -163,7 +167,10 @@ function fakeHarness(options: FakeOptions = {}) {
         streamingDeltas: true,
         ...(options.capabilities ?? {}),
       }) as any,
-    applyModel: async (_session, model) => model ?? "resolved-model",
+    applyModel: async (_session, model, _log, options) => {
+      calls.applyModelArgs.push({ model, options });
+      return model ?? "resolved-model";
+    },
     createOtel: ((otelOptions: any) => {
       calls.otelOptions = otelOptions;
       return run;
@@ -393,6 +400,62 @@ describe("runSandboxAgent orchestration", () => {
     const env = calls.providerArgs[1] as Record<string, string>;
     assert.equal(env.ANTHROPIC_API_KEY, "resolved");
     assert.equal(env.ANTHROPIC_BASE_URL, "https://claude-gw.example/v1");
+    assert.equal(env.ANTHROPIC_MODEL, undefined);
+  });
+
+  it("sets Claude Bedrock env and strict selected model pass-through", async () => {
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        prompt: "hello",
+        model: "anthropic.claude-x",
+        deployment: "bedrock",
+        credentialMode: "env",
+        secrets: { AWS_ACCESS_KEY_ID: "AKIA" },
+        endpoint: { region: "us-east-1" },
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const env = calls.providerArgs[1] as Record<string, string>;
+    assert.equal(env.CLAUDE_CODE_USE_BEDROCK, "1");
+    assert.equal(env.AWS_ACCESS_KEY_ID, "AKIA");
+    assert.equal(env.AWS_REGION, "us-east-1");
+    assert.equal(env.ANTHROPIC_MODEL, "anthropic.claude-x");
+    assert.equal(env.ANTHROPIC_CUSTOM_MODEL_OPTION, "anthropic.claude-x");
+    assert.deepEqual(calls.applyModelArgs.at(-1), {
+      model: "anthropic.claude-x",
+      options: { strict: true },
+    });
+  });
+
+  it("sets Claude Vertex env and selected model pass-through", async () => {
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        prompt: "hello",
+        model: "claude-sonnet-4",
+        deployment: "vertex_ai",
+        credentialMode: "env",
+        secrets: { GOOGLE_CLOUD_PROJECT: "proj", GOOGLE_CLOUD_LOCATION: "us-central1" },
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const env = calls.providerArgs[1] as Record<string, string>;
+    assert.equal(env.CLAUDE_CODE_USE_VERTEX, "1");
+    assert.equal(env.GOOGLE_CLOUD_PROJECT, "proj");
+    assert.equal(env.ANTHROPIC_MODEL, "claude-sonnet-4");
   });
 
   it("does not clear provider env or set a base url on a runtime_provided run", async () => {

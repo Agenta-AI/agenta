@@ -257,11 +257,11 @@ export function unenforceableCapabilityConfig(
   if (fs && fs !== "on") {
     return `the in-process 'pi' backend cannot enforce sandbox_permission.filesystem='${fs}'; use the 'sandbox-agent' backend.`;
   }
-  const gated = (request.customTools as { name?: string; disposition?: string }[] | undefined)
-    ?.filter((t) => t?.disposition === "deny" || t?.disposition === "ask")
+  const gated = (request.customTools as { name?: string; permission?: string }[] | undefined)
+    ?.filter((t) => t?.permission === "deny" || t?.permission === "ask")
     .map((t) => t?.name ?? "?");
   if (gated && gated.length > 0) {
-    return `the in-process 'pi' backend does not enforce tool dispositions (deny/ask) for [${gated.join(", ")}]; use the 'sandbox-agent' backend.`;
+    return `the in-process 'pi' backend does not enforce tool permissions (deny/ask) for [${gated.join(", ")}]; use the 'sandbox-agent' backend.`;
   }
   return undefined;
 }

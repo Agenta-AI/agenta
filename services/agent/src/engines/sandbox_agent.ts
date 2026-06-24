@@ -81,6 +81,43 @@ function log(message: string): void {
 
 type Log = (message: string) => void;
 
+const CLAUDE_STRICT_DEPLOYMENTS = new Set(["custom", "bedrock", "vertex", "vertex_ai"]);
+
+function applyClaudeConnectionEnv(
+  env: Record<string, string>,
+  request: AgentRunRequest,
+  acpAgent: string,
+  logger: Log,
+): boolean {
+  if (acpAgent !== "claude") return false;
+
+  const deployment = request.deployment;
+  const selectedModel = request.model;
+  const baseUrl = request.endpoint?.baseUrl;
+  if (baseUrl) {
+    env.ANTHROPIC_BASE_URL = baseUrl;
+    logger(`claude base_url: ${baseUrl}`);
+  }
+
+  if (deployment === "bedrock") {
+    env.CLAUDE_CODE_USE_BEDROCK = "1";
+    const region = request.endpoint?.region;
+    if (region) {
+      env.AWS_REGION = region;
+      env.AWS_DEFAULT_REGION ??= region;
+    }
+  } else if (deployment === "vertex" || deployment === "vertex_ai") {
+    env.CLAUDE_CODE_USE_VERTEX = "1";
+  }
+
+  if (selectedModel && (baseUrl || (deployment && CLAUDE_STRICT_DEPLOYMENTS.has(deployment)))) {
+    env.ANTHROPIC_MODEL = selectedModel;
+    env.ANTHROPIC_CUSTOM_MODEL_OPTION = selectedModel;
+    return true;
+  }
+  return false;
+}
+
 export interface SandboxAgentDeps extends BuildRunPlanDeps {
   startSandboxAgent?: typeof SandboxAgent.start;
   createPersist?: () => InMemorySessionPersistDriver;
@@ -125,16 +162,7 @@ export async function runSandboxAgent(
     clearProviderEnv,
   });
   Object.assign(env, plan.secrets); // apply only the resolved provider keys
-  // Claude reads a custom base URL from ANTHROPIC_BASE_URL. A `custom`/`direct` Claude endpoint
-  // (an OpenAI-compatible/self-hosted gateway) is applied here, where the harness env is
-  // assembled. Bedrock/Vertex deployments would also set CLAUDE_CODE_USE_BEDROCK /
-  // CLAUDE_CODE_USE_VERTEX, but Slice 2 fails loud on those before the runner is reached, so
-  // they are intentionally not implemented here (stubbed by this comment).
-  const baseUrl = request.endpoint?.baseUrl;
-  if (baseUrl && plan.acpAgent === "claude") {
-    env.ANTHROPIC_BASE_URL = baseUrl;
-    logger(`claude base_url: ${baseUrl}`);
-  }
+  const strictModel = applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
   // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
   // via the Agenta extension. Tool execution always relays back to this runner, which keeps
   // private specs, scoped env, callback endpoints, and callback auth in memory.
@@ -238,6 +266,7 @@ export async function runSandboxAgent(
       session,
       request.model,
       logger,
+      { strict: strictModel },
     );
 
     const run = (deps.createOtel ?? createSandboxAgentOtel)({
@@ -288,8 +317,8 @@ export async function runSandboxAgent(
     });
 
     if (plan.useToolRelay) {
-      // Layer 3 (S3b): the relay enforces each resolved tool's `disposition`; an `ask`/unset
-      // disposition degrades to the run's headless permission policy (the same policy the
+      // Layer 3 (S3b): the relay enforces each resolved tool's `permission`; an `ask`/unset
+      // permission degrades to the run's headless permission policy (the same policy the
       // PolicyResponder uses for Claude builtins above).
       toolRelay = (deps.startToolRelay ?? startToolRelay)(
         plan.isDaytona

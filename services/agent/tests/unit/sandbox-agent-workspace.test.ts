@@ -36,6 +36,7 @@ describe("prepareWorkspace", () => {
         useToolRelay: true,
         agentsMd: "agent instructions",
         acpAgent: "pi",
+        isPi: true,
         skillDirs: [],
       },
     });
@@ -74,6 +75,7 @@ describe("prepareWorkspace", () => {
         useToolRelay: false,
         agentsMd: "agent instructions",
         acpAgent: "claude",
+        isPi: false,
         harnessFiles: [{ path: ".claude/settings.json", content }],
         skillDirs: [],
       },
@@ -99,6 +101,7 @@ describe("prepareWorkspace", () => {
         useToolRelay: false,
         agentsMd: "agent instructions",
         acpAgent: "claude",
+        isPi: false,
         skillDirs: [],
       },
     });
@@ -123,6 +126,7 @@ describe("prepareWorkspace", () => {
         useToolRelay: true,
         agentsMd: "agent instructions",
         acpAgent: "pi",
+        isPi: true,
         skillDirs: [],
       },
     });
@@ -157,6 +161,7 @@ describe("prepareWorkspace", () => {
         useToolRelay: false,
         agentsMd: "agent instructions",
         acpAgent: "claude",
+        isPi: false,
         harnessFiles: [{ path: ".claude/settings.json", content }],
         skillDirs: [],
       },
@@ -194,6 +199,7 @@ describe("prepareWorkspace", () => {
         useToolRelay: false,
         agentsMd: "agent instructions",
         acpAgent: "pi",
+        isPi: true,
         skillDirs: [],
       },
     });
@@ -218,6 +224,7 @@ describe("prepareWorkspace", () => {
         relayDir: join(cwd, ".agenta-tools"),
         useToolRelay: false,
         acpAgent: "claude",
+        isPi: false,
         skillDirs: [{ name: "release-notes", dir: skillDir }],
       },
     });
@@ -249,6 +256,7 @@ describe("prepareWorkspace", () => {
         relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
         useToolRelay: false,
         acpAgent: "claude",
+        isPi: false,
         skillDirs: [{ name: "release-notes", dir: skillDir }],
       },
     });

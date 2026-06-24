@@ -199,8 +199,8 @@ def test_request_to_wire_pi_matches_golden(golden):
     assert payload == golden("run_request.pi.json")
     # The Composio read-only hint rides the wire as camelCase `readOnly`.
     assert payload["customTools"][0]["readOnly"] is True
-    # No explicit author disposition + read_only=True -> derived `allow` rides the wire.
-    assert payload["customTools"][0]["disposition"] == "allow"
+    # No explicit author permission + read_only=True -> derived `allow` rides the wire.
+    assert payload["customTools"][0]["permission"] == "allow"
     # The declared sandbox boundary rides the wire as nested camelCase `sandboxPermission`;
     # the unset `filesystem` is dropped (declared, not enforced) so it never appears.
     assert payload["sandboxPermission"] == {
@@ -214,8 +214,8 @@ def test_request_to_wire_pi_matches_golden(golden):
 def test_request_to_wire_claude_matches_golden(golden):
     payload = _claude_payload()
     assert payload == golden("run_request.claude.json")
-    # No explicit author disposition + read_only=True -> derived `allow` rides the wire.
-    assert payload["customTools"][0]["disposition"] == "allow"
+    # No explicit author permission + read_only=True -> derived `allow` rides the wire.
+    assert payload["customTools"][0]["permission"] == "allow"
     # Claude-specific invariants the golden encodes, asserted explicitly so a failure reads clearly.
     assert payload["tools"] == []  # Claude has no Pi built-ins
     assert payload["permissionPolicy"] == "deny"  # Claude gates tool use
@@ -495,7 +495,7 @@ def test_request_to_wire_pi_renders_no_harness_files_from_its_options():
 
 def test_request_to_wire_claude_renders_settings_from_options_and_boundaries():
     # The claude config's `wire_harness_files` is the Python claude adapter: it merges the author's
-    # permissions slice with the Layer-2 sandbox derivation and Layer-3 MCP dispositions into one
+    # permissions slice with the Layer-2 sandbox derivation and Layer-3 MCP permissions into one
     # `.claude/settings.json` file. network:off -> WebFetch/WebSearch deny; an `ask` MCP server ->
     # `mcp__<server>` ask. The author's deny keeps its position; derived rules append (deduped).
     config = ClaudeAgentConfig(
@@ -506,7 +506,7 @@ def test_request_to_wire_claude_renders_settings_from_options_and_boundaries():
                 "name": "github",
                 "transport": "http",
                 "url": "https://x",
-                "disposition": "ask",
+                "permission": "ask",
             }
         ],
     )

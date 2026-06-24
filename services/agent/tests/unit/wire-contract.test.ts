@@ -96,8 +96,8 @@ describe("wire contract: requests (vs Python golden)", () => {
     );
     // The Composio read-only hint reaches the runner as `readOnly`.
     assert.equal(tool.readOnly, true);
-    // The Layer-3 disposition (derived `allow` from read-only) reaches the runner.
-    assert.equal(tool.disposition, "allow");
+    // The Layer-3 permission (derived `allow` from read-only) reaches the runner.
+    assert.equal(tool.permission, "allow");
     // Pi exposes the prompt overrides.
     assert.equal(req.systemPrompt, "You are Pi.");
     assert.equal(req.appendSystemPrompt, "Be terse.");

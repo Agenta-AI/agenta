@@ -25,7 +25,7 @@
       "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
       "kind": "callback",
       "readOnly": true,
-      "disposition": "allow"
+      "permission": "allow"
     }
   ],
   "toolCallback": {
