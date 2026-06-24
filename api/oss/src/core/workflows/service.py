@@ -181,6 +181,21 @@ class WorkflowsService:
             if key not in cls.SERVER_OWNED_FLAG_KEYS
         }
 
+    @classmethod
+    def _drop_default_server_owned_query_flags(cls, flags: dict) -> dict:
+        """For query filters: drop a server-owned flag only when it is False (its default).
+
+        A caller re-posting a workflow's serialized flags carries ``is_platform=False``;
+        filtering on it would match nothing, since the key is scrubbed on write and is never
+        stored. An explicit ``is_platform=True`` is a deliberate platform-catalogue filter and
+        is preserved.
+        """
+        return {
+            key: value
+            for key, value in flags.items()
+            if not (key in cls.SERVER_OWNED_FLAG_KEYS and value is False)
+        }
+
     async def _get_cached_workflow(
         self,
         *,
@@ -794,7 +809,7 @@ class WorkflowsService:
                     exclude_none=True,
                     exclude={"flags"},
                 ),
-                flags=self._scrub_server_owned_flags(
+                flags=self._drop_default_server_owned_query_flags(
                     self._dump_flags(
                         self._artifact_query_flags_from_any(workflow_query.flags)
                     )
@@ -1631,7 +1646,7 @@ class WorkflowsService:
                     exclude_none=True,
                     exclude={"flags"},
                 ),
-                flags=self._scrub_server_owned_flags(
+                flags=self._drop_default_server_owned_query_flags(
                     self._dump_flags(
                         self._revision_query_flags_from_any(
                             workflow_revision_query.flags,
