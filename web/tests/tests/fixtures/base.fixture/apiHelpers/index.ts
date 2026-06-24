@@ -178,15 +178,26 @@ const waitForMatchingResponses = async (
     page: Page,
     predicate: (response: Response) => boolean,
     count: number,
+    timeoutMs = 60_000,
 ) => {
-    return await new Promise<Response[]>((resolve) => {
+    return await new Promise<Response[]>((resolve, reject) => {
         const matches: Response[] = []
+
+        const timer = setTimeout(() => {
+            page.off("response", handleResponse)
+            reject(
+                new Error(
+                    `waitForMatchingResponses: timed out after ${timeoutMs}ms waiting for ${count} responses (got ${matches.length})`,
+                ),
+            )
+        }, timeoutMs)
 
         const handleResponse = (response: Response) => {
             if (!predicate(response)) return
 
             matches.push(response)
             if (matches.length >= count) {
+                clearTimeout(timer)
                 page.off("response", handleResponse)
                 resolve(matches)
             }
@@ -251,6 +262,11 @@ const openCreateAppDrawerForType = async (page: Page, type: CREATABLE_APP_TYPE) 
         .or(page.getByTestId(modalTypeTestId))
         .first()
 
+    const drawer = page
+        .getByRole("dialog")
+        .filter({has: page.getByTestId("app-create-name-input")})
+        .last()
+
     for (let attempt = 0; attempt < 3; attempt += 1) {
         for (const ep of createEntryPoints) {
             if (!(await ep.isVisible().catch(() => false))) continue
@@ -260,30 +276,41 @@ const openCreateAppDrawerForType = async (page: Page, type: CREATABLE_APP_TYPE) 
             break
         }
 
-        const opened = await typeSelector
-            .waitFor({state: "visible", timeout: 3000})
+        const typeSelectorVisible = await typeSelector
+            .waitFor({state: "visible", timeout: 4000})
             .then(() => true)
             .catch(() => false)
 
-        if (opened) {
-            await typeSelector.click()
-            const drawer = page
-                .getByRole("dialog")
-                .filter({has: page.getByTestId("app-create-name-input")})
-                .last()
-            await expect(drawer).toBeVisible({timeout: 15000})
+        if (!typeSelectorVisible) {
+            await page.keyboard.press("Escape").catch(() => undefined)
+            continue
+        }
+
+        // dispatchEvent('click') fires a synthetic DOM event that bypasses both
+        // Playwright's stability/actionability checks AND the newer Playwright
+        // viewport-position check (force:true no longer skips viewport errors).
+        // Needed because the Popover re-renders when appTemplatesQueryAtom
+        // resolves, briefly making the item unstable or off-screen.
+        await typeSelector.dispatchEvent("click")
+
+        // Check whether the drawer opened. If the synthetic click missed (e.g.
+        // event handler not yet wired on first render), catch and retry the
+        // full open sequence rather than propagating the error.
+        const drawerOpened = await drawer
+            .waitFor({state: "visible", timeout: 8000})
+            .then(() => true)
+            .catch(() => false)
+
+        if (drawerOpened) {
             return drawer
         }
 
         await page.keyboard.press("Escape").catch(() => undefined)
+        await page.waitForTimeout(200)
     }
 
     await expect(typeSelector).toBeVisible({timeout: 15000})
-    await typeSelector.click()
-    const drawer = page
-        .getByRole("dialog")
-        .filter({has: page.getByTestId("app-create-name-input")})
-        .last()
+    await typeSelector.dispatchEvent("click")
     await expect(drawer).toBeVisible({timeout: 15000})
     return drawer
 }
@@ -293,7 +320,8 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
         throw new Error(`App creation is not implemented for app type 'custom'.`)
     }
 
-    await page.goto(`${getProjectScopedBasePath(page)}/apps`, {waitUntil: "domcontentloaded"})
+    const projectBasePath = getProjectScopedBasePath(page)
+    await page.goto(`${projectBasePath}/apps`, {waitUntil: "domcontentloaded"})
     await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
 
     const appName = `e2e-${type}-${Date.now()}`
@@ -404,7 +432,8 @@ export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
         method: "POST",
     })
 
-    await page.goto(`${getProjectScopedBasePath(page)}/apps`, {waitUntil: "domcontentloaded"})
+    const projectBasePath = getProjectScopedBasePath(page)
+    await page.goto(`${projectBasePath}/apps`, {waitUntil: "domcontentloaded"})
     await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
 
     const data = await appsResponse
@@ -451,7 +480,8 @@ export const getAppById = async (page: Page, appId: string) => {
     // Trigger the API call by going to apps page if not already there
     const currentUrl = page.url()
     if (!currentUrl.includes("/apps")) {
-        await page.goto(`${getProjectScopedBasePath(page)}/apps`, {waitUntil: "domcontentloaded"})
+        const projectBasePath = getProjectScopedBasePath(page)
+        await page.goto(`${projectBasePath}/apps`, {waitUntil: "domcontentloaded"})
         await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
     }
 
@@ -473,7 +503,7 @@ export const getTestsets = async (page: Page) => {
         method: "POST",
     })
 
-    await page.goto(`${getProjectScopedBasePath(page)}/testsets`, {waitUntil: "domcontentloaded"})
+    await page.goto("/testsets", {waitUntil: "domcontentloaded"})
     const response = await testsetsResponse
     const testsets = response.testsets
     expect(testsets.length).toBeGreaterThan(0)
@@ -585,19 +615,21 @@ export const createTestset = async (
 }
 
 export const getVariants = async (page: Page, appId: string) => {
-    await page.goto(`${getProjectScopedBasePath(page)}/apps`, {waitUntil: "domcontentloaded"})
-    const overviewPath = `${getProjectScopedBasePath(page)}/apps/${appId}/overview`
+    // Call the variants API directly rather than navigating to the overview page.
+    // UI navigation depends on React's TanStack Query cache being up-to-date, which
+    // races with Next.js page transitions — the cache update lands as a microtask
+    // AFTER Playwright captures the network response but BEFORE the new page mounts,
+    // so the overview can render "Workflow not found" with stale cache data.
+    // A direct API call avoids that race entirely.
+    const projectId = getProjectId(page)
+    const apiUrl = `${getApiURL(page)}/workflows/variants/query?project_id=${projectId}`
 
-    const variantsResponse = waitForApiResponse<{workflow_variants: ApiVariant[]; count: number}>(
-        page,
-        {
-            route: `/workflows/variants/query`,
-            method: "POST",
-        },
-    )
+    const response = await page.request.post(apiUrl, {
+        data: {workflow_refs: [{id: appId}]},
+    })
 
-    await page.goto(overviewPath, {waitUntil: "domcontentloaded"})
-    const data = await variantsResponse
+    expect(response.ok()).toBe(true)
+    const data = (await response.json()) as {workflow_variants: ApiVariant[]; count: number}
 
     const variants = data.workflow_variants || []
     const variantsCount = data.count || 0
@@ -622,7 +654,7 @@ export const getEvaluationRuns = async (page: Page) => {
         method: "POST",
     })
 
-    await page.goto(`${getProjectScopedBasePath(page)}/evaluations`, {
+    await page.goto("/evaluations", {
         waitUntil: "domcontentloaded",
     })
     const evaluationRuns = await evaluationRunsResponse

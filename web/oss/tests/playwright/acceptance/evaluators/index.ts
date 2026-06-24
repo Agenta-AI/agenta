@@ -173,9 +173,11 @@ const testEvaluators = () => {
                 page.locator(".ant-message").getByText(EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
             ).toBeVisible({timeout: 10000})
 
-            // Verify the drawer and modal close after successful creation
-            await expect(modal.first()).toHaveCount(0)
-            await expect(drawer.first()).toHaveCount(0)
+            // Post-create navigation leads to the full-page playground
+            // (EVALUATOR_FULL_PAGE_NAV_ENABLED=true). Assert the redirect first,
+            // then navigate back to the evaluators table to verify the new row.
+            await expect(page).toHaveURL(/\/apps\/[^/]+\/playground(\?|$|#)/, {timeout: 15000})
+            await navigateToEvaluators()
 
             // Verify the new evaluator appears in the table.
             // Use the search input to narrow results, then poll via [data-row-key]
@@ -444,6 +446,11 @@ const testEvaluators = () => {
                 page.locator(".ant-message").getByText(EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
             ).toBeVisible({timeout: 10000})
 
+            // Post-create navigation leads to the full-page playground; navigate back
+            // to the evaluators table before attempting to edit via the row menu.
+            await expect(page).toHaveURL(/\/apps\/[^/]+\/playground(\?|$|#)/, {timeout: 15000})
+            await navigateToEvaluators()
+
             // Open the row menu → Edit evaluator → Commit modal → confirm
             await editEvaluatorAndSaveNewVersion(page, evaluatorName)
         },
@@ -497,6 +504,11 @@ const testEvaluators = () => {
             await expect(
                 page.locator(".ant-message").getByText(EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
             ).toBeVisible({timeout: 10000})
+
+            // Post-create navigation leads to the full-page playground; navigate back
+            // to the evaluators table before attempting to delete via the row menu.
+            await expect(page).toHaveURL(/\/apps\/[^/]+\/playground(\?|$|#)/, {timeout: 15000})
+            await navigateToEvaluators()
 
             // Open the row menu → Delete → confirm
             await deleteEvaluator(page, evaluatorName)

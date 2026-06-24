@@ -33,20 +33,6 @@ const lightFastTags = buildAcceptanceTags({
 const createInviteEmail = (scope: string) =>
     `${scope}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@agenta.test`
 
-const waitForInviteResponse = async (page: any) => {
-    const response = await page.waitForResponse(
-        (res: any) =>
-            res.request().method() === "POST" &&
-            res.url().includes("/workspaces/") &&
-            res.url().includes("/invite?"),
-        {timeout: 15000},
-    )
-
-    if (!response.ok()) {
-        throw new Error(`Invite request failed (${response.status()}): ${await response.text()}`)
-    }
-}
-
 const waitForRemoveResponse = async (page: any) => {
     const response = await page.waitForResponse(
         (res: any) =>
@@ -64,6 +50,59 @@ const waitForRemoveResponse = async (page: any) => {
     }
 }
 
+const openInviteMembersModal = async (page: any) => {
+    const inviteButton = page.getByRole("button", {name: "Invite Members"}).first()
+    await expect(inviteButton).toBeVisible({timeout: 20000})
+    await expect(inviteButton).toBeEnabled()
+
+    const inviteModal = page.getByRole("dialog", {name: "Invite Members"})
+
+    // Use a PAGE-LEVEL (unscoped) locator for the email input.
+    //
+    // Scoping through `inviteModal.getByPlaceholder(...)` is unreliable here because:
+    //   1. InviteUsersModal is a `dynamic()` import — the form mounts AFTER the modal
+    //      wrapper becomes visible, so the dialog-scoped locator resolves to zero elements
+    //      until the JS chunk fully evaluates.
+    //   2. rc-dialog briefly UNMOUNTS content while its `animatedVisible` useEffect
+    //      settles (fires on the next frame after first render), making a dialog-scoped
+    //      locator transiently stale.
+    // Searching the entire page avoids both issues while remaining unique in practice
+    // (only one invite form is ever present at a time).
+    const emailInput = page.getByPlaceholder("member@organization.com").first()
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+        // Ensure any previous dialog is closed before clicking again.
+        const alreadyOpen = await inviteModal.isVisible().catch(() => false)
+        if (!alreadyOpen) {
+            await inviteButton.click()
+        }
+
+        // Wait for the email input to become visible. This is the most reliable
+        // signal that both the modal wrapper AND its dynamic content are ready.
+        const inputAppeared = await emailInput
+            .waitFor({state: "visible", timeout: 15000})
+            .then(() => true)
+            .catch(() => false)
+
+        if (inputAppeared) {
+            return {inviteModal, emailInput}
+        }
+
+        // Form never appeared — dismiss any partial modal and retry.
+        await page.keyboard.press("Escape")
+        await page.waitForTimeout(500)
+    }
+
+    // Final assertion: surfaces a clear error if the input never appeared.
+    await expect(emailInput).toBeVisible({timeout: 15000})
+    return {inviteModal, emailInput}
+}
+
+const submitInviteMembersModal = async (inviteModal: any) => {
+    await inviteModal.locator("form").evaluate((form: HTMLFormElement) => form.requestSubmit())
+    await expect(inviteModal).not.toBeVisible({timeout: 30000})
+}
+
 /**
  * Invite a member via the EE flow (email sent) and wait for their row to appear
  * in the members table with "Invitation Pending" status.
@@ -76,23 +115,23 @@ const invitePendingMember = async (page: any, apiHelpers: any, uiHelpers: any): 
     await page.goto(`${basePath}/settings`, {waitUntil: "domcontentloaded"})
     await uiHelpers.expectPath("/settings")
 
-    const inviteButton = page.getByRole("button", {name: "Invite Members"})
-    await expect(inviteButton).toBeVisible({timeout: 20000})
-    await inviteButton.click()
-
-    const inviteModal = page.getByRole("dialog", {name: "Invite Members"})
-    const emailInput = inviteModal.getByPlaceholder("member@organization.com")
+    const {inviteModal, emailInput} = await openInviteMembersModal(page)
     // Wait for the email input rather than just the dialog — the InviteUsersModal
     // is a dynamic() import, so the form body can lag behind the modal wrapper.
     // Waiting for the input guarantees the chunk has fully rendered.
-    await expect(emailInput).toBeVisible({timeout: 20000})
+    // Click before fill: rc-component/dialog briefly unmounts while animatedVisible
+    // catches up (useEffect fires after first render), which makes the locator
+    // stale. A click forces Playwright to wait for the element to be fully
+    // interactive before fill attempts to interact.
+    await emailInput.click()
     await emailInput.fill(testEmail)
 
-    await Promise.all([
-        waitForInviteResponse(page),
-        inviteModal.getByRole("button", {name: "Invite"}).click(),
-    ])
-    await expect(inviteModal).not.toBeVisible({timeout: 15000})
+    // Submit the form and wait for the modal to close as the success signal.
+    // The InviteUsersModal only closes its onSuccess callback after the API
+    // returns successfully — so modal closure == invite accepted.
+    // Waiting for the network response by URL is fragile (URL-pattern drift,
+    // timing races between listener registration and the async form submit).
+    await submitInviteMembersModal(inviteModal)
 
     // Wait for the pending row to appear in the refreshed table
     await expect(page.getByText(testEmail)).toBeVisible({timeout: 15000})
@@ -106,7 +145,8 @@ const membersTests = () => {
         "should invite a member and verify pending state",
         {tag: lightFastTags},
         async ({page, apiHelpers, uiHelpers}) => {
-            test.setTimeout(60000)
+            // 90 s: navigation + up to 3 modal-open attempts × 15 s + fill + submit + assertion
+            test.setTimeout(90000)
             const testEmail = createInviteEmail("test-member-invite")
 
             await scenarios.given("the user is authenticated", async () => {
@@ -125,13 +165,14 @@ const membersTests = () => {
             await scenarios.when(
                 "the user clicks Invite Members, fills in an email address and selects a role",
                 async () => {
-                    await page.getByRole("button", {name: "Invite Members"}).click()
-
-                    const inviteModal = page.getByRole("dialog", {name: "Invite Members"})
-                    const emailInput = inviteModal.getByPlaceholder("member@organization.com")
+                    const {inviteModal, emailInput} = await openInviteMembersModal(page)
                     // Wait for the input directly — the InviteUsersModal is a dynamic()
                     // import so the form body can lag behind the modal wrapper appearing.
-                    await expect(emailInput).toBeVisible({timeout: 20000})
+                    // Click before fill: rc-component/dialog briefly unmounts the panel
+                    // while animatedVisible settles (useEffect fires after first render),
+                    // making the locator transiently stale. Clicking first ensures the
+                    // element is fully interactive before fill runs.
+                    await emailInput.click()
                     await emailInput.fill(testEmail)
 
                     // EE renders a role selector; keep the default selection
@@ -144,11 +185,10 @@ const membersTests = () => {
 
             await scenarios.and("the user submits the invitation", async () => {
                 const inviteModal = page.getByRole("dialog", {name: "Invite Members"})
-                await Promise.all([
-                    waitForInviteResponse(page),
-                    inviteModal.getByRole("button", {name: "Invite"}).click(),
-                ])
-                await expect(inviteModal).not.toBeVisible({timeout: 15000})
+                // Submit the form and wait for the modal to dismiss as the success signal.
+                // The InviteUsersModal only closes after the API returns successfully,
+                // so modal closure is equivalent to a successful invite response.
+                await submitInviteMembersModal(inviteModal)
             })
 
             await scenarios.then(

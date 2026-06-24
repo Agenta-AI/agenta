@@ -13,7 +13,7 @@
  *   This hook does NOT auto-select - it only manages the selected testset/revision.
  */
 
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 // Clean entity imports from main package
 import {revision, testcase, testset} from "@agenta/entities"
@@ -89,6 +89,17 @@ export function useTestsetSelection(
         setRevisionContext(selectedRevisionId)
     }, [selectedRevisionId, setRevisionContext])
 
+    // Keep a ref to the current selectedRevisionId so handleSetSelection can
+    // compare against it without taking selectedRevisionId as a useCallback dep.
+    // Adding selectedRevisionId to the dep array would give handleSetSelection a
+    // new reference on every revision change, which propagates through the inline
+    // arrow chain (LoadModeContent → TestsetSelectionSidebar → EntityPicker →
+    // ListPopoverVariant) and can trigger useAutoSelectLatestChild's effect to
+    // re-run while AutoSelectHandler is still mounted, causing a second
+    // initSelectionDraft call that resets the user's in-progress selection.
+    const selectedRevisionIdRef = useRef(selectedRevisionId)
+    selectedRevisionIdRef.current = selectedRevisionId
+
     // Handle selection change (both revision and testset)
     // Note: This does NOT auto-select testcases. For edit mode, selection is
     // pre-initialized by TestsetDropdown before opening the modal.
@@ -98,8 +109,12 @@ export function useTestsetSelection(
             setSelectedRevisionId(revisionId)
             setSelectedTestsetId(testsetId)
 
-            // Initialize selection draft with preselected testcases
-            if (revisionId) {
+            // Only reset the selection draft when the revision actually changes.
+            // If the same revision is re-selected (e.g. AutoSelectHandler fires a
+            // second time because the user clicked the already-selected parent),
+            // preserving the existing draft prevents a spurious selection reset
+            // that would undo testcase selections the user already made.
+            if (revisionId && revisionId !== selectedRevisionIdRef.current) {
                 initSelectionDraft(revisionId, preselectedIds)
             }
         },

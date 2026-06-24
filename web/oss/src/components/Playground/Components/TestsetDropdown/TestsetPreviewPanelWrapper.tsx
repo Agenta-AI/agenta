@@ -11,7 +11,7 @@
  * with add row/column actions and a "Go back to list" button.
  */
 
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {PreviewPanelRenderProps} from "@agenta/playground-ui/components"
 import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
@@ -60,6 +60,12 @@ export function TestsetPreviewPanelWrapper({
         [selectedIds],
     )
 
+    // Always-current ref so handleRowClick never reads a stale closure value.
+    // AntD Table can memoize rows across renders, keeping the old onClick bound
+    // to the fiber. Reading through the ref bypasses the closure entirely.
+    const selectedIdsRef = useRef<string[]>(selectedIds ?? [])
+    selectedIdsRef.current = selectedIds ?? []
+
     const handleSelectedRowKeysChange = useCallback(
         (keys: React.Key[]) => {
             if (selectionDisabled) return
@@ -78,11 +84,12 @@ export function TestsetPreviewPanelWrapper({
                     onSelectionChange([String(key)])
                 } else {
                     const keyStr = String(key)
-                    const exists = (selectedIds ?? []).includes(keyStr)
+                    const current = selectedIdsRef.current
+                    const exists = current.includes(keyStr)
                     if (exists) {
-                        onSelectionChange((selectedIds ?? []).filter((k) => k !== keyStr))
+                        onSelectionChange(current.filter((k) => k !== keyStr))
                     } else {
-                        onSelectionChange([...(selectedIds ?? []), keyStr])
+                        onSelectionChange([...current, keyStr])
                     }
                 }
             }
@@ -92,7 +99,7 @@ export function TestsetPreviewPanelWrapper({
                 setEditingTestcaseId(recordId)
             }
         },
-        [selectionMode, selectionDisabled, selectedIds, onSelectionChange, isCreateMode],
+        [selectionMode, selectionDisabled, onSelectionChange, isCreateMode],
     )
 
     const handleAddRow = useCallback(() => {
@@ -104,14 +111,15 @@ export function TestsetPreviewPanelWrapper({
             if (selectionMode === "single") {
                 onSelectionChange([newRowKey])
             } else {
-                const exists = (selectedIds ?? []).includes(newRowKey)
-                if (!exists) onSelectionChange([...(selectedIds ?? []), newRowKey])
+                const current = selectedIdsRef.current
+                const exists = current.includes(newRowKey)
+                if (!exists) onSelectionChange([...current, newRowKey])
             }
         }
 
         message.success("Row added. Fill in the cells and click Create & Load.")
         setEditingTestcaseId(newRowKey)
-    }, [isCreateMode, selectionMode, selectionDisabled, selectedIds, onSelectionChange, table])
+    }, [isCreateMode, selectionMode, selectionDisabled, onSelectionChange, table])
 
     const handleDeleteSelected = useCallback(() => {
         if (!isCreateMode || !(selectedIds ?? []).length) return
