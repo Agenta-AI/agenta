@@ -420,14 +420,14 @@ const playgroundTests = () => {
                         loadDialog.locator(".ant-table-row").filter({hasText: "Germany"}).first(),
                     ).toBeVisible({timeout: 30000})
 
-                    // Click the visible styled checkbox span (.ant-checkbox-inner) rather
-                    // than getByRole("checkbox"). In production AntD builds the native
-                    // <input type="checkbox"> carries aria-hidden="true", so getByRole
-                    // queries the accessibility tree and finds nothing. Using a plain CSS
-                    // selector bypasses the accessibility tree entirely.
-                    // Clicking .ant-checkbox-inner bubbles through <label> which triggers
-                    // the native checkbox toggle → rowSelection.onChange fires with the
-                    // full computed key set, avoiding any stale selectedIdsRef issues.
+                    // Click the .ant-checkbox-wrapper label rather than getByRole("checkbox")
+                    // or .ant-checkbox-inner. AntD v6 (@rc-component/checkbox v2) removed
+                    // the .ant-checkbox-inner span — the visual box is now CSS pseudo-
+                    // elements on .ant-checkbox. getByRole("checkbox") is also unreliable
+                    // because the native <input> can carry aria-hidden="true" in production
+                    // builds. Clicking .ant-checkbox-wrapper (the <label>) triggers the
+                    // built-in label → input toggle which fires rowSelection.onChange with
+                    // the full computed key set, avoiding stale selectedIdsRef issues.
                     // The CellContentPopover only appears over data cells so the selection
                     // column is free of portal interference.
                     for (let i = 0; i < rows.length; i++) {
@@ -435,7 +435,7 @@ const playgroundTests = () => {
                             .locator(".ant-table-row")
                             .filter({hasText: rows[i].country})
                             .first()
-                            .locator(".ant-checkbox-inner")
+                            .locator(".ant-checkbox-wrapper")
                             .click()
                         await expect(
                             loadDialog.getByText(`${i + 1} of ${rows.length} testcases selected`, {
@@ -565,21 +565,21 @@ const playgroundTests = () => {
                     loadDialog.locator(".ant-table-row").filter({hasText: "Germany"}).first(),
                 ).toBeVisible({timeout: 30000})
                 for (let i = 0; i < rows.length; i++) {
-                    // Click the visible styled checkbox span (.ant-checkbox-inner) rather
-                    // than getByRole("checkbox"). In production AntD builds the native
-                    // <input type="checkbox"> carries aria-hidden="true", so getByRole
-                    // queries the accessibility tree and finds nothing. Using a plain CSS
-                    // selector bypasses the accessibility tree entirely.
-                    // Clicking .ant-checkbox-inner bubbles through <label> which triggers
-                    // the native checkbox toggle → rowSelection.onChange fires with the
-                    // full computed key set, avoiding any stale selectedIdsRef issues.
+                    // Click the .ant-checkbox-wrapper label rather than getByRole("checkbox")
+                    // or .ant-checkbox-inner. AntD v6 (@rc-component/checkbox v2) removed
+                    // the .ant-checkbox-inner span — the visual box is now CSS pseudo-
+                    // elements on .ant-checkbox. getByRole("checkbox") is also unreliable
+                    // because the native <input> can carry aria-hidden="true" in production
+                    // builds. Clicking .ant-checkbox-wrapper (the <label>) triggers the
+                    // built-in label → input toggle which fires rowSelection.onChange with
+                    // the full computed key set, avoiding stale selectedIdsRef issues.
                     // The CellContentPopover only appears over data cells so the selection
                     // column is free of portal interference.
                     await loadDialog
                         .locator(".ant-table-row")
                         .filter({hasText: rows[i].country})
                         .first()
-                        .locator(".ant-checkbox-inner")
+                        .locator(".ant-checkbox-wrapper")
                         .click()
                     await expect(
                         loadDialog.getByText(`${i + 1} of ${rows.length} testcases selected`, {
