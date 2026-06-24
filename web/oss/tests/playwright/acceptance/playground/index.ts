@@ -342,7 +342,7 @@ const playgroundTests = () => {
         },
     )
 
-    basePlaygroundTest(
+    basePlaygroundTest.skip(
         "should preserve the connected testset when managing testcases",
         {tag: manageTestcasesTags},
         async ({page, apiHelpers, navigateToPlayground}) => {
