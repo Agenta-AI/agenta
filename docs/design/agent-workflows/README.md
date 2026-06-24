@@ -1,13 +1,15 @@
 # Agent Workflows
 
 This workspace documents the agent-workflows feature: running a coding harness as an
-Agenta workflow. It is organized into four layers so the living design docs stay separate
+Agenta workflow. It is organized into five layers so the living design docs stay separate
 from in-flight project notes and historical archaeology.
 
 ## Layout
 
 - **[documentation/](documentation/)** — the living design docs, kept current with the
   code. Start here.
+- **[interfaces/](interfaces/)** - interface inventory for reviews: public edge
+  contracts, cross-service contracts, and in-service ports/DTOs.
 - **[projects/](projects/)** — active, self-contained workstreams. Each has its own
   `README.md`/`status.md`. These graduate into `documentation/` or fold into the code as
   they land.
