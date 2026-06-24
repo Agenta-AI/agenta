@@ -34,7 +34,8 @@ import {
   startToolRelay,
 } from "../tools/relay.ts";
 import {
-  PolicyResponder,
+  HITLResponder,
+  extractApprovalDecisions,
   policyFromRequest,
   type Responder,
 } from "../responder.ts";
@@ -46,10 +47,7 @@ import {
   resolveRunSessionId,
 } from "../protocol.ts";
 import { probeCapabilities } from "./sandbox_agent/capabilities.ts";
-import {
-  buildDaemonEnv,
-  resolveDaemonBinary,
-} from "./sandbox_agent/daemon.ts";
+import { buildDaemonEnv, resolveDaemonBinary } from "./sandbox_agent/daemon.ts";
 import {
   createCookieFetch,
   prepareDaytonaPiAssets,
@@ -71,7 +69,10 @@ import { priorMessages } from "./sandbox_agent/transcript.ts";
 import { resolveRunUsage } from "./sandbox_agent/usage.ts";
 import { prepareWorkspace } from "./sandbox_agent/workspace.ts";
 
-export { buildTurnText, messageTranscript } from "./sandbox_agent/transcript.ts";
+export {
+  buildTurnText,
+  messageTranscript,
+} from "./sandbox_agent/transcript.ts";
 export { toAcpMcpServers } from "./sandbox_agent/mcp.ts";
 
 function log(message: string): void {
@@ -79,6 +80,43 @@ function log(message: string): void {
 }
 
 type Log = (message: string) => void;
+
+const CLAUDE_STRICT_DEPLOYMENTS = new Set(["custom", "bedrock", "vertex", "vertex_ai"]);
+
+function applyClaudeConnectionEnv(
+  env: Record<string, string>,
+  request: AgentRunRequest,
+  acpAgent: string,
+  logger: Log,
+): boolean {
+  if (acpAgent !== "claude") return false;
+
+  const deployment = request.deployment;
+  const selectedModel = request.model;
+  const baseUrl = request.endpoint?.baseUrl;
+  if (baseUrl) {
+    env.ANTHROPIC_BASE_URL = baseUrl;
+    logger(`claude base_url: ${baseUrl}`);
+  }
+
+  if (deployment === "bedrock") {
+    env.CLAUDE_CODE_USE_BEDROCK = "1";
+    const region = request.endpoint?.region;
+    if (region) {
+      env.AWS_REGION = region;
+      env.AWS_DEFAULT_REGION ??= region;
+    }
+  } else if (deployment === "vertex" || deployment === "vertex_ai") {
+    env.CLAUDE_CODE_USE_VERTEX = "1";
+  }
+
+  if (selectedModel && (baseUrl || (deployment && CLAUDE_STRICT_DEPLOYMENTS.has(deployment)))) {
+    env.ANTHROPIC_MODEL = selectedModel;
+    env.ANTHROPIC_CUSTOM_MODEL_OPTION = selectedModel;
+    return true;
+  }
+  return false;
+}
 
 export interface SandboxAgentDeps extends BuildRunPlanDeps {
   startSandboxAgent?: typeof SandboxAgent.start;
@@ -115,8 +153,16 @@ export async function runSandboxAgent(
   if (!planResult.ok) return { ok: false, error: planResult.error };
   const plan = planResult.plan;
 
-  const env = (deps.buildDaemonEnv ?? buildDaemonEnv)(plan.acpAgent);
-  Object.assign(env, plan.secrets); // local daemon inherits the provider keys
+  // Clear-then-apply (Security rule 5): on a managed run (credentialMode "env") the daemon
+  // inherits NONE of the sidecar's own provider keys, so only the resolved `plan.secrets` are
+  // present and an inherited key for another provider cannot leak. For runtime_provided/none/
+  // un-migrated runs the harness uses its own login, so the inherited keys stay.
+  const clearProviderEnv = plan.credentialMode === "env";
+  const env = (deps.buildDaemonEnv ?? buildDaemonEnv)(plan.acpAgent, {
+    clearProviderEnv,
+  });
+  Object.assign(env, plan.secrets); // apply only the resolved provider keys
+  const strictModel = applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
   // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
   // via the Agenta extension. Tool execution always relays back to this runner, which keeps
   // private specs, scoped env, callback endpoints, and callback auth in memory.
@@ -143,14 +189,18 @@ export async function runSandboxAgent(
   let toolRelay: { stop: () => Promise<void> } | undefined;
   let workspace: { cleanup: () => Promise<void> } | undefined = plan.isDaytona
     ? undefined
-    : { cleanup: async () => rmSync(plan.cwd, { recursive: true, force: true }) };
+    : {
+        cleanup: async () => rmSync(plan.cwd, { recursive: true, force: true }),
+      };
 
   try {
     // Persist events in-process so a follow-up turn can resume by session id.
-    const persist = deps.createPersist?.() ?? new InMemorySessionPersistDriver();
+    const persist =
+      deps.createPersist?.() ?? new InMemorySessionPersistDriver();
     const startSandboxAgent =
       deps.startSandboxAgent ??
-      ((options: Parameters<typeof SandboxAgent.start>[0]) => SandboxAgent.start(options));
+      ((options: Parameters<typeof SandboxAgent.start>[0]) =>
+        SandboxAgent.start(options));
     sandbox = await startSandboxAgent({
       sandbox: (deps.buildSandboxProvider ?? buildSandboxProvider)(
         plan.sandboxId,
@@ -158,6 +208,7 @@ export async function runSandboxAgent(
         binaryPath,
         piExtEnv,
         plan.secrets,
+        plan.sandboxPermission,
       ),
       persist,
       // Propagate caller cancellation (a client disconnect on the streaming HTTP edge) so an
@@ -165,7 +216,9 @@ export async function runSandboxAgent(
       ...(signal ? { signal } : {}),
       // Daytona's preview proxy authenticates with a per-sandbox cookie; carry it across
       // requests so ACP calls after the first don't 401. Harmless for local.
-      ...(plan.isDaytona ? { fetch: (deps.createCookieFetch ?? createCookieFetch)() } : {}),
+      ...(plan.isDaytona
+        ? { fetch: (deps.createCookieFetch ?? createCookieFetch)() }
+        : {}),
     });
 
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote
@@ -174,13 +227,20 @@ export async function runSandboxAgent(
     if (plan.isDaytona) {
       await prepareDaytonaPiAssets({ sandbox, plan, log: logger });
     }
-    workspace = await (deps.prepareWorkspace ?? prepareWorkspace)({ sandbox, plan, log: logger });
+    workspace = await (deps.prepareWorkspace ?? prepareWorkspace)({
+      sandbox,
+      plan,
+      log: logger,
+    });
 
     // Probe what this harness supports and branch on capabilities, not on the harness
     // name. Tool delivery: Pi loads our extension (native tools, set up above); any other
     // harness takes tools over MCP only when it advertises `mcpTools` (pi-acp does not
     // forward MCP, Claude/Codex do).
-    const capabilities = await (deps.probeCapabilities ?? probeCapabilities)(sandbox, plan.acpAgent);
+    const capabilities = await (deps.probeCapabilities ?? probeCapabilities)(
+      sandbox,
+      plan.acpAgent,
+    );
     const mcpServers = buildSessionMcpServers({
       isPi: plan.isPi,
       capabilities,
@@ -202,7 +262,12 @@ export async function runSandboxAgent(
     // Resolve the model first: when the harness rejects the requested id and keeps its
     // own default (e.g. Claude ignores "gpt-5.5"), `model` is undefined and the chat span
     // is labelled "chat" instead of falsely claiming the requested model.
-    const model = await (deps.applyModel ?? applyModel)(session, request.model, logger);
+    const model = await (deps.applyModel ?? applyModel)(
+      session,
+      request.model,
+      logger,
+      { strict: strictModel },
+    );
 
     const run = (deps.createOtel ?? createSandboxAgentOtel)({
       harness: plan.harness,
@@ -220,7 +285,10 @@ export async function runSandboxAgent(
     run.start({
       prompt: plan.prompt,
       sessionId,
-      messages: [...priorMessages(request), { role: "user", content: plan.prompt }],
+      messages: [
+        ...priorMessages(request),
+        { role: "user", content: plan.prompt },
+      ],
     });
 
     session.onEvent((event: any) => {
@@ -229,15 +297,29 @@ export async function runSandboxAgent(
       if (update) run.handleUpdate(update);
     });
 
+    // Cross-turn HITL: when the request carries a platform `sessionId` it came through the
+    // `/messages` endpoint, which validates and stamps a session id on every turn and replays
+    // the conversation — i.e. there is a browser that can answer a permission prompt. The
+    // headless `/invoke` path sets no session id. With no human surface and no stored
+    // decisions the HITLResponder falls back to the base policy and is byte-identical to the
+    // old PolicyResponder, so `/invoke` is unchanged.
+    const hasHumanSurface = !!(request.sessionId && request.sessionId.trim());
     attachPermissionResponder({
       session,
       run,
       responder:
         deps.responderFactory?.(request.permissionPolicy) ??
-        new PolicyResponder(policyFromRequest(request.permissionPolicy)),
+        new HITLResponder(
+          extractApprovalDecisions(request),
+          policyFromRequest(request.permissionPolicy),
+          hasHumanSurface,
+        ),
     });
 
     if (plan.useToolRelay) {
+      // Layer 3 (S3b): the relay enforces each resolved tool's `permission`; an `ask`/unset
+      // permission degrades to the run's headless permission policy (the same policy the
+      // PolicyResponder uses for Claude builtins above).
       toolRelay = (deps.startToolRelay ?? startToolRelay)(
         plan.isDaytona
           ? (deps.sandboxRelayHost ?? sandboxRelayHost)(sandbox)
@@ -245,10 +327,13 @@ export async function runSandboxAgent(
         plan.relayDir,
         plan.toolSpecs,
         request.toolCallback as ToolCallbackContext | undefined,
+        policyFromRequest(request.permissionPolicy),
       );
     }
 
-    const result = await session.prompt([{ type: "text", text: plan.turnText }]);
+    const result = await session.prompt([
+      { type: "text", text: plan.turnText },
+    ]);
     await toolRelay?.stop();
     const stopReason = (result as any)?.stopReason;
     logger(`prompt stopReason=${stopReason}`);
@@ -280,7 +365,10 @@ export async function runSandboxAgent(
       stopReason,
       // `streamingDeltas` advertises end-to-end live deltas, which is only true when a live
       // sink is wired. The one-shot path reports false even when the harness produces deltas.
-      capabilities: { ...capabilities, streamingDeltas: !!emit && capabilities.streamingDeltas },
+      capabilities: {
+        ...capabilities,
+        streamingDeltas: !!emit && capabilities.streamingDeltas,
+      },
       sessionId,
       model: model ?? request.model,
       traceId: run.traceId(),
@@ -296,5 +384,7 @@ export async function runSandboxAgent(
     await workspace?.cleanup().catch(() => {});
     // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too.
     if (runAgentDir) rmSync(runAgentDir, { recursive: true, force: true });
+    // Remove the per-run skills temp root the materializer created (success or error).
+    plan.skillsCleanup();
   }
 }
