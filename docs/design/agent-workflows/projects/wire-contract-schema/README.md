@@ -2,9 +2,9 @@
 
 | | |
 | --- | --- |
-| **Status** | Plan. Not started. Awaiting review before any code. |
-| **Type** | Engineering project (a sequenced, test-driven migration), not a one-shot change. |
-| **Scope** | Replace the hand-mirrored `/run` wire contract with a single schema source; add boundary validation; evaluate splitting `/run`; fold in a structured error model and a carried contract version. |
+| **Status** | Plan. Revised per author PR review on #4830 (2026-06-24). Pre-production POC — any wire shape may change freely; no back-compat burden. |
+| **Type** | Engineering project (a sequenced, test-driven change), not a one-shot change. |
+| **Scope** | Replace the hand-mirrored `/run` wire contract with a single schema source (Pydantic for now); **ship the exported JSON interface in the SDK** and investigate whether Fern can see it; fold in a structured error model and a carried contract version. **No sidecar/runner validation yet** — the contract is still brittle. |
 | **Owner files (today)** | `services/agent/src/protocol.ts` (TS types), `sdks/python/agenta/sdk/agents/utils/wire.py` (Python mirror), `sdks/python/oss/tests/pytest/unit/agents/golden/` (fixtures), `sdks/python/oss/tests/pytest/unit/agents/test_wire_contract.py` + `services/agent/tests/unit/wire-contract.test.ts` (the two contract tests). |
 | **Reference** | The deep spec of the contract as built: [`../runner-interface/README.md`](../runner-interface/README.md). Its Section 12 ("Known gaps") names the exact gaps this project closes. The inventory page: [`../../interfaces/cross-service/service-to-agent-runner.md`](../../interfaces/cross-service/service-to-agent-runner.md). |
 | **Mirroring rule today** | `services/agent/CLAUDE.md` ("The wire contract is mirrored — change both sides"). |
@@ -39,7 +39,8 @@ This is brittle for concrete, observed reasons:
    misspelled field is silently ignored, not rejected. The contract is *implicitly all-optional*
    (every TS field is `?`, every Python field defaults). A typo like `sandboxPermision` is
    dropped on the floor with no error. This is `runner-interface/README.md` §12 gap
-   "No schema validation on the runner".
+   "No schema validation on the runner". (Observed gap — but **not** fixed in this POC phase; a
+   boundary guard is a deferred follow-up, Section 8.)
 3. **The version skew guard is exposed but unconsumed.** `version.ts` exports
    `PROTOCOL_VERSION = 1` and `/health` returns it, but **no Python caller probes `/health`**
    (verified: no reference to `runnerInfo`/`PROTOCOL_VERSION`/`/health` in the runner-calling
@@ -51,33 +52,46 @@ This is brittle for concrete, observed reasons:
    a user/client abort surfaces (if at all) as a transport teardown or a generic error, not as a
    first-class result. §12 names neither, but the user has scoped this as the A10 cleanup.
 
-The fix is a **single source of truth** plus **boundary validation**, sequenced so each step is
-a small change with a test that proves it, and folding in the sibling-project changes (A1
-versioning, A3 backend removal + harness rename, A10 error model).
+The fix for now is a **single source of truth** (Pydantic wire models) whose **JSON interface
+ships in the SDK**, plus the A10 error model and a `/capabilities` probe — sequenced so each step
+is a small change with a test that proves it. Boundary validation, generated TS types, and
+versioning are **deferred** (the contract is still brittle; this is a pre-production POC). The
+A3 rename (backend removal + `pi`->`pi_core` / `agenta`->`pi_agenta`) has already landed in the
+working tree, so the wire models describe that current shape from the start.
 
 ## 2. What this project changes vs leaves alone
 
 **In scope:**
 
 - One schema as the source of truth for the `/run` request, result, event union, capabilities,
-  and the sub-objects listed above.
-- Runtime validation of `/run` at the Node boundary (reject malformed input with a clear error).
-- A symmetric validation on the Python parse path (reject a malformed result).
+  and the sub-objects listed above. **Source = Pydantic for now** (Section 4).
+- **The exported JSON Schema interface lives in the SDK** (alongside the existing `CATALOG_TYPES`
+  JSON interfaces), and an investigation of whether Fern can see/generate it across languages
+  (Section 4).
 - A structured error object `{ code, message, retryable }` and a distinct `cancelled` outcome.
 - A contract version carried in the payload (not only on `/health`), and a probe that consumes
   it.
-- A decision on splitting `/run` into more than one endpoint.
-- Replacing the four golden fixtures + two key lists with schema-derived checks (the golden
-  fixtures stay as *examples that must validate*, not as the only guard).
+- A decision on splitting `/run` (verdict: keep `/run` unified; promote a `/capabilities` probe).
+- Replacing the four golden fixtures + two key lists with schema-derived checks **on the Python
+  side** (the golden fixtures stay as *examples that must validate*, not as the only guard).
+
+**Deliberately NOT in scope for now (the contract is still brittle):**
+
+- **No request validation in the runner** (`server.ts` / `cli.ts`). We do not gate `/run` on the
+  schema yet. The runner keeps parsing the body as it does today.
+- **No use of the schema in the sidecar/runner at all.** No ajv, no new runner dependency, no
+  runtime validation step on the Node side. The schema is an SDK-side artifact for now.
+- These are deferred until the contract stabilizes; revisit when we want a hard boundary guard.
 
 **Explicitly unchanged by this work** (called out so reviewers do not expect movement):
 
-- **Composio, the tool gateway, connections, and MCP** all continue to work exactly as today.
-  They are inputs the service already resolves: `customTools` (gateway callback / code / client),
+- **Composio, the tool gateway, connections, and MCP** all continue to work as today. They are
+  inputs the service already resolves: `customTools` (gateway callback / code / client),
   `toolCallback`, `mcpServers`, `connection` / `provider` / `endpoint` / `credentialMode`. This
-  project re-expresses their **shapes** in a schema and validates them; it does not change how
-  any of them resolve, route, or authenticate. The Composio key stays server-side; the gateway
-  callback still POSTs to `/tools/call`; MCP `stdio`/`http` shapes are preserved byte-for-byte.
+  project re-expresses their **shapes** in a schema; it does not change how any of them resolve,
+  route, or authenticate. The Composio key stays server-side; the gateway callback still POSTs to
+  `/tools/call`; the MCP `stdio`/`http` shapes are unchanged. (We may still adjust any of these
+  shapes if the schema work surfaces a better one — this is a POC, not a frozen contract.)
 - The transports (HTTP + subprocess CLI) and the two modes (one-shot JSON + NDJSON streaming).
 - The harness shaping logic (`config.wire_tools()` etc.) — the schema describes the *output*
   of that shaping, it does not move the shaping.
@@ -101,10 +115,11 @@ The contract has four families. This is what a single schema has to cover.
 | policy + files | `permissionPolicy`, `sandboxPermission`, `harnessFiles` (`[{path, content}]`) |
 | tracing | `trace` (`TraceContext`) |
 
-Back-compat splits the schema must preserve: a plain-string `model` keeps `provider` /
-`connection` / `deployment` / `endpoint` / `credentialMode` **off** the wire; `mcpServers`,
-`skills`, `sandboxPermission`, `harnessFiles` are **omitted** (not null) when empty so a
-minimal payload stays byte-identical to the golden.
+Shape notes (the current serializer behavior, **not** a back-compat constraint — this is a
+pre-production POC and any of these may change freely): a plain-string `model` keeps `provider` /
+`connection` / `deployment` / `endpoint` / `credentialMode` off the wire; `mcpServers`, `skills`,
+`sandboxPermission`, `harnessFiles` are omitted (not null) when empty. The schema describes
+whatever shape we settle on; it does not exist to freeze today's bytes.
 
 ### 3.2 Result (`AgentRunResult`)
 
@@ -156,19 +171,19 @@ no `datamodel-code-generator`, and **no zod** anywhere in the runner or web (ver
 ### Option A — JSON Schema as source, codegen both sides
 
 Author the contract as hand-written JSON Schema files; generate TS types
-(`json-schema-to-typescript`) and Pydantic models (`datamodel-code-generator`) from them. Both
-sides validate with the schema at runtime (ajv on Node, `jsonschema`/Pydantic on Python).
+(`json-schema-to-typescript`) and Pydantic models (`datamodel-code-generator`) from them.
 
 - **Pros:** language-neutral source; one artifact; both sides are generated, so neither drifts.
 - **Cons:** introduces **two new codegen toolchains** into a repo that has none for this, and a
   build step into a package that intentionally has none (`services/agent/CLAUDE.md`: "no app
   compile step"). Hand-writing JSON Schema is verbose and error-prone for a union as rich as
   `AgentEvent` + `RenderHint`. The Python SDK already has hand-written BaseModels with custom
-  `to_wire`/`from_wire` (camelCase aliasing, the `model`-string back-compat split, the
-  drop-unknown-event behavior); regenerating them from schema would either lose that behavior or
-  require post-gen patching. High blast radius, fights the existing grain.
+  `to_wire`/`from_wire` (camelCase aliasing, the `model`-string split, the drop-unknown-event
+  behavior); regenerating them from schema would either lose that behavior or require post-gen
+  patching. High blast radius, fights the existing grain. Also: it does not put the interface in
+  the SDK the way the existing `CATALOG_TYPES` Pydantic-derived schemas already are (Section 4.1).
 
-### Option B — Pydantic as source, export JSON Schema, validate on the TS side (RECOMMENDED)
+### Option B — Pydantic as source, export the JSON interface into the SDK (RECOMMENDED)
 
 Make **Python Pydantic models the source of truth** — but a **dedicated set of *wire* models**,
 NOT the existing semantic DTOs. This distinction is load-bearing (it was the sharpest review
@@ -189,29 +204,68 @@ schema (snake_case keys, a non-discriminated event). So:
   reimplemented in terms of them. The omit-when-empty behavior stays as serializer logic + golden
   checks — `model_json_schema()` expresses "optional", not "omit when empty".
 - Pydantic 2's `model_json_schema()` exports the JSON Schema artifact **for free**, no new
-  toolchain. Commit it as `services/agent/contract/run-contract.schema.json`.
-- The TS runner validates incoming `/run` against it with one small validator (ajv, the one new
-  runner dep) — **no codegen, no build step**: the schema is data the runner loads.
+  toolchain. **This exported JSON interface ships in the SDK** — exactly the way the SDK already
+  exposes Pydantic-derived JSON Schemas through `CATALOG_TYPES` (Section 4.1). The immediate goal
+  is that the interface (the JSON) lives in the SDK; the runner does **not** consume it yet
+  (Section 5).
 
 - **Pros:** fits the stack — Pydantic 2 is already the SDK's modeling layer (`pydantic>=2,<3`);
   the producer (Python) is the natural source since it builds the request. Schema export is a
-  built-in, not a new tool. The runner gains real runtime validation with one dependency (ajv)
-  and zero build step, honoring the standalone-package constraint. The omit-when-empty behavior
-  stays in Python where it already lives and is tested. The exported schema becomes a
-  **CI-checked artifact**: a test fails if the committed schema drifts from the wire models.
+  built-in, not a new tool. It puts the interface in the SDK alongside the existing
+  `CATALOG_TYPES` JSON interfaces (one consistent mechanism). The omit-when-empty behavior stays
+  in Python where it already lives and is tested. The exported schema becomes a **CI-checked
+  artifact**: a test fails if the committed schema drifts from the wire models.
 - **Cons:** requires writing dedicated wire models (a real cost, but it is the honest cost of a
-  single source — the alternative is the current double-maintenance). For the TS *types* there are
-  two sub-options: **(b1)** keep hand-written `protocol.ts` + a schema-derived guard, or **(b2)**
-  generate `protocol.ts` from the schema with `json-schema-to-typescript` as a committed artifact
-  (a checked-in generated file run by a script, not a runtime build step). A hand-written
-  `protocol.ts` + a top-level key guard does **not** catch *nullability* drift — the Claude golden
-  sends `sessionId: null` / `trace: null` while `protocol.ts` types them `?: string` (present-or-
-  absent, not nullable). So b1 needs schema-derived type-equivalence tests deeper than keys, and
-  **b2 (generate the types) is the safer end state**. This is an open question (§10).
+  single source — the alternative is the current double-maintenance). The TS `protocol.ts` stays
+  **hand-written for now** — we do *not* generate it from the schema yet, because the runner does
+  not consume the schema yet (Section 5) and the contract is still brittle. Keeping the schema and
+  `protocol.ts` aligned stays a Python-side discipline for the moment (the Python goldens are the
+  guard). Generating `protocol.ts` from the schema is a later option once the contract settles.
+
+#### 4.1 The interface in the SDK, and whether Fern can see it
+
+The author's direction: get this interface (the JSON Schema) **into the SDK** now, and find out
+whether **Fern** can also see/generate it across languages. Findings, with concrete paths:
+
+- **The SDK already exposes Pydantic-derived JSON interfaces.** `CATALOG_TYPES` in
+  `sdks/python/agenta/sdk/utils/types.py` (line ~1265) is a dict of
+  `model_json_schema()` outputs for `Message`, `Messages`, `AgentConfigSchema`,
+  `SkillConfigSchema`, `PromptTemplate`, etc., each dereferenced. The agent workflow surfaces
+  them through `/inspect` via thin `x-ag-type-ref` markers (`services/oss/src/agent/schemas.py`),
+  and the playground resolves them against `GET /workflows/catalog/types/{type}`. **The wire
+  contract should ship the same way:** add the exported `WireRunRequest` / `WireRunResult` JSON
+  Schema next to `CATALOG_TYPES` (or as a sibling export) so the SDK is the single home of the
+  JSON interface. This is the immediate, low-risk goal.
+
+- **How Fern is used here.** Fern in this repo generates the multi-language API clients (Python +
+  TypeScript) under `clients/` and `web/packages/agenta-api-client/`. The pipeline
+  (`clients/scripts/generate.sh`) is: the FastAPI app (Pydantic models) emits **`/api/openapi.json`**
+  → the script writes an ephemeral `fern.config.json` + `generators.yml` and runs the
+  `fernapi/fern-python-sdk` and `fernapi/fern-typescript-sdk` generators against that OpenAPI
+  spec. There is **no `.fern/` API-definition directory checked in** and no Fern IDL; Fern's only
+  input is the generated OpenAPI document. So the chain is **Pydantic → OpenAPI → Fern → SDKs**.
+
+- **Can Fern see this interface? Yes, but only via OpenAPI — with one real caveat.** Fern reads
+  the OpenAPI spec, and that spec is built from the FastAPI/Pydantic models the *public API*
+  exposes. The `/run` contract is the **service ↔ runner spine**, not a public FastAPI endpoint,
+  so it does **not** appear in `openapi.json` today and Fern therefore cannot see it as-is. Two
+  ways to make Fern see it, neither needed for the immediate goal:
+  - **(a) Reference the wire models from a FastAPI surface.** If any endpoint (even an internal or
+    `/inspect`-style descriptor) types a field with the wire Pydantic models, FastAPI emits their
+    JSON Schema into `components/schemas` of `openapi.json`, and Fern then generates them in every
+    client language. This is the same path `AgentConfigSchema` already takes to reach the clients.
+  - **(b) Add a standalone OpenAPI fragment as a second Fern spec.** `generators.yml` takes a list
+    under `api.specs`; a hand-authored fragment that `$ref`s the exported `run-contract.schema.json`
+    could be added. Heavier and not worth it now.
+  - **Blocker / reason not to do it yet:** the contract is still brittle (it changes often as the
+    POC evolves), and putting it on the public OpenAPI surface would publish a moving target into
+    every generated client. So **for now**: export the JSON interface into the SDK (the
+    `CATALOG_TYPES`-style path), keep it out of the public OpenAPI spec, and let Fern pick it up
+    later once it stabilizes. The path is clear and there is no hard blocker — only a timing call.
 
 ### Option C — A shared IDL (`.proto`, Smithy, etc.)
 
-Define the contract in a neutral IDL and generate both sides + a validator.
+Define the contract in a neutral IDL and generate both sides.
 
 - **Pros:** strongest neutrality; mature codegen.
 - **Cons:** the heaviest option for an internal JSON-over-HTTP/stdio boundary. The wire is JSON,
@@ -220,38 +274,44 @@ Define the contract in a neutral IDL and generate both sides + a validator.
   that wants fewer moving parts. The `AgentEvent` open-union + "drop unknown" semantics fit JSON
   Schema's `additionalProperties`/`oneOf` better than proto's closed messages. Overkill.
 
-### Recommendation: Option B (Pydantic-as-source → exported JSON Schema → ajv validation in the runner)
+### Recommendation: Option B (Pydantic-as-source → exported JSON interface in the SDK)
 
-It is the only option that adds **one** runtime dependency (ajv) and **zero** runtime build
-steps, fits the Pydantic 2 stack, keeps the custom serialization semantics where they are tested,
-and turns the schema into a CI-checked artifact that makes drift a failing test instead of a
-code-review discipline. Source of truth = dedicated Pydantic **wire** models (not the semantic
-DTOs); the exported `run-contract.schema.json` is the shared artifact; the TS types are best
-**generated** from it (sub-option b2) so nullability drift cannot hide.
+Use **Pydantic as the source for now**. It fits the Pydantic 2 stack, keeps the custom
+serialization semantics where they are tested, exports the JSON Schema for free, and **puts the
+interface in the SDK** the same way `CATALOG_TYPES` already does — which is exactly the immediate
+goal. Source of truth = dedicated Pydantic **wire** models (not the semantic DTOs); the exported
+schema ships in the SDK as a CI-checked artifact (a test fails if it drifts from the wire models).
 
-## 5. Runtime validation at the boundary
+Two deliberate constraints from the author's review:
 
-Today `/run` is implicitly all-optional and silently drops typos. The plan:
+- **No runner/sidecar validation yet.** The runner does not load or validate against the schema;
+  there is no ajv, no new runner dependency, no build step. The contract is still brittle, so we
+  hold off on a hard boundary guard (Section 5).
+- **`protocol.ts` stays hand-written for now.** We do not generate TS types from the schema yet
+  (that only pays off once the runner consumes the schema). The Python goldens remain the guard.
 
-- **Runner ingress (request).** In `server.ts` / `cli.ts`, after JSON-parse, validate the body
-  against `run-contract.schema.json` with ajv. On failure, return a structured `400` (HTTP) /
-  exit 1 (CLI) with the validator's error path — e.g. `{ ok:false, error:{ code:"invalid_request",
-  message:"sandboxPermission.network.mode: must be one of on|off|allowlist", retryable:false } }`.
-  Replace today's "empty body -> `{}` runs with defaults" with an explicit allowance: an empty
-  body is still valid (the contract tests rely on it), but a *present but malformed* body is
-  rejected. Decide on `additionalProperties`: start **permissive** (warn/log unknown top-level
-  keys, do not reject) to avoid breaking a newer service against an older runner, and tighten to
-  reject in a later, version-gated step. Unknown **event** types stay tolerated by design.
-- **Python egress (request) — optional symmetric guard.** `request_to_wire` can validate its own
-  output against the same schema in tests (and optionally under a debug flag at runtime), so the
-  producer cannot emit a payload the runner would reject. This is the producer-side half of the
-  guard and is cheap because the schema already exists.
-- **Python ingress (result).** `result_from_wire` gains schema validation of the result before
-  it constructs `AgentResult`, so a malformed runner result fails loudly rather than producing a
-  half-empty `AgentResult`.
+Fern can reach this interface later through the existing **Pydantic → OpenAPI → Fern → SDKs**
+pipeline once the contract stabilizes (Section 4.1); for now the interface lives in the SDK only.
 
-The validator is **not** a behavior change to any resolved input (tools, gateway, MCP,
-connections are validated for shape only, never re-resolved).
+## 5. Validation — deferred (no runtime guard yet)
+
+Author's direction (PR review): **do not validate for the moment.** The contract is still
+brittle, so this project does **not** add a runtime boundary guard on either side yet.
+
+- **No runner ingress validation.** `server.ts` / `cli.ts` keep parsing the `/run` body exactly
+  as today (empty body → defaults, unknown fields ignored). No ajv, no new runner dependency, no
+  schema loaded on the Node side. A present-but-malformed body is still tolerated for now.
+- **No runtime Python validation either.** `request_to_wire` / `result_from_wire` are not gated
+  on the schema at runtime.
+
+What the schema *is* used for in this phase is **Python-side tests only**: the exported schema
+validates the existing goldens (an example-must-validate check) and can validate `request_to_wire`
+output in a unit test, so the schema is proven faithful without changing any production code path.
+That is the full extent of validation for now.
+
+When the contract stabilizes, a real boundary guard (runner ingress validation + a symmetric
+Python result check) is a natural follow-up — see Section 8 / Open questions. Until then it is
+explicitly out of scope.
 
 ## 6. The `/run` split decision
 
@@ -271,13 +331,14 @@ duplicate the request schema and the dispatch for no contract benefit. Content n
 
 ### Split out: a capability / contract probe
 
-**DO formalize the probe.** `/health` already returns `{status, runner, protocol, engines,
-harnesses}` but nothing consumes it, and `HarnessCapabilities` (per-harness, 11 flags) is only
-discoverable by doing a full run. Recommendation:
+**DO formalize the probe — the author endorsed this in review ("that's a good idea with
+capabilities").** `/health` already returns `{status, runner, protocol, engines, harnesses}` but
+nothing consumes it, and `HarnessCapabilities` (per-harness, 11 flags) is only discoverable by
+doing a full run. Recommendation:
 
 - Keep `GET /health` as the cheap liveness + identity + **contract version** probe (it already
   carries `protocol`). This is what the A1 version check consumes (Section 7).
-- Add `GET /capabilities` (or `GET /capabilities?harness=pi`) that returns the static **base**
+- Add `GET /capabilities` (or `GET /capabilities?harness=pi_core`) that returns the static **base**
   `HarnessCapabilities` per harness **without running a turn**. Today capabilities are probed
   per-run and returned in the result; a static probe lets the service/playground render UI and
   pre-validate a request (e.g. reject `images` for a harness that lacks `fileAttachments`) before
@@ -304,45 +365,37 @@ turn contract.
 
 This project assumes and coordinates with three parallel efforts. The schema is where they meet.
 
-### A3 — backend removal + harness rename (assumed end state)
+### A3 — backend removal + harness rename (already landed in the working tree)
 
-A3 removes the legacy in-process backend and the `backend` field, and renames harness values
-`pi -> pi_core` and `agenta -> pi_agenta`. The schema must land **after** or **with** A3, or it
-will pin the wrong enum. Concretely in the schema:
+A3 removed the legacy in-process backend and the `backend` field, and renamed harness values
+`pi -> pi_core` and `agenta -> pi_agenta`. This is **no longer "assumed end state"** — it is
+already in the working tree (`version.ts` now declares `HARNESSES = ["pi_core","claude",
+"pi_agenta"]`; the pi golden is renamed `run_request.pi_core.json`; `engines/pi.ts` is deleted).
+So the schema simply describes that current shape:
 
-- **Drop `backend`** from `AgentRunRequest` (the runner no longer dispatches on an engine id; one
-  engine path remains). Remove it from the key lists and goldens.
-- **`harness` enum becomes** `pi_core` | `pi_agenta` | `claude` (was `pi` | `agenta` | `claude`).
-  Update `version.ts` `HARNESSES`, the goldens, and the schema enum together.
-- Because A3 removes a field and changes an enum, it is a **breaking** contract change. It shares
-  **one** `PROTOCOL_VERSION` bump with the A10 error-model change (the single v2 cut in step 8) —
-  it does NOT get its own separate "also v2" bump (a second breaking change after a bump is not
-  incremental). The migration introduces the schema *first* at v1 (behavior-preserving, steps
-  1-6), then makes A3 + A10 the single v2 cut, so the schema work is not blocked on A3 landing. If
-  the team would rather decouple them, A3 becomes a distinct **v3** cut — but the two breaking
-  changes must not collapse into one ambiguous "v2" label.
+- No `backend` field.
+- `harness` is `pi_core` | `pi_agenta` | `claude`.
 
-### A1 — versioning (coordinate: the schema carries/enables a contract version)
+Because this is a **pre-production POC, we do NOT version the pi/agenta rename.** There is no v1→v2
+cut for it, no downcaster, no `PROTOCOL_VERSION` bump tied to the rename — the wire just changes.
+The wire models are authored against today's renamed shape from the start.
+
+### A1 — versioning (coordinate: a simple string version, the LLM-as-judge style)
 
 A1 is the sibling project [`../contract-versioning/`](../contract-versioning/) (it owns the
-versioning strategy for the cross-service contracts). It independently found the same gap this
-project relies on: the runner advertises `protocol: 1` on `/health` (`version.ts`) but the Python
-client (`ts_runner.py`) never reads it — no negotiation, no skew guard. This project makes the
-schema **carry** the contract version so skew is detectable in-band, not only via `/health`:
+versioning strategy). Per the author's review, A1 is being simplified to **a plain string version
+plus an if/else branch — the same pattern the codebase already uses elsewhere** (the
+`x-ag-messages-version: "v1"` header and `VERCEL_MESSAGE_PROTOCOL_VERSION` string; the LLM-as-judge
+string-version + if/else dispatch). **No `{major, minor}` struct, no `contractVersion` field name,
+no upcaster/downcaster machinery.** This project defers to whatever simple string convention A1
+lands on and reuses it verbatim (do NOT invent a new scheme).
 
-- Add an optional `contractVersion` (int major) to `AgentRunRequest` and `AgentRunResult`. The
-  service stamps the major it built for; the runner can reject a major it does not support with a
-  structured `{ code:"unsupported_contract_version", ... }` error (see A10) instead of silently
-  mis-parsing.
-- Consume the version on **both transports**, not only `/health` (the backend chooses HTTP or
-  subprocess in `adapters/sandbox_agent.py`, and the CLI has no health mode): the HTTP path probes
-  `GET /health.protocol`; the subprocess/CLI path needs a `--version`/`--protocol` mode (or reads
-  the in-band `contractVersion` echoed on the result). Either way the client refuses a runner
-  whose major it does not understand, closing the §12 "version skew guard is not consumed" gap.
-  The schema artifact itself is versioned by the same major.
-- Exact ownership of the bump mechanics stays with A1; this project provides the in-payload field
-  and the probe consumption. The two must agree on the major-number semantics (single int major,
-  surfaced on `/health` as `protocol` and in-band as `contractVersion`).
+It is still true that the runner advertises `protocol: 1` on `/health` (`version.ts`) but the
+Python client (`ts_runner.py`) never reads it. If A1 wants the version carried on the payload, it
+rides as the same simple string A1 chooses, stamped by the producer and branched on with a plain
+if/else on the consumer. Skew handling and any negotiation are A1's call; this project only agrees
+to carry the field A1 specifies in the wire models. Given the POC framing, even this is optional
+for now.
 
 ### A10 — error model cleanup (in scope here)
 
@@ -362,16 +415,17 @@ outcome:
 ```
 
 - **Error taxonomy (`code`)**, a closed-ish enum the runner sets and the service can branch on:
-  `invalid_request` (schema validation failed), `unsupported_contract_version`,
   `unsupported_harness`, `auth_error`, `quota_exceeded`, `rate_limited`, `configuration_error`,
   `permission_denied`, `model_error`, `tool_error`, `mcp_error`, `sandbox_error`, `timeout`,
   `cancelled`, `internal`. The `auth_error` / `quota_exceeded` / `rate_limited` codes are not
   speculative: the runner already pattern-classifies these from provider error text in
   `services/agent/src/engines/sandbox_agent/errors.ts` — the schema just gives that classification
   a stable wire code. Keep the enum forward-compatible (an unknown code -> treat as `internal`),
-  mirroring the event "drop unknown" tolerance.
+  mirroring the event "drop unknown" tolerance. (No `invalid_request` /
+  `unsupported_contract_version` codes for now — we are not validating requests or enforcing a
+  version at the boundary in this phase.)
 - **`retryable`** lets the caller distinguish a transient `timeout` / `rate_limited` / `mcp_error`
-  from a permanent `invalid_request` / `unsupported_harness` / `auth_error`.
+  from a permanent `unsupported_harness` / `auth_error` / `configuration_error`.
 - **Distinct cancelled outcome — but only where it is actually deliverable.** A user/client abort
   is **not** a failure. The subtlety (a real review catch): a *client disconnect* mid-stream
   cannot reliably receive a terminal record, because the disconnect is exactly what tears the
@@ -389,176 +443,147 @@ outcome:
   - Optionally also emit a `done` event with `stopReason:"cancelled"` for streams (useful as a
     live signal), but the terminal result remains authoritative when the connection is alive.
 - **Migration:** `result_from_wire` must accept **both** the old free-string `error` and the new
-  structured object during the transition (parse a string into `{code:"internal", message:str,
-  retryable:false}`), so an old runner against a new service still parses. The structured form is
-  the v2 shape; the string form is read-compat only.
+  structured object (parse a string into `{code:"internal", message:str, retryable:false}`). This
+  read-compat is cheap and avoids a hard flag-day, but because this is a POC we do **not** treat
+  the new error shape as a versioned cut — the wire just changes to the structured form.
 
-This is a contract change (new error shape) and folds into the same v2 bump as A3.
+This is a wire-shape change (the new structured error), made directly. No version bump is tied to
+it (POC).
 
-## 8. Incremental, test-at-each-step migration plan
+## 8. Incremental, test-at-each-step plan (POC-framed)
 
-No big-bang. Each step is a small change plus the test that proves it. Steps 1-6 are
-**behavior-preserving at contract v1** (the schema must validate the *current* goldens), so they
-can land before A1/A3/A10. Steps 7-10 are the versioned (v2) changes that depend on the siblings.
+No big-bang, but no versioning machinery either — this is a pre-production POC, so the wire just
+changes when it needs to. Each step is a small change plus the test that proves it. The
+heaviest items (runner-side validation, generating `protocol.ts`, version negotiation) are
+**deferred** until the contract stabilizes; they are listed at the end as follow-ups, not steps.
 
 The sequence respects the shared-surface rule (`agent-coordination.md`): any change to
 `protocol.ts` / `wire.py` / golden / the two contract tests is coordinated, single-PR, both
 sides + golden together.
 
-1. **Add the Pydantic request/result models (no wire change).**
-   Add `AgentRunRequest` / `AgentRunResult` Pydantic models in the SDK that compose the existing
-   `dtos.py` sub-models with camelCase aliases, reproducing exactly what `request_to_wire` /
-   `result_from_wire` emit/parse today.
-   *Test:* a new unit test asserts `AgentRunRequest(...).model_dump(by_alias=True, exclude_none-ish)
-   == request_to_wire(...)` for the Pi, Claude, and Agenta payloads (round-trip parity with the
-   hand-built dicts and the goldens). Green before touching anything else.
+1. **Add the dedicated Pydantic wire models in the SDK (no wire change).**
+   Add `WireRunRequest` / `WireRunResult` (and the discriminated `WireAgentEvent`) wire models in
+   the SDK, with camelCase aliases, reproducing exactly what `request_to_wire` / `result_from_wire`
+   emit/parse today (against the *current* renamed shape — `pi_core` / `pi_agenta`, no `backend`).
+   *Test:* a unit test asserts `WireRunRequest(...).model_dump(by_alias=True, exclude-none-ish)
+   == request_to_wire(...)` for the pi_core, claude, and pi_agenta payloads (round-trip parity with
+   the goldens). Green before anything else.
 
-2. **Export the JSON Schema artifact + a freshness test.**
-   Add a script that writes `services/agent/contract/run-contract.schema.json` from
-   `model_json_schema()`. Commit the artifact.
-   *Test:* a CI test regenerates the schema in-memory and asserts it equals the committed file
-   (drift -> fail), mirroring how the goldens are regenerated deliberately.
+2. **Export the JSON interface into the SDK + a freshness test.**
+   Export `model_json_schema()` for the wire models and ship it in the SDK alongside the existing
+   `CATALOG_TYPES` JSON interfaces (Section 4.1). Commit the artifact.
+   *Test:* a test regenerates the schema in-memory and asserts it equals the committed export
+   (drift -> fail), the same discipline the goldens already use.
 
-3. **Assert the existing goldens validate against the schema (Python side).**
-   *Test:* load each of the four goldens, validate against `run-contract.schema.json`
-   (`jsonschema`); all must pass. This proves the schema faithfully describes today's wire before
-   anything consumes it. No production code path changes yet.
+3. **Assert the existing goldens validate against the exported schema (Python side, tests only).**
+   *Test:* load each golden, validate against the exported schema (`jsonschema`); all must pass.
+   This proves the schema faithfully describes today's wire. **No production code path changes, and
+   nothing on the runner side** — validation here is a test, not a runtime guard (Section 5).
 
-4. **Add ajv validation in the runner, behind a permissive mode (TS side).**
-   Add ajv (one dependency) and load `run-contract.schema.json`. Validate the `/run` body in
-   `server.ts`/`cli.ts`; in this step, on failure **log and continue** (permissive) so nothing
-   breaks, and assert the goldens validate.
-   *Test:* `wire-contract.test.ts` validates the goldens through ajv (must pass) and validates a
-   deliberately-malformed payload (must report the right error path) — without yet rejecting it.
+4. **Make the wire models the single producer.**
+   Reimplement `request_to_wire` / `result_from_wire` in terms of the wire models, keeping the
+   omit-when-empty serializer behavior. The goldens stay byte-identical (this is a refactor, the
+   models already match the wire from step 1).
+   *Test:* the existing golden wire-contract test stays green unchanged; add a parity test that the
+   reimplemented serializers equal the old output.
 
-5. **Flip the runner to reject malformed requests (the boundary guard) — at v1 error shape.**
-   Change permissive -> reject: a present-but-malformed body is rejected with a `400`. **Ordering
-   subtlety (a real review catch):** at this point the result `error` is still the v1 free string
-   (`protocol.ts` `error?: string`), so this step must NOT emit the structured `{error:{code:...}}`
-   shape yet — emitting structured errors before the v2 error model lands would itself be a
-   contract change. So the v1 rejection returns a **string** error
-   (`{ok:false, error:"invalid_request: sandboxPermission.network.mode: must be one of ..."}`),
-   carrying the code as a stable prefix. The structured object replaces it in step 8. An empty
-   body still parses to a valid default request. Keep `additionalProperties` permissive (unknown
-   top-level keys logged, not rejected) for cross-version safety.
-   *Test:* `server.test.ts` asserts a malformed `/run` -> `400` with the `invalid_request:` prefix;
-   an empty body -> still runs; the goldens -> still accepted. CLI test mirrors via exit code.
+5. **Replace the duplicated key lists with a schema-derived guard (Python side).**
+   Swap the hand-kept Python `KNOWN_REQUEST_KEYS` for a set derived from the exported schema's
+   `properties`, so the Python guard cannot silently fall behind. The TS `KNOWN_REQUEST_KEYS` guard
+   in `wire-contract.test.ts` stays hand-written for now (we are not generating `protocol.ts` or
+   touching the runner this phase).
+   *Test:* `set(schema.properties) == set(python KNOWN_REQUEST_KEYS)`.
 
-6. **Replace the duplicated key lists with schema-derived guards (+ a deeper-than-keys check).**
-   Swap the two hand-kept `KNOWN_REQUEST_KEYS` for: (Python) derive the allowed key set from the
-   schema's `properties`; (TS) drive the guard list from the schema property names so it cannot
-   silently fall behind. **But a key guard alone is not enough** (review catch): it misses
-   *nullability* drift — the Claude golden sends `sessionId: null` / `trace: null` while
-   `protocol.ts` types them `?: string`. Add a schema-derived check that compares each field's
-   nullability/optionality against the TS types (or, if sub-option b2 was chosen, generate
-   `protocol.ts` from the schema so the check is structural).
-   *Test:* `set(schema.properties) == set(KNOWN_REQUEST_KEYS)` on both sides, plus a nullability
-   assertion (`sessionId`/`trace` accept `null`). **End of the behavior-preserving phase: the
-   hand-maintained key lists are gone and the runtime guard is the schema. The TS *types* are
-   either generated (b2) or guarded deeper than keys (b1); the omit-when-empty serializer behavior
-   is still asserted by the goldens, not by the schema.**
+6. **Structured error model + cancelled outcome (A10).**
+   Result `error` becomes `{code, message, retryable}`; `result_from_wire` also reads the old free
+   string for read-compat (string -> `{code:"internal", message:str}`). Cancellation: cooperative
+   cancel emits the terminal `{ok:false, error:{code:"cancelled"}}`; transport-teardown cancel maps
+   to a distinct Python `CancelledError` (per §7 A10). This is a direct wire change — **no version
+   bump** (POC).
+   *Test:* `test_wire_contract.py` parses an old-string-error golden and a new-structured golden; a
+   transport test asserts a disconnect yields the Python `CancelledError`. New goldens:
+   `run_result.cancelled.json`, `run_result.error_structured.json`.
 
-   --- the steps below are the v2 contract changes; they depend on the siblings ---
+7. **Promote the capability probe: `GET /capabilities` (additive, the author endorsed it).**
+   Add the static per-harness `HarnessCapabilities` route to the runner. It returns **base**
+   capabilities (what the harness supports at all); mode-dependent flags (`streamingDeltas`, derived
+   at run time in `engines/sandbox_agent.ts`) stay authoritative only in a run result. The service
+   can pre-render UI / pre-check a request against the base set.
+   *Test:* `server.test.ts` asserts `GET /capabilities` returns the base capability map per harness
+   without running a turn.
 
-7. **Add `contractVersion` in-band + consume the version on BOTH transports (with A1).**
-   Add optional `contractVersion` (additive, still v1-compatible) to the request/result schema;
-   service stamps it. Consume it on **both** transports, not only `/health` (review catch: the
-   backend picks HTTP *or* subprocess in `adapters/sandbox_agent.py`, and the CLI has no health
-   mode): the HTTP path probes `GET /health.protocol` once; the **subprocess/CLI path** gets a
-   `--version`/`--protocol` mode (or reads the in-band `contractVersion` echoed on the first
-   result) so a skewed CLI runner is also refused.
-   *Test:* a transport test stubs an incompatible `/health` major and asserts the HTTP adapter
-   refuses before `/run`; a CLI test asserts the subprocess version probe refuses an incompatible
-   major; a schema test asserts `contractVersion` round-trips.
+### Deferred follow-ups (only once the contract stabilizes)
 
-8. **The v2 cut: structured error model + cancelled outcome (A10) AND the A3 removal, together.**
-   These are **two breaking changes**, so they ship as **one `PROTOCOL_VERSION = 2` cut**, not as
-   two steps each calling itself "v2" (review catch: a second breaking change after a bump is not
-   incremental — bump once, change once). In this single cut:
-   - Result `error` becomes `{code, message, retryable}`; `result_from_wire` reads both the new
-     object and the old v1 string (string -> `{code:"internal", message:str}`) for read-compat
-     against an older runner. The step-5 `invalid_request:`-prefixed string rejection becomes the
-     structured object.
-   - Cancellation: cooperative cancel emits the terminal `{ok:false, error:{code:"cancelled"}}`;
-     transport-teardown cancel maps to a distinct Python `CancelledError` outcome (per §7 A10).
-   - A3: drop `backend` from the schema/models/goldens/guards; rename the `harness` enum to
-     `pi_core | pi_agenta | claude`; update `version.ts` `HARNESSES`.
-   - **Sequencing within the cut is itself incremental and test-guarded:** land read-compat error
-     parsing first (no behavior change), then flip the emitted shape, then the A3 removal — each
-     with its test green — but they release as one v2 because they share the breaking bump.
-   *Test:* `test_wire_contract.py` parses an old-string-error golden and a new-structured golden;
-   a runner test asserts cooperative cancel yields the terminal `cancelled` record and a disconnect
-   yields the Python `CancelledError`; regenerated Pi/Claude goldens (no `backend`, renamed
-   harness) assert the new shapes; a test asserts the schema rejects `backend` and the old
-   `pi`/`agenta` harness values. New goldens: `run_result.cancelled.json`,
-   `run_result.error_structured.json`. (If the team prefers to decouple, A3 can instead be a
-   separate **v3** cut — but it must not share v2's bump.)
+These are explicitly **not** in this phase, per the author's review:
 
-9. **Promote the capability probe: `GET /capabilities` (additive, can land any time).**
-   Add the static per-harness `HarnessCapabilities` route to the runner. Define explicitly whether
-   it returns **base** capabilities (what the harness supports at all) or **effective** ones (for a
-   given request/mode) — `streamingDeltas` is mode-dependent today (review catch:
-   `engines/sandbox_agent.ts` derives it at run time). Recommendation: return **base** capabilities
-   from this static probe and document that mode-dependent flags are only authoritative in a run
-   result. Optionally have the service pre-validate a request against the base capabilities.
-   *Test:* `server.test.ts` asserts `GET /capabilities` returns the schema-valid base capability
-   map per harness without running a turn; a schema test asserts the capability map validates.
+- **Runner-side request validation.** Loading the schema in `server.ts` / `cli.ts` and rejecting a
+  malformed `/run` (with ajv or similar). The contract is too brittle to gate on yet.
+- **Generating `protocol.ts` from the schema.** Pays off only once the runner consumes the schema;
+  until then `protocol.ts` stays hand-written and the Python goldens are the guard.
+- **A version field + negotiation.** Owned by A1; if/when it lands it is a simple string version +
+  if/else (Section 7 A1), not a `{major, minor}` or upcaster/downcaster scheme.
+- **Fern generating the interface across languages.** Reachable later via Pydantic → OpenAPI → Fern
+  once the contract is stable enough to publish into the clients (Section 4.1).
 
-After these steps: one schema source (dedicated Pydantic wire models) -> one exported artifact ->
-runtime validation on both sides -> structured errors + a correctly-modeled cancelled outcome ->
-in-band + both-transport contract version -> a real capability probe, with a test at every step
-and no point where both sides are broken at once.
+After this phase: one Pydantic wire-model source -> the JSON interface shipped in the SDK ->
+structured errors + a correctly-modeled cancelled outcome -> a real capability probe. No runner
+validation, no version machinery, no generated TS types — those are deferred until the contract
+settles.
 
 ## 9. Risks and mitigations
 
-- **Drift between `protocol.ts` types and the schema.** Mitigated by step 6's schema-derived guard
-  (keys **and** nullability, or generated TS types) + step-4 ajv validation of the goldens; a drift
-  fails `tsc` or a test.
-- **An older runner against a newer service (or vice versa).** Mitigated by permissive
-  `additionalProperties`, the read-compat error parsing (step 8), and the both-transport major
-  probe (step 7).
-- **The committed schema artifact going stale.** Mitigated by step 2's freshness test (regenerate
-  == committed), the same discipline the goldens already use.
-- **Sequencing against A1/A3/A10.** Steps 1-6 are independent and land first at v1; A10 + A3 are
-  the **single** v2 cut (step 8); the version probe (7) and capability probe (9) are additive.
-- **Standalone-package constraint.** Only one runner *runtime* dependency added (ajv); no runtime
-  build step; the schema is loaded as data, honoring `services/agent/CLAUDE.md`. (If TS types are
-  generated — sub-option b2 — that is a committed artifact produced by a script, not a build step.)
+- **Drift between `protocol.ts` types and the schema.** While `protocol.ts` stays hand-written and
+  the runner does not consume the schema, this drift is tolerated as a POC trade-off. The Python
+  goldens + the schema-derived Python key guard (step 5) catch Python-side drift; aligning the TS
+  types is a manual discipline for now. Generating `protocol.ts` is the deferred fix.
+- **The committed schema export going stale.** Mitigated by step 2's freshness test (regenerate ==
+  committed), the same discipline the goldens already use.
+- **Sequencing against A1.** A1 owns the version convention (a simple string + if/else); this
+  project only carries whatever field A1 specifies. The error model (step 6) and capability probe
+  (step 7) do not depend on A1.
+- **No boundary guard means typos still pass silently.** Accepted for now — the contract is too
+  brittle to gate on. The runner keeps today's behavior. Revisit with the deferred runner-side
+  validation once the contract stabilizes.
 
 ## 10. Open questions for review
 
-1. **Wire models vs semantic DTOs, and where they live.** Confirmed direction: a **dedicated set
-   of wire models** (not the snake_case semantic DTOs in `dtos.py`). Open: place them in a new
-   `agents/wire_models.py` next to `dtos.py` (proposed) vs a dedicated contract package. Export the
-   artifact into `services/agent/contract/`.
-2. **TS types: hand-written + deep guard (b1) vs generated from the schema (b2).** Proposal: **b2
-   (generate `protocol.ts`)** — a key guard misses nullability drift (`sessionId`/`trace` are
-   `null` on the wire but `?:` in TS). If b1, the guard must compare nullability, not just keys.
-3. **`additionalProperties` end state.** Stay permissive forever (log unknowns) or tighten to
-   reject after the version probe is in place? Proposal: permissive for top-level request fields,
-   strict for nested objects where a typo is more likely a bug than a version skew.
-4. **Cancelled modeling.** Cooperative cancel -> terminal `error.code:"cancelled"`; transport
+1. **Wire models placement.** A new `agents/wire_models.py` next to `dtos.py` (proposed) vs a
+   dedicated contract package. The exported JSON interface ships in the SDK alongside
+   `CATALOG_TYPES`.
+2. **Where exactly the exported interface is surfaced in the SDK.** As an entry in (or sibling of)
+   `CATALOG_TYPES` in `sdks/python/agenta/sdk/utils/types.py`, vs a standalone export. Either keeps
+   it SDK-resident; the `CATALOG_TYPES` path also makes it `/inspect`-discoverable.
+3. **Cancelled modeling.** Cooperative cancel -> terminal `error.code:"cancelled"`; transport
    teardown -> distinct Python `CancelledError` (proposed). Optionally also a `done`
-   `stopReason:"cancelled"`. Needs A10 sign-off. `retryable` for cancel: `false`/omit.
-5. **Version-cut grouping.** A10 + A3 as one v2 cut (proposed) vs A3 as a separate v3. A1 owns the
-   final call on bump grouping.
-6. **`contractVersion` granularity + transport coverage.** Single int major (proposed, matches
-   `/health.protocol`) vs semver; and the subprocess/CLI version probe shape (`--protocol` flag vs
-   in-band echo). A1 owns the granularity.
-7. **Capability probe shape + base-vs-effective.** Return all harnesses (proposed) vs `?harness=`;
+   `stopReason:"cancelled"`. `retryable` for cancel: `false`/omit.
+4. **Capability probe shape + base-vs-effective.** Return all harnesses (proposed) vs `?harness=`;
    and the probe returns **base** capabilities (proposed), with mode-dependent flags
    (`streamingDeltas`) authoritative only in a run result.
+5. **The deferred follow-ups (Section 8).** Confirm runner-side validation, generated `protocol.ts`,
+   the version field, and Fern publication are all out of scope for this POC phase.
 
 ## 11. Review
 
-This plan was reviewed by Codex (gpt-5.5, xhigh, read-only) on 2026-06-24. It verified the claims
-against the code and the verdict ("Option B is the right direction, but ...") drove six concrete
-corrections now folded in: (1) source from dedicated **wire** models, not the snake_case semantic
-DTOs; (2) a key guard misses **nullability** drift — generate TS types or test deeper; (3) A10 and
-A3 are **two** breaking changes -> one v2 cut (or A3 as v3), not two "v2" steps; (4) step 5 cannot
-emit the structured error shape while v1 still types `error` as a string; (5) the version probe
-must cover the **subprocess/CLI** transport, not only `/health`; (6) cancellation via a terminal
-record only works for **cooperative** cancel — a disconnect maps to a Python `CancelledError`.
-Also expanded the error taxonomy (`auth_error`/`quota_exceeded`/`rate_limited`/
-`configuration_error`/`permission_denied`, which `engines/sandbox_agent/errors.ts` already
-classifies) and added the base-vs-effective capability distinction.
+This plan was reviewed by Codex (gpt-5.5, xhigh, read-only) on 2026-06-24, then revised on
+2026-06-24 per the author's PR review on #4830. The author's direction simplified it toward the POC
+reality:
+
+- **No back-compat burden** — this is still an internal POC, so any wire shape may change freely
+  (the "must preserve the model/connection split" framing was dropped).
+- **Pydantic as the source for now**, with the immediate goal that the exported JSON interface
+  lives **in the SDK** (the `CATALOG_TYPES` path), plus a Fern investigation (Section 4.1): Fern
+  here is driven by Pydantic → OpenAPI → Fern → SDKs, so it can see this interface later via the
+  OpenAPI surface once the contract stabilizes — no hard blocker, only a timing call.
+- **No sidecar/runner validation yet** (no ajv, no new runner dependency) — the contract is still
+  brittle (Section 5); `protocol.ts` stays hand-written for now.
+- **No versioning machinery** — the pi/agenta rename (already landed) is not versioned, and any
+  version field defers to A1's simple string + if/else convention.
+- **Keep `/capabilities`** — the author endorsed the probe.
+
+Codex's earlier structural catches that survive the simplification: source from dedicated **wire**
+models (not the snake_case semantic DTOs); cancellation via a terminal record only works for
+**cooperative** cancel (a disconnect maps to a Python `CancelledError`); the error taxonomy is
+grounded in what `engines/sandbox_agent/errors.ts` already classifies; capabilities are
+base-vs-effective. The corrections that were about versioning/validation (two-breaking-changes-one-
+cut, the step-5 error-shape ordering, the both-transport version probe) are **moot** now that
+versioning and runner validation are deferred.
