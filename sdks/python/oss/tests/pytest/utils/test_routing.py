@@ -133,12 +133,12 @@ class TestRouteIsolation:
 
 
 # ---------------------------------------------------------------------------
-# 2b. Agent-only endpoints (/messages + /load-session), gated on is_agent
+# 2b. Agent-only endpoints (/messages), gated on is_agent
 # ---------------------------------------------------------------------------
 
 
 class TestAgentEndpoints:
-    def test_is_agent_sub_app_has_messages_and_load_session(self):
+    def test_is_agent_sub_app_has_messages(self):
         app = create_app()
 
         @route("/chat", app=app, flags={"is_agent": True})
@@ -147,7 +147,6 @@ class TestAgentEndpoints:
 
         schema = _mounts(app)["/chat"].app.openapi()
         assert "/messages" in schema["paths"]
-        assert "/load-session" in schema["paths"]
         assert "/invoke" in schema["paths"]  # the base routes are still present
 
     def test_non_agent_route_has_no_agent_endpoints(self):
@@ -159,7 +158,6 @@ class TestAgentEndpoints:
 
         schema = _mounts(app)["/qa"].app.openapi()
         assert "/messages" not in schema["paths"]
-        assert "/load-session" not in schema["paths"]
 
     def test_root_agent_route_registers_on_mount_root(self):
         # The agent app uses route("/", app=app, flags={"is_agent": True}); the endpoints
@@ -172,7 +170,6 @@ class TestAgentEndpoints:
 
         schema = app.openapi()
         assert "/messages" in schema["paths"]
-        assert "/load-session" in schema["paths"]
 
 
 # ---------------------------------------------------------------------------
@@ -230,15 +227,15 @@ class TestRouterDeprecation:
 
 
 # ---------------------------------------------------------------------------
-# 4. Reserved agent paths (/messages, /load-session)
+# 4. Reserved agent paths (/messages)
 # ---------------------------------------------------------------------------
 
 
 class TestReservedAgentPaths:
     def test_agent_endpoint_names_are_reserved(self):
-        assert {"messages", "load-session"} <= _RESERVED_PATHS
+        assert {"messages"} <= _RESERVED_PATHS
 
-    @pytest.mark.parametrize("reserved", ["messages", "load-session"])
+    @pytest.mark.parametrize("reserved", ["messages"])
     def test_route_rejects_reserved_agent_path(self, reserved):
         with pytest.raises(ValueError, match=reserved):
             route(f"/{reserved}")

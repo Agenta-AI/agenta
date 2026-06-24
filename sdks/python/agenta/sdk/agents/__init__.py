@@ -81,10 +81,8 @@ from .interfaces import (
     Backend,
     Environment,
     Harness,
-    NoopSessionStore,
     Sandbox,
     Session,
-    SessionStore,
 )
 from .mcp import (
     MCPConfigurationError,
@@ -233,8 +231,6 @@ __all__ = [
     "Backend",
     "Sandbox",
     "Session",
-    "SessionStore",
-    "NoopSessionStore",
     "Environment",
     "Harness",
     # Errors

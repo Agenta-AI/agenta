@@ -87,44 +87,6 @@ class Session(ABC):
         return None
 
 
-class SessionStore(ABC):
-    """Durable conversation history behind the agent session id.
-
-    The cold runtime still receives the full message history on every turn. This port is the
-    place a platform-backed or file-backed store attaches when the server owns that history.
-    """
-
-    @abstractmethod
-    async def load(self, session_id: str) -> Sequence[Message]:
-        """Return the neutral message history for ``session_id``."""
-
-    @abstractmethod
-    async def save_turn(
-        self,
-        session_id: str,
-        *,
-        messages: Sequence[Message],
-        result: Optional[AgentResult] = None,
-    ) -> None:
-        """Persist one completed cold turn."""
-
-
-class NoopSessionStore(SessionStore):
-    """Session store adapter used until server-owned history persistence lands."""
-
-    async def load(self, session_id: str) -> Sequence[Message]:
-        return ()
-
-    async def save_turn(
-        self,
-        session_id: str,
-        *,
-        messages: Sequence[Message],
-        result: Optional[AgentResult] = None,
-    ) -> None:
-        return None
-
-
 # ---------------------------------------------------------------------------
 # Backend (the engine)
 # ---------------------------------------------------------------------------

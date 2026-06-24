@@ -294,7 +294,7 @@ def create_agent_app():
         schemas=AGENT_SCHEMAS,
         meta={"harness_capabilities": harness_capabilities_document()},
     )(_agent)
-    # is_agent gates the agent-only `/messages` + `/load-session` routes (next to /invoke).
+    # is_agent gates the agent-only `/messages` route (next to /invoke).
     ag.route("/", app=app, flags={"is_chat": True, "is_agent": True})(routed)
     return app
 
