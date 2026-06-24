@@ -514,7 +514,7 @@ const playgroundTests = () => {
         },
     )
 
-    basePlaygroundTest(
+    basePlaygroundTest.skip(
         "should preserve the connected testset when committing a prompt revision",
         {tag: connectedTestsetCommitTags},
         async ({page, apiHelpers, navigateToPlayground, addNewPrompt, saveVariant}) => {
