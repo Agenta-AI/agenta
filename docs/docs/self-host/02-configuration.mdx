@@ -115,6 +115,16 @@ for how they behave. The plan and role variables are Enterprise-only; see
 | `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` | `agenta.services.hook.allow_insecure` | `agenta.services.hook.allowInsecure` |
 | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
 
+:::warning Custom-code evaluator runner
+`AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/evaluation/configure-evaluators/custom-evaluator) execute:
+
+- `restricted` (default) — in-process Python sandbox with limited builtins and an allowlist of pure-standard-library imports. No filesystem, network, or host access.
+- `local` — raw execution in the services process with **no sandbox**. Any author who can create a custom-code evaluator can run arbitrary code on the host. Use only for trusted, single-tenant deployments.
+- `daytona` — isolated remote sandbox (strongest). Recommended when evaluator authors are not fully trusted. Requires the [daytona](#daytona) credentials below.
+
+The legacy `AGENTA_SERVICES_SANDBOX_RUNNER` is still accepted as a fallback.
+:::
+
 ## Agenta — webhooks
 
 | Env var | env.py path | values.yaml path |

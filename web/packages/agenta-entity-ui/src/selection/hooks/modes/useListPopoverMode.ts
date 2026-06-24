@@ -402,11 +402,16 @@ export function useListPopoverMode<TSelection = EntitySelectionResult>(
             }
 
             if (selectLatestOnParentClick) {
-                // Trigger auto-select of latest child
+                // Trigger auto-select of latest child and close the popover.
+                // The popover is unneeded because we are auto-selecting — the user
+                // does not need to pick a revision manually from the popover content.
+                // Closing here also prevents the hover-triggered popover from
+                // overlapping adjacent UI (e.g. the testcase table's checkbox column).
                 setAutoSelectingParent({id: parentId, label: parentLabelStr})
+                setOpenPopoverId(null)
             }
         },
-        [parentLevelConfig, disabledParentIds, selectLatestOnParentClick],
+        [parentLevelConfig, disabledParentIds, selectLatestOnParentClick, setOpenPopoverId],
     )
 
     const handleChildSelect = useCallback(

@@ -346,7 +346,7 @@ class ServicesCodeConfig(BaseModel):
     sandbox_runner: str = (
         os.getenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER")
         or os.getenv("AGENTA_SERVICES_SANDBOX_RUNNER")
-        or "local"
+        or "restricted"
     )
 
     model_config = ConfigDict(extra="ignore")

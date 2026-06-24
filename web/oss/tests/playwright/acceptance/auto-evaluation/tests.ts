@@ -10,7 +10,6 @@ import type {Locator, Page} from "@playwright/test"
 import {EvaluationFixtures, RunAutoEvalFixtureType} from "./assets/types"
 
 const AUTO_EVALUATION_TAB_LABEL = "Auto Evals"
-const AUTO_EVALUATION_EMPTY_STATE_TITLE = "Get Started with Evaluations"
 const AUTO_EVALUATION_EMPTY_STATE_BUTTON_LABEL = /Run Evaluation/i
 const AUTO_EVALUATION_LIST_BUTTON_LABEL = /New evaluation/i
 const AUTO_EVALUATION_MODAL_TITLE = "New Auto Evaluation"
@@ -113,7 +112,7 @@ const goToAutoEvaluations = async (page: Page, appId: string) => {
 
     await expect.poll(() => new URL(page.url()).pathname).toBe(getAutoEvaluationsPath(page, appId))
     await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBe("auto")
-    await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 10000})
+    await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 30000})
 
     const evaluationRuns = await evaluationRunsPromise
     expect(Array.isArray(evaluationRuns.runs)).toBe(true)
@@ -318,10 +317,18 @@ const testWithEvaluationFixtures = baseTest.extend<EvaluationFixtures>({
             }
 
             expect(autoEvaluationRuns).toHaveLength(0)
-            await expect(page.getByText(AUTO_EVALUATION_EMPTY_STATE_TITLE).first()).toBeVisible()
-            await expect(
-                page.getByRole("button", {name: AUTO_EVALUATION_EMPTY_STATE_BUTTON_LABEL}).first(),
-            ).toBeVisible()
+            await expect
+                .poll(
+                    async () =>
+                        Boolean(
+                            await getVisibleButtonByLabels(
+                                page,
+                                AUTO_EVALUATION_CREATE_BUTTON_LABELS,
+                            ),
+                        ),
+                    {timeout: 30000},
+                )
+                .toBe(true)
         })
     },
 

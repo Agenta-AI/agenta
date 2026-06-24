@@ -8,7 +8,7 @@ resolution-markers = [
 
 [[package]]
 name = "agenta"
-version = "0.104.1"
+version = "0.104.3"
 source = { editable = "../sdks/python" }
 dependencies = [
     { name = "agenta-client" },
@@ -27,6 +27,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-jsonpath" },
     { name = "pyyaml" },
+    { name = "restrictedpython" },
     { name = "structlog" },
 ]
 
@@ -48,6 +49,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2,<3" },
     { name = "python-jsonpath", specifier = ">=2,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
+    { name = "restrictedpython", specifier = ">=8,<9" },
     { name = "structlog", specifier = ">=26,<27" },
 ]
 
@@ -70,7 +72,7 @@ dev = [
 
 [[package]]
 name = "agenta-client"
-version = "0.104.1"
+version = "0.104.3"
 source = { editable = "../clients/python" }
 dependencies = [
     { name = "httpx" },
@@ -2273,6 +2275,15 @@ wheels = [
 ]
 
 [[package]]
+name = "restrictedpython"
+version = "8.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/01/dc/19d6b8541f638b90411408a5f755e04da79c9df1651601465fb66a82fe5d/restrictedpython-8.3.tar.gz", hash = "sha256:9f31663ff2b86d9112bd7af4cd0601f12ef619c4f6ad162a1c9f9f186341337a", size = 449827, upload-time = "2026-06-16T10:05:20.243Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fc/26/059538503370f82ffce8a4a1307c5c0a28134a7c27a6c88bdca83b743833/restrictedpython-8.3-py3-none-any.whl", hash = "sha256:de36a9b27ad4490a368984984751179e5fc28e2b49540dc348878e5c0e79d737", size = 27385, upload-time = "2026-06-16T10:05:18.508Z" },
+]
+
+[[package]]
 name = "rich"
 version = "15.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2378,7 +2389,7 @@ wheels = [
 
 [[package]]
 name = "services"
-version = "0.104.1"
+version = "0.104.3"
 source = { virtual = "." }
 dependencies = [
     { name = "agenta" },

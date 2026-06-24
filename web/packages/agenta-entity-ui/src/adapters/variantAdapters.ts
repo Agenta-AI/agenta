@@ -55,22 +55,27 @@ function stableStringify(value: unknown): string {
  * Compares server configuration vs current configuration as JSON.
  */
 function buildGenericCommitContext(
-    currentConfig: Record<string, unknown> | null,
-    serverConfig: Record<string, unknown> | null,
+    localData: Record<string, unknown> | null,
+    remoteData: Record<string, unknown> | null,
     version: number | undefined,
     isLocalDraft: boolean,
 ): CommitContext {
     const currentVersion = version ?? 0
     const targetVersion = currentVersion + 1
 
-    const normalizedCurrentConfig =
-        (syncPromptInputKeysInParameters(currentConfig) as Record<string, unknown> | null) ??
-        currentConfig
+    // Diff the whole data object; parameters keep metadata-strip + input-key sync.
+    const buildSide = (data: Record<string, unknown> | null, syncParams: boolean) => {
+        const d = data ?? {}
+        const params = (d.parameters as Record<string, unknown> | null) ?? {}
+        const normalizedParams = syncParams
+            ? ((syncPromptInputKeysInParameters(params) as Record<string, unknown> | null) ??
+              params)
+            : params
+        return {...d, parameters: stripAgentaMetadataDeep(normalizedParams)}
+    }
 
-    const original = stableStringify({parameters: stripAgentaMetadataDeep(serverConfig ?? {})})
-    const modified = stableStringify({
-        parameters: stripAgentaMetadataDeep(normalizedCurrentConfig ?? {}),
-    })
+    const original = stableStringify(buildSide(remoteData, false))
+    const modified = stableStringify(buildSide(localData, true))
     const hasDiff = original !== modified
 
     const descriptions: string[] = []
@@ -105,16 +110,15 @@ function buildGenericCommitContext(
 const variantCommitContextAtom = (revisionId: string, _metadata?: Record<string, unknown>) =>
     atom((get): CommitContext | null => {
         const isLocalDraft = isLocalDraftId(revisionId)
-        const workflowData = get(workflowMolecule.selectors.data(revisionId))
-        const currentConfig = get(workflowMolecule.selectors.configuration(revisionId))
-        const serverConfig = get(workflowMolecule.selectors.serverConfiguration(revisionId))
+        const localData = get(workflowMolecule.selectors.data(revisionId))
+        const remoteData = get(workflowMolecule.selectors.serverData(revisionId))
 
-        if (!workflowData) return null
+        if (!localData) return null
 
         return buildGenericCommitContext(
-            currentConfig,
-            serverConfig,
-            workflowData.version ?? undefined,
+            (localData.data as Record<string, unknown> | null) ?? null,
+            (remoteData?.data as Record<string, unknown> | null) ?? null,
+            localData.version ?? undefined,
             isLocalDraft,
         )
     })

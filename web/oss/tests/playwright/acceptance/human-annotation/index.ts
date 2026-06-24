@@ -16,6 +16,7 @@ import {
     test as baseHumanTest,
     goToHumanEvaluations,
     navigateToHumanRunResults,
+    seedHumanInvocationResult,
 } from "./tests"
 
 const INLINE_EVALUATOR_METRIC_NAME = "isTestWorking"
@@ -174,7 +175,7 @@ const humanAnnotationTests = () => {
 
             const testset = await apiHelpers.createTestset({
                 name: `e2e human eval completion ${Date.now()}`,
-                rows: [{input: "Say hello"}, {input: "Say goodbye"}],
+                rows: [{country: "Say hello"}, {country: "Say goodbye"}],
             })
 
             await createHumanEvaluationRun({
@@ -239,7 +240,11 @@ const humanAnnotationTests = () => {
 
             const testset = await apiHelpers.createTestset({
                 name: `e2e human annotation inline eval ${Date.now()}`,
-                rows: [{input: "Say hello"}, {input: "Say goodbye"}, {input: "Tell me a joke"}],
+                rows: [
+                    {country: "Say hello"},
+                    {country: "Say goodbye"},
+                    {country: "Tell me a joke"},
+                ],
             })
 
             await createHumanEvaluationRun({
@@ -299,9 +304,9 @@ const humanAnnotationTests = () => {
             const testset = await apiHelpers.createTestset({
                 name: `e2e-human-multi-${Date.now()}`,
                 rows: [
-                    {input: firstScenarioInput},
-                    {input: secondScenarioInput},
-                    {input: "Tell me a joke"},
+                    {country: firstScenarioInput},
+                    {country: secondScenarioInput},
+                    {country: "Tell me a joke"},
                 ],
             })
 
@@ -346,6 +351,34 @@ const humanAnnotationTests = () => {
             const secondScenarioRowKey = await secondScenarioRow.getAttribute("data-row-key")
             const secondScenarioId = getScenarioIdFromRowKey(secondScenarioRowKey)
             expect(secondScenarioId).toBeTruthy()
+
+            // Pre-seed the invocation result for scenario2 before navigating.
+            // The component auto-runs the LLM for any scenario without output, so without
+            // pre-seeding, waitForHumanAnnotationForm waits for the LLM to respond (up to 90s).
+            // Seeding here ensures hasInvocationTrace=true when the component mounts, which
+            // skips auto-run entirely and lets the annotation form appear immediately.
+            //
+            // The API call can fail transiently (e.g. scenario not yet fully ready after run
+            // creation). Retry a few times before giving up — if all retries fail,
+            // waitForHumanAnnotationForm will seed naturally during the annotation poll.
+            const currentRunId = new URL(page.url()).pathname.match(
+                /\/evaluations\/results\/([^/]+)/,
+            )?.[1]
+            if (currentRunId && secondScenarioId) {
+                let preSeedSucceeded = false
+                for (let attempt = 0; attempt < 4 && !preSeedSucceeded; attempt++) {
+                    if (attempt > 0) await page.waitForTimeout(3000)
+                    try {
+                        await seedHumanInvocationResult(page, {
+                            runId: currentRunId,
+                            scenarioId: secondScenarioId as string,
+                        })
+                        preSeedSucceeded = true
+                    } catch {
+                        // transient failure — retry or fall back to natural seeding
+                    }
+                }
+            }
 
             const scenario2Url = new URL(page.url())
             scenario2Url.searchParams.set("scenarioId", secondScenarioId as string)

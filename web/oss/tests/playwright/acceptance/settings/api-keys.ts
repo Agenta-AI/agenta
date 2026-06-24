@@ -40,7 +40,9 @@ const apiKeysTests = () => {
         })
 
         await scenarios.and("the user is on the Settings page", async () => {
-            await page.goto("/settings")
+            const basePath = apiHelpers.getProjectScopedBasePath()
+            await page.goto(`${basePath}/settings`, {waitUntil: "domcontentloaded"})
+            await uiHelpers.expectPath("/settings")
         })
 
         await scenarios.when("the user creates a new API key", async () => {
