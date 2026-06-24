@@ -2,8 +2,31 @@
 
 ## State
 
-DESIGN ONLY. No code changed. Spun out of PR #4821 review comments 3470094826 + 3469961290 via
-`/plan-feature`. Awaiting review of the plan before any implementation is scheduled.
+IMPLEMENTED (runner-only). HTTP (remote) MCP transport is enabled in the sidecar; stdio MCP
+stays disabled (#4831). Spun out of PR #4821 review comments 3470094826 + 3469961290 via
+`/plan-feature`; built on PR #4834.
+
+## What landed (vs. the plan)
+
+The implementation took the **no-SDK-change** path, which is narrower than the plan's
+recommended Slice 0 option B (an explicit `headers` field). Reason: the SDK resolver already
+merges named secrets into the server's `env` for **both** transports, and `to_wire()` already
+serializes `transport` + `url` + `env`. So the resolved http secret already rides the `/run`
+wire under `env` — no SDK model change, no new `headers` wire field, no golden-fixture change.
+
+- **Runner (`services/agent/src/engines/sandbox_agent/mcp.ts`).** `toAcpMcpServers` now
+  delivers `transport: "http"` (+ `url`): it builds the ACP `McpServer` `type: "http"` variant
+  (`{name, url, headers}`) and maps each `env` entry to an HTTP header. The author names the
+  header via the secret-map key (`secrets: {"Authorization": "vault-name"}` → `Authorization`
+  header). `transport: "stdio"` (+ `command`) still throws `MCP_UNSUPPORTED_MESSAGE`; a
+  command-less stdio or url-less http server is skipped (logged), unchanged.
+- **No SDK/protocol/wire change.** `models.py`, `resolver.py`, `wire.py`, `protocol.ts`, and
+  the golden fixtures are untouched (this is why plan Slices 1-2 did not land).
+- **Tests** (`tests/unit/mcp-servers.test.ts`): http delivered with the secret in a header;
+  http with no secret → empty header list; stdio still throws; mixed input skips the
+  non-deliverable entries. Full suite + typecheck green.
+- **Network policy** (plan Slice 4): the outbound MCP URL is normal egress and obeys the
+  existing Daytona network policy; no new allowlist surface added in this slice.
 
 ## Source of truth
 

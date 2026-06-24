@@ -107,7 +107,9 @@ export interface BuildRunPlanDeps {
  * True when an MCP server runs as a host command (stdio) rather than a remote URL. Mirrors
  * the delivery rule in `mcp.ts` (`toAcpMcpServers`): the default transport is `stdio`, and a
  * stdio server only runs when it carries a `command`. Such a server is an arbitrary process
- * on the RUNNER HOST, so a network-blocked sandbox does not confine it.
+ * on the RUNNER HOST, so a network-blocked sandbox does not confine it. HTTP servers
+ * (`transport: "http"`) are delivered (the harness connects to the remote URL with the secret
+ * in a header) and are NOT flagged here — they have no runner-host process to confine.
  */
 function hasStdioMcpServer(servers: McpServerConfig[] | undefined): boolean {
   return (servers ?? []).some(
