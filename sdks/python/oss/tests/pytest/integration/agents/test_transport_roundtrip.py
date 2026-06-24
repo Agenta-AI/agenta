@@ -9,6 +9,7 @@ serialization or transport drift that per-side unit tests cannot, with no TS and
 
 from __future__ import annotations
 
+import json
 import sys
 
 import pytest
@@ -20,6 +21,7 @@ from agenta.sdk.agents import (
     PiHarness,
     SessionConfig,
 )
+from agenta.sdk.agents.skills import SkillConfig
 
 from ._in_process_backend import InProcessPiBackend
 
@@ -75,6 +77,27 @@ import sys, json
 json.load(sys.stdin)
 """
 
+# Reads the /run request and echoes back the `skills` it received in the result `output`, as
+# JSON. This lets a test assert the runner actually received the resolved inline skill package
+# (the full wire path: harness translation -> request_to_wire -> subprocess transport).
+_SKILL_ECHO_RUNNER = """
+import sys, json
+
+req = json.load(sys.stdin)
+skills = req.get("skills")
+out = {
+    "ok": True,
+    "output": json.dumps(skills),
+    "messages": [{"role": "assistant", "content": "ok"}],
+    "events": [{"type": "done", "stopReason": "end_turn"}],
+    "usage": {"input": 1, "output": 1, "total": 2, "cost": 0.0},
+    "stopReason": "end_turn",
+    "sessionId": "sess-fake",
+    "model": req.get("model"),
+}
+sys.stdout.write(json.dumps(out))
+"""
+
 
 def _backend(tmp_path, body: str) -> InProcessPiBackend:
     runner = tmp_path / "fake_runner.py"
@@ -112,3 +135,38 @@ async def test_runner_empty_output_raises(tmp_path):
 
     with pytest.raises(RuntimeError, match="no output"):
         await harness.prompt(config, [Message(role="user", content="hi")])
+
+
+async def test_resolved_skill_reaches_the_runner_over_the_wire(tmp_path):
+    # An AgentConfig carrying a resolved inline skill (the post-@ag.embed-resolution shape) must
+    # arrive at the runner as a concrete `skills` package over the real wire + transport, not as
+    # an embed and not dropped. The skill-echo runner reports the `skills` it saw.
+    harness = PiHarness(Environment(_backend(tmp_path, _SKILL_ECHO_RUNNER)))
+    skill = SkillConfig(
+        name="release-notes",
+        description="Draft release notes.",
+        body="Read the changelog, then write notes.",
+        files=[{"path": "scripts/draft.py", "content": "print(1)", "executable": True}],
+        disable_model_invocation=True,
+        allow_executable_files=True,
+    )
+    config = SessionConfig(
+        agent=AgentConfig(instructions="hi", model="gpt-5.5", skills=[skill])
+    )
+
+    result = await harness.prompt(config, [Message(role="user", content="ping")])
+
+    # The runner received the materialized inline package (camelCase flags, bundled file).
+    received = json.loads(result.output)
+    assert received == [
+        {
+            "name": "release-notes",
+            "description": "Draft release notes.",
+            "body": "Read the changelog, then write notes.",
+            "files": [
+                {"path": "scripts/draft.py", "content": "print(1)", "executable": True}
+            ],
+            "disableModelInvocation": True,
+            "allowExecutableFiles": True,
+        }
+    ]

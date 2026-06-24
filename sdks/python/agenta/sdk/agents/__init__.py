@@ -69,6 +69,16 @@ from .mcp import (
     MissingMCPSecretError,
     ResolvedMCPServer,
 )
+from .skills import (
+    SkillConfig,
+    SkillConfigurationError,
+    SkillError,
+    SkillFile,
+    parse_skill_config,
+    parse_skill_configs,
+    skill_to_wire,
+    skills_to_wire,
+)
 from .streaming import AgentRun
 from .tools import (
     BuiltinToolConfig,
@@ -162,6 +172,15 @@ __all__ = [
     "MCPError",
     "MCPConfigurationError",
     "MissingMCPSecretError",
+    # Skills are a sibling subsystem
+    "SkillConfig",
+    "SkillFile",
+    "parse_skill_config",
+    "parse_skill_configs",
+    "skill_to_wire",
+    "skills_to_wire",
+    "SkillError",
+    "SkillConfigurationError",
     # Interfaces (ports)
     "Backend",
     "Sandbox",

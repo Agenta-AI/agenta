@@ -20,6 +20,7 @@ from agenta.sdk.agents import (
     HarnessType,
     Message,
     PiAgentConfig,
+    SkillConfig,
     ToolCallback,
     TraceContext,
 )
@@ -58,6 +59,18 @@ _CUSTOM_TOOL = {
 _CALLBACK = ToolCallback(
     endpoint="https://api.example/tools/call", authorization="Access tok-123"
 )
+# One resolved inline skill package (the post-embed shape that rides the wire). A bundled
+# file is included so the `files[]` wire shape (camelCase `executable`) is exercised too.
+_SKILL = {
+    "name": "release-notes",
+    "description": "Draft release notes from a changelog.",
+    "body": "Read the changelog, then write release notes.",
+    "files": [
+        {"path": "scripts/draft.py", "content": "print('draft')", "executable": True}
+    ],
+    "disable_model_invocation": True,
+    "allow_executable_files": True,
+}
 
 
 def _pi_payload():
@@ -67,6 +80,7 @@ def _pi_payload():
         builtin_tools=["read", "write"],
         custom_tools=[dict(_CUSTOM_TOOL)],
         tool_callback=_CALLBACK,
+        skills=[dict(_SKILL)],
         system="You are Pi.",
         append_system="Be terse.",
     )
@@ -115,7 +129,7 @@ def _agenta_payload():
         custom_tools=[dict(_CUSTOM_TOOL)],
         tool_callback=_CALLBACK,
         append_system="You are an Agenta agent.",
-        skills=["agenta-getting-started"],
+        skills=[dict(_SKILL)],
     )
     return request_to_wire(
         engine="pi",
@@ -133,13 +147,28 @@ def test_request_to_wire_agenta_carries_skills_and_pi_shape():
     assert payload["permissionPolicy"] == "auto"
     assert payload["tools"] == ["read", "bash"]
     assert payload["appendSystemPrompt"] == "You are an Agenta agent."
-    # ...plus the forced skills the runner loads.
-    assert payload["skills"] == ["agenta-getting-started"]
+    # ...plus the resolved inline skill packages, on their own seam (not in `wire_tools`).
+    assert payload["skills"][0]["name"] == "release-notes"
+    assert payload["skills"][0]["files"][0]["path"] == "scripts/draft.py"
 
 
-def test_request_to_wire_pi_has_no_skills_key():
-    # Only the Agenta config emits `skills`; the plain Pi config must not.
-    assert "skills" not in _pi_payload()
+def test_request_to_wire_skills_ride_their_own_seam_not_tools():
+    # Skills are emitted by `wire_skills`, not folded into the tool wire.
+    config = PiAgentConfig(skills=[dict(_SKILL)])
+    assert "skills" not in config.wire_tools()
+    assert config.wire_skills() == {"skills": [SkillConfig(**_SKILL).to_wire()]}
+
+
+def test_request_to_wire_omits_skills_when_none():
+    # No declared skills -> no `skills` key (keeps a skill-free payload byte-identical).
+    payload = request_to_wire(
+        engine="pi",
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=PiAgentConfig(),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "skills" not in payload
 
 
 def test_request_to_wire_pi_matches_golden(golden):

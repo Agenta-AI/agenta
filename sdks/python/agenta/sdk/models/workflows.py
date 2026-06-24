@@ -90,6 +90,7 @@ class WorkflowFlags(BaseModel):
     is_application: bool = False
     is_evaluator: bool = False
     is_snippet: bool = False
+    is_skill: bool = False
 
 
 class WorkflowQueryFlags(BaseModel):
@@ -118,6 +119,7 @@ class WorkflowQueryFlags(BaseModel):
     is_application: Optional[bool] = None
     is_evaluator: Optional[bool] = None
     is_snippet: Optional[bool] = None
+    is_skill: Optional[bool] = None
 
 
 class WorkflowRevisionData(BaseModel):

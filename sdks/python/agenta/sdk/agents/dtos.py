@@ -21,6 +21,7 @@ from .mcp import (
     mcp_servers_to_wire,
     parse_mcp_server_configs,
 )
+from .skills import SkillConfig, parse_skill_configs, skills_to_wire
 from .tools import ToolCallback, ToolConfig, ToolSpec, coerce_tool_configs
 from .tools.models import coerce_tool_spec
 
@@ -323,6 +324,7 @@ class AgentConfig(BaseModel):
     model: Optional[str] = None
     tools: List[ToolConfig] = Field(default_factory=list)
     mcp_servers: List[MCPServerConfig] = Field(default_factory=list)
+    skills: List[SkillConfig] = Field(default_factory=list)
     harness_options: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
 
     @field_validator("tools", mode="before")
@@ -334,6 +336,11 @@ class AgentConfig(BaseModel):
     @classmethod
     def _coerce_mcp_servers(cls, value: Any) -> List[MCPServerConfig]:
         return parse_mcp_server_configs(_as_list(value))
+
+    @field_validator("skills", mode="before")
+    @classmethod
+    def _coerce_skills(cls, value: Any) -> List[SkillConfig]:
+        return parse_skill_configs(_as_list(value))
 
     @classmethod
     def from_params(
@@ -357,6 +364,7 @@ class AgentConfig(BaseModel):
             model=model,
             tools=_as_list(tools),
             mcp_servers=_parse_mcp_servers_raw(params, base),
+            skills=_parse_skills_raw(params, base),
             harness_options=_parse_harness_options(params, base),
         )
 
@@ -411,6 +419,7 @@ class HarnessAgentConfig(BaseModel):
     model: Optional[str] = None
     tool_callback: Optional[ToolCallback] = None
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
+    skills: List[SkillConfig] = Field(default_factory=list)
 
     @field_validator("mcp_servers", mode="before")
     @classmethod
@@ -419,6 +428,14 @@ class HarnessAgentConfig(BaseModel):
             item
             if isinstance(item, ResolvedMCPServer)
             else ResolvedMCPServer.model_validate(item)
+            for item in value or []
+        ]
+
+    @field_validator("skills", mode="before")
+    @classmethod
+    def _coerce_skills(cls, value: Any) -> List[SkillConfig]:
+        return [
+            item if isinstance(item, SkillConfig) else SkillConfig.model_validate(item)
             for item in value or []
         ]
 
@@ -437,6 +454,15 @@ class HarnessAgentConfig(BaseModel):
         if not self.mcp_servers:
             return {}
         return {"mcpServers": mcp_servers_to_wire(self.mcp_servers)}
+
+    def wire_skills(self) -> Dict[str, Any]:
+        """The ``skills`` field for the ``/run`` payload. Skills are not tools, so they ride
+        their own seam (sibling of :meth:`wire_mcp`). Omitted when none are declared so a
+        skill-free run's payload is unchanged (the golden wire contract). Every entry is a
+        resolved inline package by the time the wire is built."""
+        if not self.skills:
+            return {}
+        return {"skills": skills_to_wire(self.skills)}
 
 
 class PiAgentConfig(HarnessAgentConfig):
@@ -531,19 +557,10 @@ class ClaudeAgentConfig(HarnessAgentConfig):
 
 class AgentaAgentConfig(PiAgentConfig):
     """The Agenta harness's config. It *is* a Pi config (same engine, same tool delivery and
-    system-prompt layers), plus the forced ``skills`` the Agenta harness always ships.
-
-    ``skills`` are skill directory names the runner resolves against its bundled
-    ``services/agent/skills/`` root and loads into Pi's resource loader, so they appear in the
-    system prompt on every run."""
+    system-prompt layers). ``skills`` ride the inherited :meth:`wire_skills` seam as resolved
+    inline packages, not through ``wire_tools`` (skills are not tools)."""
 
     harness: ClassVar[HarnessType] = HarnessType.AGENTA
-
-    skills: List[str] = Field(default_factory=list)
-
-    def wire_tools(self) -> Dict[str, Any]:
-        # Same tool fields as Pi, plus the forced skill names the runner loads.
-        return {**super().wire_tools(), "skills": list(self.skills)}
 
 
 # ---------------------------------------------------------------------------
@@ -628,6 +645,24 @@ def _parse_mcp_servers_raw(
     raw = source.get("mcp_servers")
     if raw is None:
         return list(defaults.mcp_servers)
+    return _as_list(raw)
+
+
+def _parse_skills_raw(
+    params: Dict[str, Any],
+    defaults: AgentConfig,
+) -> List[Any]:
+    """Pull the raw ``skills`` list from a request/config dict, falling back to defaults.
+
+    Reads ``skills`` from the ``agent`` element when present, else the flat request. Mirrors
+    the MCP path so an unparsed ``skills`` is not silently dropped; canonical validation happens
+    on :class:`AgentConfig` construction. Each entry is a concrete inline ``SkillConfig`` by the
+    time the request is built (any ``@ag.embed`` reference resolved server-side first)."""
+    agent = params.get("agent")
+    source = agent if isinstance(agent, dict) else params
+    raw = source.get("skills")
+    if raw is None:
+        return list(defaults.skills)
     return _as_list(raw)
 
 

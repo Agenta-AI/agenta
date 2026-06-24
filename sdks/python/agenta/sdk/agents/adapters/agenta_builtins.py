@@ -5,13 +5,13 @@ every run carries a fixed set of Agenta-shipped extras the author cannot turn of
 
 - a base **persona** appended to Pi's system prompt (``AGENTA_FORCED_APPEND_SYSTEM``),
 - a base **AGENTS.md preamble** the author's instructions are appended to (``AGENTA_PREAMBLE``),
-- a set of **forced tools** (``AGENTA_FORCED_TOOLS``), and
-- a set of **forced skills** (``AGENTA_FORCED_SKILLS``).
+- a set of **forced tools** (``AGENTA_FORCED_TOOLS``).
 
-The forced *policy* lives here (harness knowledge). The forced skill *files* live with the
-runner that runs Pi, under ``services/agent/skills/<name>/``; the contract between the two is
-the skill directory **name**, so each entry in ``AGENTA_FORCED_SKILLS`` must match a committed
-directory there.
+Forced skills are *not* a constant here. They become platform default skills the project-creation
+step seeds as locked workflow revisions and embeds into the agent config (resolved server-side
+into concrete :class:`~agenta.sdk.agents.skills.SkillConfig` packages before the runner). By the
+time this harness runs, those defaults already ride ``AgentConfig.skills``, so the adapter needs
+no name list. That seeding is a separate workstream (see the skills-config proposal).
 
 Two layers, kept distinct on purpose (matching Pi's own split, see :class:`PiAgentConfig`):
 the *persona* is an ``append_system`` (changes Pi's base prompt), while *project conventions*
@@ -50,12 +50,6 @@ fabricate results."""
 # ``read`` is mandatory: Pi only renders the skills section into the system prompt when the
 # ``read`` tool is available. ``bash`` lets skills run their helper scripts.
 AGENTA_FORCED_TOOLS: List[str] = ["read", "bash"]
-
-# Built-in skills every Agenta run forces on. Each name must match a committed directory under
-# the runner's ``services/agent/skills/<name>/`` (the runner resolves names to those dirs).
-#
-# TODO(product): grow this with the real Agenta skill set.
-AGENTA_FORCED_SKILLS: List[str] = ["agenta-getting-started"]
 
 
 def _join(*parts: Optional[str]) -> Optional[str]:
