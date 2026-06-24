@@ -19,8 +19,8 @@
  *   { session_id, references, data: { messages, parameters } }
  *  - `parameters` is the DRAFT-AWARE config (`workflowMolecule.selectors.configuration`,
  *    merged draft + server) so unsaved left-panel edits apply to the agent run.
- *  - `harness`/`sandbox` live on the agent config (`parameters.agent`), defaulted but
- *    never overriding a value the resolved config already carries.
+ *  - `harness` lives on the agent config (`parameters.agent`), defaulted but never
+ *    overriding a value the resolved config already carries.
  *  - `project_id` / `application_id` ride the URL QUERY (never the body), and
  *    `project_id` only travels alongside auth — mirroring `executionItems.ts`.
  */
@@ -175,11 +175,12 @@ const hasAnswer = (message: unknown): boolean => {
 }
 
 /**
- * Default the agent run-selection fields (`harness`/`sandbox`) onto the AGENT CONFIG
- * (`parameters.agent`), not as top-level params siblings. They are part of one `AgentConfig`
- * now, so they belong inside the `agent` block. A value the resolved config already carries
- * always wins; the schema nests the config under `agent`, but a flat config (no `agent` key)
- * is still defaulted at the top level so a non-schema config keeps working.
+ * Default the agent run-selection field `harness` onto the AGENT CONFIG (`parameters.agent`),
+ * not as a top-level params sibling. It is part of one `AgentConfig` now, so it belongs inside
+ * the `agent` block. A value the resolved config already carries always wins; the schema nests
+ * the config under `agent`, but a flat config (no `agent` key) is still defaulted at the top
+ * level so a non-schema config keeps working. The sidecar `uri` is left unset (the server's
+ * env-var routing fallback); it is an operator override, not a per-run default.
  */
 // Legacy pre-migration run-selection keys that now live inside `agent`. Stripped from the
 // top level when `agent` is present so we never emit both wire shapes for one config.
@@ -192,10 +193,10 @@ const withAgentRunDefaults = (config: Record<string, unknown>): Record<string, u
         for (const key of LEGACY_RUN_SELECTION_KEYS) delete rest[key]
         return {
             ...rest,
-            agent: {harness: "pi_core", sandbox: "local", ...(agent as Record<string, unknown>)},
+            agent: {harness: "pi_core", ...(agent as Record<string, unknown>)},
         }
     }
-    return {harness: "pi_core", sandbox: "local", ...config}
+    return {harness: "pi_core", ...config}
 }
 
 const withQuery = (url: string, params: Record<string, string | undefined>): string => {
@@ -241,8 +242,8 @@ export async function buildAgentRequest(
         | Record<string, unknown>
         | null
         | undefined
-    // `harness`/`sandbox` are run-selection fields on the AGENT CONFIG (`parameters.agent`), not
-    // top-level params siblings. Default them inside the `agent` block, never overriding values
+    // `harness` is a run-selection field on the AGENT CONFIG (`parameters.agent`), not a
+    // top-level params sibling. Default it inside the `agent` block, never overriding a value
     // the resolved config already carries.
     const parameters = pruneBlankEntries(withAgentRunDefaults(config ?? {})) as Record<
         string,

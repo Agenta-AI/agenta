@@ -407,12 +407,16 @@ class AgentConfig(BaseModel):
     ``AGENTS.md``. ``tools`` are provider-agnostic references; resolving them into runnable
     specs is the caller's job (the Agenta service does it server-side).
 
-    ``harness`` / ``sandbox`` / ``permission_policy`` are the run-selection fields: which
-    coding agent to drive, where it runs, and how a permission-gating harness answers tool-use
-    prompts in a headless run. They live on ``AgentConfig`` (under ``data.parameters.agent``)
-    rather than a separate object — there is one agent definition, not an agent plus a sidecar
-    selection. ``sandbox`` is a backend/environment concern the caller reads to pick a backend;
-    it never enters ``SessionConfig`` or the neutral run.
+    ``harness`` / ``uri`` / ``permission_policy`` are the run-selection fields: which coding
+    agent to drive, which sidecar (agent runner) address routes the run, and how a
+    permission-gating harness answers tool-use prompts in a headless run. They live on
+    ``AgentConfig`` (under ``data.parameters.agent``) rather than a separate object — there is
+    one agent definition, not an agent plus a sidecar selection. ``uri`` is a routing concern
+    the caller reads to pick a backend; it never enters ``SessionConfig`` or the neutral run.
+    The sidecar at ``uri`` is configured (local or Daytona) by its OWN environment, so the
+    service no longer carries a per-run sandbox selector. ``uri`` unset is the default: the
+    service falls back to its env-var runner resolution (``AGENTA_AGENT_RUNNER_URL`` / the local
+    CLI). A caller-supplied ``uri`` is gated server-side by an allowlist before it is trusted.
 
     ``harness_kwargs`` is the per-harness escape hatch: a map keyed by harness name
     (``"pi_core"``, ``"claude"``) whose value is a free-form bag of knobs only that harness
@@ -437,12 +441,14 @@ class AgentConfig(BaseModel):
     skills: List[SkillConfig] = Field(default_factory=list)
     harness_kwargs: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     sandbox_permission: Optional[SandboxPermission] = None
-    # The run-selection fields (formerly the separate ``RunSelection``): the coding agent to
-    # drive, where it runs, and the headless permission policy. The caller reads ``harness`` /
-    # ``sandbox`` to pick a harness class and backend; ``permission_policy`` is the sidecar
-    # action-permission a gating harness (Claude) consults.
+    # The run-selection fields: the coding agent to drive, the sidecar address that routes the
+    # run, and the headless permission policy. The caller reads ``harness`` to pick a harness
+    # class and ``uri`` to pick the runner backend; ``permission_policy`` is the sidecar
+    # action-permission a gating harness (Claude) consults. ``uri`` unset (the default) means the
+    # service falls back to its env-var runner resolution; a set ``uri`` is allowlist-gated
+    # server-side before it is trusted (it ships secrets to that address).
     harness: str = "pi_core"
-    sandbox: str = "local"
+    uri: Optional[str] = None
     permission_policy: PermissionPolicy = "auto"
 
     @model_validator(mode="before")
@@ -478,12 +484,12 @@ class AgentConfig(BaseModel):
         playground ``prompt`` prompt-template (system message -> instructions, ``llm_config``
         -> model + tools), and a flat ``{model, agents_md, tools}``. Unset fields fall back
         to ``defaults``. ``harness_kwargs`` and the run-selection fields
-        (``harness`` / ``sandbox`` / ``permission_policy``) are read from the ``agent`` element
+        (``harness`` / ``uri`` / ``permission_policy``) are read from the ``agent`` element
         (or the flat request) when present.
         """
         base = defaults or cls()
         instructions, model, tools = _parse_agent_fields(params, base)
-        harness, sandbox, permission_policy = _parse_run_selection(params, base)
+        harness, uri, permission_policy = _parse_run_selection(params, base)
         return cls(
             instructions=instructions,
             model=model,
@@ -493,7 +499,7 @@ class AgentConfig(BaseModel):
             harness_kwargs=_parse_harness_kwargs(params, base),
             sandbox_permission=_parse_sandbox_permission(params, base),
             harness=harness,
-            sandbox=sandbox,
+            uri=uri,
             permission_policy=permission_policy,
         )
 
@@ -781,9 +787,9 @@ class SessionConfig(BaseModel):
     ``agent`` is the agent definition. ``secrets`` are provider keys injected as harness
     env, never written to the agent filesystem. The ``builtin_tools`` / ``custom_tools`` /
     ``tool_callback`` triple is the resolved tool delivery (Agenta produces it server-side;
-    empty for a bare standalone run). The agent config's ``sandbox`` field is a
-    backend/environment concern: the caller reads it to pick a backend BEFORE the session is
-    built, and the run itself never consumes it (no adapter reads ``agent.sandbox``)."""
+    empty for a bare standalone run). The agent config's ``uri`` field is a routing concern:
+    the caller reads it to pick a backend BEFORE the session is built, and the run itself never
+    consumes it (no adapter reads ``agent.uri``)."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -931,23 +937,36 @@ def _parse_harness_kwargs(
     return options
 
 
+def _clean_uri(value: Any) -> Optional[str]:
+    """Trim a sidecar URI to a non-empty string, else ``None``.
+
+    Mirrors the service's ``runner_url()`` trim-or-``None`` behavior so a blank string never
+    counts as "set" and an unset ``uri`` cleanly takes the env-var fallback path."""
+    if not isinstance(value, str):
+        return None
+    trimmed = value.strip()
+    return trimmed or None
+
+
 def _parse_run_selection(
     params: Dict[str, Any],
     defaults: AgentConfig,
-) -> Tuple[str, str, "PermissionPolicy"]:
-    """Pull the run-selection trio (harness / sandbox / permission_policy) from a request dict.
+) -> Tuple[str, Optional[str], "PermissionPolicy"]:
+    """Pull the run-selection trio (harness / uri / permission_policy) from a request dict.
 
     Reads from the ``agent`` element when present, else the flat request, falling back to
-    ``defaults``. Each value is lower-cased so a playground-supplied ``"Claude"`` / ``"Daytona"``
-    matches the bare :class:`HarnessType` / sandbox values the caller selects on."""
+    ``defaults``. ``harness`` / ``permission_policy`` are lower-cased so a playground-supplied
+    ``"Claude"`` / ``"Deny"`` matches the bare values the caller selects on. ``uri`` is trimmed
+    (blank -> ``None``) but never case-folded (an address is case-sensitive)."""
     agent = params.get("agent")
     source = agent if isinstance(agent, dict) else params
     harness = str(source.get("harness") or defaults.harness).lower()
-    sandbox = str(source.get("sandbox") or defaults.sandbox).lower()
+    raw_uri = source.get("uri")
+    uri = _clean_uri(raw_uri) if raw_uri is not None else defaults.uri
     permission_policy = str(
         source.get("permission_policy") or defaults.permission_policy
     ).lower()
-    return harness, sandbox, permission_policy
+    return harness, uri, permission_policy
 
 
 def _parse_sandbox_permission(

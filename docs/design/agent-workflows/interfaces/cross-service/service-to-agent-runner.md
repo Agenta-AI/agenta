@@ -31,7 +31,7 @@ group by job:
 {
   // agent + placement
   "harness":  "pi_core",                 // "pi_core" | "pi_agenta" | "claude"; selects the ACP agent (no engine selector)
-  "sandbox":  "local",                   // "local" | "daytona"
+  "sandbox":  "local",                   // constant default; the sidecar picks its own sandbox provider from its env (no per-run selector). The service routes to the sidecar by the config's `uri` instead.
   "sessionId": "sess_ab12...",           // external id; cold runtime still gets full history
 
   // instructions

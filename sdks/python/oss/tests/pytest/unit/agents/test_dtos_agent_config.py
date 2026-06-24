@@ -2,8 +2,8 @@
 
 The handler parses whatever the playground or a stored config sends into one ``AgentConfig``.
 This file locks the three accepted shapes, the defaults fall-through, the ``harness_kwargs``
-escape hatch, and the run-selection parsing (``harness`` / ``sandbox`` / ``permission_policy``,
-which now live on ``AgentConfig`` rather than a separate ``RunSelection``).
+escape hatch, and the run-selection parsing (``harness`` / ``uri`` / ``permission_policy``,
+which live on ``AgentConfig`` rather than a separate ``RunSelection``).
 """
 
 from __future__ import annotations
@@ -186,9 +186,9 @@ def test_harness_kwargs_explicit_empty_clears_defaults():
 
 def test_run_selection_defaults():
     config = AgentConfig.from_params({})
-    assert (config.harness, config.sandbox, config.permission_policy) == (
+    assert (config.harness, config.uri, config.permission_policy) == (
         "pi_core",
-        "local",
+        None,
         "auto",
     )
 
@@ -198,25 +198,36 @@ def test_run_selection_reads_agent_subdict_and_lowercases():
         {
             "agent": {
                 "harness": "Claude",
-                "sandbox": "Daytona",
+                "uri": "http://Sidecar:8765",
                 "permission_policy": "Deny",
             }
         }
     )
-    assert (config.harness, config.sandbox, config.permission_policy) == (
+    # harness/permission_policy are case-folded; uri is not (an address is case-sensitive).
+    assert (config.harness, config.uri, config.permission_policy) == (
         "claude",
-        "daytona",
+        "http://Sidecar:8765",
         "deny",
     )
 
 
 def test_run_selection_honors_defaults():
-    defaults = AgentConfig(harness="claude", sandbox="daytona")
+    defaults = AgentConfig(harness="claude", uri="http://default-sidecar:8765")
     config = AgentConfig.from_params({}, defaults=defaults)
     assert config.harness == "claude"
-    assert config.sandbox == "daytona"
+    assert config.uri == "http://default-sidecar:8765"
 
 
 def test_run_selection_reads_flat_request():
     config = AgentConfig.from_params({"harness": "claude"})
     assert config.harness == "claude"
+
+
+def test_uri_blank_is_treated_as_unset():
+    config = AgentConfig.from_params({"agent": {"uri": "   "}})
+    assert config.uri is None
+
+
+def test_uri_trimmed():
+    config = AgentConfig.from_params({"agent": {"uri": "  http://sidecar:8765  "}})
+    assert config.uri == "http://sidecar:8765"

@@ -6,7 +6,9 @@
  * It reuses the existing controls rather than inventing new ones: the model selector
  * (GroupedChoiceControl), the tool picker (ToolSelectorPopover + ToolItemControl), the MCP
  * server editor (McpServerItemControl), the skill editor (SkillConfigControl), enum selects
- * (harness, sandbox, permission policy), and a textarea (agents_md). The field shape is the
+ * (harness, permission policy), and a textarea (agents_md). The sidecar `uri` is an
+ * operator/testing routing override (allowlist-gated server-side), not a normal authoring
+ * field, so the playground does not surface a control for it. The field shape is the
  * `agent_config` catalog type generated
  * from the SDK model (AgentConfigSchema in agenta.sdk.utils.types); the agent service ships a
  * thin `x-ag-type-ref` the playground resolves and reads back (services/oss/src/agent).
@@ -665,15 +667,6 @@ export function AgentConfigControl({
                 label="Harness"
                 value={(config.harness as string | null) ?? null}
                 onChange={(v) => setField("harness", v)}
-                withTooltip={withTooltip}
-                disabled={disabled}
-            />
-
-            <EnumSelectControl
-                schema={props.sandbox}
-                label="Sandbox"
-                value={(config.sandbox as string | null) ?? null}
-                onChange={(v) => setField("sandbox", v)}
                 withTooltip={withTooltip}
                 disabled={disabled}
             />

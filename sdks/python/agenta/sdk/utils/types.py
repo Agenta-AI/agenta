@@ -1068,7 +1068,6 @@ _DEFAULT_AGENTS_MD = (
 # `AgentConfig.from_params` falls back to) both consume these via `build_agent_v0_default`, so a new
 # default changes one place. The harness default also seeds `AgentConfigSchema.harness`.
 _DEFAULT_HARNESS = "pi_core"
-_DEFAULT_SANDBOX = "local"
 _DEFAULT_PERMISSION_POLICY = "auto"
 
 # The schema key carrying each harness option's versioned slug identity (the contract identity in
@@ -1104,7 +1103,7 @@ class AgentConfigSchema(AgSchemaMixin):
     field shapes live in Pydantic (single source of truth) instead of a hand-written literal.
     It composes every editable field the control surfaces — the definition
     (``agents_md``/``model``/``tools``/``mcp_servers``) and the run-selection fields
-    (``harness``/``sandbox``/``permission_policy``), all one config — and types
+    (``harness``/``uri``/``permission_policy``), all one config — and types
     ``tools``/``mcp_servers`` with the real tool-def models so the playground gets typed editors.
     The runtime ``AgentConfig`` stays permissive (``List[Any]``) because its job is to coerce the
     loose shapes the playground emits; this model is strict because its job is to describe them.
@@ -1153,10 +1152,16 @@ class AgentConfigSchema(AgSchemaMixin):
         ),
         json_schema_extra=_harness_field_schema_extra(),
     )
-    sandbox: Literal["local", "daytona"] = Field(
-        default="local",
-        title="Sandbox",
-        description="Where the agent runs: local daemon or a Daytona sandbox.",
+    uri: Optional[str] = Field(
+        default=None,
+        title="Sidecar URI",
+        description=(
+            "Optional sidecar (agent runner) address that routes this run. When set, the "
+            "server routes the run to this address (gated by a server-side allowlist); when "
+            "unset, the server falls back to its env-var runner resolution. The sidecar is "
+            "configured local or Daytona by its own environment, not per-run. Operator/testing "
+            "concern, not a normal authoring field."
+        ),
     )
     permission_policy: Literal["auto", "deny"] = Field(
         default="auto",
@@ -1194,9 +1199,11 @@ def build_agent_v0_default(
     """The default `agent_config` value, shared by the builtin interface and the service.
 
     Base shape (always): instructions, model, empty tools/MCP, the run selection
-    (harness/sandbox/permission policy). ``include_sandbox_permission`` adds the declared
-    Layer-2 boundary the playground pre-fills (network egress on, strict). ``skill_slug`` adds
-    one ``@ag.embed`` reference to a stored skill the backend inlines before the runner sees it
+    (harness/permission policy). ``uri`` is deliberately omitted from the default (unset means
+    the env-var runner fallback, the out-of-the-box behavior), so the shipped default config
+    carries no routing override. ``include_sandbox_permission`` adds the declared Layer-2
+    boundary the playground pre-fills (network egress on, strict). ``skill_slug`` adds one
+    ``@ag.embed`` reference to a stored skill the backend inlines before the runner sees it
     (the service passes the reserved platform default skill; the SDK builtin passes none)."""
     config: Dict[str, Any] = {
         "agents_md": _DEFAULT_AGENTS_MD,
@@ -1204,7 +1211,6 @@ def build_agent_v0_default(
         "tools": [],
         "mcp_servers": [],
         "harness": _DEFAULT_HARNESS,
-        "sandbox": _DEFAULT_SANDBOX,
         "permission_policy": _DEFAULT_PERMISSION_POLICY,
     }
     if include_sandbox_permission:

@@ -156,13 +156,21 @@ describe("buildAgentRequest", () => {
         })
     })
 
-    it("defaults harness/sandbox INSIDE the agent block when the config nests under `agent`", async () => {
+    it("defaults harness INSIDE the agent block; passes an explicit uri through", async () => {
         // The schema places the run-selection fields on the agent config (`parameters.agent`),
-        // not as top-level params siblings. Defaults land there; an explicit value wins.
-        seed(store, "e", {config: {agent: {model: "gpt-5.5", sandbox: "daytona"}}})
+        // not as top-level params siblings. `harness` defaults there; the sidecar `uri` is not
+        // defaulted (unset = the server's env-var routing fallback) but an explicit one passes
+        // through unchanged.
+        seed(store, "e", {config: {agent: {model: "gpt-5.5", uri: "http://sidecar:8765"}}})
         const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
         const agent = (req!.requestBody.data as any).parameters.agent
-        expect(agent).toMatchObject({model: "gpt-5.5", harness: "pi_core", sandbox: "daytona"})
+        expect(agent).toMatchObject({
+            model: "gpt-5.5",
+            harness: "pi_core",
+            uri: "http://sidecar:8765",
+        })
+        // no sandbox field defaulted (the per-run sandbox selector is gone)
+        expect(agent.sandbox).toBeUndefined()
         // not duplicated at the top level
         expect((req!.requestBody.data as any).parameters.harness).toBeUndefined()
     })

@@ -24,15 +24,17 @@ The fields and the full schema follow.
 | `tools` | `ToolConfig[]` | `[]` | Runnable tools: `builtin`, `gateway`, `code`, or `client`. See [Tool models and resolution](../in-service/tool-models-and-resolution.md). |
 | `mcp_servers` | `MCPServerConfig[]` | `[]` | Declared MCP servers; secret env resolved from the vault at run time. See [MCP models and resolution](../in-service/mcp-models-and-resolution.md). |
 | `harness` | `"pi_core" \| "claude" \| "pi_agenta"` (see slug+name note) | `"pi_core"` | The coding agent to drive. `pi_core` and `pi_agenta` both drive the `pi` ACP agent; `pi_agenta` adds Agenta's forced skills, prompt, and policy. |
-| `sandbox` | `"local" \| "daytona"` | `"local"` | Where it runs. |
+| `uri` | string \| null | `null` (key omitted) | Optional sidecar (agent runner) address that routes this run. When set, the server routes there (gated by `AGENTA_AGENT_RUNNER_URI_ALLOWLIST`, default empty); when unset, it falls back to its env-var runner resolution. The sidecar is configured local-or-Daytona by its own env, not per-run. Operator/testing concern, not a normal authoring field, so the playground does not surface a control for it. See [Agent service handler](../in-service/agent-service-handler.md). |
 | `permission_policy` | `"auto" \| "deny"` | `"auto"` | How a gating harness (Claude Code) handles tool-use prompts in a headless run. |
 | `sandbox_permission` | `SandboxPermission \| null` | `null` (form pre-fills one) | The declared network and filesystem boundary. See [Sandbox permission](../in-service/sandbox-permission.md). |
 | `skills` | `(SkillConfig \| EmbedRef)[]` | one embedded default skill | Inline SKILL.md packages, or `@ag.embed` references the backend inlines before the runner sees them. |
 
-Note that `harness`, `sandbox`, and `permission_policy` are the run-selection fields. They
+Note that `harness`, `uri`, and `permission_policy` are the run-selection fields. They
 live on `AgentConfig` itself, under `data.parameters.agent`, and the handler reads them in the
 one `AgentConfig.from_params(...)` parse along with the rest of the config. There is one agent
-config, not a config plus a separate selection object.
+config, not a config plus a separate selection object. `uri` replaced the old `sandbox`
+selector: the sidecar address drives routing, and each sidecar picks its own sandbox provider
+(local or Daytona) from its own environment, so there is no per-run sandbox field anymore.
 
 ### Harness as a slug + display name
 
@@ -75,7 +77,6 @@ every field in its default state:
   "tools": [],
   "mcp_servers": [],
   "harness": "pi_core",
-  "sandbox": "local",
   "permission_policy": "auto",
   "sandbox_permission": {
     "network": { "mode": "on", "allowlist": [] },

@@ -56,7 +56,8 @@ def test_inspect_default_parses_into_the_runtime_selection():
         config.sandbox_permission is not None
     )  # the service boundary survives the parse
     assert config.harness == "pi_core"
-    assert config.sandbox == "local"
+    # uri is omitted from the default config, so it parses to None (the env-var fallback path).
+    assert config.uri is None
     assert config.permission_policy == "auto"
 
 

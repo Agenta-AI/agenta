@@ -8,8 +8,9 @@ context (``tracing``), then runs one turn through a :class:`Harness` over a back
 from the config's run-selection fields, and records the run's usage.
 
 The sandbox-agent-backed backend is the production path. The transport is a deployment
-choice: HTTP to `AGENTA_AGENT_RUNNER_URL`, or a local runner CLI in a source checkout.
-The harness, sandbox, and permission policy are editable fields on the agent config.
+choice: the agent config's ``uri`` (allowlist-gated) routes the run, else HTTP to
+`AGENTA_AGENT_RUNNER_URL`, else a local runner CLI in a source checkout. The harness, the
+sidecar ``uri``, and the permission policy are editable fields on the agent config.
 """
 
 from typing import Any, Dict, List, Optional
@@ -55,7 +56,7 @@ from agenta.sdk.models.workflows import WorkflowRevisionData
 
 from agenta.sdk.utils.logging import get_module_logger
 
-from oss.src.agent.config import load_config, runner_dir, runner_url
+from oss.src.agent.config import load_config, resolve_runner_url, runner_dir
 from oss.src.agent.schemas import AGENT_SCHEMAS
 from oss.src.agent.tools import resolve_mcp_servers, resolve_tools
 from oss.src.agent.tracing import record_usage, trace_context
@@ -183,17 +184,25 @@ async def _resolve_session_connection(
     return resolved
 
 
-def select_backend(agent_config: AgentConfig) -> Backend:
-    """Pick the backend for a run from the agent config's run-selection fields.
+# The wire still carries a ``sandbox`` field the unchanged runner reads; the per-run sandbox
+# selector is gone (each sidecar is configured local-or-Daytona by its own env), so the service
+# sends this safe default. Removing the wire field entirely is a runner-branch follow-up.
+_DEFAULT_SANDBOX = "local"
 
-    The service always uses the sandbox-agent-backed runner. `AGENTA_AGENT_RUNNER_URL`
-    selects HTTP transport in deployed containers. When it is unset, local development
-    spawns the TypeScript runner CLI from the runner dir. Only ``sandbox`` is read here;
-    it is a backend/environment concern that never enters ``SessionConfig``.
+
+def select_backend(agent_config: AgentConfig) -> Backend:
+    """Pick the runner backend for a run, routing by the agent config's ``uri``.
+
+    Routing precedence: the config's ``uri`` (validated against the server-side allowlist) wins
+    when set; otherwise the env var ``AGENTA_AGENT_RUNNER_URL`` selects HTTP transport in deployed
+    containers; otherwise local development spawns the TypeScript runner CLI from the runner dir.
+    A set-but-disallowed ``uri`` raises (no silent fallback). The sidecar at the resolved address
+    is configured local-or-Daytona by its OWN environment, so the service sends a constant
+    ``sandbox`` default rather than a per-run selector.
     """
     return SandboxAgentBackend(
-        sandbox=agent_config.sandbox,
-        url=runner_url(),
+        sandbox=_DEFAULT_SANDBOX,
+        url=resolve_runner_url(agent_config.uri),
         cwd=str(runner_dir()),
     )
 
@@ -223,9 +232,9 @@ async def _agent(
     resolved_connection: Optional[ResolvedConnection] = None
     secrets: Dict[str, str] = {}
     if model_ref is not None:
-        ctx = RuntimeAuthContext(
-            harness=agent_config.harness, backend=agent_config.sandbox
-        )
+        # ``backend`` (sandbox provider) is no longer a per-run selector; the capability check is
+        # harness-only, so it is left unset here.
+        ctx = RuntimeAuthContext(harness=agent_config.harness)
         resolved_connection = await _resolve_session_connection(model_ref, ctx)
         secrets = resolved_connection.env
 

@@ -1280,18 +1280,18 @@ export const isAgentModeAtomFamily = atomFamily((entityId: string) =>
         if (get(workflowMolecule.selectors.workflowType(entityId)) === "agent") return true
         // Schema-marker detection — matches the left-panel agent config control,
         // so the generations panel agrees with the rendered config schema even
-        // before WP-6 sets is_agent. (The harness/sandbox heuristic below missed
-        // because those values live nested inside the agent_config block, not at
+        // before WP-6 sets is_agent. (The harness heuristic below missed
+        // because that value lives nested inside the agent_config block, not at
         // the top level of `configuration`.)
         if (schemaMarksAgentConfig(get(workflowMolecule.selectors.parametersSchema(entityId))))
             return true
-        // Legacy heuristic — a stored config carrying top-level harness/sandbox.
+        // Legacy heuristic — a stored config carrying top-level harness.
         // Kept as a last resort; delete once WP-6 is the sole source of truth.
         const config = get(workflowMolecule.selectors.configuration(entityId)) as
             | Record<string, unknown>
             | null
             | undefined
-        return Boolean(config?.harness || config?.sandbox)
+        return Boolean(config?.harness)
     }),
 )
 

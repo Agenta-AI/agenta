@@ -11,7 +11,7 @@ the order it runs in is itself a contract.
 The handler (`_agent` in `app.py`) takes the workflow envelope's pieces:
 
 - `parameters`: carries the agent config under `agent`. The run-selection fields (`harness`,
-  `sandbox`, `permission_policy`) live on that same `agent` object.
+  `uri`, `permission_policy`) live on that same `agent` object.
 - `messages` or `inputs.messages`: the turn history (it checks `messages` first).
 - `stream`: batch versus streaming.
 - `session_id`: the external conversation id.
@@ -19,7 +19,7 @@ The handler (`_agent` in `app.py`) takes the workflow envelope's pieces:
 ## What it does, in order
 
 1. Parse the config: `AgentConfig.from_params(params, defaults=...)`. One parse covers
-   everything, including the run-selection fields (`harness`, `sandbox`, `permission_policy`).
+   everything, including the run-selection fields (`harness`, `uri`, `permission_policy`).
 2. Convert the request messages to neutral `Message[]`.
 3. Resolve tools into builtin names, runnable specs, and a tool callback.
 4. Resolve MCP servers.
@@ -28,7 +28,11 @@ The handler (`_agent` in `app.py`) takes the workflow envelope's pieces:
    connections degrade tolerantly to an empty `env` rather than failing the run.
 6. Build one `SessionConfig` carrying all of the above plus trace context and session id.
 7. Select the backend (`SandboxAgentBackend`) and make the harness, which validates that the
-   harness is supported.
+   harness is supported. `select_backend` routes by the config's `uri`: routing precedence is
+   the config's `uri` (validated against the server-side allowlist) -> `AGENTA_AGENT_RUNNER_URL`
+   -> the local runner CLI. A set-but-disallowed `uri` fails loud (no silent fallback). The
+   sidecar at the resolved address is configured local-or-Daytona by its own env, so the
+   service sends a constant `sandbox` default on the wire rather than a per-run selector.
 8. Run: stream Vercel parts, or await one batch turn that returns
    `{"role": "assistant", "content": result.output}`.
 9. Record usage.
@@ -64,3 +68,8 @@ the instrumented handler and merges the registered interface (the passed `schema
   The tolerant default path is deliberate. Reordering can turn a clean reject into a leak or
   a hard failure.
 - **Batch versus streaming.** Two execution paths return two shapes. Keep them in sync.
+- **Sidecar routing and the allowlist.** A caller-supplied `uri` controls where the service
+  ships resolved secrets and bearer tokens, so it is honored only when its origin is on
+  `AGENTA_AGENT_RUNNER_URI_ALLOWLIST` (default empty = every override rejected, feature off).
+  Loosening the gate is a security change. `resolve_runner_url` / `validate_runner_uri` live in
+  `services/oss/src/agent/config.py`.

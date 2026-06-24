@@ -1,9 +1,9 @@
 # Sidecar URI in the agent config
 
-Index for the design workspace that adds an **optional `uri`** to the agent run config,
-pointing at the address of the sidecar (the agent runner). When set, the boundary routes the
-`/run` request to that address; when unset, it falls back to today's environment-variable
-resolution (`AGENTA_AGENT_RUNNER_URL`, else the local runner directory).
+Index for the workspace that adds an **optional `uri`** to the agent config, pointing at the
+address of the sidecar (the agent runner). When set, the service routes the `/run` request to
+that address (gated by a server-side allowlist); when unset, it falls back to today's
+environment-variable resolution (`AGENTA_AGENT_RUNNER_URL`, else the local runner directory).
 
 Spun out of PR [#4821](https://github.com/Agenta-AI/agenta/pull/4821) review comment
 [3469613625](https://github.com/Agenta-AI/agenta/pull/4821#discussion_r3469613625):
@@ -12,9 +12,13 @@ Spun out of PR [#4821](https://github.com/Agenta-AI/agenta/pull/4821) review com
 > the thing (the sandbox should probably use this uri to determine where to route the
 > request). if the uri is not set then we use the environment variables"*
 
-This is **design only**. No code changes in this PR. It is POC / pre-production, so there is
-**no back-compat constraint**: the env-var path stays as the fallback purely because it is the
-sensible default, not because anything shipped depends on it.
+**Status: IMPLEMENTED.** The reviewer decided (D7) that `uri` **replaces** the `sandbox` field
+outright — the sidecar address drives routing, and each sidecar picks its own sandbox provider
+(local or Daytona) from its own environment. POC / pre-production, so there is **no back-compat
+constraint** and no migration: the env-var path stays as the fallback purely because it is the
+sensible default. Built on [#4840](https://github.com/Agenta-AI/agenta/pull/4840)
+(config-structure cleanup), which retired `RunSelection` and moved the run-selection fields onto
+`AgentConfig`.
 
 ## Files
 
@@ -29,17 +33,22 @@ sensible default, not because anything shipped depends on it.
   cross-linked to the sidecar-trust project.
 - [status.md](status.md) — current state, decisions, and the open questions for the reviewer.
 
-## One-paragraph answer to the reviewer
+## What landed
 
-Yes, and it is a small change. Routing is decided in exactly one place —
-`select_backend(selection)` in `services/oss/src/agent/app.py`, which builds
-`SandboxAgentBackend(url=runner_url(), cwd=str(runner_dir()))`. The `uri` is a **run-selection**
-field (it says *where* a run goes, like `sandbox` already does), not part of the neutral
-`AgentConfig` (what the agent *is*). So it joins `harness` / `sandbox` / `permission_policy` in
-`RunSelection` and `AgentConfigSchema`, the handler parses it with `RunSelection.from_params`,
-and `select_backend` prefers `selection.uri` over `runner_url()`. It is **not a new `/run` wire
+Routing is decided in exactly one place — `select_backend(agent_config)` in
+`services/oss/src/agent/app.py`, which now builds
+`SandboxAgentBackend(url=resolve_runner_url(agent_config.uri), ...)`. `uri` is a **run-selection**
+field on `AgentConfig` (it says *where* a run goes); it **replaced** `sandbox`. Precedence:
+`uri` (validated) -> `AGENTA_AGENT_RUNNER_URL` -> the local CLI. It is **not a new `/run` wire
 field**: it never crosses the service→runner boundary; it only decides which runner the service
 opens that boundary to. The single load-bearing decision is the security one: a client-supplied
 sidecar address is an SSRF / secret-exfiltration risk because the service ships resolved
-provider keys and bearer tokens in every `/run` body, so the address a caller may supply must be
-**restricted server-side** (allowlist, default-off) — see [security.md](security.md).
+provider keys and bearer tokens in every `/run` body, so a caller-supplied address is
+**restricted server-side** by `AGENTA_AGENT_RUNNER_URI_ALLOWLIST` (default empty = feature off);
+a disallowed `uri` fails loud (no silent fallback) — see [security.md](security.md).
+
+The old per-run `sandbox` selector is gone; each sidecar picks its sandbox provider from its own
+env (`SANDBOX_AGENT_PROVIDER`). The wire still carries a constant `sandbox: "local"` so the
+unchanged runner defaults correctly; **removing the wire-level `sandbox` field is a deferred
+runner-branch follow-up** (it would force a `protocol.ts` / golden change, out of scope for this
+config/service/FE slice).

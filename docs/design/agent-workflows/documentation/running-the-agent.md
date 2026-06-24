@@ -162,11 +162,19 @@ env file points the chat slice at
 These are the agent-relevant variables. The example file lists them commented out
 (`hosting/docker-compose/ee/env.ee.dev.example`, lines 119 onward).
 
-- `AGENTA_AGENT_RUNNER_URL`. Where the Python service finds the runner. Default
-  `http://sandbox-agent:8765`. When unset, the Python service spawns the runner CLI locally
-  instead (see `runner_url` and `select_backend` in `services/oss/src/agent/`).
+- `AGENTA_AGENT_RUNNER_URL`. Where the Python service finds the runner when no per-run `uri`
+  override is set. Default `http://sandbox-agent:8765`. When unset, the Python service spawns the
+  runner CLI locally instead (see `runner_url` and `select_backend` in `services/oss/src/agent/`).
+- `AGENTA_AGENT_RUNNER_URI_ALLOWLIST`. Comma-separated list of trusted sidecar origins
+  (`scheme://host[:port]`). The agent config's optional `uri` field is honored only when its
+  origin is on this list; **default empty means every override is rejected** (the feature ships
+  off, only `AGENTA_AGENT_RUNNER_URL` / the local CLI work). The gate exists because the service
+  ships resolved provider keys and bearer tokens to whatever address it picks, so a
+  caller-supplied address is an SSRF / secret-exfiltration risk. See `validate_runner_uri` in
+  `services/oss/src/agent/config.py`.
 - `AGENTA_AGENT_ENABLE_MCP`. Gates MCP server resolution. Default `false`.
-- `SANDBOX_AGENT_PROVIDER`. `local` or `daytona`. Default `local`.
+- `SANDBOX_AGENT_PROVIDER`. `local` or `daytona`. Default `local`. Each sidecar picks its own
+  sandbox provider from this env; there is no per-run sandbox selector on the wire.
 - `SANDBOX_AGENT_DAYTONA_API_KEY`, `_API_URL`, `_TARGET`, `_SNAPSHOT`, `_IMAGE`,
   `_INSTALL_PI`. Daytona credentials the runner reads for the `daytona` sandbox provider.
 

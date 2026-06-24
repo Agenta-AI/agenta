@@ -9,11 +9,11 @@
  * - per-entity: two entities in the same store resolve independently (mixed
  *   comparison grids must not misroute)
  * - schema-marker detection: the config schema carrying an `agent_config`
- *   block (`x-ag-type-ref`/`x-ag-type`) detects as agent even when the harness/
- *   sandbox values live nested (not at the top level of `configuration`) — this
+ *   block (`x-ag-type-ref`/`x-ag-type`) detects as agent even when the harness
+ *   value lives nested (not at the top level of `configuration`) — this
  *   is the signal the left-panel AgentConfigControl already dispatches on
  * - heuristic fallback: until WP-6, a stored config carrying top-level
- *   `harness`/`sandbox` detects as agent even when workflowType hasn't resolved
+ *   `harness` detects as agent even when workflowType hasn't resolved
  *   to "agent" yet
  *
  * The workflow molecule is mocked with writable atoms for `workflowType`,
@@ -114,12 +114,12 @@ describe("isAgentModeAtomFamily", () => {
         expect(store.get(isAgentModeAtomFamily("b"))).toBe(false)
     })
 
-    it("schema marker: an agent_config property detects as agent even when harness/sandbox are nested", () => {
+    it("schema marker: an agent_config property detects as agent even when harness is nested", () => {
         // Real-world shape: backend hasn't set is_agent (rides as `custom`), and
-        // harness/sandbox live INSIDE the agent_config block — so the top-level
+        // harness lives INSIDE the agent_config block — so the top-level
         // configuration heuristic misses. The schema marker is what saves it.
         setType(store, "ag", "custom")
-        setConfig(store, "ag", {agent_config: {harness: "pi_core", sandbox: "local"}})
+        setConfig(store, "ag", {agent_config: {harness: "pi_core"}})
         setSchema(store, "ag", {
             type: "object",
             properties: {
@@ -144,13 +144,13 @@ describe("isAgentModeAtomFamily", () => {
         expect(store.get(isAgentModeAtomFamily("noag"))).toBe(false)
     })
 
-    it("heuristic: a config carrying harness/sandbox detects as agent", () => {
+    it("heuristic: a config carrying harness detects as agent", () => {
         setType(store, "h", "custom") // not yet flagged agent
-        setConfig(store, "h", {harness: "pi_core", sandbox: "local"})
+        setConfig(store, "h", {harness: "pi_core"})
         expect(store.get(isAgentModeAtomFamily("h"))).toBe(true)
     })
 
-    it("heuristic does not false-positive without harness/sandbox", () => {
+    it("heuristic does not false-positive without harness", () => {
         setType(store, "plain", "completion")
         setConfig(store, "plain", {temperature: 0.7})
         expect(store.get(isAgentModeAtomFamily("plain"))).toBe(false)
