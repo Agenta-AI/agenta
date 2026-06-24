@@ -1107,4 +1107,4 @@ export type RevisionMolecule = typeof revisionMolecule
 /**
  * Invalidate revisions list cache for a testset
  */
-export {invalidateRevisionsListCache}
+export {invalidateRevisionsListCache, setRevisionsListCache}

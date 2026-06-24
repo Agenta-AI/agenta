@@ -4,6 +4,7 @@ import {
     invalidateRevisionsListCache as invalidateEntityRevisionsListCache,
     invalidateTestsetCache as invalidateEntityTestsetCache,
     invalidateTestsetsListCache as invalidateEntityTestsetsListCache,
+    setRevisionsListCache as setEntityRevisionsListCache,
 } from "@agenta/entities/testset"
 import {message} from "@agenta/ui/app-message"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -265,6 +266,25 @@ export function useSaveTestset() {
                                 testsetId: testset.id,
                                 revisions: response.testset_revisions,
                             })
+
+                            // Eagerly populate the entity-layer TanStack Query cache so
+                            // the Load Testset dialog's auto-select sees the new revision
+                            // immediately rather than firing with stale cached data.
+                            // invalidateRevisionsListCache only marks the query stale —
+                            // TanStack Query still returns the old value synchronously on
+                            // the next read while background-fetching. With setQueryData
+                            // the cache holds fresh data before the user can open the
+                            // Load Testset dialog, so auto-select picks the new revision.
+                            setEntityRevisionsListCache(
+                                testset.id,
+                                response.testset_revisions.map((raw) => ({
+                                    id: raw.id,
+                                    version: raw.version,
+                                    created_at: raw.created_at ?? null,
+                                    message: raw.message ?? null,
+                                    author: raw.author ?? raw.created_by_id ?? null,
+                                })),
+                            )
 
                             setSelectedRevisionId(newRevisionId)
                             revisionSelect.setCurrentRevisionId(newRevisionId)
