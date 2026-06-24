@@ -15,6 +15,7 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.workflows.dtos import (
     Workflow,
@@ -25,6 +26,7 @@ from oss.src.core.workflows.dtos import (
     WorkflowArtifactQueryFlags,
     WorkflowRevision,
     WorkflowRevisionCreate,
+    WorkflowRevisionData,
     WorkflowRevisionFlags,
     WorkflowVariantCreate,
     WorkflowVariantFork,
@@ -145,6 +147,57 @@ async def test_fetch_revision_short_circuits_reserved_artifact_ref():
     assert revision.flags.is_skill is True
     assert revision.data.parameters["skill"]["name"] == "agenta-getting-started"
     # The reserved slug must never touch Postgres.
+    workflows_dao.fetch_revision.assert_not_awaited()
+    workflows_dao.fetch_artifact.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_default_agent_skill_embed_resolves_through_platform_catalog_without_db():
+    workflows_dao = AsyncMock()
+    workflows_service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        platform_catalog=PlatformWorkflowCatalog(),
+    )
+    embeds_service = EmbedsService(workflows_service=workflows_service)
+    workflows_service.embeds_service = embeds_service
+
+    revision = WorkflowRevision(
+        id=uuid4(),
+        workflow_id=uuid4(),
+        workflow_variant_id=uuid4(),
+        slug="agent-default-config",
+        data=WorkflowRevisionData(
+            parameters={
+                "agent": {
+                    "skills": [
+                        {
+                            "@ag.embed": {
+                                "@ag.references": {
+                                    "workflow": {"slug": _PLATFORM_SLUG}
+                                },
+                                "@ag.selector": {"path": "parameters.skill"},
+                            }
+                        }
+                    ]
+                }
+            }
+        ),
+    )
+
+    (
+        resolved_revision,
+        resolution_info,
+    ) = await workflows_service.resolve_workflow_revision(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        workflow_revision=revision,
+    )
+
+    skill = resolved_revision.data.parameters["agent"]["skills"][0]
+    assert skill["name"] == "agenta-getting-started"
+    assert skill["body"].startswith("# Getting started with Agenta agents")
+    assert resolution_info.embeds_resolved == 1
+    # Resolving the platform default skill must use the catalogue, not Postgres.
     workflows_dao.fetch_revision.assert_not_awaited()
     workflows_dao.fetch_artifact.assert_not_awaited()
 
