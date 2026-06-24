@@ -73,12 +73,51 @@ export interface ResolvedToolSpec {
   env?: Record<string, string>;
   needsApproval?: boolean;
   render?: RenderHint;
+  /** MCP behavioral hint: true (read-only), false (mutating), absent (unknown). */
+  readOnly?: boolean;
+  /**
+   * Layer-3 permission disposition: `allow` runs with no prompt, `ask` raises a
+   * human-in-the-loop request, `deny` never runs. Absent = fall back to the global
+   * `permissionPolicy`. The SDK derives a default from `readOnly`/`needsApproval` when the
+   * author set none. Plumbing only here; enforcement is a later slice.
+   */
+  disposition?: "allow" | "ask" | "deny";
 }
 
 /** Where and how to route a tool call back through Agenta. */
 export interface ToolCallbackContext {
   endpoint: string;
   authorization?: string;
+}
+
+/**
+ * One bundled file laid beside SKILL.md by relative `path`. `content` is inline UTF-8 text;
+ * `executable` requests a `chmod +x` that the runner honors only when the skill's
+ * `allowExecutableFiles` is set AND the sandbox/harness policy allows execution (default deny).
+ * `content` is untrusted author code.
+ */
+export interface WireSkillFile {
+  path: string;
+  content: string;
+  executable?: boolean;
+}
+
+/**
+ * A resolved inline skill package. By the time a skill reaches the runner every reference has
+ * been inlined server-side (via `@ag.embed`), so there is one shape: the SKILL.md frontmatter
+ * fields (`name`/`description`), the Markdown `body`, and optional bundled `files`. The runner
+ * materializes this into a skill dir at run time (see `engines/skills.ts`). There is no
+ * name-against-a-bundled-root resolution anymore.
+ */
+export interface WireSkill {
+  name: string;
+  description: string;
+  body: string;
+  files?: WireSkillFile[];
+  /** Pi/Claude: hide from the prompt, invoke only via `/skill:name`. */
+  disableModelInvocation?: boolean;
+  /** Gate the `chmod +x` of executable bundled files (default deny; policy must also allow). */
+  allowExecutableFiles?: boolean;
 }
 
 /**
@@ -94,6 +133,48 @@ export interface McpServerConfig {
   env?: Record<string, string>;
   url?: string;
   tools?: string[];
+  /**
+   * Layer-3 permission disposition for the whole server: `allow` / `ask` / `deny`. Absent =
+   * fall back to the global `permissionPolicy`. An MCP server has no `readOnly` hint, so there
+   * is no derived default: an explicit author value or nothing. Plumbing only; enforcement is
+   * a later slice.
+   */
+  disposition?: "allow" | "ask" | "deny";
+}
+
+/**
+ * The sandbox security boundary an agent runs inside (Layer 2). `network` is the outbound
+ * egress policy (`on` = allow all, `off` = block all, `allowlist` = only `network.allowlist`
+ * CIDR ranges); `filesystem` is declared but not enforced yet; `enforcement` is `strict`
+ * (fail when the boundary cannot be applied) or `best_effort`. Plumbing only today: the runner
+ * carries it onto the run plan but does NOT yet apply it on the sandbox provider.
+ */
+export interface SandboxPermission {
+  network?: {
+    mode?: "on" | "off" | "allowlist";
+    /** CIDR ranges; honored when `mode === "allowlist"`. */
+    allowlist?: string[];
+  };
+  /** Declared, NOT enforced today. */
+  filesystem?: "on" | "readonly" | "off";
+  enforcement?: "strict" | "best_effort";
+}
+
+/**
+ * The Claude harness's own permission knobs (Layer 1), authored per-agent. These map 1:1 onto
+ * Claude Code's `permissions` settings block: `defaultMode` is the harness permission mode and
+ * `allow` / `deny` / `ask` are per-tool rule strings (e.g. `"Read"`, `"Bash(npm run:*)"`,
+ * `"mcp__server__tool"`). The runner renders this (merged with rules derived from
+ * `sandboxPermission`, Layer 2) into `<cwd>/.claude/settings.json` before the session starts;
+ * the Claude ACP adapter reads it because it builds its SDK query with
+ * `settingSources: ["user","project","local"]`. Claude-only (Pi never gates tool use); omitted
+ * unless the Claude config authored a non-empty value.
+ */
+export interface ClaudeSettings {
+  defaultMode?: "default" | "acceptEdits" | "plan" | "bypassPermissions";
+  allow?: string[];
+  deny?: string[];
+  ask?: string[];
 }
 
 /**
@@ -144,7 +225,13 @@ export type AgentEvent =
   | { type: "reasoning_start"; id: string }
   | { type: "reasoning_delta"; id: string; delta: string }
   | { type: "reasoning_end"; id: string }
-  | { type: "tool_call"; id?: string; name?: string; input?: unknown; render?: RenderHint }
+  | {
+      type: "tool_call";
+      id?: string;
+      name?: string;
+      input?: unknown;
+      render?: RenderHint;
+    }
   | {
       type: "tool_result";
       id?: string;
@@ -167,7 +254,13 @@ export type AgentEvent =
   // `file` -> Vercel `file`.
   | { type: "data"; name: string; data: unknown; transient?: boolean }
   | { type: "file"; url: string; mediaType: string }
-  | { type: "usage"; input?: number; output?: number; total?: number; cost?: number }
+  | {
+      type: "usage";
+      input?: number;
+      output?: number;
+      total?: number;
+      cost?: number;
+    }
   | { type: "error"; message: string }
   | { type: "done"; stopReason?: string };
 
@@ -209,6 +302,39 @@ export interface AgentRunRequest {
   appendSystemPrompt?: string;
   /** Model id ("gpt-5.5") or "provider/id" ("openai-codex/gpt-5.5"). */
   model?: string;
+  /**
+   * Provider family for the run, e.g. "openai" | "anthropic" | <custom-slug>. Non-secret.
+   * Present only when the config carries a structured model ref. See the provider-model-auth
+   * design (Concern 1).
+   */
+  provider?: string;
+  /**
+   * Where the credential comes from, named portably (a slug, never a db id). Non-secret.
+   * Present only when the config carries a structured model ref. See the provider-model-auth
+   * design (Concern 1).
+   */
+  connection?: { mode: string; slug?: string };
+  /**
+   * Deployment surface for the provider: "direct" | "azure" | "bedrock" | "vertex" |
+   * "custom". From a resolved connection; see the provider-model-auth design (Concern 3).
+   */
+  deployment?: string;
+  /**
+   * Non-secret connection config (custom base URL, api version, region, public headers).
+   * Secret values never live here; they ride `secrets`. See the provider-model-auth design
+   * (Concern 3).
+   */
+  endpoint?: {
+    baseUrl?: string;
+    apiVersion?: string;
+    region?: string;
+    headers?: Record<string, string>;
+  };
+  /**
+   * How the credential is delivered: "env" | "runtime_provided" | "none". From a resolved
+   * connection; see the provider-model-auth design (Concern 3).
+   */
+  credentialMode?: string;
   /** Explicit latest turn. Falls back to the last user message in `messages`. */
   prompt?: string;
   /** The conversation so far; the runner picks the latest turn and replays the rest. */
@@ -216,11 +342,12 @@ export interface AgentRunRequest {
   /** Built-in tools to enable. */
   tools?: string[];
   /**
-   * Bundled skill directory names to force-load (the Agenta harness). Each name resolves
-   * against the runner's bundled `skills/` root and is loaded into Pi's resource loader, so
-   * it appears in the system prompt (Pi only renders skills when the `read` tool is enabled).
+   * Resolved inline skill packages. Each rode the wire as concrete content (references
+   * inlined server-side via `@ag.embed`); the runner materializes each into a skill dir and
+   * loads it into Pi's resource loader, so it appears in the system prompt (Pi only renders
+   * skills when the `read` tool is enabled).
    */
-  skills?: string[];
+  skills?: WireSkill[];
   /** Resolved runnable tools (WP-7). */
   customTools?: ResolvedToolSpec[];
   /** User-declared MCP servers, resolved (secret env injected). Omitted when there are none. */
@@ -229,6 +356,17 @@ export interface AgentRunRequest {
   toolCallback?: ToolCallbackContext;
   /** How a permission-gating harness handles tool-use prompts: "auto" (default) | "deny". */
   permissionPolicy?: string;
+  /**
+   * The declared sandbox security boundary (Layer 2). Omitted when unset. Plumbing only: the
+   * runner threads it onto the run plan but does NOT yet enforce it on the sandbox provider.
+   */
+  sandboxPermission?: SandboxPermission;
+  /**
+   * The Claude harness's own permission knobs (Layer 1). Claude-only; omitted unless authored.
+   * The runner renders it (merged with rules derived from `sandboxPermission`) into
+   * `<cwd>/.claude/settings.json` before the session starts. See `ClaudeSettings`.
+   */
+  claudeSettings?: ClaudeSettings;
   /** Tracing: thread the Agenta trace context across the boundary. */
   trace?: TraceContext;
 }
@@ -267,7 +405,9 @@ export type StreamRecord =
   | { kind: "result"; result: AgentRunResult };
 
 /** Flatten a message's content (string or content blocks) to its text. */
-export function messageText(content: string | ContentBlock[] | undefined): string {
+export function messageText(
+  content: string | ContentBlock[] | undefined,
+): string {
   if (!content) return "";
   if (typeof content === "string") return content;
   return content
@@ -290,6 +430,11 @@ export function resolvePromptText(request: AgentRunRequest): string {
 }
 
 /** Prefer the platform conversation id, falling back to the harness's ephemeral id. */
-export function resolveRunSessionId(request: AgentRunRequest, fallback: string): string {
-  return request.sessionId && request.sessionId.trim() ? request.sessionId : fallback;
+export function resolveRunSessionId(
+  request: AgentRunRequest,
+  fallback: string,
+): string {
+  return request.sessionId && request.sessionId.trim()
+    ? request.sessionId
+    : fallback;
 }

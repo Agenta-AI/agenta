@@ -38,6 +38,11 @@ const KNOWN_REQUEST_KEYS = [
   "sessionId",
   "agentsMd",
   "model",
+  "provider",
+  "connection",
+  "deployment",
+  "endpoint",
+  "credentialMode",
   "messages",
   "secrets",
   "trace",
@@ -49,11 +54,14 @@ const KNOWN_REQUEST_KEYS = [
   "systemPrompt",
   "appendSystemPrompt",
   "skills",
+  "sandboxPermission",
+  "claudeSettings",
 ] as const;
 
 // COMPILE-TIME drift guard: every wire key must be a field of AgentRunRequest. Drop or rename
 // a field in protocol.ts and this assignment stops typechecking.
-const _requestKeysExistOnType: readonly (keyof AgentRunRequest)[] = KNOWN_REQUEST_KEYS;
+const _requestKeysExistOnType: readonly (keyof AgentRunRequest)[] =
+  KNOWN_REQUEST_KEYS;
 void _requestKeysExistOnType;
 
 describe("wire contract: requests (vs Python golden)", () => {
@@ -82,10 +90,34 @@ describe("wire contract: requests (vs Python golden)", () => {
     // The custom-tool axes reach the runner intact.
     const tool = req.customTools![0];
     assert.equal(tool.kind, "callback");
-    assert.ok(tool.callRef && tool.callRef.length > 0, "callback tool carries its callRef");
+    assert.ok(
+      tool.callRef && tool.callRef.length > 0,
+      "callback tool carries its callRef",
+    );
+    // The Composio read-only hint reaches the runner as `readOnly`.
+    assert.equal(tool.readOnly, true);
+    // The Layer-3 disposition (derived `allow` from read-only) reaches the runner.
+    assert.equal(tool.disposition, "allow");
     // Pi exposes the prompt overrides.
     assert.equal(req.systemPrompt, "You are Pi.");
     assert.equal(req.appendSystemPrompt, "Be terse.");
+    // The resolved inline skill package reaches the runner with its full nested shape intact:
+    // the frontmatter fields, the behavior flags, and each bundled file's `executable` bit.
+    const skill = req.skills![0];
+    assert.equal(skill.name, "release-notes");
+    assert.equal(skill.description, "Draft release notes from a changelog.");
+    assert.equal(skill.body, "Read the changelog, then write release notes.");
+    assert.equal(skill.disableModelInvocation, true);
+    assert.equal(skill.allowExecutableFiles, true);
+    assert.equal(skill.files![0].path, "scripts/draft.py");
+    assert.equal(skill.files![0].content, "print('draft')");
+    assert.equal(skill.files![0].executable, true);
+    // The declared sandbox boundary reaches the runner as nested camelCase `sandboxPermission`.
+    assert.equal(req.sandboxPermission!.network!.mode, "off");
+    assert.deepEqual(req.sandboxPermission!.network!.allowlist, []);
+    assert.equal(req.sandboxPermission!.enforcement, "strict");
+    // `claudeSettings` is Claude-only, so the Pi request never carries it.
+    assert.equal(req.claudeSettings, undefined);
   });
 
   it("claude request: gates tool use, no prompt overrides, null session id", () => {
@@ -96,8 +128,16 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(req.permissionPolicy, "deny"); // Claude gates tool use
     assert.equal(req.systemPrompt, undefined); // Claude exposes no prompt overrides
     assert.equal(req.appendSystemPrompt, undefined);
+    assert.equal(req.sandboxPermission, undefined); // no boundary declared on this config
+    // The Claude harness's own permission knobs ride the wire as nested camelCase `claudeSettings`.
+    assert.equal(req.claudeSettings!.defaultMode, "acceptEdits");
+    assert.deepEqual(req.claudeSettings!.allow, ["Read", "Bash(npm run:*)"]);
+    assert.deepEqual(req.claudeSettings!.deny, ["WebFetch"]);
     // sessionId is null on the wire, so the runner falls back to its ephemeral id.
-    assert.equal(resolveRunSessionId(req, "runner-ephemeral"), "runner-ephemeral");
+    assert.equal(
+      resolveRunSessionId(req, "runner-ephemeral"),
+      "runner-ephemeral",
+    );
   });
 });
 
@@ -116,7 +156,8 @@ const CAPABILITY_KEYS = [
   "streamingDeltas",
   "sessionLifecycle",
 ] as const;
-const _capabilityKeysExistOnType: readonly (keyof HarnessCapabilities)[] = CAPABILITY_KEYS;
+const _capabilityKeysExistOnType: readonly (keyof HarnessCapabilities)[] =
+  CAPABILITY_KEYS;
 void _capabilityKeysExistOnType;
 
 describe("wire contract: results (vs Python golden)", () => {
@@ -126,12 +167,25 @@ describe("wire contract: results (vs Python golden)", () => {
     };
     assert.equal(res.ok, true);
     assert.equal(res.output, "Hello!");
-    assert.deepEqual(res.messages!.map((m) => m.role), ["assistant"]);
+    assert.deepEqual(
+      res.messages!.map((m) => m.role),
+      ["assistant"],
+    );
     // The wire carries a trailing event with no `type`; the Python consumer drops it on
     // parse, so the TS contract must tolerate it (three typed events survive).
-    const typed = res.events!.filter((e) => typeof (e as { type?: unknown }).type === "string");
-    assert.deepEqual(typed.map((e) => e.type), ["message", "usage", "done"]);
-    assert.deepEqual(res.usage, { input: 10, output: 5, total: 15, cost: 0.001 });
+    const typed = res.events!.filter(
+      (e) => typeof (e as { type?: unknown }).type === "string",
+    );
+    assert.deepEqual(
+      typed.map((e) => e.type),
+      ["message", "usage", "done"],
+    );
+    assert.deepEqual(res.usage, {
+      input: 10,
+      output: 5,
+      total: 15,
+      cost: 0.001,
+    });
     assert.equal(res.stopReason, "end_turn");
     assert.equal(res.sessionId, "sess-42");
     assert.equal(res.model, "gpt-5.5");

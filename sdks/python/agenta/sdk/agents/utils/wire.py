@@ -39,7 +39,22 @@ def request_to_wire(
     ``config.wire_prompt()`` adds any system-prompt overrides the harness exposes (Pi's
     ``systemPrompt`` / ``appendSystemPrompt``); it is empty for harnesses that have none.
     ``config.wire_mcp()`` adds user-declared MCP servers, omitted when there are none so a
-    tool-free run's payload is unchanged.
+    tool-free run's payload is unchanged. ``config.wire_skills()`` adds resolved inline skill
+    packages, likewise omitted when there are none (skills ride their own seam, not the tool
+    wire). ``config.wire_sandbox_permission()`` adds the declared sandbox security boundary,
+    omitted when unset (plumbing only; the runner does not enforce it yet).
+    ``config.wire_model_ref()`` adds the non-secret provider/connection fields, omitted when no
+    structured ``model_ref`` is set so a string-only config's payload is unchanged (the secret
+    still rides ``secrets``; ``model`` stays the plain string).
+    ``config.wire_resolved_connection()`` adds the resolved-connection descriptor
+    (``provider`` / ``model`` / ``deployment`` / ``credentialMode`` / ``endpoint``), omitted when
+    no ``resolved_connection`` is threaded so a config without one is unchanged. It is spread
+    LAST among the model fields so the resolved ``provider``/``model`` override the base ``model``
+    and ``wire_model_ref``'s ``provider`` (its ``env`` never reaches the wire; the secret rides
+    ``secrets``).
+    ``config.wire_claude_settings()`` adds the Claude harness's own permission knobs
+    (``claudeSettings``), omitted unless the Claude config authored a non-empty value (Claude-only;
+    the runner renders it into ``<cwd>/.claude/settings.json``).
     """
     return {
         "backend": engine,
@@ -54,6 +69,11 @@ def request_to_wire(
         **config.wire_tools(),
         **config.wire_prompt(),
         **config.wire_mcp(),
+        **config.wire_skills(),
+        **config.wire_sandbox_permission(),
+        **config.wire_model_ref(),
+        **config.wire_resolved_connection(),
+        **config.wire_claude_settings(),
     }
 
 

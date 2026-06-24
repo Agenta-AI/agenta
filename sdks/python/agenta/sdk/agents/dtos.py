@@ -13,14 +13,23 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Tuple, Union
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
+from .connections import ModelRef, ResolvedConnection
 from .mcp import (
     MCPServerConfig,
     ResolvedMCPServer,
     mcp_servers_to_wire,
     parse_mcp_server_configs,
 )
+from .skills import SkillConfig, parse_skill_configs, skills_to_wire
 from .tools import ToolCallback, ToolConfig, ToolSpec, coerce_tool_configs
 from .tools.models import coerce_tool_spec
 
@@ -48,6 +57,96 @@ class HarnessType(str, Enum):
 # Permission policy for harness tool use in a headless run. ``auto`` approves (tools are
 # backend-resolved and trusted, no human to prompt); ``deny`` rejects.
 PermissionPolicy = Literal["auto", "deny"]
+
+
+# ---------------------------------------------------------------------------
+# Sandbox permission (Layer 2: the sandbox security boundary)
+# ---------------------------------------------------------------------------
+
+
+class NetworkEgress(BaseModel):
+    """The sandbox's outbound-network policy. ``mode`` is ``on`` (allow all egress, the
+    default), ``off`` (block all egress), or ``allowlist`` (allow only the CIDR ranges in
+    ``allowlist``). This is *declared* config; the runner enforces it on the sandbox provider
+    in a later slice."""
+
+    mode: Literal["on", "off", "allowlist"] = "on"
+    allowlist: List[str] = Field(
+        default_factory=list
+    )  # CIDR ranges; mode == "allowlist"
+
+
+class SandboxPermission(BaseModel):
+    """The sandbox security boundary an agent runs inside (authoring config, versioned).
+
+    ``network`` is the outbound-egress policy; ``filesystem`` is declared but not enforced
+    today; ``enforcement`` picks ``strict`` (fail the run when the boundary cannot be applied)
+    or ``best_effort``. Optional on :class:`AgentConfig`: an unset value never reaches the wire,
+    so existing configs are unaffected."""
+
+    network: NetworkEgress = Field(default_factory=NetworkEgress)
+    filesystem: Optional[Literal["on", "readonly", "off"]] = (
+        None  # declared, NOT enforced
+    )
+    enforcement: Literal["strict", "best_effort"] = "strict"
+
+    def to_wire(self) -> Dict[str, Any]:
+        """The nested camelCase ``sandboxPermission`` object for the ``/run`` payload. ``filesystem``
+        is dropped when unset (it is declared, not enforced) so an unset field never rides the wire."""
+        return self.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+
+# ---------------------------------------------------------------------------
+# Claude harness settings (Layer 1: the Claude harness's own permission knobs)
+# ---------------------------------------------------------------------------
+
+
+# Claude Code's four permission modes (its `permissions.defaultMode`). ``default`` prompts on
+# each gated tool, ``acceptEdits`` auto-accepts file edits, ``plan`` is read-only planning,
+# ``bypassPermissions`` skips every gate. Optional: unset leaves Claude's own default.
+ClaudePermissionMode = Literal["default", "acceptEdits", "plan", "bypassPermissions"]
+
+
+class ClaudePermissions(BaseModel):
+    """The Claude harness's own permission knobs (Layer 1), authored per-agent.
+
+    These map 1:1 to Claude Code's ``permissions`` settings block, which the Claude ACP
+    adapter reads from ``<cwd>/.claude/settings.json`` (it builds its SDK query with
+    ``settingSources: ["user", "project", "local"]``). ``default_mode`` is the harness
+    permission mode; ``allow`` / ``deny`` / ``ask`` are per-tool rule strings (e.g. ``"Read"``,
+    ``"Bash(npm run:*)"``, ``"mcp__server__tool"``). This is Claude-only: nothing here applies
+    to Pi (Pi never gates tool use). Optional on :class:`ClaudeAgentConfig`; an unset value
+    contributes no ``claudeSettings`` to the wire."""
+
+    default_mode: Optional[ClaudePermissionMode] = None
+    allow: List[str] = Field(default_factory=list)
+    deny: List[str] = Field(default_factory=list)
+    ask: List[str] = Field(default_factory=list)
+
+    def is_empty(self) -> bool:
+        """True when nothing was authored (no mode and no rules), so the wire field is omitted."""
+        return (
+            self.default_mode is None
+            and not self.allow
+            and not self.deny
+            and not self.ask
+        )
+
+    def to_wire(self) -> Dict[str, Any]:
+        """The nested camelCase ``claudeSettings`` object for the ``/run`` payload. ``defaultMode``
+        and any empty rule list are dropped so an author who sets only a subset never emits nulls
+        or empty arrays. The runner renders this (plus Layer-2-derived rules) into
+        ``<cwd>/.claude/settings.json`` before the session starts."""
+        out: Dict[str, Any] = {}
+        if self.default_mode is not None:
+            out["defaultMode"] = self.default_mode
+        if self.allow:
+            out["allow"] = list(self.allow)
+        if self.deny:
+            out["deny"] = list(self.deny)
+        if self.ask:
+            out["ask"] = list(self.ask)
+        return out
 
 
 # ---------------------------------------------------------------------------
@@ -320,10 +419,23 @@ class AgentConfig(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     instructions: Optional[str] = None
+    # ``model`` stays the back-compat plain string every caller reads and hands to a harness.
+    # ``model_ref`` is the structured provider/model/connection ref, populated only when the
+    # incoming ``model`` is structured (a dict or a ``ModelRef``); a plain string leaves it
+    # ``None`` so a string-only config's wire is byte-identical to before. See
+    # ``_split_model_ref`` and the provider-model-auth design (Concern 1).
     model: Optional[str] = None
+    model_ref: Optional[ModelRef] = None
     tools: List[ToolConfig] = Field(default_factory=list)
     mcp_servers: List[MCPServerConfig] = Field(default_factory=list)
+    skills: List[SkillConfig] = Field(default_factory=list)
     harness_options: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    sandbox_permission: Optional[SandboxPermission] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_model_ref(cls, data: Any) -> Any:
+        return _split_model_ref(data)
 
     @field_validator("tools", mode="before")
     @classmethod
@@ -334,6 +446,11 @@ class AgentConfig(BaseModel):
     @classmethod
     def _coerce_mcp_servers(cls, value: Any) -> List[MCPServerConfig]:
         return parse_mcp_server_configs(_as_list(value))
+
+    @field_validator("skills", mode="before")
+    @classmethod
+    def _coerce_skills(cls, value: Any) -> List[SkillConfig]:
+        return parse_skill_configs(_as_list(value))
 
     @classmethod
     def from_params(
@@ -357,7 +474,9 @@ class AgentConfig(BaseModel):
             model=model,
             tools=_as_list(tools),
             mcp_servers=_parse_mcp_servers_raw(params, base),
+            skills=_parse_skills_raw(params, base),
             harness_options=_parse_harness_options(params, base),
+            sandbox_permission=_parse_sandbox_permission(params, base),
         )
 
 
@@ -408,9 +527,27 @@ class HarnessAgentConfig(BaseModel):
     harness: ClassVar[HarnessType]
 
     agents_md: Optional[str] = None
+    # ``model`` stays the back-compat plain string the adapter hands to the harness.
+    # ``model_ref`` carries the structured ref when one is supplied; it is populated only from
+    # structured input (a dict / a ``ModelRef``), so a plain-string ``model`` leaves it
+    # ``None`` and the wire is unchanged. See :meth:`wire_model_ref`.
     model: Optional[str] = None
+    model_ref: Optional[ModelRef] = None
+    # ``resolved_connection`` carries the least-privilege output of a ``ConnectionResolver``
+    # (threaded down from ``SessionConfig``). It is the authoritative source of the non-secret
+    # provider/model descriptor on the wire when present; unset leaves the wire unchanged (the
+    # golden contract). Its ``env`` is the secret channel and never reaches the wire here (it
+    # rides ``secrets``). See :meth:`wire_resolved_connection`.
+    resolved_connection: Optional[ResolvedConnection] = None
     tool_callback: Optional[ToolCallback] = None
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
+    skills: List[SkillConfig] = Field(default_factory=list)
+    sandbox_permission: Optional[SandboxPermission] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_model_ref(cls, data: Any) -> Any:
+        return _split_model_ref(data)
 
     @field_validator("mcp_servers", mode="before")
     @classmethod
@@ -419,6 +556,14 @@ class HarnessAgentConfig(BaseModel):
             item
             if isinstance(item, ResolvedMCPServer)
             else ResolvedMCPServer.model_validate(item)
+            for item in value or []
+        ]
+
+    @field_validator("skills", mode="before")
+    @classmethod
+    def _coerce_skills(cls, value: Any) -> List[SkillConfig]:
+        return [
+            item if isinstance(item, SkillConfig) else SkillConfig.model_validate(item)
             for item in value or []
         ]
 
@@ -437,6 +582,69 @@ class HarnessAgentConfig(BaseModel):
         if not self.mcp_servers:
             return {}
         return {"mcpServers": mcp_servers_to_wire(self.mcp_servers)}
+
+    def wire_skills(self) -> Dict[str, Any]:
+        """The ``skills`` field for the ``/run`` payload. Skills are not tools, so they ride
+        their own seam (sibling of :meth:`wire_mcp`). Omitted when none are declared so a
+        skill-free run's payload is unchanged (the golden wire contract). Every entry is a
+        resolved inline package by the time the wire is built."""
+        if not self.skills:
+            return {}
+        return {"skills": skills_to_wire(self.skills)}
+
+    def wire_sandbox_permission(self) -> Dict[str, Any]:
+        """The ``sandboxPermission`` field for the ``/run`` payload. Omitted when unset so a
+        run without a declared boundary is unchanged (the golden wire contract). Plumbing only:
+        the runner does not enforce it yet (a later slice applies it on the sandbox provider)."""
+        if self.sandbox_permission is None:
+            return {}
+        return {"sandboxPermission": self.sandbox_permission.to_wire()}
+
+    def wire_claude_settings(self) -> Dict[str, Any]:
+        """The ``claudeSettings`` field for the ``/run`` payload. Empty by default; only the
+        Claude harness exposes its own permission knobs (``defaultMode`` / ``allow`` / ``deny`` /
+        ``ask``), so the rest of the harnesses contribute nothing here. Claude-only because Pi
+        never gates tool use."""
+        return {}
+
+    def wire_model_ref(self) -> Dict[str, Any]:
+        """The non-secret provider/connection fields for the ``/run`` payload.
+
+        Empty when ``model_ref`` is unset, so a string-only config's payload is byte-identical
+        to before (the golden wire contract). When a structured ref is present this emits only
+        the fields known at config-build time: ``provider`` (when set) and ``connection`` (when
+        it carries non-default info). ``deployment`` / ``endpoint`` / ``credentialMode`` come
+        from a :class:`ResolvedConnection`, which Slice 1 does not yet thread, so they are not
+        emitted here. The plain ``model`` string still rides the wire separately for back-compat.
+        """
+        if self.model_ref is None:
+            return {}
+        out: Dict[str, Any] = {}
+        if self.model_ref.provider:
+            out["provider"] = self.model_ref.provider
+        connection = self.model_ref.connection
+        if connection.mode != "default" or connection.slug is not None:
+            wire_connection: Dict[str, Any] = {"mode": connection.mode}
+            if connection.slug is not None:
+                wire_connection["slug"] = connection.slug
+            out["connection"] = wire_connection
+        return out
+
+    def wire_resolved_connection(self) -> Dict[str, Any]:
+        """The non-secret resolved-connection descriptor for the ``/run`` payload.
+
+        Empty when ``resolved_connection`` is unset, so a config without a resolved connection
+        is byte-identical to before (the golden wire contract). When a resolved connection is
+        present this is the AUTHORITATIVE source of the provider/model descriptor: it emits
+        ``provider``, ``model`` (the resolved exact model), ``deployment``, ``credentialMode``,
+        and ``endpoint`` (via :meth:`ResolvedConnection.to_wire`, which NEVER emits ``env``). It
+        is spread AFTER the base ``model`` and after :meth:`wire_model_ref` in
+        ``request_to_wire``, so the resolved ``provider``/``model`` win over the config-build
+        values while ``connection`` (the author's ``{mode, slug}`` intent) is preserved. The
+        secret ``env`` rides the existing ``secrets`` wire field, never here."""
+        if self.resolved_connection is None:
+            return {}
+        return self.resolved_connection.to_wire()
 
 
 class PiAgentConfig(HarnessAgentConfig):
@@ -508,11 +716,24 @@ class ClaudeAgentConfig(HarnessAgentConfig):
         validation_alias=AliasChoices("tool_specs", "custom_tools"),
     )
     permission_policy: PermissionPolicy = "auto"
+    # The Claude harness's own permission knobs (Layer 1): the author's `defaultMode` and
+    # per-tool allow/deny/ask rules. Claude-only (Pi never gates tool use); rendered by the
+    # runner into `<cwd>/.claude/settings.json`. Unset contributes no `claudeSettings`.
+    permissions: Optional[ClaudePermissions] = None
 
     @field_validator("tool_specs", mode="before")
     @classmethod
     def _coerce_tool_specs(cls, value: Any) -> List[ToolSpec]:
         return [coerce_tool_spec(item) for item in value or []]
+
+    @field_validator("permissions", mode="before")
+    @classmethod
+    def _coerce_permissions(cls, value: Any) -> Optional[ClaudePermissions]:
+        if value is None or isinstance(value, ClaudePermissions):
+            return value
+        if isinstance(value, dict):
+            return ClaudePermissions.model_validate(value)
+        return None
 
     @property
     def custom_tools(self) -> List[Dict[str, Any]]:
@@ -528,22 +749,22 @@ class ClaudeAgentConfig(HarnessAgentConfig):
             "permissionPolicy": self.permission_policy,
         }
 
+    def wire_claude_settings(self) -> Dict[str, Any]:
+        """The ``claudeSettings`` field for the ``/run`` payload. Omitted when no permissions are
+        authored (or only empty lists/no mode) so a Claude run without harness options is
+        unchanged (the golden wire contract). The runner renders it (merged with Layer-2-derived
+        rules) into ``<cwd>/.claude/settings.json`` before the session starts."""
+        if self.permissions is None or self.permissions.is_empty():
+            return {}
+        return {"claudeSettings": self.permissions.to_wire()}
+
 
 class AgentaAgentConfig(PiAgentConfig):
     """The Agenta harness's config. It *is* a Pi config (same engine, same tool delivery and
-    system-prompt layers), plus the forced ``skills`` the Agenta harness always ships.
-
-    ``skills`` are skill directory names the runner resolves against its bundled
-    ``services/agent/skills/`` root and loads into Pi's resource loader, so they appear in the
-    system prompt on every run."""
+    system-prompt layers). ``skills`` ride the inherited :meth:`wire_skills` seam as resolved
+    inline packages, not through ``wire_tools`` (skills are not tools)."""
 
     harness: ClassVar[HarnessType] = HarnessType.AGENTA
-
-    skills: List[str] = Field(default_factory=list)
-
-    def wire_tools(self) -> Dict[str, Any]:
-        # Same tool fields as Pi, plus the forced skill names the runner loads.
-        return {**super().wire_tools(), "skills": list(self.skills)}
 
 
 # ---------------------------------------------------------------------------
@@ -564,6 +785,10 @@ class SessionConfig(BaseModel):
 
     agent: AgentConfig
     secrets: Dict[str, str] = Field(default_factory=dict)
+    # ``resolved_connection`` carries the least-privilege output of a ``ConnectionResolver``.
+    # ``secrets`` is the compatibility alias for ``resolved_connection.env`` during the
+    # transition: Slice 1 still ships the credential through ``secrets`` on the wire.
+    resolved_connection: Optional[ResolvedConnection] = None
     permission_policy: PermissionPolicy = "auto"
     trace: Optional[TraceContext] = None
     session_id: Optional[str] = None
@@ -615,6 +840,34 @@ def _as_list(raw: Any) -> List[Any]:
     return []
 
 
+def _split_model_ref(data: Any) -> Any:
+    """Populate ``model_ref`` from a structured ``model`` and keep ``model`` a plain string.
+
+    Shared ``mode="before"`` validator body for :class:`AgentConfig` and
+    :class:`HarnessAgentConfig`. The lowest-risk wiring (no behavior change in Slice 1):
+
+    - ``model`` is a dict or a :class:`ModelRef` -> set ``model_ref`` from it and project
+      ``model`` to its plain ``provider/model`` string. A structured config gains a typed ref
+      and a back-compat string at once.
+    - ``model`` is a plain string (bare or ``"provider/model"``) -> leave it as-is and leave
+      ``model_ref`` ``None``. A string-only config is unchanged, so its wire stays
+      byte-identical (the golden contract).
+
+    An explicit ``model_ref`` already supplied is respected and never overwritten.
+    """
+    if not isinstance(data, dict):
+        return data
+    if data.get("model_ref") is not None:
+        return data
+    model = data.get("model")
+    if isinstance(model, (ModelRef, dict)):
+        ref = ModelRef.coerce(model)
+        data = dict(data)
+        data["model_ref"] = ref
+        data["model"] = ref.to_model_string()
+    return data
+
+
 def _parse_mcp_servers_raw(
     params: Dict[str, Any],
     defaults: AgentConfig,
@@ -628,6 +881,24 @@ def _parse_mcp_servers_raw(
     raw = source.get("mcp_servers")
     if raw is None:
         return list(defaults.mcp_servers)
+    return _as_list(raw)
+
+
+def _parse_skills_raw(
+    params: Dict[str, Any],
+    defaults: AgentConfig,
+) -> List[Any]:
+    """Pull the raw ``skills`` list from a request/config dict, falling back to defaults.
+
+    Reads ``skills`` from the ``agent`` element when present, else the flat request. Mirrors
+    the MCP path so an unparsed ``skills`` is not silently dropped; canonical validation happens
+    on :class:`AgentConfig` construction. Each entry is a concrete inline ``SkillConfig`` by the
+    time the request is built (any ``@ag.embed`` reference resolved server-side first)."""
+    agent = params.get("agent")
+    source = agent if isinstance(agent, dict) else params
+    raw = source.get("skills")
+    if raw is None:
+        return list(defaults.skills)
     return _as_list(raw)
 
 
@@ -651,6 +922,27 @@ def _parse_harness_options(
         if isinstance(opts, dict):
             options[str(name).lower()] = dict(opts)
     return options or dict(defaults.harness_options)
+
+
+def _parse_sandbox_permission(
+    params: Dict[str, Any],
+    defaults: AgentConfig,
+) -> Optional[SandboxPermission]:
+    """Pull the sandbox permission object from a request/config dict, falling back to defaults.
+
+    Reads ``sandbox_permission`` from the ``agent`` element when present, else the flat request.
+    Validates the loose dict into a :class:`SandboxPermission`; an absent value stays ``None`` so
+    it never reaches the wire (existing configs are unaffected)."""
+    agent = params.get("agent")
+    source = agent if isinstance(agent, dict) else params
+    raw = source.get("sandbox_permission")
+    if raw is None:
+        return defaults.sandbox_permission
+    if isinstance(raw, SandboxPermission):
+        return raw
+    if isinstance(raw, dict):
+        return SandboxPermission.model_validate(raw)
+    return defaults.sandbox_permission
 
 
 def _system_text(messages: Optional[List[Any]]) -> str:

@@ -17,9 +17,14 @@ import pytest
 from agenta.sdk.agents import (
     AgentaAgentConfig,
     ClaudeAgentConfig,
+    ClaudePermissions,
+    Endpoint,
     HarnessType,
     Message,
     PiAgentConfig,
+    ResolvedConnection,
+    SandboxPermission,
+    SkillConfig,
     ToolCallback,
     TraceContext,
 )
@@ -35,6 +40,11 @@ KNOWN_REQUEST_KEYS = {
     "sessionId",
     "agentsMd",
     "model",
+    "provider",
+    "connection",
+    "deployment",
+    "endpoint",
+    "credentialMode",
     "messages",
     "secrets",
     "trace",
@@ -46,6 +56,8 @@ KNOWN_REQUEST_KEYS = {
     "systemPrompt",
     "appendSystemPrompt",
     "skills",
+    "sandboxPermission",
+    "claudeSettings",
 }
 
 _CUSTOM_TOOL = {
@@ -54,10 +66,23 @@ _CUSTOM_TOOL = {
     "inputSchema": {"type": "object", "properties": {}},
     "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
     "kind": "callback",
+    "readOnly": True,
 }
 _CALLBACK = ToolCallback(
     endpoint="https://api.example/tools/call", authorization="Access tok-123"
 )
+# One resolved inline skill package (the post-embed shape that rides the wire). A bundled
+# file is included so the `files[]` wire shape (camelCase `executable`) is exercised too.
+_SKILL = {
+    "name": "release-notes",
+    "description": "Draft release notes from a changelog.",
+    "body": "Read the changelog, then write release notes.",
+    "files": [
+        {"path": "scripts/draft.py", "content": "print('draft')", "executable": True}
+    ],
+    "disable_model_invocation": True,
+    "allow_executable_files": True,
+}
 
 
 def _pi_payload():
@@ -67,6 +92,8 @@ def _pi_payload():
         builtin_tools=["read", "write"],
         custom_tools=[dict(_CUSTOM_TOOL)],
         tool_callback=_CALLBACK,
+        skills=[dict(_SKILL)],
+        sandbox_permission=SandboxPermission(network={"mode": "off"}),
         system="You are Pi.",
         append_system="Be terse.",
     )
@@ -94,6 +121,11 @@ def _claude_payload():
         custom_tools=[dict(_CUSTOM_TOOL)],
         tool_callback=_CALLBACK,
         permission_policy="deny",
+        permissions=ClaudePermissions(
+            default_mode="acceptEdits",
+            allow=["Read", "Bash(npm run:*)"],
+            deny=["WebFetch"],
+        ),
     )
     return request_to_wire(
         engine="sandbox-agent",
@@ -115,7 +147,7 @@ def _agenta_payload():
         custom_tools=[dict(_CUSTOM_TOOL)],
         tool_callback=_CALLBACK,
         append_system="You are an Agenta agent.",
-        skills=["agenta-getting-started"],
+        skills=[dict(_SKILL)],
     )
     return request_to_wire(
         engine="pi",
@@ -133,27 +165,67 @@ def test_request_to_wire_agenta_carries_skills_and_pi_shape():
     assert payload["permissionPolicy"] == "auto"
     assert payload["tools"] == ["read", "bash"]
     assert payload["appendSystemPrompt"] == "You are an Agenta agent."
-    # ...plus the forced skills the runner loads.
-    assert payload["skills"] == ["agenta-getting-started"]
+    # ...plus the resolved inline skill packages, on their own seam (not in `wire_tools`).
+    assert payload["skills"][0]["name"] == "release-notes"
+    assert payload["skills"][0]["files"][0]["path"] == "scripts/draft.py"
 
 
-def test_request_to_wire_pi_has_no_skills_key():
-    # Only the Agenta config emits `skills`; the plain Pi config must not.
-    assert "skills" not in _pi_payload()
+def test_request_to_wire_skills_ride_their_own_seam_not_tools():
+    # Skills are emitted by `wire_skills`, not folded into the tool wire.
+    config = PiAgentConfig(skills=[dict(_SKILL)])
+    assert "skills" not in config.wire_tools()
+    assert config.wire_skills() == {"skills": [SkillConfig(**_SKILL).to_wire()]}
+
+
+def test_request_to_wire_omits_skills_when_none():
+    # No declared skills -> no `skills` key (keeps a skill-free payload byte-identical).
+    payload = request_to_wire(
+        engine="pi",
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=PiAgentConfig(),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "skills" not in payload
 
 
 def test_request_to_wire_pi_matches_golden(golden):
-    assert _pi_payload() == golden("run_request.pi.json")
+    payload = _pi_payload()
+    assert payload == golden("run_request.pi.json")
+    # The Composio read-only hint rides the wire as camelCase `readOnly`.
+    assert payload["customTools"][0]["readOnly"] is True
+    # No explicit author disposition + read_only=True -> derived `allow` rides the wire.
+    assert payload["customTools"][0]["disposition"] == "allow"
+    # The declared sandbox boundary rides the wire as nested camelCase `sandboxPermission`;
+    # the unset `filesystem` is dropped (declared, not enforced) so it never appears.
+    assert payload["sandboxPermission"] == {
+        "network": {"mode": "off", "allowlist": []},
+        "enforcement": "strict",
+    }
+    # `claudeSettings` is Claude-only: a Pi config never emits it (the method is a no-op on the
+    # base, and Pi exposes no permission knobs), so the key is absent.
+    assert "claudeSettings" not in payload
 
 
 def test_request_to_wire_claude_matches_golden(golden):
     payload = _claude_payload()
     assert payload == golden("run_request.claude.json")
+    # No explicit author disposition + read_only=True -> derived `allow` rides the wire.
+    assert payload["customTools"][0]["disposition"] == "allow"
     # Claude-specific invariants the golden encodes, asserted explicitly so a failure reads clearly.
     assert payload["tools"] == []  # Claude has no Pi built-ins
     assert payload["permissionPolicy"] == "deny"  # Claude gates tool use
     assert "systemPrompt" not in payload  # Claude exposes no prompt overrides
     assert "appendSystemPrompt" not in payload
+    # No sandbox boundary declared on this config -> the key is absent (optional, default None).
+    assert "sandboxPermission" not in payload
+    # The Claude harness's own permission knobs ride the wire as nested camelCase `claudeSettings`;
+    # the author's mode + allow/deny rules are emitted (ask is absent because no `ask` was set).
+    assert payload["claudeSettings"] == {
+        "defaultMode": "acceptEdits",
+        "allow": ["Read", "Bash(npm run:*)"],
+        "deny": ["WebFetch"],
+    }
 
 
 def test_request_to_wire_has_no_prompt_key():
@@ -177,6 +249,64 @@ def test_request_to_wire_emits_only_known_keys():
     # The Pi case must actually exercise the prompt-override keys, otherwise this guard would
     # silently stop covering them.
     assert {"systemPrompt", "appendSystemPrompt"} <= set(pi)
+
+
+def test_request_to_wire_carries_resolved_connection_non_secret_descriptor():
+    # A threaded resolved connection is the authoritative provider/model descriptor: the
+    # resolved `model` overrides the config-build `model`, `provider`/`deployment`/
+    # `credentialMode`/`endpoint.baseUrl` ride the wire, and the secret `key` NEVER does (it
+    # rides `secrets`; `env` is masked from the wire by `ResolvedConnection.to_wire`).
+    config = PiAgentConfig(
+        model="openai/gpt-5.5",  # the config-build model
+        resolved_connection=ResolvedConnection(
+            provider="openai",
+            model="gpt-5.5-2026",  # the resolved EXACT model, wins over `model`
+            deployment="custom",
+            credential_mode="env",
+            env={"OPENAI_API_KEY": "sk-secret"},  # secret channel; never on the wire
+            endpoint=Endpoint(base_url="https://gw.example/v1"),
+        ),
+    )
+    payload = request_to_wire(
+        engine="pi",
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+        secrets={"OPENAI_API_KEY": "sk-secret"},  # the secret rides here, by design
+    )
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["provider"] == "openai"
+    assert payload["credentialMode"] == "env"
+    assert payload["deployment"] == "custom"
+    assert payload["endpoint"] == {"baseUrl": "https://gw.example/v1"}
+    # Exactly one `model` key, and it is the resolved exact model (last spread wins).
+    assert payload["model"] == "gpt-5.5-2026"
+    # The secret only rides `secrets`; `env` is never serialized onto the wire.
+    assert payload["secrets"] == {"OPENAI_API_KEY": "sk-secret"}
+    assert "env" not in payload
+    assert (
+        "sk-secret" not in {k: v for k, v in payload.items() if k != "secrets"}.values()
+    )
+
+
+def test_request_to_wire_omits_resolved_connection_when_none():
+    # No resolved connection -> no resolved-connection keys, so a config without one is
+    # byte-identical to before (the golden contract; the golden fixtures set none).
+    config = PiAgentConfig(model="gpt-5.5")
+    payload = request_to_wire(
+        engine="pi",
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    assert config.wire_resolved_connection() == {}
+    assert "provider" not in payload
+    assert "credentialMode" not in payload
+    assert "deployment" not in payload
+    assert "endpoint" not in payload
+    assert payload["model"] == "gpt-5.5"
 
 
 def test_pi_permission_policy_is_always_auto():
@@ -299,3 +429,79 @@ def test_request_to_wire_omits_mcp_servers_when_none():
         messages=[Message(role="user", content="hi")],
     )
     assert "mcpServers" not in payload
+
+
+def test_request_to_wire_omits_sandbox_permission_when_none():
+    # No declared boundary -> no `sandboxPermission` key (keeps a boundary-free payload
+    # byte-identical, so existing configs/fixtures are unaffected).
+    payload = request_to_wire(
+        engine="pi",
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=PiAgentConfig(),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "sandboxPermission" not in payload
+
+
+def test_request_to_wire_omits_claude_settings_when_none():
+    # No authored permissions on a Claude config -> no `claudeSettings` key (a Claude run
+    # without harness options is byte-identical, so existing configs/fixtures are unaffected).
+    payload = request_to_wire(
+        engine="sandbox-agent",
+        harness=HarnessType.CLAUDE,
+        sandbox="local",
+        config=ClaudeAgentConfig(),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "claudeSettings" not in payload
+
+
+def test_request_to_wire_omits_claude_settings_when_empty():
+    # Authored-but-empty permissions (no mode, all lists empty) -> still omitted, so an empty
+    # author bag never emits nulls or empty arrays on the wire.
+    payload = request_to_wire(
+        engine="sandbox-agent",
+        harness=HarnessType.CLAUDE,
+        sandbox="local",
+        config=ClaudeAgentConfig(permissions=ClaudePermissions()),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "claudeSettings" not in payload
+
+
+def test_claude_permissions_to_wire_drops_mode_and_empty_lists():
+    # The serializer drops `defaultMode` when unset and any empty allow/deny/ask list, so only
+    # the authored fields appear (camelCase aliases).
+    perms = ClaudePermissions(deny=["Write", "Edit"])
+    assert perms.to_wire() == {"deny": ["Write", "Edit"]}
+    full = ClaudePermissions(
+        default_mode="plan", allow=["Read"], deny=["Bash"], ask=["WebFetch"]
+    )
+    assert full.to_wire() == {
+        "defaultMode": "plan",
+        "allow": ["Read"],
+        "deny": ["Bash"],
+        "ask": ["WebFetch"],
+    }
+
+
+def test_request_to_wire_carries_sandbox_permission_allowlist():
+    # The allowlist mode rides the wire with its CIDR ranges and the default enforcement.
+    config = PiAgentConfig(
+        sandbox_permission=SandboxPermission(
+            network={"mode": "allowlist", "allowlist": ["10.0.0.0/8"]},
+        )
+    )
+    payload = request_to_wire(
+        engine="pi",
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["sandboxPermission"] == {
+        "network": {"mode": "allowlist", "allowlist": ["10.0.0.0/8"]},
+        "enforcement": "strict",
+    }

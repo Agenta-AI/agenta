@@ -115,6 +115,40 @@ def test_from_params_coerces_single_tool_dict_to_list():
     assert config.tools == [BuiltinToolConfig(name="solo")]
 
 
+# ------------------------------------------------------------------- skills
+
+
+_SKILL = {
+    "name": "release-notes",
+    "description": "Draft release notes.",
+    "body": "Read the changelog.",
+}
+
+
+def test_from_params_parses_skills_from_agent_element():
+    config = AgentConfig.from_params({"agent": {"skills": [dict(_SKILL)]}})
+    assert [s.name for s in config.skills] == ["release-notes"]
+
+
+def test_from_params_parses_skills_from_flat_request():
+    config = AgentConfig.from_params({"skills": [dict(_SKILL)]})
+    assert [s.name for s in config.skills] == ["release-notes"]
+
+
+def test_from_params_skills_default_empty():
+    # An absent `skills` is not silently dropped into a default it never had; it is just empty.
+    config = AgentConfig.from_params({"agent": {"instructions": "I"}})
+    assert config.skills == []
+
+
+def test_from_params_skills_falls_back_to_defaults_when_absent():
+    defaults = AgentConfig(skills=[dict(_SKILL)])
+    config = AgentConfig.from_params(
+        {"agent": {"instructions": "I"}}, defaults=defaults
+    )
+    assert [s.name for s in config.skills] == ["release-notes"]
+
+
 def test_harness_options_drops_malformed_and_lowercases_keys():
     config = AgentConfig.from_params(
         {

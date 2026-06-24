@@ -120,6 +120,7 @@ class WorkflowArtifactFlags(BaseModel):
     is_application: bool = False
     is_evaluator: bool = False
     is_snippet: bool = False
+    is_skill: bool = False
 
 
 class WorkflowVariantFlags(WorkflowArtifactFlags):
@@ -153,6 +154,7 @@ class WorkflowArtifactQueryFlags(BaseModel):
     is_application: Optional[bool] = None
     is_evaluator: Optional[bool] = None
     is_snippet: Optional[bool] = None
+    is_skill: Optional[bool] = None
 
 
 class WorkflowVariantQueryFlags(WorkflowArtifactQueryFlags):
@@ -197,6 +199,7 @@ class WorkflowCatalogFlags(BaseModel):
     is_application: bool = False
     is_evaluator: bool = False
     is_snippet: bool = False
+    is_skill: bool = False
 
 
 # workflows --------------------------------------------------------------------

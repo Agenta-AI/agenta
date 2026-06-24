@@ -77,7 +77,12 @@ content, if that is still true). Keep the edit narrow and code-backed.
 
 ### F-003 No author-facing way to add a custom skill (with or without code)
 
-**Status:** open
+**Status:** resolved (2026-06-24, skills-config). The neutral config now carries an
+author-supplied `SkillConfig` in the `skills` field, inline or via `@ag.embed`; the runner
+materializes it for Pi. Verified live by the skill-invocation scenario (see `matrix.md`,
+"Live run results — skill invocation"): the `weather-oracle` skill, supplied by the author
+both inline and by embed reference, was surfaced and invoked (token `SKILL-LOADED-7Q42-OK`).
+Residuals tracked separately: F-014 (embed reference shape), F-015 (silent drop on Claude).
 **Severity:** major
 **Triage:** escalate (product surface: needs a config field and a delivery decision)
 **Added:** 2026-06-20
@@ -401,6 +406,83 @@ wrongly implied the issue was Pi-specific when the issue was in the shared runne
 **Resolution.** The deployable service is now `sandbox-agent`, and the services container
 uses `AGENTA_AGENT_RUNNER_URL` for the service-to-runner URL. Runner provider settings moved
 to `SANDBOX_AGENT_*` env vars on the runner service.
+
+### F-014 Skill embed via `workflow_revision` bare slug 500s; reference at the artifact level
+
+**Status:** resolved (2026-06-24). Fixed by referencing skills at the artifact level
+(`@ag.references{workflow.slug}`, latest revision) in the seeded default config and the
+proposal docs; a no-version bare-slug fallback in the shared embed resolver is the deferred
+option (logged, not done — to avoid blast radius on shared embed resolution).
+**Severity:** major (the seeded default skill never loaded; documented pattern was broken)
+**Triage:** fix-now (done) + defer (optional resolver fallback)
+**Added:** 2026-06-24
+**Commit:** 670491fee0 (branch `gitbutler/workspace`)
+**Found in:** E2 sandbox-agent local, harness `agenta`, capability skill invocation (embed
+variant), trigger `What's the weather like today?`
+**Source:** live E2E run, `skills-config/build-notes.md`; root-caused in
+`api/oss/src/core/embeds/utils.py` (`_resolve_revision_with_normalization`) and
+`services/oss/src/agent/schemas.py` (the seeded `_DEFAULT_AGENT_CONFIG`)
+
+**The problem.** Embedding a skill with a `workflow_revision` reference that carries a bare
+artifact slug and no version returns HTTP 500 deterministically (~0.02s, not the LLM):
+
+```
+oss.src.core.embeds.exceptions.EmbedNotFoundError: Referenced entity not found:
+  Workflow revision not found: version=None slug='weather-oracle-e2e' id=None
+```
+
+A `workflow_revision` slug is matched against the revision's **own** slug, which is a content
+hash (`6ab8cf001ea2`), not the author-facing artifact slug (`weather-oracle-e2e`).
+`_resolve_revision_with_normalization` only normalizes a slug to a revision when a `version`
+is also supplied (both normalization branches require `ref.version`). With a bare `{slug}` and
+no version, nothing matches and it raises `EmbedNotFoundError`, surfaced as a 500 from
+`/api/workflows/revisions/resolve`.
+
+**Why it matters.** The seeded `_DEFAULT_AGENT_CONFIG` referenced its default skill via
+`{"workflow_revision": {"slug": "agenta-getting-started"}}`, the exact broken shape, so the
+default agent's forced skill never loaded (confirmed live, HTTP 500). The proposal documented
+the same no-version pattern. The artifact-level reference resolves cleanly:
+`@ag.references{workflow.slug}` resolves to the latest revision and the token appeared in the
+reply (Test 2, embed variant — PASS).
+
+**Repro.** `POST /services/agent/v0/invoke` with a skill embed
+`{"@ag.embed":{"@ag.references":{"workflow_revision":{"slug":"weather-oracle-e2e"}},"@ag.selector":{"path":"parameters.skill"}}}`
+(no version) returns 500. The same embed with `{"workflow":{"slug":"weather-oracle-e2e"}}`
+returns 200 and the skill loads. Payloads: `req_test2_embed.json` (fails),
+`req_test2_default.json` (seeded default, fails), `req_test2_artifact.json` (passes).
+
+**What was done.** Referenced skills at the artifact level in the seeded default and docs;
+version pinning stays available via `{"workflow_revision": {"slug", "version"}}`. Deferred: an
+optional no-version bare-slug to latest-revision fallback in the shared embed resolver, left
+out to avoid changing shared embed resolution for a case the artifact-level reference already
+covers.
+
+### F-015 Claude harness drops skills silently (no warning) on the non-Pi path
+
+**Status:** resolved (2026-06-24, warning added at the adapter boundary; coordinate final
+wording with the fix). Was: the drop happened with no log line at all.
+**Severity:** minor (observability; the drop itself is by design)
+**Triage:** fix-now (done)
+**Added:** 2026-06-24
+**Commit:** 670491fee0 (branch `gitbutler/workspace`)
+**Found in:** E2 sandbox-agent local, harness `claude`, capability skill invocation
+**Source:** `services/agent/src/engines/sandbox_agent/run-plan.ts:165`
+(`const { skills } = isPi ? resolveSkillDirs(...) : { skills: [], cleanup: noop }`); confirmed
+live by timestamps (the Claude run carried no `[sandbox-agent] skills:` log line)
+
+**The problem.** The runner materializes skills only for Pi. For a non-Pi acpAgent (Claude),
+skills are dropped by design — the Claude SDK path cannot load a `SKILL.md`. That part is
+correct. But the drop happened with **no warning logged**, so a user who configures skills and
+selects Claude gets a silent no-op (the same silent-drop class as F-001/F-007/F-012). The
+Claude run here also failed at session creation on a missing `anthropic` provider key (no
+`anthropic` key in the resolving project), so the token would be absent regardless, but the
+missing warning is the real gap.
+
+**Why it matters.** Skills configured on a Claude agent vanish with no signal. The proposal
+already calls for the Claude adapter to log-and-drop; live, only the drop happened.
+
+**What was done.** A visible warning is emitted at the adapter boundary when skills are dropped
+on a non-Pi harness. Mark resolved once the warning wording lands with the skills-config fix.
 
 ## How to add a finding during a run
 

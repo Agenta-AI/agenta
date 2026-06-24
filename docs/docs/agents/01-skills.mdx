@@ -1,0 +1,125 @@
+---
+title: "Agent Skills"
+sidebar_label: "Skills"
+description: "Give an Agenta agent reusable, on-demand instructions and bundled files through skills."
+---
+
+A skill is a reusable unit of instructions you attach to an agent. Each skill has a name, a description, and a Markdown body. The agent loads the skill and the model invokes it when the description matches the task at hand.
+
+Think of a skill as a small expert the agent calls on when it needs to. A skill for writing SQL stays out of the way until the user asks a database question. Then the model reads the skill body and follows it.
+
+## How a skill is loaded
+
+A skill follows the `SKILL.md` format: name and description in the header, and a Markdown body that holds the actual instructions. A skill can also ship bundled files, such as scripts or reference docs.
+
+Agents use progressive disclosure. Only the name and description of each skill stay in the model's context at all times. The model reads the full body, and any bundled files, only when it decides the skill applies. This keeps the context small even when an agent carries many skills.
+
+The description is the trigger. Write it so the model knows exactly when to reach for the skill. "Use this when the user asks about the weather" is a good description. "Weather stuff" is not.
+
+## Add a skill
+
+You add a skill to the agent's `skills` list. There are two ways to do it.
+
+### Write a skill inline
+
+Write the skill directly in the agent config. You provide the name, the description, and the body.
+
+```json
+{
+  "name": "weather-oracle",
+  "description": "Use this whenever the user asks about the weather in a city.",
+  "body": "When the user asks about the weather, call the forecast service and report the temperature in Celsius. Keep the answer to one sentence."
+}
+```
+
+The name must be lowercase letters, digits, and single hyphens, up to 64 characters.
+
+### Reference a stored skill
+
+You can also store a skill as a versioned workflow and reference it from many agents. This keeps one copy of the skill and lets you update it in one place.
+
+Reference the skill with an `@ag.embed` object in the `skills` list:
+
+```json
+{
+  "@ag.embed": {
+    "@ag.references": {"workflow": {"slug": "weather-oracle"}},
+    "@ag.selector": {"path": "parameters.skill"}
+  }
+}
+```
+
+The reference resolves on the server before the agent runs. The agent only ever sees the resolved skill, never the reference.
+
+A bare `workflow` reference resolves to the latest revision of the skill. To pin a specific version, reference the revision and pass a version:
+
+```json
+{
+  "@ag.embed": {
+    "@ag.references": {"workflow_revision": {"slug": "weather-oracle", "version": "v3"}},
+    "@ag.selector": {"path": "parameters.skill"}
+  }
+}
+```
+
+## Add a skill in the playground
+
+1. Open an agent in the playground.
+2. Find the **Skills** section in the agent config. It sits below **MCP servers**.
+3. Click **Add skill**.
+4. Fill in the name, description, and body.
+
+The playground edits each skill as JSON. An inline skill and an `@ag.embed` reference both work in the same editor.
+
+## The default skill
+
+Every project starts with one skill already attached: `agenta-getting-started`. The default agent config references it for you.
+
+This skill is locked. You cannot edit it or delete it. It ships with the project so a new agent has a working example from the first run.
+
+## Bundle files with a skill
+
+A skill can carry files alongside its body, such as a helper script or a reference document. You add them as a `files` list. Each file has a relative `path` and inline text `content`.
+
+```json
+{
+  "name": "report-builder",
+  "description": "Use this when the user asks for a sales report.",
+  "body": "Run scripts/build_report.py with the requested month.",
+  "files": [
+    {
+      "path": "scripts/build_report.py",
+      "content": "print('build the report here')",
+      "executable": false
+    }
+  ]
+}
+```
+
+Executable files are off by default. A file runs only when its `executable` flag is set, the skill sets `allow_executable_files`, and the sandbox policy allows execution. This is a safety default. A skill carries author-supplied content, and a script the model can run is a wider surface than a typed tool. Keep executable files off unless you trust the skill and the sandbox allows it.
+
+## Harness support
+
+Skills load on Pi-based harnesses (the `pi` and `agenta` harnesses). The agent reads the `SKILL.md` and surfaces the skill to the model.
+
+The Claude SDK harness does not load `SKILL.md`. On that harness the agent drops any attached skills and logs a warning. Plan for this if you target Claude. Your skills will not run there.
+
+## Example
+
+A complete `skills` list with one inline skill and one reference:
+
+```json
+"skills": [
+  {
+    "name": "weather-oracle",
+    "description": "Use this whenever the user asks about the weather in a city.",
+    "body": "When the user asks about the weather, report the temperature in Celsius in one sentence."
+  },
+  {
+    "@ag.embed": {
+      "@ag.references": {"workflow": {"slug": "sql-helper"}},
+      "@ag.selector": {"path": "parameters.skill"}
+    }
+  }
+]
+```

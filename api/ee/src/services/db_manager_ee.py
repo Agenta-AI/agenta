@@ -456,6 +456,7 @@ async def create_workspace_db_object(
     # Import here to avoid circular import at module load time
     from oss.src.core.evaluators.defaults import create_default_evaluators
     from oss.src.core.environments.defaults import create_default_environments
+    from oss.src.core.workflows.defaults import create_default_skills
 
     await create_default_evaluators(
         project_id=project_db.id,
@@ -465,6 +466,17 @@ async def create_workspace_db_object(
         project_id=project_db.id,
         user_id=user.id,
     )
+    try:
+        await create_default_skills(
+            project_id=project_db.id,
+            user_id=user.id,
+        )
+    except Exception:
+        log.warning(
+            "Default skill seeding failed; continuing",
+            project_id=str(project_db.id),
+            exc_info=True,
+        )
 
     if return_wrk_prj:
         return workspace, project_db

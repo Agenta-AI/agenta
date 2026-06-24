@@ -14,7 +14,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
@@ -34,7 +34,8 @@ function tempDir(prefix: string): string {
 }
 
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  for (const dir of dirs.splice(0))
+    rmSync(dir, { recursive: true, force: true });
 });
 
 describe("buildPiExtensionEnv", () => {
@@ -50,7 +51,10 @@ describe("buildPiExtensionEnv", () => {
         {
           name: "safe_tool",
           description: "safe",
-          inputSchema: { type: "object", properties: { x: { type: "string" } } },
+          inputSchema: {
+            type: "object",
+            properties: { x: { type: "string" } },
+          },
           callRef: "server-secret-ref",
           env: { SECRET: "do-not-expose" },
           kind: "callback",
@@ -91,7 +95,8 @@ describe("buildPiExtensionEnv", () => {
     const env = buildPiExtensionEnv(
       {
         trace: {
-          traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+          traceparent:
+            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
         },
         customTools: [{ name: "safe_tool", kind: "callback" }],
       } as AgentRunRequest,
@@ -111,27 +116,39 @@ describe("writeSystemPromptLocal", () => {
     writeSystemPromptLocal(dir, "system text", "append text");
 
     assert.equal(readFileSync(join(dir, "SYSTEM.md"), "utf-8"), "system text");
-    assert.equal(readFileSync(join(dir, "APPEND_SYSTEM.md"), "utf-8"), "append text");
+    assert.equal(
+      readFileSync(join(dir, "APPEND_SYSTEM.md"), "utf-8"),
+      "append text",
+    );
   });
 });
 
 describe("prepareLocalAgentDir", () => {
-  it("seeds auth/settings and installs forced skills into a throwaway dir", () => {
+  it("seeds auth/settings and installs materialized skills into a throwaway dir", () => {
     const source = tempDir("agenta-pi-source-test-");
-    writeFileSync(join(source, "auth.json"), "{\"token\":\"x\"}", "utf-8");
-    writeFileSync(join(source, "settings.json"), "{\"model\":\"gpt\"}", "utf-8");
+    writeFileSync(join(source, "auth.json"), '{"token":"x"}', "utf-8");
+    writeFileSync(join(source, "settings.json"), '{"model":"gpt"}', "utf-8");
 
     const skill = tempDir("agenta-pi-skill-test-");
     writeFileSync(join(skill, "SKILL.md"), "---\nname: skill\n---\n", "utf-8");
 
-    const runDir = prepareLocalAgentDir(source, [skill]);
+    const runDir = prepareLocalAgentDir(source, [
+      { name: "skill", dir: skill },
+    ]);
     dirs.push(runDir);
 
     assert.notEqual(runDir, source);
-    assert.equal(readFileSync(join(runDir, "auth.json"), "utf-8"), "{\"token\":\"x\"}");
-    assert.equal(readFileSync(join(runDir, "settings.json"), "utf-8"), "{\"model\":\"gpt\"}");
     assert.equal(
-      readFileSync(join(runDir, "skills", basename(skill), "SKILL.md"), "utf-8"),
+      readFileSync(join(runDir, "auth.json"), "utf-8"),
+      '{"token":"x"}',
+    );
+    assert.equal(
+      readFileSync(join(runDir, "settings.json"), "utf-8"),
+      '{"model":"gpt"}',
+    );
+    // The dest dir is named by the skill's `name`, not the (throwaway) source dir basename.
+    assert.equal(
+      readFileSync(join(runDir, "skills", "skill", "SKILL.md"), "utf-8"),
       "---\nname: skill\n---\n",
     );
   });
@@ -143,9 +160,11 @@ describe("sandbox uploads", () => {
     mkdirSync(join(root, "nested"));
     writeFileSync(join(root, "top.txt"), "top", "utf-8");
     writeFileSync(join(root, "nested", "child.txt"), "child", "utf-8");
-    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> = [];
+    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> =
+      [];
     const sandbox = {
-      mkdirFs: async ({ path }: { path: string }) => calls.push({ op: "mkdir", path }),
+      mkdirFs: async ({ path }: { path: string }) =>
+        calls.push({ op: "mkdir", path }),
       writeFsFile: async ({ path }: { path: string }, body: string) =>
         calls.push({ op: "write", path, body }),
     };
@@ -155,12 +174,16 @@ describe("sandbox uploads", () => {
     assert.deepEqual(calls, [
       { op: "mkdir", path: "/agent/skills/custom" },
       { op: "mkdir", path: "/agent/skills/custom/nested" },
-      { op: "write", path: "/agent/skills/custom/nested/child.txt", body: "child" },
+      {
+        op: "write",
+        path: "/agent/skills/custom/nested/child.txt",
+        body: "child",
+      },
       { op: "write", path: "/agent/skills/custom/top.txt", body: "top" },
     ]);
   });
 
-  it("uploads each forced skill under the Pi skills directory", async () => {
+  it("uploads each materialized skill under the Pi skills directory", async () => {
     const skill = tempDir("agenta-pi-skill-upload-test-");
     writeFileSync(join(skill, "SKILL.md"), "skill", "utf-8");
     const written: string[] = [];
@@ -169,9 +192,12 @@ describe("sandbox uploads", () => {
       writeFsFile: async ({ path }: { path: string }) => written.push(path),
     };
 
-    await uploadSkillsToSandbox(sandbox, "/agent", [skill]);
+    await uploadSkillsToSandbox(sandbox, "/agent", [
+      { name: "release-notes", dir: skill },
+    ]);
 
     assert.equal(existsSync(skill), true);
-    assert.deepEqual(written, [`/agent/skills/${basename(skill)}/SKILL.md`]);
+    // The sandbox dest dir is named by the skill's `name`.
+    assert.deepEqual(written, ["/agent/skills/release-notes/SKILL.md"]);
   });
 });

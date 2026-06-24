@@ -24,6 +24,9 @@ _EMBEDS_ERROR_POLICY = "exception"
 
 # The embed marker key used in configuration dicts
 _AG_EMBED_MARKER = "@ag.embed"
+# The snippet-embed shorthand the backend resolver also resolves (see
+# `api/oss/src/core/embeds/utils.py` `find_snippet_embeds`): `@{{ ... }}` inside a string value.
+_AG_SNIPPET_MARKER = "@{{"
 
 
 def _raise_bad_request(message: str) -> None:
@@ -79,10 +82,12 @@ def _validate_executable_reference_families(refs: Dict[str, Any]) -> None:
 
 
 def _has_embed_markers(config: Any, _depth: int = 0) -> bool:
-    """Check if a configuration contains any @ag.embed markers.
+    """Check if a configuration contains any embed markers.
 
-    Traverses the config recursively to detect object embeds (dict keys)
-    or string embeds (substring tokens).
+    Traverses the config recursively to detect object embeds (the ``@ag.embed`` dict key),
+    ``@ag.embed[...]`` string tokens, and ``@{{...}}`` snippet shorthand. The backend resolver
+    resolves all three, so the gate must trigger on any of them — otherwise a config that
+    references a skill (or a prompt) only via snippet shorthand would skip resolution.
 
     Args:
         config: Configuration value to inspect
@@ -103,7 +108,7 @@ def _has_embed_markers(config: Any, _depth: int = 0) -> bool:
         return any(_has_embed_markers(item, _depth + 1) for item in config)
 
     if isinstance(config, str):
-        return _AG_EMBED_MARKER in config
+        return _AG_EMBED_MARKER in config or _AG_SNIPPET_MARKER in config
 
     return False
 
@@ -570,20 +575,36 @@ class ResolverMiddleware:
             _merge_tracing_selector(retrieval_selector)
             revision = hydrated_revision or existing_revision
 
+        if not request.data:
+            request.data = WorkflowRequestData()
+
+        # The effective parameters are the ones that will actually drive the handler: inline
+        # `request.data.parameters` when present, else the revision's. Resolving embeds here
+        # (rather than only on `revision.parameters`) covers the inline path the playground
+        # hits when it runs an unsaved config — `revision` is None there, so the old block was
+        # skipped. The embed resolver already walks arrays, so an `@ag.embed` inside
+        # `parameters.skills[i]` resolves on both paths.
+        if revision and not request.data.parameters:
+            # NOTE: this aliases `request.data.parameters` and `revision.parameters` to the same
+            # object. That is fine here: the embed block below reassigns BOTH to the freshly
+            # resolved dict (so they don't diverge), and on the no-embed path neither is mutated.
+            request.data.parameters = revision.parameters
+
         # Resolve embeds in parameters if enabled (via flags.resolve)
         resolve_flag = (request.flags or {}).get("resolve", True)
         if (
             resolve_flag
-            and revision
-            and revision.parameters
-            and _has_embed_markers(revision.parameters)
+            and request.data.parameters
+            and _has_embed_markers(request.data.parameters)
         ):
             try:
                 resolved_params = await resolve_embeds(
-                    parameters=revision.parameters,
+                    parameters=request.data.parameters,
                     credentials=ctx.credentials or request.credentials,
                 )
-                revision.parameters = resolved_params
+                request.data.parameters = resolved_params
+                if revision:
+                    revision.parameters = resolved_params
             except Exception:
                 raise
 
@@ -595,12 +616,6 @@ class ResolverMiddleware:
             else None
         )
         ctx.handler = handler
-
-        if not request.data:
-            request.data = WorkflowRequestData()
-
-        if revision:
-            request.data.parameters = request.data.parameters or revision.parameters
 
         TracingContext.get().parameters = request.data.parameters
 
