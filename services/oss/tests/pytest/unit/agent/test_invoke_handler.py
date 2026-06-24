@@ -180,11 +180,12 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
     assert agenta_wire["permissionPolicy"] == "auto"
     assert "skills" not in agenta_wire
 
-    # Skills ride the dedicated `wire_skills` seam. Pi and Agenta load them; Claude's SDK path
-    # cannot, so it logs-and-drops (graceful degrade), emitting no skills.
+    # Skills ride the dedicated `wire_skills` seam. All three harnesses carry the resolved
+    # inline package: Pi/Agenta load it into the resource loader, and the runner materializes
+    # it for Claude under `.claude/skills/<name>` (project-local skill layout).
     assert pi_cfg.wire_skills()["skills"][0]["name"] == "release-notes"
     assert agenta_cfg.wire_skills()["skills"][0]["name"] == "release-notes"
-    assert claude_cfg.wire_skills() == {}
+    assert claude_cfg.wire_skills()["skills"][0]["name"] == "release-notes"
 
     # The configs genuinely differ at the boundary; the body's sameness is not a tautology.
     assert pi_wire != claude_wire
