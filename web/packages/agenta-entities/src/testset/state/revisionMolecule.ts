@@ -81,6 +81,7 @@ import {
     enableRevisionsListQueryAtom,
     latestRevisionForTestsetAtomFamily,
     invalidateRevisionsListCache,
+    setRevisionsListCache,
 } from "./store"
 
 // ============================================================================
