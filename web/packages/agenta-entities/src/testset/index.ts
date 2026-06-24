@@ -38,6 +38,7 @@
 export {
     revisionMolecule,
     invalidateRevisionsListCache,
+    setRevisionsListCache,
     type RevisionMolecule,
 } from "./state/revisionMolecule"
 

@@ -80,7 +80,7 @@ const tests = () => {
                 // mode violation.
                 await page
                     .locator(".ant-modal")
-                    .filter({hasText: "Archive prompt?"})
+                    .filter({hasText: "Archive app"})
                     .waitFor({state: "hidden", timeout: 15000})
             })
 

@@ -355,6 +355,9 @@ const createHumanEvaluatorFromDrawer = async (
     await nameInput.fill(evaluatorName)
     await expect(nameInput).toHaveValue(evaluatorName)
 
+    const slugInput = drawer.locator('input[placeholder="Enter a unique slug"]').first()
+    await expect(slugInput).toHaveValue(evaluatorName, {timeout: 5000})
+
     // Fill in the feedback name (the first metric row)
     const feedbackNameInput = drawer
         .locator(`input[placeholder="${HUMAN_EVALUATOR_FEEDBACK_NAME_PLACEHOLDER}"]`)
