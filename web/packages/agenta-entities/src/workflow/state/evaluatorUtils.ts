@@ -924,6 +924,7 @@ export async function createEvaluatorFromTemplate(templateKey: string): Promise<
             is_match: false,
             is_feedback: false,
             is_chat: false,
+            is_agent: false,
             has_url: false,
             has_script: false,
             has_handler: false,

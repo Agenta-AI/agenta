@@ -261,6 +261,8 @@ export {
     outputPortSchemaMapAtom,
     // App-level mode selectors
     isChatModeAtom,
+    // Per-entity agent-mode flag
+    isAgentModeAtomFamily,
     appTypeAtom,
     type AppType,
     // Row run status
@@ -347,3 +349,6 @@ export {
     // Schema input keys
     schemaInputKeysAtom,
 } from "./displayedEntities"
+
+// Agent-lane request builder (bypasses buffered-fetch execution; useChat streams).
+export {buildAgentRequest, buildAgentReferences, type AgentRequest} from "./agentRequest"

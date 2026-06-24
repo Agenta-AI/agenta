@@ -1,21 +1,39 @@
 import {useCallback, useMemo} from "react"
 
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {CaretDown, CaretUp, SidebarSimple} from "@phosphor-icons/react"
+import {CaretDown, CaretUp, ChatCenteredDots, SidebarSimple} from "@phosphor-icons/react"
 import {Button, Tag, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import {isAgentChatSliceEnabled} from "@/oss/components/AgentChatSlice/assets/constants"
+import {useAppNavigation} from "@/oss/state/appState"
 import {filteredSessionIdsAtom} from "@/oss/state/newObservability"
+import {urlAtom} from "@/oss/state/url"
 import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
 
 import useSessionDrawer from "../../hooks/useSessionDrawer"
-import {isAnnotationVisibleAtom} from "../../store/sessionDrawerStore"
+import {closeSessionDrawerAtom, isAnnotationVisibleAtom} from "../../store/sessionDrawerStore"
 
 const SessionHeader = () => {
     const {sessionId} = useSessionDrawer()
     const [isAnnotationVisible, setIsAnnotationVisible] = useAtom(isAnnotationVisibleAtom)
     const sessionIds = useAtomValue(filteredSessionIdsAtom)
     const openSessionDrawer = useSetAtom(openSessionDrawerWithUrlAtom)
+    const url = useAtomValue(urlAtom)
+    const navigation = useAppNavigation()
+    const closeSessionDrawer = useSetAtom(closeSessionDrawerAtom)
+
+    // Open this session in the agent-chat surface. Gated on the slice being enabled and an app
+    // context (the agent-chat route is app-scoped); the page reconstructs the conversation from
+    // localStorage (or the server seam) via the `?session=` param.
+    const canOpenInAgentChat = isAgentChatSliceEnabled() && Boolean(url.appId) && Boolean(sessionId)
+    const handleOpenInAgentChat = useCallback(() => {
+        if (!canOpenInAgentChat) return
+        navigation.push(
+            `${url.baseAppURL}/${url.appId}/agent-chat?session=${encodeURIComponent(sessionId || "")}`,
+        )
+        closeSessionDrawer()
+    }, [canOpenInAgentChat, navigation, url.baseAppURL, url.appId, sessionId, closeSessionDrawer])
 
     const currentIndex = useMemo(() => {
         if (!sessionId || !sessionIds) return -1
@@ -63,14 +81,25 @@ const SessionHeader = () => {
                 </TooltipWithCopyAction>
             </div>
 
-            <Button
-                size="small"
-                type={!isAnnotationVisible ? "primary" : "default"}
-                icon={<SidebarSimple size={14} />}
-                onClick={() => setIsAnnotationVisible(!isAnnotationVisible)}
-            >
-                {!isAnnotationVisible ? "Show" : "Hide"} annotations
-            </Button>
+            <div className="flex items-center gap-2">
+                {canOpenInAgentChat && (
+                    <Button
+                        size="small"
+                        icon={<ChatCenteredDots size={14} />}
+                        onClick={handleOpenInAgentChat}
+                    >
+                        Open in agent chat
+                    </Button>
+                )}
+                <Button
+                    size="small"
+                    type={!isAnnotationVisible ? "primary" : "default"}
+                    icon={<SidebarSimple size={14} />}
+                    onClick={() => setIsAnnotationVisible(!isAnnotationVisible)}
+                >
+                    {!isAnnotationVisible ? "Show" : "Hide"} annotations
+                </Button>
+            </div>
         </div>
     )
 }

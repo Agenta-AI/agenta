@@ -4,6 +4,7 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {executionController} from "@agenta/playground"
 import {useAtomValue} from "jotai"
 
+import {usePlaygroundUIOptional} from "../../context/PlaygroundUIContext"
 import type {ExecutionHeaderProps} from "../ExecutionHeader"
 import ExecutionHeader from "../ExecutionHeader"
 
@@ -39,9 +40,16 @@ const PlaygroundGenerations: React.FC<PlaygroundGenerationsProps> = ({
 }) => {
     // Use app-level chat mode detection (first revision) for rendering mode
     const isChat = useAtomValue(useMemo(() => executionController.selectors.isChatMode, []))
+    // Per-entity agent detection — NOT app-scoped, so a mixed comparison grid
+    // routes each entity by its own type (an app-scoped flag would misroute).
+    const isAgent = useAtomValue(
+        useMemo(() => executionController.selectors.isAgentMode(entityId), [entityId]),
+    )
     const runnableQuery = useAtomValue(
         useMemo(() => workflowMolecule.selectors.query(entityId), [entityId]),
     )
+    // Agent surface is injected from OSS (package can't import the app layer).
+    const AgentGenerationPanel = usePlaygroundUIOptional()?.AgentGenerationPanel
     const isExecutionLoading = runnableQuery.isPending || isChat === undefined
 
     if (isExecutionLoading) {
@@ -59,13 +67,24 @@ const PlaygroundGenerations: React.FC<PlaygroundGenerationsProps> = ({
     }
 
     return (
-        <div className="w-full">
+        // Agent arm fills the column (composer pinned to the bottom) — chat and
+        // completion keep their content-height, top-aligned scroll behavior.
+        <div className={isAgent ? "flex h-full min-h-0 w-full flex-col" : "w-full"}>
             <ExecutionHeader
                 entityId={entityId}
                 renderTestsetActions={renderTestsetActions}
                 onRepeatCountChange={onRepeatCountChange}
             />
-            {isChat ? (
+            {isAgent ? (
+                // Third arm: agent entities render the injected agent-chat surface,
+                // which fills the remaining height. No-op when the slot isn't
+                // provided (e.g. EE without the panel).
+                AgentGenerationPanel ? (
+                    <div className="min-h-0 flex-1">
+                        <AgentGenerationPanel entityId={entityId} />
+                    </div>
+                ) : null
+            ) : isChat ? (
                 <ChatMode
                     entityId={entityId}
                     renderLastTurnFooter={renderLastTurnFooter}

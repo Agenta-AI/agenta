@@ -95,6 +95,9 @@ export const workflowFlagsSchema = z
         is_feedback: z.boolean().optional().default(false),
         // Interface-derived
         is_chat: z.boolean().optional().default(false),
+        // Agent workflows (WP-6). Backend-owned; until it lands, agent detection
+        // falls back to a config heuristic in `isAgentModeAtomFamily`.
+        is_agent: z.boolean().optional().default(false),
         has_url: z.boolean().optional().default(false),
         has_script: z.boolean().optional().default(false),
         has_handler: z.boolean().optional().default(false),
@@ -339,6 +342,7 @@ export const workflowSchemas = createEntitySchemaSet({
             // URI-derived
             is_managed: false,
             is_custom: false,
+            is_agent: false,
             is_llm: false,
             is_hook: false,
             is_code: false,
