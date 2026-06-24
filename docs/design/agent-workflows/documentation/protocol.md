@@ -108,7 +108,7 @@ Request fields include:
 
 | Field | Meaning |
 | --- | --- |
-| `harness` | Harness id: `pi_core`, `pi_agenta`, or `claude`. `pi_core` and `pi_agenta` both drive the `pi` ACP agent; `pi_agenta` is Pi with Agenta's forced skills, prompt, and policy. `claude` drives the `claude` ACP agent. |
+| `harness` | Harness id, the bare string `pi_core`, `pi_agenta`, or `claude`. `pi_core` and `pi_agenta` both drive the `pi` ACP agent; `pi_agenta` is Pi with Agenta's forced skills, prompt, and policy. `claude` drives the `claude` ACP agent. The wire value is bare; the agent_config *interface* dresses each value with a versioned slug + display name (see [Agent config schema](../interfaces/public-edge/agent-config-schema.md)), but the wire and the runner selector are unchanged. |
 | `sandbox` | Sandbox id, usually `local` or `daytona`. |
 | `sessionId` | External conversation id. The runtime is cold and receives history in `messages`. |
 | `agentsMd` | Instructions that become `AGENTS.md`. |

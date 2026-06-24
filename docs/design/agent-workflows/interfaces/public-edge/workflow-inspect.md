@@ -45,6 +45,10 @@ the fields.
 ## Owned by
 
 - `services/oss/src/agent/schemas.py`: builds the input, parameter, and output schemas.
+- `services/oss/src/agent/app.py`: `create_agent_app()` binds the live `_agent` handler AND the
+  service interface to the builtin URI `agenta:builtin:agent:v0` (via `register_handler` /
+  `register_interface`), so `retrieve_handler` / `retrieve_interface` return the live handler and
+  the same schemas `/inspect` advertises. The handler and the interface share one identity.
 - `sdks/python/agenta/sdk/models/workflows.py`: the inspect response model.
 - `sdks/python/agenta/sdk/decorators/routing.py`: the generic inspect route.
 
@@ -53,6 +57,11 @@ the fields.
 - **Catalog type markers.** `agent_config` and `messages` bind the schema to a playground
   control. Renaming a marker without updating the catalog breaks the form silently.
 - **The config default.** `/inspect` ships the default agent config the form starts from.
-  Keep it in sync with what the runtime actually accepts.
+  Keep it in sync with what the runtime actually accepts. The SDK builtin config registry entry
+  (`CONFIGURATION_REGISTRY` for `agent:v0`) uses the same `build_agent_v0_default()` builder, so a
+  URI-dispatched run with no parameters gets the same default.
 - **Harness capability metadata.** The form filters connections from this block. If it drifts
   from the server-side table, the form offers choices the run will reject.
+- **The builtin URI binding.** The live handler and interface are registered under
+  `agenta:builtin:agent:v0` at app build time. The interface override is process-local (the agent
+  service process), so the API process's catalog still builds from the SDK defaults.

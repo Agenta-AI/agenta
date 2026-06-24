@@ -6,6 +6,7 @@ from agenta.sdk.models.workflows import (
     WorkflowFlags,
     WorkflowRevisionData,
 )
+from agenta.sdk.utils.types import build_agent_v0_default
 
 from agenta.sdk.engines.running.handlers import (
     # --- NEW URI
@@ -293,17 +294,12 @@ CONFIGURATION_REGISTRY: dict = dict(
             # --- OLD URI
             chat=dict(v0=WorkflowRevisionData()),
             completion=dict(v0=WorkflowRevisionData()),
+            # The agent builtin's default parameters use the canonical `{"agent": ...}` shape from
+            # the shared `build_agent_v0_default` builder (one owner; see utils/types.py), so a run
+            # that binds `agenta:builtin:agent:v0` with no parameters gets the same default the
+            # interface advertises instead of a stale flat `{model, agents_md}`.
             agent=dict(
-                v0=WorkflowRevisionData(
-                    parameters={
-                        "model": "gpt-5.5",
-                        "agents_md": (
-                            "You are a friendly hello-world agent running on the "
-                            "Agenta agent service.\n\n- Greet the user warmly.\n- "
-                            "Answer the user's message in one or two short sentences."
-                        ),
-                    }
-                )
+                v0=WorkflowRevisionData(parameters={"agent": build_agent_v0_default()})
             ),
             echo=dict(v0=WorkflowRevisionData()),
             auto_exact_match=dict(v0=WorkflowRevisionData()),
@@ -461,6 +457,25 @@ def register_handler(fn: Callable, uri: Optional[str] = None) -> str:
         key, {}
     ).setdefault(version, fn)
 
+    return uri
+
+
+def register_interface(interface: WorkflowRevisionData, uri: str) -> str:
+    """Register (or OVERRIDE) the interface for a URI in the global interface registry.
+
+    Unlike :func:`register_handler`'s ``setdefault``, this REPLACES any existing entry, so a
+    service process can bind its own richer interface under a builtin URI that the SDK already
+    seeds with a minimal default (e.g. the agent service overrides ``agenta:builtin:agent:v0`` so
+    ``retrieve_interface`` returns the same schemas ``/inspect`` advertises). This is a
+    process-local registration: it changes only the process that calls it (the agent service), not
+    the API process that builds the catalog from the SDK defaults.
+    """
+    provider, kind, key, version = parse_uri(uri)
+    if not provider or not kind or not key or not version:
+        raise ValueError(f"Invalid URI: {uri}")
+    INTERFACE_REGISTRY.setdefault(provider, {}).setdefault(kind, {}).setdefault(
+        key, {}
+    )[version] = interface
     return uri
 
 

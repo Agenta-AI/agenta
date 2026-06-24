@@ -8,7 +8,7 @@ from pydantic import ConfigDict, BaseModel, HttpUrl, RootModel
 from pydantic import Field, model_validator, AliasChoices
 
 
-from agenta.sdk.agents.dtos import SandboxPermission
+from agenta.sdk.agents.dtos import HARNESS_IDENTITIES, SandboxPermission
 from agenta.sdk.agents.mcp import MCPServerConfig
 from agenta.sdk.agents.tools import ToolConfig
 from agenta.sdk.utils.assets import supported_llm_models, model_metadata
@@ -1062,6 +1062,38 @@ _DEFAULT_AGENTS_MD = (
     "- Answer the user's message in one or two short sentences."
 )
 
+# The single source of the run-selection defaults. The SDK builtin interface
+# (`agenta:builtin:agent:v0`) and the agent service (`AGENT_SCHEMAS` / the value
+# `AgentConfig.from_params` falls back to) both consume these via `build_agent_v0_default`, so a new
+# default changes one place. The harness default also seeds `AgentConfigSchema.harness`.
+_DEFAULT_HARNESS = "pi_core"
+_DEFAULT_SANDBOX = "local"
+_DEFAULT_PERMISSION_POLICY = "auto"
+
+# The schema key carrying each harness option's versioned slug identity (the contract identity in
+# the repo's `agenta:...:v0` grammar). Specific to the harness rather than a generic `x-ag-slug`.
+_HARNESS_SLUG_KEY = "x-ag-harness-slug"
+
+
+def _harness_field_schema_extra() -> Dict[str, Any]:
+    """Build the harness field's JSON-Schema extras from the single ``HARNESS_IDENTITIES`` source.
+
+    Carries BOTH a flat ``enum`` of the bare values (so every existing consumer that reads
+    ``schema.enum`` keeps working) and a ``oneOf`` of ``{const, title, x-ag-harness-slug}`` (so the
+    playground shows the display name and the harness's versioned slug identity rides alongside its
+    bare value). The stored/wire harness value is still the bare ``const`` string."""
+    return {
+        "enum": [identity.value for identity in HARNESS_IDENTITIES],
+        "oneOf": [
+            {
+                "const": identity.value,
+                "title": identity.name,
+                _HARNESS_SLUG_KEY: identity.slug,
+            }
+            for identity in HARNESS_IDENTITIES
+        ],
+    }
+
 
 class AgentConfigSchema(AgSchemaMixin):
     """The playground's editable agent config (the ``agent`` element), as one semantic type.
@@ -1107,13 +1139,18 @@ class AgentConfigSchema(AgSchemaMixin):
             "secret env from the vault at run time; tokens never live in the config."
         ),
     )
-    harness: Literal["pi_core", "claude", "pi_agenta"] = Field(
-        default="pi_core",
+    # The harness is a plain string field whose JSON Schema carries a versioned slug + display name
+    # per option (see `_harness_field_schema_extra`). The stored value is the bare harness string
+    # (`pi_core` / `pi_agenta` / `claude`) — the runtime/wire selector — so this stays a `str`, not a
+    # `Literal` (a Literal would emit its own `enum` that collides with the curated extras).
+    harness: str = Field(
+        default=_DEFAULT_HARNESS,
         title="Harness",
         description=(
             "Coding agent to drive: pi_core (plain Pi), claude, or pi_agenta (Pi with "
             "Agenta's forced skills, tools, and base instructions)."
         ),
+        json_schema_extra=_harness_field_schema_extra(),
     )
     sandbox: Literal["local", "daytona"] = Field(
         default="local",
@@ -1146,17 +1183,6 @@ class AgentConfigSchema(AgSchemaMixin):
             "backend inlines into that same shape before the runner sees it."
         ),
     )
-
-
-# The single source of the `agent_config` default. The SDK builtin interface
-# (`agenta:builtin:agent:v0`) and the agent service (`AGENT_SCHEMAS` / the value
-# `AgentConfig.from_params` falls back to) both consume this, so a new default field changes one
-# place. Service-only choices are named args, never a second copy: the platform default skill is
-# an `@ag.embed` the service inlines, and the declared sandbox boundary is the playground
-# pre-fill. The harness default lives on `AgentConfigSchema.harness` (this mirrors it).
-_DEFAULT_HARNESS = "pi_core"
-_DEFAULT_SANDBOX = "local"
-_DEFAULT_PERMISSION_POLICY = "auto"
 
 
 def build_agent_v0_default(
