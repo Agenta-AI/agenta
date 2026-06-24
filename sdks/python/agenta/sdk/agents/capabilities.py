@@ -35,6 +35,8 @@ from typing import Dict, List
 
 from pydantic import BaseModel, Field
 
+from agenta.sdk.utils.assets import supported_llm_models
+
 # The eight Agenta-vault-mapped providers Pi reaches directly via its env-key map (a stored
 # ``provider_key`` secret of these drives Pi). Kept in agreement with the SDK resolver
 # provider-env maps.
@@ -49,9 +51,39 @@ PI_VAULT_PROVIDERS: List[str] = [
     "openrouter",
 ]
 
+# Claude Code selects a model by alias, not a ``provider/id`` string. These are the aliases the
+# Claude harness accepts (``default``/``sonnet``/``opus``/``haiku``) plus their ``[1m]``
+# long-context variants. They live under the ``anthropic`` provider in the ``models`` map (Claude
+# reaches anthropic only). Revisit if the runner's accepted alias set changes (see
+# ``docs/design/agent-workflows/projects/model-config/``).
+CLAUDE_MODEL_ALIASES: List[str] = [
+    "default",
+    "sonnet",
+    "opus",
+    "haiku",
+    "default[1m]",
+    "sonnet[1m]",
+    "opus[1m]",
+    "haiku[1m]",
+]
+
 # Both modes every harness supports today. (No ``default`` mode: the project default is just
 # ``agenta`` with no slug.)
 _ALL_MODES = ["agenta", "self_managed"]
+
+
+def _pi_models() -> Dict[str, List[str]]:
+    """The per-provider model ids Pi reaches: the catalog entry for each vault provider.
+
+    Defensive against a provider missing from ``supported_llm_models`` (skip it) so a catalog
+    edit never breaks the capability document. The ids are provider-prefixed (``openai/gpt-...``),
+    the same shape the playground model picker already renders.
+    """
+    return {
+        provider: list(supported_llm_models[provider])
+        for provider in PI_VAULT_PROVIDERS
+        if provider in supported_llm_models
+    }
 
 
 class HarnessConnectionCapabilities(BaseModel):
@@ -65,12 +97,17 @@ class HarnessConnectionCapabilities(BaseModel):
       (``["agenta", "self_managed"]``).
     - ``model_selection``: how a model is named for the harness (``"provider/id"`` exact for Pi,
       ``"alias"`` for Claude).
+    - ``models``: the selectable models per provider family. Pi publishes each vault provider's
+      catalog ids (provider-prefixed, e.g. ``openai/gpt-...``); Claude publishes its alias set
+      under ``anthropic``. The frontend renders the harness-filtered model picker straight from
+      this map instead of the full shared catalog.
     """
 
     providers: List[str] = Field(default_factory=list)
     deployments: List[str] = Field(default_factory=lambda: ["direct"])
     connection_modes: List[str] = Field(default_factory=lambda: list(_ALL_MODES))
     model_selection: str = "provider/id"
+    models: Dict[str, List[str]] = Field(default_factory=dict)
 
 
 HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
@@ -79,18 +116,21 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
         deployments=["direct"],
         connection_modes=list(_ALL_MODES),
         model_selection="provider/id",
+        models=_pi_models(),
     ),
     "pi_agenta": HarnessConnectionCapabilities(
         providers=list(PI_VAULT_PROVIDERS),
         deployments=["direct"],
         connection_modes=list(_ALL_MODES),
         model_selection="provider/id",
+        models=_pi_models(),
     ),
     "claude": HarnessConnectionCapabilities(
         providers=["anthropic"],
         deployments=["direct", "custom", "bedrock", "vertex_ai", "vertex"],
         connection_modes=list(_ALL_MODES),
         model_selection="alias",
+        models={"anthropic": list(CLAUDE_MODEL_ALIASES)},
     ),
 }
 

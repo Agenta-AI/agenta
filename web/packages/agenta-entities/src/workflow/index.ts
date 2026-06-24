@@ -46,6 +46,13 @@ export {workflowMolecule, type WorkflowMolecule, type WorkflowType} from "./stat
 
 export {deriveWorkflowTypeFromRevision} from "./state/helpers"
 
+// Per-harness capability map from the `/inspect` response `meta` (agent playground picker).
+export {
+    harnessCapabilitiesAtomFamily,
+    type HarnessCapabilities,
+    type HarnessCapabilitiesMap,
+} from "./state/inspectMeta"
+
 // ============================================================================
 // SCHEMAS & TYPES
 // ============================================================================

@@ -14,7 +14,7 @@ workflow provides it:
 ```jsonc
 {
   "version": "2025.07.14",
-  "meta": { "harness_capabilities": { /* per-harness provider/deployment limits */ } },
+  "meta": { "harness_capabilities": { /* per-harness providers, deployments, connection_modes, model_selection, models */ } },
   "data": {
     "revision": {
       "data": {
@@ -37,6 +37,15 @@ Each marker resolves through `/workflows/catalog/types/{type}` to the full JSON 
 the form and the schema stay in one place. The `meta.harness_capabilities` block is the same
 table the service uses server-side to reject unreachable provider and deployment choices, so
 the form can filter stored connections before the user submits when that metadata is present.
+
+Per harness, the block carries `providers`, `deployments`, `connection_modes`, `model_selection`,
+and `models`. `models` is a provider-keyed map of the selectable models the harness can reach: Pi
+publishes each vault provider's catalog ids; Claude publishes its alias set (`default`/`sonnet`/
+`opus`/`haiku` and their `[1m]` variants) under `anthropic`. The agent playground renders its
+harness-filtered provider + model picker straight from this map instead of the full shared
+catalog, and uses `model_selection` to interpret a value (`provider/id` for Pi vs `alias` for
+Claude). The table is published by `harness_capabilities_document()` in
+`sdks/python/agenta/sdk/agents/capabilities.py`.
 
 The shape of the config itself lives in [Agent config
 schema](agent-config-schema.md). This page covers what `/inspect` returns; that page covers

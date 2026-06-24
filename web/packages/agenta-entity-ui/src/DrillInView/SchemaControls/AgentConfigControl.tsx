@@ -11,23 +11,33 @@
  * from the SDK model (AgentConfigSchema in agenta.sdk.utils.types); the agent service ships a
  * thin `x-ag-type-ref` the playground resolves and reads back (services/oss/src/agent).
  */
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
+import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {CaretDown, CaretRight, Plus} from "@phosphor-icons/react"
-import {Button, Select, Switch, Typography} from "antd"
+import {Button, Segmented, Select, Switch, Typography} from "antd"
+import {useAtomValue} from "jotai"
+
+import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {ClaudePermissionsControl} from "./ClaudePermissionsControl"
 import {
     allowedConnectionModes,
-    allowedProviders,
+    buildModelOptionGroups,
     composeModelValue,
     connectionFromConfig,
+    harnessAllowsModel,
     modelIdFromConfig,
+    namedConnectionOptions,
+    providerForModel,
     type ConnectionMode,
+    type VaultConnectionEntry,
 } from "./connectionUtils"
 import {EnumSelectControl} from "./EnumSelectControl"
 import {GroupedChoiceControl} from "./GroupedChoiceControl"
@@ -38,11 +48,6 @@ import {TextInputControl} from "./TextInputControl"
 import {ToolItemControl} from "./ToolItemControl"
 import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover"
 import {type ToolObj} from "./toolUtils"
-
-const CONNECTION_MODE_LABELS: Record<ConnectionMode, string> = {
-    self_managed: "Self-managed",
-    agenta: "Agenta connection",
-}
 
 export interface AgentConfigControlProps {
     schema?: SchemaProperty | null
@@ -101,37 +106,92 @@ export function AgentConfigControl({
         [config, onChange],
     )
 
-    // Model + credential connection (the ModelRef). `config.model` is either a plain string
-    // (the default connection, kept byte-identical to today) or a structured object the SDK
-    // coerces into a ModelRef. The form edits the fields directly via composeModelValue.
+    // Per-harness capability map from the `/inspect` response meta, keyed by the open revision.
+    // Null when inspect hasn't resolved or the agent didn't publish it (older agents / standalone),
+    // in which case the connectionUtils helpers fall back permissively.
+    const drillIn = useOptionalDrillIn<unknown>()
+    const revisionId = drillIn?.entityId ?? null
+    const capabilities = useAtomValue(
+        useMemo(() => harnessCapabilitiesAtomFamily(revisionId ?? ""), [revisionId]),
+    )
+
+    // The project's stored connections (read-only) for the connection picker. The transformed
+    // vault list surfaces custom-provider connections as {type, name, provider}; the resolver
+    // matches a named connection by that name (the slug).
+    const vaultQuery = useAtomValue(vaultSecretsQueryAtom)
+    const vaultSecrets = useMemo(
+        () => (Array.isArray(vaultQuery.data) ? (vaultQuery.data as VaultConnectionEntry[]) : []),
+        [vaultQuery.data],
+    )
+
+    // Model + credential connection (the ModelRef). `config.model` is ALWAYS a structured ModelRef
+    // (the picker only ever produces one); a legacy bare string is read for display. The picker is
+    // harness-filtered: selecting a model sets BOTH the model id and its provider.
     const harness = typeof config.harness === "string" ? config.harness : null
     const modelId = useMemo(() => modelIdFromConfig(config.model), [config.model])
     const connection = useMemo(() => connectionFromConfig(config.model), [config.model])
-    const providerOptions = useMemo(() => allowedProviders(harness), [harness])
-    const providersOpen = providerOptions.includes("*")
-    const modeOptions = useMemo(() => allowedConnectionModes(harness), [harness])
+    const modeOptions = useMemo(
+        () => allowedConnectionModes(capabilities, harness),
+        [capabilities, harness],
+    )
 
-    // Compose the new `config.model` from the current connection fields, overriding one of
-    // them. Empty provider/slug clear that part of the structured value.
+    // Harness-filtered model options, built straight from inspect meta. Empty when the harness
+    // publishes none (older agent / standalone) — fall back to the schema's full catalog picker.
+    const modelGroups = useMemo(
+        () => buildModelOptionGroups(capabilities, harness),
+        [capabilities, harness],
+    )
+    const hasInspectModels = modelGroups.length > 0
+
+    // Compose the new `config.model` ModelRef from the current fields, overriding some. Picking a
+    // model derives its provider from the harness's published groups (sets both).
     const writeModel = useCallback(
         (patch: {
             modelId?: string | null
             provider?: string | null
             mode?: ConnectionMode
             slug?: string | null
-        }) =>
+        }) => {
+            const nextModelId = patch.modelId !== undefined ? patch.modelId : modelId
+            // When the model changes, derive the provider from the picked model; otherwise keep it.
+            let nextProvider: string | null
+            if (patch.provider !== undefined) {
+                nextProvider = patch.provider
+            } else if (patch.modelId !== undefined) {
+                nextProvider =
+                    providerForModel(capabilities, harness, nextModelId) ?? connection.provider
+            } else {
+                nextProvider = connection.provider
+            }
             setField(
                 "model",
                 composeModelValue({
-                    modelId: patch.modelId !== undefined ? patch.modelId : modelId,
-                    provider: patch.provider !== undefined ? patch.provider : connection.provider,
+                    modelId: nextModelId,
+                    provider: nextProvider,
                     mode: patch.mode !== undefined ? patch.mode : connection.mode,
                     slug: patch.slug !== undefined ? patch.slug : connection.slug,
                     // Carry through extra ModelRef keys (params, ...) the form does not edit.
                     existing: config.model,
                 }),
-            ),
-        [setField, modelId, connection, config.model],
+            )
+        },
+        [setField, modelId, connection, config.model, capabilities, harness],
+    )
+
+    // On harness switch, clear a model the new harness can't reach (rather than sending an
+    // unsupported model). Permissive when the new harness publishes no models.
+    useEffect(() => {
+        if (!harness || !modelId) return
+        if (!harnessAllowsModel(capabilities, harness, modelId)) {
+            writeModel({modelId: null, provider: null})
+        }
+        // Only react to harness/capabilities changes, not every model edit.
+    }, [harness, capabilities])
+
+    // Named connections selectable for the chosen provider under this harness (Agenta-managed).
+    const connectionOptions = useMemo(
+        () => namedConnectionOptions(vaultSecrets, capabilities, harness, connection.provider),
+        [vaultSecrets, capabilities, harness, connection.provider],
     )
 
     // Raw-JSON escape hatch for the whole `config.model` value (collapsed by default).
@@ -339,85 +399,81 @@ export function AgentConfigControl({
                 multiline
             />
 
-            <GroupedChoiceControl
-                schema={props.model}
-                label="Model"
-                value={modelId}
-                onChange={(v) => writeModel({modelId: v})}
-                withTooltip={withTooltip}
-                disabled={disabled}
-            />
-
-            {/* Connection (provider + credential mode + slug for the ModelRef) */}
-            <div className="flex flex-col gap-2">
-                <Typography.Text className="text-sm font-medium">Connection</Typography.Text>
-
+            {/* Unified provider + model picker. When the agent's `/inspect` publishes a
+                harness-filtered model list we render from it (selecting a model sets both the model
+                id and its provider). Otherwise we fall back to the schema's full catalog picker. */}
+            {hasInspectModels ? (
                 <LabeledField
-                    label="Provider"
-                    description="The provider family for this model. Leave empty to infer it."
-                    withTooltip
+                    label="Model"
+                    description="Filtered to the models this harness can reach. Selecting a model also sets its provider."
+                    withTooltip={withTooltip}
                 >
-                    {providersOpen ? (
-                        <TextInputControl
-                            value={connection.provider}
-                            onChange={(v) => writeModel({provider: v || null})}
-                            withTooltip={false}
-                            disabled={disabled}
-                            placeholder="e.g. openai (optional)"
-                        />
-                    ) : (
-                        <Select
-                            value={connection.provider ?? undefined}
-                            onChange={(v) => writeModel({provider: v ?? null})}
-                            options={providerOptions.map((p) => ({value: p, label: p}))}
-                            disabled={disabled}
-                            placeholder="Select provider..."
-                            allowClear
-                            className="w-full"
-                            size="small"
-                        />
-                    )}
-                </LabeledField>
-
-                <LabeledField
-                    label="Connection mode"
-                    description="Where this run's credential comes from."
-                    withTooltip
-                >
-                    <Select<ConnectionMode>
-                        value={connection.mode}
-                        onChange={(v) => writeModel({mode: v})}
-                        options={modeOptions.map((m) => ({
-                            value: m,
-                            label: CONNECTION_MODE_LABELS[m],
-                        }))}
+                    <SelectLLMProviderBase
+                        showGroup
+                        options={modelGroups}
+                        value={modelId ?? undefined}
+                        onChange={(v) => writeModel({modelId: (v as string) ?? null})}
                         disabled={disabled}
+                        placeholder="Select a model..."
                         className="w-full"
                         size="small"
                     />
                 </LabeledField>
+            ) : (
+                <GroupedChoiceControl
+                    schema={props.model}
+                    label="Model"
+                    value={modelId}
+                    onChange={(v) => writeModel({modelId: v})}
+                    withTooltip={withTooltip}
+                    disabled={disabled}
+                />
+            )}
 
-                {connection.mode === "agenta" && (
-                    <div className="flex flex-col gap-1">
-                        {/* TODO(provider-model-auth): this becomes a Select fed by an
-                            atomWithQuery over GET /vault/connections (Slice 2) once the Fern
-                            client exposes that endpoint. Free text until then. */}
-                        <TextInputControl
-                            label="Connection name"
-                            value={connection.slug}
-                            onChange={(v) => writeModel({slug: v || null})}
-                            description="The name of a connection in this project's vault."
+            {/* Authentication: Agenta-managed (a vault connection) vs self-managed (the harness
+                uses its own login; Agenta injects nothing). Maps to connection.mode. */}
+            <div className="flex flex-col gap-2">
+                <Typography.Text className="text-sm font-medium">Authentication</Typography.Text>
+
+                <Segmented<ConnectionMode>
+                    block
+                    size="small"
+                    value={connection.mode}
+                    onChange={(v) => writeModel({mode: v})}
+                    disabled={disabled}
+                    options={modeOptions.map((m) => ({
+                        value: m,
+                        label: m === "agenta" ? "Agenta-managed" : "Self-managed",
+                    }))}
+                />
+
+                {connection.mode === "agenta" ? (
+                    <LabeledField
+                        label="Connection"
+                        description="Which stored connection supplies the credential. Project default uses the project's provider key."
+                        withTooltip
+                    >
+                        <Select<string>
+                            value={connection.slug ?? "__default__"}
+                            onChange={(v) =>
+                                writeModel({slug: v === "__default__" ? null : (v ?? null)})
+                            }
+                            options={[
+                                {value: "__default__", label: "Project default"},
+                                ...connectionOptions.map((o) => ({value: o.value, label: o.label})),
+                            ]}
                             disabled={disabled}
-                            placeholder="e.g. openai-prod"
+                            className="w-full"
+                            size="small"
+                            showSearch
+                            optionFilterProp="label"
                         />
-                        {!connection.slug && (
-                            // The backend rejects an "agenta" connection with no slug; surface
-                            // it here rather than as a raw server validation error on save.
-                            <Typography.Text type="danger" className="text-xs">
-                                A connection name is required for an Agenta connection.
-                            </Typography.Text>
-                        )}
-                    </div>
+                    </LabeledField>
+                ) : (
+                    <Typography.Text type="secondary" className="text-xs">
+                        The harness uses its own login (env var or prior OAuth). Agenta injects
+                        nothing.
+                    </Typography.Text>
                 )}
 
                 <div className="flex items-center gap-2">

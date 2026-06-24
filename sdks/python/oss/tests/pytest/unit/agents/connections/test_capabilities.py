@@ -9,6 +9,7 @@ published on ``/inspect`` ``meta``.
 from __future__ import annotations
 
 from agenta.sdk.agents.capabilities import (
+    CLAUDE_MODEL_ALIASES,
     HARNESS_CONNECTION_CAPABILITIES,
     PI_VAULT_PROVIDERS,
     harness_allows_deployment,
@@ -16,6 +17,7 @@ from agenta.sdk.agents.capabilities import (
     harness_allows_provider,
     harness_capabilities_document,
 )
+from agenta.sdk.utils.assets import supported_llm_models
 
 
 def test_claude_is_anthropic_only():
@@ -76,3 +78,46 @@ def test_capabilities_document_shape():
         "vertex_ai",
         "vertex",
     ]
+
+
+def test_every_harness_publishes_a_models_map():
+    doc = harness_capabilities_document()
+    for harness in ("pi_core", "pi_agenta", "claude"):
+        assert isinstance(doc[harness]["models"], dict)
+        assert doc[harness]["models"], f"{harness} has an empty models map"
+
+
+def test_pi_models_are_a_subset_of_the_shared_catalog():
+    # Each Pi harness publishes, per vault provider, exactly that provider's catalog ids.
+    for harness in ("pi_core", "pi_agenta"):
+        models = HARNESS_CONNECTION_CAPABILITIES[harness].models
+        # Only the vault-mapped providers are published (no arbitrary catalog providers).
+        assert set(models) <= set(PI_VAULT_PROVIDERS)
+        assert set(models) == set(PI_VAULT_PROVIDERS)
+        for provider, ids in models.items():
+            # The published ids are exactly the shared catalog's ids for that provider
+            # (verbatim — most are provider-prefixed like ``anthropic/...``, but some
+            # providers, e.g. openai, list bare ids like ``gpt-5.5``).
+            assert ids == list(supported_llm_models[provider])
+
+
+def test_claude_models_are_the_alias_set_under_anthropic():
+    models = HARNESS_CONNECTION_CAPABILITIES["claude"].models
+    assert set(models) == {"anthropic"}
+    assert models["anthropic"] == list(CLAUDE_MODEL_ALIASES)
+    # Aliases, not provider-prefixed ids.
+    assert "opus" in models["anthropic"]
+    assert "opus[1m]" in models["anthropic"]
+    assert all("/" not in alias for alias in models["anthropic"])
+
+
+def test_models_round_trip_as_a_plain_dict():
+    doc = harness_capabilities_document()
+    # The published document is plain JSON-able dicts/lists, no model objects.
+    for harness, entry in doc.items():
+        assert isinstance(entry, dict)
+        assert isinstance(entry["models"], dict)
+        for provider, ids in entry["models"].items():
+            assert isinstance(provider, str)
+            assert isinstance(ids, list)
+            assert all(isinstance(model_id, str) for model_id in ids)
