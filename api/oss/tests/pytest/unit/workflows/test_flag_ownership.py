@@ -63,7 +63,37 @@ async def test_create_workflow_persists_only_artifact_flags():
         "is_application": True,
         "is_evaluator": False,
         "is_snippet": False,
+        "is_skill": False,
     }
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_persists_is_skill_artifact_flag():
+    workflows_dao = AsyncMock()
+    service = WorkflowsService(workflows_dao=workflows_dao)
+
+    workflow_id = uuid4()
+    workflows_dao.create_artifact.return_value = Workflow(
+        id=workflow_id,
+        slug="skill-wf",
+        flags=WorkflowArtifactFlags(is_skill=True),
+    )
+
+    await service.create_workflow(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        workflow_create=WorkflowCreate(
+            slug="skill-wf",
+            flags=WorkflowFlags(is_skill=True, is_evaluator=False, is_custom=True),
+        ),
+    )
+
+    artifact_create = workflows_dao.create_artifact.await_args.kwargs["artifact_create"]
+    assert artifact_create.flags is not None
+    assert artifact_create.flags["is_skill"] is True
+    assert artifact_create.flags["is_evaluator"] is False
+    # is_custom is a revision-level (uri-derived) flag and must not land on the artifact.
+    assert "is_custom" not in artifact_create.flags
 
 
 @pytest.mark.asyncio

@@ -123,6 +123,7 @@ class WorkflowsService:
             "is_application",
             "is_evaluator",
             "is_snippet",
+            "is_skill",
         }
     )
 

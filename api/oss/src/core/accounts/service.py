@@ -46,6 +46,9 @@ from oss.src.core.environments.defaults import (
 from oss.src.core.evaluators.defaults import (
     create_default_evaluators as _create_default_evaluators,
 )
+from oss.src.core.workflows.defaults import (
+    create_default_skills as _create_default_skills,
+)
 from oss.src.models.db_models import (
     APIKeyDB,
     OrganizationDB,
@@ -757,6 +760,17 @@ class PlatformAdminAccountsService:
                     project_id=proj_db.id,
                     user_id=user_id_for_seed,
                 )
+                try:
+                    await _create_default_skills(
+                        project_id=proj_db.id,
+                        user_id=user_id_for_seed,
+                    )
+                except Exception:
+                    log.warning(
+                        "Default skill seeding failed; continuing",
+                        project_id=str(proj_db.id),
+                        exc_info=True,
+                    )
             tracker.projects[proj_ref] = proj_db.id
             account.projects[proj_ref] = _proj_db_to_read_dto(proj_db)
 

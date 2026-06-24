@@ -148,6 +148,7 @@ async def create_organization(
 
     from oss.src.core.environments.defaults import create_default_environments
     from oss.src.core.evaluators.defaults import create_default_evaluators
+    from oss.src.core.workflows.defaults import create_default_skills
 
     await create_default_evaluators(
         project_id=project_db.id,
@@ -157,6 +158,17 @@ async def create_organization(
         project_id=project_db.id,
         user_id=user.id,
     )
+    try:
+        await create_default_skills(
+            project_id=project_db.id,
+            user_id=user.id,
+        )
+    except Exception:
+        log.warning(
+            "Default skill seeding failed; continuing",
+            project_id=str(project_db.id),
+            exc_info=True,
+        )
 
     return organization_db
 
