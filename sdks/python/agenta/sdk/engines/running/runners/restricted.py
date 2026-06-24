@@ -9,13 +9,12 @@ from RestrictedPython.Guards import (
     full_write_guard,
 )
 
-from agenta.sdk.engines.running.runners.base import CodeRunner
+from agenta.sdk.engines.running.runners.base import CodeRunner, normalize_result
 
 
 # Pure data/iteration builtins that RestrictedPython's safe_builtins omits but
 # evaluators routinely need. All operate on data only — none reach the host or
-# the class graph, so adding them does not widen the sandbox (escapes go through
-# attribute access, which safer_getattr blocks).
+# the class graph.
 _SAFE_EXTRA_BUILTINS = (
     "dict",
     "list",
@@ -38,16 +37,21 @@ _SAFE_EXTRA_BUILTINS = (
 # pathlib, socket, importlib, io, shutil, ...) or the network (httpx, urllib,
 # requests, ...) is excluded. Operators who need unrestricted execution must opt
 # into the `local` runner; hostile multi-tenant should use `daytona`.
+#
+# EXCLUDED intentionally even though they look safe:
+#   - `typing`    — exposes `typing.sys`, giving access to `sys.modules` and
+#                   therefore every already-loaded module (including `os`).
+#   - `datetime`  — same escape: `datetime.sys.modules`.
+#   - `statistics`— same escape: `statistics.sys.modules`.
+# safer_getattr only blocks underscore-prefixed names; plain public attributes
+# like `sys` and `modules` on imported module objects are not blocked.
 _ALLOWED_IMPORTS = frozenset(
     {
         "math",
-        "statistics",
-        "datetime",
         "json",
         "re",
         "random",
         "string",
-        "typing",
         "collections",
         "itertools",
         "functools",
@@ -129,16 +133,21 @@ class RestrictedRunner(CodeRunner):
             trace: Full trace data (v2 only)
 
         Returns:
-            Float score between 0 and 1, or None if execution fails
+            Versions "1"/"2": float score between 0 and 1.
+            Version "3": any JSON-serializable value (dict, list, str, float, bool).
         """
         # Normalize runtime: None means python
         runtime = runtime or "python"
 
         # The restricted sandbox runs in-process and only supports Python.
+        # JavaScript and TypeScript require the Daytona runner
+        # (AGENTA_SERVICES_CODE_SANDBOX_RUNNER=daytona).
         if runtime != "python":
             raise ValueError(
-                f"RestrictedRunner only supports 'python' runtime, got: {runtime}. "
-                "Use the Daytona runner for javascript/typescript."
+                f"Runtime '{runtime}' is not supported by the default sandbox. "
+                "JavaScript and TypeScript evaluators require the Daytona runner. "
+                "Set AGENTA_SERVICES_CODE_SANDBOX_RUNNER=daytona, or change the "
+                "runtime to 'python'."
             )
 
         try:
@@ -153,24 +162,12 @@ class RestrictedRunner(CodeRunner):
 
             fn = environment["evaluate"]
 
-            if version == "2":
+            if version in ("2", "3"):
                 result = fn(inputs, output, trace)
             else:
                 result = fn(app_params, inputs, output, correct_answer)
 
-            # Attempt to convert result to float
-            if isinstance(result, (float, int, str)):
-                try:
-                    result = float(result)
-                except ValueError as e:
-                    raise ValueError(f"Result cannot be converted to float: {e}")
-
-            if not isinstance(result, float):
-                raise TypeError(
-                    f"Result is not a float after conversion: {type(result)}"
-                )
-
-            return result
+            return normalize_result(result, version)
 
         except KeyError as e:
             raise KeyError(f"Missing expected key in environment: {e}")

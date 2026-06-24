@@ -2275,9 +2275,13 @@ async def remote_forward_v0(
             got=webhook_url,
         ) from exc
 
-    # The stored url is the service base (pre-/invoke); the invoke surface lives
-    # at /invoke and is always appended.
-    target_url = f"{webhook_url.rstrip('/')}/invoke"
+    # The stored url is the service base; /invoke is always the invoke surface.
+    # Strip a trailing /invoke first so existing hooks that stored the full
+    # endpoint URL don't get /invoke/invoke after this PR's behaviour change.
+    base_url = webhook_url.rstrip("/")
+    if base_url.endswith("/invoke"):
+        base_url = base_url[: -len("/invoke")]
+    target_url = f"{base_url}/invoke"
 
     log.info("remote_forward_v0 POST", url=target_url)
 
