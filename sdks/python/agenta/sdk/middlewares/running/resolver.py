@@ -13,8 +13,13 @@ from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.engines.running.utils import (
     retrieve_handler,
+    parse_uri,
 )
-from agenta.sdk.engines.running.errors import InvalidInterfaceURIV0Error
+from agenta.sdk.engines.running.handlers import remote_forward_v0
+from agenta.sdk.engines.running.errors import (
+    InvalidInterfaceURIV0Error,
+    MissingConfigurationParameterV0Error,
+)
 
 # Internal embeds resolution defaults (not user-configurable)
 _EMBEDS_MAX_CHECKS = 20
@@ -24,6 +29,22 @@ _EMBEDS_ERROR_POLICY = "exception"
 
 # The embed marker key used in configuration dicts
 _AG_EMBED_MARKER = "@ag.embed"
+
+
+def _is_custom_hook_uri(uri: Optional[str]) -> bool:
+    """True for any custom:hook URI regardless of whether a url is set."""
+    if not uri:
+        return False
+    try:
+        _provider, kind, key, _version = parse_uri(uri)
+    except Exception:
+        return False
+    return kind == "custom" and key == "hook"
+
+
+def _is_url_backed_custom_hook(revision: Optional[WorkflowRevisionData]) -> bool:
+    """True for a custom-hook revision that carries a url (forwards remotely)."""
+    return bool(revision and revision.url and _is_custom_hook_uri(revision.uri))
 
 
 def _raise_bad_request(message: str) -> None:
@@ -587,7 +608,21 @@ class ResolverMiddleware:
             except Exception:
                 raise
 
-        handler = await resolve_handler(uri=(revision.uri if revision else None))
+        # Keep a handler the decorator already installed (local handler or remote
+        # forwarder); only resolve from the URI registry for pure URI dispatch.
+        # A URL-backed custom hook has no local handler, so its URI would resolve
+        # to the raising registry stub — forward it remotely instead.
+        # A custom hook with no URL is a user misconfiguration: raise a clear
+        # error rather than letting it fall through to the internal stub.
+        uri = revision.uri if revision else None
+        if ctx.handler is None and _is_custom_hook_uri(uri):
+            if not (revision and revision.url):
+                raise MissingConfigurationParameterV0Error(
+                    path="url",
+                )
+            handler = remote_forward_v0
+        else:
+            handler = ctx.handler or await resolve_handler(uri=uri)
 
         ctx.revision = (
             {"data": revision.model_dump(mode="json", exclude_none=True)}

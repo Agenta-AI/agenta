@@ -250,6 +250,21 @@ class WebhookClientV0Error(ErrorStatus):
         )
 
 
+class CustomHookHandlerNotDefinedV0Error(ErrorStatus):
+    code: int = 500
+    type: str = f"{ERRORS_BASE_URL}#v0:workflows:custom-hook-handler-not-defined"
+
+    def __init__(self) -> None:
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=(
+                "Custom hook has no handler. Define a local handler on the workflow, "
+                "or set remote=True to forward to its configured url."
+            ),
+        )
+
+
 class CustomCodeServerV0Error(ErrorStatus):
     code: int = 500
     type: str = f"{ERRORS_BASE_URL}#v0:workflows:custom-code-server-error"
