@@ -59,21 +59,47 @@ function ensureExecutable(path: string): string {
 }
 
 /**
- * Every provider/auth env var a run might carry. The clear-then-apply discipline (Security
- * rule 5 in the provider-model-auth design) clears this whole set so an inherited key for one
- * provider cannot leak into a run that resolved a different provider's key. Mirrors the Python
- * `_PROVIDER_ENV_VARS` values plus the OAuth / auth-token vars the harnesses read.
+ * The COMPLETE provider/auth env inventory a run might carry — the *clear* set for the
+ * clear-then-apply discipline (Security rule 5 in the provider-model-auth design). On a managed
+ * run the daemon clears EVERY entry here so no inherited credential leaks in, then the caller
+ * applies the resolver's `env` (the *apply* set, which is different — only what this connection
+ * needs). The clear set must therefore be a superset: every direct-provider `*_API_KEY`, every
+ * OAuth / auth-token var the harnesses read, AND the full cloud groups (AWS for Bedrock, GCP/ADC
+ * for Vertex, Azure). Clearing only the resolver's `env` would leave inherited cloud creds alive,
+ * which is exactly the leak this guards. Keep the direct-key entries in agreement with the Python
+ * `_PROVIDER_ENV_VARS` / SDK `capabilities.py`, and the cloud groups with the API
+ * `_CLOUD_SECRET_ENV_BY_DEPLOYMENT`.
  */
 export const KNOWN_PROVIDER_ENV_VARS = [
+  // Direct provider api keys (the eight vault-mapped Pi providers + the legacy aliases).
   "OPENAI_API_KEY",
   "ANTHROPIC_API_KEY",
-  "ANTHROPIC_AUTH_TOKEN",
-  "CLAUDE_CODE_OAUTH_TOKEN",
   "GEMINI_API_KEY",
   "MISTRAL_API_KEY",
+  "MINIMAX_API_KEY",
   "GROQ_API_KEY",
   "TOGETHERAI_API_KEY",
+  "TOGETHER_API_KEY",
   "OPENROUTER_API_KEY",
+  // Anthropic / Claude auth tokens and OAuth.
+  "ANTHROPIC_AUTH_TOKEN",
+  "ANTHROPIC_OAUTH_TOKEN",
+  "CLAUDE_CODE_OAUTH_TOKEN",
+  // Bedrock (AWS) credential group + the Claude-on-Bedrock flag.
+  "AWS_ACCESS_KEY_ID",
+  "AWS_SECRET_ACCESS_KEY",
+  "AWS_SESSION_TOKEN",
+  "AWS_PROFILE",
+  "AWS_BEARER_TOKEN_BEDROCK",
+  "CLAUDE_CODE_USE_BEDROCK",
+  // Vertex (GCP) credential group + the Claude-on-Vertex flag.
+  "GOOGLE_APPLICATION_CREDENTIALS",
+  "GOOGLE_CLOUD_API_KEY",
+  "GOOGLE_CLOUD_PROJECT",
+  "GOOGLE_CLOUD_LOCATION",
+  "CLAUDE_CODE_USE_VERTEX",
+  // Azure OpenAI.
+  "AZURE_OPENAI_API_KEY",
 ] as const;
 
 export interface BuildDaemonEnvOptions {

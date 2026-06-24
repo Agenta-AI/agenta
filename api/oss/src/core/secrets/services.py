@@ -127,17 +127,14 @@ class VaultService:
         model_id: str,
         connection_mode: str,
         connection_slug: Optional[str],
-        harness: str,
-        backend: Optional[str] = None,
     ) -> ResolvedConnectionResult:
         """Resolve one connection for ``project_id``, returning one least-privilege result.
 
         Lists the project's decrypted secrets, then defers to the pure deterministic resolver
-        (``core.secrets.connections.resolve_connection``). Domain exceptions raised there are
-        caught at the router boundary. ``backend`` is accepted for parity with the auth context
-        but is not used by v1's capability reject (provider/mode only).
+        (``core.secrets.connections.resolve_connection``). HARNESS-AGNOSTIC: no harness argument;
+        the capability check lives in the agent layer. Domain exceptions raised by the resolver
+        are caught at the router boundary.
         """
-        del backend  # accepted for auth-context parity; v1 capability reject is provider/mode only
         secrets = await self.list_secrets(project_id=project_id)
         return resolve_connection(
             secrets=list(secrets or []),
@@ -145,5 +142,4 @@ class VaultService:
             model_id=model_id,
             connection_mode=connection_mode,
             connection_slug=connection_slug,
-            harness=harness,
         )

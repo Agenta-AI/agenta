@@ -92,9 +92,11 @@ def test_to_model_string_round_trips_custom_slug():
 # --------------------------------------------------------------------------- Connection
 
 
-def test_default_connection_is_valid():
+def test_default_connection_is_agenta_with_no_slug():
+    # The default connection is `agenta` with no slug (the project default); there is no
+    # separate `default` mode.
     conn = Connection()
-    assert conn.mode == "default"
+    assert conn.mode == "agenta"
     assert conn.slug is None
 
 
@@ -104,20 +106,29 @@ def test_self_managed_connection_is_valid():
     assert conn.slug is None
 
 
-def test_agenta_mode_requires_a_slug():
-    with pytest.raises(ValidationError):
-        Connection(mode="agenta")
+def test_agenta_mode_without_a_slug_is_the_project_default():
+    # An `agenta` connection with no slug is valid: it resolves to the project default.
+    conn = Connection(mode="agenta")
+    assert conn.mode == "agenta"
+    assert conn.slug is None
 
 
-def test_agenta_mode_rejects_blank_slug():
+def test_self_managed_rejects_a_slug():
+    # A self-managed connection injects nothing, so a slug has nothing to resolve against.
     with pytest.raises(ValidationError):
-        Connection(mode="agenta", slug="   ")
+        Connection(mode="self_managed", slug="openai-prod")
 
 
 def test_agenta_mode_with_slug_is_valid():
     conn = Connection(mode="agenta", slug="openai-prod")
     assert conn.mode == "agenta"
     assert conn.slug == "openai-prod"
+
+
+def test_no_default_mode():
+    # The removed `default` mode is no longer a valid literal.
+    with pytest.raises(ValidationError):
+        Connection(mode="default")
 
 
 # --------------------------------------------------- ResolvedConnection / Endpoint shape

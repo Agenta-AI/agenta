@@ -22,8 +22,11 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 
 # How a credential connection is named in the agent config. A connection is a portable
-# reference into the vault, never a database id and never a raw secret value.
-ConnectionMode = Literal["default", "self_managed", "agenta"]
+# reference into the vault, never a database id and never a raw secret value. Exactly two
+# modes: ``agenta`` (a vault connection, project-default when ``slug`` is omitted, named when
+# set) and ``self_managed`` (Agenta injects nothing). "The project default" is just ``agenta``
+# with no slug; there is no separate ``default`` mode.
+ConnectionMode = Literal["agenta", "self_managed"]
 
 # Where a resolved credential comes from, as seen by the harness adapter. ``env`` ships one
 # provider's vars; ``runtime_provided`` injects nothing (the harness owns auth, e.g. an OAuth
@@ -38,25 +41,34 @@ Deployment = Literal["direct", "azure", "bedrock", "vertex", "custom"]
 class Connection(BaseModel):
     """Where a model's credential comes from, named portably (a slug, never a db id).
 
-    - ``default``: use the project's connection for the model's provider (resolution picks
-      it deterministically; see the design's resolution rules). Names nothing project-local.
+    Exactly two modes:
+
+    - ``agenta``: use a connection in the project vault. ``slug`` selects which:
+      - **omitted** -> the project's default connection for the model's provider (resolution
+        picks it deterministically; see the design's resolution rules).
+      - **set** -> the named connection whose secret name equals ``slug``.
+      In both cases ``agenta`` names nothing project-local (a slug is a name, never a db id),
+      so it stays portable across projects.
     - ``self_managed``: Agenta injects nothing; the sandbox / sidecar / local env / the
       harness's own OAuth login owns auth. Covers OAuth subscriptions and self-hosting.
-    - ``agenta`` + ``slug``: use the named connection in the project vault.
 
-    A default-constructed ``Connection()`` is ``default`` and always valid. ``slug`` is
-    required only when ``mode == "agenta"``; that is the only combination that must name one.
+    A default-constructed ``Connection()`` is ``agenta`` with no slug (the project default) and
+    always valid. ``slug`` is meaningful only for ``agenta``; a ``self_managed`` connection that
+    carries a ``slug`` is rejected (the slug has nothing to resolve against).
     """
 
-    mode: ConnectionMode = "default"
+    mode: ConnectionMode = "agenta"
     slug: Optional[str] = (
-        None  # required iff mode == "agenta"; the secret's name, never a db id
+        None  # meaningful only for "agenta"; the secret's name, never a db id
     )
 
     @model_validator(mode="after")
-    def _require_slug_for_agenta(self) -> "Connection":
-        if self.mode == "agenta" and not (self.slug and self.slug.strip()):
-            raise ValueError("connection mode 'agenta' requires a non-empty 'slug'")
+    def _reject_slug_for_self_managed(self) -> "Connection":
+        if self.mode == "self_managed" and (self.slug and self.slug.strip()):
+            raise ValueError(
+                "connection mode 'self_managed' must not carry a 'slug' "
+                "(it injects nothing, so there is nothing for a slug to resolve against)"
+            )
         return self
 
 
@@ -95,7 +107,7 @@ class Endpoint(BaseModel):
 class ModelRef(BaseModel):
     """Model intent plus the credential connection, carried in the agent config.
 
-    A bare string still parses, with the default connection:
+    A bare string still parses, with the default ``agenta`` connection (no slug):
 
     - ``"openai/gpt-5.5"`` -> ``ModelRef(provider="openai", model="gpt-5.5")``
     - ``"gpt-5.5"``        -> ``ModelRef(provider=None, model="gpt-5.5")``
@@ -191,13 +203,18 @@ class RuntimeAuthContext(BaseModel):
     """The request-derived context a resolver needs, beyond the :class:`ModelRef`.
 
     ``project_id`` is taken from the request state, never from the request body (a caller must
-    not be able to resolve another project's credentials by passing an id). ``harness`` (and
-    ``backend``) let the resolver reject a provider or connection mode the selected harness
-    cannot reach.
+    not be able to resolve another project's credentials by passing an id).
+
+    ``harness`` and ``backend`` are the run's harness layer, NOT the vault's. The vault resolve
+    is harness-agnostic: it does deterministic selection plus provider-match only and never
+    sees the harness. The capability check (which provider/mode/deployment the harness can
+    reach) runs in the agent layer against the SDK capability table, around the resolve. So
+    ``harness`` rides this context for the agent-layer check, but the
+    :class:`~agenta.sdk.agents.platform.VaultConnectionResolver` never sends it to the vault.
     """
 
     project_id: Optional[UUID] = None  # from request.state, never the body
-    harness: str  # "pi" | "claude" | "codex"; for the capability check
+    harness: Optional[str] = None  # for the agent-layer capability check, NOT the vault
     backend: Optional[str] = (
         None  # sandbox-agent local / daytona / in-process / local SDK
     )

@@ -31,22 +31,37 @@ model plus the connection into one thing: the single credential that run needs, 
 
 ## We reuse the vault you already have
 
-We are not building a new place to store keys. Your project vault already stores connections: a
-plain provider key is a connection, and a custom provider with its base URL is a connection too.
-The prompt path reads those today. The agent path will read the same ones. Nothing about how you
-store keys changes.
+We are not building a new thing. A connection is not a new kind of object: a connection IS a vault
+secret you already have. A plain provider key is a connection. A custom provider with its base URL
+is a connection too. There is no new place to store keys, no new table, no new screen. The word
+"connection" only names two things: how the config points at a secret, and the one credential we
+hand the run after we look that secret up.
+
+The same secret feeds everything. Say you saved a Bedrock custom provider in the vault. The model
+hub uses it. Claude Code can use it. Pi can use it. It is the same single secret each time. The only
+difference is how each one is wired up: the model hub turns it into LiteLLM settings, Claude turns
+it into its Bedrock flag plus AWS variables, and Pi turns it into its Bedrock provider plus the same
+AWS variables. Nobody makes a second copy.
+
+The prompt path reads these secrets today. The agent path will read the same ones. Nothing about how
+you store keys changes.
 
 ## The connection lives in the config, and stays portable
 
 The connection is part of the config, so it travels with the agent. It stays portable because it
-stores a name, not a database id:
+stores a name, not a database id. There are only two kinds of connection:
 
-- **Project default**: the config just says "the default OpenAI connection." That works in any
-  project.
-- **Self-managed**: the config says "the agent brings its own login." That works anywhere too.
-- **A specific connection**: the config stores its name. In another project, that name resolves to
-  that project's connection of the same name. If there is none, the run stops with a clear message
-  asking you to pick one. It never quietly uses a key for the wrong provider.
+- **An Agenta connection**: Agenta holds the key and injects it. You can leave it unnamed or name
+  one.
+  - **Unnamed** means "the project default for this provider." That works in any project.
+  - **Named** means a specific connection, stored by name. In another project, that name resolves to
+    that project's connection of the same name. If there is none, the run stops with a clear message
+    asking you to pick one. It never quietly uses a key for the wrong provider.
+- **Self-managed**: the config says "the agent brings its own login." Agenta injects nothing. That
+  works anywhere too.
+
+There is no third "default" option to learn: the project default is just an Agenta connection with
+no name.
 
 One honest limit: a name is a role, not a frozen account. If two projects each have an "OpenAI prod"
 connection holding different OpenAI keys, the name resolves to each project's own key. That is what
@@ -72,10 +87,13 @@ the agent uses its own login. Self-managed only matters for agents; prompts alwa
 ## What the playground shows
 
 For agents we add a small set of controls next to the model: a provider, a model, its params, and
-where the credentials come from (a specific connection, the project default, or self-managed), plus
-a raw-JSON box for the exact value. The form also knows what each harness can do: Claude Code only
-reaches Anthropic models, Pi reaches many providers, so the options change with the selected
-harness and hide what it cannot use. Adding a custom endpoint stays on the existing secrets screen.
+where the credentials come from (an Agenta connection, named or left as the project default, or
+self-managed), plus a raw-JSON box for the exact value. The form also knows what each harness can
+do, and it learns that from the harness itself. Each harness publishes its own list of reachable
+providers (Claude Code reaches Anthropic only; Pi reaches OpenAI, Anthropic, Gemini, Mistral, Groq,
+MiniMax, Together AI, and OpenRouter, plus Azure, Bedrock, and Vertex deployments). The form takes
+that list, crosses it with the connections you actually have stored, and shows only the ones the
+selected harness can use. Adding a custom endpoint stays on the existing secrets screen.
 
 ## Does this break prompts and completions?
 

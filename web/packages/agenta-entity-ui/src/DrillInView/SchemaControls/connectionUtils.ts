@@ -16,14 +16,18 @@
  * ModelRef; Concern 3b: per-harness provider/mode gating).
  */
 
-/** A connection mode: where the credential comes from. */
-export type ConnectionMode = "default" | "self_managed" | "agenta"
+/**
+ * A connection mode: where the credential comes from. Two modes only — `agenta` (a vault
+ * connection; project-default when no slug, named when a slug is set) and `self_managed`
+ * (Agenta injects nothing). There is no separate `default` mode.
+ */
+export type ConnectionMode = "agenta" | "self_managed"
 
 /** The connection fields the form edits, read back from `config.model`. */
 export interface ConnectionFields {
     /** Logical provider family (e.g. "openai", "anthropic"); null when inferred. */
     provider: string | null
-    /** Credential mode. Defaults to "default" for a bare-string model. */
+    /** Credential mode. Defaults to "agenta" (the project default) for a bare-string model. */
     mode: ConnectionMode
     /** Named connection slug; only meaningful when mode === "agenta". */
     slug: string | null
@@ -43,7 +47,9 @@ function isModelRefObject(value: unknown): value is ModelRefObject {
 }
 
 function coerceMode(mode: unknown): ConnectionMode {
-    return mode === "self_managed" || mode === "agenta" ? mode : "default"
+    // Two modes only; anything else (including the removed "default") maps to "agenta", the
+    // project default.
+    return mode === "self_managed" ? "self_managed" : "agenta"
 }
 
 /**
@@ -71,7 +77,7 @@ export function connectionFromConfig(model: unknown): ConnectionFields {
             slug: typeof connection.slug === "string" ? connection.slug : null,
         }
     }
-    return {provider: null, mode: "default", slug: null}
+    return {provider: null, mode: "agenta", slug: null}
 }
 
 export interface ComposeModelValueArgs {
@@ -93,10 +99,11 @@ const FORM_MANAGED_KEYS = new Set(["model", "provider", "connection"])
 /**
  * Compose the `config.model` value the backend expects from the form fields.
  *
- * Keeps the plain string for the default connection with no provider override AND no extra
- * keys to preserve (so existing agents stay byte-identical). Otherwise returns the structured
- * object, including the `connection` only when it is not the default mode and the `slug` only
- * for an agenta connection. Extra keys on the prior object (e.g. `params`) ride through.
+ * Keeps the plain string for the default `agenta` connection (no slug) with no provider
+ * override AND no extra keys to preserve (so existing agents stay byte-identical). Otherwise
+ * returns the structured object, emitting the `connection` only when it carries non-default
+ * info (a `self_managed` mode, or an `agenta` slug) and the `slug` only for an agenta
+ * connection. Extra keys on the prior object (e.g. `params`) ride through.
  */
 export function composeModelValue({
     modelId,
@@ -117,14 +124,17 @@ export function composeModelValue({
     }
     const hasExtras = Object.keys(extras).length > 0
 
-    if (mode === "default" && !hasProvider && !hasExtras) {
+    // The default agenta connection (agenta + no slug) carries no info beyond the model id, so
+    // with no provider override and no extras it stays a plain string (byte-identical to today).
+    const isDefaultConnection = mode === "agenta" && !slug
+    if (isDefaultConnection && !hasProvider && !hasExtras) {
         return id
     }
 
     const result: Record<string, unknown> = {...extras, model: id}
     if (hasProvider) result.provider = provider
 
-    if (mode !== "default") {
+    if (!isDefaultConnection) {
         const connection: Record<string, unknown> = {mode}
         if (mode === "agenta" && slug) connection.slug = slug
         result.connection = connection
@@ -136,12 +146,13 @@ export function composeModelValue({
 // ---------------------------------------------------------------------------
 // Static per-harness capability map.
 //
-// A frontend copy of `sdks/python/agenta/sdk/agents/capabilities.py`, mirroring its
-// entries: pi/agenta reach any provider ("*"); claude is narrow (anthropic only); all three
-// support every connection mode. A harness with no entry is treated permissively.
+// A frontend copy of `sdks/python/agenta/sdk/agents/capabilities.py`, mirroring its REAL
+// entries: pi/agenta reach the eight vault-mapped providers; claude is anthropic-only; both
+// modes (`agenta`/`self_managed`) on every harness. A harness with no entry is permissive.
 //
 // TODO(harness-capabilities): the sibling harness-capabilities project replaces this static
-// map with one fed from `/inspect`. Keep it in agreement with the SDK table until then.
+// map with one fed from `/inspect` `meta.harness_capabilities`. Keep it in agreement with the
+// SDK table until then.
 // ---------------------------------------------------------------------------
 
 interface HarnessConnectionCapabilities {
@@ -149,17 +160,30 @@ interface HarnessConnectionCapabilities {
     connectionModes: ConnectionMode[]
 }
 
-const ALL_MODES: ConnectionMode[] = ["default", "self_managed", "agenta"]
+const ALL_MODES: ConnectionMode[] = ["agenta", "self_managed"]
+
+// The eight Agenta-vault-mapped providers Pi reaches directly (mirrors PI_VAULT_PROVIDERS in
+// the SDK capabilities table).
+const PI_VAULT_PROVIDERS = [
+    "openai",
+    "anthropic",
+    "gemini",
+    "mistral",
+    "groq",
+    "minimax",
+    "together_ai",
+    "openrouter",
+]
 
 const HARNESS_CONNECTION_CAPABILITIES: Record<string, HarnessConnectionCapabilities> = {
-    pi: {providers: ["*"], connectionModes: ALL_MODES},
-    agenta: {providers: ["*"], connectionModes: ALL_MODES},
+    pi: {providers: [...PI_VAULT_PROVIDERS], connectionModes: ALL_MODES},
+    agenta: {providers: [...PI_VAULT_PROVIDERS], connectionModes: ALL_MODES},
     claude: {providers: ["anthropic"], connectionModes: ALL_MODES},
 }
 
 /**
- * The provider families the harness can reach. `["*"]` means any provider (the form shows a
- * free-text provider field). A missing harness is permissive (returns `["*"]`).
+ * The provider families the harness can reach. A missing harness is permissive (returns `["*"]`,
+ * so the form shows a free-text provider field).
  */
 export function allowedProviders(harness: string | null | undefined): string[] {
     if (!harness) return ["*"]

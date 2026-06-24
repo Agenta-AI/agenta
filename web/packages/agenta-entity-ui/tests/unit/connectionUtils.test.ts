@@ -34,10 +34,10 @@ describe("connectionUtils: modelIdFromConfig", () => {
 })
 
 describe("connectionUtils: connectionFromConfig", () => {
-    it("treats a plain string as the implicit default connection", () => {
+    it("treats a plain string as the implicit default (agenta, no slug) connection", () => {
         expect(connectionFromConfig("gpt-5.5")).toEqual({
             provider: null,
-            mode: "default",
+            mode: "agenta",
             slug: null,
         })
     })
@@ -52,18 +52,22 @@ describe("connectionUtils: connectionFromConfig", () => {
         ).toEqual({provider: "openai", mode: "agenta", slug: "openai-prod"})
     })
 
-    it("defaults the mode when the connection block is absent or unknown", () => {
-        expect(connectionFromConfig({model: "gpt-5.5"}).mode).toBe("default")
+    it("defaults the mode to agenta when the connection block is absent or unknown", () => {
+        expect(connectionFromConfig({model: "gpt-5.5"}).mode).toBe("agenta")
+        // The removed "default" mode (and any bogus value) maps to agenta.
+        expect(connectionFromConfig({model: "gpt-5.5", connection: {mode: "default"}}).mode).toBe(
+            "agenta",
+        )
         expect(connectionFromConfig({model: "gpt-5.5", connection: {mode: "bogus"}}).mode).toBe(
-            "default",
+            "agenta",
         )
     })
 })
 
 describe("connectionUtils: composeModelValue", () => {
-    it("keeps the plain string for the default connection with no provider", () => {
+    it("keeps the plain string for the default (agenta, no slug) connection with no provider", () => {
         expect(
-            composeModelValue({modelId: "gpt-5.5", provider: null, mode: "default", slug: null}),
+            composeModelValue({modelId: "gpt-5.5", provider: null, mode: "agenta", slug: null}),
         ).toBe("gpt-5.5")
     })
 
@@ -72,7 +76,7 @@ describe("connectionUtils: composeModelValue", () => {
             composeModelValue({
                 modelId: "gpt-5.5",
                 provider: "openai",
-                mode: "default",
+                mode: "agenta",
                 slug: null,
             }),
         ).toEqual({model: "gpt-5.5", provider: "openai"})
@@ -149,7 +153,7 @@ describe("connectionUtils: composeModelValue", () => {
         const round = composeModelValue({
             modelId: "gpt-5.5",
             provider: null,
-            mode: "default",
+            mode: "agenta",
             slug: null,
             existing,
         })
@@ -173,12 +177,16 @@ describe("connectionUtils: composeModelValue", () => {
 })
 
 describe("connectionUtils: harness capability gating", () => {
-    it("pi and agenta reach any provider and all modes", () => {
-        expect(allowedProviders("pi")).toEqual(["*"])
-        expect(allowedProviders("agenta")).toEqual(["*"])
-        expect(allowedConnectionModes("pi")).toEqual(["default", "self_managed", "agenta"])
+    it("pi and agenta reach the vault providers (real list, not a wildcard) and both modes", () => {
+        // Real list, not "*": the eight vault-mapped providers (mirrors the SDK table).
+        expect(allowedProviders("pi")).toContain("openai")
+        expect(allowedProviders("pi")).toContain("together_ai")
+        expect(allowedProviders("pi")).not.toContain("*")
+        expect(allowedProviders("agenta")).toEqual(allowedProviders("pi"))
+        expect(allowedConnectionModes("pi")).toEqual(["agenta", "self_managed"])
         expect(harnessAllowsProvider("pi", "openai")).toBe(true)
-        expect(harnessAllowsProvider("pi", "anything")).toBe(true)
+        // An unmapped provider is NOT reachable (the wildcard is gone).
+        expect(harnessAllowsProvider("pi", "anything")).toBe(false)
     })
 
     it("claude is narrow: anthropic only", () => {
@@ -186,14 +194,14 @@ describe("connectionUtils: harness capability gating", () => {
         expect(harnessAllowsProvider("claude", "anthropic")).toBe(true)
         expect(harnessAllowsProvider("claude", "Anthropic")).toBe(true)
         expect(harnessAllowsProvider("claude", "openai")).toBe(false)
-        // still supports every connection mode
-        expect(allowedConnectionModes("claude")).toEqual(["default", "self_managed", "agenta"])
+        // both connection modes
+        expect(allowedConnectionModes("claude")).toEqual(["agenta", "self_managed"])
     })
 
     it("is permissive for an unknown or missing harness", () => {
         expect(allowedProviders("future-harness")).toEqual(["*"])
         expect(allowedProviders(null)).toEqual(["*"])
-        expect(allowedConnectionModes(undefined)).toEqual(["default", "self_managed", "agenta"])
+        expect(allowedConnectionModes(undefined)).toEqual(["agenta", "self_managed"])
         expect(harnessAllowsProvider("future-harness", "whatever")).toBe(true)
     })
 })

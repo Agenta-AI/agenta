@@ -1,10 +1,11 @@
 """Agenta-platform-backed connection resolution.
 
 :class:`VaultConnectionResolver` is the service / connected-path :class:`ConnectionResolver`
-adapter. It POSTs one :class:`ModelRef` plus the run's harness/backend to
-``POST /vault/connections/resolve`` and parses the single least-privilege
-:class:`ResolvedConnection` the backend returns (one provider's env vars, plus a non-secret
-endpoint). It replaces the model-blind whole-vault dump in
+adapter. It POSTs one :class:`ModelRef` to ``POST /vault/connections/resolve`` (the harness is
+NOT sent — the vault resolve is harness-agnostic; the capability check lives in the agent layer)
+and parses the single least-privilege :class:`ResolvedConnection` the backend returns (one
+connection's complete env set, plus a non-secret endpoint). It replaces the model-blind
+whole-vault dump in
 :func:`agenta.sdk.agents.platform.secrets.resolve_provider_keys` (kept-but-deprecated until the
 service migrates onto this path; see that module's docstring).
 
@@ -20,6 +21,7 @@ package); the auth/base-url plumbing rides :class:`PlatformConnection`, exactly 
 
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, Optional
 
 import httpx
@@ -36,6 +38,15 @@ from ..connections import (
 from .connection import PlatformConnection
 
 log = get_module_logger(__name__)
+
+# The header + env var that gate the internal resolve route (design Security rule 3). The agent
+# service sets ``AGENTA_VAULT_RESOLVE_INTERNAL_TOKEN`` and sends it as this header; the API rejects
+# a resolve call that does not carry the matching token, so a browser session (which never has the
+# token) cannot reach the plaintext-credential resolve even though the route is on the public
+# router. Absent on the SDK side -> the header is simply not sent (a dev backend with no token
+# configured does not enforce; a configured backend does).
+INTERNAL_RESOLVE_TOKEN_HEADER = "X-Agenta-Internal-Token"
+INTERNAL_RESOLVE_TOKEN_ENV = "AGENTA_VAULT_RESOLVE_INTERNAL_TOKEN"
 
 
 class VaultConnectionResolver:
@@ -65,21 +76,24 @@ class VaultConnectionResolver:
                 "no Agenta backend configured for connection resolution"
             )
 
+        # The vault resolve is harness-AGNOSTIC: the connection rides inside the ModelRef, and
+        # neither project_id (backend takes it from request context, design Security rule 1) nor
+        # the harness (the capability check lives in the agent layer, design Concern 3b) is sent.
         body: Dict[str, Any] = {
-            # The connection rides inside the ModelRef; project_id is NOT sent in the body
-            # (the backend takes it from request context, design Security rule 1).
             "model": model.model_dump(mode="json"),
-            "harness": context.harness,
         }
-        if context.backend is not None:
-            body["backend"] = context.backend
+
+        headers = self._connection.headers()
+        internal_token = os.getenv(INTERNAL_RESOLVE_TOKEN_ENV)
+        if internal_token:
+            headers[INTERNAL_RESOLVE_TOKEN_HEADER] = internal_token
 
         try:
             async with httpx.AsyncClient(timeout=self._connection.timeout) as client:
                 response = await client.post(
                     f"{api_base}/vault/connections/resolve",
                     json=body,
-                    headers=self._connection.headers(),
+                    headers=headers,
                 )
         except Exception as exc:  # pylint: disable=broad-except
             log.warning("agent: connection resolve request failed", exc_info=True)

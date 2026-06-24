@@ -54,10 +54,11 @@ async def test_resolve_posts_model_and_parses_least_privilege(fake_http, connect
     assert capture["method"] == "POST"
     assert capture["url"] == "https://api.x/api/vault/connections/resolve"
     assert capture["headers"]["Authorization"] == "Access tok"
-    # project_id is NOT sent in the body (server takes it from request context).
+    # project_id is NOT sent in the body (server takes it from request context). The vault resolve
+    # is harness-agnostic, so neither harness nor backend is sent either.
     assert "project_id" not in capture["json"]
-    assert capture["json"]["harness"] == "pi"
-    assert capture["json"]["backend"] == "local"
+    assert "harness" not in capture["json"]
+    assert "backend" not in capture["json"]
     assert capture["json"]["model"]["connection"] == {
         "mode": "agenta",
         "slug": "openai-prod",
@@ -98,6 +99,58 @@ async def test_resolve_fails_loud_on_network_exception(fake_http, connection):
         await VaultConnectionResolver(connection).resolve(
             model=_model(), context=_context()
         )
+
+
+async def test_resolve_sends_internal_token_header_when_configured(
+    fake_http, connection, monkeypatch
+):
+    # The internal-service token (the genuine guard on the plaintext resolve route) rides the
+    # X-Agenta-Internal-Token header when the agent service has it configured.
+    from agenta.sdk.agents.platform.connections import (
+        INTERNAL_RESOLVE_TOKEN_ENV,
+        INTERNAL_RESOLVE_TOKEN_HEADER,
+    )
+
+    monkeypatch.setenv(INTERNAL_RESOLVE_TOKEN_ENV, "tok-internal")
+    capture = fake_http(
+        connections,
+        payload={
+            "provider": "openai",
+            "model": "gpt-5.5",
+            "deployment": "direct",
+            "credential_mode": "env",
+            "env": {"OPENAI_API_KEY": "sk-prod"},
+        },
+    )
+    await VaultConnectionResolver(connection).resolve(
+        model=_model(), context=_context()
+    )
+    assert capture["headers"][INTERNAL_RESOLVE_TOKEN_HEADER] == "tok-internal"
+
+
+async def test_resolve_omits_internal_token_header_when_unset(
+    fake_http, connection, monkeypatch
+):
+    from agenta.sdk.agents.platform.connections import (
+        INTERNAL_RESOLVE_TOKEN_ENV,
+        INTERNAL_RESOLVE_TOKEN_HEADER,
+    )
+
+    monkeypatch.delenv(INTERNAL_RESOLVE_TOKEN_ENV, raising=False)
+    capture = fake_http(
+        connections,
+        payload={
+            "provider": "openai",
+            "model": "gpt-5.5",
+            "deployment": "direct",
+            "credential_mode": "env",
+            "env": {"OPENAI_API_KEY": "sk-prod"},
+        },
+    )
+    await VaultConnectionResolver(connection).resolve(
+        model=_model(), context=_context()
+    )
+    assert INTERNAL_RESOLVE_TOKEN_HEADER not in capture["headers"]
 
 
 async def test_resolve_without_api_base_fails_loud(fake_http):

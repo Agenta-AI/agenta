@@ -13,6 +13,7 @@ from .errors import (
     ConnectionResolutionError,
     ProviderMismatchError,
     UnsupportedConnectionModeError,
+    UnsupportedDeploymentError,
     UnsupportedProviderError,
 )
 from .interfaces import ConnectionResolver
@@ -48,4 +49,5 @@ __all__ = [
     "ProviderMismatchError",
     "UnsupportedProviderError",
     "UnsupportedConnectionModeError",
+    "UnsupportedDeploymentError",
 ]

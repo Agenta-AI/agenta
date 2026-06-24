@@ -45,8 +45,8 @@ class EnvConnectionResolver:
 
     - ``Connection.mode == self_managed`` -> ``credential_mode = runtime_provided``, empty
       ``env`` (the harness owns auth).
-    - ``default`` / ``agenta`` -> infer the provider (from ``ModelRef.provider``, else error),
-      look up its env var, and:
+    - ``agenta`` (the default mode, with or without a slug) -> infer the provider (from
+      ``ModelRef.provider``, else error), look up its env var, and:
         - present -> ``credential_mode = env`` carrying exactly that one var;
         - absent  -> ``credential_mode = runtime_provided`` with empty ``env`` (absence is
           valid; the harness falls back to its own login, matching today's semantics).

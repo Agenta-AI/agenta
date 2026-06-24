@@ -19,18 +19,18 @@ This module holds the CORE layer of the provider/model/auth feature on the API s
 
 Design: ``docs/design/agent-workflows/projects/provider-model-auth/design.md``.
 
-The API must NOT import the SDK; the provider->env map and the capability table are duplicated
-on each side on purpose (the SDK side serves standalone/FE, the API side is server-authoritative).
+The vault resolve is **harness-agnostic** (design Concern 3b): it does deterministic selection
+plus a provider match only, and never consults a harness capability table. The capability check
+(which provider / mode / deployment the selected harness can reach) lives up in the agent layer,
+against the SDK capability table, around the resolve. So this module carries NO harness table and
+takes no harness argument. The API must NOT import the SDK; the provider->env map is duplicated on
+each side on purpose (the SDK side serves standalone/FE, the API side is server-authoritative).
 """
 
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from oss.src.core.secrets.capabilities import (
-    harness_allows_mode,
-    harness_allows_provider,
-)
 from oss.src.core.secrets.enums import SecretKind
 
 
@@ -44,6 +44,7 @@ _PROVIDER_ENV_VARS: Dict[str, str] = {
     "gemini": "GEMINI_API_KEY",
     "mistral": "MISTRAL_API_KEY",
     "mistralai": "MISTRAL_API_KEY",
+    "minimax": "MINIMAX_API_KEY",
     "groq": "GROQ_API_KEY",
     "together_ai": "TOGETHERAI_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
@@ -59,6 +60,32 @@ _CUSTOM_DEPLOYMENT_BY_KIND: Dict[str, str] = {
     "azure": "azure",
     "bedrock": "bedrock",
     "vertex_ai": "vertex",
+}
+
+# The complete secret-bearing env keys each cloud deployment needs, sourced from the
+# harness-provider matrix. The resolver emits whichever of these the connection actually carries
+# (in ``data.provider.extras`` for a custom_provider). The non-secret config (region, project,
+# location) rides ``endpoint``, never ``env``. These are intentionally read from the secret's
+# ``extras`` so a cloud connection can carry whatever subset its auth scheme uses (static keys, a
+# profile, or a bearer token), and the runner clears the complete inventory before applying.
+_BEDROCK_SECRET_ENV = (
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+    "AWS_PROFILE",
+    "AWS_BEARER_TOKEN_BEDROCK",
+)
+_VERTEX_SECRET_ENV = (
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    "GOOGLE_CLOUD_API_KEY",
+)
+_AZURE_SECRET_ENV = ("AZURE_OPENAI_API_KEY",)
+
+# Secret-bearing extras to pull per deployment. Keyed by the resolved deployment surface.
+_CLOUD_SECRET_ENV_BY_DEPLOYMENT: Dict[str, tuple] = {
+    "bedrock": _BEDROCK_SECRET_ENV,
+    "vertex": _VERTEX_SECRET_ENV,
+    "azure": _AZURE_SECRET_ENV,
 }
 
 
@@ -100,38 +127,12 @@ class ProviderMismatch(ConnectionResolutionError):
         )
 
 
-class UnsupportedProvider(ConnectionResolutionError):
-    def __init__(self, *, provider: str, harness: Optional[str] = None) -> None:
-        suffix = f" by harness '{harness}'" if harness else ""
-        self.provider = provider
-        self.harness = harness
-        super().__init__(f"provider '{provider}' is not supported{suffix}")
-
-
 class UnsupportedConnectionMode(ConnectionResolutionError):
-    def __init__(self, *, mode: str, harness: Optional[str] = None) -> None:
-        suffix = f" by harness '{harness}'" if harness else ""
+    """A connection mode outside the two-mode union (``agenta`` / ``self_managed``)."""
+
+    def __init__(self, *, mode: str) -> None:
         self.mode = mode
-        self.harness = harness
-        super().__init__(f"connection mode '{mode}' is not supported{suffix}")
-
-
-class UnsupportedDeployment(ConnectionResolutionError):
-    """A cloud deployment (azure/bedrock/vertex) whose credential delivery v1 does not wire yet.
-
-    These need provider-specific cloud credential delivery (AWS/GCP env, ``CLAUDE_CODE_USE_*``),
-    owned by the model-config sibling project. v1 fails loud rather than silently dropping the
-    key and running with no credential.
-    """
-
-    def __init__(self, *, deployment: str, slug: Optional[str] = None) -> None:
-        self.deployment = deployment
-        self.slug = slug
-        named = f" '{slug}'" if slug else ""
-        super().__init__(
-            f"connection{named} uses deployment '{deployment}', which is not supported yet; "
-            "use a direct or OpenAI-compatible custom connection"
-        )
+        super().__init__(f"connection mode '{mode}' is not a valid mode")
 
 
 # --- non-secret read view --------------------------------------------------------------------
@@ -251,14 +252,27 @@ def project_connection_view(secret: Any) -> Optional[ConnectionView]:
     )
 
 
-def _build_env_and_endpoint(
-    *, secret: Any, provider: str
-) -> tuple[Dict[str, str], Optional[ConnectionEndpointView]]:
-    """Build the least-privilege ``env`` (one provider's key) and the non-secret endpoint.
+def _settings_extras(settings: Any) -> Dict[str, Any]:
+    extras = getattr(settings, "extras", None) if settings is not None else None
+    return extras if isinstance(extras, dict) else {}
 
-    For ``provider_key`` the key rides ``data.provider.key``. For ``custom_provider`` the key
-    rides ``data.provider.key`` too and the base URL / version surface into the endpoint
-    (non-secret); an OpenAI-compatible custom provider uses ``OPENAI_API_KEY``.
+
+def _build_env_and_endpoint(
+    *, secret: Any, provider: str, deployment: str
+) -> tuple[Dict[str, str], Optional[ConnectionEndpointView]]:
+    """Build the COMPLETE secret-bearing ``env`` for the connection and the non-secret endpoint.
+
+    ``env`` is the only secret channel and carries the complete set the connection needs, not a
+    single key (design Concern 3):
+
+    - ``provider_key`` / OpenAI-compatible ``custom_provider`` (deployment ``direct``/``custom``):
+      the one provider api key from ``data.provider.key`` under its env var.
+    - cloud ``custom_provider`` (deployment ``bedrock``/``vertex``/``azure``): the full credential
+      group the deployment uses, pulled from ``data.provider.extras`` (static AWS keys, a profile,
+      a bearer token, GCP ADC / api key, the Azure key), plus the OpenAI-compatible key path when
+      one is present. The non-secret config (region/project/location) rides ``endpoint``.
+
+    The base URL / api version always surface into the (non-secret) endpoint, never ``env``.
     """
     env: Dict[str, str] = {}
     endpoint: Optional[ConnectionEndpointView] = None
@@ -266,15 +280,36 @@ def _build_env_and_endpoint(
     settings = _custom_provider_settings(secret)
     key = getattr(settings, "key", None) if settings is not None else None
 
+    # The direct/openai-compatible api key (when the provider maps to a single *_API_KEY var).
     env_var = _provider_env_var(provider)
     if env_var and key:
         env[env_var] = key
 
+    # The cloud deployment's full credential group: whichever secret-bearing vars the connection
+    # actually carries in its extras (the apply set; the runner clears the complete inventory).
+    cloud_keys = _CLOUD_SECRET_ENV_BY_DEPLOYMENT.get(deployment)
+    if cloud_keys:
+        extras = _settings_extras(settings)
+        for var in cloud_keys:
+            value = extras.get(var)
+            if value:
+                env[var] = str(value)
+        # Azure's api key may live in the secret's `key` field rather than extras.
+        if deployment == "azure" and key and "AZURE_OPENAI_API_KEY" not in env:
+            env["AZURE_OPENAI_API_KEY"] = key
+
     if kind == SecretKind.CUSTOM_PROVIDER.value and settings is not None:
         base_url = getattr(settings, "url", None)
         version = getattr(settings, "version", None)
-        if base_url or version:
-            endpoint = ConnectionEndpointView(base_url=base_url, api_version=version)
+        region = _settings_extras(settings).get("region") or _settings_extras(
+            settings
+        ).get("AWS_REGION")
+        if base_url or version or region:
+            endpoint = ConnectionEndpointView(
+                base_url=base_url,
+                api_version=version,
+                region=str(region) if region else None,
+            )
 
     return env, endpoint
 
@@ -289,21 +324,21 @@ def resolve_connection(
     model_id: str,
     connection_mode: str,
     connection_slug: Optional[str],
-    harness: str,
 ) -> ResolvedConnectionResult:
     """Resolve one connection deterministically. Pure over the project's decrypted secrets.
 
-    Implements the design's resolution rules (Concern 3). Never picks a key by iteration order:
-    a missing slug, an ambiguous match, a provider mismatch, or an unsupported provider/mode each
-    raises a domain exception (caught at the router boundary). ``secrets`` is the project's
-    already-decrypted ``SecretResponseDTO`` list; this function reads no DB.
-    """
-    # Capability reject (around resolution): provider and mode must be reachable by the harness.
-    if model_provider and not harness_allows_provider(harness, model_provider):
-        raise UnsupportedProvider(provider=model_provider, harness=harness)
-    if not harness_allows_mode(harness, connection_mode):
-        raise UnsupportedConnectionMode(mode=connection_mode, harness=harness)
+    Implements the design's two-mode resolution rules (Concern 3). HARNESS-AGNOSTIC: it never
+    consults a harness capability table and takes no harness argument (the provider/mode/deployment
+    capability check lives in the agent layer, around this call). Never picks a key by iteration
+    order: a missing slug, an ambiguous match, or a provider mismatch each raises a domain
+    exception (caught at the router boundary). ``secrets`` is the project's already-decrypted
+    ``SecretResponseDTO`` list; this function reads no DB.
 
+    For a resolved cloud deployment (bedrock/vertex/azure) it emits the COMPLETE credential set
+    (not a single key) and reports the ``deployment``; it does NOT fail loud here. The harness that
+    cannot consume that deployment is rejected in the agent layer (the post-resolve deployment
+    check), so this stays harness-agnostic.
+    """
     # Rule 1: self_managed -> inject nothing, model passthrough. No vault read needed.
     if connection_mode == "self_managed":
         return ResolvedConnectionResult(
@@ -313,18 +348,19 @@ def resolve_connection(
             env={},
         )
 
+    if connection_mode != "agenta":
+        # Two modes only (agenta / self_managed); anything else is a malformed request.
+        raise UnsupportedConnectionMode(mode=connection_mode)
+
     # Only connection-bearing secrets participate (provider_key / custom_provider).
     connections = [s for s in secrets if _projected_provider(s) is not None]
 
-    if connection_mode == "agenta":
-        # Rule 2: a named connection must name one.
-        if not (connection_slug and connection_slug.strip()):
-            raise ConnectionNotFound(slug="", provider=model_provider)
-        slug = connection_slug.strip()
-        # Rule 3: match by slug. Absent -> not found. Multiple same-named -> disambiguate by
-        # provider when given; a single wrong-provider match falls through to rule 5
-        # (ProviderMismatch, a clearer error than not-found). With no provider given, a single
-        # slug match adopts that connection's provider (minimal inference).
+    slug = (connection_slug or "").strip()
+    if slug:
+        # Named connection. Rule 2: match by slug. Absent -> not found. Multiple same-named ->
+        # disambiguate by provider when given; a single wrong-provider match falls through to the
+        # provider-match rule (ProviderMismatch, a clearer error than not-found). With no provider
+        # given, a single slug match adopts that connection's provider (minimal inference).
         named = [s for s in connections if _secret_slug(s) == slug]
         if not named:
             raise ConnectionNotFound(slug=slug, provider=model_provider)
@@ -337,8 +373,9 @@ def resolve_connection(
                 raise AmbiguousConnection(provider=model_provider or "", slug=slug)
         chosen = named[0]
         resolved_provider = model_provider or _projected_provider(chosen) or ""
-    elif connection_mode == "default":
-        # provider is required to pick a default; without it there is nothing to scope to.
+    else:
+        # No slug = the project default for the provider. Rule 3: exactly one connection for the
+        # provider, else the uniquely-named "default", else ambiguous.
         if not model_provider:
             raise AmbiguousConnection(provider="", slug=None)
         for_provider = [
@@ -347,35 +384,26 @@ def resolve_connection(
         if len(for_provider) == 1:
             chosen = for_provider[0]
         else:
-            # Rule 4: else exactly one named "default" for the provider, else ambiguous.
             named_default = [s for s in for_provider if _secret_slug(s) == "default"]
             if len(named_default) == 1:
                 chosen = named_default[0]
             else:
                 raise AmbiguousConnection(provider=model_provider, slug=None)
         resolved_provider = model_provider
-    else:
-        raise UnsupportedConnectionMode(mode=connection_mode, harness=harness)
 
-    # Rule 5: provider match. The resolved connection's provider must equal the model provider.
+    # Rule 4: provider match. The resolved connection's provider must equal the model provider.
     chosen_provider = _projected_provider(chosen) or ""
     if model_provider and chosen_provider != model_provider:
         raise ProviderMismatch(expected=model_provider, actual=chosen_provider)
 
-    # Fail loud for cloud deployments whose credential delivery v1 does not wire yet, rather than
-    # silently dropping the key (these env vars are not in the provider map) and running with no
-    # credential. Direct + OpenAI-compatible custom are the v1 surfaces.
-    chosen_deployment = _projected_deployment(chosen)
-    if chosen_deployment in _CUSTOM_DEPLOYMENT_BY_KIND.values():
-        raise UnsupportedDeployment(
-            deployment=chosen_deployment, slug=_secret_slug(chosen)
-        )
-
-    env, endpoint = _build_env_and_endpoint(secret=chosen, provider=resolved_provider)
+    deployment = _projected_deployment(chosen)
+    env, endpoint = _build_env_and_endpoint(
+        secret=chosen, provider=resolved_provider, deployment=deployment
+    )
     return ResolvedConnectionResult(
         provider=resolved_provider,
         model=model_id,
-        deployment=_projected_deployment(chosen),
+        deployment=deployment,
         credential_mode="env" if env else "runtime_provided",
         env=env,
         endpoint=endpoint,

@@ -383,3 +383,52 @@ async def test_default_connection_resolution_failure_degrades(
     assert backend.created_secrets == [{}]
     assert built[0].secrets == {}
     assert built[0].resolved_connection.credential_mode == "runtime_provided"
+
+
+# ---------------------------------------------------------------------------
+# Agent-layer capability reject (split around the vault resolve, design Concern 3b)
+# ---------------------------------------------------------------------------
+
+
+async def test_claude_unsupported_provider_rejected_pre_resolve(
+    monkeypatch, fake_backend
+):
+    """Claude + a non-anthropic provider fails loud BEFORE the vault resolve runs."""
+    from agenta.sdk.agents.connections import UnsupportedProviderError
+
+    backend = fake_backend(result=AgentResult(output="echo"))
+
+    async def _resolve(*, model, context):
+        raise AssertionError(
+            "vault resolve must not run on a pre-resolve provider reject"
+        )
+
+    _patch_resolution(monkeypatch, backend, resolve=_resolve)
+
+    with pytest.raises(UnsupportedProviderError):
+        await _invoke("claude", model={"provider": "openai", "model": "gpt-5.5"})
+
+
+async def test_claude_bedrock_rejected_post_resolve(monkeypatch, fake_backend):
+    """Claude resolving to a bedrock deployment fails loud AFTER the resolve returns.
+
+    The deployment is only known once the vault selects the secret, so the reject is the
+    post-resolve half of the agent-layer check.
+    """
+    from agenta.sdk.agents.connections import UnsupportedDeploymentError
+
+    backend = fake_backend(result=AgentResult(output="echo"))
+
+    async def _resolve(*, model, context):
+        return ResolvedConnection(
+            provider="anthropic",
+            model="claude-x",
+            deployment="bedrock",
+            credential_mode="env",
+            env={"AWS_ACCESS_KEY_ID": "AKIA"},
+        )
+
+    _patch_resolution(monkeypatch, backend, resolve=_resolve)
+
+    with pytest.raises(UnsupportedDeploymentError):
+        await _invoke("claude", model={"provider": "anthropic", "model": "claude-x"})

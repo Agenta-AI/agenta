@@ -83,3 +83,23 @@ class UnsupportedConnectionModeError(ConnectionResolutionError):
         super().__init__(f"connection mode '{mode}' is not supported{suffix}")
         self.mode = mode
         self.harness = harness
+
+
+class UnsupportedDeploymentError(ConnectionResolutionError):
+    """Raised when the resolved deployment cannot be consumed by the selected harness in v1.
+
+    Cloud deployments (bedrock/vertex/azure) are declared in the capability surface but their
+    consumption is not wired in v1 (Pi staged with model-config; Claude bedrock/vertex not wired).
+    A slug-less ``agenta`` connection only reveals its deployment once the vault selects the
+    secret, so this is the POST-resolve half of the agent-layer capability check (Concern 3b): a
+    run resolving to an unconsumable deployment fails loud rather than running mis-credentialed.
+    """
+
+    def __init__(self, *, deployment: str, harness: Optional[str] = None) -> None:
+        suffix = f" by harness '{harness}'" if harness else ""
+        super().__init__(
+            f"deployment '{deployment}' is not supported{suffix} in v1; "
+            "use a direct or OpenAI-compatible custom connection"
+        )
+        self.deployment = deployment
+        self.harness = harness

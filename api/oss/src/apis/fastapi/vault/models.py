@@ -27,16 +27,16 @@ class ConnectionModelRefRequest(BaseModel):
 
 
 class ConnectionRequest(BaseModel):
-    mode: str = "default"  # "default" | "self_managed" | "agenta"
-    slug: Optional[str] = None  # required iff mode == "agenta"
+    mode: str = "agenta"  # "agenta" | "self_managed"
+    slug: Optional[str] = None  # meaningful only for mode == "agenta"
 
 
 class ResolveConnectionRequest(BaseModel):
-    """The resolve request body. ``project_id`` is NOT here: it comes from request context."""
+    """The resolve request body. HARNESS-AGNOSTIC: no harness/backend (the capability check is in
+    the agent layer). ``project_id`` is NOT here either: it comes from request context.
+    """
 
     model: ConnectionModelRefRequest
-    harness: str
-    backend: Optional[str] = None
 
 
 class ResolvedConnectionResponse(BaseModel):

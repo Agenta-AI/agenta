@@ -18,18 +18,12 @@ const touched = [
   "SANDBOX_AGENT_ADAPTER_PATH",
   "SANDBOX_AGENT_PI_COMMAND",
   "PI_CODING_AGENT_DIR",
-  "OPENAI_API_KEY",
-  "ANTHROPIC_API_KEY",
-  "ANTHROPIC_AUTH_TOKEN",
-  "CLAUDE_CODE_OAUTH_TOKEN",
   "CLAUDE_CONFIG_DIR",
-  "GEMINI_API_KEY",
-  "MISTRAL_API_KEY",
-  "GROQ_API_KEY",
-  "TOGETHERAI_API_KEY",
-  "OPENROUTER_API_KEY",
   "COMPOSIO_API_KEY",
   "DAYTONA_API_KEY",
+  // Every var the clear-inventory test touches is the full known provider inventory plus the
+  // cloud groups, so the afterEach restores them all.
+  ...KNOWN_PROVIDER_ENV_VARS,
 ];
 const previous = new Map<string, string | undefined>();
 for (const key of touched) previous.set(key, process.env[key]);
@@ -75,21 +69,31 @@ describe("buildDaemonEnv", () => {
     assert.equal(env.DAYTONA_API_KEY, undefined);
   });
 
-  it("clears all known provider env on a managed run (clear-then-apply, Security rule 5)", () => {
-    // The sidecar inherits keys for several providers...
+  it("clears the COMPLETE provider env inventory on a managed run (clear-then-apply, rule 5)", () => {
+    // The sidecar inherits keys for several providers, INCLUDING a cloud group (AWS for Bedrock).
     process.env.OPENAI_API_KEY = "sidecar-openai";
     process.env.ANTHROPIC_API_KEY = "sidecar-anthropic";
     process.env.GEMINI_API_KEY = "sidecar-gemini";
     process.env.CLAUDE_CODE_OAUTH_TOKEN = "sidecar-oauth";
+    process.env.AWS_ACCESS_KEY_ID = "sidecar-aws-key";
+    process.env.AWS_SECRET_ACCESS_KEY = "sidecar-aws-secret";
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = "/sidecar/adc.json";
+    process.env.AZURE_OPENAI_API_KEY = "sidecar-azure";
     process.env.HOME = "/home/runner";
 
     // ...but a managed run (credentialMode "env") must inherit NONE of them; the caller applies
-    // only the resolved secrets afterwards. So no inherited provider key leaks into the daemon.
+    // only the resolved secrets afterwards. The clear set is the COMPLETE inventory, not just the
+    // direct *_API_KEY vars, so an inherited cloud credential cannot leak either.
     const env = buildDaemonEnv("pi", { clearProviderEnv: true });
 
     for (const key of KNOWN_PROVIDER_ENV_VARS) {
       assert.equal(env[key], undefined, `${key} must not be inherited on a managed run`);
     }
+    // The cloud groups are part of the inventory, so they are cleared too.
+    assert.equal(env.AWS_ACCESS_KEY_ID, undefined);
+    assert.equal(env.AWS_SECRET_ACCESS_KEY, undefined);
+    assert.equal(env.GOOGLE_APPLICATION_CREDENTIALS, undefined);
+    assert.equal(env.AZURE_OPENAI_API_KEY, undefined);
     // Non-credential launch vars are still present.
     assert.equal(env.HOME, "/home/runner");
     assert.ok(env.PATH);

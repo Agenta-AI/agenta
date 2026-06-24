@@ -4,6 +4,7 @@ from typing import List
 from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Request, status, HTTPException
 
+from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
@@ -21,8 +22,6 @@ from oss.src.core.secrets.connections import (
     ConnectionResolutionError,
     ProviderMismatch,
     UnsupportedConnectionMode,
-    UnsupportedDeployment,
-    UnsupportedProvider,
 )
 from oss.src.apis.fastapi.vault.models import (
     ConnectionsListResponse,
@@ -36,6 +35,11 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
+
+# Header the internal agent service sends to prove it is service-internal (matched against
+# `env.agenta.vault_resolve_internal_token`). Mirrors the SDK's
+# `agenta.sdk.agents.platform.connections.INTERNAL_RESOLVE_TOKEN_HEADER`.
+INTERNAL_RESOLVE_TOKEN_HEADER = "X-Agenta-Internal-Token"
 
 
 class VaultRouter:
@@ -98,10 +102,12 @@ class VaultRouter:
             response_model=ConnectionsListResponse,
         )
         # INTERNAL-ONLY. Unlike the routes above, this returns PLAINTEXT credentials in `env`
-        # (the whole point of an internal resolve). It must stay server-side / internal-service
-        # plumbing and must NOT be added to any browser-callable Fern client (design Security
-        # rule 3). The auth middleware (request.state) plus the least-privilege single-connection
-        # return and the not-mounted-in-the-browser-client contract are the v1 guard.
+        # (the whole point of an internal resolve). The genuine guard (design Security rule 3) is
+        # an internal-service token: when `env.agenta.vault_resolve_internal_token` is set, the
+        # handler rejects any request that does not carry the matching `X-Agenta-Internal-Token`
+        # header. The agent service has the token; a browser session does not, so the route is not
+        # browser-reachable even though it is on the public router. It is also kept off the Fern
+        # client, but that is defense-in-depth, not the access control.
         self.router.add_api_route(
             "/vault/connections/resolve",
             self.resolve_connection,
@@ -290,8 +296,18 @@ class VaultRouter:
     async def resolve_connection(
         self, request: Request, body: ResolveConnectionRequest
     ):
-        # INTERNAL-ONLY: returns plaintext credentials in `env`. Keep server-side; never expose
-        # via a browser client (design Security rule 3).
+        # INTERNAL-ONLY: returns plaintext credentials in `env` (design Security rule 3). The
+        # genuine guard is the internal-service token: when configured, reject any caller that
+        # does not present the matching header. A browser session never has the token.
+        expected_token = env.agenta.vault_resolve_internal_token
+        if expected_token:
+            presented = request.headers.get(INTERNAL_RESOLVE_TOKEN_HEADER)
+            if presented != expected_token:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="connection resolution is an internal-service endpoint",
+                )
+
         if is_ee():
             has_permission = await check_action_access(
                 user_uid=str(request.state.user_id),
@@ -317,18 +333,12 @@ class VaultRouter:
                 model_id=model.model,
                 connection_mode=model.connection.mode,
                 connection_slug=model.connection.slug,
-                harness=body.harness,
-                backend=body.backend,
             )
         except ConnectionNotFound as e:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail=str(e)
             ) from e
-        except (
-            UnsupportedProvider,
-            UnsupportedConnectionMode,
-            UnsupportedDeployment,
-        ) as e:
+        except UnsupportedConnectionMode as e:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
             ) from e

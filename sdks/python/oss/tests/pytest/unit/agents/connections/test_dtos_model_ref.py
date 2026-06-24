@@ -136,4 +136,5 @@ def test_structured_config_wire_carries_provider_and_connection():
 
 
 def test_default_connection_equality():
-    assert Connection() == Connection(mode="default", slug=None)
+    # The default connection is `agenta` with no slug.
+    assert Connection() == Connection(mode="agenta", slug=None)

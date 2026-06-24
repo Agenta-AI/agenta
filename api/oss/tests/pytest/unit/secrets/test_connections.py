@@ -13,8 +13,6 @@ from oss.src.core.secrets.connections import (
     ConnectionNotFound,
     ProviderMismatch,
     UnsupportedConnectionMode,
-    UnsupportedDeployment,
-    UnsupportedProvider,
     project_connection_view,
     resolve_connection,
 )
@@ -32,7 +30,13 @@ def _provider_key(*, name: str, kind: str, key: str) -> SecretResponseDTO:
 
 
 def _custom_provider(
-    *, name: str, kind: str, key: str, url: str, version: str = None
+    *,
+    name: str,
+    kind: str,
+    key: str = None,
+    url: str = None,
+    version: str = None,
+    extras=None,
 ) -> SecretResponseDTO:
     return SecretResponseDTO.model_validate(
         {
@@ -41,7 +45,12 @@ def _custom_provider(
             "kind": "custom_provider",
             "data": {
                 "kind": kind,
-                "provider": {"url": url, "version": version, "key": key},
+                "provider": {
+                    "url": url,
+                    "version": version,
+                    "key": key,
+                    "extras": extras,
+                },
                 "models": [{"slug": "my-model"}],
                 "provider_slug": name,
             },
@@ -50,12 +59,13 @@ def _custom_provider(
 
 
 def _resolve(secrets, **kwargs):
+    # The vault resolve is harness-agnostic: no harness argument. Default = the project default
+    # (agenta mode, no slug).
     base = dict(
         model_provider="openai",
         model_id="gpt-5.5",
-        connection_mode="default",
+        connection_mode="agenta",
         connection_slug=None,
-        harness="pi",
     )
     base.update(kwargs)
     return resolve_connection(secrets=secrets, **base)
@@ -100,12 +110,12 @@ def test_ambiguous_duplicate_slug_raises():
         _resolve(secrets, connection_mode="agenta", connection_slug="openai-prod")
 
 
-# --- default --------------------------------------------------------------------------------
+# --- project default (agenta mode, no slug) -------------------------------------------------
 
 
 def test_default_exactly_one():
     secrets = [_provider_key(name="my-openai", kind="openai", key="sk-1")]
-    result = _resolve(secrets, connection_mode="default")
+    result = _resolve(secrets)  # agenta + no slug = the project default
     assert result.env == {"OPENAI_API_KEY": "sk-1"}
 
 
@@ -115,7 +125,7 @@ def test_default_two_unnamed_raises_ambiguous():
         _provider_key(name="openai-b", kind="openai", key="sk-b"),
     ]
     with pytest.raises(AmbiguousConnection):
-        _resolve(secrets, connection_mode="default")
+        _resolve(secrets)
 
 
 def test_default_with_uniquely_named_default():
@@ -123,7 +133,7 @@ def test_default_with_uniquely_named_default():
         _provider_key(name="default", kind="openai", key="sk-default"),
         _provider_key(name="openai-b", kind="openai", key="sk-b"),
     ]
-    result = _resolve(secrets, connection_mode="default")
+    result = _resolve(secrets)
     assert result.env == {"OPENAI_API_KEY": "sk-default"}
 
 
@@ -145,33 +155,35 @@ def test_provider_mismatch_raises():
         )
 
 
-# --- capability reject ----------------------------------------------------------------------
+# --- harness-agnostic: no capability reject in the vault resolve ----------------------------
 
 
-def test_unsupported_provider_for_claude():
+def test_resolve_is_harness_agnostic_no_provider_reject():
+    # The vault resolve never rejects on harness capability (that check lives in the agent
+    # layer). An openai connection resolves fine here regardless of any harness.
     secrets = [_provider_key(name="my-openai", kind="openai", key="sk-1")]
-    with pytest.raises(UnsupportedProvider):
-        _resolve(secrets, harness="claude", model_provider="openai")
-
-
-def test_unsupported_mode_for_unknown_harness_is_permissive():
-    # Unknown harness -> permissive: it must NOT reject a known mode.
-    secrets = [_provider_key(name="my-openai", kind="openai", key="sk-1")]
-    result = _resolve(secrets, harness="some-future-harness")
+    result = _resolve(secrets)
     assert result.env == {"OPENAI_API_KEY": "sk-1"}
 
 
 def test_bogus_mode_rejected():
+    # Two modes only; anything else is malformed.
     with pytest.raises(UnsupportedConnectionMode):
         _resolve([], connection_mode="bogus")
 
 
-# --- custom_provider ------------------------------------------------------------------------
+def test_default_mode_string_rejected():
+    # The removed "default" mode string is no longer a valid resolve mode.
+    with pytest.raises(UnsupportedConnectionMode):
+        _resolve([], connection_mode="default")
 
 
-def test_azure_custom_provider_fails_loud():
-    # v1 does not wire cloud (azure/bedrock/vertex) credential delivery; it must fail loud
-    # rather than silently drop the key and run with no credential.
+# --- custom_provider: cloud deployments emit the FULL credential set ------------------------
+
+
+def test_azure_custom_provider_emits_full_creds_not_fail_loud():
+    # v1: the vault resolve EMITS the full cloud credential set and reports the deployment; it
+    # does NOT fail loud (the unconsumable-deployment reject lives in the agent layer now).
     secrets = [
         _custom_provider(
             name="my-azure",
@@ -181,13 +193,63 @@ def test_azure_custom_provider_fails_loud():
             version="2024-02-01",
         ),
     ]
-    with pytest.raises(UnsupportedDeployment):
-        _resolve(
-            secrets,
-            model_provider="azure",
-            connection_mode="agenta",
-            connection_slug="my-azure",
-        )
+    result = _resolve(
+        secrets,
+        model_provider="azure",
+        connection_slug="my-azure",
+    )
+    assert result.deployment == "azure"
+    # Azure key surfaces under its env var; the base_url/version ride the (non-secret) endpoint.
+    assert result.env == {"AZURE_OPENAI_API_KEY": "az-key"}
+    assert result.endpoint.base_url == "https://my.azure.example/v1"
+    assert result.endpoint.api_version == "2024-02-01"
+
+
+def test_bedrock_custom_provider_emits_full_aws_group():
+    # The complete AWS group rides env; region is non-secret config on endpoint.
+    secrets = [
+        _custom_provider(
+            name="my-bedrock",
+            kind="bedrock",
+            extras={
+                "AWS_ACCESS_KEY_ID": "AKIA...",
+                "AWS_SECRET_ACCESS_KEY": "secret",
+                "AWS_SESSION_TOKEN": "token",
+                "region": "us-east-1",
+            },
+        ),
+    ]
+    result = _resolve(
+        secrets,
+        model_provider="bedrock",
+        connection_slug="my-bedrock",
+    )
+    assert result.deployment == "bedrock"
+    assert result.env == {
+        "AWS_ACCESS_KEY_ID": "AKIA...",
+        "AWS_SECRET_ACCESS_KEY": "secret",
+        "AWS_SESSION_TOKEN": "token",
+    }
+    assert result.endpoint.region == "us-east-1"
+    # The non-secret region must NOT leak into env.
+    assert "region" not in result.env
+
+
+def test_vertex_custom_provider_emits_gcp_group():
+    secrets = [
+        _custom_provider(
+            name="my-vertex",
+            kind="vertex_ai",
+            extras={"GOOGLE_APPLICATION_CREDENTIALS": "/adc.json"},
+        ),
+    ]
+    result = _resolve(
+        secrets,
+        model_provider="vertex_ai",
+        connection_slug="my-vertex",
+    )
+    assert result.deployment == "vertex"
+    assert result.env == {"GOOGLE_APPLICATION_CREDENTIALS": "/adc.json"}
 
 
 def test_custom_openai_compatible_resolves_openai_key():

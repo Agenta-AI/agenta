@@ -5,6 +5,43 @@ context and provenance to act on cold. See the `defer-todo` skill for the format
 
 ## Open issues
 
+### The `install_http` integration fixture patches removed `agenta_api_base`/`request_authorization` seams
+
+**Status:** open
+**Added:** 2026-06-24
+**Commit:** 670491fee0 (branch `gitbutler/workspace`)
+**Project:** [agent-workflows/provider-model-auth](../projects/provider-model-auth/) (found here; root cause is the earlier tool-resolution `PlatformConnection` refactor)
+**Source:** provider-model-auth Slice 3 implementation + test run
+
+**The problem.** All 15 integration tests under
+`services/oss/tests/pytest/integration/agent/` that use the `install_http` fixture are RED
+(`test_resolve_secrets_http.py`, `tools/test_gateway_http.py`, `tools/test_secrets_http.py`).
+The fixture (`services/oss/tests/pytest/integration/agent/conftest.py:66-67`) does
+`monkeypatch.setattr(module, "agenta_api_base", ...)` and `"request_authorization"`, but those
+module-level seams were removed when tool/secret resolution moved into the SDK
+`agenta.sdk.agents.platform` package and started constructing `PlatformConnection()` (which
+resolves base URL + auth via its own `base_url()` / `headers()` / `_derive_*`). The resolver
+modules (`oss.src.agent.secrets`, the gateway/named-secret SDK modules) no longer expose those
+names, so the fixture raises `AttributeError` before the test body runs.
+
+**Why it is deferred (not fixed in this feature run).** It is pre-existing debt from a sibling
+project's refactor (red on the base branch, not caused by provider-model-auth), and it spans
+the gateway and named-secret resolvers owned by the tool-resolution work, not this feature.
+Folding a cross-cutting test-infra migration into the provider-model-auth lane would mix
+concerns. The provider-model-auth resolve path has its own green coverage: the SDK
+`VaultConnectionResolver` httpx-mocked test
+(`sdks/python/oss/tests/pytest/unit/agents/platform/test_connections_http.py`) and the pure
+API resolution tests (`api/oss/tests/pytest/unit/secrets/test_connections.py`). The deprecated
+`resolve_secrets`/`resolve_harness_secrets` that `test_resolve_secrets_http.py` exercises is
+being retired anyway (its `app.py` call site was removed in Slice 3).
+
+**What to decide or do.** Migrate the `install_http` fixture to patch the new seam: either
+`monkeypatch.setattr(PlatformConnection, "base_url", ...)` and `"headers"`/`"authorization"`,
+or the module-level `_derive_base_url`/`_derive_authorization` in
+`sdks/python/agenta/sdk/agents/platform/connection.py`. Then delete
+`test_resolve_secrets_http.py` (it tests the retired whole-vault dump) or repoint it at the new
+connection-resolve path. This unblocks the gateway and named-secret integration tests too.
+
 ### Supply secret values to tools during a standalone run
 
 **Status:** open
@@ -91,3 +128,87 @@ bug.
 
 **What to decide or do.** Decide whether the resolver should return the `SessionConfig` tool
 fields directly (or a shared sub-model both reuse), so the wire tool shape has one definition.
+
+### Relay-tool HITL: resolved code/gateway tools cannot park/emit/resume (S5.2)
+
+**Status:** open
+**Added:** 2026-06-24
+**Commit:** 770cdf4068 (branch `gitbutler/workspace`)
+**Project:** [agent-workflows/capability-config](../projects/capability-config/) (Phase 5, slice S5.2)
+**Source:** capability-config HITL slice — built `HITLResponder` for the harness (Claude builtin)
+permission gate, deferred the relay path.
+
+**The problem.** The cross-turn approval just built (`HITLResponder` in
+`services/agent/src/responder.ts`, wired at `services/agent/src/engines/sandbox_agent.ts`
+~:270) only covers permissions the **harness** raises over ACP (Claude builtins; Pi never
+gates). Resolved `code` and gateway/`callback` tools never reach that gate — they run through
+the runner-side relay loop (`services/agent/src/tools/relay.ts`), which is a synchronous
+fire-and-forget poll: `executeRelayedTool` (relay.ts:114-147) resolves a tool's `disposition`
+via `resolveDisposition` (relay.ts:49-66) and, for `ask` or an unset disposition, collapses
+onto the headless `permissionPolicy` and returns a refusal string
+(`"...requires approval; denied in headless mode."`, relay.ts:128-129). There is no way for the
+relay to emit an `interaction_request`, end the turn, and resume the same call on a later turn,
+so an `ask` Composio/code tool can never actually prompt a human. The `TODO(S5)` markers at
+`relay.ts:65` and `relay.ts:128` flag exactly this. The S3b `ask`->policy behavior was left
+as-is per the slice scope.
+
+**Why it is deferred.** The relay loop has no turn-boundary model. The harness path can park
+because the ACP permission request is itself the suspension point (the harness blocks awaiting
+`respondPermission`); the relay just executes and returns a string inline. Giving the relay a
+park/resume needs a different mechanism, not a tweak to `resolveDisposition`.
+
+**What it would take.** When the relay hits an `ask`/unset tool with no recorded decision: emit
+an `interaction_request` (permission) keyed by the tool-call id (reuse the
+`extractApprovalDecisions` lookup the responder already builds from the inbound messages), then
+END the turn instead of returning a refusal — i.e. do NOT write the relay response file, let the
+harness see an incomplete tool call, and surface the prompt. On the next turn, the runner reads
+the stored decision from the replayed messages (same `{ approved: boolean }` envelope the
+responder consumes) and either executes the relayed call or returns the denial. This couples the
+relay to the run's turn lifecycle (today it is a standalone poll started/stopped around
+`session.prompt`), so it likely needs the relay to share the responder's decision map and a way
+to signal "park this turn" back up to the engine. Open sub-question: whether a cold replay even
+re-attempts a relayed `code`/gateway call on turn 2 (see the live-verification todo below).
+
+### Live multi-turn HITL round-trip is unverified (cold-replay re-raise + re-attempt)
+
+**Status:** open
+**Added:** 2026-06-24
+**Commit:** 770cdf4068 (branch `gitbutler/workspace`)
+**Project:** [agent-workflows/capability-config](../projects/capability-config/) (Phase 5 / Phase 6 acceptance)
+**Source:** capability-config HITL slice — `HITLResponder` is unit-tested (park, resume, headless
+parity) but never exercised against a live multi-turn run.
+
+**The open question.** The park/resume design assumes that after turn 1 parks an `ask` (the
+responder returns `deny`/`reject`, the turn ends with the unapproved tool not run), turn 2 —
+carrying the user's approval in the replayed message history — makes the **cold** harness
+re-raise the SAME permission so the stored decision applies, AND that the harness then actually
+re-attempts the tool. Neither is proven. Each `/invoke` is a cold sandbox that replays prior
+turns as transcript text (`services/agent/src/engines/sandbox_agent/transcript.ts`), so whether
+the model re-issues the identical tool call and the harness re-raises the gate on turn 2 is an
+empirical property of the harness + the replayed transcript, not something the responder can
+guarantee. The responder keys decisions by tool-call id AND tool name precisely because a cold
+replay mints fresh ids each turn (so the name is the stable anchor) — but that only helps if the
+gate is re-raised at all.
+
+**Why it is deferred.** It needs a live multi-turn run against the real harness over the
+sidecar; it cannot be faked in a unit test (a fake harness re-raises on demand and proves
+nothing about the real one).
+
+**The exact live test to run.** Against a running agent sidecar (e.g. the EE-dev compose stack;
+see the `agent-workflows-qa` / `debug-local-deployment` skills), with a Claude agent configured
+so a mutating builtin (or an `ask`-disposition tool) triggers a permission gate:
+
+1. POST `/messages` with `session_id=S` and a single user turn that forces the gated tool
+   (e.g. "edit file X"). Assert the response stream contains a `tool-approval-request`
+   (the parked gate) and that the tool did NOT run (no `output-available` for it).
+2. POST `/messages` again with the SAME `session_id=S`, replaying the full history plus a
+   `tool-approval-response` part (`approved: true`) for that tool call. Assert that this turn
+   the harness re-raises the gate, the stored decision resolves it to `always`, and the tool
+   ACTUALLY runs (a `tool-output-available` / real tool result appears, and the file is edited).
+3. Repeat step 2 with `approved: false` in a fresh session and assert the tool stays un-run and
+   the model continues without it.
+
+If turn 2 does NOT re-raise the gate (the model does not re-issue the call after a cold replay),
+the design needs a different resume mechanism (e.g. the runner replaying the approved tool's
+result directly into the transcript rather than relying on the harness to re-ask). Capture the
+finding either way.

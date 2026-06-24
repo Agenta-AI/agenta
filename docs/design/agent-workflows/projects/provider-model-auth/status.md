@@ -4,8 +4,15 @@ Source of truth for where this work stands. Keep it current.
 
 ## State
 
+**PR #4815 OPEN to `big-agents`** (2026-06-24), MERGEABLE, from lane
+`feat/agent-provider-model-connection` (39 non-shared pure files). The shared-file integration
+hunks (`dtos.py` `model_ref`, wire, `protocol.ts`, `pi.ts`, …) ride in skills' PR #4814 at zero
+drift; **#4815 must merge before/with #4814** (its `dtos.py` imports the `connections/` module that
+lives only in #4815). Coordination recorded in `scratch/agent-coordination.md`. Awaiting code
+review. Earlier in-run state below.
+
 **Implemented locally (headless run, 2026-06-24), committed to lane
-`feat/agent-provider-model-connection`; NOT pushed, no PR.** All 5 slices are written, each
+`feat/agent-provider-model-connection`.** All 5 slices are written, each
 reviewed by a subagent and green on unit/integration/golden tests. Live feature-matrix
 verification (two OpenAI connections, a custom base_url, a self-managed run on the running
 stack) is DEFERRED — it needs a running stack + vault keys this headless run cannot drive.
