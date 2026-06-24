@@ -93,7 +93,10 @@ app.post("/kill", async (req, res) => {
   const { sandbox, sandbox_id } = req.body || {};
   if (!sandbox_id) return res.status(400).json({ error: "sandbox_id required" });
   try {
-    if (sandbox === "e2b") {
+    if (sandbox === "daytona") {
+      const { daytonaKill } = await import("./provider-daytona.js");
+      await daytonaKill(sandbox_id);
+    } else if (sandbox === "e2b") {
       const { e2bKill } = await import("./provider-e2b.js");
       await e2bKill(sandbox_id);
     } else if (sandbox === "modal") {
@@ -178,7 +181,7 @@ app.post("/run", async (req, res) => {
     provider = "anthropic", model = null, reasoning = "none", sandbox_id,
   } = req.body;
   if (!sid || !prompt) return res.status(400).json({ error: "session_id and prompt required" });
-  if (!["local", "e2b", "modal"].includes(sandbox))
+  if (!["local", "daytona", "e2b", "modal"].includes(sandbox))
     return res.status(400).json({ error: `sandbox '${sandbox}' not supported yet` });
 
   res.setHeader("content-type", "application/x-ndjson");
@@ -206,7 +209,10 @@ app.post("/run", async (req, res) => {
       if (process.env.OPENAI_API_KEY) agentEnv.OPENAI_API_KEY = process.env.OPENAI_API_KEY;
       const opts = { sid, harness, sandboxId: sandbox_id, mode, model, thoughtLevel, agentEnv };
       let remote;
-      if (sandbox === "e2b") {
+      if (sandbox === "daytona") {
+        const { daytonaSession } = await import("./provider-daytona.js");
+        remote = await daytonaSession(opts);
+      } else if (sandbox === "e2b") {
         const { e2bSession } = await import("./provider-e2b.js");
         remote = await e2bSession(opts);
       } else {

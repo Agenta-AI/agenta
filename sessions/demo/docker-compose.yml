@@ -94,6 +94,8 @@ services:
       E2B_TEMPLATE: agenta-sandbox-agent
       MODAL_TOKEN_ID: ${MODAL_TOKEN_ID}
       MODAL_TOKEN_SECRET: ${MODAL_TOKEN_SECRET}
+      DAYTONA_API_KEY: ${DAYTONA_API_KEY}
+      DAYTONA_SNAPSHOT: agenta-sandbox-agent
       NGROK_API_URL: http://ngrok:4040/api/tunnels
     depends_on:
       sandbox:

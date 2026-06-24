@@ -10,6 +10,9 @@
   .wrap { display: grid; grid-template-columns: 340px 1fr; height: 100vh; }
   .side { border-right: 1px solid #2a2e37; overflow: auto; padding: 10px; }
   .main { overflow: auto; padding: 16px; display: grid; gap: 16px; grid-template-rows: auto auto 1fr; }
+  /* keep scrolling, hide the scrollbar chrome (Firefox + WebKit/Chromium) */
+  .side, .main, pre { scrollbar-width: none; -ms-overflow-style: none; }
+  .side::-webkit-scrollbar, .main::-webkit-scrollbar, pre::-webkit-scrollbar { width: 0; height: 0; }
   h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #8a93a3; margin: 0 0 8px; }
   .sess { position: relative; padding: 9px 46px 9px 11px; border: 1px solid #2a2e37; border-radius: 6px; margin-bottom: 6px; cursor: pointer; }
   .sess:hover { background: #1c1f26; }
@@ -72,9 +75,9 @@
         <label class="dim"><span>sandbox</span>
           <select id="sandbox" onchange="onHarnessChange()">
             <option value="local">local</option>
+            <option value="daytona">daytona</option>
             <option value="modal">modal</option>
             <option value="e2b">e2b</option>
-            <option value="daytona">daytona (tier-blocked)</option>
           </select>
         </label>
         <label class="dim"><span>harness</span>

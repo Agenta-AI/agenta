@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Full harness x sandbox matrix smoke (daytona excluded). Each cell: invoke via FastAPI,
-the agent writes a cell-unique file into its geesefs cwd, then verify durability in
-SeaweedFS host-side (signed GET via the fastapi container). Prints a PASS/FAIL grid.
+"""Full harness x sandbox matrix smoke. Each cell: invoke via FastAPI, the agent writes a
+cell-unique file into its geesefs cwd, then verify durability in SeaweedFS host-side
+(signed GET via the fastapi container). Prints a PASS/FAIL grid.
 
 Usage:  python3 matrix_test.py [sandbox...] [--harness h1,h2]
-  python3 matrix_test.py                 # local modal e2b  x  all 4 harnesses
+  python3 matrix_test.py                 # local daytona modal e2b  x  all 4 harnesses
   python3 matrix_test.py local           # just local
-  python3 matrix_test.py modal --harness opencode,pi
+  python3 matrix_test.py daytona --harness opencode,pi
+
+daytona requires Tier 3+ egress and a built snapshot (node sidecar/daytona_snapshot.js).
 """
 
 import json
@@ -46,7 +48,7 @@ def _take_flag(name, default):
 
 harnesses = _take_flag("--harness", ",".join(harnesses)).split(",")
 REASONING = _take_flag("--reasoning", "none")
-sandboxes = argv or ["local", "modal", "e2b"]
+sandboxes = argv or ["local", "daytona", "modal", "e2b"]
 
 
 def invoke(sandbox, harness, file, tag):
