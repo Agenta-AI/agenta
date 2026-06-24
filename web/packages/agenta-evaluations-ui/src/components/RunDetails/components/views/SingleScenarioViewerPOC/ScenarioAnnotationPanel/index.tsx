@@ -1,4 +1,4 @@
-import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useCallback, useMemo, useState} from "react"
 
 import {clearPreviewRunsCache} from "@agenta/evaluations/hooks"
 import {upsertScenarioMetricData} from "@agenta/evaluations/services"
@@ -42,9 +42,6 @@ const ScenarioAnnotationPanel = ({
     onRunInvocation,
 }: ScenarioAnnotationPanelProps) => {
     const [isSubmitting, setIsSubmitting] = useState(false)
-    const [justSaved, setJustSaved] = useState(false)
-    // Track the expected annotation count after save - used to detect when refetch completes
-    const expectedAnnotationCountRef = useRef<number | null>(null)
     const queryClient = useQueryClient()
     const invalidateRunMetricStats = useSetAtom(invalidatePreviewRunMetricStatsAtom)
     const invalidateRunsTable = useSetAtom(invalidateEvaluationRunsTableAtom)
@@ -70,32 +67,20 @@ const ScenarioAnnotationPanel = ({
         allSteps,
     })
 
-    // Reset justSaved when annotations are refetched after save
-    // We wait for the expected number of annotations to arrive before allowing new edits
-    useEffect(() => {
-        if (!justSaved) return
-
-        const expectedCount = expectedAnnotationCountRef.current
-        if (expectedCount !== null && annotations.length >= expectedCount) {
-            // Annotations have been refetched - reset justSaved
-            expectedAnnotationCountRef.current = null
-            setJustSaved(false)
-        }
-    }, [justSaved, annotations.length])
-
     // Check if we can submit
     const canSubmit = useMemo(() => {
-        if (justSaved) return false
         if (!traceSpanIds.traceId || !hasInvocationOutput) return false
-        if (!hasPendingChanges) return false
         if (!allRequiredFieldsFilled) return false
+        // An already-annotated scenario stays re-submittable at any time; a fresh scenario
+        // needs a pending change before the first annotation can be saved.
+        if (!hasPendingChanges && annotations.length === 0) return false
         return true
     }, [
         traceSpanIds.traceId,
         hasInvocationOutput,
         hasPendingChanges,
-        justSaved,
         allRequiredFieldsFilled,
+        annotations.length,
     ])
 
     // Get testcase/testset IDs from primary invocation
@@ -377,15 +362,6 @@ const ScenarioAnnotationPanel = ({
             // Check if all scenarios in the run are complete and update run status
             await checkAndUpdateRunStatus(runId)
 
-            // Set expected annotation count - we expect at least as many annotations as evaluators
-            // This is used to detect when the refetch completes
-            const currentAnnotationCount = annotations.length
-            const newAnnotationsCount = allRequests.filter((r) => r.isNew).length
-            expectedAnnotationCountRef.current = currentAnnotationCount + newAnnotationsCount
-
-            // Mark as just saved - this disables the button until annotations are refetched
-            setJustSaved(true)
-
             // Mark scenario as recently saved to prevent metric refresh from triggering
             markScenarioAsRecentlySaved(scenarioId)
 
@@ -421,11 +397,6 @@ const ScenarioAnnotationPanel = ({
                     return false
                 },
             })
-
-            // NOTE: We do NOT reset justSaved here. It will be reset when:
-            // 1. The new annotations arrive and update the baseline
-            // 2. The user makes a new edit (which means they want to change something)
-            // This keeps the button disabled until the save is fully reflected in the UI.
         } finally {
             setIsSubmitting(false)
         }
