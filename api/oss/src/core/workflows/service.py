@@ -794,8 +794,10 @@ class WorkflowsService:
                     exclude_none=True,
                     exclude={"flags"},
                 ),
-                flags=self._dump_flags(
-                    self._artifact_query_flags_from_any(workflow_query.flags)
+                flags=self._scrub_server_owned_flags(
+                    self._dump_flags(
+                        self._artifact_query_flags_from_any(workflow_query.flags)
+                    )
                 )
                 or None,
             )
@@ -1629,9 +1631,11 @@ class WorkflowsService:
                     exclude_none=True,
                     exclude={"flags"},
                 ),
-                flags=self._dump_flags(
-                    self._revision_query_flags_from_any(
-                        workflow_revision_query.flags,
+                flags=self._scrub_server_owned_flags(
+                    self._dump_flags(
+                        self._revision_query_flags_from_any(
+                            workflow_revision_query.flags,
+                        )
                     )
                 )
                 or None,
