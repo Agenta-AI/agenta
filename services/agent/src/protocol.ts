@@ -161,23 +161,6 @@ export interface SandboxPermission {
 }
 
 /**
- * The Claude harness's own permission knobs (Layer 1), authored per-agent. These map 1:1 onto
- * Claude Code's `permissions` settings block: `defaultMode` is the harness permission mode and
- * `allow` / `deny` / `ask` are per-tool rule strings (e.g. `"Read"`, `"Bash(npm run:*)"`,
- * `"mcp__server__tool"`). The runner renders this (merged with rules derived from
- * `sandboxPermission`, Layer 2) into `<cwd>/.claude/settings.json` before the session starts;
- * the Claude ACP adapter reads it because it builds its SDK query with
- * `settingSources: ["user","project","local"]`. Claude-only (Pi never gates tool use); omitted
- * unless the Claude config authored a non-empty value.
- */
-export interface ClaudeSettings {
-  defaultMode?: "default" | "acceptEdits" | "plan" | "bypassPermissions";
-  allow?: string[];
-  deny?: string[];
-  ask?: string[];
-}
-
-/**
  * What a harness can do, probed from the runtime (sandbox-agent `AgentCapabilities`). The runner
  * branches on these flags instead of the harness name, and returns them in the result.
  */
@@ -362,11 +345,15 @@ export interface AgentRunRequest {
    */
   sandboxPermission?: SandboxPermission;
   /**
-   * The Claude harness's own permission knobs (Layer 1). Claude-only; omitted unless authored.
-   * The runner renders it (merged with rules derived from `sandboxPermission`) into
-   * `<cwd>/.claude/settings.json` before the session starts. See `ClaudeSettings`.
+   * Generic harness-rendered files to drop in the session cwd before the session starts. Each
+   * entry is `{ path (relative to cwd), content (UTF-8 file text) }`. Produced by the Python
+   * harness adapters: a harness translates its own `harness_options` slice into a config file in
+   * Python (e.g. the claude adapter renders `.claude/settings.json` from its permissions slice),
+   * so the runner stays a dumb writer with no harness knowledge. Omitted when no files were
+   * rendered. This scales to many harnesses: a new harness emits its files here instead of a
+   * first-party wire field plus runner-side translation.
    */
-  claudeSettings?: ClaudeSettings;
+  harnessFiles?: Array<{ path: string; content: string }>;
   /** Tracing: thread the Agenta trace context across the boundary. */
   trace?: TraceContext;
 }

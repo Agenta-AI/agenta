@@ -97,59 +97,6 @@ class SandboxPermission(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Claude harness settings (Layer 1: the Claude harness's own permission knobs)
-# ---------------------------------------------------------------------------
-
-
-# Claude Code's four permission modes (its `permissions.defaultMode`). ``default`` prompts on
-# each gated tool, ``acceptEdits`` auto-accepts file edits, ``plan`` is read-only planning,
-# ``bypassPermissions`` skips every gate. Optional: unset leaves Claude's own default.
-ClaudePermissionMode = Literal["default", "acceptEdits", "plan", "bypassPermissions"]
-
-
-class ClaudePermissions(BaseModel):
-    """The Claude harness's own permission knobs (Layer 1), authored per-agent.
-
-    These map 1:1 to Claude Code's ``permissions`` settings block, which the Claude ACP
-    adapter reads from ``<cwd>/.claude/settings.json`` (it builds its SDK query with
-    ``settingSources: ["user", "project", "local"]``). ``default_mode`` is the harness
-    permission mode; ``allow`` / ``deny`` / ``ask`` are per-tool rule strings (e.g. ``"Read"``,
-    ``"Bash(npm run:*)"``, ``"mcp__server__tool"``). This is Claude-only: nothing here applies
-    to Pi (Pi never gates tool use). Optional on :class:`ClaudeAgentConfig`; an unset value
-    contributes no ``claudeSettings`` to the wire."""
-
-    default_mode: Optional[ClaudePermissionMode] = None
-    allow: List[str] = Field(default_factory=list)
-    deny: List[str] = Field(default_factory=list)
-    ask: List[str] = Field(default_factory=list)
-
-    def is_empty(self) -> bool:
-        """True when nothing was authored (no mode and no rules), so the wire field is omitted."""
-        return (
-            self.default_mode is None
-            and not self.allow
-            and not self.deny
-            and not self.ask
-        )
-
-    def to_wire(self) -> Dict[str, Any]:
-        """The nested camelCase ``claudeSettings`` object for the ``/run`` payload. ``defaultMode``
-        and any empty rule list are dropped so an author who sets only a subset never emits nulls
-        or empty arrays. The runner renders this (plus Layer-2-derived rules) into
-        ``<cwd>/.claude/settings.json`` before the session starts."""
-        out: Dict[str, Any] = {}
-        if self.default_mode is not None:
-            out["defaultMode"] = self.default_mode
-        if self.allow:
-            out["allow"] = list(self.allow)
-        if self.deny:
-            out["deny"] = list(self.deny)
-        if self.ask:
-            out["ask"] = list(self.ask)
-        return out
-
-
-# ---------------------------------------------------------------------------
 # Capabilities
 # ---------------------------------------------------------------------------
 
@@ -543,6 +490,11 @@ class HarnessAgentConfig(BaseModel):
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
     skills: List[SkillConfig] = Field(default_factory=list)
     sandbox_permission: Optional[SandboxPermission] = None
+    # The neutral per-harness options bag (a map keyed by harness name), carried verbatim from
+    # ``AgentConfig.harness_options`` by the harness adapter. The active harness's CONFIG translates
+    # its own slice into rendered files for the wire (see :meth:`wire_harness_files`); the raw bag
+    # itself does not ride the wire anymore.
+    harness_options: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
@@ -600,11 +552,16 @@ class HarnessAgentConfig(BaseModel):
             return {}
         return {"sandboxPermission": self.sandbox_permission.to_wire()}
 
-    def wire_claude_settings(self) -> Dict[str, Any]:
-        """The ``claudeSettings`` field for the ``/run`` payload. Empty by default; only the
-        Claude harness exposes its own permission knobs (``defaultMode`` / ``allow`` / ``deny`` /
-        ``ask``), so the rest of the harnesses contribute nothing here. Claude-only because Pi
-        never gates tool use."""
+    def wire_harness_files(self) -> Dict[str, Any]:
+        """The generic ``harnessFiles`` field for the ``/run`` payload: files this harness's config
+        renders to drop in the session cwd before the session starts. Empty by default (Pi/Agenta
+        render none), so a config that produces no files is unchanged (the golden wire contract).
+
+        This is where the per-harness translation of the generic ``harness_options`` bag happens in
+        Python (it used to happen in the TS runner). A harness that turns its own options slice into
+        a config file overrides this; the runner is then a dumb writer that materializes each
+        ``{path, content}`` entry into the cwd (``path`` relative to cwd) and has no harness
+        knowledge."""
         return {}
 
     def wire_model_ref(self) -> Dict[str, Any]:
@@ -623,7 +580,11 @@ class HarnessAgentConfig(BaseModel):
         if self.model_ref.provider:
             out["provider"] = self.model_ref.provider
         connection = self.model_ref.connection
-        if connection.mode != "default" or connection.slug is not None:
+        # Two modes only: the project default is ``agenta`` with no slug and carries no info
+        # beyond the model, so it is omitted (byte-identical wire). Emit the connection only when
+        # it is ``self_managed`` or names a slug.
+        is_default = connection.mode == "agenta" and connection.slug is None
+        if not is_default:
             wire_connection: Dict[str, Any] = {"mode": connection.mode}
             if connection.slug is not None:
                 wire_connection["slug"] = connection.slug
@@ -716,24 +677,11 @@ class ClaudeAgentConfig(HarnessAgentConfig):
         validation_alias=AliasChoices("tool_specs", "custom_tools"),
     )
     permission_policy: PermissionPolicy = "auto"
-    # The Claude harness's own permission knobs (Layer 1): the author's `defaultMode` and
-    # per-tool allow/deny/ask rules. Claude-only (Pi never gates tool use); rendered by the
-    # runner into `<cwd>/.claude/settings.json`. Unset contributes no `claudeSettings`.
-    permissions: Optional[ClaudePermissions] = None
 
     @field_validator("tool_specs", mode="before")
     @classmethod
     def _coerce_tool_specs(cls, value: Any) -> List[ToolSpec]:
         return [coerce_tool_spec(item) for item in value or []]
-
-    @field_validator("permissions", mode="before")
-    @classmethod
-    def _coerce_permissions(cls, value: Any) -> Optional[ClaudePermissions]:
-        if value is None or isinstance(value, ClaudePermissions):
-            return value
-        if isinstance(value, dict):
-            return ClaudePermissions.model_validate(value)
-        return None
 
     @property
     def custom_tools(self) -> List[Dict[str, Any]]:
@@ -749,14 +697,24 @@ class ClaudeAgentConfig(HarnessAgentConfig):
             "permissionPolicy": self.permission_policy,
         }
 
-    def wire_claude_settings(self) -> Dict[str, Any]:
-        """The ``claudeSettings`` field for the ``/run`` payload. Omitted when no permissions are
-        authored (or only empty lists/no mode) so a Claude run without harness options is
-        unchanged (the golden wire contract). The runner renders it (merged with Layer-2-derived
-        rules) into ``<cwd>/.claude/settings.json`` before the session starts."""
-        if self.permissions is None or self.permissions.is_empty():
+    def wire_harness_files(self) -> Dict[str, Any]:
+        """Render the Claude harness's permission settings into a ``.claude/settings.json`` file
+        the runner drops in the cwd. This is the claude adapter (Layer 1 translation), done in
+        Python: parse the author's ``harness_options["claude"]["permissions"]`` slice, merge the
+        Layer-2 ``sandbox_permission`` derivation and the per-MCP-server Layer-3 dispositions, and
+        emit one ``harnessFiles`` entry. Omitted when Claude has nothing to write (no author options
+        and no derived rules), so a boundary-free Claude run is byte-identical to before."""
+        # Lazy import: ``adapters.claude_settings`` is light, but importing it at module top would
+        # run ``adapters/__init__`` (which imports the harness adapters, which import this module),
+        # so it is imported here to keep ``dtos`` free of that cycle.
+        from .adapters.claude_settings import build_claude_settings_files
+
+        files = build_claude_settings_files(
+            self.harness_options, self.sandbox_permission, self.mcp_servers
+        )
+        if not files:
             return {}
-        return {"claudeSettings": self.permissions.to_wire()}
+        return {"harnessFiles": files}
 
 
 class AgentaAgentConfig(PiAgentConfig):

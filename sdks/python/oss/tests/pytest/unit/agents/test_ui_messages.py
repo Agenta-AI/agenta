@@ -257,8 +257,9 @@ class TestUIMessageStream:
         # start carries the session id; tool output prefers the structured `data`.
         assert parts[0]["messageMetadata"] == {"sessionId": "sess_123"}
         assert parts[4]["output"] == {"w": "sunny"}
-        # finish carries the usage and the stop reason.
-        assert parts[-1]["finishReason"] == "end_turn"
+        # finish carries the usage and the stop reason, mapped from the model's
+        # raw `end_turn` onto the AI SDK `finishReason` enum (`stop`).
+        assert parts[-1]["finishReason"] == "stop"
         assert parts[-1]["messageMetadata"]["usage"] == {
             "input": 820,
             "output": 36,
@@ -309,8 +310,14 @@ class TestUIMessageStream:
         assert approval["approvalId"] == "perm_1"
         # REQUIRED top-level toolCallId binds the approval to its tool part (RFC / AI SDK).
         assert approval["toolCallId"] == "call_1"
-        assert approval["availableReplies"] == ["once", "always", "reject"]
-        assert approval["toolCall"] == {"toolCallId": "call_1", "name": "deleteFile"}
+        # The AI SDK chunk is a strict object: only type/approvalId/toolCallId are
+        # allowed; the agenta-only availableReplies/toolCall keys must not leak.
+        assert set(approval.keys()) == {"type", "approvalId", "toolCallId"}
+        # No tool_call preceded, so a tool part is synthesized for the approval to
+        # attach to (toolName from the request's nested toolCall).
+        synth = next(p for p in parts if p["type"] == "tool-input-available")
+        assert synth["toolCallId"] == "call_1"
+        assert synth["toolName"] == "deleteFile"
 
     async def test_permission_tool_call_id_falls_back_to_nested_tool_call(self):
         # No top-level toolCallId on the payload: dig it out of the nested ACP toolCall detail.
@@ -332,6 +339,36 @@ class TestUIMessageStream:
         parts = await _collect(run, session_id="s1")
         approval = next(p for p in parts if p["type"] == "tool-approval-request")
         assert approval["toolCallId"] == "call_9"
+
+    async def test_permission_does_not_duplicate_an_already_streamed_tool_call(self):
+        # The tool call was already surfaced as a tool part, so the approval binds
+        # to it by id without synthesizing a second tool-input part.
+        run = _run(
+            events=[
+                {
+                    "type": "tool_call",
+                    "id": "call_1",
+                    "name": "deleteFile",
+                    "input": {},
+                },
+                {
+                    "type": "interaction_request",
+                    "id": "perm_1",
+                    "kind": "permission",
+                    "payload": {
+                        "toolCallId": "call_1",
+                        "toolCall": {"toolCallId": "call_1", "name": "deleteFile"},
+                    },
+                },
+                {"type": "done"},
+            ],
+            result={"output": ""},
+        )
+        parts = await _collect(run, session_id="s1")
+        inputs = [p for p in parts if p["type"] == "tool-input-available"]
+        assert len(inputs) == 1  # no synthesized duplicate
+        approval = next(p for p in parts if p["type"] == "tool-approval-request")
+        assert approval["toolCallId"] == "call_1"
 
     async def test_tool_denial_becomes_output_denied(self):
         # A human denied the tool: it never ran, so emit tool-output-denied (not -available).
@@ -375,7 +412,41 @@ class TestUIMessageStream:
         parts = await _collect(run, session_id="s1")
         assert parts[-1]["messageMetadata"]["traceId"] == "trace_from_result"
 
-    async def test_render_hint_passes_through_tool_parts(self):
+    async def test_finish_reason_maps_model_stop_reason_to_ai_sdk_enum(self):
+        # The AI SDK `finish` chunk only accepts a closed `finishReason` enum;
+        # raw model reasons must be mapped or the client's stream validator
+        # rejects the whole frame. Unknown reasons fall back to `unknown`.
+        cases = {
+            "end_turn": "stop",
+            "stop_sequence": "stop",
+            "max_tokens": "length",
+            "tool_use": "tool-calls",
+            "refusal": "content-filter",
+            "stop": "stop",  # already-valid value passes through
+            "wat": "unknown",  # unmapped reason does not break validation
+        }
+        for raw, expected in cases.items():
+            run = _run(
+                events=[
+                    {"type": "message", "text": "hi"},
+                    {"type": "done", "stopReason": raw},
+                ],
+                result={"output": "hi"},
+            )
+            parts = await _collect(run, session_id="s1")
+            assert parts[-1]["finishReason"] == expected, raw
+
+    async def test_finish_omits_reason_when_model_gives_none(self):
+        run = _run(
+            events=[{"type": "message", "text": "hi"}, {"type": "done"}],
+            result={"output": "hi"},
+        )
+        parts = await _collect(run, session_id="s1")
+        assert "finishReason" not in parts[-1]
+
+    async def test_render_hint_rides_a_sibling_data_part(self):
+        # The AI SDK tool chunks are strict objects with no `render` field, so the
+        # hint travels as a `data-render` part keyed by toolCallId, not inline.
         render = {"kind": "component", "component": "WeatherCard"}
         run = _run(
             events=[
@@ -399,8 +470,14 @@ class TestUIMessageStream:
         parts = await _collect(run, session_id="s1")
         available = next(p for p in parts if p["type"] == "tool-input-available")
         output = next(p for p in parts if p["type"] == "tool-output-available")
-        assert available["render"] == render
-        assert output["render"] == render
+        # render does not leak onto the strict tool chunks…
+        assert "render" not in available
+        assert "render" not in output
+        # …it rides one data-render part per tool frame, keyed by toolCallId.
+        renders = [p for p in parts if p["type"] == "data-render"]
+        assert len(renders) == 2
+        assert all(p["data"]["toolCallId"] == "c1" for p in renders)
+        assert all(p["data"]["render"] == render for p in renders)
 
     async def test_tool_error_becomes_output_error(self):
         run = _run(

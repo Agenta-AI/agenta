@@ -72,6 +72,7 @@ class PiHarness(Harness):
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
+            harness_options=config.agent.harness_options,
             system=_opt_str(pi_options.get("system")),
             append_system=_opt_str(pi_options.get("append_system")),
         )
@@ -97,10 +98,11 @@ class ClaudeHarness(Harness):
                 "ClaudeHarness drops %d skill(s); the Claude SDK path does not load SKILL.md",
                 len(config.agent.skills),
             )
-        # Claude reads its own slice of the neutral harness_options bag: `permissions` holds the
-        # author's `default_mode` + allow/deny/ask rules (Layer 1). The runner renders them into
-        # `<cwd>/.claude/settings.json`. A missing/malformed value is coerced to None.
-        claude_options = config.agent.harness_options.get(HarnessType.CLAUDE.value, {})
+        # The whole neutral harness_options bag (plus sandbox_permission + mcp_servers) is threaded
+        # onto the ClaudeAgentConfig; the config's `wire_harness_files` (the Python claude adapter)
+        # parses the `claude.permissions` slice and renders `.claude/settings.json` as a generic
+        # `harnessFiles` entry. No claude-specific parsing happens here; the runner just writes the
+        # files into the cwd.
         return ClaudeAgentConfig(
             agents_md=config.agent.instructions,
             model=config.agent.model,
@@ -110,8 +112,8 @@ class ClaudeHarness(Harness):
             mcp_servers=list(config.mcp_servers),
             skills=[],
             sandbox_permission=config.agent.sandbox_permission,
+            harness_options=config.agent.harness_options,
             permission_policy=config.permission_policy,
-            permissions=claude_options.get("permissions"),
         )
 
 
@@ -139,6 +141,7 @@ class AgentaHarness(Harness):
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
+            harness_options=config.agent.harness_options,
             system=_opt_str(pi_options.get("system")),
             append_system=compose_append_system(
                 _opt_str(pi_options.get("append_system"))

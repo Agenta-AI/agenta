@@ -57,8 +57,6 @@ from .dtos import (
     AgentEvent,
     AgentResult,
     ClaudeAgentConfig,
-    ClaudePermissionMode,
-    ClaudePermissions,
     ContentBlock,
     HarnessAgentConfig,
     HarnessCapabilities,
@@ -167,8 +165,6 @@ __all__ = [
     "PermissionPolicy",
     "SandboxPermission",
     "NetworkEgress",
-    "ClaudePermissions",
-    "ClaudePermissionMode",
     # Canonical tools API
     "ToolConfig",
     "BuiltinToolConfig",

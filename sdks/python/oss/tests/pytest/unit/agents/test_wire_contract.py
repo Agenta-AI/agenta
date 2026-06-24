@@ -12,12 +12,13 @@ to match.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from agenta.sdk.agents import (
     AgentaAgentConfig,
     ClaudeAgentConfig,
-    ClaudePermissions,
     Endpoint,
     HarnessType,
     Message,
@@ -57,7 +58,7 @@ KNOWN_REQUEST_KEYS = {
     "appendSystemPrompt",
     "skills",
     "sandboxPermission",
-    "claudeSettings",
+    "harnessFiles",
 }
 
 _CUSTOM_TOOL = {
@@ -121,11 +122,15 @@ def _claude_payload():
         custom_tools=[dict(_CUSTOM_TOOL)],
         tool_callback=_CALLBACK,
         permission_policy="deny",
-        permissions=ClaudePermissions(
-            default_mode="acceptEdits",
-            allow=["Read", "Bash(npm run:*)"],
-            deny=["WebFetch"],
-        ),
+        harness_options={
+            "claude": {
+                "permissions": {
+                    "default_mode": "acceptEdits",
+                    "allow": ["Read", "Bash(npm run:*)"],
+                    "deny": ["WebFetch"],
+                }
+            }
+        },
     )
     return request_to_wire(
         engine="sandbox-agent",
@@ -202,9 +207,8 @@ def test_request_to_wire_pi_matches_golden(golden):
         "network": {"mode": "off", "allowlist": []},
         "enforcement": "strict",
     }
-    # `claudeSettings` is Claude-only: a Pi config never emits it (the method is a no-op on the
-    # base, and Pi exposes no permission knobs), so the key is absent.
-    assert "claudeSettings" not in payload
+    # Pi renders no harness files, so the generic `harnessFiles` key is absent.
+    assert "harnessFiles" not in payload
 
 
 def test_request_to_wire_claude_matches_golden(golden):
@@ -219,13 +223,23 @@ def test_request_to_wire_claude_matches_golden(golden):
     assert "appendSystemPrompt" not in payload
     # No sandbox boundary declared on this config -> the key is absent (optional, default None).
     assert "sandboxPermission" not in payload
-    # The Claude harness's own permission knobs ride the wire as nested camelCase `claudeSettings`;
-    # the author's mode + allow/deny rules are emitted (ask is absent because no `ask` was set).
-    assert payload["claudeSettings"] == {
-        "defaultMode": "acceptEdits",
-        "allow": ["Read", "Bash(npm run:*)"],
-        "deny": ["WebFetch"],
-    }
+    # The claude adapter (Python) translated the author's permissions slice into a rendered
+    # `.claude/settings.json`, carried on the generic `harnessFiles` seam. The runner writes it blind.
+    assert payload["harnessFiles"] == [
+        {
+            "path": ".claude/settings.json",
+            "content": json.dumps(
+                {
+                    "permissions": {
+                        "defaultMode": "acceptEdits",
+                        "allow": ["Read", "Bash(npm run:*)"],
+                        "deny": ["WebFetch"],
+                    }
+                },
+                indent=2,
+            ),
+        }
+    ]
 
 
 def test_request_to_wire_has_no_prompt_key():
@@ -444,9 +458,9 @@ def test_request_to_wire_omits_sandbox_permission_when_none():
     assert "sandboxPermission" not in payload
 
 
-def test_request_to_wire_omits_claude_settings_when_none():
-    # No authored permissions on a Claude config -> no `claudeSettings` key (a Claude run
-    # without harness options is byte-identical, so existing configs/fixtures are unaffected).
+def test_request_to_wire_omits_harness_files_when_none():
+    # No authored options on a Claude config -> the claude adapter renders nothing, so no
+    # `harnessFiles` key (a Claude run without harness options is byte-identical to before).
     payload = request_to_wire(
         engine="sandbox-agent",
         harness=HarnessType.CLAUDE,
@@ -454,35 +468,64 @@ def test_request_to_wire_omits_claude_settings_when_none():
         config=ClaudeAgentConfig(),
         messages=[Message(role="user", content="hi")],
     )
-    assert "claudeSettings" not in payload
+    assert "harnessFiles" not in payload
 
 
-def test_request_to_wire_omits_claude_settings_when_empty():
-    # Authored-but-empty permissions (no mode, all lists empty) -> still omitted, so an empty
-    # author bag never emits nulls or empty arrays on the wire.
+def test_request_to_wire_pi_renders_no_harness_files_from_its_options():
+    # The per-harness translation is now in Python and only the claude config renders files; a Pi
+    # config carrying options (even a `claude` slice that is never its concern) emits no
+    # `harnessFiles`. The raw options map no longer rides the wire.
+    config = PiAgentConfig(
+        harness_options={
+            "pi": {"system": "You are Pi."},
+            "claude": {"permissions": {"default_mode": "plan"}},
+        }
+    )
+    payload = request_to_wire(
+        engine="pi",
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert "harnessFiles" not in payload
+    assert "harnessOptions" not in payload
+
+
+def test_request_to_wire_claude_renders_settings_from_options_and_boundaries():
+    # The claude config's `wire_harness_files` is the Python claude adapter: it merges the author's
+    # permissions slice with the Layer-2 sandbox derivation and Layer-3 MCP dispositions into one
+    # `.claude/settings.json` file. network:off -> WebFetch/WebSearch deny; an `ask` MCP server ->
+    # `mcp__<server>` ask. The author's deny keeps its position; derived rules append (deduped).
+    config = ClaudeAgentConfig(
+        sandbox_permission=SandboxPermission(network={"mode": "off"}),
+        harness_options={"claude": {"permissions": {"default_mode": "plan"}}},
+        mcp_servers=[
+            {
+                "name": "github",
+                "transport": "http",
+                "url": "https://x",
+                "disposition": "ask",
+            }
+        ],
+    )
     payload = request_to_wire(
         engine="sandbox-agent",
         harness=HarnessType.CLAUDE,
         sandbox="local",
-        config=ClaudeAgentConfig(permissions=ClaudePermissions()),
+        config=config,
         messages=[Message(role="user", content="hi")],
     )
-    assert "claudeSettings" not in payload
-
-
-def test_claude_permissions_to_wire_drops_mode_and_empty_lists():
-    # The serializer drops `defaultMode` when unset and any empty allow/deny/ask list, so only
-    # the authored fields appear (camelCase aliases).
-    perms = ClaudePermissions(deny=["Write", "Edit"])
-    assert perms.to_wire() == {"deny": ["Write", "Edit"]}
-    full = ClaudePermissions(
-        default_mode="plan", allow=["Read"], deny=["Bash"], ask=["WebFetch"]
-    )
-    assert full.to_wire() == {
-        "defaultMode": "plan",
-        "allow": ["Read"],
-        "deny": ["Bash"],
-        "ask": ["WebFetch"],
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["harnessFiles"][0]["path"] == ".claude/settings.json"
+    settings = json.loads(payload["harnessFiles"][0]["content"])
+    assert settings == {
+        "permissions": {
+            "defaultMode": "plan",
+            "deny": ["WebFetch", "WebSearch"],
+            "ask": ["mcp__github"],
+        }
     }
 
 

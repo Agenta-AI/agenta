@@ -43,6 +43,7 @@ class FakeGatewayResolver:
                     call_ref=tool.reference,
                     needs_approval=tool.needs_approval,
                     render=tool.render,
+                    disposition=tool.disposition,
                 )
                 for tool in tools
             ],
@@ -113,6 +114,38 @@ async def test_gateway_metadata_survives_resolution():
     spec = resolved.tool_specs[0]
     assert spec.needs_approval is True
     assert spec.render == {"kind": "component", "component": "User"}
+
+
+async def test_authored_disposition_lands_on_resolved_code_spec_wire():
+    # An author's Layer-3 disposition on a config rides through resolution onto the wire.
+    resolved = await ToolResolver().resolve(
+        [CodeToolConfig(name="calc", script="...", disposition="deny")]
+    )
+    spec = resolved.tool_specs[0]
+    assert spec.disposition == "deny"
+    assert spec.to_wire()["disposition"] == "deny"
+
+
+async def test_authored_disposition_lands_on_resolved_gateway_spec_wire():
+    resolved = await ToolResolver(gateway_resolver=FakeGatewayResolver()).resolve(
+        [
+            GatewayToolConfig(
+                integration="github",
+                action="GET_USER",
+                connection="c1",
+                disposition="deny",
+            )
+        ]
+    )
+    spec = resolved.tool_specs[0]
+    assert spec.disposition == "deny"
+    assert spec.to_wire()["disposition"] == "deny"
+
+
+async def test_resolved_spec_omits_disposition_when_unset():
+    # Backward compatible: no authored disposition -> no `disposition` key on the wire.
+    resolved = await ToolResolver().resolve([CodeToolConfig(name="calc", script="...")])
+    assert "disposition" not in resolved.tool_specs[0].to_wire()
 
 
 @pytest.mark.parametrize(

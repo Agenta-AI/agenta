@@ -35,14 +35,72 @@ describe("prepareWorkspace", () => {
         relayDir: join(cwd, ".agenta-tools"),
         useToolRelay: true,
         agentsMd: "agent instructions",
+        acpAgent: "pi",
       },
     });
 
     assert.equal(existsSync(join(cwd, ".agenta-tools")), true);
     assert.equal(readFileSync(join(cwd, "AGENTS.md"), "utf-8"), "agent instructions");
+    // A Pi run never gets a Claude settings file.
+    assert.equal(existsSync(join(cwd, ".claude", "settings.json")), false);
 
     await workspace.cleanup();
     assert.equal(existsSync(cwd), false);
+  });
+
+  it("writes a nested harnessFiles entry (.claude/settings.json) for a local run", async () => {
+    const cwd = tempDir();
+    // The Python harness adapter already rendered the file; the runner just writes it blind,
+    // creating the parent dir for the nested path.
+    const content = JSON.stringify(
+      {
+        permissions: {
+          defaultMode: "acceptEdits",
+          allow: ["Read"],
+          deny: ["WebFetch", "WebSearch"],
+        },
+      },
+      null,
+      2,
+    );
+
+    const workspace = await prepareWorkspace({
+      sandbox: {},
+      plan: {
+        isDaytona: false,
+        cwd,
+        relayDir: join(cwd, ".agenta-tools"),
+        useToolRelay: false,
+        agentsMd: "agent instructions",
+        acpAgent: "claude",
+        harnessFiles: [{ path: ".claude/settings.json", content }],
+      },
+    });
+
+    const settingsPath = join(cwd, ".claude", "settings.json");
+    assert.equal(existsSync(settingsPath), true);
+    // The runner writes the content verbatim (no re-serialization).
+    assert.equal(readFileSync(settingsPath, "utf-8"), content);
+
+    await workspace.cleanup();
+  });
+
+  it("writes no harness file for a plan with no harnessFiles", async () => {
+    const cwd = tempDir();
+
+    await prepareWorkspace({
+      sandbox: {},
+      plan: {
+        isDaytona: false,
+        cwd,
+        relayDir: join(cwd, ".agenta-tools"),
+        useToolRelay: false,
+        agentsMd: "agent instructions",
+        acpAgent: "claude",
+      },
+    });
+
+    assert.equal(existsSync(join(cwd, ".claude", "settings.json")), false);
   });
 
   it("prepares a Daytona cwd through the sandbox fs API", async () => {
@@ -61,6 +119,7 @@ describe("prepareWorkspace", () => {
         relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
         useToolRelay: true,
         agentsMd: "agent instructions",
+        acpAgent: "pi",
       },
     });
     await workspace.cleanup();
@@ -74,5 +133,68 @@ describe("prepareWorkspace", () => {
         body: "agent instructions",
       },
     ]);
+  });
+
+  it("writes a nested harnessFiles entry on Daytona via the fs API", async () => {
+    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> = [];
+    const sandbox = {
+      mkdirFs: async ({ path }: { path: string }) => calls.push({ op: "mkdir", path }),
+      writeFsFile: async ({ path }: { path: string }, body: string) =>
+        calls.push({ op: "write", path, body }),
+    };
+    const content = JSON.stringify({ permissions: { deny: ["Bash"] } }, null, 2);
+
+    await prepareWorkspace({
+      sandbox,
+      plan: {
+        isDaytona: true,
+        cwd: "/home/sandbox/agenta-fixed",
+        relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+        useToolRelay: false,
+        agentsMd: "agent instructions",
+        acpAgent: "claude",
+        harnessFiles: [{ path: ".claude/settings.json", content }],
+      },
+    });
+
+    // The parent dir of the nested path is created via the fs API.
+    const claudeDir = calls.find(
+      (c) => c.op === "mkdir" && c.path === "/home/sandbox/agenta-fixed/.claude",
+    );
+    assert.ok(claudeDir, ".claude dir is created via the fs API");
+    const write = calls.find(
+      (c) =>
+        c.op === "write" &&
+        c.path === "/home/sandbox/agenta-fixed/.claude/settings.json",
+    );
+    assert.ok(write, "settings.json is written via the fs API");
+    // Written verbatim (the runner does not re-serialize harness-rendered content).
+    assert.equal(write!.body, content);
+  });
+
+  it("writes no harness file on Daytona for a plan with no harnessFiles", async () => {
+    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> = [];
+    const sandbox = {
+      mkdirFs: async ({ path }: { path: string }) => calls.push({ op: "mkdir", path }),
+      writeFsFile: async ({ path }: { path: string }, body: string) =>
+        calls.push({ op: "write", path, body }),
+    };
+
+    await prepareWorkspace({
+      sandbox,
+      plan: {
+        isDaytona: true,
+        cwd: "/home/sandbox/agenta-fixed",
+        relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+        useToolRelay: false,
+        agentsMd: "agent instructions",
+        acpAgent: "pi",
+      },
+    });
+
+    assert.ok(
+      !calls.some((c) => c.path.includes(".claude")),
+      "no .claude path is touched",
+    );
   });
 });

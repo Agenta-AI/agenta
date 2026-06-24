@@ -5,7 +5,6 @@ import { join } from "node:path";
 
 import {
   type AgentRunRequest,
-  type ClaudeSettings,
   type McpServerConfig,
   type ResolvedToolSpec,
   type SandboxPermission,
@@ -67,15 +66,12 @@ export interface RunPlan {
    */
   sandboxPermission?: SandboxPermission;
   /**
-   * The Claude harness's own permission knobs (Layer 1). Claude-only; carried onto the plan so
-   * `buildClaudeSettings` can render `<cwd>/.claude/settings.json` in `prepareWorkspace`.
+   * Generic harness-rendered files to materialize in the cwd before the session starts. Each
+   * `{ path (relative to cwd), content }` was produced by the Python harness adapter (e.g. the
+   * claude adapter renders `.claude/settings.json` from its permissions slice). `prepareWorkspace`
+   * writes each entry blind — no harness knowledge on the runner.
    */
-  claudeSettings?: ClaudeSettings;
-  /**
-   * User-declared MCP servers. Carried onto the plan so `buildClaudeSettings` can render each
-   * server's Layer-3 `disposition` as an `mcp__<server>` rule (Claude-only, S3b).
-   */
-  mcpServers?: McpServerConfig[];
+  harnessFiles?: Array<{ path: string; content: string }>;
 }
 
 export type BuildRunPlanResult =
@@ -250,11 +246,9 @@ export function buildRunPlan(
       sourcePiAgentDir:
         process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent"),
       sandboxPermission: request.sandboxPermission,
-      // Claude-only: Pi (or the agenta -> pi remap) never carries settings, so the workspace
-      // never writes `.claude/settings.json` for it. `buildClaudeSettings` re-checks the agent.
-      claudeSettings:
-        acpAgent === "claude" ? request.claudeSettings : undefined,
-      mcpServers: request.mcpServers,
+      // Generic: the Python harness adapter already rendered any harness config files; the runner
+      // just carries them onto the plan and writes them into the cwd in `prepareWorkspace`.
+      harnessFiles: request.harnessFiles,
     },
   };
 }

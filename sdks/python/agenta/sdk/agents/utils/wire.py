@@ -52,9 +52,12 @@ def request_to_wire(
     LAST among the model fields so the resolved ``provider``/``model`` override the base ``model``
     and ``wire_model_ref``'s ``provider`` (its ``env`` never reaches the wire; the secret rides
     ``secrets``).
-    ``config.wire_claude_settings()`` adds the Claude harness's own permission knobs
-    (``claudeSettings``), omitted unless the Claude config authored a non-empty value (Claude-only;
-    the runner renders it into ``<cwd>/.claude/settings.json``).
+    ``config.wire_harness_files()`` adds the generic ``harnessFiles`` array: files the active
+    harness's config rendered from its own ``harness_options`` slice, to materialize in the session
+    cwd before the session starts (``path`` relative to cwd, ``content`` the file text). Omitted
+    unless the config produced any files. This is where the per-harness translation happens in
+    Python (e.g. the claude config renders ``.claude/settings.json``); the runner is a dumb writer
+    that drops each entry into the cwd with no harness knowledge.
     """
     return {
         "backend": engine,
@@ -73,7 +76,7 @@ def request_to_wire(
         **config.wire_sandbox_permission(),
         **config.wire_model_ref(),
         **config.wire_resolved_connection(),
-        **config.wire_claude_settings(),
+        **config.wire_harness_files(),
     }
 
 

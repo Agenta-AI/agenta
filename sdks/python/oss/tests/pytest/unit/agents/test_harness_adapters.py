@@ -18,7 +18,6 @@ from agenta.sdk.agents import (
     AgentConfig,
     ClaudeAgentConfig,
     ClaudeHarness,
-    ClaudePermissions,
     ClientToolSpec,
     HarnessType,
     PiAgentConfig,
@@ -239,30 +238,31 @@ def test_claude_no_warning_without_builtins(make_env, monkeypatch):
     assert recorded == []
 
 
-def test_claude_reads_its_permissions_harness_options_slice(make_env):
+def test_claude_threads_options_and_renders_settings_file(make_env):
+    import json
+
     harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
-    agent = AgentConfig(
-        instructions="hi",
-        model="m",
-        harness_options={
-            "claude": {
-                "permissions": {
-                    "default_mode": "acceptEdits",
-                    "allow": ["Read"],
-                    "deny": ["Write", "Edit"],
-                }
-            },
-            "pi": {"system": "ignored for Claude"},
+    options = {
+        "claude": {
+            "permissions": {
+                "default_mode": "acceptEdits",
+                "allow": ["Read"],
+                "deny": ["Write", "Edit"],
+            }
         },
-    )
+        "pi": {"system": "ignored for Claude"},
+    }
+    agent = AgentConfig(instructions="hi", model="m", harness_options=options)
 
     result = harness._to_harness_config(_session_config(agent=agent))
 
-    assert isinstance(result.permissions, ClaudePermissions)
-    assert result.permissions.default_mode == "acceptEdits"
-    # The author's knobs reach the wire as nested camelCase `claudeSettings`.
-    assert result.wire_claude_settings() == {
-        "claudeSettings": {
+    # The whole map is threaded onto the config; the claude config's `wire_harness_files` (the
+    # Python claude adapter) translates its own `claude.permissions` slice into a rendered file.
+    assert result.harness_options == options
+    wire = result.wire_harness_files()
+    assert wire["harnessFiles"][0]["path"] == ".claude/settings.json"
+    assert json.loads(wire["harnessFiles"][0]["content"]) == {
+        "permissions": {
             "defaultMode": "acceptEdits",
             "allow": ["Read"],
             "deny": ["Write", "Edit"],
@@ -270,13 +270,13 @@ def test_claude_reads_its_permissions_harness_options_slice(make_env):
     }
 
 
-def test_claude_without_permissions_emits_no_claude_settings(make_env):
+def test_claude_without_harness_options_renders_no_files(make_env):
     harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
 
     result = harness._to_harness_config(_session_config())
 
-    assert result.permissions is None
-    assert result.wire_claude_settings() == {}
+    assert result.harness_options == {}
+    assert result.wire_harness_files() == {}
 
 
 # --------------------------------------------------------------- _normalize_tool_specs

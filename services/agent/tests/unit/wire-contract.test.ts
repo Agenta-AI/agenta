@@ -55,7 +55,7 @@ const KNOWN_REQUEST_KEYS = [
   "appendSystemPrompt",
   "skills",
   "sandboxPermission",
-  "claudeSettings",
+  "harnessFiles",
 ] as const;
 
 // COMPILE-TIME drift guard: every wire key must be a field of AgentRunRequest. Drop or rename
@@ -116,8 +116,8 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(req.sandboxPermission!.network!.mode, "off");
     assert.deepEqual(req.sandboxPermission!.network!.allowlist, []);
     assert.equal(req.sandboxPermission!.enforcement, "strict");
-    // `claudeSettings` is Claude-only, so the Pi request never carries it.
-    assert.equal(req.claudeSettings, undefined);
+    // Pi renders no harness config files, so the generic `harnessFiles` is absent.
+    assert.equal(req.harnessFiles, undefined);
   });
 
   it("claude request: gates tool use, no prompt overrides, null session id", () => {
@@ -129,10 +129,17 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(req.systemPrompt, undefined); // Claude exposes no prompt overrides
     assert.equal(req.appendSystemPrompt, undefined);
     assert.equal(req.sandboxPermission, undefined); // no boundary declared on this config
-    // The Claude harness's own permission knobs ride the wire as nested camelCase `claudeSettings`.
-    assert.equal(req.claudeSettings!.defaultMode, "acceptEdits");
-    assert.deepEqual(req.claudeSettings!.allow, ["Read", "Bash(npm run:*)"]);
-    assert.deepEqual(req.claudeSettings!.deny, ["WebFetch"]);
+    // The Claude harness's permission knobs are translated to a rendered file in Python: the
+    // wire carries a generic `harnessFiles` entry the runner writes blind into the cwd.
+    const files = req.harnessFiles!;
+    assert.equal(files.length, 1);
+    assert.equal(files[0].path, ".claude/settings.json");
+    const settings = JSON.parse(files[0].content) as {
+      permissions: Record<string, unknown>;
+    };
+    assert.equal(settings.permissions.defaultMode, "acceptEdits");
+    assert.deepEqual(settings.permissions.allow, ["Read", "Bash(npm run:*)"]);
+    assert.deepEqual(settings.permissions.deny, ["WebFetch"]);
     // sessionId is null on the wire, so the runner falls back to its ephemeral id.
     assert.equal(
       resolveRunSessionId(req, "runner-ephemeral"),
