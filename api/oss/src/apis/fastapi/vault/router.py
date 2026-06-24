@@ -4,9 +4,7 @@ from typing import List
 from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Request, status, HTTPException
 
-from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
-from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
@@ -16,30 +14,10 @@ from oss.src.core.secrets.dtos import (
     UpdateSecretDTO,
     SecretResponseDTO,
 )
-from oss.src.core.secrets.connections import (
-    AmbiguousConnection,
-    ConnectionNotFound,
-    ConnectionResolutionError,
-    ProviderMismatch,
-    UnsupportedConnectionMode,
-)
-from oss.src.apis.fastapi.vault.models import (
-    ConnectionsListResponse,
-    ResolveConnectionRequest,
-    ResolvedConnectionResponse,
-)
 
 if is_ee():
     from ee.src.core.access.permissions.types import Permission
     from ee.src.core.access.permissions.service import check_action_access
-
-
-log = get_module_logger(__name__)
-
-# Header the internal agent service sends to prove it is service-internal (matched against
-# `env.agenta.vault_resolve_internal_token`). Mirrors the SDK's
-# `agenta.sdk.agents.platform.connections.INTERNAL_RESOLVE_TOKEN_HEADER`.
-INTERNAL_RESOLVE_TOKEN_HEADER = "X-Agenta-Internal-Token"
 
 
 class VaultRouter:
@@ -89,32 +67,6 @@ class VaultRouter:
             status_code=status.HTTP_204_NO_CONTENT,
             methods=["DELETE"],
             operation_id="delete_secret",
-        )
-        # The router is mounted at root (so `/secrets/` serves at `/api/secrets/`), so these
-        # carry their own `/vault/connections` prefix to serve at `/api/vault/connections...`
-        # (the path the SDK `VaultConnectionResolver` and the design name).
-        self.router.add_api_route(
-            "/vault/connections",
-            self.list_connections,
-            methods=["GET"],
-            operation_id="list_connections",
-            response_model_exclude_none=True,
-            response_model=ConnectionsListResponse,
-        )
-        # INTERNAL-ONLY. Unlike the routes above, this returns PLAINTEXT credentials in `env`
-        # (the whole point of an internal resolve). The genuine guard (design Security rule 3) is
-        # an internal-service token: when `env.agenta.vault_resolve_internal_token` is set, the
-        # handler rejects any request that does not carry the matching `X-Agenta-Internal-Token`
-        # header. The agent service has the token; a browser session does not, so the route is not
-        # browser-reachable even though it is on the public router. It is also kept off the Fern
-        # client, but that is defense-in-depth, not the access control.
-        self.router.add_api_route(
-            "/vault/connections/resolve",
-            self.resolve_connection,
-            methods=["POST"],
-            operation_id="resolve_connection",
-            response_model_exclude_none=True,
-            response_model=ResolvedConnectionResponse,
         )
 
     @intercept_exceptions()
@@ -267,105 +219,3 @@ class VaultRouter:
             project_id=request.state.project_id,
         )
         return status.HTTP_204_NO_CONTENT
-
-    @intercept_exceptions()
-    async def list_connections(self, request: Request):
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.VIEW_SECRET,
-            )
-
-            if not has_permission:
-                error_msg = "You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
-
-        connections = await self.service.list_connections(
-            project_id=UUID(request.state.project_id),
-        )
-        return ConnectionsListResponse(
-            count=len(connections),
-            connections=connections,
-        )
-
-    @intercept_exceptions()
-    async def resolve_connection(
-        self, request: Request, body: ResolveConnectionRequest
-    ):
-        # INTERNAL-ONLY: returns plaintext credentials in `env` (design Security rule 3). The
-        # genuine guard is the internal-service token: when configured, reject any caller that
-        # does not present the matching header. A browser session never has the token.
-        expected_token = env.agenta.vault_resolve_internal_token
-        if expected_token:
-            presented = request.headers.get(INTERNAL_RESOLVE_TOKEN_HEADER)
-            if presented != expected_token:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="connection resolution is an internal-service endpoint",
-                )
-
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.VIEW_SECRET,
-            )
-
-            if not has_permission:
-                error_msg = "You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
-
-        # Project comes from request context, never the body (design Security rule 1).
-        project_id = UUID(request.state.project_id)
-        model = body.model
-
-        try:
-            resolved = await self.service.resolve_connection(
-                project_id=project_id,
-                model_provider=model.provider,
-                model_id=model.model,
-                connection_mode=model.connection.mode,
-                connection_slug=model.connection.slug,
-            )
-        except ConnectionNotFound as e:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=str(e)
-            ) from e
-        except UnsupportedConnectionMode as e:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
-            ) from e
-        except (AmbiguousConnection, ProviderMismatch, ConnectionResolutionError) as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-            ) from e
-
-        # Audit (design Security rule 7): provider, model, slug, credential mode, user, project.
-        # NEVER the key material.
-        log.info(
-            "agent connection resolved",
-            provider=resolved.provider,
-            model=resolved.model,
-            deployment=resolved.deployment,
-            connection_slug=model.connection.slug,
-            connection_mode=model.connection.mode,
-            credential_mode=resolved.credential_mode,
-            user_id=str(getattr(request.state, "user_id", None)),
-            project_id=str(project_id),
-        )
-
-        return ResolvedConnectionResponse(
-            provider=resolved.provider,
-            model=resolved.model,
-            deployment=resolved.deployment,
-            credential_mode=resolved.credential_mode,
-            env=resolved.env,
-            endpoint=resolved.endpoint,
-        )

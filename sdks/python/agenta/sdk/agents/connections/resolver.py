@@ -8,8 +8,8 @@ Two adapters that need no service and no network, mirroring the sdk-local-tools
 - :class:`StaticConnectionResolver`: a bring-your-own adapter the SDK user constructs with an
   explicit credential.
 
-The service-backed ``VaultConnectionResolver`` lands in a later slice and does NOT live here
-(this module imports no service code, stays offline).
+The connected ``VaultConnectionResolver`` reads the platform ``GET /secrets/`` endpoint and
+does NOT live here (this module imports no service code, stays offline).
 """
 
 from __future__ import annotations

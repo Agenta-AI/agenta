@@ -409,16 +409,6 @@ class AgentaConfig(BaseModel):
     auth_key: str = os.getenv("AGENTA_AUTH_KEY") or "replace-me"
     crypt_key: str = os.getenv("AGENTA_CRYPT_KEY") or "replace-me"
 
-    # Internal-service token gating the credential-resolve route
-    # (`POST /vault/connections/resolve`), which returns plaintext credentials. The agent service
-    # sets the same value as `AGENTA_VAULT_RESOLVE_INTERNAL_TOKEN` and sends it in the
-    # `X-Agenta-Internal-Token` header; a browser session never has it, so it cannot reach the
-    # route even though it is on the public router. `None` (unset) = no internal gate (a dev
-    # backend); set it in any shared/hosted deployment.
-    vault_resolve_internal_token: str | None = os.getenv(
-        "AGENTA_VAULT_RESOLVE_INTERNAL_TOKEN"
-    )
-
     access: AccessConfig = AccessConfig()
     ai_services: AIServicesConfig = AIServicesConfig()
     api: ApiConfig = ApiConfig()

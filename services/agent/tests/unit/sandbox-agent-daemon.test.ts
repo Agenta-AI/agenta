@@ -77,6 +77,9 @@ describe("buildDaemonEnv", () => {
     process.env.CLAUDE_CODE_OAUTH_TOKEN = "sidecar-oauth";
     process.env.AWS_ACCESS_KEY_ID = "sidecar-aws-key";
     process.env.AWS_SECRET_ACCESS_KEY = "sidecar-aws-secret";
+    process.env.AWS_REGION = "sidecar-region";
+    process.env.ANTHROPIC_MODEL = "sidecar-model";
+    process.env.ANTHROPIC_BASE_URL = "https://sidecar.example";
     process.env.GOOGLE_APPLICATION_CREDENTIALS = "/sidecar/adc.json";
     process.env.AZURE_OPENAI_API_KEY = "sidecar-azure";
     process.env.HOME = "/home/runner";
@@ -92,6 +95,9 @@ describe("buildDaemonEnv", () => {
     // The cloud groups are part of the inventory, so they are cleared too.
     assert.equal(env.AWS_ACCESS_KEY_ID, undefined);
     assert.equal(env.AWS_SECRET_ACCESS_KEY, undefined);
+    assert.equal(env.AWS_REGION, undefined);
+    assert.equal(env.ANTHROPIC_MODEL, undefined);
+    assert.equal(env.ANTHROPIC_BASE_URL, undefined);
     assert.equal(env.GOOGLE_APPLICATION_CREDENTIALS, undefined);
     assert.equal(env.AZURE_OPENAI_API_KEY, undefined);
     // Non-credential launch vars are still present.

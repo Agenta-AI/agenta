@@ -47,12 +47,16 @@ export async function applyModel(
   session: any,
   wanted?: string,
   log: Log = () => {},
+  options: { strict?: boolean } = {},
 ): Promise<string | undefined> {
   if (!wanted) return undefined;
   try {
     await session.setModel(wanted);
     return wanted;
   } catch (err) {
+    if (options.strict) {
+      throw new Error(`model '${wanted}' not settable (${(err as Error).message})`);
+    }
     const allowed = allowedFromError(err);
     const fallbackAllowed = allowed.length ? allowed : await allowedModels(session);
     const match = pickModel(fallbackAllowed, wanted);

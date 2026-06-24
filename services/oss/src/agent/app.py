@@ -287,8 +287,8 @@ def create_agent_app():
     #
     # The per-harness connection capability rides the inspect response `meta`, NOT a fourth
     # `AGENT_SCHEMAS` schema key (`JsonSchemas` allows only inputs/parameters/outputs). The
-    # frontend reads `meta.harness_capabilities` and intersects it with `GET /vault/connections`
-    # to show only the connections the selected harness can use; the agent service imports the
+    # frontend reads `meta.harness_capabilities` and intersects it with the existing `/secrets/`
+    # payload projected as connections; the agent service imports the
     # SAME SDK table (above) for its server-side reject, never calling its own `/inspect`.
     routed = ag.workflow(
         schemas=AGENT_SCHEMAS,

@@ -14,7 +14,7 @@ no gateway resolver, and a test can pass fakes.
   superseded by ``resolve_connection`` (one connection, fail-loud); kept until the service
   migrates onto the new resolver.
 - ``resolve_connection`` -> one least-privilege ``ResolvedConnection`` for a single ``ModelRef``,
-  via the service-backed ``VaultConnectionResolver`` (fail-loud).
+  via the secrets-backed ``VaultConnectionResolver`` (fail-loud).
 """
 
 from __future__ import annotations
@@ -84,7 +84,7 @@ async def resolve_connection(
 ) -> ResolvedConnection:
     """Resolve one ``ModelRef`` into one least-privilege ``ResolvedConnection``. Fail-loud.
 
-    Defaults to the service-backed :class:`VaultConnectionResolver` (the connected path); pass an
+    Defaults to the secrets-backed :class:`VaultConnectionResolver` (the connected path); pass an
     offline resolver (``EnvConnectionResolver`` / ``StaticConnectionResolver``) or a fake for a
     standalone or test run.
     """

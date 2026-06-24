@@ -34,8 +34,9 @@ ConnectionMode = Literal["agenta", "self_managed"]
 CredentialMode = Literal["env", "runtime_provided", "none"]
 
 # Which deployment surface a provider is reached through. ``direct`` is the provider's own
-# API; the rest are first-class cloud / gateway backends a harness can target.
-Deployment = Literal["direct", "azure", "bedrock", "vertex", "custom"]
+# API; custom-provider deployments preserve the vault ``data.kind`` value (for example
+# ``custom``, ``azure``, ``bedrock``, or ``vertex_ai``).
+Deployment = str
 
 
 class Connection(BaseModel):
@@ -210,7 +211,8 @@ class RuntimeAuthContext(BaseModel):
     sees the harness. The capability check (which provider/mode/deployment the harness can
     reach) runs in the agent layer against the SDK capability table, around the resolve. So
     ``harness`` rides this context for the agent-layer check, but the
-    :class:`~agenta.sdk.agents.platform.VaultConnectionResolver` never sends it to the vault.
+    :class:`~agenta.sdk.agents.platform.VaultConnectionResolver` only uses the caller auth to
+    fetch ``GET /secrets/``; it never sends harness/backend/project fields in a request body.
     """
 
     project_id: Optional[UUID] = None  # from request.state, never the body

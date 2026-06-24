@@ -409,12 +409,32 @@ async def test_claude_unsupported_provider_rejected_pre_resolve(
         await _invoke("claude", model={"provider": "openai", "model": "gpt-5.5"})
 
 
-async def test_claude_bedrock_rejected_post_resolve(monkeypatch, fake_backend):
-    """Claude resolving to a bedrock deployment fails loud AFTER the resolve returns.
+async def test_claude_bedrock_reaches_session(monkeypatch, fake_backend):
+    """Claude Bedrock is allowed through so the runner can pass backend env/model to Claude."""
+    backend = fake_backend(result=AgentResult(output="echo", usage={"total": 1}))
 
-    The deployment is only known once the vault selects the secret, so the reject is the
-    post-resolve half of the agent-layer check.
-    """
+    async def _resolve(*, model, context):
+        return ResolvedConnection(
+            provider="anthropic",
+            model="anthropic.claude-x",
+            deployment="bedrock",
+            credential_mode="env",
+            env={"AWS_ACCESS_KEY_ID": "AKIA", "AWS_REGION": "us-east-1"},
+        )
+
+    built = _patch_resolution(monkeypatch, backend, resolve=_resolve)
+
+    body = await _invoke(
+        "claude", model={"provider": "anthropic", "model": "anthropic.claude-x"}
+    )
+
+    assert body == {"role": "assistant", "content": "echo"}
+    assert built[0].resolved_connection.deployment == "bedrock"
+    assert built[0].secrets == {"AWS_ACCESS_KEY_ID": "AKIA", "AWS_REGION": "us-east-1"}
+
+
+async def test_pi_bedrock_rejected_post_resolve(monkeypatch, fake_backend):
+    """Pi cloud consumption still stages with model-config, so it fails loud in v1."""
     from agenta.sdk.agents.connections import UnsupportedDeploymentError
 
     backend = fake_backend(result=AgentResult(output="echo"))
@@ -422,7 +442,7 @@ async def test_claude_bedrock_rejected_post_resolve(monkeypatch, fake_backend):
     async def _resolve(*, model, context):
         return ResolvedConnection(
             provider="anthropic",
-            model="claude-x",
+            model="anthropic.claude-x",
             deployment="bedrock",
             credential_mode="env",
             env={"AWS_ACCESS_KEY_ID": "AKIA"},
@@ -431,4 +451,6 @@ async def test_claude_bedrock_rejected_post_resolve(monkeypatch, fake_backend):
     _patch_resolution(monkeypatch, backend, resolve=_resolve)
 
     with pytest.raises(UnsupportedDeploymentError):
-        await _invoke("claude", model={"provider": "anthropic", "model": "claude-x"})
+        await _invoke(
+            "pi", model={"provider": "anthropic", "model": "anthropic.claude-x"}
+        )
