@@ -217,7 +217,9 @@ async def _stream_step(
             yield _sse({"type": "text-delta", "id": text_id, "delta": content})
 
         for tc in getattr(delta, "tool_calls", None) or []:
-            acc = tool_acc.setdefault(tc.index, {"id": "", "name": "", "args": "", "started": ""})
+            acc = tool_acc.setdefault(
+                tc.index, {"id": "", "name": "", "args": "", "started": ""}
+            )
             if tc.id:
                 acc["id"] = tc.id
             fn = getattr(tc, "function", None)
@@ -230,7 +232,11 @@ async def _stream_step(
             if not acc["started"] and acc["id"] and acc["name"]:
                 acc["started"] = "1"
                 yield _sse(
-                    {"type": "tool-input-start", "toolCallId": acc["id"], "toolName": acc["name"]}
+                    {
+                        "type": "tool-input-start",
+                        "toolCallId": acc["id"],
+                        "toolName": acc["name"],
+                    }
                 )
                 if acc["args"]:  # flush args that arrived before the name
                     yield _sse(
