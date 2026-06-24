@@ -16,6 +16,7 @@ The scripts create the following services inside one Railway project:
 - **Web** frontend (Next.js)
 - **API** backend (FastAPI + Gunicorn)
 - **Services** backend (FastAPI + Gunicorn)
+- **sandbox-agent** runner for agent workflows
 - **Postgres** with a persistent volume
 - **Redis** with a persistent volume
 - **SuperTokens** for authentication
@@ -85,6 +86,7 @@ Set the image tags you want to deploy. Use `latest` for the most recent stable r
 export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:latest"
 export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:latest"
 export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:latest"
+export AGENTA_SANDBOX_AGENT_IMAGE="ghcr.io/agenta-ai/agenta-sandbox-agent:latest"
 ```
 
 Then run the deploy script:
@@ -101,6 +103,7 @@ You can also pin to a specific version instead of `latest`:
 export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:v0.30.0"
 export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:v0.30.0"
 export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:v0.30.0"
+export AGENTA_SANDBOX_AGENT_IMAGE="ghcr.io/agenta-ai/agenta-sandbox-agent:v0.30.0"
 ```
 
 ## Step 5: Verify
@@ -126,6 +129,7 @@ export RAILWAY_ENVIRONMENT_NAME="production"
 export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:latest"
 export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:latest"
 export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:latest"
+export AGENTA_SANDBOX_AGENT_IMAGE="ghcr.io/agenta-ai/agenta-sandbox-agent:latest"
 
 ./hosting/railway/oss/scripts/deploy-from-images.sh
 ```
@@ -182,6 +186,14 @@ These environment variables control the deployment scripts. All have sensible de
 | `POSTHOG_API_KEY` | (none) | PostHog analytics key |
 | `SENDGRID_API_KEY` | (none) | SendGrid email key |
 | `COMPOSIO_API_KEY` | (none) | Composio API key |
+
+### Agent Runner
+
+| Variable | Default | Description |
+|---|---|---|
+| `AGENTA_SANDBOX_AGENT_IMAGE` | `ghcr.io/agenta-ai/agenta-sandbox-agent:latest` | Image used by the `sandbox-agent` runner service |
+| `SANDBOX_AGENT_PROVIDER` | `local` | Default sandbox provider for agent runs |
+| `SANDBOX_AGENT_DAYTONA_API_KEY` | (none) | Daytona key for agent-runner sandboxes |
 
 ### Smoke Test Tuning
 
