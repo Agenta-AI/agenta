@@ -418,15 +418,14 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
                         }),
                     ]
 
-                    const queryGroupId = `query:${mapping.step.key}`
                     queryColumns.forEach((column) =>
                         registerStepGroup({
                             column,
                             stepMeta,
                             role: "query",
                             registry: stepGroups,
-                            groupIdOverride: queryGroupId,
-                            groupKindOverride: "input",
+                            groupIdOverride: `query:${mapping.step.key}:${column.stepType}`,
+                            groupKindOverride: column.stepType === "input" ? "input" : "invocation",
                         }),
                     )
 

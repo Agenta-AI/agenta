@@ -328,10 +328,12 @@ export const QueryReferenceLabel = memo(
     ({
         queryId,
         querySlug,
+        version,
         href,
     }: {
         queryId?: string | null
         querySlug?: string | null
+        version?: number | string | null
         href?: string | null
     }) => {
         const projectId = useAtomValue(effectiveProjectIdAtom)
@@ -342,6 +344,7 @@ export const QueryReferenceLabel = memo(
                 queryId={queryId}
                 querySlug={querySlug}
                 projectId={projectId}
+                version={version}
                 href={href}
             />
         )

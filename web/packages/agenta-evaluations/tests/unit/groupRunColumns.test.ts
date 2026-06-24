@@ -195,3 +195,34 @@ describe("groupRunColumns — edge cases", () => {
         )
     })
 })
+
+describe("groupRunColumns — query-backed trace inputs", () => {
+    const steps: RunStep[] = [
+        {
+            key: "query-source",
+            type: "input",
+            references: {
+                query: {id: "query-1", slug: "selected-traces"},
+                query_revision: {id: "query-revision-1", slug: "selected-traces-v1"},
+            },
+        },
+    ]
+    const mappings: RunMapping[] = [
+        {
+            column: {kind: "query", name: "data"},
+            step: {key: "query-source", path: "attributes.ag.data"},
+        },
+    ]
+
+    it("adapts the query data mapping into trace inputs and outputs", () => {
+        const grouped = groupRunColumns(steps, mappings)
+
+        assert.equal(grouped.length, 1)
+        assert.equal(grouped[0].group.kind, "query")
+        assert.equal(grouped[0].group.slug, "selected-traces")
+        assert.deepEqual(
+            grouped[0].columns.map((column) => column.name),
+            ["inputs", "outputs"],
+        )
+    })
+})

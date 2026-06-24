@@ -70,6 +70,8 @@ export {
 export {
     fetchEvaluatorTemplates,
     fetchEvaluatorCatalogPresets,
+    GROUND_TRUTH_PARAM_KEY,
+    templateRequiresGroundTruth,
     type EvaluatorCatalogTemplate,
     type EvaluatorCatalogTemplatesResponse,
     type EvaluatorCatalogPreset,

@@ -2,12 +2,19 @@ import {memo, useCallback, useMemo} from "react"
 import type {SetStateAction} from "react"
 
 import {
+    createSimpleQuery,
+    invalidateQueryCache,
+    queryHeadQueryKey,
+    retrieveQueryRevision,
+} from "@agenta/entities/query"
+import {
     createEvaluatorFromTemplate,
     workflowMolecule,
     type EvaluatorCatalogTemplate,
 } from "@agenta/entities/workflow"
 import type {EvaluationStepDescriptorMap} from "@agenta/evaluations/core"
 import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
+import {queryClient} from "@agenta/shared/api"
 import {message} from "@agenta/ui/app-message"
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Tag} from "antd"
@@ -17,11 +24,18 @@ import {openHumanEvaluatorDrawerAtom} from "@/oss/components/Evaluators/Drawers/
 
 import {DEFAULT_ADVANCE_SETTINGS} from "../assets/constants"
 import AdvancedSettings from "../Components/AdvancedSettings"
+import QuerySourceSection from "../Components/QuerySourceSection"
 import SelectEvaluatorSection from "../Components/SelectEvaluatorSection/SelectEvaluatorSection"
 import SelectTestsetSection from "../Components/SelectTestsetSection"
 import SelectVariantSection from "../Components/SelectVariantSection"
 import SelectWorkflowSection from "../Components/SelectWorkflowSection"
+import TracesSourceSection from "../Components/TracesSourceSection"
 
+import {
+    buildTraceEvaluationQueryName,
+    buildTraceIdFilter,
+    TRACE_EVALUATION_QUERY_SOURCE,
+} from "./sourceHelpers"
 import type {
     EvalStepDescriptorRegistry,
     EvalStepContext,
@@ -40,6 +54,7 @@ const EMPTY_TESTSET: TestsetStepValue = {
     name: "",
     version: null,
 }
+const EMPTY_QUERY = {queryId: ""}
 
 const InvocationSection = ({value, slot, context}: EvalStepSectionProps<InvocationStepValue>) => (
     <SelectWorkflowSection
@@ -150,6 +165,7 @@ const EvaluatorSection = ({value, context, runtime}: EvalStepSectionProps<string
             }}
             preview={context.preview}
             selectedWorkflowId={context.workflowId}
+            liveCompatibleEvaluatorsOnly={context.liveCompatibleEvaluatorsOnly}
             onSelectTemplate={handleSelectTemplate}
             onCreateHumanEvaluator={handleCreateHumanEvaluator}
             className="pt-2"
@@ -305,6 +321,86 @@ export const evalStepRegistry: EvalStepDescriptorRegistry = {
             )),
         toPayload: async (value) => ({concurrency: value}),
         incompleteMessage: "Please complete advanced settings",
+    },
+    traces: {
+        kind: "traces",
+        title: "Traces",
+        Section: TracesSourceSection,
+        defaultValue: [],
+        isComplete: (value) => value.length > 0,
+        renderSummary: (value, context, slot) =>
+            value.length ? (
+                <Tag
+                    closable={!slot.locked}
+                    closeIcon={<CloseCircleOutlined />}
+                    onClose={() => context.setStepValue("traces", [])}
+                >
+                    {value.length} trace{value.length === 1 ? "" : "s"}
+                </Tag>
+            ) : null,
+        toPayload: async (value, context) => {
+            if (!context.projectId) {
+                throw new Error("A project is required to create a trace-backed evaluation.")
+            }
+            if (!value.length) {
+                throw new Error("Select at least one trace before creating an evaluation.")
+            }
+            const queryName = buildTraceEvaluationQueryName(context.getEvaluationName())
+            const {revisionId} = await createSimpleQuery({
+                projectId: context.projectId,
+                query: {
+                    name: queryName,
+                    meta: {source: TRACE_EVALUATION_QUERY_SOURCE},
+                    data: {filtering: buildTraceIdFilter(value)},
+                },
+            })
+            invalidateQueryCache()
+            return {query_steps: {[revisionId]: "auto"}}
+        },
+        incompleteMessage: "Select at least one trace",
+    },
+    query: {
+        kind: "query",
+        title: "Query",
+        Section: QuerySourceSection,
+        defaultValue: EMPTY_QUERY,
+        isComplete: (value) => Boolean(value.queryId),
+        renderSummary: (value, context, slot) =>
+            value.queryId ? (
+                <Tag
+                    closable={!slot.locked}
+                    closeIcon={<CloseCircleOutlined />}
+                    onClose={() => context.setStepValue("query", EMPTY_QUERY)}
+                >
+                    {value.name ?? value.queryId}
+                </Tag>
+            ) : null,
+        toPayload: async (value, context) => {
+            if (!context.projectId) {
+                throw new Error("A project is required to create a query-backed evaluation.")
+            }
+            const projectId = context.projectId
+            if (!value.queryId) {
+                throw new Error("Select a query before creating an evaluation.")
+            }
+            if (value.revisionId) {
+                return {query_steps: {[value.revisionId]: "auto"}}
+            }
+            const queryKey = queryHeadQueryKey(projectId, value.queryId)
+            const revision =
+                queryClient.getQueryData<Awaited<ReturnType<typeof retrieveQueryRevision>>>(
+                    queryKey,
+                ) ??
+                (await retrieveQueryRevision({
+                    projectId,
+                    queryRef: {id: value.queryId},
+                }))
+            if (!revision?.id) {
+                throw new Error("Unable to resolve the selected query revision.")
+            }
+            return {query_steps: {[revision.id]: "auto"}}
+        },
+        incompleteMessage: "Select a query",
     },
 }
 

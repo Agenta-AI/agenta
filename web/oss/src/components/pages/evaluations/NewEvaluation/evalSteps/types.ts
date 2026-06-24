@@ -5,7 +5,14 @@ import type {getAgentaSdkClient} from "@agenta/sdk"
 
 import type {EvaluationConcurrencySettings} from "../types"
 
-export type EvalStepKind = "invocation" | "revision" | "testset" | "evaluator" | "advanced"
+export type EvalStepKind =
+    | "invocation"
+    | "revision"
+    | "testset"
+    | "evaluator"
+    | "advanced"
+    | "traces"
+    | "query"
 
 export interface InvocationStepValue {
     id: string
@@ -19,12 +26,20 @@ export interface TestsetStepValue {
     version: number | null
 }
 
+export interface QueryStepValue {
+    queryId: string
+    revisionId?: string
+    name?: string
+}
+
 export interface EvalStepValueMap {
     invocation: InvocationStepValue
     revision: string[]
     testset: TestsetStepValue
     evaluator: string[]
     advanced: EvaluationConcurrencySettings
+    traces: string[]
+    query: QueryStepValue
 }
 
 export type EvalStepSlot<Kind extends EvalStepKind = EvalStepKind> = {
@@ -36,6 +51,8 @@ export interface EvalStepContext {
     workflowId?: string
     evaluationType: "auto" | "human"
     preview: boolean
+    liveCompatibleEvaluatorsOnly: boolean
+    getEvaluationName: () => string
     getStepValue: <Kind extends EvalStepKind>(kind: Kind) => EvalStepValueMap[Kind]
     setStepValue: <Kind extends EvalStepKind>(
         kind: Kind,

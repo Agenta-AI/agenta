@@ -4,6 +4,7 @@ import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
 import type {PreviewTestCase} from "../../../core"
+import {normalizeInputSourceValue} from "../../../etl/inputSourceAdapter"
 import {previewEvalTypeAtom} from "../state/evalType"
 import {readInvocationResponse} from "../traces/traceUtils"
 import {resolveInvocationTraceValue} from "../utils/traceValue"
@@ -224,6 +225,25 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
             const invocations = derivedByKind.invocations
             const annotations = derivedByKind.annotations
             const steps = baseSteps
+            const normalizeInputValue = (value: unknown) => {
+                const stepKey = column.stepKey ?? ""
+                const stepMeta = stepKey ? runIndex?.steps[stepKey] : undefined
+                return normalizeInputSourceValue(
+                    {
+                        key: stepKey,
+                        type: "input",
+                        references: stepMeta?.refs ?? {},
+                    },
+                    {
+                        column: {
+                            kind: column.columnKind,
+                            name: column.valueKey ?? column.pathSegments?.at(-1) ?? column.id,
+                        },
+                        step: {key: stepKey, path: column.path},
+                    },
+                    value,
+                )
+            }
 
             const descriptorMap = get(columnValueDescriptorMapAtomFamily(runId ?? null))
             const descriptor =
@@ -251,10 +271,11 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     )
 
                     if (valueFromTestcase !== undefined) {
+                        const normalized = normalizeInputValue(valueFromTestcase)
                         // Stale-while-revalidate: if we have a value, never show loading
                         return {
-                            value: valueFromTestcase,
-                            displayValue: valueFromTestcase,
+                            value: normalized,
+                            displayValue: normalized,
                             isLoading: false,
                             isFetching: testcaseMeta.isFetching,
                             error: testcaseMeta.error,
@@ -281,9 +302,10 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                 // Try step's embedded inputs first
                 const stepValue = resolveInputStepValueByPath(targetStep, pathSegments)
                 if (stepValue !== undefined) {
+                    const normalized = normalizeInputValue(stepValue)
                     return {
-                        value: stepValue,
-                        displayValue: stepValue,
+                        value: normalized,
+                        displayValue: normalized,
                         isLoading: false,
                         isFetching: false,
                         error: undefined,
@@ -310,9 +332,10 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                             candidate.valueKey,
                         )
                         if (localTraceValue !== undefined) {
+                            const normalized = normalizeInputValue(localTraceValue)
                             return {
-                                value: localTraceValue,
-                                displayValue: localTraceValue,
+                                value: normalized,
+                                displayValue: normalized,
                                 isLoading: false,
                                 isFetching: false,
                                 error: undefined,
@@ -345,9 +368,10 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                             }),
                         )
                         if (remoteTraceValue !== undefined) {
+                            const normalized = normalizeInputValue(remoteTraceValue)
                             return {
-                                value: remoteTraceValue,
-                                displayValue: remoteTraceValue,
+                                value: normalized,
+                                displayValue: normalized,
                                 isLoading: false,
                                 isFetching: false,
                                 error: undefined,

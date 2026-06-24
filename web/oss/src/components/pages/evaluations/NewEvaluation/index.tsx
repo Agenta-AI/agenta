@@ -29,15 +29,22 @@ const NewEvaluationModalInner = dynamic(() => import("./Components/NewEvaluation
  * - `preSelectedVariantIds`: Preselects revision IDs.
  * - `steps`: Controls step order, requiredness, dependencies, visibility, locking, and presets.
  * - `nameBuilder`: Builds the base for the generated evaluation name from current step values.
+ * - `liveCompatibleEvaluatorsOnly`: Shows only evaluators that do not require ground truth.
  * - Remaining Ant Design `ModalProps` are forwarded to the modal.
  *
  * Each `steps` item supports:
- * - `kind`: `"invocation" | "revision" | "testset" | "evaluator" | "advanced"`.
+ * - `kind`: `"invocation" | "revision" | "testset" | "evaluator" | "advanced" |
+ *   "traces" | "query"`.
  * - `required`: Requires the step to be complete before submission.
  * - `dependsOn`: Disables the step until the listed steps are complete.
  * - `hidden`: Keeps the step in state and submission but removes its tab.
  * - `locked`: Shows the step as read-only.
  * - `preset`: Sets the step's initial value.
+ *
+ * Source presets:
+ * - `traces`: An array of trace IDs, for example `{kind: "traces", preset: traceIds}`.
+ * - `query`: A query reference, for example `{kind: "query", preset: {queryId}}`.
+ * - Configure only one source kind per modal.
  *
  * @example
  * <NewEvaluationModal
@@ -62,6 +69,7 @@ const NewEvaluationModal = <Preview extends boolean = true>({
     preSelectedAppId,
     steps,
     nameBuilder,
+    liveCompatibleEvaluatorsOnly = false,
     ...props
 }: NewEvaluationModalGenericProps<Preview>) => {
     const [submitLoading, setSubmitLoading] = useState(false)
@@ -112,6 +120,7 @@ const NewEvaluationModal = <Preview extends boolean = true>({
                     preSelectedAppId={preSelectedAppId}
                     steps={steps}
                     nameBuilder={nameBuilder}
+                    liveCompatibleEvaluatorsOnly={liveCompatibleEvaluatorsOnly}
                 />
             )}
         </EnhancedModal>

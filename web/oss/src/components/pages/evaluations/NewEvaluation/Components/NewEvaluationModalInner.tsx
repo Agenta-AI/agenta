@@ -47,7 +47,7 @@ import {
     evalStepRegistry,
     getDefaultEvalSteps,
 } from "../evalSteps/registry"
-import {activeEvalStepAtom, evalStepValuesAtom} from "../evalSteps/state"
+import {activeEvalStepAtom, evalStepValuesAtom, evaluationNameAtom} from "../evalSteps/state"
 import type {
     EvalStepContext,
     EvalStepKind,
@@ -70,6 +70,8 @@ const TOUR_PANEL_TO_STEP: Record<string, EvalStepKind> = {
     advancedSettingsPanel: "advanced",
 }
 
+const MUTUALLY_EXCLUSIVE_STEP_GROUPS: EvalStepKind[][] = [["traces", "query"]]
+
 const cloneDefaultValue = <Kind extends EvalStepKind>(kind: Kind): EvalStepValueMap[Kind] =>
     structuredClone(evalStepRegistry[kind].defaultValue)
 
@@ -89,6 +91,7 @@ const NewEvaluationModalInner = ({
     preSelectedAppId,
     steps,
     nameBuilder,
+    liveCompatibleEvaluatorsOnly = false,
 }: NewEvaluationModalInnerProps) => {
     const router = useRouter()
     const {baseAppURL, projectURL} = useURL()
@@ -98,6 +101,13 @@ const NewEvaluationModalInner = ({
     const {apps: availableApps = []} = useAppsData()
     const [stepValues, setStepValues] = useAtom(evalStepValuesAtom)
     const stepValuesRef = useRef(stepValues)
+    const [evaluationName, setEvaluationName] = useAtom(evaluationNameAtom)
+    const evaluationNameRef = useRef(evaluationName)
+    evaluationNameRef.current = evaluationName
+    const [nameFocused, setNameFocused] = useState(false)
+    const lastAutoNameRef = useRef("")
+    const lastBaseRef = useRef("")
+    const randomWordRef = useRef("")
     const setActiveStep = useSetAtom(activeEvalStepAtom)
     const setRegistryWorkflowIdOverride = useSetAtom(registryWorkflowIdOverrideAtom)
 
@@ -137,7 +147,7 @@ const NewEvaluationModalInner = ({
             }
             return slot
         })
-        assertValidStepConfig(initialSteps, EVAL_STEP_KINDS)
+        assertValidStepConfig(initialSteps, EVAL_STEP_KINDS, MUTUALLY_EXCLUSIVE_STEP_GROUPS)
         resolvedStepsRef.current = initialSteps
     }
     const resolvedSteps = resolvedStepsRef.current
@@ -219,6 +229,8 @@ const NewEvaluationModalInner = ({
         [],
     )
 
+    const getEvaluationName = useCallback(() => evaluationNameRef.current, [])
+
     const isVisible = useCallback(
         (slot: EvaluationStepSlot<EvalStepKind>) =>
             !slot.hidden &&
@@ -227,12 +239,21 @@ const NewEvaluationModalInner = ({
                 workflowId: getStepValue("invocation").id || undefined,
                 evaluationType,
                 preview,
+                liveCompatibleEvaluatorsOnly,
+                getEvaluationName,
                 getStepValue,
                 setStepValue: () => undefined,
                 advanceFrom: () => undefined,
             }) ??
                 true),
-        [evaluationType, getStepValue, preview, projectId],
+        [
+            evaluationType,
+            getEvaluationName,
+            getStepValue,
+            liveCompatibleEvaluatorsOnly,
+            preview,
+            projectId,
+        ],
     )
 
     const baseContext = useMemo(
@@ -241,8 +262,17 @@ const NewEvaluationModalInner = ({
             workflowId: selectedWorkflowId || undefined,
             evaluationType,
             preview,
+            liveCompatibleEvaluatorsOnly,
+            getEvaluationName,
         }),
-        [evaluationType, preview, projectId, selectedWorkflowId],
+        [
+            evaluationType,
+            getEvaluationName,
+            liveCompatibleEvaluatorsOnly,
+            preview,
+            projectId,
+            selectedWorkflowId,
+        ],
     )
 
     const advanceFrom = useCallback(
@@ -414,18 +444,28 @@ const NewEvaluationModalInner = ({
     )
     const generatedNameBase = useMemo(() => {
         if (nameBuilder) return nameBuilder(stepValues)
+        if (resolvedSteps.some((slot) => slot.kind === "traces")) {
+            const traceCount = stepValues.traces?.length ?? 0
+            return `trace-evaluation-${traceCount}-${traceCount === 1 ? "trace" : "traces"}`
+        }
+        if (resolvedSteps.some((slot) => slot.kind === "query")) {
+            const query = stepValues.query as EvalStepValueMap["query"] | undefined
+            return query?.name ? `${query.name}-eval` : "query-eval"
+        }
         if (!revisionIds.length || !testset.name) return ""
         if (revisionIds.length > 1) return `${revisionIds.length}-variants-${testset.name}`
         const revision = filteredVariants.find((candidate) => candidate.id === revisionIds[0])
         if (!revision) return ""
         return `${selectedVariantLabel ?? revision.name ?? "-"}-v${revision.version ?? 0}-${testset.name}`
-    }, [filteredVariants, nameBuilder, revisionIds, selectedVariantLabel, stepValues, testset.name])
-
-    const [evaluationName, setEvaluationName] = useState("")
-    const [nameFocused, setNameFocused] = useState(false)
-    const lastAutoNameRef = useRef("")
-    const lastBaseRef = useRef("")
-    const randomWordRef = useRef("")
+    }, [
+        filteredVariants,
+        nameBuilder,
+        resolvedSteps,
+        revisionIds,
+        selectedVariantLabel,
+        stepValues,
+        testset.name,
+    ])
 
     useEffect(() => {
         const value = globalThis.crypto?.getRandomValues?.(new Uint32Array(1))?.[0] ?? 0
@@ -594,6 +634,8 @@ const NewEvaluationModalInner = ({
             })
             const runCount = response.runs.length
             const runId = response.data.evaluation?.id
+            const startedLabel =
+                runCount > 1 ? `${runCount} evaluations started.` : "Evaluation started."
             if (runId) {
                 const resultsUrl = buildEvaluationNavigationUrl({
                     scope:
@@ -605,9 +647,9 @@ const NewEvaluationModalInner = ({
                     appId: selectedWorkflowId || undefined,
                     path: `/evaluations/results/${runId}`,
                 })
-                message.success(
+                const successContent = (
                     <span>
-                        {runCount > 1 ? `${runCount} evaluations started.` : "Evaluation started."}{" "}
+                        {startedLabel}{" "}
                         <a
                             href={resultsUrl}
                             onClick={(event) => {
@@ -618,12 +660,11 @@ const NewEvaluationModalInner = ({
                         >
                             View progress
                         </a>
-                    </span>,
+                    </span>
                 )
+                message.success(successContent)
             } else {
-                message.success(
-                    runCount > 1 ? `${runCount} evaluations started` : "Evaluation started",
-                )
+                message.success(startedLabel)
             }
             onSuccess?.()
         } catch (error) {

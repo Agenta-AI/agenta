@@ -97,6 +97,8 @@ const EtlColumnHeader = ({group, runId}: EtlColumnHeaderProps) => {
         // because the default labels already embed the kind word and
         // would double-prefix (e.g. "Testset: Testset completion-tst").
         switch (group.kind) {
+            case "query":
+                return `Query: ${group.slug ?? "—"}`
             case "testset":
                 return `Testset: ${name ?? group.slug ?? "—"}`
             case "application":

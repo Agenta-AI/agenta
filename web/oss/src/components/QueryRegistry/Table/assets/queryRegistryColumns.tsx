@@ -11,7 +11,18 @@ import {
 } from "@phosphor-icons/react"
 import {Popover, Tag, Typography} from "antd"
 
+import {TRACE_EVALUATION_QUERY_SOURCE} from "@/oss/components/pages/evaluations/NewEvaluation/evalSteps/sourceHelpers"
+
 import type {QueryRegistryRow} from "../../store/queryRegistryStore"
+
+/**
+ * Friendly labels for a query's provenance (`row.source`, read from `meta.source`).
+ * `"trace_evaluation"` is stamped by "run evaluation from traces"; queries the
+ * user created by hand carry no source and leave the cell blank.
+ */
+const SOURCE_LABELS: Record<string, string> = {
+    [TRACE_EVALUATION_QUERY_SOURCE]: "Auto evaluation",
+}
 
 /** Controlled expand state for the version-history rows (mirrors the registry table). */
 export interface QueryExpandState {
@@ -192,10 +203,12 @@ export function createQueryRegistryColumns(
                 // Revision (child) row in the active expand: indent + version badge.
                 if (record.__isRevisionChild) {
                     return (
-                        <div className="flex h-full items-center gap-2 pl-7">
-                            <Text className="text-xs">{record.name}</Text>
+                        <div className="flex h-full min-w-0 items-center gap-2 pl-7">
+                            <Text className="min-w-0 text-xs" ellipsis={{tooltip: record.name}}>
+                                {record.name}
+                            </Text>
                             {record.version ? (
-                                <Tag className="m-0 text-xs">v{record.version}</Tag>
+                                <Tag className="m-0 shrink-0 text-xs">v{record.version}</Tag>
                             ) : null}
                         </div>
                     )
@@ -206,13 +219,17 @@ export function createQueryRegistryColumns(
                     return (
                         <div className="flex h-full min-w-0 items-center gap-2">
                             <span className="w-4 shrink-0" />
-                            <Text type="secondary" className="text-xs">
+                            <Text
+                                type="secondary"
+                                className="min-w-0 text-xs"
+                                ellipsis={{tooltip: record.name}}
+                            >
                                 {record.name}
                             </Text>
                             {record.version ? (
-                                <Tag className="m-0 text-xs">v{record.version}</Tag>
+                                <Tag className="m-0 shrink-0 text-xs">v{record.version}</Tag>
                             ) : null}
-                            <Tag className="m-0 text-xs">Archived</Tag>
+                            <Tag className="m-0 shrink-0 text-xs">Archived</Tag>
                         </div>
                     )
                 }
@@ -238,13 +255,18 @@ export function createQueryRegistryColumns(
                         ) : (
                             <span className="w-4 shrink-0" />
                         )}
-                        <Text className="text-xs font-medium">{record.name}</Text>
+                        <Text
+                            className="min-w-0 text-xs font-medium"
+                            ellipsis={{tooltip: record.name}}
+                        >
+                            {record.name}
+                        </Text>
                         {record.version ? (
-                            <Tag className="m-0 text-xs">v{record.version}</Tag>
+                            <Tag className="m-0 shrink-0 text-xs">v{record.version}</Tag>
                         ) : null}
                         {/* Parent row is the head revision — flag it as the latest. */}
                         {record.version ? (
-                            <span className="flex items-center gap-1.5">
+                            <span className="flex shrink-0 items-center gap-1.5">
                                 <Tag color="blue" className="m-0 text-xs">
                                     Last modified
                                 </Tag>
@@ -282,26 +304,61 @@ export function createQueryRegistryColumns(
                         content={
                             <div className="flex max-w-[320px] flex-col items-start gap-1">
                                 {conditions.map((condition, index) => (
-                                    <Tag key={index} className="m-0 text-xs">
+                                    <Tag
+                                        key={index}
+                                        className="m-0 max-w-full whitespace-normal break-all text-xs"
+                                    >
                                         {conditionLabel(condition, labels)}
                                     </Tag>
                                 ))}
                             </div>
                         }
                     >
-                        <span tabIndex={0} className="flex h-full flex-wrap items-center gap-1">
+                        <span
+                            tabIndex={0}
+                            className="flex h-full w-full min-w-0 items-center gap-1 overflow-hidden"
+                        >
                             {shown.map((condition, index) => (
-                                <Tag key={index} className="m-0 text-xs">
-                                    {conditionLabel(condition, labels)}
+                                <Tag
+                                    key={index}
+                                    className="m-0 min-w-0 max-w-full overflow-hidden text-xs"
+                                >
+                                    <span className="block truncate">
+                                        {conditionLabel(condition, labels)}
+                                    </span>
                                 </Tag>
                             ))}
                             {rest > 0 ? (
-                                <Text type="secondary" className="text-xs">
+                                <Text
+                                    type="secondary"
+                                    className="shrink-0 whitespace-nowrap text-xs"
+                                >
                                     +{rest} more
                                 </Text>
                             ) : null}
                         </span>
                     </Popover>
+                )
+            },
+        },
+        {
+            type: "text",
+            key: "source",
+            title: "Source",
+            width: 140,
+            render: (_value, record) => {
+                if (record.__isSkeleton) return <SkeletonLine width="50%" />
+                // Source is a query-level value — only the top-level query row
+                // carries it; version (child) rows leave the cell blank.
+                if (record.__isRevisionChild || record.__isArchivedRevision) {
+                    return null
+                }
+                const label = record.source ? (SOURCE_LABELS[record.source] ?? record.source) : null
+                if (!label) return null
+                return (
+                    <div className="flex h-full items-center">
+                        <Tag className="m-0 text-xs">{label}</Tag>
+                    </div>
                 )
             },
         },

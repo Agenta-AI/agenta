@@ -54,6 +54,7 @@ export interface EvaluatorTableRow {
     variantId: string
     // Bare fields needed for grouping/sorting only — all display data comes from molecules
     version: number | null
+    evaluatorKey?: string | null
     /** Revision's own created_at — used for child row date sort */
     revisionCreatedAt: string | null
     deletedAt?: string | null
@@ -110,6 +111,7 @@ const toRevisionEvaluatorRow = (revision: Workflow): EvaluatorTableRow => {
         variantId: revision.workflow_variant_id ?? revision.variant_id ?? "",
         version: revision.version ?? null,
         revisionCreatedAt: revision.created_at ?? null,
+        evaluatorKey: revision.data?.uri?.split(":")[2] ?? null,
     }
 }
 

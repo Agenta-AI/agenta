@@ -1,6 +1,10 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {invalidateWorkflowsListCache} from "@agenta/entities/workflow"
+import {
+    invalidateWorkflowsListCache,
+    isOnlineCapableEvaluator,
+    liveCompatibleEvaluatorKeysAtom,
+} from "@agenta/entities/workflow"
 import {
     InfiniteVirtualTableFeatureShell,
     useTableManager,
@@ -9,7 +13,7 @@ import {
 import {PlusOutlined} from "@ant-design/icons"
 import {Button, Input, Space} from "antd"
 import clsx from "clsx"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import router from "next/router"
 
@@ -44,6 +48,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     className,
     preview,
     selectedWorkflowId,
+    liveCompatibleEvaluatorsOnly = false,
     onSelectTemplate,
     onCreateHumanEvaluator,
     ...props
@@ -53,6 +58,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     const setStoreSearchTerm = useSetAtom(evaluatorSearchTermAtom)
     const [searchTerm, setSearchTerm] = useState("")
     const previousWorkflowIdRef = useRef<string | undefined>(undefined)
+    const liveCompatibleEvaluatorKeys = useAtomValue(liveCompatibleEvaluatorKeysAtom)
 
     const category = preview ? "human" : "automatic"
 
@@ -94,10 +100,33 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     })
 
     const paginationRows = table.shellProps.pagination?.rows ?? []
+    const rows = useMemo(
+        () =>
+            liveCompatibleEvaluatorsOnly
+                ? paginationRows.filter((row) => {
+                      // Rows whose evaluator key hasn't resolved yet pass through (e.g.
+                      // skeletons / local entities) — don't hide them on a missing key.
+                      if (!row.evaluatorKey) return true
+                      const key = row.evaluatorKey as string
+                      // Mirror the live-evaluation drawer's two-stage gate
+                      // (useEvaluatorSelection): the evaluator must (1) run in the
+                      // real-time/trace execution path and (2) not require a ground-truth
+                      // answer. Without stage 1, declarative classifiers like Contains
+                      // JSON — which need no expected answer, so they clear stage 2 — leak
+                      // into the trace/query auto-eval picker even though they aren't
+                      // online-capable.
+                      return (
+                          liveCompatibleEvaluatorKeys.has(key) &&
+                          isOnlineCapableEvaluator({slug: key})
+                      )
+                  })
+                : paginationRows,
+        [liveCompatibleEvaluatorKeys, liveCompatibleEvaluatorsOnly, paginationRows],
+    )
 
     const {groupedDataSource, treeExpandable, resolveSelectableId, toDisplayKeys, expandState} =
         useGroupedTreeData({
-            rows: paginationRows,
+            rows,
             getGroupKey: getEvaluatorGroupKey,
             getSelectableId: getEvaluatorSelectableId,
             groupKeyPrefix: "evaluator-group-",

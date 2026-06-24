@@ -23,6 +23,7 @@ import {
 } from "@/oss/components/pages/evaluations/onlineEvaluation/assets/helpers"
 import QueryEditor from "@/oss/components/pages/evaluations/onlineEvaluation/components/QueryEditor"
 import getFilterColumns from "@/oss/components/pages/observability/assets/getFilterColumns"
+import QueryTracePreview from "@/oss/components/Traces/QueryTracePreview"
 import type {Filter} from "@/oss/lib/Types"
 import type {
     QueryFilteringPayload,
@@ -31,8 +32,6 @@ import type {
 
 import {queryRegistryActiveRowAtom} from "../store/queryRegistryFilterAtoms"
 import {invalidateQueryRegistryStore} from "../store/queryRegistryStore"
-
-import QueryTracePreview from "./QueryTracePreview"
 
 const {Text} = Typography
 

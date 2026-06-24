@@ -682,6 +682,7 @@ export const QueryReferenceLabel = memo(
         queryId,
         querySlug,
         projectId,
+        version,
         href: explicitHref,
         openExternally = false,
         label: customLabel,
@@ -690,6 +691,7 @@ export const QueryReferenceLabel = memo(
         queryId?: string | null
         querySlug?: string | null
         projectId: string | null
+        version?: number | string | null
         href?: string | null
         openExternally?: boolean
         label?: string
@@ -734,6 +736,7 @@ export const QueryReferenceLabel = memo(
                     name: label,
                     slug: ref?.slug ?? querySlug ?? null,
                     id: ref?.id ?? queryId ?? null,
+                    version: isDeleted ? null : (version ?? null),
                 }}
                 deleted={isDeleted}
                 openExternally={openExternally}

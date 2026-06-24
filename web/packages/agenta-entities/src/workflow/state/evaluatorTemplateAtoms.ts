@@ -14,7 +14,7 @@ import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import type {EvaluatorCatalogTemplate} from "../api/templates"
-import {fetchEvaluatorTemplates} from "../api/templates"
+import {fetchEvaluatorTemplates, templateRequiresGroundTruth} from "../api/templates"
 
 /**
  * Query atom for evaluator template definitions.
@@ -54,6 +54,15 @@ export const evaluatorTemplatesMapAtom = atom<Map<string, string>>((get) => {
         }
     }
     return map
+})
+
+export const liveCompatibleEvaluatorKeysAtom = atom<Set<string>>((get) => {
+    const templates = get(evaluatorTemplatesDataAtom)
+    return new Set(
+        templates
+            .filter((template) => !templateRequiresGroundTruth(template))
+            .map((template) => template.key),
+    )
 })
 
 /**

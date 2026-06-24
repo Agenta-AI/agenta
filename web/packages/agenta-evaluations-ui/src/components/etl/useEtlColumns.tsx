@@ -27,6 +27,7 @@ import EtlResolvedCell, {EtlSkeletonCell} from "./cells/EtlResolvedCell"
 import EtlColumnHeader from "./EtlColumnHeader"
 
 const WIDTH_BY_KIND: Record<ColumnGroup["kind"], number> = {
+    query: 400,
     testset: 220,
     application: 400,
     evaluator: 180,

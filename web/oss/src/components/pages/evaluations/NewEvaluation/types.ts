@@ -30,6 +30,8 @@ export interface NewEvaluationModalProps extends ModalProps {
     steps?: EvalStepSlot[]
     /** Builds the deterministic base used by automatic evaluation-name suggestions. */
     nameBuilder?: (values: Readonly<Partial<EvalStepValueMap>>) => string
+    /** Restricts the evaluator selector to templates that do not require ground truth. */
+    liveCompatibleEvaluatorsOnly?: boolean
 }
 
 export interface NewEvaluationModalContentProps {
@@ -70,6 +72,7 @@ export interface SelectEvaluatorSectionProps extends HTMLProps<HTMLDivElement> {
     setSelectedEvalConfigs: Dispatch<SetStateAction<string[]>>
     preview?: boolean
     selectedWorkflowId?: string
+    liveCompatibleEvaluatorsOnly?: boolean
     /** Callback when an evaluator template is selected from the dropdown (for inline creation) */
     onSelectTemplate?: (evaluator: EvaluatorCatalogTemplate) => void
     /** Callback when the "Create new" button is clicked in preview/human mode (for inline creation) */
@@ -100,4 +103,5 @@ export interface NewEvaluationModalInnerProps {
     preSelectedAppId?: string
     steps?: EvalStepSlot[]
     nameBuilder?: (values: Readonly<Partial<EvalStepValueMap>>) => string
+    liveCompatibleEvaluatorsOnly?: boolean
 }

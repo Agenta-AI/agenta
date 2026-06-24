@@ -51,6 +51,19 @@ export interface EvaluatorCatalogTemplatesResponse {
     templates: EvaluatorCatalogTemplate[]
 }
 
+export const GROUND_TRUTH_PARAM_KEY = "correct_answer_key"
+
+export const templateRequiresGroundTruth = (template: EvaluatorCatalogTemplate): boolean => {
+    const parameters = template.data?.schemas?.parameters as
+        | {properties?: Record<string, unknown>}
+        | undefined
+    const declaresGroundTruth = Boolean(parameters?.properties?.[GROUND_TRUTH_PARAM_KEY])
+    // AI judges expose this optional field so testset runs can reference an answer,
+    // but their prompt can score production traces without one.
+    const supportsReferenceFreePrompting = template.categories?.includes("ai_llm") ?? false
+    return declaresGroundTruth && !supportsReferenceFreePrompting
+}
+
 /**
  * Catalog preset as returned by
  * `GET /evaluators/catalog/templates/{template_key}/presets/`.
