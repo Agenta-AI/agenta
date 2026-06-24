@@ -1,0 +1,52 @@
+---
+title: Custom Agent Runner Images
+sidebar_label: Custom Runner Images
+description: Build and configure custom sandbox-agent runner images for self-hosted Agenta
+---
+
+The default runner image is:
+
+```bash
+ghcr.io/agenta-ai/agenta-sandbox-agent:latest
+```
+
+Build a custom image when you need extra system packages, custom certificates, or a pinned
+runner build.
+
+## Build
+
+From the repository root:
+
+```bash
+docker build \
+  -f services/agent/docker/Dockerfile \
+  -t ghcr.io/<org>/agenta-sandbox-agent:<tag> \
+  services/agent
+```
+
+The published image does not bundle Claude Code. If a harness needs Claude Code, the runner
+installs it from Anthropic at runtime.
+
+## Configure Compose
+
+```bash
+AGENTA_SANDBOX_AGENT_IMAGE_NAME=<org>/agenta-sandbox-agent
+AGENTA_SANDBOX_AGENT_IMAGE_TAG=<tag>
+```
+
+## Configure Helm
+
+```yaml
+agentRunner:
+  image:
+    repository: ghcr.io/<org>/agenta-sandbox-agent
+    tag: <tag>
+```
+
+## Configure Railway
+
+```bash
+export AGENTA_SANDBOX_AGENT_IMAGE="ghcr.io/<org>/agenta-sandbox-agent:<tag>"
+```
+
+Then run the normal Railway deploy flow.
