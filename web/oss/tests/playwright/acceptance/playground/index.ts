@@ -410,6 +410,15 @@ const playgroundTests = () => {
                         })
                         .click()
 
+                    // The EntityPicker sidebar uses an AntD Popover with trigger="hover"
+                    // (placement="rightTop"). Playwright's click fires mouseenter before
+                    // click, opening the popover. After the click the cursor stays at the
+                    // element — mouseleave never fires — so the popover stays open and its
+                    // portal (rendered at body z-index) overlaps the table's checkbox
+                    // column. Moving to (0,0) fires mouseleave on the testset item, which
+                    // closes the popover via AntD's onOpenChange callback.
+                    await page.mouse.move(0, 0)
+
                     // Wait for testcase rows to appear inside the table body.
                     // This is the authoritative signal that the table has finished loading
                     // (EntityTable returns <TableLoadingState> — no thead/checkboxes —
@@ -554,6 +563,15 @@ const playgroundTests = () => {
                         exact: true,
                     })
                     .click()
+
+                // The EntityPicker sidebar uses an AntD Popover with trigger="hover"
+                // (placement="rightTop"). Playwright's click fires mouseenter before
+                // click, opening the popover. After the click the cursor stays at the
+                // element — mouseleave never fires — so the popover stays open and its
+                // portal (rendered at body z-index) overlaps the table's checkbox
+                // column. Moving to (0,0) fires mouseleave on the testset item, which
+                // closes the popover via AntD's onOpenChange callback.
+                await page.mouse.move(0, 0)
 
                 // Wait for testcase rows to appear inside the table body.
                 // This is the authoritative signal that the table has finished loading
