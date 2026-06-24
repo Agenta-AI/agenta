@@ -63,6 +63,7 @@ class MCPResolver:
                     env=env,
                     url=server_config.url,
                     tools=list(server_config.tools),
+                    permission=server_config.permission,
                 )
             )
         return resolved

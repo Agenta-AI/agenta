@@ -23,7 +23,7 @@ import {CollapseToggleButton, getCollapseStyle} from "@agenta/ui/components/pres
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {CopySimple, MinusCircle} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
+import {Button, Select, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 
 import {TOOL_PROVIDERS_META, TOOL_SPECS, parseGatewayFunctionName, type ToolObj} from "./toolUtils"
@@ -435,6 +435,98 @@ function defaultRenderProviderIcon(providerKey: string): React.ReactNode {
     return <Icon className="w-4 h-4" />
 }
 
+// ============================================================================
+// PER-TOOL PERMISSION (Layer 3: allow / ask / deny)
+// ============================================================================
+
+/**
+ * The tool-use permission vocabulary. Stored as a TOP-LEVEL `permission` key on the tool
+ * object (not inside `agenta_metadata`, which `stripAgentaMetadataDeep` removes on every
+ * save/run path). The SDK tool config/spec deserializes it with no mapping
+ * (`AliasChoices("permission", "permission_mode", "permissionMode")`). Unset means the tool
+ * inherits the global permission policy.
+ */
+type ToolPermission = "allow" | "ask" | "deny"
+
+const PERMISSION_OPTIONS: {value: ToolPermission; label: string}[] = [
+    {value: "allow", label: "Allow"},
+    {value: "ask", label: "Ask"},
+    {value: "deny", label: "Deny"},
+]
+
+/**
+ * Default the permission from the tool's `read_only` metadata, when the catalog supplied it:
+ * `read_only === true` → allow (no side effect), `read_only === false` → ask, unknown → unset
+ * (inherit the global policy). This is a display default only — it is not written back unless
+ * the author changes it.
+ */
+function defaultPermissionFromReadOnly(
+    metadata: Record<string, unknown> | undefined,
+): ToolPermission | undefined {
+    const readOnly = metadata?.read_only
+    if (readOnly === true) return "allow"
+    if (readOnly === false) return "ask"
+    return undefined
+}
+
+function isPermission(value: unknown): value is ToolPermission {
+    return value === "allow" || value === "ask" || value === "deny"
+}
+
+/**
+ * Read the stored permission. Canonical home is the TOP-LEVEL `permission` key (it survives
+ * `stripAgentaMetadataDeep`); fall back to any legacy `agenta_metadata.permission_mode` so values
+ * written before this change still display.
+ */
+function readPermission(
+    topLevel: unknown,
+    metadata: Record<string, unknown> | undefined,
+): ToolPermission | undefined {
+    if (isPermission(topLevel)) return topLevel
+    if (isPermission(metadata?.permission_mode)) return metadata.permission_mode
+    return undefined
+}
+
+interface ToolPermissionControlProps {
+    /** The current top-level `permission` value on the tool (canonical store). */
+    permission: unknown
+    /** The current `agenta_metadata` of the tool (read for the read_only default + legacy mode). */
+    metadata: Record<string, unknown> | undefined
+    /** Called with the chosen permission (or null to clear back to the global policy). */
+    onChange: (permission: ToolPermission | null) => void
+    disabled?: boolean
+}
+
+/** Compact allow/ask/deny selector for one tool. Displays the read_only-derived default unwritten. */
+function ToolPermissionControl({
+    permission,
+    metadata,
+    onChange,
+    disabled,
+}: ToolPermissionControlProps) {
+    const stored = readPermission(permission, metadata)
+    const displayDefault = defaultPermissionFromReadOnly(metadata)
+    return (
+        <div className="flex items-center gap-2 px-1 py-0.5">
+            <Tooltip title="How tool-use is gated: allow auto-approves, ask prompts, deny blocks. Unset inherits the global permission policy.">
+                <Typography.Text type="secondary" className="text-xs">
+                    Permission
+                </Typography.Text>
+            </Tooltip>
+            <Select<ToolPermission>
+                value={stored ?? undefined}
+                onChange={(v) => onChange(v ?? null)}
+                options={PERMISSION_OPTIONS}
+                disabled={disabled}
+                placeholder={displayDefault ? `${displayDefault} (default)` : "Inherit policy"}
+                allowClear
+                size="small"
+                className="w-[160px]"
+            />
+        </div>
+    )
+}
+
 export interface ToolItemControlProps {
     /** Tool value (object or JSON string) */
     value: unknown
@@ -500,12 +592,63 @@ export const ToolItemControl = memo(function ToolItemControl({
         [onChange, agentaMetadata],
     )
 
+    // The current `agenta_metadata` as an object (read for the permission control's read_only
+    // default and any legacy `permission_mode`).
+    const metadataObj = useMemo(
+        () =>
+            agentaMetadata && typeof agentaMetadata === "object" && !Array.isArray(agentaMetadata)
+                ? (agentaMetadata as Record<string, unknown>)
+                : undefined,
+        [agentaMetadata],
+    )
+
     const {
         toolObj,
         editorText,
         editorValid: _editorValid,
         onEditorChange,
     } = useToolState(cleanedValue, isReadOnly, handleChange)
+
+    // The current top-level `permission` on the tool (canonical store, survives metadata strip).
+    // Read off the LIVE editor object (`toolObj`), not the `cleanedValue` prop: the JSON editor
+    // mutates `toolObj` inside `useToolState` and only propagates to the parent (and back into
+    // `value`/`cleanedValue`) asynchronously, so the prop lags in-flight edits.
+    const topLevelPermission = useMemo(
+        () =>
+            toolObj && typeof toolObj === "object" && !Array.isArray(toolObj)
+                ? (toolObj as Record<string, unknown>).permission
+                : undefined,
+        [toolObj],
+    )
+
+    // Set (or clear) the TOP-LEVEL `permission` key on this tool, leaving the rest of the tool
+    // definition intact. It lives at the top level (not inside `agenta_metadata`) so it survives
+    // `stripAgentaMetadataDeep` on the save/run path. Clearing removes the key (and any legacy
+    // `agenta_metadata.permission_mode`) so the tool falls back to the global policy.
+    //
+    // Compose off the LIVE editor object (`toolObj`), the same source `handleChange` propagates
+    // through `useToolState`, so a permission change merges with in-flight JSON edits instead of
+    // clobbering them with the stale `cleanedValue` prop.
+    const handlePermissionChange = useCallback(
+        (permission: "allow" | "ask" | "deny" | null) => {
+            if (!onChange) return
+            const base = (toolObj && typeof toolObj === "object" ? toolObj : {}) as Record<
+                string,
+                unknown
+            >
+            const {permission: _dropPermission, ...restBase} = base
+            // Drop any legacy `permission_mode` stored inside `agenta_metadata`; the top-level key
+            // is now canonical.
+            const {permission_mode: _dropLegacy, ...restMeta} = metadataObj ?? {}
+            const withMeta =
+                Object.keys(restMeta).length > 0
+                    ? {...restBase, agenta_metadata: restMeta}
+                    : restBase
+            const merged = permission ? {...withMeta, permission} : withMeta
+            onChange(merged as ToolObj)
+        },
+        [onChange, metadataObj, toolObj],
+    )
 
     const functionName =
         (toolObj as Record<string, unknown>)?.function &&
@@ -655,12 +798,20 @@ export const ToolItemControl = memo(function ToolItemControl({
                     containerRef={containerRef}
                 />
                 {!minimized && (
-                    <textarea
-                        className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
-                        value={editorText}
-                        onChange={(e) => onEditorChange(e.target.value)}
-                        readOnly={isReadOnly}
-                    />
+                    <>
+                        <textarea
+                            className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
+                            value={editorText}
+                            onChange={(e) => onEditorChange(e.target.value)}
+                            readOnly={isReadOnly}
+                        />
+                        <ToolPermissionControl
+                            permission={topLevelPermission}
+                            metadata={metadataObj}
+                            onChange={handlePermissionChange}
+                            disabled={isReadOnly}
+                        />
+                    </>
                 )}
             </div>
         )
@@ -727,6 +878,14 @@ export const ToolItemControl = memo(function ToolItemControl({
                     />
                 }
             />
+            {!minimized && (
+                <ToolPermissionControl
+                    permission={topLevelPermission}
+                    metadata={metadataObj}
+                    onChange={handlePermissionChange}
+                    disabled={isReadOnly}
+                />
+            )}
         </div>
     )
 })

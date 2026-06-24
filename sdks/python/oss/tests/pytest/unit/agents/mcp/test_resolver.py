@@ -60,6 +60,32 @@ async def test_missing_mcp_secret_is_explicit():
         )
 
 
+async def test_permission_rides_the_wire_when_set():
+    # An author's per-server permission is carried onto the resolved server and serialized.
+    servers = await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
+        [MCPServerConfig(name="github", command="npx", permission="ask")]
+    )
+    assert servers[0].permission == "ask"
+    assert servers[0].to_wire()["permission"] == "ask"
+
+
+async def test_permission_absent_from_wire_when_unset():
+    # No permission declared -> no `permission` key (a server has no read_only to default from).
+    servers = await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
+        [MCPServerConfig(name="github", command="npx")]
+    )
+    assert servers[0].permission is None
+    assert "permission" not in servers[0].to_wire()
+
+
+def test_permission_accepts_fe_permission_mode_alias():
+    # The playground writes `permission_mode`; the server config deserializes it.
+    config = MCPServerConfig.model_validate(
+        {"name": "github", "command": "npx", "permission_mode": "deny"}
+    )
+    assert config.permission == "deny"
+
+
 async def test_mcp_compatibility_policy_can_omit_missing_secret():
     servers = await MCPResolver(
         secret_provider=DictSecretProvider({}),

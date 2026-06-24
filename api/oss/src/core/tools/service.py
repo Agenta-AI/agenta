@@ -583,4 +583,5 @@ class ToolsService:
             description=action.description,
             input_schema=input_schema,
             call_ref=call_ref,
+            read_only=action.read_only,
         )

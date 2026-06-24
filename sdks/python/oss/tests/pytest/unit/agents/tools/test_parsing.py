@@ -65,6 +65,60 @@ def test_compat_parser_does_not_flip_string_false_needs_approval():
     assert approved.needs_approval is True
 
 
+def test_compat_parser_carries_top_level_permission_on_typed_config():
+    # A canonical typed config dict carries the author's Layer-3 permission end to end.
+    gateway = coerce_tool_config(
+        {
+            "type": "gateway",
+            "integration": "github",
+            "action": "GET_USER",
+            "connection": "c1",
+            "permission": "deny",
+        }
+    )
+    assert isinstance(gateway, GatewayToolConfig)
+    assert gateway.permission == "deny"
+
+
+def test_compat_parser_carries_permission_from_gateway_slug():
+    # The playground writes a gateway slug + a sibling permission; both survive coercion.
+    gateway = coerce_tool_config(
+        {
+            "function": {"name": "tools.composio.github.GET_USER.c1"},
+            "permission": "deny",
+        }
+    )
+    assert isinstance(gateway, GatewayToolConfig)
+    assert gateway.permission == "deny"
+
+
+def test_compat_parser_accepts_permission_mode_alias_for_permission():
+    # The legacy FE key `permission_mode` deserializes to the same `permission` field.
+    gateway = coerce_tool_config(
+        {
+            "type": "gateway",
+            "integration": "github",
+            "action": "GET_USER",
+            "connection": "c1",
+            "permission_mode": "deny",
+        }
+    )
+    assert gateway.permission == "deny"
+
+
+def test_compat_parser_omits_permission_when_absent():
+    # Backward compatible: a tool with no permission leaves the field unset.
+    gateway = coerce_tool_config(
+        {
+            "type": "gateway",
+            "integration": "github",
+            "action": "GET_USER",
+            "connection": "c1",
+        }
+    )
+    assert gateway.permission is None
+
+
 def test_coerce_tool_configs_rejects_invalid_on_error():
     with pytest.raises(ValueError):
         coerce_tool_configs(["read"], on_error="bogus")  # type: ignore[arg-type]
