@@ -55,7 +55,7 @@ project Anthropic key). The enforcement LOGIC is otherwise live-proven.
    `../harness-capabilities/`).
 5. **Composio read/write hints drive Layer 3 defaults:** keep the hints, carry a `read_only`
    flag, default read-only to always-allow and mutating to ask.
-6. **The sandbox layer is authoritative for network and filesystem.** The tool layer is best
+6. **The sandbox layer is authoritative for the network.** It declares filesystem confinement but enforces none today (no fs jail on any backend). The tool layer is best
    effort. A run fails loud when a backend cannot deliver a requested guarantee.
 7. **Scope is end to end, including the playground frontend:** the config form (Phase 4) and the
    chat tool-approval surface (Phase 5).
@@ -286,7 +286,7 @@ lane builds/pushes:
 
 **Finish + push** (after the shared files are assigned to the lane):
 
-```
+```bash
 but rub <shared-file-or-hunk> feat/agent-capability-config   # per shared file/hunk
 but commit feat/agent-capability-config --only -m "..."       # the shared remainder
 but push feat/agent-capability-config

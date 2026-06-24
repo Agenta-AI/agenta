@@ -10,6 +10,7 @@ from agenta.sdk.agents.tools import BuiltinToolConfig, GatewayToolConfig
 
 from oss.src.apis.fastapi.tools.models import ToolResolveRequest
 from oss.src.core.tools.dtos import AgentBuiltinTool, AgentComposioTool
+from oss.src.core.tools.providers.composio.catalog import _derive_read_only
 from oss.src.core.tools.service import ToolsService
 
 
@@ -79,3 +80,24 @@ async def test_api_resolution_returns_stable_call_reference(monkeypatch):
     assert result.builtins == ["read"]
     assert result.custom[0].call_ref == "tools.composio.github.GET_USER.c1"
     assert result.custom[0].read_only is True
+
+
+@pytest.mark.parametrize(
+    "tags, expected",
+    [
+        (["readOnlyHint"], True),
+        (["updateHint"], False),
+        (["destructiveHint"], False),
+        # A mutating hint wins even when readOnlyHint is also present.
+        (["destructiveHint", "readOnlyHint"], False),
+        (["updateHint", "readOnlyHint"], False),
+        # Unknown == None (never guess), not False.
+        ([], None),
+        (None, None),
+        (["unrelatedHint"], None),
+        # Non-list input is ignored.
+        ("readOnlyHint", None),
+    ],
+)
+def test_derive_read_only_tag_matrix(tags, expected):
+    assert _derive_read_only(tags) is expected

@@ -198,6 +198,7 @@ egress through either. Two ways out, gating the `network: off` guarantee in Phas
 3. `LocalBackend.create_sandbox` signature parity with the new policy parameter.
 4. The exact `.claude/settings.json` contents validated against Claude Code's settings schema,
    and the `mcp__<server>__<tool>` naming validated on a live run.
-5. Resolved: per-tool dispositions live on the tool spec (the FE already round-trips
-   `tools[].agenta_metadata.permission_mode`), and MCP dispositions live on the MCP server spec.
+5. Resolved: per-tool dispositions live on the tool spec, and MCP dispositions live on the MCP
+   server spec. (The FE does NOT round-trip `permission_mode` yet — see the S3a correction in
+   section 3; S4 builds that control.)
    Keep the wire field name consistent across SDK, wire, and FE.

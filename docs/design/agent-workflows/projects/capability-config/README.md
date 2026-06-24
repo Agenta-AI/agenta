@@ -28,5 +28,4 @@ service, and the runner.
 
 ## Status
 
-Planning. The design is written and the insertion points are mapped. No code yet. See
-`status.md`.
+Code-complete and reviewed; backend + runner + FE built and green, live-QA'd on the running stack. Live Daytona egress + Claude behavioral cells pending credentials. See `status.md`.

@@ -62,6 +62,9 @@ async def test_gateway_metadata_and_description_fallback_are_preserved(
     assert spec.read_only is True  # the catalog read-only hint reaches the spec
     assert spec.to_wire()["needsApproval"] is True
     assert spec.to_wire()["readOnly"] is True
+    # needs_approval beats the read-only auto-allow: the gateway resolver's effective
+    # disposition is "ask" (pins the real precedence end to end, not just the model helper).
+    assert spec.to_wire()["disposition"] == "ask"
     assert isinstance(resolved.tool_callback, ToolCallback)
     assert resolved.tool_callback.endpoint == "https://api.x/api/tools/call"
     assert resolved.tool_callback.authorization == "Access tok"

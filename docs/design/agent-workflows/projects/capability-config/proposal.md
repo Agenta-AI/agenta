@@ -35,13 +35,17 @@ The next three sections take them in turn.
 
 ### Layer 1: harness configuration (author kwargs to a settings file)
 
-The author sets harness-specific options in the existing `harness_options` kwargs. The runner
-translates those options into the harness's own configuration mechanism before the session
-starts. The author never writes harness-native config by hand. They set neutral options, and
-the runner renders them.
+The author sets harness-specific options in the existing generic `harness_options` kwargs (a map
+keyed by harness: `harness_options.claude.permissions`, `harness_options.pi.*`, and so on, room
+for any future harness). The author never writes harness-native config by hand and the generic
+interface stays free of per-harness fields. The SDK's per-harness adapter (in Python) translates
+those neutral options into the harness's native config files, and the runner writes those files
+into the session cwd before the session starts. The runner stays harness-agnostic: it materializes
+a generic `harnessFiles` list (`{path, content}`) and knows nothing about Claude. This scales:
+ten harnesses means ten Python adapters, not ten first-party interface fields.
 
-For **Claude**, that mechanism is a `.claude/settings.json` file written into the session's
-working directory. The Claude ACP adapter reads it, because it builds the underlying SDK query
+For **Claude**, that native config is a `.claude/settings.json` file written into the session's
+working directory. The Python claude adapter renders it; the Claude ACP adapter reads it. The Claude ACP adapter reads it, because it builds the underlying SDK query
 with `settingSources: ["user", "project", "local"]` (`acp-agent.js:954`). Through that one file
 the runner sets:
 
@@ -90,7 +94,7 @@ subsumes `permission_policy`: that auto/deny switch is just this layer's global 
 
 For each tool, the author assigns one disposition, stored on the tool's own spec:
 
-- **always-allow.** The call runs with no prompt. If the tool is one we resolved (a gateway or
+- **allow.** The call runs with no prompt. If the tool is one we resolved (a gateway or
   code tool, not a harness builtin), the runner runs it through the relay. This is today's
   auto-accept behavior.
 - **ask.** The runner raises a human-in-the-loop request and waits for the answer. For now it
@@ -109,7 +113,7 @@ Where Layer 3 is enforced depends on where the tool runs, and this is the subtle
 are two cases.
 
 Resolved tools (gateway, code) run in the runner, through the relay. The runner is the choke
-point, so it applies the disposition directly: always-allow runs the call, ask parks it, deny
+point, so it applies the disposition directly: allow runs the call, ask parks it, deny
 refuses it. This works the same on `pi` and `claude`.
 
 Harness builtins (Claude `Bash`/`Edit`/`Read`, Pi `bash`/`read`) run inside the harness, where
@@ -122,7 +126,7 @@ a Pi builtin is to not grant it in Layer 1.
 The author should not have to label every tool by hand. Composio already tells us whether a tool
 reads or writes, through hint tags (`readOnlyHint`, `destructiveHint`, `updateHint`) that the
 catalog parser strips today. We will keep them, carry a read-only flag onto the tool, and
-default read-only tools to always-allow and mutating tools to ask. The author overrides any
+default read-only tools to allow and mutating tools to ask. The author overrides any
 default.
 
 ## Where `permission_policy` fits
@@ -212,7 +216,7 @@ for both. This is why the network boundary has to live in Layer 2 to be real.
    that the runner parses but never enforces is dropped.
 4. Pi MCP stays out of scope, and follows the Claude pattern when built.
 5. Composio hints drive Layer 3 defaults: keep them, carry a read-only flag, default read-only
-   to always-allow and mutating to ask.
+   to allow and mutating to ask.
 6. The sandbox layer is authoritative for the network; it declares filesystem confinement but
    enforces none today (no backend has a real fs jail). The tool layer is best effort. A run
    fails loud when a backend cannot deliver a requested guarantee.
