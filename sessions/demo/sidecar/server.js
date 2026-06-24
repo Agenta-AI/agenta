@@ -93,17 +93,16 @@ app.post("/kill", async (req, res) => {
   const { sandbox, sandbox_id } = req.body || {};
   if (!sandbox_id) return res.status(400).json({ error: "sandbox_id required" });
   try {
-    if (sandbox === "daytona") {
-      const { daytonaKill } = await import("./provider-daytona.js");
-      await daytonaKill(sandbox_id);
-    } else if (sandbox === "e2b") {
-      const { e2bKill } = await import("./provider-e2b.js");
-      await e2bKill(sandbox_id);
-    } else if (sandbox === "modal") {
+    if (!["daytona", "e2b", "modal", "docker"].includes(sandbox))
+      return res.status(400).json({ error: `kill not supported for sandbox '${sandbox}'` });
+    if (sandbox === "modal") {
       const { modalKill } = await import("./provider-modal.js");
       await modalKill(sandbox_id);
     } else {
-      return res.status(400).json({ error: `kill not supported for sandbox '${sandbox}'` });
+      // the provider's own kill()/destroy() — no running agent needed to tear a sandbox down.
+      const { makeProvider } = await import("./sandbox-provider.js");
+      const provider = makeProvider(sandbox, { sid: "kill", agentEnv: {} });
+      await (provider.kill ?? provider.destroy).call(provider, sandbox_id);
     }
     res.json({ killed: sandbox_id });
   } catch (e) {
@@ -181,7 +180,7 @@ app.post("/run", async (req, res) => {
     provider = "anthropic", model = null, reasoning = "none", sandbox_id,
   } = req.body;
   if (!sid || !prompt) return res.status(400).json({ error: "session_id and prompt required" });
-  if (!["local", "daytona", "e2b", "modal"].includes(sandbox))
+  if (!["local", "daytona", "e2b", "modal", "docker"].includes(sandbox))
     return res.status(400).json({ error: `sandbox '${sandbox}' not supported yet` });
 
   res.setHeader("content-type", "application/x-ndjson");
@@ -195,34 +194,40 @@ app.post("/run", async (req, res) => {
 
   try {
     if (sandbox === "local") {
+      // local = the long-lived compose `sandbox` container; geesefs mounts to seaweedfs
+      // directly (no tunnel), creds already in the container env. Just connect + run.
       await ensureMount(sid);
       const sdk = await SandboxAgent.connect({ baseUrl: AGENT_URL });
       const session = await sdk.resumeOrCreateSession({ ...sessionInit, cwd: `/work/${sid}` });
       const result = await streamSession(session, prompt, write);
       await flushMount(sid);
       write({ _done: true, stop_reason: result?.stopReason ?? "end_turn" });
-    } else {
-      // remote (e2b/modal): provision/reconnect a cloud sandbox, mount geesefs via the
-      // tunnel, start the agent server, run. Both providers share this shape.
+    } else if (sandbox === "modal") {
+      // modal stays on the dedicated Python-bridge provider (the Node modal SDK needs a
+      // separately-baked Modal image; the bridge already bakes one and works e2e).
       const agentEnv = {};
       if (process.env.ANTHROPIC_API_KEY) agentEnv.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
       if (process.env.OPENAI_API_KEY) agentEnv.OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-      const opts = { sid, harness, sandboxId: sandbox_id, mode, model, thoughtLevel, agentEnv };
-      let remote;
-      if (sandbox === "daytona") {
-        const { daytonaSession } = await import("./provider-daytona.js");
-        remote = await daytonaSession(opts);
-      } else if (sandbox === "e2b") {
-        const { e2bSession } = await import("./provider-e2b.js");
-        remote = await e2bSession(opts);
-      } else {
-        const { modalSession } = await import("./provider-modal.js");
-        remote = await modalSession(opts);
-      }
-      write({ _sandbox_id: remote.sandboxId }); // tell FastAPI to persist it for resume
+      const { modalSession } = await import("./provider-modal.js");
+      const remote = await modalSession({ sid, harness, sandboxId: sandbox_id, mode, model, thoughtLevel, agentEnv });
+      write({ _sandbox_id: remote.sandboxId });
       const result = await streamSession(remote.session, prompt, write);
       await remote.flush();
       write({ _done: true, stop_reason: result?.stopReason ?? "end_turn", sandbox_id: remote.sandboxId });
+    } else {
+      // daytona/e2b/docker: the SDK provider drives create/reconnect/getUrl/destroy; our
+      // withGeesefs wrapper adds the durable cwd (mount demo:<sid> over the tunnel + seed
+      // auth). SandboxAgent.start() runs the whole lifecycle from one provider object.
+      const { makeProvider, CWD } = await import("./sandbox-provider.js");
+      const agentEnv = {};
+      if (process.env.ANTHROPIC_API_KEY) agentEnv.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+      if (process.env.OPENAI_API_KEY) agentEnv.OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+      const provider = makeProvider(sandbox, { sid, agentEnv });
+      const agent = await SandboxAgent.start({ sandbox: provider, sandboxId: sandbox_id || undefined });
+      write({ _sandbox_id: agent.sandboxId }); // tell FastAPI to persist it for resume
+      const session = await agent.resumeOrCreateSession({ ...sessionInit, cwd: CWD });
+      const result = await streamSession(session, prompt, write);
+      write({ _done: true, stop_reason: result?.stopReason ?? "end_turn", sandbox_id: agent.sandboxId });
     }
     res.end();
   } catch (err) {

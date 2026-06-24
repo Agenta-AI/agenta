@@ -1,5 +1,5 @@
-// Builds the Daytona snapshot (template-equivalent) used by provider-daytona.js:
-// sandbox-agent + claude + codex + opencode + pi + geesefs, all baked in. Mirrors the
+// Builds the Daytona snapshot (template-equivalent) used by the daytona case of
+// sandbox-provider.js: sandbox-agent + claude + codex + opencode + pi + geesefs. Mirrors the
 // E2B template (e2b-template/e2b.Dockerfile) — Daytona sandboxes are x86_64, so the
 // linux-x64/amd64 binaries are correct. Run once:  node daytona_snapshot.js
 //

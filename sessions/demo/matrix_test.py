@@ -48,7 +48,7 @@ def _take_flag(name, default):
 
 harnesses = _take_flag("--harness", ",".join(harnesses)).split(",")
 REASONING = _take_flag("--reasoning", "none")
-sandboxes = argv or ["local", "daytona", "modal", "e2b"]
+sandboxes = argv or ["local", "docker", "daytona", "modal", "e2b"]
 
 
 def invoke(sandbox, harness, file, tag):
