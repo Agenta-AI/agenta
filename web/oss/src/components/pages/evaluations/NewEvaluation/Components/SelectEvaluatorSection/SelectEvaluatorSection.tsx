@@ -43,7 +43,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     setSelectedEvalConfigs,
     className,
     preview,
-    selectedAppId,
+    selectedWorkflowId,
     onSelectTemplate,
     onCreateHumanEvaluator,
     ...props
@@ -52,7 +52,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     const setCategory = useSetAtom(evaluatorCategoryAtom)
     const setStoreSearchTerm = useSetAtom(evaluatorSearchTermAtom)
     const [searchTerm, setSearchTerm] = useState("")
-    const prevSelectedAppIdRef = useRef<string | undefined>()
+    const previousWorkflowIdRef = useRef<string | undefined>(undefined)
 
     const category = preview ? "human" : "automatic"
 
@@ -69,16 +69,16 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
         [setStoreSearchTerm],
     )
 
-    // Refetch when app changes
+    // Refetch when the invocation workflow changes.
     useEffect(() => {
-        if (!selectedAppId) {
-            prevSelectedAppIdRef.current = selectedAppId
+        if (!selectedWorkflowId) {
+            previousWorkflowIdRef.current = selectedWorkflowId
             return
         }
-        if (prevSelectedAppIdRef.current === selectedAppId) return
-        prevSelectedAppIdRef.current = selectedAppId
+        if (previousWorkflowIdRef.current === selectedWorkflowId) return
+        previousWorkflowIdRef.current = selectedWorkflowId
         invalidateWorkflowsListCache()
-    }, [selectedAppId])
+    }, [selectedWorkflowId])
 
     const evaluatorsRegistryUrl = useMemo(
         () => `${projectURL}/evaluators?tab=${preview ? "human" : "automatic"}`,

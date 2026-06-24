@@ -3,16 +3,14 @@ import type {Dispatch, HTMLProps, SetStateAction} from "react"
 import type {EvaluatorCatalogTemplate, Workflow} from "@agenta/entities/workflow"
 import {ModalProps} from "antd"
 
-import {Evaluator, SimpleEvaluator, testset} from "@/oss/lib/Types"
-import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
+import {testset} from "@/oss/lib/Types"
 
-export interface NewEvaluationAppOption {
-    label: string
-    value: string
-    type?: string | null
-    createdAt?: string | null
-    updatedAt?: string | null
-}
+import type {
+    EvalStepContext,
+    EvalStepRuntime,
+    EvalStepSlot,
+    EvalStepValueMap,
+} from "./evalSteps/types"
 
 export interface EvaluationConcurrencySettings {
     batch_size: number
@@ -28,44 +26,18 @@ export interface NewEvaluationModalProps extends ModalProps {
     preSelectedVariantIds?: string[]
     /** Pre-selected app ID (e.g., from playground context) */
     preSelectedAppId?: string
+    /** Declarative modal steps. Omit to use the existing invocation workflow. */
+    steps?: EvalStepSlot[]
+    /** Builds the deterministic base used by automatic evaluation-name suggestions. */
+    nameBuilder?: (values: Readonly<Partial<EvalStepValueMap>>) => string
 }
 
-export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement> {
-    evaluationType: "auto" | "human"
-    activePanel: string | null
-    selectedTestsetId: string
-    selectedTestsetRevisionId: string
-    selectedTestsetName: string
-    selectedTestsetVersion: number | null
-    selectedVariantRevisionIds: string[]
-    selectedEvalConfigs: string[]
+export interface NewEvaluationModalContentProps {
     evaluationName: string
-    preview?: boolean
-    isLoading?: boolean
-    setSelectedTestsetId: Dispatch<SetStateAction<string>>
-    setSelectedTestsetRevisionId: Dispatch<SetStateAction<string>>
-    setSelectedTestsetName: Dispatch<SetStateAction<string>>
-    setSelectedTestsetVersion: Dispatch<SetStateAction<number | null>>
-    onSuccess?: () => void
-    handlePanelChange: (key: string | string[]) => void
-    setSelectedVariantRevisionIds: Dispatch<SetStateAction<string[]>>
-    setSelectedEvalConfigs: Dispatch<SetStateAction<string[]>>
     setEvaluationName: Dispatch<SetStateAction<string>>
-    isOpen?: boolean
-    testsets: testset[]
-    evaluators: EvaluatorCatalogTemplate[] | Evaluator[] | EvaluatorDto<"response">[]
-    evaluatorConfigs: SimpleEvaluator[]
-    advanceSettings: EvaluationConcurrencySettings
-    setAdvanceSettings: Dispatch<SetStateAction<EvaluationConcurrencySettings>>
-    appOptions: NewEvaluationAppOption[]
-    selectedAppId: string
-    onSelectApp: (value: string, meta?: {label?: string; isEvaluator?: boolean}) => void
-    appSelectionDisabled?: boolean
-    allowTestsetAutoAdvance?: boolean
-    /** Callback when an evaluator template is selected from the dropdown (for inline creation) */
-    onSelectTemplate?: (evaluator: EvaluatorCatalogTemplate) => void
-    /** Callback when a new evaluator config is created via the inline drawer. Used to refresh the list and auto-select. */
-    onEvaluatorCreated?: (configId?: string) => void
+    steps: EvalStepSlot[]
+    context: EvalStepContext
+    runtime: EvalStepRuntime
 }
 
 export interface SelectVariantSectionProps extends HTMLProps<HTMLDivElement> {
@@ -97,7 +69,7 @@ export interface SelectEvaluatorSectionProps extends HTMLProps<HTMLDivElement> {
     selectedEvalConfigs: string[]
     setSelectedEvalConfigs: Dispatch<SetStateAction<string[]>>
     preview?: boolean
-    selectedAppId?: string
+    selectedWorkflowId?: string
     /** Callback when an evaluator template is selected from the dropdown (for inline creation) */
     onSelectTemplate?: (evaluator: EvaluatorCatalogTemplate) => void
     /** Callback when the "Create new" button is clicked in preview/human mode (for inline creation) */
@@ -126,4 +98,6 @@ export interface NewEvaluationModalInnerProps {
     preSelectedVariantIds?: string[]
     /** Pre-selected app ID (e.g., from playground context) */
     preSelectedAppId?: string
+    steps?: EvalStepSlot[]
+    nameBuilder?: (values: Readonly<Partial<EvalStepValueMap>>) => string
 }

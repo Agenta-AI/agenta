@@ -1,10 +1,9 @@
 import {getDefaultStore} from "jotai"
 
-import {newEvaluationActivePanelAtom} from "@/oss/components/pages/evaluations/NewEvaluation/state/panel"
 import {
-    selectedEvalConfigsAtom,
-    selectedTestsetIdAtom,
-} from "@/oss/components/pages/evaluations/NewEvaluation/state/selection"
+    activeEvalStepAtom,
+    evalStepValuesAtom,
+} from "@/oss/components/pages/evaluations/NewEvaluation/evalSteps/state"
 import {recordWidgetEventAtom, tourRegistry} from "@/oss/lib/onboarding"
 import type {OnboardingTour} from "@/oss/lib/onboarding"
 
@@ -107,7 +106,7 @@ const firstEvaluationTour: OnboardingTour = {
             pointerRadius: 8,
             onNext: async () => {
                 const store = getDefaultStore()
-                const hasSelection = Boolean(store.get(selectedTestsetIdAtom))
+                const hasSelection = Boolean(store.get(evalStepValuesAtom).testset?.id)
 
                 if (!hasSelection) {
                     const row = document.querySelector(
@@ -116,7 +115,7 @@ const firstEvaluationTour: OnboardingTour = {
                     row?.click()
                 }
 
-                store.set(newEvaluationActivePanelAtom, "evaluatorPanel")
+                store.set(activeEvalStepAtom, "evaluator")
             },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
@@ -141,12 +140,12 @@ const firstEvaluationTour: OnboardingTour = {
             panelKey: "evaluatorPanel",
             onPrev: async () => {
                 const store = getDefaultStore()
-                store.set(newEvaluationActivePanelAtom, "testsetPanel")
+                store.set(activeEvalStepAtom, "testset")
                 await waitForSelectorVisible('[data-tour="testset-select"]')
             },
             onNext: async () => {
                 const store = getDefaultStore()
-                const hasSelection = store.get(selectedEvalConfigsAtom).length > 0
+                const hasSelection = (store.get(evalStepValuesAtom).evaluator?.length ?? 0) > 0
 
                 if (!hasSelection) {
                     const row = document.querySelector(

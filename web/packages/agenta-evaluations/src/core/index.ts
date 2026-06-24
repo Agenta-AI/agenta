@@ -20,6 +20,20 @@ export type {
     EvaluationStepForKindDetection,
     EvaluationRunForKindDetection,
 } from "./evaluationKind"
+export {
+    assertValidStepConfig,
+    composeEvaluationStepPayload,
+    findFirstIncompleteRequiredStep,
+    findInitialEvaluationStep,
+    findNextEvaluationStep,
+    isEvaluationStepEnabled,
+    splitEvaluationPayloadByInvocationStep,
+} from "./evaluationStepEngine"
+export type {
+    EvaluationStepDescriptor,
+    EvaluationStepDescriptorMap,
+    EvaluationStepSlot,
+} from "./evaluationStepEngine"
 export type {
     BuildRunConfigInput,
     BuildRunConfigResult,

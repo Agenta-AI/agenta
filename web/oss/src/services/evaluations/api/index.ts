@@ -1,10 +1,12 @@
 import {EvaluationStatus} from "@agenta/entities/evaluationRun"
+import {splitEvaluationPayloadByInvocationStep} from "@agenta/evaluations/core"
+import {getAgentaSdkClient} from "@agenta/sdk"
+import {getAgentaApiUrl} from "@agenta/shared/api"
 
-import type {EvaluationConcurrencySettings} from "@/oss/components/pages/evaluations/NewEvaluation/types"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {calcEvalDuration} from "@/oss/lib/evaluations/legacy"
 import {assertValidId, isValidId} from "@/oss/lib/helpers/serviceValidations"
-import {KeyValuePair, _Evaluation, _EvaluationScenario} from "@/oss/lib/Types"
+import {_Evaluation, _EvaluationScenario} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
 //Prefix convention:
@@ -141,79 +143,55 @@ export const fetchEvaluationStatus = async (evaluationId: string) => {
     return {status: run.status} as {status: _Evaluation["status"]}
 }
 
-export type CreateEvaluationData =
-    | {
-          testset_id: string
-          testset_revision_id?: string
-          variant_ids?: string[]
-          evaluator_revision_ids: string[]
-          concurrency?: EvaluationConcurrencySettings
-          lm_providers_keys?: KeyValuePair
-      }
-    | {
-          testset_id: string
-          testset_revision_id?: string
-          revisions_ids?: string[]
-          evaluator_revision_ids: string[]
-          concurrency?: EvaluationConcurrencySettings
-          lm_providers_keys?: KeyValuePair
-          name: string
-      }
-export const createEvaluation = async (appId: string, evaluation: CreateEvaluationData) => {
+type AgentaSdkClient = ReturnType<typeof getAgentaSdkClient>
+type CreateSimpleEvaluation = AgentaSdkClient["evaluations"]["createSimpleEvaluation"]
+type SimpleEvaluationCreateRequest = Parameters<CreateSimpleEvaluation>[0]
+type SimpleEvaluationCreate = SimpleEvaluationCreateRequest["evaluation"]
+type SimpleEvaluationData = NonNullable<SimpleEvaluationCreate["data"]>
+type EvaluationRunFlags = NonNullable<SimpleEvaluationCreate["flags"]>
+type SimpleEvaluationResponse = Awaited<ReturnType<CreateSimpleEvaluation>>
+
+export interface CreateEvaluationData {
+    name: string
+    data: SimpleEvaluationData
+    flags?: EvaluationRunFlags
+}
+
+export interface CreateEvaluationResult {
+    data: SimpleEvaluationResponse
+    runs: SimpleEvaluationResponse[]
+    additionalRuns: SimpleEvaluationResponse[]
+}
+
+export const createEvaluation = async ({
+    name,
+    data,
+    flags,
+}: CreateEvaluationData): Promise<CreateEvaluationResult> => {
     const {projectId} = getProjectValues()
-
-    // Determine which variant of the type we have and extract revision IDs
-    const revisionIds =
-        "revisions_ids" in evaluation
-            ? evaluation.revisions_ids
-            : "variant_ids" in evaluation
-              ? evaluation.variant_ids
-              : undefined
-    const name = "name" in evaluation ? evaluation.name : "Evaluation" // Default name for legacy variant
-
-    // One run per variant. A run carries exactly one application (invocation)
-    // step: a run with multiple application steps is classified `not_planned`
-    // (A/B comparisons must be separate evaluations) and never dispatches, so it
-    // hangs in RUNNING forever. Fan out here so each variant becomes its own
-    // supported testset -> application -> evaluator run.
-    const applicationRevisionIds = revisionIds?.length ? revisionIds : [undefined]
-
-    const evaluatorSteps = evaluation.evaluator_revision_ids.reduce(
-        (acc, id) => ({...acc, [id]: "auto"}),
-        {} as Record<string, "auto">,
-    )
-    const testsetSteps = evaluation.testset_revision_id
-        ? {[evaluation.testset_revision_id]: "auto" as const}
-        : undefined
-
+    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
+    const payloads = splitEvaluationPayloadByInvocationStep(data)
     const responses = await Promise.all(
-        applicationRevisionIds.map((revisionId) =>
-            // Frontend provides revision IDs directly.
-            axios.post(`/simple/evaluations/?project_id=${projectId}`, {
-                evaluation: {
-                    name,
-                    data: {
-                        // All steps use revision IDs directly.
-                        testset_steps: testsetSteps,
-                        application_steps: revisionId ? {[revisionId]: "auto"} : {},
-                        evaluator_steps: evaluatorSteps,
-                        concurrency: evaluation.concurrency ?? undefined,
-                    },
-                    flags: {
-                        is_live: false,
-                        is_active: true,
-                        is_closed: false,
+        payloads.map((runData) =>
+            client.evaluations.createSimpleEvaluation(
+                {
+                    evaluation: {
+                        name,
+                        data: runData,
+                        flags: flags ?? {
+                            is_live: false,
+                            is_active: true,
+                            is_closed: false,
+                        },
                     },
                 },
-            }),
+                {queryParams: {project_id: projectId}},
+            ),
         ),
     )
-
-    // Callers read `.data.evaluation.id` off the result; return the first run so
-    // that single-variant flows are unchanged, and expose the rest for callers
-    // that want every created run.
     const [first, ...rest] = responses
-    return Object.assign(first, {runs: responses, additionalRuns: rest})
+    if (!first) throw new Error("Evaluation creation returned no runs")
+    return {data: first, runs: responses, additionalRuns: rest}
 }
 
 export const deleteEvaluations = async (evaluationsIds: string[]) => {
