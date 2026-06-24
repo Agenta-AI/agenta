@@ -321,6 +321,13 @@ function allowedSiblingGroup(uri: unknown): SiblingGroupKey | null {
     return isSiblingGroupKey(key) ? key : null
 }
 
+// Editable schemas (Parameters/Inputs/Outputs) belong only to custom workflows; legacy
+// builtin evaluators carry a fixed, server-owned schema that must not be edited here.
+function isCustomWorkflowUri(uri: unknown): boolean {
+    if (typeof uri !== "string") return false
+    return uri.split(":")[1] === "custom"
+}
+
 // Adapter data: `parameters` + one sibling group (hook/code) as a single section.
 function mergeSiblingFields(
     config: Record<string, unknown> | null,
@@ -337,9 +344,9 @@ function mergeSiblingFields(
         }
         merged[group] = fields
     }
-    // `schemas` nests under data.schemas; shown for any workflow that has it.
+    // `schemas` nests under data.schemas; editable only for custom workflows.
     const schemas = fullData?.schemas as Record<string, unknown> | null | undefined
-    if (schemas && typeof schemas === "object") {
+    if (schemas && typeof schemas === "object" && isCustomWorkflowUri(fullData?.uri)) {
         const fields: Record<string, unknown> = {}
         for (const field of SIBLING_GROUPS.schemas) {
             fields[field] = schemas[field] ?? {}
@@ -350,9 +357,13 @@ function mergeSiblingFields(
     return merged
 }
 
-/** Path targets a sibling group (top-level group key). */
-function pathTargetsSibling(path: DataPath): boolean {
-    return path.length > 0 && isSiblingGroupKey(path[0])
+// A path targets a sibling group only when path[0] is a group key AND that group is
+// actually present on the data object. Guards against a legacy *parameter* named
+// "code"/"hook" (path ["code"]) being misrouted as a sibling write.
+function pathTargetsSibling(path: DataPath, data: unknown): boolean {
+    if (path.length === 0 || !isSiblingGroupKey(path[0])) return false
+    const d = data as Record<string, unknown> | null
+    return !!d && path[0] in d
 }
 
 // Renderable if there are parameters OR any sibling group (hook/code/schemas),
@@ -461,7 +472,7 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
             getValueAtPath: (data: unknown, path: DataPath) => {
                 const d = data as {parameters?: Record<string, unknown>} | null
                 if (!d) return undefined
-                if (pathTargetsSibling(path)) return getValueAtPath(d, path)
+                if (pathTargetsSibling(path, d)) return getValueAtPath(d, path)
                 if (!d.parameters) return undefined
                 return getValueAtPath(d.parameters, path)
             },
@@ -469,7 +480,7 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
                 const d = data as {parameters?: Record<string, unknown>} | null
                 // Sibling edits emit a tagged __siblingData payload. setValueAtPath
                 // is immutable, so use its return value.
-                if (pathTargetsSibling(path)) {
+                if (pathTargetsSibling(path, d)) {
                     const group = path[0] as SiblingGroupKey
                     const base = (d as Record<string, unknown>)?.[group] ?? {}
                     const fields = setValueAtPath(base, path.slice(1), value) as Record<
@@ -487,7 +498,7 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
             // group's fields (paths drop the virtual group key); params emit param keys.
             getChangesFromRoot: (_entity: unknown, rootData: unknown, path: DataPath) => {
                 const root = {...(rootData as Record<string, unknown>)}
-                if (pathTargetsSibling(path)) {
+                if (pathTargetsSibling(path, _entity)) {
                     const group = path[0] as SiblingGroupKey
                     const fields = (root[group] ?? {}) as Record<string, unknown>
                     // schemas nests under data.schemas; hook/code fields sit flat on data.
@@ -496,7 +507,12 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
                     }
                     return {__siblingData: {...fields}} as Record<string, unknown>
                 }
-                for (const group of SIBLING_GROUP_KEYS) delete root[group]
+                // Only strip keys that are real sibling groups on the entity, so a
+                // legacy parameter named "code"/"hook" survives in the param payload.
+                const entity = _entity as Record<string, unknown> | null
+                for (const group of SIBLING_GROUP_KEYS) {
+                    if (entity && group in entity) delete root[group]
+                }
                 return root
             },
         },
@@ -528,7 +544,9 @@ function moleculeSchemaAtPath(params: {id: string; path: (string | number)[]}): 
     let cached = moleculeSchemaAtPathCache.get(key)
     if (!cached) {
         cached = atom((get) => {
-            if (pathTargetsSibling(params.path as DataPath)) {
+            const full = get(workflowMolecule.selectors.resolvedData(params.id))
+            const adapterData = mergeSiblingFields(null, full)
+            if (pathTargetsSibling(params.path as DataPath, adapterData)) {
                 return siblingSchemaAtPath(params.path)
             }
             const schema = get(workflowMolecule.selectors.parametersSchema(params.id))
@@ -656,6 +674,15 @@ function PlaygroundConfigSection({
         }
         return out
     }, [activeData])
+
+    // A field is a sibling group only when it is actually present in siblingGroups
+    // (built from data.uri). A legacy *parameter* named "code"/"hook" must NOT be
+    // treated as the canonical code/hook group — it falls through to the schema renderer.
+    const isPresentSiblingGroup = useCallback(
+        (fieldKey: string): fieldKey is SiblingGroupKey =>
+            isSiblingGroupKey(fieldKey) && fieldKey in siblingGroups,
+        [siblingGroups],
+    )
 
     const codeRuntime = (siblingGroups.code as Record<string, unknown> | undefined)?.runtime as
         | string
@@ -1496,7 +1523,7 @@ function PlaygroundConfigSection({
             }
 
             // Sibling group (hook/code) always gets a section header.
-            const isSibling = isSiblingGroupKey(fieldKey)
+            const isSibling = isPresentSiblingGroup(fieldKey)
 
             // Scalar/array params render inline (no header); only objects get one.
             const fieldValue = isSibling ? siblingGroups[fieldKey] : parameters[fieldKey]
@@ -1603,7 +1630,7 @@ function PlaygroundConfigSection({
                     )}
 
                     {/* Code: runtime picker in section header (like the model picker). */}
-                    {fieldKey === "code" && (
+                    {isSibling && fieldKey === "code" && (
                         <div
                             onClick={(e) => e.stopPropagation()}
                             className="flex items-center gap-2 flex-shrink-0"
@@ -1667,6 +1694,7 @@ function PlaygroundConfigSection({
             onRefinePrompt,
             updatePromptRootField,
             siblingGroups,
+            isPresentSiblingGroup,
             codeRuntime,
             handleRuntimeChange,
         ],
@@ -1688,7 +1716,7 @@ function PlaygroundConfigSection({
 
             // Sibling group (hook/code): render the dedicated control, not the
             // schema renderer.
-            const isSibling = isSiblingGroupKey(fieldKey)
+            const isSibling = isPresentSiblingGroup(fieldKey)
             const isCollapsed = !!collapsedSections[fieldKey]
 
             if (isSibling) {
@@ -1736,7 +1764,14 @@ function PlaygroundConfigSection({
                 </HeightCollapse>
             )
         },
-        [collapsedSections, parameters, siblingGroups, disabled, promptModelInfo?.isRootLevel],
+        [
+            collapsedSections,
+            parameters,
+            siblingGroups,
+            isPresentSiblingGroup,
+            disabled,
+            promptModelInfo?.isRootLevel,
+        ],
     )
 
     // ========== LOADING / EMPTY STATE ==========
