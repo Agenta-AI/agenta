@@ -39,7 +39,7 @@ const stubConfig = () => ({
             messages: [{role: "system", content: "You are a helpful agent."}],
             llm_config: {model: "gpt-4o-mini", tools: []},
         },
-        harness: "pi",
+        harness: "pi_core",
         sandbox: "local",
     },
     references: {
@@ -59,7 +59,7 @@ const configFor = (appId?: string | null) => {
     const resolved = resolveAppAgConfig(appId)
     if (!resolved) return stubConfig()
     return {
-        parameters: {harness: "pi", sandbox: "local", ...resolved.ag_config},
+        parameters: {harness: "pi_core", sandbox: "local", ...resolved.ag_config},
         references: resolved.references,
     }
 }

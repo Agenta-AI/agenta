@@ -66,10 +66,11 @@ says.
 ### Test: agent-workflows-qa and agent-replay-test
 
 `agent-workflows-qa` (shared) defines the test matrix for the agent runtime. Its three axes
-are the environment (in-process Pi, Rivet local, Rivet Daytona, and the local SDK), the
-harness (`pi`, `agenta`, `claude`), and the capability under test. "Test with daytona, local
-pi, and claude, on both the SDK and the UI" is exactly a walk across these cells. Each test
-forces a capability with a token the model cannot guess, so a pass proves the capability ran.
+are the environment (sandbox-agent local, sandbox-agent Daytona, and the local SDK), the
+harness (`pi_core`, `pi_agenta`, `claude`), and the capability under test. "Test with daytona,
+local pi, and claude, on both the SDK and the UI" is exactly a walk across these cells. Each
+test forces a capability with a token the model cannot guess, so a pass proves the capability
+ran.
 
 `agent-replay-test` (shared) pins a green cell so it stays green. It captures one real `/run`,
 redacts the volatile fields, and writes a test that replays the recorded runner response

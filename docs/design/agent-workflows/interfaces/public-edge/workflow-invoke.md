@@ -23,7 +23,7 @@ things out of it:
   "references": { /* application / variant / revision */ },
   "data": {
     "inputs":     { "messages": [ /* chat history */ ] },
-    "parameters": { "agent": { /* config */ }, "harness": "pi", "sandbox": "local" }
+    "parameters": { "agent": { /* config */ }, "harness": "pi_core", "sandbox": "local" }
   }
 }
 ```

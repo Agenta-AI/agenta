@@ -147,8 +147,8 @@ export function composeModelValue({
 // Static per-harness capability map.
 //
 // A frontend copy of `sdks/python/agenta/sdk/agents/capabilities.py`, mirroring its REAL
-// entries: pi/agenta reach the eight vault-mapped providers; claude is anthropic-only; both
-// modes (`agenta`/`self_managed`) on every harness. A harness with no entry is permissive.
+// entries: pi_core/pi_agenta reach the eight vault-mapped providers; claude is anthropic-only;
+// both modes (`agenta`/`self_managed`) on every harness. A harness with no entry is permissive.
 //
 // TODO(harness-capabilities): the sibling harness-capabilities project replaces this static
 // map with one fed from `/inspect` `meta.harness_capabilities`. Keep it in agreement with the
@@ -176,8 +176,8 @@ const PI_VAULT_PROVIDERS = [
 ]
 
 const HARNESS_CONNECTION_CAPABILITIES: Record<string, HarnessConnectionCapabilities> = {
-    pi: {providers: [...PI_VAULT_PROVIDERS], connectionModes: ALL_MODES},
-    agenta: {providers: [...PI_VAULT_PROVIDERS], connectionModes: ALL_MODES},
+    pi_core: {providers: [...PI_VAULT_PROVIDERS], connectionModes: ALL_MODES},
+    pi_agenta: {providers: [...PI_VAULT_PROVIDERS], connectionModes: ALL_MODES},
     claude: {providers: ["anthropic"], connectionModes: ALL_MODES},
 }
 

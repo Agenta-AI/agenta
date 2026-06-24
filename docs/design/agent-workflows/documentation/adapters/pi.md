@@ -7,16 +7,12 @@ can use, so much of the work happens inside Pi rather than around it.
 Read the [architecture](../architecture.md) and [ports and adapters](../ports-and-adapters.md)
 pages first. This page assumes the relay and the wire contract.
 
-## Two ways Pi runs
+## How Pi runs
 
-Pi runs through one of two engines, both behind the same port:
-
-- **Over ACP, through sandbox-agent** (`engines/sandbox_agent.ts` with `harness: pi`). This is the main
-  path and the one the rest of this page describes. The sandbox-agent daemon starts the `pi-acp`
-  adapter, which starts the `pi` CLI.
-- **In-process** (`engines/pi.ts`). This drives the Pi SDK directly inside the sidecar, with
-  no daemon, no adapter, and no ACP. It is the simplest local path and a fallback. The last
-  section covers it.
+Pi runs over ACP, through sandbox-agent (`engines/sandbox_agent.ts`). The harness value
+`pi_core` (plain Pi) and `pi_agenta` (Pi with Agenta's forced opinion) both map to the `pi`
+ACP agent. This is the one engine the runner has. The sandbox-agent daemon starts the
+`pi-acp` adapter, which starts the `pi` CLI.
 
 ## The ACP path: pi-acp plus a bundled extension
 
@@ -82,7 +78,7 @@ adapter reads only its own slice:
 AgentConfig(
     instructions="Project: a SQL analytics tool. Run `make lint` before finishing.",  # AGENTS.md
     harness_options={
-        "pi": {
+        "pi_core": {
             "system": "You are a SQL expert. Only answer with queries.",  # replaces base prompt
             "append_system": "Always explain each query in one line.",     # adds to base prompt
         }
@@ -90,22 +86,18 @@ AgentConfig(
 )
 ```
 
-`PiHarness` lifts the `pi` slice onto `PiAgentConfig.system` / `append_system`, which emit
+`PiHarness` lifts the `pi_core` slice onto `PiAgentConfig.system` / `append_system`, which emit
 `systemPrompt` / `appendSystemPrompt` on the `/run` wire. An empty or whitespace value is
 dropped, so it never reaches the runner as a real override.
 
 ### Delivery status
 
-The **in-process Pi engine** honors both. It feeds them through the resource loader's
-`systemPromptOverride` / `appendSystemPromptOverride`, so the run stays hermetic: only what
-the request carries applies, never a `SYSTEM.md` or `APPEND_SYSTEM.md` left on disk.
-
-The **ACP (sandbox-agent) path does not deliver them yet**. It drives Pi through `pi-acp`, which gives
-us no per-run hook to set the prompt: a project `.pi/SYSTEM.md` is trust-gated, and the CLI
-`--system-prompt` flag cannot be set per session through the adapter. The engine logs a
-warning when these fields are set on that path so the gap is visible, not silent. `AGENTS.md`
-still applies there, because Pi loads context files regardless of trust. Wiring the ACP path
-(via project trust plus `.pi/SYSTEM.md`, or per-session CLI flags) is the remaining work.
+The **ACP (sandbox-agent) path honors both**. The engine writes `SYSTEM.md` /
+`APPEND_SYSTEM.md` into the per-run Pi agent dir, local and Daytona
+(`services/agent/src/engines/sandbox_agent/pi-assets.ts`), and Pi loads them on the run.
+Because each run gets its own agent dir, the override stays scoped to that run and never
+leaks to a later run on the same sidecar. `AGENTS.md` still applies alongside, because Pi
+loads context files regardless.
 
 ## Tracing: Pi instruments itself
 
@@ -158,21 +150,3 @@ Two things differ on Daytona. The sandbox-agent `-full` image ships the `pi-acp`
 pre-baked snapshot that already has it (the snapshot path avoids a slow per-run install).
 And auth comes from the provider key in the sandbox env when present, or from an uploaded
 `auth.json` (the developer's OAuth login) when no key is set.
-
-## The in-process engine
-
-The in-process Pi engine (`engines/pi.ts`, reached with `backend: "pi"`) skips sandbox-agent
-entirely. It drives Pi's `createAgentSession` directly, with everything in memory: AGENTS.md
-injected through the resource loader, the session and settings managers in memory, and a
-throwaway working directory. It registers the same tools as Pi `customTools` through
-`buildCustomTools`, and traces with the same extension logic, just wired in process rather than
-loaded from disk. One difference from the ACP path: there is no file relay. Because the engine
-runs in the same process as the runner, each tool body executes directly through
-`runResolvedTool` (a gateway tool POSTs to `/tools/call`, a code tool spawns a local
-subprocess). The relay only exists on the ACP path, where a separate Pi process or a Daytona
-sandbox cannot reach Agenta or hold the private spec. The in-process engine also ignores
-`mcp_servers` entirely (`PI_CAPABILITIES.mcpTools` is false).
-
-It returns the same `/run` result as the sandbox-agent path, which is the whole point of the ports:
-the workflow author cannot tell which engine ran. It exists for the simplest local case and
-as a path that does not depend on the sandbox-agent daemon being present.

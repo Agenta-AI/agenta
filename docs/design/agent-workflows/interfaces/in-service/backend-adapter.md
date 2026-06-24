@@ -11,9 +11,10 @@ review lens: what this adapter does and what to check when it moves.
 
 ## The contract
 
-It supports `pi`, `claude`, and `agenta`, and holds a `local` or `daytona` sandbox. Its
-engine id is the hard-coded `"sandbox-agent"`. The constructor resolves the runner: a `url`
-selects HTTP delivery, otherwise a resolved `command` selects a CLI subprocess.
+It supports `pi_core`, `pi_agenta`, and `claude`, and holds a `local` or `daytona` sandbox.
+Its engine id is the hard-coded `"sandbox-agent"`, the one engine. The constructor resolves
+the runner: a `url` selects HTTP delivery, otherwise a resolved `command` selects a CLI
+subprocess.
 
 ```python
 SandboxAgentBackend(
@@ -25,9 +26,8 @@ SandboxAgentBackend(
 )
 ```
 
-The session it creates builds the wire payload with `request_to_wire(engine="sandbox-agent",
-...)` (see [Service to agent runner](../cross-service/service-to-agent-runner.md)) and
-delivers it:
+The session it creates builds the wire payload with `request_to_wire(harness=..., ...)` (see
+[Service to agent runner](../cross-service/service-to-agent-runner.md)) and delivers it:
 
 ```python
 # batch

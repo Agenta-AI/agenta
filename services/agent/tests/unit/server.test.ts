@@ -35,7 +35,9 @@ describe("createAgentServer", () => {
       assert.equal(body.status, "ok");
       assert.equal(typeof body.runner, "string");
       assert.equal(typeof body.protocol, "number");
-      assert.ok(Array.isArray(body.engines) && (body.engines as unknown[]).includes("pi"));
+      assert.ok(
+        Array.isArray(body.engines) && (body.engines as unknown[]).includes("sandbox-agent"),
+      );
       assert.ok(Array.isArray(body.harnesses));
     } finally {
       await s.close();
@@ -45,7 +47,7 @@ describe("createAgentServer", () => {
   it("POST /run returns the engine result (200)", async () => {
     const s = await listen(okRun);
     try {
-      const res = await fetch(`${s.url}/run`, { method: "POST", body: JSON.stringify({ backend: "pi" }) });
+      const res = await fetch(`${s.url}/run`, { method: "POST", body: JSON.stringify({ harness: "pi_core" }) });
       assert.equal(res.status, 200);
       const body = (await res.json()) as { ok: boolean; output: string };
       assert.equal(body.ok, true);

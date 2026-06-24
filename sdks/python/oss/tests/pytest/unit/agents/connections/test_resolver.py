@@ -18,7 +18,7 @@ from agenta.sdk.agents.connections import (
     UnsupportedProviderError,
 )
 
-_CTX = RuntimeAuthContext(harness="pi")
+_CTX = RuntimeAuthContext(harness="pi_core")
 
 
 # -------------------------------------------------------------- EnvConnectionResolver

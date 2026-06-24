@@ -75,7 +75,9 @@ def test_tool_callback_to_wire():
 
 def test_harness_type_coerce():
     assert HarnessType.coerce(HarnessType.PI) is HarnessType.PI
-    assert HarnessType.coerce("PI") is HarnessType.PI  # case-insensitive
+    assert HarnessType.coerce("pi_core") is HarnessType.PI
+    assert HarnessType.coerce("PI_CORE") is HarnessType.PI  # case-insensitive
+    assert HarnessType.coerce("pi_agenta") is HarnessType.AGENTA
     assert HarnessType.coerce("claude") is HarnessType.CLAUDE
     with pytest.raises(ValueError):
         HarnessType.coerce("bogus")

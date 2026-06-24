@@ -149,7 +149,11 @@ describe("buildAgentRequest", () => {
         const data = req!.requestBody.data as any
         expect(data.messages).toEqual([{role: "user"}])
         // draft-aware config flows through, harness/sandbox defaulted
-        expect(data.parameters).toMatchObject({temperature: 0.9, prompt: {x: 1}, harness: "pi"})
+        expect(data.parameters).toMatchObject({
+            temperature: 0.9,
+            prompt: {x: 1},
+            harness: "pi_core",
+        })
     })
 
     it("INCLUDES references built from the entity identity", async () => {

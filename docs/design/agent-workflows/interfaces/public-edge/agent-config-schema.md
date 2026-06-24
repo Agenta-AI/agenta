@@ -23,7 +23,7 @@ The fields and the full schema follow.
 | `model` | string (`grouped_choice`) | `"gpt-5.5"` | Model the agent runs on. A plain id (`"gpt-5.5"`) or a structured `{provider, connection}` ref. See [Model connection resolution](../in-service/model-connection-resolution.md). |
 | `tools` | `ToolConfig[]` | `[]` | Runnable tools: `builtin`, `gateway`, `code`, or `client`. See [Tool models and resolution](../in-service/tool-models-and-resolution.md). |
 | `mcp_servers` | `MCPServerConfig[]` | `[]` | Declared MCP servers; secret env resolved from the vault at run time. See [MCP models and resolution](../in-service/mcp-models-and-resolution.md). |
-| `harness` | `"pi" \| "claude" \| "agenta"` | `"pi"` | The coding agent to drive. |
+| `harness` | `"pi_core" \| "claude" \| "pi_agenta"` | `"pi_core"` | The coding agent to drive. `pi_core` and `pi_agenta` both drive the `pi` ACP agent; `pi_agenta` adds Agenta's forced skills, prompt, and policy. |
 | `sandbox` | `"local" \| "daytona"` | `"local"` | Where it runs. |
 | `permission_policy` | `"auto" \| "deny"` | `"auto"` | How a gating harness (Claude Code) handles tool-use prompts in a headless run. |
 | `sandbox_permission` | `SandboxPermission \| null` | `null` (form pre-fills one) | The declared network and filesystem boundary. See [Sandbox permission](../in-service/sandbox-permission.md). |
@@ -44,7 +44,7 @@ every field in its default state:
   "model": "gpt-5.5",
   "tools": [],
   "mcp_servers": [],
-  "harness": "pi",
+  "harness": "pi_core",
   "sandbox": "local",
   "permission_policy": "auto",
   "sandbox_permission": {
@@ -65,6 +65,12 @@ every field in its default state:
 The default skill is referenced by the reserved `_agenta.` slug, served from code by the
 platform catalog, never the database. The embed must reference the artifact (`workflow.slug`),
 which resolves to the latest revision; a bare revision slug with no version returns 500.
+
+This default has one source: `build_agent_v0_default(...)` in
+`sdks/python/agenta/sdk/utils/types.py`. The SDK builtin interface
+(`agenta:builtin:agent:v0`) calls it bare; the service calls it with the two service-only
+choices as named args (`skill_slug` for the platform default skill, `include_sandbox_permission`
+for the declared Layer-2 boundary). A new default field changes the builder, not three copies.
 
 ## Appendix: the full schema, all cases
 
@@ -166,8 +172,12 @@ not `SKILL.md` itself.
 
 ## Owned by
 
-- `services/oss/src/agent/schemas.py`: the `/inspect` schema and the default config.
-- `sdks/python/agenta/sdk/utils/types.py`: `AgentConfigSchema` and the nested catalog types.
+- `services/oss/src/agent/schemas.py`: the `/inspect` schema; its default config calls the
+  shared builder with the service-only choices.
+- `sdks/python/agenta/sdk/utils/types.py`: `AgentConfigSchema`, the nested catalog types, and
+  `build_agent_v0_default` (the single source of the default config).
+- `sdks/python/agenta/sdk/engines/running/interfaces.py`: the SDK builtin interface
+  `agenta:builtin:agent:v0`, whose default calls the same builder bare.
 - `sdks/python/agenta/sdk/agents/dtos.py`: the permissive runtime `AgentConfig` parser and
   `SandboxPermission`.
 
@@ -177,8 +187,8 @@ not `SKILL.md` itself.
   runtime `AgentConfig` together, or the form and the parser drift.
 - **The catalog type.** `agent_config` binds this schema to `AgentConfigControl`. Renaming it
   without updating the catalog breaks the form silently.
-- **The default config.** It is shipped on `/inspect` and is what an untouched form runs.
-  Keep every field's default in sync with the runtime.
+- **The default config.** It is shipped on `/inspect` and is what an untouched form runs. It
+  has one source, `build_agent_v0_default`; change a default field there, not in each consumer.
 - **Nested shapes.** `tools`, `mcp_servers`, `skills`, and `sandbox_permission` each have
   their own page and their own wire fields. A change here usually means a change there and a
   golden fixture.

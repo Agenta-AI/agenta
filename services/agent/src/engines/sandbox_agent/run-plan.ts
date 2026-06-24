@@ -115,13 +115,15 @@ export function buildRunPlan(
     log = () => {},
   }: BuildRunPlanDeps = {},
 ): BuildRunPlanResult {
-  const harness = request.harness || "pi";
+  const harness = request.harness || "pi_core";
   const sandboxId = request.sandbox || sandboxProvider || "local";
 
-  // The Agenta harness is Pi with an opinion: it runs on the `pi` ACP agent (the daemon only
-  // knows real agents like `pi`/`claude`). `harness` remains the selected identity for logs,
-  // traces, and user-facing errors.
-  const acpAgent = harness === "agenta" ? "pi" : harness;
+  // The harness identity maps to a real ACP agent the daemon knows (`pi` / `claude`).
+  // `pi_core` (plain Pi) and `pi_agenta` (Pi with Agenta's forced skills/prompt/policy) both
+  // run on the `pi` ACP agent; `claude` runs on the `claude` ACP agent. `harness` remains the
+  // selected identity for logs, traces, and user-facing errors.
+  const acpAgent =
+    harness === "pi_core" || harness === "pi_agenta" ? "pi" : harness;
 
   const prompt = resolvePromptText(request);
   if (!prompt) {

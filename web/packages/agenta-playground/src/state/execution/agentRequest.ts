@@ -218,7 +218,7 @@ export async function buildAgentRequest(
         | null
         | undefined
     const parameters = pruneBlankEntries({
-        harness: "pi",
+        harness: "pi_core",
         sandbox: "local",
         ...(config ?? {}),
     }) as Record<string, unknown>

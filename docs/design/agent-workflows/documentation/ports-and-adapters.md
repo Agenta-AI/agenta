@@ -32,13 +32,13 @@ sessions. It does not know how Pi or Claude wants tools shaped.
 
 Current backends:
 
-- `SandboxAgentBackend`: implemented, supports `pi`, `claude`, and `agenta`, local or Daytona.
-  This is the backend the deployed service always uses (`services/oss/src/agent/app.py`).
+- `SandboxAgentBackend`: implemented, supports `pi_core`, `pi_agenta`, and `claude`, local or
+  Daytona. This is the backend the deployed service always uses
+  (`services/oss/src/agent/app.py`).
 - `LocalBackend`: planned, public class exists, methods raise.
 
-The sidecar's in-process `pi` engine (`engines/pi.ts`) is still reachable with `backend: "pi"`,
-but the SDK no longer ships a backend adapter for it; a test-only helper drives it in the
-transport round-trip test.
+The runner drives one engine, the sandbox-agent ACP path (`engines/sandbox_agent.ts`). The
+`harness` field selects the agent; there is no engine selector on the wire.
 
 ### Environment
 
@@ -57,9 +57,9 @@ Current harnesses:
   and `append_system` from `harness_options.pi`), and Pi native tool delivery.
 - `ClaudeHarness` drops Pi built-ins, carries MCP-delivered specs, and carries the
   permission policy.
-- `AgentaHarness` is Pi with forced Agenta policy layered on top: a base AGENTS.md preamble,
-  a forced persona, forced tools, and forced skills (`adapters/agenta_builtins.py`). It runs
-  on `SandboxAgentBackend`.
+- `AgentaHarness` (harness value `pi_agenta`) is Pi with forced Agenta policy layered on top:
+  a base AGENTS.md preamble, a forced persona, forced tools, and forced skills
+  (`adapters/agenta_builtins.py`). It runs on `SandboxAgentBackend` over the `pi` ACP agent.
 
 ### Session
 

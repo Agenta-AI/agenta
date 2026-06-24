@@ -69,7 +69,7 @@ def test_pi_reads_its_harness_options_slice(make_env):
     agent = AgentConfig(
         instructions="hi",
         harness_options={
-            "pi": {"system": "You are Pi.", "append_system": "Be terse."},
+            "pi_core": {"system": "You are Pi.", "append_system": "Be terse."},
             "claude": {"system": "ignored for Pi"},
         },
     )
@@ -90,7 +90,7 @@ def test_pi_drops_blank_harness_options(make_env):
     harness = PiHarness(make_env(supported=[HarnessType.PI]))
     agent = AgentConfig(
         instructions="hi",
-        harness_options={"pi": {"system": "   ", "append_system": ""}},
+        harness_options={"pi_core": {"system": "   ", "append_system": ""}},
     )
 
     result = harness._to_harness_config(_session_config(agent=agent))
@@ -152,7 +152,9 @@ def test_agenta_passes_through_user_pi_options(make_env):
     harness = AgentaHarness(make_env(supported=[HarnessType.AGENTA]))
     agent = AgentConfig(
         instructions="hi",
-        harness_options={"pi": {"system": "You are Pi.", "append_system": "Be terse."}},
+        harness_options={
+            "pi_core": {"system": "You are Pi.", "append_system": "Be terse."}
+        },
     )
 
     result = harness._to_harness_config(_session_config(agent=agent))
@@ -243,7 +245,7 @@ def test_claude_threads_options_and_renders_settings_file(make_env):
                 "deny": ["Write", "Edit"],
             }
         },
-        "pi": {"system": "ignored for Claude"},
+        "pi_core": {"system": "ignored for Claude"},
     }
     agent = AgentConfig(instructions="hi", model="m", harness_options=options)
 
@@ -323,11 +325,13 @@ def test_opt_str_keeps_only_nonempty_strings():
 
 def test_make_harness_maps_string_to_class(make_env):
     env = make_env(supported=[HarnessType.PI, HarnessType.CLAUDE, HarnessType.AGENTA])
-    assert isinstance(make_harness("pi", env), PiHarness)
-    assert isinstance(make_harness("PI", env), PiHarness)  # coerced, case-insensitive
+    assert isinstance(make_harness("pi_core", env), PiHarness)
+    assert isinstance(
+        make_harness("PI_CORE", env), PiHarness
+    )  # coerced, case-insensitive
     assert isinstance(make_harness("claude", env), ClaudeHarness)
     assert isinstance(make_harness(HarnessType.CLAUDE, env), ClaudeHarness)
-    assert isinstance(make_harness("agenta", env), AgentaHarness)
+    assert isinstance(make_harness("pi_agenta", env), AgentaHarness)
     assert isinstance(make_harness(HarnessType.AGENTA, env), AgentaHarness)
 
 

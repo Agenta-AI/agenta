@@ -45,7 +45,7 @@ describe("buildRunPlan", () => {
     const logs: string[] = [];
     const result = buildRunPlan(
       {
-        harness: "agenta",
+        harness: "pi_agenta",
         prompt: " ship it ",
         agentsMd: " instructions ",
         systemPrompt: " system ",
@@ -74,7 +74,7 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.harness, "agenta");
+    assert.equal(result.plan.harness, "pi_agenta");
     assert.equal(result.plan.acpAgent, "pi");
     assert.equal(result.plan.sandboxId, "local");
     assert.equal(result.plan.cwd, "/tmp/local-cwd");

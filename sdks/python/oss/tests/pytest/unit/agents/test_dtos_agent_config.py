@@ -26,7 +26,7 @@ def test_from_params_agent_element_shape():
                 "instructions": "I",
                 "model": "M",
                 "tools": [{"type": "builtin", "name": "read"}],
-                "harness_options": {"pi": {"system": "S"}},
+                "harness_options": {"pi_core": {"system": "S"}},
             }
         },
         defaults=_DEFAULTS,
@@ -34,7 +34,7 @@ def test_from_params_agent_element_shape():
     assert config.instructions == "I"
     assert config.model == "M"
     assert config.tools == [BuiltinToolConfig(name="read")]
-    assert config.harness_options == {"pi": {"system": "S"}}
+    assert config.harness_options == {"pi_core": {"system": "S"}}
 
 
 def test_from_params_prompt_template_shape():
@@ -154,21 +154,21 @@ def test_harness_options_drops_malformed_and_lowercases_keys():
         {
             "agent": {
                 "harness_options": {
-                    "PI": {"system": "S"},  # key lower-cased
+                    "PI_CORE": {"system": "S"},  # key lower-cased
                     "claude": "not a dict",  # dropped
                 }
             }
         }
     )
-    assert config.harness_options == {"pi": {"system": "S"}}
+    assert config.harness_options == {"pi_core": {"system": "S"}}
 
 
 def test_harness_options_falls_back_to_defaults_when_absent():
-    defaults = AgentConfig(harness_options={"pi": {"system": "D"}})
+    defaults = AgentConfig(harness_options={"pi_core": {"system": "D"}})
     config = AgentConfig.from_params(
         {"agent": {"instructions": "I"}}, defaults=defaults
     )
-    assert config.harness_options == {"pi": {"system": "D"}}
+    assert config.harness_options == {"pi_core": {"system": "D"}}
 
 
 # -------------------------------------------------------------- RunSelection
@@ -176,7 +176,11 @@ def test_harness_options_falls_back_to_defaults_when_absent():
 
 def test_run_selection_defaults():
     sel = RunSelection.from_params({})
-    assert (sel.harness, sel.sandbox, sel.permission_policy) == ("pi", "local", "auto")
+    assert (sel.harness, sel.sandbox, sel.permission_policy) == (
+        "pi_core",
+        "local",
+        "auto",
+    )
 
 
 def test_run_selection_reads_agent_subdict_and_lowercases():

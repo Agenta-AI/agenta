@@ -23,7 +23,7 @@ from agenta.sdk.agents import (
 )
 from agenta.sdk.agents.skills import SkillConfig
 
-from ._in_process_backend import InProcessPiBackend
+from ._fake_runner_backend import FakeRunnerBackend
 
 pytestmark = pytest.mark.integration
 
@@ -99,10 +99,10 @@ sys.stdout.write(json.dumps(out))
 """
 
 
-def _backend(tmp_path, body: str) -> InProcessPiBackend:
+def _backend(tmp_path, body: str) -> FakeRunnerBackend:
     runner = tmp_path / "fake_runner.py"
     runner.write_text(body, encoding="utf-8")
-    return InProcessPiBackend(command=[sys.executable, str(runner)], cwd=str(tmp_path))
+    return FakeRunnerBackend(command=[sys.executable, str(runner)], cwd=str(tmp_path))
 
 
 async def test_prompt_round_trips_through_the_real_transport(tmp_path):

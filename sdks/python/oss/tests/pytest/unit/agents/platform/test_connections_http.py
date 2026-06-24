@@ -26,7 +26,7 @@ def _model(
 
 
 def _context() -> RuntimeAuthContext:
-    return RuntimeAuthContext(harness="pi", backend="local")
+    return RuntimeAuthContext(harness="pi_core", backend="local")
 
 
 def _provider_key(name: str, provider: str, key: str) -> dict:

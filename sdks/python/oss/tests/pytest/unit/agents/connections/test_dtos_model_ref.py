@@ -105,7 +105,6 @@ def test_wire_model_ref_emits_self_managed_connection_without_slug():
 def test_string_only_config_wire_has_no_new_keys():
     # The whole point of Slice 1: a string-only config's payload gains no new keys.
     payload = request_to_wire(
-        engine="pi",
         harness=HarnessType.PI,
         sandbox="local",
         config=PiAgentConfig(model="openai-codex/gpt-5.5"),
@@ -118,7 +117,6 @@ def test_string_only_config_wire_has_no_new_keys():
 
 def test_structured_config_wire_carries_provider_and_connection():
     payload = request_to_wire(
-        engine="pi",
         harness=HarnessType.PI,
         sandbox="local",
         config=PiAgentConfig(

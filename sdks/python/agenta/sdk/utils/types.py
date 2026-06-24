@@ -1107,12 +1107,12 @@ class AgentConfigSchema(AgSchemaMixin):
             "secret env from the vault at run time; tokens never live in the config."
         ),
     )
-    harness: Literal["pi", "claude", "agenta"] = Field(
-        default="pi",
+    harness: Literal["pi_core", "claude", "pi_agenta"] = Field(
+        default="pi_core",
         title="Harness",
         description=(
-            "Coding agent to drive: pi, claude, or agenta (pi with Agenta's forced "
-            "skills, tools, and base instructions)."
+            "Coding agent to drive: pi_core (plain Pi), claude, or pi_agenta (Pi with "
+            "Agenta's forced skills, tools, and base instructions)."
         ),
     )
     sandbox: Literal["local", "daytona"] = Field(
@@ -1146,6 +1146,59 @@ class AgentConfigSchema(AgSchemaMixin):
             "backend inlines into that same shape before the runner sees it."
         ),
     )
+
+
+# The single source of the `agent_config` default. The SDK builtin interface
+# (`agenta:builtin:agent:v0`) and the agent service (`AGENT_SCHEMAS` / the value
+# `AgentConfig.from_params` falls back to) both consume this, so a new default field changes one
+# place. Service-only choices are named args, never a second copy: the platform default skill is
+# an `@ag.embed` the service inlines, and the declared sandbox boundary is the playground
+# pre-fill. The harness default lives on `AgentConfigSchema.harness` (this mirrors it).
+_DEFAULT_HARNESS = "pi_core"
+_DEFAULT_SANDBOX = "local"
+_DEFAULT_PERMISSION_POLICY = "auto"
+
+
+def build_agent_v0_default(
+    *,
+    skill_slug: Optional[str] = None,
+    include_sandbox_permission: bool = False,
+) -> Dict[str, Any]:
+    """The default `agent_config` value, shared by the builtin interface and the service.
+
+    Base shape (always): instructions, model, empty tools/MCP, the run selection
+    (harness/sandbox/permission policy). ``include_sandbox_permission`` adds the declared
+    Layer-2 boundary the playground pre-fills (network egress on, strict). ``skill_slug`` adds
+    one ``@ag.embed`` reference to a stored skill the backend inlines before the runner sees it
+    (the service passes the reserved platform default skill; the SDK builtin passes none)."""
+    config: Dict[str, Any] = {
+        "agents_md": _DEFAULT_AGENTS_MD,
+        "model": _DEFAULT_AGENT_MODEL,
+        "tools": [],
+        "mcp_servers": [],
+        "harness": _DEFAULT_HARNESS,
+        "sandbox": _DEFAULT_SANDBOX,
+        "permission_policy": _DEFAULT_PERMISSION_POLICY,
+    }
+    if include_sandbox_permission:
+        config["sandbox_permission"] = {
+            "network": {"mode": "on", "allowlist": []},
+            "enforcement": "strict",
+        }
+    if skill_slug is not None:
+        config["skills"] = [
+            {
+                "@ag.embed": {
+                    # Reference the skill at the ARTIFACT level (its latest revision). A
+                    # `workflow_revision` slug matches the revision's own hash slug, not the
+                    # author-facing artifact slug, so a bare revision slug with no version 500s;
+                    # `workflow.slug` is the correct "use the latest" shape.
+                    "@ag.references": {"workflow": {"slug": skill_slug}},
+                    "@ag.selector": {"path": "parameters.skill"},
+                }
+            }
+        ]
+    return config
 
 
 class _SkillFileSchema(BaseModel):

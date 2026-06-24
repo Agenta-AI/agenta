@@ -11,8 +11,7 @@ The runtime has session ids but no durable server-owned history. Each turn is co
 
 1. The service creates a harness session.
 2. The backend sends one `/run` request to the sidecar.
-3. The runner starts the process tree (the sandbox-agent daemon and an ACP harness, or
-   in-process Pi).
+3. The runner starts the process tree: the sandbox-agent daemon and an ACP harness.
 4. The harness completes one turn.
 5. The session is destroyed.
 

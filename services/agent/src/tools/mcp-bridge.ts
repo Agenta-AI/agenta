@@ -1,9 +1,9 @@
 /**
  * WP-8 tool delivery over sandbox-agent/ACP.
  *
- * The Pi engine (engines/pi.ts) injected resolved runnable tools (WP-7) as in-process Pi
- * customTools. Over ACP the harness only accepts tools through MCP, so the same
- * resolved specs are exposed as an MCP server whose tool bodies relay back to the runner.
+ * The Pi extension (extensions/agenta.ts) registers resolved runnable tools (WP-7) as native
+ * Pi tools. For a harness that takes tools only through MCP (e.g. Claude), the same resolved
+ * specs are exposed as an MCP server whose tool bodies relay back to the runner.
  * The runner keeps private specs/auth in memory and performs the actual execution.
  * `buildToolMcpServers` returns the ACP `mcpServers` entry to attach to the session.
  *

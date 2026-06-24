@@ -21,7 +21,8 @@ The provider lists are the REAL harness facts, derived from
 - **Claude** reaches anthropic only, direct, via a custom gateway, or through Anthropic on
   Bedrock/Vertex. The runner passes the selected model id through to Claude Code and lets the
   configured backend fail loudly if it rejects it.
-- **agenta** is Pi under the hood, so it shares Pi's reach.
+- **pi_agenta** is Pi under the hood (Pi with Agenta's forced opinion), so it shares
+  ``pi_core``'s reach.
 
 The sibling ``docs/design/agent-workflows/projects/harness-capabilities/`` project owns the
 general capability-table mechanism; this module is the provider/model/auth contribution
@@ -73,13 +74,13 @@ class HarnessConnectionCapabilities(BaseModel):
 
 
 HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
-    "pi": HarnessConnectionCapabilities(
+    "pi_core": HarnessConnectionCapabilities(
         providers=list(PI_VAULT_PROVIDERS),
         deployments=["direct"],
         connection_modes=list(_ALL_MODES),
         model_selection="provider/id",
     ),
-    "agenta": HarnessConnectionCapabilities(
+    "pi_agenta": HarnessConnectionCapabilities(
         providers=list(PI_VAULT_PROVIDERS),
         deployments=["direct"],
         connection_modes=list(_ALL_MODES),
@@ -136,8 +137,8 @@ def harness_allows_deployment(harness: str, deployment: str) -> bool:
     """Whether ``harness`` can CONSUME the resolved ``deployment`` in v1.
 
     A harness with no entry is treated permissively. ``direct`` is always allowed. The cloud
-    surfaces are allowed only when the harness lists them as consumable. Pi/agenta list only
-    ``direct``; Claude also lists ``custom``/``bedrock``/``vertex_ai``.
+    surfaces are allowed only when the harness lists them as consumable. ``pi_core``/``pi_agenta``
+    list only ``direct``; Claude also lists ``custom``/``bedrock``/``vertex_ai``.
     """
     entry = HARNESS_CONNECTION_CAPABILITIES.get(harness)
     if entry is None:

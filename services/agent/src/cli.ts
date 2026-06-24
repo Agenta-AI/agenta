@@ -16,7 +16,6 @@ import type {
   AgentRunResult,
   EmitEvent,
 } from "./protocol.ts";
-import { runPi } from "./engines/pi.ts";
 import { runSandboxAgent } from "./engines/sandbox_agent.ts";
 import { isEntrypoint } from "./entry.ts";
 
@@ -26,12 +25,9 @@ export type RunAgent = (
   emit?: EmitEvent,
 ) => Promise<AgentRunResult>;
 
-// Engine: `sandbox-agent` drives a harness over ACP. The direct `pi` engine is kept for
-// local examples and tests. The request's `backend` wins, then the AGENT_BACKEND env.
-const runAgent: RunAgent = (request, emit) => {
-  const backend = (request.backend ?? process.env.AGENT_BACKEND ?? "sandbox-agent").toLowerCase();
-  return backend === "sandbox-agent" ? runSandboxAgent(request, emit) : runPi(request, emit);
-};
+// One engine: `sandbox-agent` drives a harness (Pi or Claude) over ACP. The harness is
+// selected by `request.harness`, not by an engine selector.
+const runAgent: RunAgent = (request, emit) => runSandboxAgent(request, emit);
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.stack ?? err.message : String(err);

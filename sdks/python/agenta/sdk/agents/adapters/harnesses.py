@@ -4,11 +4,11 @@ This is where the per-harness adaptation lives (the logic that used to sit in th
 turning the neutral :class:`SessionConfig` into the harness's own config, especially the
 *tools*. The harnesses genuinely differ, so the two adapters do different work:
 
-- **Pi** takes built-in tools by name *and* resolved tool specs, delivered natively (Pi has
-  no MCP). Pi does not gate tool use, so the permission policy does not apply.
-- **Claude** has no built-in tools (they are a Pi concept), delivers tools over MCP, and
+- **pi_core** takes built-in tools by name *and* resolved tool specs, delivered natively (Pi
+  has no MCP). Pi does not gate tool use, so the permission policy does not apply.
+- **claude** has no built-in tools (they are a Pi concept), delivers tools over MCP, and
   gates tool use, so the permission policy applies.
-- **Agenta** is Pi with an opinion: the same engine and config shape, plus a fixed set of
+- **pi_agenta** is Pi with an opinion: the same engine and config shape, plus a fixed set of
   forced tools, a base AGENTS.md preamble, and a persona (see :mod:`.agenta_builtins`).
   Skills ride the neutral config as resolved inline packages. Pi and Agenta install them
   through Pi skill dirs; Claude carries them so the runner can write project-local
@@ -60,8 +60,9 @@ class PiHarness(Harness):
     def _to_harness_config(self, config: SessionConfig) -> PiAgentConfig:
         # Pi delivers tools natively: built-in names plus resolved specs registered through
         # the Pi extension. Pi does not gate tool use, so the permission policy is dropped.
-        # Pi reads its own slice of the neutral harness_options bag: `system` replaces Pi's
-        # base prompt, `append_system` extends it (both leave AGENTS.md untouched).
+        # Pi reads its own slice of the neutral harness_options bag (the `pi_core` key, shared
+        # by both Pi-family harnesses): `system` replaces Pi's base prompt, `append_system`
+        # extends it (both leave AGENTS.md untouched).
         pi_options = config.agent.harness_options.get(HarnessType.PI.value, {})
         return PiAgentConfig(
             agents_md=config.agent.instructions,
@@ -123,8 +124,8 @@ class AgentaHarness(Harness):
     harness_type = HarnessType.AGENTA
 
     def _to_harness_config(self, config: SessionConfig) -> AgentaAgentConfig:
-        # The author's Pi options still apply; the Agenta harness reads the same `pi` slice as
-        # PiHarness (it drives Pi) and layers its forced extras on top.
+        # The author's Pi options still apply; the pi_agenta harness reads the same `pi_core`
+        # slice as PiHarness (it drives Pi) and layers its forced extras on top.
         pi_options = config.agent.harness_options.get(HarnessType.PI.value, {})
         return AgentaAgentConfig(
             agents_md=compose_instructions(config.agent.instructions),

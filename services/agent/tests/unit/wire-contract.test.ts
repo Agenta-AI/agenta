@@ -32,7 +32,6 @@ import {
 // Mirror of KNOWN_REQUEST_KEYS in the Python test: the full set of top-level keys the wire
 // may emit. AgentRunRequest must declare every one.
 const KNOWN_REQUEST_KEYS = [
-  "backend",
   "harness",
   "sandbox",
   "sessionId",
@@ -65,7 +64,7 @@ const _requestKeysExistOnType: readonly (keyof AgentRunRequest)[] =
 void _requestKeysExistOnType;
 
 describe("wire contract: requests (vs Python golden)", () => {
-  for (const name of ["run_request.pi.json", "run_request.claude.json"]) {
+  for (const name of ["run_request.pi_core.json", "run_request.claude.json"]) {
     it(`${name}: every top-level key is known to AgentRunRequest`, () => {
       const req = loadGolden(name) as Record<string, unknown>;
       for (const key of Object.keys(req)) {
@@ -78,9 +77,8 @@ describe("wire contract: requests (vs Python golden)", () => {
   }
 
   it("pi request: shape, tool axes, and the runner helpers", () => {
-    const req = loadGolden("run_request.pi.json") as AgentRunRequest;
-    assert.equal(req.backend, "pi");
-    assert.equal(req.harness, "pi");
+    const req = loadGolden("run_request.pi_core.json") as AgentRunRequest;
+    assert.equal(req.harness, "pi_core");
     assert.ok(Array.isArray(req.messages));
     // The serializer emits `messages` only; the runner derives the latest turn.
     assert.equal(resolvePromptText(req), "hi");
@@ -122,7 +120,6 @@ describe("wire contract: requests (vs Python golden)", () => {
 
   it("claude request: gates tool use, no prompt overrides, null session id", () => {
     const req = loadGolden("run_request.claude.json") as AgentRunRequest;
-    assert.equal(req.backend, "sandbox-agent");
     assert.equal(req.harness, "claude");
     assert.deepEqual(req.tools, []); // Claude has no Pi built-ins
     assert.equal(req.permissionPolicy, "deny"); // Claude gates tool use

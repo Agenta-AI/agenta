@@ -29,9 +29,8 @@ pnpm run typecheck        # tsc --noEmit (src + tests + vitest.config)
 
 ## Where code and tests go
 
-- Runtime code: `src/` — `engines/` (one engine per file: `pi`, `sandbox_agent`), `tools/`,
-  `tracing/`, `extensions/`. Entrypoints: `cli.ts`, `server.ts`. The `/run` wire contract is
-  `protocol.ts`.
+- Runtime code: `src/` — `engines/` (one engine: `sandbox_agent`), `tools/`, `tracing/`,
+  `extensions/`. Entrypoints: `cli.ts`, `server.ts`. The `/run` wire contract is `protocol.ts`.
 - Tests: `tests/unit/**/*.test.ts` (vitest, `node:assert` is fine inside `it`). Shared test
   helpers and fixtures live in `tests/utils/`. This mirrors `web/packages/*` and the repo
   testing.structure spec. Do not add tests back under a flat `test/` directory.
