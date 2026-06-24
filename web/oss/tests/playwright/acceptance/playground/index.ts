@@ -420,17 +420,22 @@ const playgroundTests = () => {
                         loadDialog.locator(".ant-table-row").filter({hasText: "Germany"}).first(),
                     ).toBeVisible({timeout: 30000})
 
-                    // Select testcases via the row checkbox (ant-table-selection-column).
-                    // Clicking the checkbox fires rowSelection.onChange which hands back
-                    // the full computed key set — safe against any stale-ref issues in
-                    // handleRowClick. The CellContentPopover only appears over data cells,
-                    // so clicking the leftmost checkbox column avoids portal interference.
+                    // Click the visible styled checkbox span (.ant-checkbox-inner) rather
+                    // than getByRole("checkbox"). In production AntD builds the native
+                    // <input type="checkbox"> carries aria-hidden="true", so getByRole
+                    // queries the accessibility tree and finds nothing. Using a plain CSS
+                    // selector bypasses the accessibility tree entirely.
+                    // Clicking .ant-checkbox-inner bubbles through <label> which triggers
+                    // the native checkbox toggle → rowSelection.onChange fires with the
+                    // full computed key set, avoiding any stale selectedIdsRef issues.
+                    // The CellContentPopover only appears over data cells so the selection
+                    // column is free of portal interference.
                     for (let i = 0; i < rows.length; i++) {
                         await loadDialog
                             .locator(".ant-table-row")
                             .filter({hasText: rows[i].country})
                             .first()
-                            .getByRole("checkbox")
+                            .locator(".ant-checkbox-inner")
                             .click()
                         await expect(
                             loadDialog.getByText(`${i + 1} of ${rows.length} testcases selected`, {
@@ -560,16 +565,21 @@ const playgroundTests = () => {
                     loadDialog.locator(".ant-table-row").filter({hasText: "Germany"}).first(),
                 ).toBeVisible({timeout: 30000})
                 for (let i = 0; i < rows.length; i++) {
-                    // Select testcases via the row checkbox (ant-table-selection-column).
-                    // Clicking the checkbox fires rowSelection.onChange which hands back
-                    // the full computed key set — safe against any stale-ref issues in
-                    // handleRowClick. The CellContentPopover only appears over data cells,
-                    // so clicking the leftmost checkbox column avoids portal interference.
+                    // Click the visible styled checkbox span (.ant-checkbox-inner) rather
+                    // than getByRole("checkbox"). In production AntD builds the native
+                    // <input type="checkbox"> carries aria-hidden="true", so getByRole
+                    // queries the accessibility tree and finds nothing. Using a plain CSS
+                    // selector bypasses the accessibility tree entirely.
+                    // Clicking .ant-checkbox-inner bubbles through <label> which triggers
+                    // the native checkbox toggle → rowSelection.onChange fires with the
+                    // full computed key set, avoiding any stale selectedIdsRef issues.
+                    // The CellContentPopover only appears over data cells so the selection
+                    // column is free of portal interference.
                     await loadDialog
                         .locator(".ant-table-row")
                         .filter({hasText: rows[i].country})
                         .first()
-                        .getByRole("checkbox")
+                        .locator(".ant-checkbox-inner")
                         .click()
                     await expect(
                         loadDialog.getByText(`${i + 1} of ${rows.length} testcases selected`, {
