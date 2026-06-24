@@ -1,24 +1,34 @@
 # Sidecar Trust and Sandbox Enforcement
 
-Research and proposal workspace. This is not an implementation. It answers two questions and
-corrects one stale comment.
+Research and proposal workspace. This is not an implementation. It answers two questions,
+corrects the record on enforcement, and records the decisions taken on author review (the
+decided code changes are separate tasks — no runner code is changed in this PR).
 
 - **Part 1 — sidecar trust and transport.** The Python agent service calls the Node runner
   sidecar at `/run` over plain HTTP with no authentication, carrying plaintext provider
   secrets and two bearer tokens. Today that is safe only because the sidecar is assumed to
   sit on a trusted local or in-cluster network. What if it is not? This part proposes how to
-  protect the boundary, and recommends a pragmatic default plus a hardening path.
+  protect the boundary. **Decided near-term scope: implement only step 1 (network
+  isolation / loopback-or-in-cluster binding) and step 2 (optional shared `/run` token).**
+  mTLS, short-lived scoped tokens, and payload encryption are explicitly deferred.
 - **Part 2 — sandbox enforcement reality.** The `SandboxPermission` boundary is *partly*
-  enforced, not "declared, not enforced" as several docs and one code comment still say.
-  This part records the real state in an enforcement matrix and gives the exact wording to
-  fix the stale `protocol.ts` comment (a sibling agent owns that file; see the flag below).
+  enforced, not "declared, not enforced" as several docs once said. This part records the real
+  state in an enforcement matrix and the review decisions on the not-implemented axes: the
+  local sandbox **errors** when a `network` policy is set, `filesystem` **errors** when
+  specified, `code` execution is already removed, stdio MCP is to be **disabled** the same way,
+  gateway tools need no change (Layer-3 tool-permission, not the sandbox boundary), and the
+  legacy in-process `pi` engine is removed. The original stale `protocol.ts` comment was already
+  corrected by the sibling code agent that owns that file.
 
-Composio, the tool gateway, named connections, and MCP are referenced only as things that
-already exist. **This work changes none of them.**
+Composio, the tool gateway (gateway/callback tools), and named connections are referenced only
+as things that already exist; this work changes none of them. **The one exception is MCP:** a
+decision is recorded here to disable the stdio MCP-server implementation in the sidecar (parity
+with the removed code execution) until its security issues are fixed.
 
 ## Files
 
-- `README.md` — this file (Part 1 proposal, Part 2 enforcement matrix, the comment fix).
+- `README.md` — this file (Part 1 proposal + decided scope, Part 2 enforcement matrix +
+  review decisions, the protocol.ts comment status).
 - `status.md` — state, decisions, open questions, and the coordination flag.
 
 ---
@@ -141,34 +151,42 @@ Ordered roughly cheapest-to-strongest. They compose; this is not either/or.
 
 ### Recommendation
 
-**Pragmatic default (assert what we already rely on, plus authenticate the caller):**
+**Decided near-term scope (implement now): steps 1 and 2 only.** The author confirmed on
+review: "I agree let's only implement 1 and 2 now." Both are config-only, ship today, and
+make the implicit trust assumption real and auditable. Everything heavier (mTLS, short-lived
+scoped tokens, payload encryption) is explicitly **deferred** to the [Later / deferred
+hardening](#later--deferred-hardening) subsection below — it is NOT part of the near-term work.
 
 1. **State the trust model explicitly and enforce localhost/in-cluster-only by default.**
    Bind the sidecar to a loopback or private interface; never publish its port. Document, in
    the interface inventory and the deployment proposal, that `/run` carries plaintext
    secrets and bearer tokens and therefore **must** sit on a trusted, non-public network.
    This is the immediate, zero-cost correctness fix for the "no transport-security
-   statement anywhere" gap.
+   statement anywhere" gap. (The author endorsed the network-isolation/loopback-binding
+   option directly: "agree.")
 2. **Add a shared auth token on `/run`**, reusing the existing `X-Agenta-Internal-Token`
    precedent (a new `AGENTA_AGENT_RUNNER_TOKEN`), default-off so co-located/loopback
    deployments are unaffected, on when set. Cheap defense-in-depth against accidental
    exposure.
 
-**Hardening path, when the boundary can be untrusted (cross-host, multi-tenant, mesh):**
+Rationale: steps 1–2 are config-only, make the implicit assumption real and auditable, and
+need no wire-contract change or cert/key machinery. They are the whole near-term ask.
 
-3. **TLS on the `/run` transport** (and the existing token now rides an encrypted channel) —
+#### Later / deferred hardening
+
+**Not part of the near-term work.** These are the real security upgrades for when the boundary
+can be untrusted (cross-host, multi-tenant, mesh). They each carry design/ops weight, so they
+belong on a deliberate hardening path on a separate timeline, not in this cycle.
+
+3. **TLS on the `/run` transport** (and the step-2 token then rides an encrypted channel) —
    the load-bearing fix for secrets/tokens in transit. Prefer **mTLS via a service mesh**
    where one is available, since it gives mutual auth with no app code and handles rotation.
+   *Deferred.*
 4. **Short-lived, audience-scoped `trace.authorization` and `toolCallback.authorization`** —
    the highest-value payload-level reduction in blast radius; pursue independently of
-   transport.
+   transport. Touches platform-side token issuance. *Deferred.*
 5. **Payload encryption of `secrets`** — held in reserve; only if a requirement forbids
-   plaintext secrets even under TLS.
-
-Rationale: steps 1–2 are config-only, ship today, and make the implicit assumption real and
-auditable. Steps 3–4 are the real security upgrades and are exactly the parts that need
-design/ops weight, so they belong on a deliberate hardening path rather than the default.
-Step 5 is rarely worth its wire-contract cost.
+   plaintext secrets even under TLS. Rarely worth its wire-contract cost. *Deferred.*
 
 Note on the CLI/subprocess transport: when `AGENTA_AGENT_RUNNER_URL` is unset, the runner is
 a child process and the payload never touches a network socket (stdin pipe). That path needs
@@ -181,7 +199,15 @@ none of this; the trust question is purely about the HTTP transport.
 The headline correction: **`SandboxPermission` network egress IS enforced — on Daytona.** The
 widely repeated "declared, not yet enforced" line is now wrong for the network axis. The
 filesystem axis is still declared-only, and several execution paths bypass the boundary even
-where it is enforced. The matrix below is the verified state.
+where it is enforced. The matrix below is the verified state, followed by the decisions taken
+on review.
+
+Review decisions folded into this part (each captured inline below): on the **local** sandbox a
+set `network` policy now **errors** (not enforceable there), `filesystem` **errors when
+specified** (not implemented anywhere), `code` execution is **already removed**, stdio MCP is
+**slated to be disabled the same way** (and its sidecar implementation removed), gateway tools
+need **no change** (they are Layer-3 tool-permission, not Layer-2 `sandbox_permission`), and the
+legacy in-process `pi` engine is **removed**.
 
 ### What the code actually does
 
@@ -205,85 +231,167 @@ where it is enforced. The matrix below is the verified state.
   restricted-network run on the local sandbox when `enforcement: "strict"` (fail loud), and
   proceeds with a warning under `best_effort`.
 
+  **Decided behavior (review): error when `network` is set on local, the way we error on a
+  not-implemented capability — regardless of `enforcement`.** The author's call: "it might
+  make sense to return an error the way we do when a capability is not implemented if that
+  variable is set for local." So a restricted `sandbox_permission.network` (`mode` other than
+  `on`) on the local sandbox should **fail with a not-implemented-style error**, not be
+  silently accepted under `best_effort`. The local sandbox genuinely cannot enforce egress, so
+  declaring the boundary and then ignoring it is the trap we close.
+
+  *Pattern to mirror.* The codebase already errors this way for an unsupported feature: the
+  code-tool gate in `services/agent/src/tools/code.ts` keeps the interface but throws a single
+  named-constant message (`CODE_TOOL_UNSUPPORTED_MESSAGE = "Code tools are not supported by the
+  sidecar."`) from `runCodeTool`, and the Python connection layer raises typed
+  `*Unsupported*Error`s (e.g. `UnsupportedDeploymentError` in
+  `sdks/python/agenta/sdk/agents/connections/errors.py`: `"deployment '<x>' is not supported …"`)
+  for capabilities that are declared but not implemented. The local-network rejection should
+  surface the same way: a clear "network policy is not enforceable on the local sandbox"
+  error at plan time in `buildRunPlan`, so the run fails loudly rather than running unconfined.
+  (The actual code change is a separate task — another agent is editing the sidecar right now;
+  this doc records the decision only.)
+
 - **Filesystem boundary — DECLARED, enforced NOWHERE.**
   `SandboxPermission.filesystem` (`on` / `readonly` / `off`) travels on the wire and is
   versioned, but no backend applies a filesystem jail. See `services/agent/src/protocol.ts`
   (the `filesystem` field is explicitly annotated "Declared, NOT enforced today" around line
-  158). The capability-config project confirms it: "It declares filesystem confinement but
+  159). The capability-config project confirms it: "It declares filesystem confinement but
   enforces none today (no fs jail on any backend)." (The Claude harness can be told to deny
   `Write`/`Edit` via its settings, but that is a harness behavior rule, not a sandbox
   filesystem boundary.)
 
-- **Runner-host execution bypass — code/gateway tools and stdio MCP escape the boundary even
-  on Daytona.**
-  Resolved `code` tools, gateway/callback tools, and stdio MCP servers do **not** run inside
-  the sandbox. They run in the **runner host process** via the relay
-  (`services/agent/src/tools/relay.ts`: `runCodeTool`, `callAgentaTool`, and the stdio MCP
-  bridge). So a network-blocked Daytona sandbox does not confine them — they have the runner
-  host's network. `buildRunPlan` closes this hole at plan time: under `strict` + restricted
-  network, a run carrying any runner-host-executed tool (`executableToolSpecs` — code and
-  gateway) or any stdio MCP server (`hasStdioMcpServer`) is **rejected**; `best_effort` is
-  the opt-out that accepts the boundary is not a hard guarantee.
+  **Decided behavior (review): error when `filesystem` is specified, since it is not
+  implemented.** The author's call: "again, should be an error if specified currently since it
+  is not implemented." So a present `sandbox_permission.filesystem` value (on any backend,
+  since none enforce it) should **fail with a not-implemented-style error** at plan time
+  rather than be silently accepted — the same not-implemented-capability pattern as the local
+  network case above (`code.ts`'s `CODE_TOOL_UNSUPPORTED_MESSAGE` gate / the typed
+  `*Unsupported*Error`s in `connections/errors.py`). Declaring a filesystem jail the runner
+  does not apply is the same silent-acceptance trap. (Code change is a separate task; this doc
+  records the decision only.)
 
-- **Legacy in-process engine bypass.**
-  `backend: "pi"` (the legacy in-process `engines/pi.ts`) is not the sandbox-agent path and
-  historically enforced none of this; the capability-config work added a fail-loud guard so
-  a restrictive policy on that engine is rejected rather than silently ignored. The
-  enforced path is `backend: "sandbox-agent"` (the default).
+- **Runner-host execution bypass — gateway tools and stdio MCP run on the runner host;
+  code execution is already removed.**
+  Resolved `code` tools, gateway/callback tools, and stdio MCP servers all funnel through the
+  runner host (the relay, `services/agent/src/tools/relay.ts`), not the sandbox. A
+  network-blocked Daytona sandbox does not confine the ones that still execute — they have the
+  runner host's network. Current verified state:
+  - **`code` execution — ALREADY REMOVED from the sidecar.** `runCodeTool`
+    (`services/agent/src/tools/code.ts`) no longer executes author snippets; it throws a
+    single named constant, `CODE_TOOL_UNSUPPORTED_MESSAGE = "Code tools are not supported by
+    the sidecar."`. The `code` interface still exists and code tools are still advertised to
+    harnesses, but every delivery path (direct Pi, sandbox Pi, the ACP/MCP bridge) funnels a
+    `kind: "code"` call through that throwing gate, so it fails consistently without changing
+    the public wire shape (`tools/dispatch.ts`, `tools/relay.ts`).
+  - **stdio MCP servers — STILL EXECUTE on the runner host (the remaining bypass).** The stdio
+    MCP bridge is fully wired: `services/agent/src/tools/mcp-bridge.ts` (`buildToolMcpServers`)
+    launches `services/agent/src/tools/mcp-server.ts` (a JSON-RPC stdio server) as a child
+    process of the daemon, and `run-plan.ts` `hasStdioMcpServer` flags such servers. These run
+    on the runner host, outside the sandbox boundary.
+
+  `buildRunPlan` currently closes the remaining hole at plan time: under `strict` + restricted
+  network, a run carrying any runner-host-executed tool (`executableToolSpecs`) or any stdio
+  MCP server (`hasStdioMcpServer`) is **rejected**; `best_effort` is the opt-out that accepts
+  the boundary is not a hard guarantee.
+
+  **Decided plan (review): disable stdio MCP-server execution the same way code execution was
+  disabled — mark it not-implemented and remove the sidecar implementation, until the security
+  issues are fixed.** The author's call: "we have removed code execution from the code. we
+  should also disable the same way mcp servers implementation until we fix security issues. We
+  simply put them as non implemented and remove the implementation in the sandbox sidecar like
+  we did for tool calls." So the runner-host stdio MCP path should be brought to parity with
+  the code-tool gate: keep any wire/interface shape needed for back-compat, but route MCP
+  execution through a single not-implemented gate (a named-constant throw, mirroring
+  `CODE_TOOL_UNSUPPORTED_MESSAGE`) and **remove the sidecar implementation** of the stdio
+  bridge — `services/agent/src/tools/mcp-bridge.ts`, `mcp-server.ts`, and the stdio plumbing
+  in `mcp.ts` / `run-plan.ts`. This eliminates the last runner-host execution bypass rather
+  than relying on the plan-time `strict` gate to catch it. **This is a decided plan, not a
+  change made in this PR** — the actual sidecar edit is a separate task (another agent is
+  editing the runner right now); this doc records the decision so it is not lost.
+
+  **Layering clarification (review): gateway tools are fine and need NO action — they are NOT
+  part of `sandbox_permission`.** The author's call: "for gateway it's alright. no need to do
+  anything. that is not part of sandbox permission, that is part of the permission (the other
+  parameter that is about the sidecar and obviously there we should deal with these
+  correctly)." Gateway/callback tools belong to a **different layer** than the sandbox network
+  boundary:
+  - **Layer 2 — `sandbox_permission`** is the network/filesystem boundary the agent runs
+    inside. That is what this Part 2 enforcement matrix is about (Daytona `networkBlockAll` /
+    `networkAllowList`, the local fail-loud, the filesystem-declared-only state).
+  - **Layer 3 — tool-permission** is the separate sidecar parameter that governs whether a
+    tool may run at all (`allow` / `ask` / `deny`, including HITL). That is where gateway tools
+    are governed (`relay.ts` `resolvePermission`), and it is handled correctly there.
+
+  So gateway tools are not a `sandbox_permission` concern and require no change here. They are
+  not lumped into the sandbox boundary; do not treat the gateway as a sandbox-enforcement gap.
+
+- **Legacy in-process engine — REMOVED (historical).**
+  The legacy in-process `backend: "pi"` engine (`engines/pi.ts`) has been removed by a sibling
+  agent (A3); `services/agent/src/engines/` no longer contains `pi.ts` (verified: only
+  `sandbox_agent.ts`, `sandbox_agent/`, and `skills.ts` remain, and `pi.ts` shows as deleted in
+  the working tree). It is no longer a runtime path, so it is not part of the enforcement
+  picture; it is mentioned here only as removed history. The single enforced path is
+  `backend: "sandbox-agent"` (the default and now the only sandbox path).
+  *(A few stale doc-comments in `engines/skills.ts`, `tools/mcp-server.ts`, and
+  `tracing/otel.ts` still reference the in-process Pi engine; those are leftover comments, not
+  live code, and are out of scope for this docs revision.)*
 
 ### Enforcement matrix
 
-Axis × backend, as of this writing. "Enforced" means a hard boundary is applied; "fail loud"
-means the run is rejected at plan time under `enforcement: "strict"`.
+Axis × backend. "Enforced" means a hard boundary is applied; "fail loud" means the run is
+rejected at plan time. The **Decided** column records the review decisions captured above (the
+code change is a separate task; this is the agreed target behavior).
 
-| Capability | Daytona sandbox | Local sandbox | Notes |
+| Capability | Daytona sandbox | Local sandbox | Decided behavior (review) |
 | --- | --- | --- | --- |
-| **Network: `off`** | **Enforced** — `networkBlockAll: true` at sandbox create (`provider.ts`) | **Not enforceable** — host has no egress control; `strict` → fail loud, `best_effort` → warn (`run-plan.ts`) | Real boundary on Daytona only |
-| **Network: `allowlist` (non-empty)** | **Enforced** — `networkAllowList: "<cidr,...>"` (`provider.ts`) | **Not enforceable** — same as above | CIDR string, not array |
-| **Network: `allowlist` (empty)** | **Enforced as block-all** — empty list = allow nothing (`provider.ts`) | **Not enforceable** — same as above | Deliberately not default-open |
-| **Network: `on` / unset** | No restriction (default-open) | No restriction (default-open) | Baseline |
-| **Filesystem (`on`/`readonly`/`off`)** | **Declared only — enforced NOWHERE** (`protocol.ts:158`) | **Declared only — enforced NOWHERE** | No fs jail on any backend |
-| **`enforcement: strict`** | Rejects what Daytona cannot guarantee (runner-host tools, stdio MCP) | Rejects all restricted-network runs | Plan-time, before cwd alloc (`run-plan.ts`) |
-| **`enforcement: best_effort`** | Allows with no hard guarantee | Allows with no hard guarantee | Per-axis opt-out |
-| **code / gateway tools** | Run on **runner host**, bypass the sandbox net boundary; `strict`+restricted → fail loud | Run on runner host (always unconfined) | `relay.ts` execution |
-| **stdio MCP servers** | Run on **runner host**, bypass the sandbox net boundary; `strict`+restricted → fail loud | Run on runner host (always unconfined) | `relay.ts` / `mcp.ts` bridge |
-| **Legacy `backend: "pi"` (in-process)** | n/a (not a sandbox path) | Restrictive policy → fail-loud guard (capability-config) | Not the enforced path; default is `sandbox-agent` |
+| **Network: `off`** | **Enforced** — `networkBlockAll: true` at sandbox create (`provider.ts`) | **Not enforceable** — host has no egress control | Local: **error if `network` set** (not-implemented-style, any `enforcement`), mirroring `code.ts`'s unsupported gate — not a `best_effort` warn |
+| **Network: `allowlist` (non-empty)** | **Enforced** — `networkAllowList: "<cidr,...>"` (`provider.ts`) | **Not enforceable** — same as above | Same: local → error |
+| **Network: `allowlist` (empty)** | **Enforced as block-all** — empty list = allow nothing (`provider.ts`) | **Not enforceable** — same as above | Same: local → error |
+| **Network: `on` / unset** | No restriction (default-open) | No restriction (default-open) | Baseline, no change |
+| **Filesystem (`on`/`readonly`/`off`)** | **Declared only — enforced NOWHERE** (`protocol.ts:159`) | **Declared only — enforced NOWHERE** | **Error if `filesystem` specified** (not implemented on any backend), not silent-accept |
+| **`enforcement: strict`** | Rejects what Daytona cannot guarantee (runner-host tools, stdio MCP) | Rejects all restricted-network runs | Stays; the local-network + filesystem errors fire regardless of `enforcement` |
+| **`enforcement: best_effort`** | Allows with no hard guarantee | Allows with no hard guarantee | No longer the escape hatch for local network / filesystem (those error unconditionally) |
+| **`code` tools** | **Execution REMOVED** — `runCodeTool` throws `CODE_TOOL_UNSUPPORTED_MESSAGE` (`code.ts`); advertised but not run | Same — removed | Already done; this is the not-implemented pattern the others mirror |
+| **stdio MCP servers** | Run on **runner host**, bypass the sandbox net boundary; `strict`+restricted → fail loud | Run on runner host (always unconfined) | **Disable the same way as code:** not-implemented gate + **remove the sidecar implementation** (`mcp-bridge.ts` / `mcp-server.ts` / stdio plumbing) until security is fixed |
+| **gateway / callback tools** | Run on runner host; governed by **Layer 3 tool-permission** (`relay.ts` `resolvePermission`), **not** `sandbox_permission` | Same | **No action** — NOT a `sandbox_permission` (Layer 2) concern; handled in the Layer-3 tool-permission/HITL parameter |
+| **Legacy `backend: "pi"` (in-process)** | **REMOVED** — `engines/pi.ts` no longer exists | **REMOVED** | Gone (A3); not a path, historical only |
 
-One-line summary: **network egress is a real boundary on Daytona and only on Daytona;
-filesystem is declared-only everywhere; and code/gateway tools plus stdio MCP run on the
-runner host, so they sit outside the sandbox boundary entirely and are gated by a fail-loud
-plan check rather than confined.**
+One-line summary: **network egress is a real boundary on Daytona and only on Daytona, and on
+the local sandbox a set `network` policy now errors (not-implemented) rather than running
+unconfined; `filesystem` is enforced nowhere, so specifying it now errors too; `code`
+execution is already removed (throwing gate) and stdio MCP is slated to be disabled the same
+way and its sidecar implementation removed; gateway tools are out of scope here because they
+live in Layer-3 tool-permission, not Layer-2 `sandbox_permission`; and the legacy in-process
+`pi` engine is gone.**
 
-### protocol.ts comment correction (to be applied by the protocol.ts owner — not by this work)
+### protocol.ts comment correction (network part APPLIED by A3; filesystem follow-up pending)
 
-The doc comment on `SandboxPermission` at `services/agent/src/protocol.ts:149-150` is now
-stale. It currently reads:
-
-```ts
- * (fail when the boundary cannot be applied) or `best_effort`. Plumbing only today: the runner
- * carries it onto the run plan but does NOT yet apply it on the sandbox provider.
-```
-
-That last sentence contradicts `provider.ts`, which **does** apply the network policy on the
-Daytona sandbox provider via `daytonaNetworkFields()` / `buildSandboxProvider()`. Replace
-those two lines with wording that matches the real state:
+The original stale comment on `SandboxPermission` (`services/agent/src/protocol.ts`, the
+"Plumbing only today … does NOT yet apply it on the sandbox provider" line) **has been
+corrected by A3**. The current comment (around `protocol.ts:144-152`) now reads, correctly:
 
 ```ts
  * (fail when the boundary cannot be applied) or `best_effort`. The network policy IS enforced
- * on Daytona (`buildSandboxProvider` → `daytonaNetworkFields`: `off`/empty-allowlist →
- * `networkBlockAll`, non-empty allowlist → `networkAllowList`); the local sandbox cannot
- * enforce egress, so `buildRunPlan` rejects restricted-network runs under `strict`. `filesystem`
- * is still declared but enforced nowhere. Code/gateway tools and stdio MCP run on the runner
- * host, outside the sandbox boundary, so a restricted-network `strict` run carrying them is
- * rejected at plan time.
+ * on Daytona (`provider.ts` `daytonaNetworkFields`); on the local sidecar it cannot be a hard
+ * guarantee, so a restricted-network run there is rejected under `strict` (`run-plan.ts`).
+ * `filesystem` is declared-only on every provider.
 ```
 
-**Coordination flag (IMPORTANT):** `services/agent/src/protocol.ts` is a shared-risk surface
-owned this cycle by a sibling code agent (referred to as **A3** on the coordination board).
-This research project does **not** edit `protocol.ts`. The correction above is recorded here
-for A3 to apply in their own change. The flag is also posted on
-`docs/design/agent-workflows/scratch/agent-coordination.md` (the `sidecar-trust-research`
-lease row and the communication log).
+So the network half of this section is **done**. Two follow-ups remain for the protocol.ts
+owner, matching the review decisions above (filesystem and local-network now error; this is a
+behavior change, so update the comment when the code lands):
+
+- The `filesystem` field annotation (`/** Declared, NOT enforced today. */`) should become a
+  not-implemented error contract once the filesystem-specified-→-error decision lands ("specifying
+  `filesystem` is rejected as not implemented").
+- The local-network wording ("rejected under `strict`") should become "rejected whenever a
+  `network` policy is set (not enforceable on the local sandbox), independent of `enforcement`"
+  once that decision lands.
+
+**Coordination flag:** `services/agent/src/protocol.ts` is a shared-risk surface owned this
+cycle by a sibling code agent (**A3**). This research/proposal project does **not** edit
+`protocol.ts`; A3 already applied the network correction, and the two follow-ups above are
+recorded here for whoever lands the filesystem/local-network error behavior.
 
 ---
 
@@ -291,11 +399,17 @@ lease row and the communication log).
 
 - The **capability-config** project (`../capability-config/`) built the Layer-2 enforcement
   this matrix records (Daytona `networkBlockAll`/`networkAllowList`, the local fail-loud, the
-  runner-host guard). This project does not change that; it documents the verified result and
-  fixes the stale comments around it.
+  runner-host guard). This project does not change that; it documents the verified result, fixes
+  the stale comments around it, and records the review decisions to tighten the not-implemented
+  axes (local network and filesystem now error; stdio MCP to be disabled).
 - The **sidecar-deployment-proposal** project (`../sidecar-deployment-proposal/`) defines how
-  the runner is deployed (`AGENTA_AGENT_RUNNER_URL`, Compose/Helm/Railway). Part 1's
-  localhost/in-cluster-only recommendation and the optional `/run` token belong in that
-  proposal's hardening section when implemented.
-- Composio, the tool gateway, named connections, and MCP are unchanged by this work; they are
-  referenced only as existing surfaces that the boundary carries.
+  the runner is deployed (`AGENTA_AGENT_RUNNER_URL`, Compose/Helm/Railway). The decided
+  near-term work (localhost/in-cluster-only binding + the optional `/run` token) belongs in that
+  proposal's hardening section when implemented; the deferred items (TLS/mTLS, scoped tokens,
+  payload encryption) belong on its longer-term hardening path.
+- Composio, the tool gateway (gateway/callback tools), and named connections are unchanged by
+  this work; they are referenced only as existing surfaces, and gateway tools are governed by
+  Layer-3 tool-permission, not the sandbox boundary. **MCP is the exception:** this revision
+  records a decision to disable the stdio MCP-server implementation in the sidecar (parity with
+  the already-removed code execution) until the security issues are fixed — the code change is a
+  separate task, not made in this PR.
