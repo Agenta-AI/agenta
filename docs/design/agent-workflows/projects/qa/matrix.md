@@ -36,7 +36,10 @@ the full product is much smaller than it looks.
    `AgentaAgentConfig`. A plain `pi` run does not load skills, and Claude has no skill
    concept here. So skill cells are `valid` on `agenta` and `n/a` on `pi` and `claude`.
    Confirm this during the run: if a plain `pi` run can be made to load a skill, that is a
-   finding, not an assumption.
+   finding, not an assumption. As of 2026-06-24 the `skills` field carries an author-supplied
+   `SkillConfig` (inline or `@ag.embed`), so F-003 is unblocked: skills are no longer
+   forced-only. On Claude the runner drops them by design (it materializes skills for Pi only;
+   the silent-drop observability gap is F-015).
 5. **MCP is delivered to non-Pi harnesses only, and is flag-gated.** Per `ground-truth.md`
    MCP delivery exists through the stdio bridge for non-Pi harnesses, and in-process Pi
    reports `mcpTools: false`. So MCP is `valid` on `claude` (sandbox-agent) and `n/a` or
@@ -74,6 +77,7 @@ this QA program must drive. `?` means status unknown until run.
 | MCP (stdio) | n/a? verify | n/a? verify | blocked:mcp-flag + stdio-server + anthropic-key |
 | skills without code | n/a | valid (forced) | n/a |
 | skills with code | n/a | valid | n/a |
+| skill invocation (author config) | n/a | valid (inline + embed) | dropped by design (silent until F-015) |
 | client tools | n/a on /invoke | n/a on /invoke | n/a on /invoke |
 
 ### Valid cell x environment (where each valid capability should run)
@@ -86,6 +90,7 @@ this QA program must drive. `?` means status unknown until run.
 | builtin bash / pi | valid | valid | valid | valid |
 | skill no-code / agenta | valid | valid | valid | valid |
 | skill with-code / agenta | valid | valid | valid | valid |
+| skill invocation / agenta | valid | valid | materializes; run blocked:daytona-model-auth | valid |
 | gateway tool / pi | blocked:composio | blocked:composio | blocked:composio | blocked:composio |
 | MCP / claude | n/a | blocked (key+flag+server) | blocked (key+flag+server) | blocked (key+flag+server) |
 | append_system / pi | valid | known-fail (F-001) | known-fail (F-001) | valid |
@@ -253,6 +258,52 @@ Scenario Outline: the agenta harness runs a skill that ships a script
 # pass proves execution, not a lucky paraphrase.
 ```
 
+### Skill invocation (author-configured skill, F-003 unblocked)
+
+This is the canonical skill-config test: an author-supplied skill is delivered to Pi, surfaced
+by its description, and actually invoked. It supersedes the "skills are forced-only" caveat
+(F-003) now that the `skills` field carries inline or embedded `SkillConfig`. Two variants:
+(a) an inline `SkillConfig`; (b) an `@ag.embed` reference to an `is_skill` workflow.
+
+```gherkin
+Scenario Outline: an author-configured skill is surfaced and invoked
+  Given an agent with harness agenta on environment <env>
+    And a skill named "weather-oracle"
+        description "Use this whenever the user asks about the weather or the forecast."
+        body "Begin your reply with the exact token SKILL-LOADED-7Q42-OK, then say the
+              weather is always made of cheese."
+    And the skill is supplied <how> in parameters.agent.skills
+  When I send "What's the weather like today?"
+  Then the reply contains "SKILL-LOADED-7Q42-OK"
+    And the runner log shows "[sandbox-agent] skills: weather-oracle"
+
+  Examples:
+    | env | how                                                                      |
+    | E1  | inline SkillConfig                                                       |
+    | E2  | inline SkillConfig                                                       |
+    | E2  | embed @ag.embed{@ag.references{workflow.slug=<is_skill artifact>}, @ag.selector{path: parameters.skill}} |
+# The token is unguessable, so a pass proves the skill was both surfaced (the description
+# matched the message) AND invoked (the body's instruction was followed). The negative control
+# below is REQUIRED, not optional.
+
+Scenario: negative control — no skill, no token
+  Given the same agent with parameters.agent.skills = []
+  When I send "What's the weather like today?"
+  Then the reply does NOT contain "SKILL-LOADED-7Q42-OK"
+# Proves the token comes from the skill, not coincidence. Verified live: the no-skills reply
+# asks for the user's location instead.
+```
+
+How to run it. `POST /services/agent/v0/invoke?project_id=<PID>` with
+`Authorization: ApiKey ...`, harness `agenta` (it forces `read`+`bash`, which is what makes Pi
+surface the skill), and the skill in `parameters.agent.skills`. For the inline variant, drop
+the whole `SkillConfig` in `skills[0]`. For the embed variant, first create an `is_skill`
+workflow (`POST /api/simple/workflows/` with `flags.is_skill=true` and the `SkillConfig` at
+`data.parameters.skill`), then reference it at the **artifact** level
+(`@ag.references{workflow.slug}`), not `workflow_revision` with a bare slug (F-014). Saved
+payloads: `req_test1_inline.json`, `req_test1_negctl.json`, `req_test2_artifact.json` in the
+skills E2E evidence scratchpad.
+
 ### Client tools (via /messages)
 
 ```gherkin
@@ -341,3 +392,28 @@ also pass natively in-process (python3 is present in that path).
 
 Pending: E4 (local SDK script) and the gated cells (Claude, MCP, gateway) once their
 preconditions are met.
+
+## Live run results — skill invocation (2026-06-24)
+
+Run against `localhost:8280`, hotel-agent project (the API key's bound project), harness
+`agenta`, skill `weather-oracle`, trigger `What's the weather like today?`, PASS = reply
+contains `SKILL-LOADED-7Q42-OK`. This unblocks the F-003 "no author-facing skill config" gap:
+the `skills` field now carries inline or embedded `SkillConfig`. Payloads in the skills E2E
+evidence scratchpad (`req_test1_*.json`, `req_test2_*.json`).
+
+| Variant / harness | E2 sandbox-agent local | E3 Daytona | Notes |
+| --- | --- | --- | --- |
+| inline skill / agenta | pass | n/t | reply began `SKILL-LOADED-7Q42-OK`; runner log `skills: weather-oracle` |
+| inline skill negative control / agenta | pass | n/t | no skills → token absent (reply asks for location) |
+| embed skill (`workflow.slug`) / agenta | pass | n/t | `is_skill` workflow resolves server-side → token present; artifact-level ref |
+| embed skill (`workflow_revision.slug`) / agenta | fail (F-014) | n/t | bare slug, no version → HTTP 500 `EmbedNotFoundError`; hit the seeded default skill |
+| skill materialization / agenta | n/a | pass | `skills: weather-oracle`, `sandbox=daytona`; skill uploaded into the Daytona sandbox |
+| skill model run / agenta | n/a | blocked:daytona-model-auth | provider key not wired into the Daytona ACP daemon; pre-existing gap, not a skills bug |
+| skill / claude | dropped (silent, F-015) | n/t | runner materializes skills for Pi only; Claude run also blocked:anthropic-key |
+
+`n/t` = not tested. The Daytona model-auth blocker is the same pre-existing gap covered in
+`provider-model-auth/` and `scratch/notes-model-auth.md` (no QA finding owns it; it is an
+environment precondition, like `blocked:anthropic-key`, not a skills defect). Skill behavior is
+correct up to that boundary: the skill materializes into the Daytona sandbox; only the model
+turn cannot run. For Claude the drop is by design (the SDK path can't load `SKILL.md`); the
+silent-drop observability gap is F-015.
