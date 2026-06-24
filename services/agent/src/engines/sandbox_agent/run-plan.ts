@@ -30,12 +30,11 @@ export interface RunPlan {
   agentsMd?: string;
   secrets: Record<string, string>;
   /**
-   * Back-compat inputs to the OAuth-upload decision (see `shouldUploadOwnLogin`). `harnessKeyVar`
-   * is no longer the AUTH driver (the provider is not guessed from the harness name anymore); it
-   * only feeds the fallback `hasApiKey` heuristic for an un-migrated caller that sends no
+   * Back-compat inputs to the OAuth-upload decision (see `shouldUploadOwnLogin`). `legacyHarnessApiKeyVar`
+   * does not choose the provider; it only feeds the fallback `hasApiKey` heuristic for an un-migrated caller that sends no
    * `credentialMode`.
    */
-  harnessKeyVar: string;
+  legacyHarnessApiKeyVar: string;
   hasApiKey: boolean;
   /**
    * How the credential is delivered: "env" (managed, resolved key) | "runtime_provided" (the
@@ -136,10 +135,7 @@ export function buildRunPlan(
   const isDaytona = sandboxId === "daytona";
 
   const secrets = request.secrets ?? {};
-  // NOTE: the provider is no longer guessed from the harness name. `harnessKeyVar` survives only
-  // as the back-compat input to `shouldUploadOwnLogin`'s fallback heuristic (an un-migrated caller
-  // that sends no `credentialMode`); the primary OAuth-upload driver is `credentialMode`.
-  const harnessKeyVar =
+  const legacyHarnessApiKeyVar =
     acpAgent === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
   const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];
   const executableToolSpecsForRun = executableToolSpecs(toolSpecs);
@@ -183,30 +179,13 @@ export function buildRunPlan(
   const cwd = isDaytona ? createDaytonaCwd() : createLocalCwd();
   const relayDir = `${cwd}/.agenta-tools`;
 
-  // Skills materialize as on-disk SKILL.md packages, which only the Pi runtime auto-discovers.
-  // A non-Pi harness (the Claude SDK path, or any future ACP agent) cannot load SKILL.md, so we
-  // drop the skills here rather than ship content the runtime never reads. The SDK's ClaudeHarness
-  // adapter already empties `skills` for Claude, so this is also the backstop for any other non-Pi
-  // harness whose skills still reached the wire. Either way the drop must be VISIBLE (per the
-  // skills-config "per-harness mapping": log-and-drop, never silent), so warn with the count and
-  // harness.
-  let skillDirs: MaterializedSkill[];
-  let skillsCleanup: () => void;
-  if (isPi) {
-    ({ skills: skillDirs, cleanup: skillsCleanup } = resolveSkillDirs(
-      request.skills,
-      log,
-    ));
-  } else {
-    skillDirs = [];
-    skillsCleanup = () => {};
-    const droppedSkillCount = request.skills?.length ?? 0;
-    if (droppedSkillCount > 0)
-      log(
-        `WARNING: dropping ${droppedSkillCount} skill(s) for harness "${harness}": ` +
-          `its runtime cannot load SKILL.md (skills are a Pi-only capability).`,
-      );
-  }
+  // Skills materialize once from the resolved inline packages. Pi/Agenta consume the dirs
+  // through Pi's agent-dir user scope; Claude consumes the same packages from the project-local
+  // `.claude/skills` tree that `prepareWorkspace` writes below.
+  const { skills: skillDirs, cleanup: skillsCleanup } = resolveSkillDirs(
+    request.skills,
+    log,
+  );
   if (skillDirs.length > 0)
     log(`skills: ${skillDirs.map((s) => s.name).join(", ")}`);
 
@@ -229,8 +208,8 @@ export function buildRunPlan(
       turnText: buildTurnText(request),
       agentsMd: request.agentsMd?.trim() || undefined,
       secrets,
-      harnessKeyVar,
-      hasApiKey: !!secrets[harnessKeyVar],
+      legacyHarnessApiKeyVar,
+      hasApiKey: !!secrets[legacyHarnessApiKeyVar],
       credentialMode: request.credentialMode,
       cwd,
       relayDir,

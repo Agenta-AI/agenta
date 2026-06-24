@@ -10,8 +10,9 @@ turning the neutral :class:`SessionConfig` into the harness's own config, especi
   gates tool use, so the permission policy applies.
 - **Agenta** is Pi with an opinion: the same engine and config shape, plus a fixed set of
   forced tools, a base AGENTS.md preamble, and a persona (see :mod:`.agenta_builtins`).
-  Skills ride the neutral config (resolved inline packages); seeding platform default skills
-  is a separate project-creation workstream.
+  Skills ride the neutral config as resolved inline packages. Pi and Agenta install them
+  through Pi skill dirs; Claude carries them so the runner can write project-local
+  `.claude/skills` packages. Seeding platform default skills is a separate workstream.
 
 The backend below stays pure plumbing; this layer owns the harness knowledge.
 """
@@ -90,14 +91,8 @@ class ClaudeHarness(Harness):
                 "ClaudeHarness ignores %d built-in tool(s); built-ins are a Pi concept",
                 len(config.builtin_names),
             )
-        # The Claude Agent SDK path we drive does not load SKILL.md, so emitting skills to the
-        # runner would ship content it never materializes for Claude. Log-and-drop here (the
-        # same graceful degrade used for unsupported Pi built-ins) instead of carrying them.
-        if config.agent.skills:
-            log.warning(
-                "ClaudeHarness drops %d skill(s); the Claude SDK path does not load SKILL.md",
-                len(config.agent.skills),
-            )
+        # Skills stay on the harness config; the runner materializes them under `.claude/skills`
+        # in the session cwd so Claude ACP can load the same resolved inline packages.
         # The whole neutral harness_options bag (plus sandbox_permission + mcp_servers) is threaded
         # onto the ClaudeAgentConfig; the config's `wire_harness_files` (the Python claude adapter)
         # parses the `claude.permissions` slice and renders `.claude/settings.json` as a generic
@@ -110,7 +105,7 @@ class ClaudeHarness(Harness):
             tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
             mcp_servers=list(config.mcp_servers),
-            skills=[],
+            skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
             harness_options=config.agent.harness_options,
             permission_policy=config.permission_policy,

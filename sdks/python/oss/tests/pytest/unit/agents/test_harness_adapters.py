@@ -198,13 +198,7 @@ def test_claude_drops_builtins_and_warns(make_env, monkeypatch):
     assert recorded, "expected a warning when built-ins are dropped"
 
 
-def test_claude_drops_skills_and_warns(make_env, monkeypatch):
-    recorded = []
-    monkeypatch.setattr(
-        harnesses,
-        "log",
-        type("L", (), {"warning": lambda self, *a, **k: recorded.append(a)})(),
-    )
+def test_claude_carries_skills_for_project_local_materialization(make_env):
     harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
     skill = {
         "name": "release-notes",
@@ -217,11 +211,10 @@ def test_claude_drops_skills_and_warns(make_env, monkeypatch):
 
     result = harness._to_harness_config(config)
 
-    # The Claude SDK path cannot load SKILL.md, so the skill is dropped (graceful degrade) and a
-    # warning is logged. It must not ride the wire to a runner that won't materialize it.
-    assert result.skills == []
-    assert result.wire_skills() == {}
-    assert recorded, "expected a warning when skills are dropped"
+    # Claude keeps resolved inline packages on the config. The runner materializes them under
+    # `.claude/skills/<name>` in the session cwd, matching Claude's project-local skill layout.
+    assert [s.name for s in result.skills] == ["release-notes"]
+    assert result.wire_skills()["skills"][0]["name"] == "release-notes"
 
 
 def test_claude_no_warning_without_builtins(make_env, monkeypatch):

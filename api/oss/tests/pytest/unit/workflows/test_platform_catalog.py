@@ -189,7 +189,6 @@ async def test_default_agent_skill_embed_resolves_through_platform_catalog_witho
         resolution_info,
     ) = await workflows_service.resolve_workflow_revision(
         project_id=uuid4(),
-        user_id=uuid4(),
         workflow_revision=revision,
     )
 

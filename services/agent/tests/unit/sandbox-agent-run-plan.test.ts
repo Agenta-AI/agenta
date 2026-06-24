@@ -263,11 +263,7 @@ describe("buildRunPlan", () => {
     assert.equal(result.ok, true);
   });
 
-  it("warns when it drops skills for a non-Pi harness (no silent drop)", () => {
-    // The skills-config "per-harness mapping" requires a VISIBLE log-and-drop when a harness
-    // whose runtime cannot load SKILL.md (the Claude SDK path) is handed skills. Here the wire
-    // still carries skills for a non-Pi harness; the plan must drop them AND warn (count +
-    // harness), never silently.
+  it("materializes skills for Claude so workspace preparation can write .claude/skills", () => {
     const logs: string[] = [];
     const result = buildRunPlan(
       {
@@ -281,8 +277,15 @@ describe("buildRunPlan", () => {
       } as AgentRunRequest,
       {
         createDaytonaCwd: () => "/home/sandbox/agenta-fixed",
-        resolveSkillDirs: () => {
-          throw new Error("non-Pi should not resolve skills");
+        resolveSkillDirs: (_skills, log) => {
+          (log ?? (() => {}))("resolved claude skills");
+          return {
+            skills: [
+              { name: "alpha", dir: "/skills/alpha" },
+              { name: "beta", dir: "/skills/beta" },
+            ],
+            cleanup: () => {},
+          };
         },
         log: (message) => logs.push(message),
       },
@@ -290,17 +293,15 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    // The skills are dropped (the runtime never materializes them)...
-    assert.deepEqual(result.plan.skillDirs, []);
-    // ...and the drop is visible, naming the count and the harness.
-    const warning = logs.find((line) => line.startsWith("WARNING: dropping"));
-    assert.ok(warning, "expected a visible warning when skills are dropped");
-    assert.match(warning, /dropping 2 skill\(s\)/);
-    assert.match(warning, /harness "claude"/);
+    assert.deepEqual(result.plan.skillDirs, [
+      { name: "alpha", dir: "/skills/alpha" },
+      { name: "beta", dir: "/skills/beta" },
+    ]);
+    assert.deepEqual(logs, ["resolved claude skills", "skills: alpha, beta"]);
   });
 
-  it("stays quiet for a non-Pi harness with no skills to drop", () => {
-    // No skills on the wire: a non-Pi run must NOT emit a spurious drop warning.
+  it("stays quiet for a Claude harness with no skills", () => {
+    // No skills on the wire: materialization is a no-op and must not warn.
     const logs: string[] = [];
     const result = buildRunPlan(
       { harness: "claude", sandbox: "daytona", prompt: "hello" },
@@ -329,9 +330,6 @@ describe("buildRunPlan", () => {
       },
       {
         createDaytonaCwd: () => "/home/sandbox/agenta-fixed",
-        resolveSkillDirs: () => {
-          throw new Error("non-Pi should not resolve skills");
-        },
       },
     );
 
@@ -342,7 +340,7 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.isDaytona, true);
     assert.equal(result.plan.cwd, "/home/sandbox/agenta-fixed");
     assert.equal(result.plan.usageOutPath, undefined);
-    assert.equal(result.plan.harnessKeyVar, "ANTHROPIC_API_KEY");
+    assert.equal(result.plan.legacyHarnessApiKeyVar, "ANTHROPIC_API_KEY");
     assert.equal(result.plan.hasApiKey, true);
     // The resolved credentialMode is carried onto the plan (drives clear-then-apply + the
     // OAuth-upload gate).

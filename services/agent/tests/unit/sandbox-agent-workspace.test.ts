@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -36,6 +36,7 @@ describe("prepareWorkspace", () => {
         useToolRelay: true,
         agentsMd: "agent instructions",
         acpAgent: "pi",
+        skillDirs: [],
       },
     });
 
@@ -74,6 +75,7 @@ describe("prepareWorkspace", () => {
         agentsMd: "agent instructions",
         acpAgent: "claude",
         harnessFiles: [{ path: ".claude/settings.json", content }],
+        skillDirs: [],
       },
     });
 
@@ -97,6 +99,7 @@ describe("prepareWorkspace", () => {
         useToolRelay: false,
         agentsMd: "agent instructions",
         acpAgent: "claude",
+        skillDirs: [],
       },
     });
 
@@ -120,6 +123,7 @@ describe("prepareWorkspace", () => {
         useToolRelay: true,
         agentsMd: "agent instructions",
         acpAgent: "pi",
+        skillDirs: [],
       },
     });
     await workspace.cleanup();
@@ -154,6 +158,7 @@ describe("prepareWorkspace", () => {
         agentsMd: "agent instructions",
         acpAgent: "claude",
         harnessFiles: [{ path: ".claude/settings.json", content }],
+        skillDirs: [],
       },
     });
 
@@ -189,12 +194,73 @@ describe("prepareWorkspace", () => {
         useToolRelay: false,
         agentsMd: "agent instructions",
         acpAgent: "pi",
+        skillDirs: [],
       },
     });
 
     assert.ok(
       !calls.some((c) => c.path.includes(".claude")),
       "no .claude path is touched",
+    );
+  });
+
+  it("writes Claude skills into the project-local .claude/skills tree for a local run", async () => {
+    const cwd = tempDir();
+    const skillDir = tempDir();
+    const skillFile = join(skillDir, "SKILL.md");
+    writeFileSync(skillFile, "---\nname: release-notes\n---\n", "utf-8");
+
+    await prepareWorkspace({
+      sandbox: {},
+      plan: {
+        isDaytona: false,
+        cwd,
+        relayDir: join(cwd, ".agenta-tools"),
+        useToolRelay: false,
+        acpAgent: "claude",
+        skillDirs: [{ name: "release-notes", dir: skillDir }],
+      },
+    });
+
+    assert.equal(
+      readFileSync(
+        join(cwd, ".claude", "skills", "release-notes", "SKILL.md"),
+        "utf-8",
+      ),
+      "---\nname: release-notes\n---\n",
+    );
+  });
+
+  it("uploads Claude skills into the project-local .claude/skills tree on Daytona", async () => {
+    const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> = [];
+    const skillDir = tempDir();
+    writeFileSync(join(skillDir, "SKILL.md"), "skill", "utf-8");
+    const sandbox = {
+      mkdirFs: async ({ path }: { path: string }) => calls.push({ op: "mkdir", path }),
+      writeFsFile: async ({ path }: { path: string }, body: string) =>
+        calls.push({ op: "write", path, body }),
+    };
+
+    await prepareWorkspace({
+      sandbox,
+      plan: {
+        isDaytona: true,
+        cwd: "/home/sandbox/agenta-fixed",
+        relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+        useToolRelay: false,
+        acpAgent: "claude",
+        skillDirs: [{ name: "release-notes", dir: skillDir }],
+      },
+    });
+
+    assert.ok(
+      calls.some(
+        (c) =>
+          c.op === "write" &&
+          c.path ===
+            "/home/sandbox/agenta-fixed/.claude/skills/release-notes/SKILL.md",
+      ),
+      "SKILL.md is uploaded to Claude's project-local skill tree",
     );
   });
 });

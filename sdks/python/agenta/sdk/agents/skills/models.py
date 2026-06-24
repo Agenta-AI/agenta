@@ -77,8 +77,8 @@ class SkillFile(BaseModel):
 class SkillConfig(BaseModel):
     """An inline skill package. The SKILL.md frontmatter + body and any bundled files ride the
     wire as content; the runner materializes them into a skill dir at run time. ``name`` and
-    ``description`` are the two portable frontmatter fields (every harness reads them); ``body``
-    is the SKILL.md Markdown the runner writes after the composed frontmatter.
+    ``description`` are the two portable frontmatter fields; ``body`` is this skill's own
+    SKILL.md Markdown content written after the composed frontmatter.
 
     To reference a skill instead of writing it inline, place an ``@ag.embed`` object in the
     ``skills`` list (or in any field below). The embed resolves, server-side and before the
@@ -90,7 +90,9 @@ class SkillConfig(BaseModel):
     description: str = Field(
         min_length=1, max_length=1024
     )  # the trigger; required everywhere
-    body: str = Field(min_length=1, max_length=50_000)  # the SKILL.md Markdown body
+    body: str = Field(
+        min_length=1, max_length=50_000
+    )  # this skill's SKILL.md content after frontmatter
     files: List[SkillFile] = Field(default_factory=list)  # bundled scripts / references
     disable_model_invocation: bool = (
         False  # Pi/Claude: hide from prompt, only /skill:name
