@@ -238,7 +238,23 @@ app.post("/run", async (req, res) => {
       write({ _sandbox_id: agent.sandboxId }); // tell FastAPI to persist it for resume
       const session = await agent.resumeOrCreateSession({ ...sessionInit, cwd: CWD });
       const result = await streamSession(session, prompt, write);
-      write({ _done: true, stop_reason: result?.stopReason ?? "end_turn", sandbox_id: agent.sandboxId });
+      // docker is fresh-per-turn: the container runs `sleep infinity` so AutoRemove never
+      // fires on its own. Tear it down after the turn (cwd is durable in SeaweedFS; resume
+      // recreates + remounts). Cloud sandboxes are kept for fast resume. Sequence matters:
+      // flush geesefs, DISPOSE the agent (closes the ACP connection) so killing the container
+      // doesn't yank it out from under in-flight requests, THEN destroy. All best-effort —
+      // the work is already durable, so teardown errors must not fail the turn.
+      let finalSandboxId = agent.sandboxId;
+      if (sandbox === "docker") {
+        // geesefs mounts with --fsync-on-close, so the agent's writes are already durable on
+        // close (proven by the resume test). dispose() closes the ACP connection cleanly
+        // before we destroy the container, avoiding "other side closed" on in-flight requests.
+        try { await agent.dispose(); } catch {}
+        try { await agent.killSandbox(); } catch (e) { console.warn(`[/run docker] teardown: ${e?.message?.slice(0, 80)}`); }
+        finalSandboxId = null;
+        write({ _sandbox_id: null }); // FastAPI clears it
+      }
+      write({ _done: true, stop_reason: result?.stopReason ?? "end_turn", sandbox_id: finalSandboxId });
     }
     res.end();
   } catch (err) {
