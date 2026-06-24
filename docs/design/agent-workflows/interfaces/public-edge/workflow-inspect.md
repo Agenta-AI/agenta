@@ -7,14 +7,27 @@ schema. Change what this returns and you change what the playground renders.
 
 ## The contract
 
-The response carries the three schemas plus harness metadata:
+The raw response is an inspect envelope. The schemas and default config sit under
+`data.revision.data`; top-level `meta` carries harness metadata when the registered agent
+workflow provides it:
 
 ```jsonc
 {
-  "inputs":     { /* messages, marked x-ag-type-ref: "messages" */ },
-  "parameters": { "properties": { "agent": { /* x-ag-type-ref: "agent_config" */ } } },
-  "outputs":    { /* assistant message schema */ },
-  "meta":       { "harness_capabilities": { /* per-harness provider/deployment limits */ } }
+  "version": "2025.07.14",
+  "meta": { "harness_capabilities": { /* per-harness provider/deployment limits */ } },
+  "data": {
+    "revision": {
+      "data": {
+        "uri": "agenta:builtin:agent:v0",
+        "schemas": {
+          "inputs":     { /* messages, marked x-ag-type-ref: "messages" */ },
+          "parameters": { "properties": { "agent": { /* x-ag-type-ref: "agent_config" */ } } },
+          "outputs":    { /* assistant message schema */ }
+        },
+        "parameters": { /* default agent config */ }
+      }
+    }
+  }
 }
 ```
 
@@ -23,7 +36,7 @@ chat workflow. `x-ag-type-ref: "agent_config"` tells it to render the agent conf
 Each marker resolves through `/workflows/catalog/types/{type}` to the full JSON Schema, so
 the form and the schema stay in one place. The `meta.harness_capabilities` block is the same
 table the service uses server-side to reject unreachable provider and deployment choices, so
-the form can filter stored connections before the user submits.
+the form can filter stored connections before the user submits when that metadata is present.
 
 The shape of the config itself lives in [Agent config
 schema](agent-config-schema.md). This page covers what `/inspect` returns; that page covers

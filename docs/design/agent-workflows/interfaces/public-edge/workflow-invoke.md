@@ -24,11 +24,11 @@ things out of it:
 }
 ```
 
-The response is the generic workflow response. For agents, `data` carries one assistant
-message:
+The response is the generic workflow response. For agents, `data.outputs` carries one
+assistant message:
 
 ```jsonc
-{ "data": { "role": "assistant", "content": "..." } }
+{ "data": { "outputs": { "role": "assistant", "content": "..." } } }
 ```
 
 `parameters` carries both the agent config (under `agent`) and the run selection (`harness`,
@@ -46,7 +46,7 @@ work is [Agent messages](agent-messages.md); this contract is the batch path.
 
 - **The generic envelope.** Request and response models are shared across workflow types.
   A change ripples beyond agents.
-- **Batch agent behavior.** Confirm the single assistant message still lands in `data` in
-  the shape callers expect.
+- **Batch agent behavior.** Confirm the single assistant message still lands in
+  `data.outputs` in the shape callers expect.
 - **Accept negotiation.** The decorator decides batch versus stream. Non-Vercel stream
   consumers depend on that negotiation staying stable.

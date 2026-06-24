@@ -21,8 +21,7 @@ The request reuses the generic workflow envelope and carries the chat-specific p
   "data": {
     "messages":   [ /* Vercel UIMessage[] */ ],
     "parameters": { "agent": { /* draft-aware agent config */ },
-                    "harness": "pi", "sandbox": "local" },
-    "stream":     true                    // set by the route from Accept; not a caller field
+                    "harness": "pi", "sandbox": "local" }
   }
 }
 ```
@@ -31,6 +30,9 @@ The route negotiates transport from the `Accept` header. `text/event-stream` ret
 Vercel UI Message Stream framed as SSE. Anything else returns a `WorkflowBatchResponse`
 with one assistant message in `data.outputs`. The browser always sends
 `Accept: text/event-stream`.
+
+`stream` is not a caller field. The route sets `request.data.stream` from the negotiated
+transport before it invokes the shared agent handler.
 
 The `session_id` is validated against `^[A-Za-z0-9._:-]{1,128}$`. An invalid id returns
 `400`. A valid stream stamps the id onto the first SSE part's

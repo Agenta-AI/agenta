@@ -68,8 +68,9 @@ group by job:
 
 Two splits matter for back-compat. `provider` and `connection` appear only when the model
 arrives as a structured `model_ref`; a plain string like `"gpt-5.5"` leaves them off so the
-wire stays byte-identical to the old shape. And `secrets` plus `endpoint.env` are the only
-channels that carry vault keys. `ResolvedConnection.to_wire()` never emits `env`.
+wire stays byte-identical to the old shape. And `secrets` is the only vault-key channel on
+the runner wire. `endpoint` carries non-secret connection config, and
+`ResolvedConnection.to_wire()` never emits `env`.
 
 ## The result
 
