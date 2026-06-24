@@ -8,20 +8,20 @@ from __future__ import annotations
 
 import pytest
 
-from oss.src.agent import secrets
 from oss.src.agent.secrets import resolve_harness_secrets
+from agenta.sdk.agents.platform import secrets as platform_secrets
 
 pytestmark = pytest.mark.integration
 
 
 async def test_no_api_base_returns_empty(install_http):
-    install_http(secrets, api_base=None)
+    install_http(platform_secrets, api_base=None)
     assert await resolve_harness_secrets() == {}
 
 
 async def test_maps_only_provider_keys_with_dedupe(install_http):
     install_http(
-        secrets,
+        platform_secrets,
         status=200,
         payload=[
             {
@@ -55,10 +55,10 @@ async def test_maps_only_provider_keys_with_dedupe(install_http):
 
 
 async def test_http_error_returns_empty(install_http):
-    install_http(secrets, status=400)
+    install_http(platform_secrets, status=400)
     assert await resolve_harness_secrets() == {}
 
 
 async def test_network_exception_returns_empty(install_http):
-    install_http(secrets, raises=RuntimeError("network down"))
+    install_http(platform_secrets, raises=RuntimeError("network down"))
     assert await resolve_harness_secrets() == {}

@@ -9,7 +9,7 @@ from agenta.sdk.agents import (
 )
 
 from oss.src.agent.tools import resolve_tools
-from oss.src.agent.tools import gateway
+from agenta.sdk.agents.platform import gateway
 
 pytestmark = pytest.mark.integration
 
