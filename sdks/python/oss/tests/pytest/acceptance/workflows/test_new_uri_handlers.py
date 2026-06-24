@@ -502,6 +502,10 @@ class TestLlmV0Acceptance:
         assert retrieve_handler("agenta:builtin:prompt:v0") is None
         assert retrieve_interface("agenta:builtin:prompt:v0") is None
 
-    def test_agent_alias_is_not_registered(self):
+    def test_agent_interface_is_registered_without_handler(self):
+        # The agent builtin ships an interface (schemas) but no in-process handler:
+        # the agent runs in the sidecar, not via a registered SDK callable.
         assert retrieve_handler("agenta:builtin:agent:v0") is None
-        assert retrieve_interface("agenta:builtin:agent:v0") is None
+        revision = retrieve_interface("agenta:builtin:agent:v0")
+        assert isinstance(revision, WorkflowRevisionData)
+        assert revision.uri == "agenta:builtin:agent:v0"

@@ -1,9 +1,10 @@
 """Integration fixtures: a fake httpx client for the tool/secret resolvers.
 
 These tests wire the real resolver code against a mocked HTTP boundary (no live backend, no
-respx/pytest-httpx dependency). ``install_http`` patches, in a given resolver module, the two
-``client`` helpers (``agenta_api_base`` / ``request_authorization``) plus ``httpx.AsyncClient``,
-and returns a ``capture`` dict the test can assert the outgoing request against.
+respx/pytest-httpx dependency). ``install_http`` patches the two ``PlatformConnection`` helpers
+(``_derive_base_url`` / ``_derive_authorization`` in the SDK platform connection module) plus
+``httpx.AsyncClient`` in the given SDK platform module that performs the HTTP, and returns a
+``capture`` dict the test can assert the outgoing request against.
 """
 
 from __future__ import annotations
@@ -12,6 +13,8 @@ import json
 from typing import Any, Dict, Optional
 
 import pytest
+
+from agenta.sdk.agents.platform import connection as platform_connection
 
 
 class _FakeResponse:
@@ -63,8 +66,10 @@ def install_http(monkeypatch):
         authorization: Optional[str] = "Access tok",
     ) -> Dict[str, Any]:
         capture: Dict[str, Any] = {}
-        monkeypatch.setattr(module, "agenta_api_base", lambda: api_base)
-        monkeypatch.setattr(module, "request_authorization", lambda: authorization)
+        monkeypatch.setattr(platform_connection, "_derive_base_url", lambda: api_base)
+        monkeypatch.setattr(
+            platform_connection, "_derive_authorization", lambda: authorization
+        )
         response = _FakeResponse(status, payload, text)
         monkeypatch.setattr(
             module.httpx,
