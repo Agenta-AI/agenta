@@ -2,6 +2,11 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import type {ReactNode} from "react"
 
 import {
+    createSimpleQuery as createQueryEntity,
+    invalidateQueryCache,
+    type SimpleQueryCreate,
+} from "@agenta/entities/query"
+import {
     evaluatorConfigRevisionsListDataAtom,
     evaluatorConfigRevisionsQueryStateAtom,
     evaluatorTemplatesDataAtom,
@@ -9,23 +14,19 @@ import {
     isOnlineCapableEvaluator,
 } from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
-import {Button, Collapse, DatePicker, Form, Input, Select, Switch, Tooltip, Typography} from "antd"
+import {Button, Collapse, Form, Input, Select, Tooltip, Typography} from "antd"
 import dayjs from "dayjs"
 import type {Dayjs} from "dayjs"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
-import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {v4 as uuidv4} from "uuid"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import getFilterColumns from "@/oss/components/pages/observability/assets/getFilterColumns"
-import type {Filter} from "@/oss/lib/Types"
 
 import {
     createSimpleEvaluation,
-    createSimpleQuery,
-    retrieveQueryRevision,
     type QueryRevisionDataPayload,
     type SimpleEvaluationCreatePayload,
     type SimpleQueryCreatePayload,
@@ -40,7 +41,7 @@ import {
 import {onlineEvalFiltersAtom, resetOnlineEvalFiltersAtom} from "./assets/state"
 import EvaluatorDetailsPreview from "./components/EvaluatorDetailsPreview"
 import EvaluatorTypeTag from "./components/EvaluatorTypeTag"
-import SamplingRateControl from "./components/SamplingRateControl"
+import QueryEditor from "./components/QueryEditor"
 import {useEvaluatorDetails} from "./hooks/useEvaluatorDetails"
 import {useEvaluatorSelection} from "./hooks/useEvaluatorSelection"
 import {useEvaluatorTypeFromConfigs} from "./hooks/useEvaluatorTypeFromConfigs"
@@ -53,8 +54,6 @@ interface OnlineEvaluationDrawerProps {
 }
 
 const {Text, Link: TypographyLink} = Typography
-const {RangePicker} = DatePicker
-const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 
 const collapseClass =
     "[&_.ant-collapse-item]:!border-none [&_.ant-collapse-item]:!rounded-[10px] [&_.ant-collapse-item]:overflow-hidden [&_.ant-collapse-item]:bg-colorBgContainer [&_.ant-collapse-item]:shadow-[0_1px_2px_rgba(15,23,42,0.06)] [&_.ant-collapse-item+.ant-collapse-item]:mt-2 [&_.ant-collapse-header]:!bg-[var(--ag-c-FAFAFB)] [&_.ant-collapse-header]:!border-b [&_.ant-collapse-header]:!border-solid [&_.ant-collapse-header]:!border-[var(--ag-colorSplit)] [&_.ant-collapse-header]:!p-[12px_16px] [&_.ant-collapse-content]:!border-t-0 [&_.ant-collapse-content]:!rounded-[0_0_10px_10px] [&_.ant-collapse-content>.ant-collapse-content-box]:!p-4"
@@ -309,19 +308,27 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 queryPayload.data = queryData
             }
 
-            const queryResponse = await createSimpleQuery({query: queryPayload})
-            const queryId = queryResponse.query?.id
-            if (!queryId) {
-                throw new Error("Unable to create query for online evaluation.")
+            if (!projectId) {
+                throw new Error("Missing project for online evaluation.")
             }
 
-            const revisionResponse = await retrieveQueryRevision({
-                query_ref: {id: queryId},
+            // Single create path: the entity mutation creates the query and
+            // resolves its head revision, then fires invalidateQueryCache so the
+            // new query surfaces in the Query Registry. `data` is cast because the
+            // live-eval helpers still emit the pre-Fern payload shape (Phase 2
+            // migrates toFilteringPayload/toWindowingPayload to Fern types).
+            const {revisionId: queryRevisionId} = await createQueryEntity({
+                projectId,
+                query: {
+                    slug: querySlug,
+                    name: values.name,
+                    description: values.description,
+                    ...(queryPayload.data
+                        ? {data: queryPayload.data as SimpleQueryCreate["data"]}
+                        : {}),
+                },
             })
-            const queryRevisionId = revisionResponse.query_revision?.id
-            if (!queryRevisionId) {
-                throw new Error("Unable to resolve query revision for online evaluation.")
-            }
+            invalidateQueryCache()
 
             const evaluatorRevisionStepId =
                 selectedEvaluatorRevisionId ??
@@ -524,60 +531,11 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                             label: buildPanelHeader("Query", querySummary),
                             style: {marginBottom: 4},
                             children: (
-                                <>
-                                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                        <Form.Item
-                                            label="Run for filters"
-                                            style={{marginBottom: 0}}
-                                        >
-                                            <Filters
-                                                filterData={filters}
-                                                columns={filterColumns}
-                                                onApplyFilter={(newFilters: Filter[]) =>
-                                                    setFilters(newFilters)
-                                                }
-                                                onClearFilter={(newFilters: Filter[]) =>
-                                                    setFilters(newFilters)
-                                                }
-                                                buttonProps={{
-                                                    size: "middle",
-                                                    className: "!flex !items-center !gap-2",
-                                                }}
-                                            />
-                                        </Form.Item>
-                                        <Form.Item
-                                            name="sampling_rate"
-                                            label="Sampling rate"
-                                            style={{marginBottom: 0}}
-                                        >
-                                            <SamplingRateControl />
-                                        </Form.Item>
-                                    </div>
-
-                                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                                        <div className="flex flex-wrap items-center gap-3">
-                                            <Form.Item
-                                                name="historical"
-                                                valuePropName="checked"
-                                                className="mb-0"
-                                            >
-                                                <Switch size="small" disabled />
-                                            </Form.Item>
-                                            <Tooltip title="Not available yet">
-                                                <Text type="secondary">Run on historical data</Text>
-                                            </Tooltip>
-                                        </div>
-                                        <Form.Item name="historical_range" className="mb-0">
-                                            <RangePicker
-                                                allowClear
-                                                allowEmpty
-                                                disabled
-                                                className="w-[200px]"
-                                                placeholder={["Start date", "End date"]}
-                                            />
-                                        </Form.Item>
-                                    </div>
-                                </>
+                                <QueryEditor
+                                    filters={filters}
+                                    onFiltersChange={setFilters}
+                                    filterColumns={filterColumns}
+                                />
                             ),
                         },
                         {

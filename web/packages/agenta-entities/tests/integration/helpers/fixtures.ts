@@ -9,7 +9,9 @@
  */
 
 import {createEnvironment, archiveEnvironment} from "../../../src/environment/api/mutations"
+import {createSimpleQuery, archiveSimpleQuery} from "../../../src/query/api/mutations"
 import {createTestset, archiveTestsets} from "../../../src/testset/api/mutations"
+
 import {TEST_CONFIG} from "./env"
 
 function tag(prefix: string) {
@@ -89,6 +91,52 @@ export async function makeEnvironmentFixture(): Promise<EnvironmentFixture> {
         slug,
         cleanup: async () => {
             await archiveEnvironment(TEST_CONFIG.projectId, environmentId)
+        },
+    }
+}
+
+// ── Query (saved trace filter) ──────────────────────────────────────────────────
+
+/** A simple, structurally-valid filtering payload for query fixtures. */
+export const QUERY_FIXTURE_FILTERING = {
+    conditions: [{field: "trace_type", operator: "is", value: "invocation"}],
+}
+
+export interface QueryFixture {
+    queryId: string
+    variantId: string | null
+    revisionId: string
+    name: string
+    filtering: unknown
+    cleanup: () => Promise<void>
+}
+
+export async function makeQueryFixture(
+    filtering: unknown = QUERY_FIXTURE_FILTERING,
+): Promise<QueryFixture> {
+    const name = tag("integration-query")
+    const result = await createSimpleQuery({
+        projectId: TEST_CONFIG.projectId,
+        query: {name, data: {filtering: filtering as never}},
+    })
+
+    return {
+        queryId: result.queryId,
+        variantId: result.variantId,
+        revisionId: result.revisionId,
+        name,
+        filtering,
+        cleanup: async () => {
+            // Tolerant: a test may have already archived the query (the archive-split
+            // case), and re-archiving a soft-deleted artifact is a no-op-or-error.
+            try {
+                await archiveSimpleQuery({
+                    projectId: TEST_CONFIG.projectId,
+                    queryId: result.queryId,
+                })
+            } catch {
+                /* already archived — leave the backend clean either way */
+            }
         },
     }
 }

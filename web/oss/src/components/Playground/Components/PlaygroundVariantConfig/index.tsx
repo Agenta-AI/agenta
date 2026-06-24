@@ -4,7 +4,11 @@ import {memo, useCallback, useMemo, useState} from "react"
 
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {parseEvaluatorKeyFromUri, workflowMolecule} from "@agenta/entities/workflow"
-import {evaluatorTemplatesDataAtom, evaluatorPresetsAtomFamily} from "@agenta/entities/workflow"
+import {
+    evaluatorTemplatesDataAtom,
+    evaluatorPresetsAtomFamily,
+    type EvaluatorCatalogTemplate,
+} from "@agenta/entities/workflow"
 import {
     PlaygroundConfigSection,
     LoadEvaluatorPresetModal,
@@ -15,7 +19,7 @@ import {
 import {hasPendingHydrationAtomFamily} from "@agenta/playground"
 import {Select} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {extractJsonPaths, safeParseJson} from "@/oss/lib/helpers/extractJsonPaths"
@@ -26,6 +30,9 @@ import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeade
 import type {VariantConfigComponentProps} from "./types"
 
 const RefinePromptModal = dynamic(() => import("../Modals/RefinePromptModal"), {ssr: false})
+
+// Stable empty catalog read for non-evaluator workflows (avoids the templates fetch).
+const EMPTY_TEMPLATES_DATA_ATOM = atom<EvaluatorCatalogTemplate[]>([])
 
 /**
  * PlaygroundVariantConfig manages the configuration interface for a single variant.
@@ -64,15 +71,20 @@ const PlaygroundVariantConfig: React.FC<
     const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId))
     const dispatchUpdate = useSetAtom(workflowMolecule.actions.updateConfiguration)
 
-    // Read evaluator template definitions (workflow-based)
-    const evaluatorDefinitions = useAtomValue(evaluatorTemplatesDataAtom)
-
     // Determine if this is an evaluator workflow
     const evaluatorKey = useMemo(() => {
         const uri = runnableData?.data?.uri as string | undefined
         if (!uri || !uri.startsWith("agenta:builtin:")) return null
         return parseEvaluatorKeyFromUri(uri)
     }, [runnableData?.data?.uri])
+
+    // Read the evaluator template catalog only for evaluator workflows — apps
+    // never use it, and an unconditional read fetches GET /evaluators/catalog/
+    // templates on every playground load (mirrors the workflow molecule, which
+    // also reads the catalog only once an evaluatorKey is resolved).
+    const evaluatorDefinitions = useAtomValue(
+        evaluatorKey ? evaluatorTemplatesDataAtom : EMPTY_TEMPLATES_DATA_ATOM,
+    )
 
     const evaluatorDef = useMemo(() => {
         if (!evaluatorKey) return null

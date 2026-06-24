@@ -9,6 +9,11 @@ export interface Props {
     onClearFilter: (filters: Filter[]) => void
     buttonProps?: ButtonProps
     /**
+     * Render the editor body inline (no popover/trigger button) — for surfaces
+     * where the filter IS the primary content, e.g. the Query Registry drawer.
+     */
+    inline?: boolean
+    /**
      * Optional callback to derive a *display-only* view of the local filter
      * state. Called whenever the user changes a row in the dialog. The dialog
      * renders from the returned array, but mutations still target the

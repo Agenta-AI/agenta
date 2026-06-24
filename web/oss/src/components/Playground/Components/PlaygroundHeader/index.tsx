@@ -2,6 +2,7 @@ import React, {useCallback, useMemo, useState} from "react"
 
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {
+    activateEvaluatorEnrichmentAtom,
     deriveWorkflowTypeFromRevision,
     getWorkflowTypeColor,
     parseWorkflowKeyFromUri,
@@ -262,10 +263,21 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     // labels, and workflow metadata ("N versions · date") for the picker rows.
     // splitTypeTag renders the type tag in the row's suffix slot (vertically
     // centered) instead of trailing the name.
+    //
+    // `lazy`: the adapter + the `evaluatorWorkflowMetaMapAtom` read above sit
+    // behind the shared enrichment gate, so they resolve no per-evaluator
+    // revisions until the user reaches for this "Add evaluators" picker
+    // (`handleActivateEvaluatorPicker`, on pointer-enter/focus). Keeps a plain
+    // playground load from firing the batched revision fan-out.
     const evaluatorWorkflowAdapter = useEvaluatorOnlyAdapter(renderWorkflowRevisionLabel, {
         showWorkflowMeta: true,
         splitTypeTag: true,
+        lazy: true,
     })
+    const activateEvaluatorEnrichment = useSetAtom(activateEvaluatorEnrichmentAtom)
+    const handleActivateEvaluatorPicker = useCallback(() => {
+        activateEvaluatorEnrichment()
+    }, [activateEvaluatorEnrichment])
 
     // Controlled state for EvaluatorTemplateDropdown
     const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false)
@@ -505,7 +517,11 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                      * playground doesn't make sense (would evaluate itself). */}
                     {currentWorkflowCtx.workflowKind !== "evaluator" && <RunEvaluationButton />}
                     <Divider orientation="vertical" className="!mx-0 h-5" />
-                    <span className="relative inline-flex">
+                    <span
+                        className="relative inline-flex"
+                        onPointerEnter={handleActivateEvaluatorPicker}
+                        onFocus={handleActivateEvaluatorPicker}
+                    >
                         <Tooltip title="Add evaluators to automatically score outputs in the playground.">
                             <span>
                                 <EntityPicker<WorkflowRevisionSelectionResult>

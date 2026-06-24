@@ -23,6 +23,7 @@ export type EntityType =
     | "evaluator"
     | "application"
     | "simpleQueue"
+    | "query"
 
 /**
  * Reference to an entity for modal operations
@@ -439,6 +440,7 @@ export function getEntityTypeLabel(
         evaluator: ["Evaluator", "Evaluators"],
         application: ["Application", "Applications"],
         simpleQueue: ["Annotation queue", "Annotation queues"],
+        query: ["Query", "Queries"],
     }
 
     const [singular, plural] = labels[type]

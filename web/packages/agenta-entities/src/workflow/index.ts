@@ -295,6 +295,9 @@ export {
     nonArchivedEvaluatorsAtom,
     fullPagePlaygroundEvaluatorsAtom,
     nonHumanEvaluatorsAtom,
+    // Lazy enrichment gate (defers the per-evaluator latest-revision fan-out)
+    evaluatorEnrichmentActivatedAtom,
+    activateEvaluatorEnrichmentAtom,
     // Templates
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,
