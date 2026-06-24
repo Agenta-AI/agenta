@@ -16,6 +16,7 @@ import {
   type MaterializedSkill,
   resolveSkillDirs as defaultResolveSkillDirs,
 } from "../skills.ts";
+import { assert } from "./capabilities.ts";
 import { buildTurnText } from "./transcript.ts";
 
 type Log = (message: string) => void;
@@ -145,6 +146,14 @@ export function buildRunPlan(
   const acpAgent =
     harness === "pi_core" || harness === "pi_agenta" ? "pi" : harness;
 
+  // Debug assertion: every Pi identity must resolve to the `pi` ACP agent and nothing else may.
+  // Catches a future harness-id typo (e.g. a new `pi_*` value forgotten here) at plan-build time
+  // rather than as a daemon "unknown agent" error mid-run.
+  assert(
+    (harness === "pi_core" || harness === "pi_agenta") === (acpAgent === "pi"),
+    `harness '${harness}' resolved to ACP agent '${acpAgent}', but pi identity mapping disagrees`,
+  );
+
   const prompt = resolvePromptText(request);
   if (!prompt) {
     return {
@@ -228,6 +237,19 @@ export function buildRunPlan(
   const appendSystemPrompt = isPi
     ? request.appendSystemPrompt?.trim() || undefined
     : undefined;
+
+  // Debug assertions: the derived run state must be self-consistent before the engine acts on
+  // it. A cwd that is empty, or a relay dir not nested under it, would only surface later as a
+  // confusing filesystem error inside the sandbox.
+  assert(!!cwd, `buildRunPlan produced an empty cwd for harness '${harness}'`);
+  assert(
+    relayDir.startsWith(cwd),
+    `relay dir '${relayDir}' is not under cwd '${cwd}'`,
+  );
+  assert(
+    isPi === (acpAgent === "pi"),
+    `isPi (${isPi}) disagrees with acpAgent '${acpAgent}'`,
+  );
 
   return {
     ok: true,

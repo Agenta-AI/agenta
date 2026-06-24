@@ -46,7 +46,11 @@ import {
   type ToolCallbackContext,
   resolveRunSessionId,
 } from "../protocol.ts";
-import { probeCapabilities } from "./sandbox_agent/capabilities.ts";
+import {
+  assert,
+  assertRequiredCapabilities,
+  probeCapabilities,
+} from "./sandbox_agent/capabilities.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./sandbox_agent/daemon.ts";
 import {
   createCookieFetch,
@@ -81,7 +85,12 @@ function log(message: string): void {
 
 type Log = (message: string) => void;
 
-const CLAUDE_STRICT_DEPLOYMENTS = new Set(["custom", "bedrock", "vertex", "vertex_ai"]);
+const CLAUDE_STRICT_DEPLOYMENTS = new Set([
+  "custom",
+  "bedrock",
+  "vertex",
+  "vertex_ai",
+]);
 
 function applyClaudeConnectionEnv(
   env: Record<string, string>,
@@ -110,7 +119,10 @@ function applyClaudeConnectionEnv(
     env.CLAUDE_CODE_USE_VERTEX = "1";
   }
 
-  if (selectedModel && (baseUrl || (deployment && CLAUDE_STRICT_DEPLOYMENTS.has(deployment)))) {
+  if (
+    selectedModel &&
+    (baseUrl || (deployment && CLAUDE_STRICT_DEPLOYMENTS.has(deployment)))
+  ) {
     env.ANTHROPIC_MODEL = selectedModel;
     env.ANTHROPIC_CUSTOM_MODEL_OPTION = selectedModel;
     return true;
@@ -162,7 +174,12 @@ export async function runSandboxAgent(
     clearProviderEnv,
   });
   Object.assign(env, plan.secrets); // apply only the resolved provider keys
-  const strictModel = applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
+  const strictModel = applyClaudeConnectionEnv(
+    env,
+    request,
+    plan.acpAgent,
+    logger,
+  );
   // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
   // via the Agenta extension. Tool execution always relays back to this runner, which keeps
   // private specs, scoped env, callback endpoints, and callback auth in memory.
@@ -233,14 +250,36 @@ export async function runSandboxAgent(
       log: logger,
     });
 
+    // Sandbox-start invariant: `startSandboxAgent` must hand back a usable handle, or the
+    // probe/createSession below fail with an opaque "cannot read property of undefined".
+    assert(
+      sandbox && typeof sandbox.createSession === "function",
+      `sandbox provider '${plan.sandboxId}' returned no usable sandbox handle`,
+    );
+
     // Probe what this harness supports and branch on capabilities, not on the harness
     // name. Tool delivery: Pi loads our extension (native tools, set up above); any other
     // harness takes tools over MCP only when it advertises `mcpTools` (pi-acp does not
     // forward MCP, Claude/Codex do).
-    const capabilities = await (deps.probeCapabilities ?? probeCapabilities)(
+    const probed = await (deps.probeCapabilities ?? probeCapabilities)(
       sandbox,
       plan.acpAgent,
     );
+    const capabilities = probed.capabilities;
+
+    // Fail loud (A7): a run that REQUIRES a capability the harness lacks errors with a
+    // specific message instead of silently dropping the behavior, the way the
+    // `*_UNSUPPORTED_MESSAGE` gates in `run-plan.ts` do. Today: tool delivery to a non-Pi
+    // harness whose probe reports `mcpTools:false` / `toolCalls:false`. The throw is caught
+    // below and returned as `{ ok: false, error }`.
+    assertRequiredCapabilities({
+      harness: plan.harness,
+      isPi: plan.isPi,
+      probed,
+      toolSpecs: plan.toolSpecs,
+      log: logger,
+    });
+
     const mcpServers = buildSessionMcpServers({
       isPi: plan.isPi,
       capabilities,

@@ -29,7 +29,16 @@ returns `HarnessCapabilities`:
 ```
 
 The probe gates real behavior. Tools only go over MCP when `mcpTools` is true, for example.
-If the probe fails, the runner falls back to a static capability policy.
+If the probe fails, the runner falls back to a static capability policy, and the result records
+whether the flags were `probed` or a `static` guess.
+
+The runner no longer silently degrades when a run requires a capability the harness lacks.
+`assertRequiredCapabilities` (in `capabilities.ts`) fails the run with a specific error — the
+same fail-loud pattern as the `*_UNSUPPORTED_MESSAGE` gates in `run-plan.ts` and the
+`CODE_TOOL_UNSUPPORTED_MESSAGE` gate in `tools/code.ts`. Today the asserted requirement is tool
+delivery: a non-Pi run carrying tool specs whose probe reports `mcpTools:false` or
+`toolCalls:false` errors instead of dropping the tools without a trace. Pi is exempt (its tools
+ride the native extension, not MCP), and a run with no tools is unaffected.
 
 **The ACP event stream.** The harness emits ACP updates that the runner maps to neutral
 events:
@@ -58,8 +67,11 @@ tears the sandbox down in the `finally` path.
 
 - **Harness selection and the `pi_core`/`pi_agenta` to `pi` remap.** New harnesses thread
   through here.
-- **The capability probe.** It gates tool delivery, permissions, and streaming. A wrong flag
-  silently changes behavior rather than erroring.
+- **The capability probe.** It gates tool delivery, permissions, and streaming. A run that
+  REQUIRES a capability the harness lacks now fails loud (`assertRequiredCapabilities`) rather
+  than silently dropping the behavior — today that covers tool delivery to a non-Pi harness.
+  Other flags (permissions, streaming) still degrade silently; assert the next requirement here
+  if a flag must be a hard gate.
 - **ACP event mapping.** A missed or mis-mapped update drops content from the stream.
 - **Pi versus Claude divergence.** Both run over ACP, but Pi takes tools natively and
   self-instruments traces, while Claude takes tools over MCP and the runner builds the spans.

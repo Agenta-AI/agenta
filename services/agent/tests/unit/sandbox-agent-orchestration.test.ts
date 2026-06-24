@@ -162,10 +162,14 @@ function fakeHarness(options: FakeOptions = {}) {
     }) as any,
     probeCapabilities: async () =>
       ({
-        mcpTools: true,
-        usage: true,
-        streamingDeltas: true,
-        ...(options.capabilities ?? {}),
+        source: "probed",
+        capabilities: {
+          mcpTools: true,
+          toolCalls: true,
+          usage: true,
+          streamingDeltas: true,
+          ...(options.capabilities ?? {}),
+        },
       }) as any,
     applyModel: async (_session, model, _log, options) => {
       calls.applyModelArgs.push({ model, options });
@@ -345,6 +349,54 @@ describe("runSandboxAgent orchestration", () => {
       ok: false,
       error: "MCP servers are not supported by the sidecar.",
     });
+  });
+
+  it("fails loud when a non-Pi harness probes mcpTools:false but the run carries tools", async () => {
+    // A7: the capability gate runs BEFORE the MCP bridge, so a harness whose probe reports it
+    // cannot receive tools fails with a SPECIFIC capability error (not the generic MCP-disabled
+    // line, and never a silent drop). This is the silent-degradation case the staff review
+    // flagged: a wrong/missing `mcpTools` flag must error, not change behavior quietly.
+    const { calls, deps } = fakeHarness({ capabilities: { mcpTools: false } });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        prompt: "use the tool",
+        customTools: [{ name: "server_tool", kind: "callback" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error ?? "", /harness 'claude' cannot receive tools/);
+    assert.match(result.error ?? "", /mcpTools:false/);
+    // The gate fires before the session is created, so no session/prompt happened.
+    assert.equal(calls.createSessionOptions, undefined);
+    // The acquired sandbox is still disposed in the finally.
+    assert.equal(calls.sandboxDestroyed, 1);
+  });
+
+  it("does not gate tool delivery for a Pi run even when mcpTools is false", async () => {
+    // Pi delivers tools through its native extension, not MCP, so a Pi run with tools and a
+    // `mcpTools:false` probe must proceed (the gate exempts Pi).
+    const { calls, deps } = fakeHarness({ capabilities: { mcpTools: false } });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        prompt: "use the tool",
+        customTools: [{ name: "server_tool", kind: "callback" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.notEqual(calls.createSessionOptions, undefined);
   });
 
   it("flushes a partial trace and cleans up on prompt errors", async () => {
