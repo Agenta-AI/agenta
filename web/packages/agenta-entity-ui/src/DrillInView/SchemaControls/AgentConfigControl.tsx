@@ -40,7 +40,6 @@ import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover
 import {type ToolObj} from "./toolUtils"
 
 const CONNECTION_MODE_LABELS: Record<ConnectionMode, string> = {
-    default: "Project default",
     self_managed: "Self-managed",
     agenta: "Agenta connection",
 }
