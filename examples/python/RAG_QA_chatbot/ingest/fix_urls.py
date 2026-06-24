@@ -20,10 +20,14 @@ from .loaders import load_mdx
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Backfill corrected doc URLs in Qdrant")
+    parser = argparse.ArgumentParser(
+        description="Backfill corrected doc URLs in Qdrant"
+    )
     parser.add_argument("--source", required=True, help="Path to docs directory")
     parser.add_argument("--base-url", required=True, help="Base URL for doc links")
-    parser.add_argument("--collection", default=None, help="Collection (default: from env)")
+    parser.add_argument(
+        "--collection", default=None, help="Collection (default: from env)"
+    )
     args = parser.parse_args()
 
     load_dotenv()
@@ -32,9 +36,13 @@ def main():
     url_by_path = {d.file_path: d.url for d in load_mdx(args.source, args.base_url)}
     print(f"Re-derived {len(url_by_path)} URLs from {args.source}")
 
-    client = QdrantClient(url=os.getenv("QDRANT_URL"), api_key=os.getenv("QDRANT_API_KEY"))
+    client = QdrantClient(
+        url=os.getenv("QDRANT_URL"), api_key=os.getenv("QDRANT_API_KEY")
+    )
 
-    pending: dict[str, list] = defaultdict(list)  # correct_url -> [point ids needing it]
+    pending: dict[str, list] = defaultdict(
+        list
+    )  # correct_url -> [point ids needing it]
     scanned = 0
     offset = None
     while True:
