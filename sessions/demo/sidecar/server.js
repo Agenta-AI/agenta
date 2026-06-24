@@ -223,7 +223,18 @@ app.post("/run", async (req, res) => {
       if (process.env.ANTHROPIC_API_KEY) agentEnv.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
       if (process.env.OPENAI_API_KEY) agentEnv.OPENAI_API_KEY = process.env.OPENAI_API_KEY;
       const provider = makeProvider(sandbox, { sid, agentEnv });
-      const agent = await SandboxAgent.start({ sandbox: provider, sandboxId: sandbox_id || undefined });
+      // Resume: reconnect to the recorded sandbox. If it's GONE (docker is AutoRemove, a
+      // cloud sandbox may have been GC'd), start() throws on reconnect/getUrl — fall back to
+      // a fresh sandbox, which remounts the same demo:<sid> prefix, so the durable cwd in
+      // SeaweedFS is preserved. This is the whole point of the geesefs layer.
+      let agent;
+      try {
+        agent = await SandboxAgent.start({ sandbox: provider, sandboxId: sandbox_id || undefined });
+      } catch (e) {
+        if (!sandbox_id) throw e;
+        console.warn(`[/run ${sandbox}] resume of ${sandbox_id} failed (${e?.message?.slice(0, 80)}); recreating`);
+        agent = await SandboxAgent.start({ sandbox: provider });
+      }
       write({ _sandbox_id: agent.sandboxId }); // tell FastAPI to persist it for resume
       const session = await agent.resumeOrCreateSession({ ...sessionInit, cwd: CWD });
       const result = await streamSession(session, prompt, write);
