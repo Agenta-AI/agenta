@@ -70,15 +70,17 @@ def _base_agent_config() -> dict:
     }
 
 
-def test_seeded_default_agent_config_with_embed_skill_validates():
-    """The seeded default ships an @ag.embed skill entry; the catalog schema must accept it."""
+def test_platform_default_agent_config_with_embed_skill_validates():
+    """The platform default ships an @ag.embed skill entry; the catalog schema must accept it."""
     agent_config = CATALOG_TYPES["agent_config"]
 
     config = _base_agent_config()
     config["skills"] = [
         {
             "@ag.embed": {
-                "@ag.references": {"workflow": {"slug": "agenta-getting-started"}},
+                "@ag.references": {
+                    "workflow": {"slug": "_agenta.agenta-getting-started"}
+                },
                 "@ag.selector": {"path": "parameters.skill"},
             }
         }

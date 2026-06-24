@@ -115,14 +115,15 @@ def test_minimal_inline_skill_omits_optional_flags_on_the_wire(make_env):
 
 @pytest.mark.asyncio
 async def test_embed_skill_resolves_to_a_concrete_package_on_the_wire(make_env):
-    # The author config references a skill by an `@ag.embed` inside the skills list (the seeded
-    # default-config shape). The resolver inlines the stored `SkillConfig` BEFORE the handler
+    # The author config references a skill by an `@ag.embed` inside the skills list (the platform default-config shape). The resolver inlines the stored `SkillConfig` BEFORE the handler
     # builds the AgentConfig, so the runner must never see the embed -- only a concrete package.
     params_with_embed = {
         "skills": [
             {
                 "@ag.embed": {
-                    "@ag.references": {"workflow": {"slug": "agenta-getting-started"}},
+                    "@ag.references": {
+                        "workflow": {"slug": "_agenta.agenta-getting-started"}
+                    },
                     "@ag.selector": {"path": "parameters.skill"},
                 }
             }
