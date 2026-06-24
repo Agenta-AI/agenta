@@ -35,6 +35,7 @@ export type {
 } from "./resolveMappings"
 export {
     DEFAULT_STEP_RESOLVERS,
+    RESULT_ERROR_SOURCE,
     resolveFromTestcase,
     resolveFromTrace,
     resolveFromMetric,

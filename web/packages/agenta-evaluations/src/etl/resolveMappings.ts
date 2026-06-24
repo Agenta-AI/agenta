@@ -78,6 +78,8 @@ export interface RunSchema {
  */
 export type ResolveSource = string
 
+export const RESULT_ERROR_SOURCE = "result-error"
+
 /**
  * The column's source-namespace.
  *
@@ -530,6 +532,13 @@ export interface ResolveMappingsOptions {
     fallbackResolver?: StepResolver
 }
 
+function hasResultError(result: EvaluationResult | undefined): result is EvaluationResult & {
+    error: NonNullable<EvaluationResult["error"]>
+} {
+    if (!result?.error || typeof result.error !== "object") return false
+    return Object.keys(result.error).length > 0
+}
+
 /**
  * Resolve all UI columns for a single hydrated row, per the run's mappings.
  *
@@ -577,6 +586,19 @@ export function resolveMappings<TScenario extends HydratableScenario>(
 
         const result = (row.results as EvaluationResult[]).find((r) => r.step_key === stepKey)
         const resolver = resolvers[step.type] ?? options.fallbackResolver ?? null
+
+        if (hasResultError(result)) {
+            return {
+                name,
+                kind,
+                stepKey,
+                stepType: step.type,
+                path,
+                value: result.error,
+                source: RESULT_ERROR_SOURCE,
+                group,
+            }
+        }
 
         if (!resolver) {
             return {

@@ -83,6 +83,11 @@ export const upsertScenarioMetricData = async ({
                 metrics: [
                     {
                         id: existingMetric.id,
+                        // `run_id` is required by the shared set_metrics handler even on
+                        // PATCH (it validates against EvaluationMetricsCreate); omitting it
+                        // 422s the update.
+                        run_id: runId,
+                        scenario_id: scenarioId,
                         data: mergedData,
                         status: existingMetric.status || "success",
                     },
