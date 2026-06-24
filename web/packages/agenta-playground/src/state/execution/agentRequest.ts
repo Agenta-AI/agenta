@@ -234,7 +234,7 @@ export async function buildAgentRequest(
     // SSE stream `useChat` consumes. Without it the endpoint negotiates down to a
     // batch JSON response (Accept defaults to `*/*`; the AI-SDK transport sets no
     // Accept), which `useChat` can't render — the run succeeds but nothing appears.
-    const headers = {
+    const headers: Record<string, string> = {
         Accept: "text/event-stream",
         ...(headersFactory ? await headersFactory() : {}),
     }
