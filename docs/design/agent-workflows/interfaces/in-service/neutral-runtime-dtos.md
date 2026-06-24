@@ -9,6 +9,10 @@ their own page.
 The message representation is the most load-bearing of them, so it gets a full appendix at
 the end.
 
+How these DTOs sit in the SDK runtime layering, and which adapters translate at the edges, is
+narrated in [Ports and adapters](../../documentation/ports-and-adapters.md#runtime-package).
+This page owns the review lens: the field meanings and what to check when one moves.
+
 ## The types
 
 All in `dtos.py`. The ones that carry the most weight:

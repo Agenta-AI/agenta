@@ -5,6 +5,10 @@ every workflow type answers it. Agent workflows use it for batch calls, the non-
 path that returns a single assistant message. A change here touches every workflow, so the
 agent service has to fit the envelope rather than reshape it.
 
+The agent handler's read of this envelope is narrated in
+[Protocol](../../documentation/protocol.md#invoke). This page owns the review lens: what
+crosses the boundary, what can break, and what to check when the shape moves.
+
 ## The contract
 
 The request is the shared `WorkflowInvokeRequest` envelope. The agent handler reads three

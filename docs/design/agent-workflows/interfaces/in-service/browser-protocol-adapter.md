@@ -7,6 +7,12 @@ Message Stream parts on the way out. It owns the public [`/messages`](../public-
 and [`/load-session`](../public-edge/agent-load-session.md) contracts, so a change here is
 usually a change a browser will notice.
 
+The adapter's place in the layering is narrated in
+[Ports and adapters](../../documentation/ports-and-adapters.md#browser-protocol-adapter), and
+the event-to-stream-part table in [Protocol](../../documentation/protocol.md#vercel-stream-parts).
+This page owns the review lens: what crosses the boundary, what can break, and what to check
+when the mapping moves.
+
 ## The contract
 
 **Inbound (`messages.py`).** Each Vercel part maps to a neutral content block:

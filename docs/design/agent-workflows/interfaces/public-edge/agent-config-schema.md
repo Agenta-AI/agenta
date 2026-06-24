@@ -135,8 +135,11 @@ resolution](../in-service/tool-models-and-resolution.md).
 }
 ```
 
-This is Layer 2 of the security model. It is declared config; the runner does not enforce it
-on the sandbox provider yet. An unset value never reaches the wire.
+This is Layer 2 of the security model. Enforcement is uneven: network egress is a hard
+boundary on Daytona, is unenforceable on the local sandbox (a strict restricted policy is
+rejected before the run), and the filesystem boundary is declared but enforced nowhere. The
+full matrix is in [Sandbox permission](../in-service/sandbox-permission.md#the-enforcement-matrix).
+An unset value never reaches the wire.
 
 ### `skills[]` (inline package or embed reference)
 

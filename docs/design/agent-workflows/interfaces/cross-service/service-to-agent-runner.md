@@ -10,6 +10,10 @@ In deployed containers the transport is HTTP to the sidecar. In local source che
 can be a CLI subprocess that takes the same JSON on stdin. Both transports carry the same
 payload, so the request shape is the contract and the transport is an implementation detail.
 
+The field-by-field narrative of `/run` (and the public `/invoke` and `/messages` surfaces it
+serves) lives in [Protocol](../../documentation/protocol.md). This page owns the review lens:
+what crosses the boundary, what can break, and what to check when a field moves.
+
 ## Transports
 
 - HTTP: `POST /run` on the sidecar, JSON body.
@@ -58,7 +62,7 @@ group by job:
 
   // policy + files
   "permissionPolicy":  "auto",           // "auto" | "deny"
-  "sandboxPermission": { /* Layer 2 boundary; declared, not yet enforced */ },
+  "sandboxPermission": { /* Layer 2 boundary; network enforced on Daytona, see sandbox-permission.md */ },
   "harnessFiles":      [ { "path": ".claude/settings.json", "content": "..." } ],
 
   // tracing (see service-and-runner-trace-export.md)

@@ -5,6 +5,10 @@ the embedded chat slice send a turn here and render the streamed reply. It is th
 visible interface in the stack, and the one most likely to break a user-facing screen when
 its shape moves.
 
+The request, response modes, and the Vercel stream-part mapping are narrated field by field
+in [Protocol](../../documentation/protocol.md#messages). This page owns the review lens: what
+crosses the boundary, what can break, and what to check when the shape moves.
+
 ## The contract
 
 The request reuses the generic workflow envelope and carries the chat-specific payload in

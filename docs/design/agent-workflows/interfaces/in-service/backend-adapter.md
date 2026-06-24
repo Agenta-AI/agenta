@@ -5,6 +5,10 @@
 the sandbox selection, serializes the `/run` payload, and delivers it over HTTP or CLI. When
 you change how the service talks to the runner, you change this adapter.
 
+Its place in the hexagonal layering, alongside the planned `LocalBackend`, is narrated in
+[Ports and adapters](../../documentation/ports-and-adapters.md#backend). This page owns the
+review lens: what this adapter does and what to check when it moves.
+
 ## The contract
 
 It supports `pi`, `claude`, and `agenta`, and holds a `local` or `daytona` sandbox. Its
