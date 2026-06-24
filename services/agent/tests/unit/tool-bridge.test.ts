@@ -1,32 +1,28 @@
 /**
- * Unit tests for buildToolMcpServers (the tool MCP bridge attachment decision).
+ * Unit tests for buildToolMcpServers — the stdio tool MCP bridge, now DISABLED in the sidecar.
  *
- * Regression cover for F4: attachment must be decided per tool kind, not on the callback
- * endpoint alone. A `code` tool is still advertised through mcp-server.ts and needs no endpoint,
- * so a run whose tools are all `code` must still attach the `agenta-tools` server. Only `callback`-kind
- * tools require AGENTA_TOOL_CALLBACK_ENDPOINT; missing it must degrade those tools, not drop the
- * whole server. `client` tools are browser-fulfilled and never justify attaching the bridge.
+ * The bridge used to launch a stdio MCP child process on the runner host to expose resolved
+ * tools to non-Pi harnesses. That process ran outside the sandbox boundary (the same
+ * runner-host execution bypass that had code execution removed), so the implementation is
+ * disabled until its security is fixed. The interface/types remain, but delivering any
+ * executable spec now throws `MCP_UNSUPPORTED_MESSAGE`. The no-tools path (empty or
+ * client-only specs) stays a no-op so non-tool runs are untouched.
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/tool-bridge.test.ts)
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
-import { buildToolMcpServers } from "../../src/tools/mcp-bridge.ts";
-import type { ResolvedToolSpec, ToolCallbackContext } from "../../src/protocol.ts";
-
-/** Look up an env var value by name in the ACP {name,value} list (undefined if absent). */
-function envValue(
-  env: { name: string; value: string }[],
-  name: string,
-): string | undefined {
-  return env.find((e) => e.name === name)?.value;
-}
+import {
+  buildToolMcpServers,
+  MCP_UNSUPPORTED_MESSAGE,
+} from "../../src/tools/mcp-bridge.ts";
+import type { ResolvedToolSpec } from "../../src/protocol.ts";
 
 const relayDir = "/tmp/agenta-tools";
 
-describe("buildToolMcpServers", () => {
-  it("attaches the server for a code-only run, with public specs and relay dir", () => {
+describe("buildToolMcpServers (disabled)", () => {
+  it("throws the unsupported error for a code-only run", () => {
     const specs: ResolvedToolSpec[] = [
       {
         name: "adder",
@@ -37,96 +33,70 @@ describe("buildToolMcpServers", () => {
         env: { PRIVATE: "secret" },
       },
     ];
-    const out = buildToolMcpServers(specs, relayDir);
-    assert.equal(out.length, 1, "code-only run still attaches the server");
-    assert.equal(out[0].name, "agenta-tools");
-    assert.ok(
-      envValue(out[0].env, "AGENTA_TOOL_PUBLIC_SPECS") !== undefined,
-      "AGENTA_TOOL_PUBLIC_SPECS is set",
+    assert.throws(
+      () => buildToolMcpServers(specs, relayDir),
+      new RegExp(MCP_UNSUPPORTED_MESSAGE),
     );
-    assert.equal(
-      envValue(out[0].env, "AGENTA_TOOL_CALLBACK_ENDPOINT"),
-      undefined,
-      "no endpoint env for code-only run",
-    );
-    assert.equal(envValue(out[0].env, "AGENTA_TOOL_RELAY_DIR"), relayDir);
-    assert.equal(envValue(out[0].env, "AGENTA_TOOL_CALLBACK_AUTH"), undefined);
-    assert.equal(envValue(out[0].env, "AGENTA_TOOL_SPECS"), undefined);
-    // Only public metadata round-trips; private executor fields stay runner-side.
-    assert.deepEqual(JSON.parse(envValue(out[0].env, "AGENTA_TOOL_PUBLIC_SPECS")!), [
-      { name: "adder", description: "Add numbers" },
-    ]);
   });
 
-  it("never exposes endpoint/auth env to the bridge child (callback + full callback)", () => {
+  it("throws the unsupported error for a callback run", () => {
     const specs: ResolvedToolSpec[] = [
       { name: "search", kind: "callback", callRef: "composio.search" },
     ];
-    const callback: ToolCallbackContext = {
-      endpoint: "https://agenta.example/tools/call",
-      authorization: "Bearer tok",
-    };
-    const out = buildToolMcpServers(specs, callback, relayDir);
-    assert.equal(out.length, 1);
-    assert.equal(
-      envValue(out[0].env, "AGENTA_TOOL_CALLBACK_ENDPOINT"),
-      undefined,
-      "endpoint env is never exposed to the bridge",
+    assert.throws(
+      () =>
+        buildToolMcpServers(
+          specs,
+          {
+            endpoint: "https://agenta.example/tools/call",
+            authorization: "Bearer tok",
+          },
+          relayDir,
+        ),
+      new RegExp(MCP_UNSUPPORTED_MESSAGE),
     );
-    assert.equal(
-      envValue(out[0].env, "AGENTA_TOOL_CALLBACK_AUTH"),
-      undefined,
-      "auth env is never exposed to the bridge",
-    );
-    assert.equal(envValue(out[0].env, "AGENTA_TOOL_RELAY_DIR"), relayDir);
   });
 
-  it("omits AUTH env when authorization is absent (endpoint but no auth)", () => {
+  it("throws for an absent-kind (back-compat callback) run", () => {
     const specs: ResolvedToolSpec[] = [
+      { name: "legacy", callRef: "composio.legacy" },
+    ];
+    assert.throws(
+      () =>
+        buildToolMcpServers(
+          specs,
+          { endpoint: "https://agenta.example/tools/call" },
+          relayDir,
+        ),
+      new RegExp(MCP_UNSUPPORTED_MESSAGE),
+    );
+  });
+
+  it("throws for a mixed code+callback run", () => {
+    const specs: ResolvedToolSpec[] = [
+      {
+        name: "adder",
+        kind: "code",
+        runtime: "python",
+        code: "def main(**k): return 1",
+      },
       { name: "search", kind: "callback", callRef: "composio.search" },
     ];
-    const out = buildToolMcpServers(specs, { endpoint: "https://agenta.example/tools/call" }, relayDir);
-    assert.equal(out.length, 1);
-    assert.equal(envValue(out[0].env, "AGENTA_TOOL_CALLBACK_ENDPOINT"), undefined);
-    assert.equal(
-      envValue(out[0].env, "AGENTA_TOOL_CALLBACK_AUTH"),
-      undefined,
-      "no AUTH env when authorization absent",
+    assert.throws(
+      () => buildToolMcpServers(specs, relayDir),
+      new RegExp(MCP_UNSUPPORTED_MESSAGE),
     );
   });
 
-  it("treats an absent kind as callback (back-compat)", () => {
-    const specs: ResolvedToolSpec[] = [{ name: "legacy", callRef: "composio.legacy" }];
-    const out = buildToolMcpServers(specs, { endpoint: "https://agenta.example/tools/call" }, relayDir);
-    assert.equal(out.length, 1, "back-compat (no kind) attaches as a callback tool");
-    assert.equal(envValue(out[0].env, "AGENTA_TOOL_CALLBACK_ENDPOINT"), undefined);
-  });
-
-  it("attaches one server for a mixed code+callback run with no endpoint", () => {
-    const specs: ResolvedToolSpec[] = [
-      { name: "adder", kind: "code", runtime: "python", code: "def main(**k): return 1" },
-      { name: "search", kind: "callback", callRef: "composio.search" },
-    ];
-    const out = buildToolMcpServers(specs, relayDir);
-    assert.notDeepEqual(out, [], "mixed run with no endpoint must not return []");
-    assert.equal(out.length, 1, "still attaches the server so the code tool is advertised");
-    assert.equal(
-      envValue(out[0].env, "AGENTA_TOOL_CALLBACK_ENDPOINT"),
-      undefined,
-      "endpoint env omitted when missing",
+  it("returns [] for empty specs (no-tools path untouched)", () => {
+    assert.deepEqual(
+      buildToolMcpServers([], undefined),
+      [],
+      "empty specs -> []",
     );
-    // Both executable specs are advertised, but only as public metadata.
-    assert.deepEqual(JSON.parse(envValue(out[0].env, "AGENTA_TOOL_PUBLIC_SPECS")!), [
-      { name: "adder" },
-      { name: "search" },
-    ]);
   });
 
-  it("returns [] for empty specs", () => {
-    assert.deepEqual(buildToolMcpServers([], undefined), [], "empty specs -> []");
-  });
-
-  it("returns [] for client-only specs (nothing executable, even with an endpoint)", () => {
+  it("returns [] for client-only specs (nothing executable, never goes through the bridge)", () => {
     const specs: ResolvedToolSpec[] = [{ name: "confirm", kind: "client" }];
     assert.deepEqual(
       buildToolMcpServers(specs, undefined),
@@ -134,24 +104,29 @@ describe("buildToolMcpServers", () => {
       "client-only -> [] (nothing executable here)",
     );
     assert.deepEqual(
-      buildToolMcpServers(specs, { endpoint: "https://agenta.example/tools/call" }, relayDir),
+      buildToolMcpServers(
+        specs,
+        { endpoint: "https://agenta.example/tools/call" },
+        relayDir,
+      ),
       [],
       "client-only -> [] even with an endpoint",
     );
   });
 
-  it("drops client tools from the advertised list but still attaches for an executable sibling", () => {
+  it("throws when an executable spec sits beside a client spec", () => {
     const specs: ResolvedToolSpec[] = [
       { name: "confirm", kind: "client" },
-      { name: "adder", kind: "code", runtime: "python", code: "def main(**k): return 1" },
+      {
+        name: "adder",
+        kind: "code",
+        runtime: "python",
+        code: "def main(**k): return 1",
+      },
     ];
-    const out = buildToolMcpServers(specs, relayDir);
-    assert.equal(out.length, 1, "executable spec attaches the server");
-    const passed: ResolvedToolSpec[] = JSON.parse(envValue(out[0].env, "AGENTA_TOOL_PUBLIC_SPECS")!);
-    assert.deepEqual(
-      passed.map((s) => s.name),
-      ["adder"],
-      "client spec excluded from the executable list passed to the bridge",
+    assert.throws(
+      () => buildToolMcpServers(specs, relayDir),
+      new RegExp(MCP_UNSUPPORTED_MESSAGE),
     );
   });
 });

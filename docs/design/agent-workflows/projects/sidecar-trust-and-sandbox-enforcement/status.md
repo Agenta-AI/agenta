@@ -4,14 +4,30 @@ Source of truth for where this project stands. Keep it current.
 
 ## State
 
-**Research + proposal + author-review revision complete. Docs-only, no code changed.** This
-project answers the sidecar trust/transport question (Part 1) and records the real sandbox
-enforcement state (Part 2) with a verified matrix. The author reviewed PR #4831 and left 6
-inline comments; this revision folds each decision into the README (see
-[Review decisions](#review-decisions-pr-4831) below). The decided code changes (local-network
-+ filesystem → error; disable stdio MCP in the sidecar) are SEPARATE tasks — no runner code is
-changed in this PR. Every claim in the README was re-checked against code (file + symbol cited
-inline). Nothing here implements anything.
+**Runner implementation LANDED (separate runner-only PR).** The research + proposal +
+author-review revision (Part 1 trust/transport, Part 2 enforcement matrix) is complete and was
+docs-only. The decided near-term code changes are now implemented in a follow-up runner-only PR
+(lane `feat/agent-sidecar-trust-enforcement`, `services/agent/src/**` only):
+
+1. **Network isolation + optional `/run` token** (Part 1 steps 1–2): the sidecar binds to
+   loopback by default (`AGENTA_AGENT_RUNNER_HOST`, default `127.0.0.1`, never `0.0.0.0`), and
+   an OPTIONAL shared token (`AGENTA_AGENT_RUNNER_TOKEN`, default OFF) gates `/run` with a
+   constant-time compare when set (`server.ts`). `/health` stays open. mTLS / scoped tokens /
+   payload encryption remain deferred.
+2. **Error-on-unimplemented `sandbox_permission`** (Part 2): `run-plan.ts` now errors the
+   not-implemented way (mirroring `code.ts`) when a restricted `network` policy is set on the
+   LOCAL sandbox (any `enforcement`), and whenever `filesystem` is specified (any backend, since
+   none enforce it). The Daytona strict-mode runner-host-tool guard stays.
+3. **stdio MCP disabled** (Part 2): the stdio MCP implementation is disabled the same way code
+   execution was — `MCP_UNSUPPORTED_MESSAGE` in `tools/mcp-bridge.ts`; `buildToolMcpServers`,
+   `toAcpMcpServers`, and `mcp-server.ts` throw/refuse; `run-plan.ts` rejects any run carrying a
+   stdio MCP server. The wire shapes (`McpServerConfig`, `mcpServers`) are unchanged; only the
+   runtime delivery is gated. This removes custom-tool delivery to non-Pi harnesses (Claude) and
+   user-declared stdio MCP servers until the security issues are fixed.
+
+`protocol.ts` was NOT edited (A3-owned; the error-on-unimplemented behavior is runtime, not a new
+wire field). Gateway/callback tools were NOT touched (Layer-3 tool-permission, not Layer-2
+`sandbox_permission`). Tests green: `pnpm test` (168) + `pnpm run typecheck` in `services/agent`.
 
 ## Scope
 
@@ -126,3 +142,11 @@ rationale in README Part 1.
   `sandbox_permission`; updated the legacy `pi` engine to removed/historical. Verified code state:
   `code` execution already removed (`runCodeTool` throws), stdio MCP still present, `engines/pi.ts`
   gone, `protocol.ts` network comment already corrected by A3. Docs-only, two files; no code changed.
+- 2026-06-24: **Runner implementation LANDED** (separate runner-only PR, lane
+  `feat/agent-sidecar-trust-enforcement`, `services/agent/src/**` only). (1) loopback binding +
+  optional `/run` token in `server.ts`; (2) `run-plan.ts` errors on local `network` / on
+  `filesystem` specified (not-implemented gate, any enforcement); (3) stdio MCP disabled
+  (`MCP_UNSUPPORTED_MESSAGE`, `mcp-bridge.ts`/`mcp-server.ts`/`toAcpMcpServers`/run-plan gate),
+  removing custom-tool delivery to non-Pi harnesses + user stdio MCP. `protocol.ts` untouched
+  (A3-owned; runtime behavior, no new wire field). Runner README MCP/tools lines synced. Tests
+  green: 168 vitest + typecheck in `services/agent`.

@@ -1,8 +1,12 @@
 # Sidecar Trust and Sandbox Enforcement
 
-Research and proposal workspace. This is not an implementation. It answers two questions,
-corrects the record on enforcement, and records the decisions taken on author review (the
-decided code changes are separate tasks — no runner code is changed in this PR).
+Research and proposal workspace. It answers two questions, corrects the record on enforcement,
+and records the decisions taken on author review. The decided near-term code changes have since
+**landed in a separate runner-only PR** (lane `feat/agent-sidecar-trust-enforcement`,
+`services/agent/src/**`): loopback binding + optional `/run` token, error-on-unimplemented for
+local `network` / any `filesystem`, and the stdio MCP disable. The inline "NOW IMPLEMENTED"
+notes mark what shipped; `protocol.ts` was not edited (A3-owned; the gates are runtime behavior,
+not new wire fields). See [`status.md`](./status.md) for the landed summary.
 
 - **Part 1 — sidecar trust and transport.** The Python agent service calls the Node runner
   sidecar at `/run` over plain HTTP with no authentication, carrying plaintext provider
@@ -13,17 +17,17 @@ decided code changes are separate tasks — no runner code is changed in this PR
   mTLS, short-lived scoped tokens, and payload encryption are explicitly deferred.
 - **Part 2 — sandbox enforcement reality.** The `SandboxPermission` boundary is *partly*
   enforced, not "declared, not enforced" as several docs once said. This part records the real
-  state in an enforcement matrix and the review decisions on the not-implemented axes: the
-  local sandbox **errors** when a `network` policy is set, `filesystem` **errors** when
-  specified, `code` execution is already removed, stdio MCP is to be **disabled** the same way,
-  gateway tools need no change (Layer-3 tool-permission, not the sandbox boundary), and the
-  legacy in-process `pi` engine is removed. The original stale `protocol.ts` comment was already
-  corrected by the sibling code agent that owns that file.
+  state in an enforcement matrix and the review decisions on the not-implemented axes, now
+  implemented: the local sandbox **errors** when a `network` policy is set, `filesystem`
+  **errors** when specified, `code` execution is already removed, stdio MCP is now **disabled**
+  the same way, gateway tools need no change (Layer-3 tool-permission, not the sandbox boundary),
+  and the legacy in-process `pi` engine is removed. The original stale `protocol.ts` comment was
+  already corrected by the sibling code agent that owns that file.
 
 Composio, the tool gateway (gateway/callback tools), and named connections are referenced only
-as things that already exist; this work changes none of them. **The one exception is MCP:** a
-decision is recorded here to disable the stdio MCP-server implementation in the sidecar (parity
-with the removed code execution) until its security issues are fixed.
+as things that already exist; this work changes none of them. **The one exception is MCP:** the
+stdio MCP-server implementation in the sidecar is now disabled (parity with the removed code
+execution) until its security issues are fixed.
 
 ## Files
 
@@ -163,11 +167,15 @@ hardening](#later--deferred-hardening) subsection below — it is NOT part of th
    secrets and bearer tokens and therefore **must** sit on a trusted, non-public network.
    This is the immediate, zero-cost correctness fix for the "no transport-security
    statement anywhere" gap. (The author endorsed the network-isolation/loopback-binding
-   option directly: "agree.")
+   option directly: "agree.") **IMPLEMENTED:** `server.ts` binds to `AGENTA_AGENT_RUNNER_HOST`
+   (default `127.0.0.1`, never `0.0.0.0`); set it to the private pod/internal interface in
+   Kubernetes/Compose and never map the port to the host.
 2. **Add a shared auth token on `/run`**, reusing the existing `X-Agenta-Internal-Token`
    precedent (a new `AGENTA_AGENT_RUNNER_TOKEN`), default-off so co-located/loopback
    deployments are unaffected, on when set. Cheap defense-in-depth against accidental
-   exposure.
+   exposure. **IMPLEMENTED:** when `AGENTA_AGENT_RUNNER_TOKEN` is set, `server.ts` requires it
+   on `/run` (`Authorization: Bearer <token>` or `X-Agenta-Runner-Token: <token>`,
+   constant-time compare) and returns 401 otherwise; `/health` stays open for liveness probes.
 
 Rationale: steps 1–2 are config-only, make the implicit assumption real and auditable, and
 need no wire-contract change or cert/key machinery. They are the whole near-term ask.
@@ -248,8 +256,10 @@ legacy in-process `pi` engine is **removed**.
   for capabilities that are declared but not implemented. The local-network rejection should
   surface the same way: a clear "network policy is not enforceable on the local sandbox"
   error at plan time in `buildRunPlan`, so the run fails loudly rather than running unconfined.
-  (The actual code change is a separate task — another agent is editing the sidecar right now;
-  this doc records the decision only.)
+  **NOW IMPLEMENTED:** `buildRunPlan` returns `LOCAL_NETWORK_UNSUPPORTED_MESSAGE` ("Network
+  sandbox policy is not enforceable on the local sandbox …") whenever a restricted `network`
+  policy is set on the local sandbox, regardless of `enforcement` (runner-only PR, lane
+  `feat/agent-sidecar-trust-enforcement`).
 
 - **Filesystem boundary — DECLARED, enforced NOWHERE.**
   `SandboxPermission.filesystem` (`on` / `readonly` / `off`) travels on the wire and is
@@ -267,8 +277,10 @@ legacy in-process `pi` engine is **removed**.
   rather than be silently accepted — the same not-implemented-capability pattern as the local
   network case above (`code.ts`'s `CODE_TOOL_UNSUPPORTED_MESSAGE` gate / the typed
   `*Unsupported*Error`s in `connections/errors.py`). Declaring a filesystem jail the runner
-  does not apply is the same silent-acceptance trap. (Code change is a separate task; this doc
-  records the decision only.)
+  does not apply is the same silent-acceptance trap. **NOW IMPLEMENTED:** `buildRunPlan` returns
+  `FILESYSTEM_UNSUPPORTED_MESSAGE` ("Filesystem sandbox policy is not implemented …") whenever
+  `sandbox_permission.filesystem` is present, on any backend, regardless of `enforcement`
+  (runner-only PR, lane `feat/agent-sidecar-trust-enforcement`).
 
 - **Runner-host execution bypass — gateway tools and stdio MCP run on the runner host;
   code execution is already removed.**
@@ -294,20 +306,24 @@ legacy in-process `pi` engine is **removed**.
   MCP server (`hasStdioMcpServer`) is **rejected**; `best_effort` is the opt-out that accepts
   the boundary is not a hard guarantee.
 
-  **Decided plan (review): disable stdio MCP-server execution the same way code execution was
-  disabled — mark it not-implemented and remove the sidecar implementation, until the security
-  issues are fixed.** The author's call: "we have removed code execution from the code. we
-  should also disable the same way mcp servers implementation until we fix security issues. We
+  **Decided plan (review) — NOW IMPLEMENTED: stdio MCP-server execution is disabled the same
+  way code execution was — marked not-implemented, sidecar implementation removed, until the
+  security issues are fixed.** The author's call: "we have removed code execution from the code.
+  we should also disable the same way mcp servers implementation until we fix security issues. We
   simply put them as non implemented and remove the implementation in the sandbox sidecar like
-  we did for tool calls." So the runner-host stdio MCP path should be brought to parity with
-  the code-tool gate: keep any wire/interface shape needed for back-compat, but route MCP
-  execution through a single not-implemented gate (a named-constant throw, mirroring
-  `CODE_TOOL_UNSUPPORTED_MESSAGE`) and **remove the sidecar implementation** of the stdio
-  bridge — `services/agent/src/tools/mcp-bridge.ts`, `mcp-server.ts`, and the stdio plumbing
-  in `mcp.ts` / `run-plan.ts`. This eliminates the last runner-host execution bypass rather
-  than relying on the plan-time `strict` gate to catch it. **This is a decided plan, not a
-  change made in this PR** — the actual sidecar edit is a separate task (another agent is
-  editing the runner right now); this doc records the decision so it is not lost.
+  we did for tool calls." The runner-host stdio MCP path is now at parity with the code-tool
+  gate: the wire/interface shapes (`McpServerConfig`, the `mcpServers` request field) are kept,
+  but delivery routes through a single not-implemented gate — `MCP_UNSUPPORTED_MESSAGE` ("MCP
+  servers are not supported by the sidecar.") in `services/agent/src/tools/mcp-bridge.ts`,
+  thrown by `buildToolMcpServers` and by `toAcpMcpServers` (`engines/sandbox_agent/mcp.ts`);
+  `mcp-server.ts` is reduced to a refusing stub; and `run-plan.ts` rejects any run carrying a
+  stdio MCP server up front (`hasStdioMcpServer` → `MCP_UNSUPPORTED_MESSAGE`). This eliminates
+  the last runner-host execution bypass rather than relying on the plan-time `strict` gate.
+  **What it removes:** non-Pi harnesses (e.g. Claude) take tools only over MCP, so they can no
+  longer receive custom tools, and user-declared stdio MCP servers are refused; Pi tools
+  (delivered natively through the extension, not MCP) are unaffected. Implemented in the
+  runner-only PR on lane `feat/agent-sidecar-trust-enforcement`; `protocol.ts` was not edited
+  (A3-owned; the gate is runtime behavior, not a new wire field).
 
   **Layering clarification (review): gateway tools are fine and need NO action — they are NOT
   part of `sandbox_permission`.** The author's call: "for gateway it's alright. no need to do
@@ -359,10 +375,10 @@ code change is a separate task; this is the agreed target behavior).
 One-line summary: **network egress is a real boundary on Daytona and only on Daytona, and on
 the local sandbox a set `network` policy now errors (not-implemented) rather than running
 unconfined; `filesystem` is enforced nowhere, so specifying it now errors too; `code`
-execution is already removed (throwing gate) and stdio MCP is slated to be disabled the same
-way and its sidecar implementation removed; gateway tools are out of scope here because they
-live in Layer-3 tool-permission, not Layer-2 `sandbox_permission`; and the legacy in-process
-`pi` engine is gone.**
+execution is already removed (throwing gate) and stdio MCP is now disabled the same way and its
+sidecar implementation removed; gateway tools are out of scope here because they live in
+Layer-3 tool-permission, not Layer-2 `sandbox_permission`; and the legacy in-process `pi`
+engine is gone.**
 
 ### protocol.ts comment correction (network part APPLIED by A3; filesystem follow-up pending)
 
@@ -377,16 +393,18 @@ corrected by A3**. The current comment (around `protocol.ts:144-152`) now reads,
  * `filesystem` is declared-only on every provider.
 ```
 
-So the network half of this section is **done**. Two follow-ups remain for the protocol.ts
-owner, matching the review decisions above (filesystem and local-network now error; this is a
-behavior change, so update the comment when the code lands):
+So the network half of this section is **done**. The local-network and filesystem error
+behavior has now **landed** in `run-plan.ts` (runner-only PR, lane
+`feat/agent-sidecar-trust-enforcement`), so two comment follow-ups remain for the protocol.ts
+owner (A3) to keep the comment in step with the live code — the implementation PR did NOT edit
+`protocol.ts` (it is A3's shared surface, and the error behavior is runtime, not a wire field):
 
 - The `filesystem` field annotation (`/** Declared, NOT enforced today. */`) should become a
-  not-implemented error contract once the filesystem-specified-→-error decision lands ("specifying
-  `filesystem` is rejected as not implemented").
+  not-implemented error contract: specifying `filesystem` is now rejected as not implemented
+  (`run-plan.ts` `FILESYSTEM_UNSUPPORTED_MESSAGE`, any backend, any `enforcement`).
 - The local-network wording ("rejected under `strict`") should become "rejected whenever a
   `network` policy is set (not enforceable on the local sandbox), independent of `enforcement`"
-  once that decision lands.
+  (`run-plan.ts` `LOCAL_NETWORK_UNSUPPORTED_MESSAGE`).
 
 **Coordination flag:** `services/agent/src/protocol.ts` is a shared-risk surface owned this
 cycle by a sibling code agent (**A3**). This research/proposal project does **not** edit

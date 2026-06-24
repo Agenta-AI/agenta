@@ -11,6 +11,7 @@ import {
   resolvePromptText,
 } from "../../protocol.ts";
 import { executableToolSpecs } from "../../tools/public-spec.ts";
+import { MCP_UNSUPPORTED_MESSAGE } from "../../tools/mcp-bridge.ts";
 import {
   type MaterializedSkill,
   resolveSkillDirs as defaultResolveSkillDirs,
@@ -18,6 +19,23 @@ import {
 import { buildTurnText } from "./transcript.ts";
 
 type Log = (message: string) => void;
+
+/**
+ * Not-implemented sandbox-boundary gates. These mirror the code-tool gate
+ * (`tools/code.ts` `CODE_TOOL_UNSUPPORTED_MESSAGE`): a declared capability the runner cannot
+ * actually enforce fails loudly with a single named-constant message rather than being silently
+ * accepted, so a run never proceeds believing a boundary holds when it does not.
+ */
+
+/** A restricted `network` policy on the LOCAL sandbox is not enforceable (no host egress control). */
+export const LOCAL_NETWORK_UNSUPPORTED_MESSAGE =
+  "Network sandbox policy is not enforceable on the local sandbox (the sidecar runs on this " +
+  "host with no egress control); run on daytona, or remove sandbox_permission.network.";
+
+/** `filesystem` confinement is declared on the wire but applied by no backend. */
+export const FILESYSTEM_UNSUPPORTED_MESSAGE =
+  "Filesystem sandbox policy is not implemented (no backend applies a filesystem jail); " +
+  "remove sandbox_permission.filesystem.";
 
 export interface RunPlan {
   harness: string;
@@ -142,38 +160,49 @@ export function buildRunPlan(
   const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];
   const executableToolSpecsForRun = executableToolSpecs(toolSpecs);
 
-  // Layer 2 (S1b/S1g): enforce the declared network boundary, and fail loud where it cannot
-  // be a hard guarantee. Only `strict` blocks; `best_effort` is the per-axis opt-out that
-  // accepts the boundary may not hold. `mode: "on"` (or no policy) imposes no restriction.
-  // Checked before any cwd is created so a rejected run does not orphan a temp dir.
+  // Not-implemented boundary gates (sidecar-trust Part 2): a declared capability the runner
+  // cannot actually enforce fails loudly, the way code tools do (`tools/code.ts`), rather than
+  // being silently accepted. These fire BEFORE any cwd is created (so a rejected run never
+  // orphans a temp dir) and are unconditional — `enforcement` is no longer the escape hatch,
+  // because the boundary is not applied on any path regardless of strict/best_effort.
+
+  // `filesystem` confinement is declared on the wire but applied by no backend. Specifying it
+  // therefore errors everywhere; do not pretend a jail exists.
+  if (request.sandboxPermission?.filesystem !== undefined) {
+    return { ok: false, error: FILESYSTEM_UNSUPPORTED_MESSAGE };
+  }
+
+  // A restricted `network` policy on the LOCAL sandbox cannot be enforced (the sidecar runs on
+  // this host with no per-run egress control), so it errors regardless of `enforcement`. On
+  // Daytona the policy IS applied (`provider.ts` `daytonaNetworkFields`).
   const network = request.sandboxPermission?.network;
   const networkRestricted = !!network && (network.mode ?? "on") !== "on";
+  if (networkRestricted && !isDaytona) {
+    return { ok: false, error: LOCAL_NETWORK_UNSUPPORTED_MESSAGE };
+  }
+
+  // stdio MCP servers run as arbitrary processes on the RUNNER HOST, outside the sandbox
+  // boundary, and the sidecar's stdio MCP implementation is disabled (parity with the removed
+  // code execution) until its security is fixed. Refuse any run carrying one, the way code
+  // tools are gated — keep the wire shape, but the delivery is not supported.
+  if (hasStdioMcpServer(request.mcpServers)) {
+    return { ok: false, error: MCP_UNSUPPORTED_MESSAGE };
+  }
+
+  // Layer 2: even on Daytona, code/gateway tools run on the RUNNER HOST via the relay, not
+  // inside the sandbox, so they bypass the sandbox network boundary. Under `strict` + a
+  // restricted network, refuse them; `best_effort` is the opt-out that accepts the boundary is
+  // not a hard guarantee.
   const strict = request.sandboxPermission?.enforcement === "strict";
-  if (networkRestricted && strict) {
+  if (networkRestricted && isDaytona && strict) {
     const mode = network?.mode ?? "on";
-    // Most specific first: the local sidecar has no egress control at all, so any restricted
-    // network is unenforceable; Daytona applies it via networkBlockAll/networkAllowList.
-    if (!isDaytona) {
+    if (executableToolSpecsForRun.length > 0) {
       return {
         ok: false,
         error:
-          `local sandbox cannot enforce network:${mode} (the local sidecar runs on this ` +
-          `host with no egress control); set enforcement=best_effort to run locally without ` +
-          `the guarantee, or run on daytona.`,
-      };
-    }
-    // Even on Daytona, code/gateway tools and stdio MCP run on the RUNNER HOST via the relay,
-    // not inside the sandbox, so they bypass the sandbox network boundary.
-    if (
-      executableToolSpecsForRun.length > 0 ||
-      hasStdioMcpServer(request.mcpServers)
-    ) {
-      return {
-        ok: false,
-        error:
-          `code/gateway tools and stdio MCP servers run on the runner host and would bypass ` +
-          `the sandbox network boundary; remove them, or set enforcement=best_effort to accept ` +
-          `that network:${mode} is not a hard guarantee.`,
+          `code/gateway tools run on the runner host and would bypass the sandbox network ` +
+          `boundary; remove them, or set enforcement=best_effort to accept that ` +
+          `network:${mode} is not a hard guarantee.`,
       };
     }
   }

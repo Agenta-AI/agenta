@@ -12,6 +12,7 @@
  * `createAgentServer(run)` is the testable seam: it builds the server around an injectable
  * engine runner so the HTTP behavior can be tested with a fake engine (no live harness).
  */
+import { timingSafeEqual } from "node:crypto";
 import {
   createServer,
   type IncomingMessage,
@@ -30,6 +31,51 @@ import { runnerInfo } from "./version.ts";
 import { isEntrypoint } from "./entry.ts";
 
 const PORT = Number(process.env.PORT ?? 8765);
+
+// Bind to loopback by default (sidecar-trust step 1): the `/run` body carries plaintext
+// provider secrets and reusable bearer tokens, so the sidecar MUST sit on a trusted,
+// non-public network. `127.0.0.1` keeps it reachable only from the same host (the co-located
+// Python service) and never `0.0.0.0`. In Kubernetes/Compose, set `AGENTA_AGENT_RUNNER_HOST`
+// to the private pod/internal-network interface; never publish the port to the host.
+const HOST = process.env.AGENTA_AGENT_RUNNER_HOST ?? "127.0.0.1";
+
+// Optional shared `/run` token (sidecar-trust step 2): default OFF. When
+// `AGENTA_AGENT_RUNNER_TOKEN` is set, every `/run` request must present the same secret (in
+// `Authorization: Bearer <token>` or `X-Agenta-Runner-Token: <token>`); otherwise it is
+// rejected with 401. Cheap defense-in-depth against accidental exposure on top of network
+// isolation; a static shared secret is not a substitute for TLS (deferred). Unset = no check,
+// so co-located/loopback deployments are unaffected.
+const RUNNER_TOKEN_ENV = "AGENTA_AGENT_RUNNER_TOKEN";
+
+/** Constant-time string compare so the token check does not leak length/prefix via timing. */
+function tokensMatch(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+/** The bearer/token a caller presented, from either accepted header. Empty string if none. */
+function presentedToken(req: IncomingMessage): string {
+  const header = req.headers["x-agenta-runner-token"];
+  if (typeof header === "string" && header) return header;
+  const auth = req.headers["authorization"];
+  if (typeof auth === "string" && auth) {
+    const match = /^Bearer\s+(.+)$/i.exec(auth);
+    if (match) return match[1];
+  }
+  return "";
+}
+
+/**
+ * Whether this `/run` request is authorized. The check is OFF unless the operator opts in by
+ * setting `AGENTA_AGENT_RUNNER_TOKEN`; when set, the presented token must match exactly.
+ */
+function isAuthorized(req: IncomingMessage): boolean {
+  const expected = process.env[RUNNER_TOKEN_ENV];
+  if (!expected) return true; // default-off: no token configured, accept (network isolation only)
+  return tokensMatch(presentedToken(req), expected);
+}
 
 /** Run one request through an engine. Tests inject a fake to avoid a live harness. */
 export type RunAgent = (
@@ -79,7 +125,8 @@ async function runAndStream(
   try {
     result = await run(request, emit, controller.signal);
   } catch (err) {
-    const message = err instanceof Error ? err.stack ?? err.message : String(err);
+    const message =
+      err instanceof Error ? (err.stack ?? err.message) : String(err);
     result = { ok: false, error: message };
   }
   // Streaming delivered the events live, so don't echo them in the terminal record.
@@ -115,12 +162,18 @@ export function createRequestListener(
       }
 
       if (req.method === "POST" && req.url === "/run") {
+        if (!isAuthorized(req)) {
+          return send(res, 401, { ok: false, error: "Unauthorized" });
+        }
         const raw = await readBody(req);
         let request: AgentRunRequest;
         try {
           request = raw.trim() ? (JSON.parse(raw) as AgentRunRequest) : {};
         } catch (err) {
-          return send(res, 400, { ok: false, error: `Invalid JSON: ${String(err)}` });
+          return send(res, 400, {
+            ok: false,
+            error: `Invalid JSON: ${String(err)}`,
+          });
         }
 
         const wantsStream = (req.headers["accept"] ?? "").includes(
@@ -137,7 +190,8 @@ export function createRequestListener(
 
       return send(res, 404, { ok: false, error: "Not found" });
     } catch (err) {
-      const message = err instanceof Error ? err.stack ?? err.message : String(err);
+      const message =
+        err instanceof Error ? (err.stack ?? err.message) : String(err);
       return send(res, 500, { ok: false, error: message });
     }
   };
@@ -162,10 +216,14 @@ if (isEntrypoint(import.meta.url)) {
     );
   });
   process.on("uncaughtException", (err) => {
-    process.stderr.write(`[sandbox-agent] uncaughtException: ${err.stack ?? err.message}\n`);
+    process.stderr.write(
+      `[sandbox-agent] uncaughtException: ${err.stack ?? err.message}\n`,
+    );
   });
 
-  createAgentServer().listen(PORT, () => {
-    process.stderr.write(`[sandbox-agent] http server listening on :${PORT}\n`);
+  createAgentServer().listen(PORT, HOST, () => {
+    process.stderr.write(
+      `[sandbox-agent] http server listening on ${HOST}:${PORT}\n`,
+    );
   });
 }
