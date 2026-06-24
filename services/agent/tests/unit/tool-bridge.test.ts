@@ -2,8 +2,8 @@
  * Unit tests for buildToolMcpServers (the tool MCP bridge attachment decision).
  *
  * Regression cover for F4: attachment must be decided per tool kind, not on the callback
- * endpoint alone. A `code` tool runs locally in mcp-server.ts and needs no endpoint, so a run
- * whose tools are all `code` must still attach the `agenta-tools` server. Only `callback`-kind
+ * endpoint alone. A `code` tool is still advertised through mcp-server.ts and needs no endpoint,
+ * so a run whose tools are all `code` must still attach the `agenta-tools` server. Only `callback`-kind
  * tools require AGENTA_TOOL_CALLBACK_ENDPOINT; missing it must degrade those tools, not drop the
  * whole server. `client` tools are browser-fulfilled and never justify attaching the bridge.
  *
@@ -109,7 +109,7 @@ describe("buildToolMcpServers", () => {
     ];
     const out = buildToolMcpServers(specs, relayDir);
     assert.notDeepEqual(out, [], "mixed run with no endpoint must not return []");
-    assert.equal(out.length, 1, "still attaches the server so the code tool works");
+    assert.equal(out.length, 1, "still attaches the server so the code tool is advertised");
     assert.equal(
       envValue(out[0].env, "AGENTA_TOOL_CALLBACK_ENDPOINT"),
       undefined,

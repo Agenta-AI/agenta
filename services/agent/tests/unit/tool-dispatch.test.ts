@@ -7,9 +7,9 @@
  * advertising behavior that stays per-site:
  *  - buildCustomTools (pi.ts) skips `client` specs, builds a tool per `code`/`callback` spec,
  *    and skips a `callback` spec with no callback endpoint.
- *  - runResolvedTool runs a real `code` snippet end-to-end (python) and throws for `client`.
+ *  - runResolvedTool advertises code tools but fails their sidecar execution, and throws for `client`.
  *
- * No network and no harness: the `code` path shells out to python3 (available locally); the
+ * No network and no harness: the `code` path now fails before any subprocess; the
  * `callback`/relay paths are not exercised here (they need a live /tools/call or a relay dir).
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/tool-dispatch.test.ts)
@@ -66,15 +66,14 @@ describe("buildCustomTools routing", () => {
 });
 
 describe("runResolvedTool", () => {
-  it("runs a code spec end-to-end (python)", async () => {
-    const text = await runResolvedTool(codeSpec, { greeting: "hi", n: 3 }, {
-      toolCallId: "call-1",
-    });
-    const parsed = JSON.parse(text);
-    assert.deepEqual(
-      parsed,
-      { echo: { greeting: "hi", n: 3 } },
-      "code tool runs the snippet and returns its JSON output containing the input",
+  it("fails code specs with a clear unsupported error", async () => {
+    await assert.rejects(
+      () =>
+        runResolvedTool(codeSpec, { greeting: "hi", n: 3 }, {
+          toolCallId: "call-1",
+        }),
+      /Code tools are not supported by the sidecar\./,
+      "code tools remain advertised but are not executable by the sidecar",
     );
   });
 

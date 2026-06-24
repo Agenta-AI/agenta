@@ -9,7 +9,7 @@
  * advertise/skip behavior for `client` tools — only the execution itself is shared.
  *
  * The three executor kinds (see `ResolvedToolSpec`):
- *  - `code`: run the snippet in a sandbox subprocess with its scoped secret `env`.
+ *  - `code`: advertised to harnesses, but rejected by the sidecar as unsupported.
  *  - `client`: browser-fulfilled across a turn boundary; never executed in-sandbox (throws).
  *  - `callback` (default): POST back through Agenta's /tools/call so the Composio key and
  *    connection auth stay server-side. On Daytona the in-sandbox process can't reach Agenta,
@@ -96,7 +96,7 @@ export async function relayToolCall(
  * Execute one resolved tool and return its result text. Throws on failure; every call site
  * turns the throw into a tool-error result so the model loop continues rather than crashing.
  *
- *  - `code`   → run the snippet locally (scoped secret env), no callback/relay.
+ *  - `code`   -> reject as unsupported by the sidecar, no callback/relay.
  *  - `client` → throw: browser-fulfilled, never executed in-sandbox.
  *  - default/`callback` → relay through the runner when `opts.relayDir` is set (Daytona),
  *    else POST directly to `opts.endpoint`.
