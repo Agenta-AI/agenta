@@ -288,8 +288,6 @@ ghcr.io/agenta-ai/agenta-services
 {{- $img := default dict (default dict .Values.agentRunner).image -}}
 {{- if $img.repository -}}
 {{- $img.repository -}}
-{{- else if eq (include "agenta.edition" .) "ee" -}}
-ghcr.io/agenta-ai/internal-ee-agenta-sandbox-agent
 {{- else -}}
 ghcr.io/agenta-ai/agenta-sandbox-agent
 {{- end -}}

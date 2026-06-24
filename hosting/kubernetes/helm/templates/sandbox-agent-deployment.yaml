@@ -67,7 +67,7 @@ spec:
             - name: SANDBOX_AGENT_DAYTONA_INSTALL_PI
               value: {{ $daytona.installPi | quote }}
             {{- end }}
-            {{- if $daytona.apiKey }}
+            {{- if or $daytona.apiKey (eq (default "local" $runner.provider) "daytona") }}
             - name: SANDBOX_AGENT_DAYTONA_API_KEY
               valueFrom:
                 secretKeyRef:
