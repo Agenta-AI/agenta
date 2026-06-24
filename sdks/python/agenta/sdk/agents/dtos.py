@@ -697,6 +697,12 @@ class ClaudeAgentConfig(HarnessAgentConfig):
             "permissionPolicy": self.permission_policy,
         }
 
+    def wire_skills(self) -> Dict[str, Any]:
+        """Claude's headless SDK cannot load inline skill packages, so the Claude config
+        drops any authored skills (graceful degrade) and emits no ``skills`` on the wire.
+        Pi and Agenta override this differently via the inherited base seam."""
+        return {}
+
     def wire_harness_files(self) -> Dict[str, Any]:
         """Render the Claude harness's permission settings into a ``.claude/settings.json`` file
         the runner drops in the cwd. This is the claude adapter (Layer 1 translation), done in
