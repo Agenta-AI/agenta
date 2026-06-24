@@ -24,12 +24,3 @@ export interface EvaluationQueueDetailParams {
     id: string
     projectId: string
 }
-
-/**
- * Params for querying scenarios of an evaluation queue
- */
-export interface EvaluationQueueScenariosParams {
-    queueId: string
-    projectId: string
-    userId?: string | null
-}

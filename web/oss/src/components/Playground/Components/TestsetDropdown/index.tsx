@@ -16,6 +16,10 @@ import type {
     CommitSubmitResult,
 } from "@agenta/entity-ui"
 import {EntityCommitModal} from "@agenta/entity-ui"
+import {
+    toTestsetTraceReference,
+    type TestsetTraceReference,
+} from "@agenta/evaluations/state/evalRun"
 import {playgroundController} from "@agenta/playground"
 import {
     executionByMessageIdAtomFamily,
@@ -44,7 +48,6 @@ import {atom, useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
-import {toTestsetTraceReference, type TestsetTraceReference} from "@/oss/lib/traces/traceUtils"
 import {saveNewTestsetAtom} from "@/oss/state/entities/testset/mutations"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 

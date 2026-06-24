@@ -1,4 +1,4 @@
-import {useMemo, useCallback, useEffect, useRef, useState} from "react"
+import {useMemo, useCallback, useEffect, useState} from "react"
 
 import {userByIdFamily} from "@agenta/entities/shared"
 import {
@@ -10,13 +10,9 @@ import {
 } from "@agenta/entities/simpleQueue"
 import type {SimpleQueueKind} from "@agenta/entities/simpleQueue"
 import {useEntityDelete} from "@agenta/entity-ui"
+import {EvaluationListView, CreatedByCell, QueueProgressCell} from "@agenta/evaluations-ui"
 import {copyToClipboard} from "@agenta/ui"
-import {
-    InfiniteVirtualTableFeatureShell,
-    useTableManager,
-    createStandardColumns,
-    FiltersPopoverTrigger,
-} from "@agenta/ui/table"
+import {createStandardColumns, FiltersPopoverTrigger} from "@agenta/ui/table"
 import {ArrowRight, Copy, PlusIcon, Trash} from "@phosphor-icons/react"
 import {Button, Divider, Input, Select, Tag, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -30,9 +26,6 @@ import {
 } from "../../state/atoms"
 import CreateQueueDrawer from "../CreateQueueDrawer"
 import QueueStatusTag from "../QueueStatusTag"
-
-import CreatedByCell from "./cells/CreatedByCell"
-import QueueProgressCell from "./cells/QueueProgressCell"
 
 const kindColorMap: Record<string, string> = {
     traces: "blue",
@@ -249,7 +242,16 @@ const AnnotationQueuesView = ({
     const {deleteEntity, deleteEntities} = useEntityDelete()
     const normalizedSearchTerm = searchTerm.trim()
     const hasSearchQuery = normalizedSearchTerm.length > 0
-    const clearSelectionRef = useRef<() => void>(() => {})
+
+    const clearSelection = useCallback(() => {
+        // Selection state is store-backed (keyed by scopeId), so clearing it directly on
+        // the dataset store mirrors `useTableManager.clearSelection` without threading a
+        // callback through EvaluationListView.
+        getDefaultStore().set(
+            simpleQueuePaginatedStore.store.atoms.selectionAtom({scopeId: "annotation-queues"}),
+            [],
+        )
+    }, [])
 
     const handleBulkDelete = useCallback(
         (records: SimpleQueueTableRow[]) => {
@@ -261,12 +263,12 @@ const AnnotationQueuesView = ({
                 })),
                 {
                     onSuccess: () => {
-                        clearSelectionRef.current()
+                        clearSelection()
                     },
                 },
             )
         },
-        [deleteEntities],
+        [deleteEntities, clearSelection],
     )
 
     const openCreateQueueDrawer = useCallback(() => {
@@ -281,16 +283,6 @@ const AnnotationQueuesView = ({
         },
         [navigation],
     )
-
-    const table = useTableManager<SimpleQueueTableRow>({
-        datasetStore: simpleQueuePaginatedStore.store as never,
-        scopeId: "annotation-queues",
-        pageSize: 50,
-        onRowClick: handleRowClick,
-        searchDeps: [normalizedSearchTerm, kindFilter],
-        onBulkDelete: handleBulkDelete,
-    })
-    clearSelectionRef.current = table.clearSelection
 
     const columns = useMemo(
         () =>
@@ -484,13 +476,11 @@ const AnnotationQueuesView = ({
 
     const tableProps = useMemo(
         () => ({
-            ...(table.tableProps ?? {}),
             locale: {
-                ...(table.tableProps?.locale ?? {}),
                 emptyText: emptyStateNode,
             },
         }),
-        [table.tableProps, emptyStateNode],
+        [emptyStateNode],
     )
 
     const exportOptions = useMemo(
@@ -517,11 +507,20 @@ const AnnotationQueuesView = ({
 
     return (
         <div className="flex flex-col h-full min-h-0 grow w-full">
-            <InfiniteVirtualTableFeatureShell<SimpleQueueTableRow>
-                {...table.shellProps}
+            <EvaluationListView<SimpleQueueTableRow>
+                // The dataset store is invariant in its ApiRow/Meta params, so the
+                // concrete SimpleQueue/SimpleQueueQueryMeta store does not assign to the
+                // `unknown`-parameterised prop. This mirrors the prior `as never` cast
+                // that fed `useTableManager` directly.
+                datasetStore={simpleQueuePaginatedStore.store as never}
+                scopeId="annotation-queues"
+                pageSize={50}
                 columns={columns}
                 filters={filtersNode}
                 primaryActions={createButton}
+                onRowClick={handleRowClick}
+                onBulkDelete={handleBulkDelete}
+                searchDeps={[normalizedSearchTerm, kindFilter]}
                 tableProps={tableProps}
                 exportOptions={exportOptions}
                 enableExport={canExportData}

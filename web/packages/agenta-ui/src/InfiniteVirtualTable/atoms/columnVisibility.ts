@@ -1,9 +1,16 @@
+import {enableMapSet} from "immer"
 import {atom} from "jotai"
 import {selectAtom} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 import {atomWithImmer} from "jotai-immer"
 
 import type {ColumnViewportVisibilityEvent} from "../types"
+
+// `columnVisibilityStateAtom` is an immer atom whose state is a `Map`. Immer requires the
+// MapSet plugin before it can draft a Map/Set. The app entry calls `enableMapSet()` too, but
+// on its OWN immer instance — this package's `jotai-immer` may resolve a separate immer copy,
+// so enable it here (idempotent) to keep the table self-sufficient regardless of the host app.
+enableMapSet()
 
 const DEFAULT_SCOPE = "__default__"
 const resolveScopeKey = (scopeId: string | null) => scopeId ?? DEFAULT_SCOPE

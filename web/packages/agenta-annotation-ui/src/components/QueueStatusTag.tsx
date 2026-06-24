@@ -1,6 +1,6 @@
 import {memo} from "react"
 
-import {simpleQueueMolecule, type EvaluationStatus} from "@agenta/entities/simpleQueue"
+import {simpleQueueMolecule, type SimpleQueueStatus} from "@agenta/entities/simpleQueue"
 import {Tag} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -26,7 +26,7 @@ const statusLabelMap: Record<string, string> = {
 
 interface QueueStatusTagProps {
     queueId: string
-    fallbackStatus?: EvaluationStatus | null
+    fallbackStatus?: SimpleQueueStatus | null
     className?: string
 }
 

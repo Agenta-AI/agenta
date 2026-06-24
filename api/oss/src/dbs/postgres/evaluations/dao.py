@@ -2829,7 +2829,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 stmt = apply_windowing(
                     stmt=stmt,
                     DBE=EvaluationQueueDBE,
-                    attribute="id",  # UUID7
+                    # created_at, not id: backfilled queues carry back-dated
+                    # timestamps, so UUID7 id order diverges from created_at.
+                    attribute="created_at",
                     order="descending",  # jobs-style
                     windowing=windowing,
                 )

@@ -1,12 +1,11 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {deleteEvaluationRuns} from "@agenta/entities/evaluationRun"
+import {clearPreviewRunsCache} from "@agenta/evaluations/hooks"
 import {message} from "@agenta/ui/app-message"
 import {Typography} from "antd"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
-
-import axios from "@/oss/lib/api/assets/axiosConfig"
-import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 
 import type {DeleteEvaluationModalDeletionConfig} from "./types"
 
@@ -20,10 +19,7 @@ interface DeleteEvaluationModalContentProps {
 
 const deletePreviewRuns = async (projectId: string | null | undefined, runIds: string[]) => {
     if (!projectId || runIds.length === 0) return
-    await axios.delete(`/evaluations/runs/`, {
-        params: {project_id: projectId},
-        data: {run_ids: runIds},
-    })
+    await deleteEvaluationRuns({projectId, runIds})
 }
 
 const DeleteEvaluationModalContent = ({

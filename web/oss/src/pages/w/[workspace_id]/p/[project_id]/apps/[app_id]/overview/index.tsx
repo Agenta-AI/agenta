@@ -11,6 +11,7 @@ import dynamic from "next/dynamic"
 
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
+import EvalRunsViewHost from "@/oss/components/pages/evaluations/EvalRunsViewHost"
 // TEMPORARY: Disabling name editing
 // import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
@@ -28,7 +29,7 @@ const ObservabilityOverview: any = dynamic(
     () => import("@/oss/components/pages/overview/observability/ObservabilityOverview"),
 )
 const LatestEvaluationRunsTable: any = dynamic(() =>
-    import("@/oss/components/EvaluationRunsTablePOC").then((m) => m.LatestEvaluationRunsTable),
+    import("@agenta/evaluations-ui").then((m) => m.LatestEvaluationRunsTable),
 )
 
 const {Title} = Typography
@@ -151,20 +152,22 @@ const OverviewContent = () => {
                 {!isEvaluator ? <DeploymentOverview /> : null}
                 <VariantsOverview />
 
-                <LatestEvaluationRunsTable
-                    title="Auto Evaluations"
-                    evaluationKind="auto"
-                    appId={appId}
-                    appScoped
-                    withContainerStyles={false}
-                />
-                <LatestEvaluationRunsTable
-                    title="Human Evaluations"
-                    evaluationKind="human"
-                    appId={appId}
-                    appScoped
-                    withContainerStyles={false}
-                />
+                <EvalRunsViewHost>
+                    <LatestEvaluationRunsTable
+                        title="Auto Evaluations"
+                        evaluationKind="auto"
+                        appId={appId}
+                        appScoped
+                        withContainerStyles={false}
+                    />
+                    <LatestEvaluationRunsTable
+                        title="Human Evaluations"
+                        evaluationKind="human"
+                        appId={appId}
+                        appScoped
+                        withContainerStyles={false}
+                    />
+                </EvalRunsViewHost>
             </PageLayout>
 
             <CustomWorkflowHistory

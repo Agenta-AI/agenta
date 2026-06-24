@@ -117,10 +117,14 @@ const TableSettingsDropdown = <RowType extends object>({
 
     return (
         <Popover
-            trigger={[]}
+            trigger="click"
             placement="bottomRight"
             open={columnVisibilityOpen}
-            onOpenChange={setColumnVisibilityOpen}
+            onOpenChange={(open) => {
+                if (!open) {
+                    setColumnVisibilityOpen(false)
+                }
+            }}
             content={renderColumnVisibilityContent(controls, handleCloseColumnVisibility)}
             destroyOnHidden
         >

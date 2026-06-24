@@ -1,12 +1,12 @@
-import {getDefaultStore} from "jotai"
-import Router from "next/router"
-
 import {
     openFocusDrawerAtom as openPreviewFocusDrawerAtom,
     focusDrawerAtom as previewFocusDrawerAtom,
     resetFocusDrawerAtom as resetPreviewFocusDrawerAtom,
     setFocusDrawerTargetAtom as setPreviewFocusDrawerTargetAtom,
-} from "@/oss/components/EvalRunDetails/state/focusDrawerAtom"
+} from "@agenta/evaluations-ui"
+import {getDefaultStore} from "jotai"
+import Router from "next/router"
+
 import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
 
 const isBrowser = typeof window !== "undefined"

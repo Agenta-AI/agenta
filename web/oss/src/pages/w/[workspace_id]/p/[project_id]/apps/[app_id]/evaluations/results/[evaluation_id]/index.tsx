@@ -1,6 +1,6 @@
 import {useRouter} from "next/router"
 
-import EvalRunDetailsPage from "@/oss/components/EvalRunDetails/test"
+import EvalRunDetailsPage from "@/oss/components/pages/evaluations/EvalRunDetailsTestPage"
 
 const AppEvaluationResultsPage = () => {
     const router = useRouter()

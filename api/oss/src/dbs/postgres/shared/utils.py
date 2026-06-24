@@ -93,7 +93,13 @@ def apply_windowing(
     if order_attribute is id_attribute:
         stmt = stmt.order_by(windowing_order)
     else:
-        stmt = stmt.order_by(windowing_order, id_attribute)
+        # The id tie-break must follow the primary direction: the descending
+        # cursor filters `id < next` on equal timestamps, so ties must be
+        # emitted in descending id order (and ascending for `id > next`).
+        if windowing_order is descending_order:
+            stmt = stmt.order_by(windowing_order, id_attribute.desc())
+        else:
+            stmt = stmt.order_by(windowing_order, id_attribute.asc())
 
     if windowing.limit:
         stmt = stmt.limit(windowing.limit)

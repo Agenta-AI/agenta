@@ -1,0 +1,50 @@
+{
+    "name": "@agenta/evaluations-ui",
+    "version": "0.75.0",
+    "private": true,
+    "sideEffects": false,
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "scripts": {
+        "build": "tsc --noEmit",
+        "types:check": "tsc --noEmit",
+        "lint": "eslint --config ../eslint.config.mjs src/",
+        "check": "pnpm run types:check && pnpm run lint"
+    },
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "dependencies": {
+        "@agenta/entities": "workspace:../agenta-entities",
+        "@agenta/entity-ui": "workspace:../agenta-entity-ui",
+        "@agenta/evaluations": "workspace:../agenta-evaluations",
+        "@agenta/sdk": "workspace:../agenta-sdk",
+        "@agenta/shared": "workspace:../agenta-shared",
+        "@agenta/ui": "workspace:../agenta-ui",
+        "@ant-design/icons": "^6.1.0",
+        "@phosphor-icons/react": "^2.1.10",
+        "clsx": "^2.1.1",
+        "dayjs": "^1.11.20",
+        "fast-deep-equal": "^3.1.3",
+        "jotai-immer": "^0.4.1",
+        "jotai-scheduler": "^0.0.5",
+        "lucide-react": "^0.479.0",
+        "recharts": "^3.1.0",
+        "usehooks-ts": "^3.1.1"
+    },
+    "peerDependencies": {
+        "@phosphor-icons/react": ">=2.0.0",
+        "@tanstack/react-query": ">=5.0.0",
+        "antd": ">=5.0.0",
+        "jotai": ">=2.0.0",
+        "next": ">=14.0.0",
+        "react": ">=18.0.0",
+        "react-dom": ">=18.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.8.10",
+        "@types/react": "^19.0.10",
+        "@types/react-dom": "^19.0.0",
+        "typescript": "5.8.3"
+    }
+}

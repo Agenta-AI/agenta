@@ -1,16 +1,13 @@
 import {useMemo} from "react"
 
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
+import type {ReferenceColumnDescriptor} from "@agenta/evaluations/state/runsTable"
+import {useRunRowDetails, useRunRowReferences} from "@agenta/evaluations/state/runsTable"
+import {getSlotByRoleOrdinal} from "@agenta/evaluations/state/runsTable"
 import {SkeletonLine} from "@agenta/ui/table"
 import {Typography} from "antd"
 
-import {
-    useRunRowDetails,
-    useRunRowReferences,
-} from "@/oss/components/EvaluationRunsTablePOC/context/RunRowDataContext"
-import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
-import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
-import {getSlotByRoleOrdinal} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 import {extractPrimaryInvocation} from "@/oss/components/pages/evaluations/utils"
 import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
 

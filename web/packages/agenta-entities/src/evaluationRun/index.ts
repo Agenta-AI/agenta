@@ -28,24 +28,14 @@
 
 export {
     evaluationRunMolecule,
-    type EvaluationRunMolecule,
+    fetchEvaluationRunBatched,
     type AnnotationColumnDef as EvaluationRunAnnotationColumnDef,
 } from "./state/molecule"
 
 // Per-scenario read-only molecules (cache-aware bulk prefetch).
 // Used by ETL hydrate + downstream cell renderers.
-export {
-    evaluationResultMolecule,
-    type EvaluationResultMolecule,
-    type PrefetchResultsArgs,
-    type PrefetchResultsOutcome,
-} from "./state/resultMolecule"
-export {
-    evaluationMetricMolecule,
-    type EvaluationMetricMolecule,
-    type PrefetchMetricsArgs,
-    type PrefetchMetricsOutcome,
-} from "./state/metricMolecule"
+export {evaluationResultMolecule} from "./state/resultMolecule"
+export {evaluationMetricMolecule} from "./state/metricMolecule"
 
 // ============================================================================
 // SCHEMAS & TYPES
@@ -53,6 +43,7 @@ export {
 
 export {
     // Enums
+    EvaluationStatus,
     evaluationRunStepTypeSchema,
     type EvaluationRunStepType,
     evaluationRunStepOriginSchema,
@@ -82,7 +73,10 @@ export {
     evaluationResultsResponseSchema,
     type EvaluationResultsResponse,
     // Evaluation Metrics
+    evaluationMetricSchema,
     type EvaluationMetric,
+    evaluationMetricsResponseSchema,
+    type EvaluationMetricsResponse,
     // Param types
     type EvaluationRunDetailParams,
     type EvaluationRunQueryParams,
@@ -93,14 +87,25 @@ export {
 // API
 // ============================================================================
 
-export {fetchEvaluationRun, queryEvaluationRuns, queryEvaluationResults} from "./api"
+export {
+    fetchEvaluationRun,
+    editEvaluationRun,
+    deleteEvaluationRuns,
+    queryEvaluationRuns,
+    queryEvaluationRunsList,
+    queryEvaluationResults,
+    setEvaluationResults,
+    queryEvaluationMetrics,
+    queryEvaluationMetricsBatch,
+} from "./api"
+export type {
+    EvaluationResultSetInput,
+    EvaluationRunsListParams,
+    EvaluationRunsListResult,
+} from "./api"
 
 // ============================================================================
 // STATE
 // ============================================================================
 
-export {
-    evaluationRunQueryAtomFamily,
-    scenarioStepsQueryAtomFamily,
-    invalidateEvaluationRunCache,
-} from "./state"
+export {evaluationRunQueryAtomFamily, scenarioStepsQueryAtomFamily} from "./state"

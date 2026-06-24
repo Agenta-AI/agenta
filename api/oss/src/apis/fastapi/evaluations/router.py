@@ -2842,8 +2842,9 @@ class SimpleQueuesRouter:
 
         windowing = compute_next_windowing(
             entities=queues,
-            attribute="id",
+            attribute="created_at",
             windowing=queue_query_request.windowing,
+            order="descending",
         )
 
         return SimpleQueuesResponse(

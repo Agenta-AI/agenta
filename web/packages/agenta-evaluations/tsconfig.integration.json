@@ -1,0 +1,18 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "rootDir": ".",
+        "tsBuildInfoFile": ".tsbuildinfo.integration",
+        "types": ["node", "vitest/globals"]
+    },
+    "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "../css-modules.d.ts"],
+    "exclude": [
+        "node_modules",
+        "dist",
+        // Pre-existing integration tests carry a latent RunMapping.column.kind literal
+        // mismatch that vitest's type-stripping transform never surfaced. They are out of
+        // scope for this change; exclude them so this config still type-checks the NEW
+        // scenarioData test it was added for. (Tracked separately.)
+        "tests/integration/createEvaluationRun.integration.test.ts"
+    ]
+}

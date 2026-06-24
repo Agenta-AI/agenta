@@ -1,13 +1,17 @@
 /**
  * EvaluationRun API Functions
  *
- * HTTP API functions for EvaluationRun entities.
- * These are pure functions with no Jotai dependencies.
+ * HTTP API functions for EvaluationRun entities, backed by the Fern-generated
+ * `@agentaai/api-client` via `@agenta/sdk`. Pure functions, no Jotai dependencies.
  *
- * Base endpoint: `/evaluations/runs/`
+ * Base endpoint: `/evaluations/runs/` (+ `/results/`, `/metrics/`).
+ *
+ * Zod validation stays at the boundary: Fern's generated types are all-optional /
+ * nullable, so the local schemas narrow them into the strict shape the molecules and
+ * ETL depend on, and act as an independent drift check against the backend.
  */
 
-import {getAgentaApiUrl, axios} from "@agenta/shared/api"
+import type {AgentaApi} from "@agentaai/api-client"
 
 // See testcase/api/api.ts for rationale — the shared barrel pulls in CSS deps.
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
@@ -28,6 +32,8 @@ import type {
     EvaluationMetricsQueryParams,
 } from "../core"
 
+import {getEvaluationsClient, projectScopedRequest} from "./client"
+
 // ============================================================================
 // FETCH (Single)
 // ============================================================================
@@ -43,16 +49,73 @@ export async function fetchEvaluationRun({
 }: EvaluationRunDetailParams): Promise<EvaluationRun | null> {
     if (!projectId || !id) return null
 
-    const response = await axios.get(`${getAgentaApiUrl()}/evaluations/runs/${id}`, {
-        params: {project_id: projectId},
-    })
+    const client = await getEvaluationsClient()
+    const data = await client.fetchRun({run_id: id}, projectScopedRequest(projectId))
 
     const validated = safeParseWithLogging(
         evaluationRunResponseSchema,
-        response.data,
+        data,
         "[fetchEvaluationRun]",
     )
     return validated?.run ?? null
+}
+
+// ============================================================================
+// EDIT (PATCH a single run)
+// ============================================================================
+
+/**
+ * Edit a single evaluation run (PATCH `/evaluations/runs/{run_id}`).
+ *
+ * `run` is the partial run body (snake_case, `extra="allow"` on the backend) — at minimum
+ * an `id` plus the fields to change, e.g. `data.steps` for evaluator-revision write-back.
+ * Returns the updated run, or null if the response fails validation.
+ */
+export async function editEvaluationRun({
+    projectId,
+    runId,
+    run,
+}: {
+    projectId: string
+    runId: string
+    run: Record<string, unknown>
+}): Promise<EvaluationRun | null> {
+    if (!projectId || !runId) return null
+
+    const client = await getEvaluationsClient()
+    const data = await client.editRun(
+        {run_id: runId, run: run as unknown as AgentaApi.EvaluationRunEdit},
+        projectScopedRequest(projectId),
+    )
+
+    const validated = safeParseWithLogging(evaluationRunResponseSchema, data, "[editEvaluationRun]")
+    return validated?.run ?? null
+}
+
+// ============================================================================
+// DELETE (runs)
+// ============================================================================
+
+/**
+ * Delete evaluation runs by id. Endpoint: `DELETE /evaluations/runs/`.
+ *
+ * The backend cascade-deletes scenarios/results/metrics (FK ondelete=CASCADE), so this is
+ * sufficient cleanup — no orphans. Returns the deleted ids.
+ */
+export async function deleteEvaluationRuns({
+    projectId,
+    runIds,
+}: {
+    projectId: string
+    runIds: string[]
+}): Promise<string[]> {
+    if (!projectId || runIds.length === 0) return []
+
+    const client = await getEvaluationsClient()
+    const data = (await client.deleteRuns({run_ids: runIds}, projectScopedRequest(projectId))) as {
+        run_ids?: string[]
+    }
+    return data?.run_ids ?? []
 }
 
 // ============================================================================
@@ -71,21 +134,95 @@ export async function queryEvaluationRuns({
     if (!projectId) return {count: 0, runs: []}
     if (ids && ids.length === 0) return {count: 0, runs: []}
 
-    const body: Record<string, unknown> = {}
-    if (ids && ids.length > 0) {
-        body.run = {ids}
-    }
-
-    const response = await axios.post(`${getAgentaApiUrl()}/evaluations/runs/query`, body, {
-        params: {project_id: projectId},
-    })
+    const client = await getEvaluationsClient()
+    const data = await client.queryRuns(
+        ids && ids.length > 0 ? {run: {ids}} : {},
+        projectScopedRequest(projectId),
+    )
 
     const validated = safeParseWithLogging(
         evaluationRunsResponseSchema,
-        response.data,
+        data,
         "[queryEvaluationRuns]",
     )
     return validated ?? {count: 0, runs: []}
+}
+
+// ============================================================================
+// QUERY (List with filters + windowing)
+// ============================================================================
+
+export interface EvaluationRunsListParams {
+    projectId: string
+    appId?: string | null
+    /** Reference filters (JSONB containment on the backend). */
+    references?: Record<string, unknown>[] | null
+    /** Flag filters (JSONB containment). Evaluation "kind" lives here, not as a field. */
+    flags?: Record<string, unknown> | null
+    /** Status filters. */
+    statuses?: string[] | null
+    /** Windowing/pagination passthrough (limit/order/next/...). */
+    windowing?: Record<string, unknown> | null
+}
+
+export interface EvaluationRunsListResult {
+    runs: EvaluationRun[]
+    count: number
+    windowing: Record<string, unknown> | null
+}
+
+/**
+ * List evaluation runs with the filters the backend `query_runs` ACTUALLY supports:
+ * references, flags (kind is encoded here), statuses, plus windowing. Endpoint:
+ * `POST /evaluations/runs/query`.
+ *
+ * Note: `search` and `evaluation_kinds` are intentionally NOT sent — the backend query
+ * has no such filters (they were silently dropped). Free-text/kind filtering is done
+ * client-side (per the eval-filtering RFC).
+ */
+export async function queryEvaluationRunsList({
+    projectId,
+    appId,
+    references,
+    flags,
+    statuses,
+    windowing,
+}: EvaluationRunsListParams): Promise<EvaluationRunsListResult> {
+    if (!projectId) return {runs: [], count: 0, windowing: null}
+
+    const runPayload: Record<string, unknown> = {}
+    const refs = Array.isArray(references)
+        ? references.filter((r) => r && Object.keys(r).length > 0)
+        : []
+    if (refs.length) runPayload.references = refs
+    if (flags && Object.keys(flags).length > 0) runPayload.flags = flags
+    if (statuses?.length) runPayload.statuses = statuses
+
+    const body: Record<string, unknown> = {}
+    if (Object.keys(runPayload).length > 0) body.run = runPayload
+    if (windowing) body.windowing = windowing
+
+    const queryParams: Record<string, string> = {project_id: projectId}
+    if (appId) queryParams.app_id = appId
+
+    const client = await getEvaluationsClient()
+    const data = (await client.queryRuns(body as unknown as AgentaApi.EvaluationRunQueryRequest, {
+        queryParams,
+    })) as {
+        windowing?: Record<string, unknown> | null
+    }
+
+    const validated = safeParseWithLogging(
+        evaluationRunsResponseSchema,
+        data,
+        "[queryEvaluationRunsList]",
+    )
+    return {
+        runs: validated?.runs ?? [],
+        count: validated?.count ?? 0,
+        // windowing is read off the raw response — the envelope schema doesn't model it.
+        windowing: data?.windowing ?? null,
+    }
 }
 
 // ============================================================================
@@ -109,27 +246,79 @@ export async function queryEvaluationResults({
     if (!projectId || !runId) return []
     if (scenarioIds && scenarioIds.length === 0) return []
 
-    const body: Record<string, unknown> = {
-        result: {
-            run_id: runId,
-            run_ids: [runId],
-            ...(scenarioIds?.length ? {scenario_ids: scenarioIds} : {}),
-            ...(stepKeys?.length ? {step_keys: stepKeys} : {}),
+    const client = await getEvaluationsClient()
+    const data = await client.queryResults(
+        {
+            result: {
+                run_id: runId,
+                run_ids: [runId],
+                ...(scenarioIds?.length ? {scenario_ids: scenarioIds} : {}),
+                ...(stepKeys?.length ? {step_keys: stepKeys} : {}),
+            },
+            windowing: {},
         },
-        windowing: {},
-    }
-
-    const response = await axios.post(`${getAgentaApiUrl()}/evaluations/results/query`, body, {
-        params: {project_id: projectId},
-    })
+        projectScopedRequest(projectId),
+    )
 
     const validated = safeParseWithLogging(
         evaluationResultsResponseSchema,
-        response.data,
+        data,
         "[queryEvaluationResults]",
     )
     return validated?.results ?? []
 }
+
+// ============================================================================
+// SET EVALUATION RESULTS (upsert scenario steps)
+// ============================================================================
+
+/**
+ * Fields the backend's `POST /evaluations/results/` (create_results, upsert on the natural
+ * key run_id+scenario_id+step_key+repeat_idx) actually persists. Deliberately excludes
+ * `span_id`/`references`/`data` — `evaluation_results` has no such columns; the result↔trace
+ * link is carried by `trace_id`.
+ */
+export interface EvaluationResultSetInput {
+    run_id: string
+    scenario_id: string
+    step_key: string
+    status?: string
+    trace_id?: string | null
+    testcase_id?: string | null
+    hash_id?: string | null
+    repeat_idx?: number | null
+    error?: Record<string, unknown> | null
+}
+
+/**
+ * Upsert evaluation results (scenario steps). Endpoint: `POST /evaluations/results/`.
+ *
+ * The backend setter upserts on the natural key, so a single call covers create + edit.
+ */
+export async function setEvaluationResults({
+    projectId,
+    results,
+}: {
+    projectId: string
+    results: EvaluationResultSetInput[]
+}): Promise<EvaluationResult[]> {
+    if (!projectId || !results.length) return []
+
+    const client = await getEvaluationsClient()
+    const data = await client.setResults(
+        {results: results as unknown as AgentaApi.EvaluationResultsSetRequest["results"]},
+        projectScopedRequest(projectId),
+    )
+
+    const validated = safeParseWithLogging(
+        evaluationResultsResponseSchema,
+        data,
+        "[setEvaluationResults]",
+    )
+    return validated?.results ?? []
+}
+
+// NOTE: scenario query/edit moved to @agenta/entities/evaluationScenario.
 
 // ============================================================================
 // QUERY EVALUATION METRICS
@@ -151,21 +340,60 @@ export async function queryEvaluationMetrics({
     if (!projectId || !runId) return []
     if (scenarioIds && scenarioIds.length === 0) return []
 
-    const body: Record<string, unknown> = {
-        metrics: {
-            run_id: runId,
-            ...(scenarioIds?.length ? {scenario_ids: scenarioIds} : {}),
+    const client = await getEvaluationsClient()
+    const data = await client.queryMetrics(
+        {
+            metrics: {
+                run_id: runId,
+                ...(scenarioIds?.length ? {scenario_ids: scenarioIds} : {}),
+            },
         },
-    }
-
-    const response = await axios.post(`${getAgentaApiUrl()}/evaluations/metrics/query`, body, {
-        params: {project_id: projectId},
-    })
+        projectScopedRequest(projectId),
+    )
 
     const validated = safeParseWithLogging(
         evaluationMetricsResponseSchema,
-        response.data,
+        data,
         "[queryEvaluationMetrics]",
+    )
+    return validated?.metrics ?? []
+}
+
+/**
+ * Batch metrics query across multiple runs, mirroring the backend's projection flags:
+ * `scenario_ids` (an id list, or `false` for run-level-only) and `timestamps` (temporal
+ * projection). Endpoint: `POST /evaluations/metrics/query`.
+ *
+ * Returns the flat metric list (passthrough schema preserves name/value/data fields the
+ * caller buckets into run-level vs temporal).
+ */
+export async function queryEvaluationMetricsBatch({
+    projectId,
+    runIds,
+    scenarioIds,
+    timestamps,
+}: {
+    projectId: string
+    runIds: string[]
+    scenarioIds?: string[] | false
+    timestamps?: boolean
+}): Promise<EvaluationMetric[]> {
+    if (!projectId || runIds.length === 0) return []
+
+    const metrics: Record<string, unknown> = {run_ids: runIds}
+    if (scenarioIds !== undefined) metrics.scenario_ids = scenarioIds
+    if (timestamps !== undefined) metrics.timestamps = timestamps
+
+    const client = await getEvaluationsClient()
+    const data = await client.queryMetrics(
+        {metrics} as unknown as AgentaApi.EvaluationMetricsQueryRequest,
+        projectScopedRequest(projectId),
+    )
+
+    const validated = safeParseWithLogging(
+        evaluationMetricsResponseSchema,
+        data,
+        "[queryEvaluationMetricsBatch]",
     )
     return validated?.metrics ?? []
 }

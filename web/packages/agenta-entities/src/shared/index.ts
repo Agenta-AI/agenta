@@ -13,6 +13,19 @@
  */
 
 // ============================================================================
+// INSTRUMENTED ATOM FAMILY (atom family registry — diagnostics / advanced)
+// ============================================================================
+
+export {
+    instrumentedAtomFamily,
+    inspectAtomFamilies,
+    clearAllAtomFamilies,
+    type AtomFamilyStats,
+    type InstrumentedAtomFamily,
+    type InstrumentedAtomFamilyOptions,
+} from "./molecule/instrumentedAtomFamily"
+
+// ============================================================================
 // MOLECULE PATTERN (Single Entity)
 // ============================================================================
 

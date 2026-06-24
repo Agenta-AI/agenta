@@ -2,7 +2,7 @@ import {existsSync, readFileSync} from "fs"
 
 import {expect, Page, Response} from "@playwright/test"
 
-import {EvaluationRun} from "../../../../../oss/src/lib/hooks/usePreviewEvaluations/types"
+import {EvaluationRun} from "../../../../../packages/agenta-evaluations/src/hooks"
 import {SnakeToCamelCaseKeys, testset} from "../../../../../oss/src/lib/Types"
 import {getProjectMetadataPath} from "../../../../playwright/config/runtime.ts"
 import {UseFn} from "../../types"

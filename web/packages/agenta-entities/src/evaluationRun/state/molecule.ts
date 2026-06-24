@@ -10,17 +10,18 @@
  * import { evaluationRunMolecule } from '@agenta/entities/evaluationRun'
  *
  * // Selectors (reactive)
- * const data = useAtomValue(evaluationRunMolecule.selectors.data(runId))
- * const annotationSteps = useAtomValue(evaluationRunMolecule.selectors.annotationSteps(runId))
+ * const data = useAtomValue(evaluationRunMolecule.selectors.data({projectId, runId}))
+ * const annotationSteps = useAtomValue(
+ *     evaluationRunMolecule.selectors.annotationSteps({projectId, runId}),
+ * )
  *
  * // Imperative API (outside React)
- * const data = evaluationRunMolecule.get.data(runId)
+ * const data = evaluationRunMolecule.get.data(projectId, runId)
  * ```
  *
  * @packageDocumentation
  */
 
-import {projectIdAtom} from "@agenta/shared/state"
 import {createBatchFetcher} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -48,19 +49,23 @@ function getStore(options?: StoreOptions) {
 // BATCH FETCHER
 // ============================================================================
 
-interface RunBatchKey {
+export interface RunKey {
     projectId: string
     runId: string
+}
+
+function runKeyEqual(a: RunKey, b: RunKey): boolean {
+    return a.projectId === b.projectId && a.runId === b.runId
 }
 
 /**
  * Batch fetcher that collects individual run requests and merges them into
  * a single `POST /evaluations/runs/query` call.
  *
- * Components reading `evaluationRunMolecule.selectors.data(runId)` for different
- * run IDs within the same render cycle will trigger ONE API call.
+ * Components reading `evaluationRunMolecule.selectors.data({projectId, runId})` for
+ * different run IDs within the same render cycle will trigger ONE API call.
  */
-const runBatchFetcher = createBatchFetcher<RunBatchKey, EvaluationRun | null>({
+const runBatchFetcher = createBatchFetcher<RunKey, EvaluationRun | null>({
     serializeKey: ({projectId, runId}) => `${projectId}:${runId}`,
     batchFn: async (keys, serializedKeys) => {
         const results = new Map<string, EvaluationRun | null>()
@@ -101,34 +106,23 @@ const runBatchFetcher = createBatchFetcher<RunBatchKey, EvaluationRun | null>({
  * Query atom family for fetching a single evaluation run by ID.
  * Individual queries are automatically batched via `createBatchFetcher`.
  *
- * IMPORTANT: `atomWithQuery` in jotai-tanstack-query v0.11.0 does NOT
- * re-evaluate its getter when Jotai atom dependencies change after the
- * initial subscription. So we cannot rely on reactive `get(projectIdAtom)`.
- * Instead, `queryFn` reads `projectIdAtom` imperatively from the default
- * store at fetch time, and throws when it's not yet available so that
- * TanStack Query's `retry` mechanism re-attempts once projectId is set.
+ * The projectId is supplied by the caller via the family key, so the molecule
+ * no longer reads app-global state.
  */
-export const evaluationRunQueryAtomFamily = atomFamily((runId: string) =>
-    atomWithQuery(() => ({
-        queryKey: ["evaluationRun", runId],
-        queryFn: async (): Promise<EvaluationRun | null> => {
-            const projectId = getStore().get(projectIdAtom)
-            if (!runId) return null
-            if (!projectId) {
-                throw new Error("projectId not yet available")
-            }
-            return runBatchFetcher({projectId, runId})
-        },
-        enabled: !!runId,
-        retry: (failureCount: number, error: Error) => {
-            if (error?.message === "projectId not yet available" && failureCount < 5) {
-                return true
-            }
-            return false
-        },
-        retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
-        staleTime: 60_000,
-    })),
+export const evaluationRunQueryAtomFamily = atomFamily(
+    ({projectId, runId}: RunKey) =>
+        atomWithQuery(() => ({
+            queryKey: ["evaluationRun", projectId, runId],
+            queryFn: async (): Promise<EvaluationRun | null> => {
+                if (!projectId || !runId) return null
+                return runBatchFetcher({projectId, runId})
+            },
+            enabled: !!projectId && !!runId,
+            retry: false,
+            retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
+            staleTime: 60_000,
+        })),
+    runKeyEqual,
 )
 
 // ============================================================================
@@ -136,67 +130,87 @@ export const evaluationRunQueryAtomFamily = atomFamily((runId: string) =>
 // ============================================================================
 
 /**
+ * Imperative, batched per-run fetch. Concurrent calls within a tick collapse into a
+ * single `POST /evaluations/runs/query` via the shared batch fetcher. Use this from
+ * non-jotai async contexts (e.g. another atomWithQuery's queryFn) that need the raw run
+ * without subscribing to the molecule's reactive atom.
+ */
+export function fetchEvaluationRunBatched(key: RunKey): Promise<EvaluationRun | null> {
+    return runBatchFetcher(key)
+}
+
+/**
  * Run data selector.
  */
-const dataAtomFamily = atomFamily((runId: string) =>
-    atom<EvaluationRun | null>((get) => {
-        const query = get(evaluationRunQueryAtomFamily(runId))
-        return query.data ?? null
-    }),
+const dataAtomFamily = atomFamily(
+    ({projectId, runId}: RunKey) =>
+        atom<EvaluationRun | null>((get) => {
+            const query = get(evaluationRunQueryAtomFamily({projectId, runId}))
+            return query.data ?? null
+        }),
+    runKeyEqual,
 )
 
 /**
  * Query state selector.
  */
-const queryAtomFamily = atomFamily((runId: string) =>
-    atom((get) => {
-        const query = get(evaluationRunQueryAtomFamily(runId))
-        return {
-            data: query.data ?? null,
-            isPending: query.isPending,
-            isError: query.isError,
-            error: query.error ?? null,
-        }
-    }),
+const queryAtomFamily = atomFamily(
+    ({projectId, runId}: RunKey) =>
+        atom((get) => {
+            const query = get(evaluationRunQueryAtomFamily({projectId, runId}))
+            return {
+                data: query.data ?? null,
+                isPending: query.isPending,
+                isError: query.isError,
+                error: query.error ?? null,
+            }
+        }),
+    runKeyEqual,
 )
 
 /**
  * All steps from the run data.
  */
-const stepsAtomFamily = atomFamily((runId: string) =>
-    atom<EvaluationRunDataStep[]>((get) => {
-        const data = get(dataAtomFamily(runId))
-        return data?.data?.steps ?? []
-    }),
+const stepsAtomFamily = atomFamily(
+    ({projectId, runId}: RunKey) =>
+        atom<EvaluationRunDataStep[]>((get) => {
+            const data = get(dataAtomFamily({projectId, runId}))
+            return data?.data?.steps ?? []
+        }),
+    runKeyEqual,
 )
 
 /**
  * Annotation steps only (type === "annotation").
  * These represent the evaluators attached to the run.
  */
-const annotationStepsAtomFamily = atomFamily((runId: string) =>
-    atom<EvaluationRunDataStep[]>((get) => {
-        const steps = get(stepsAtomFamily(runId))
-        return steps.filter((step) => step.type === "annotation")
-    }),
+const annotationStepsAtomFamily = atomFamily(
+    ({projectId, runId}: RunKey) =>
+        atom<EvaluationRunDataStep[]>((get) => {
+            const steps = get(stepsAtomFamily({projectId, runId}))
+            return steps.filter((step) => step.type === "annotation")
+        }),
+    runKeyEqual,
 )
 
 /**
  * Evaluator workflow IDs extracted from annotation steps' references.
  * Each annotation step references an evaluator via `references.evaluator.id`.
  */
-const evaluatorIdsAtomFamily = atomFamily((runId: string) =>
-    atom<string[]>((get) => {
-        const steps = get(annotationStepsAtomFamily(runId))
-        const ids: string[] = []
-        for (const step of steps) {
-            const evaluatorId = step.references?.evaluator?.id
-            if (evaluatorId) {
-                ids.push(evaluatorId)
+const evaluatorIdsAtomFamily = atomFamily(
+    ({projectId, runId}: RunKey) =>
+        atom<string[]>((get) => {
+            const steps = get(annotationStepsAtomFamily({projectId, runId}))
+            const ids: string[] = []
+            for (const step of steps) {
+                const evaluatorId = step.references?.evaluator?.id
+                if (evaluatorId) {
+                    ids.push(evaluatorId)
+                }
             }
-        }
-        return ids
-    }),
+            return ids
+        }),
+    runKeyEqual,
 )
 
 /**
@@ -204,40 +218,46 @@ const evaluatorIdsAtomFamily = atomFamily((runId: string) =>
  * Each annotation step references an evaluator revision via `references.evaluator_revision.id`.
  * These revision IDs are needed by the form controller to fetch evaluator schemas.
  */
-const evaluatorRevisionIdsAtomFamily = atomFamily((runId: string) =>
-    atom<string[]>((get) => {
-        const steps = get(annotationStepsAtomFamily(runId))
-        const ids: string[] = []
-        for (const step of steps) {
-            const revisionId = step.references?.evaluator_revision?.id
-            if (revisionId) {
-                ids.push(revisionId)
+const evaluatorRevisionIdsAtomFamily = atomFamily(
+    ({projectId, runId}: RunKey) =>
+        atom<string[]>((get) => {
+            const steps = get(annotationStepsAtomFamily({projectId, runId}))
+            const ids: string[] = []
+            for (const step of steps) {
+                const revisionId = step.references?.evaluator_revision?.id
+                if (revisionId) {
+                    ids.push(revisionId)
+                }
             }
-        }
-        return ids
-    }),
+            return ids
+        }),
+    runKeyEqual,
 )
 
 /**
  * All mappings from the run data.
  */
-const mappingsAtomFamily = atomFamily((runId: string) =>
-    atom<EvaluationRunDataMapping[]>((get) => {
-        const data = get(dataAtomFamily(runId))
-        return data?.data?.mappings ?? []
-    }),
+const mappingsAtomFamily = atomFamily(
+    ({projectId, runId}: RunKey) =>
+        atom<EvaluationRunDataMapping[]>((get) => {
+            const data = get(dataAtomFamily({projectId, runId}))
+            return data?.data?.mappings ?? []
+        }),
+    runKeyEqual,
 )
 
 /**
  * Annotation mappings only — filtered to those whose step key matches an annotation step.
  */
-const annotationMappingsAtomFamily = atomFamily((runId: string) =>
-    atom<EvaluationRunDataMapping[]>((get) => {
-        const mappings = get(mappingsAtomFamily(runId))
-        const annotationSteps = get(annotationStepsAtomFamily(runId))
-        const annotationStepKeys = new Set(annotationSteps.map((s) => s.key))
-        return mappings.filter((m) => m.step?.key && annotationStepKeys.has(m.step.key))
-    }),
+const annotationMappingsAtomFamily = atomFamily(
+    ({projectId, runId}: RunKey) =>
+        atom<EvaluationRunDataMapping[]>((get) => {
+            const mappings = get(mappingsAtomFamily({projectId, runId}))
+            const annotationSteps = get(annotationStepsAtomFamily({projectId, runId}))
+            const annotationStepKeys = new Set(annotationSteps.map((s) => s.key))
+            return mappings.filter((m) => m.step?.key && annotationStepKeys.has(m.step.key))
+        }),
+    runKeyEqual,
 )
 
 // ============================================================================
@@ -245,8 +265,13 @@ const annotationMappingsAtomFamily = atomFamily((runId: string) =>
 // ============================================================================
 
 interface ScenarioStepsKey {
+    projectId: string
     runId: string
     scenarioId: string
+}
+
+function scenarioStepsKeyEqual(a: ScenarioStepsKey, b: ScenarioStepsKey): boolean {
+    return a.projectId === b.projectId && a.runId === b.runId && a.scenarioId === b.scenarioId
 }
 
 function normalizeString(value: unknown): string | null {
@@ -316,105 +341,30 @@ function getAnnotationEvaluatorSlug(
  * Annotation column definitions derived from run annotation steps + mappings.
  * Joins mappings to steps by key and extracts evaluator references.
  */
-const annotationColumnDefsAtomFamily = atomFamily((runId: string) =>
-    atom<AnnotationColumnDef[]>((get) => {
-        const annotationSteps = get(annotationStepsAtomFamily(runId))
-        const mappings = get(annotationMappingsAtomFamily(runId))
+const annotationColumnDefsAtomFamily = atomFamily(
+    ({projectId, runId}: RunKey) =>
+        atom<AnnotationColumnDef[]>((get) => {
+            const annotationSteps = get(annotationStepsAtomFamily({projectId, runId}))
+            const mappings = get(annotationMappingsAtomFamily({projectId, runId}))
 
-        const stepByKey = new Map(annotationSteps.map((s) => [s.key, s]))
+            const stepByKey = new Map(annotationSteps.map((s) => [s.key, s]))
 
-        return mappings
-            .filter((m) => m.step?.key && stepByKey.has(m.step.key))
-            .map((m) => {
-                const step = stepByKey.get(m.step!.key)!
-                return {
-                    stepKey: m.step!.key,
-                    columnName: m.column?.name ?? null,
-                    columnKind: m.column?.kind ?? null,
-                    path: m.step!.path ?? null,
-                    evaluatorId: getReferenceValue(step, "evaluator", "id"),
-                    evaluatorRevisionId: getReferenceValue(step, "evaluator_revision", "id"),
-                    evaluatorSlug: getAnnotationEvaluatorSlug(step, m),
-                }
-            })
-    }),
-)
-
-/**
- * Step references indexed by evaluator ID.
- * Maps evaluator workflow ID → {evaluator_revision, evaluator_variant} refs.
- * Used during annotation creation to build the correct references payload.
- */
-interface StepEvaluatorRefs {
-    evaluator_revision?: {id?: string; slug?: string}
-    evaluator_variant?: {id?: string; slug?: string}
-}
-
-const stepReferencesByEvaluatorIdAtomFamily = atomFamily((runId: string) =>
-    atom<Map<string, StepEvaluatorRefs>>((get) => {
-        const steps = get(annotationStepsAtomFamily(runId))
-        const refMap = new Map<string, StepEvaluatorRefs>()
-        for (const step of steps) {
-            const evalId = step.references?.evaluator?.id
-            if (evalId) {
-                refMap.set(evalId, {
-                    evaluator_revision: step.references?.evaluator_revision
-                        ? {
-                              id: step.references.evaluator_revision.id ?? undefined,
-                              slug: step.references.evaluator_revision.slug ?? undefined,
-                          }
-                        : undefined,
-                    evaluator_variant: step.references?.evaluator_variant
-                        ? {
-                              id: step.references.evaluator_variant.id ?? undefined,
-                              slug: step.references.evaluator_variant.slug ?? undefined,
-                          }
-                        : undefined,
+            return mappings
+                .filter((m) => m.step?.key && stepByKey.has(m.step.key))
+                .map((m) => {
+                    const step = stepByKey.get(m.step!.key)!
+                    return {
+                        stepKey: m.step!.key,
+                        columnName: m.column?.name ?? null,
+                        columnKind: m.column?.kind ?? null,
+                        path: m.step!.path ?? null,
+                        evaluatorId: getReferenceValue(step, "evaluator", "id"),
+                        evaluatorRevisionId: getReferenceValue(step, "evaluator_revision", "id"),
+                        evaluatorSlug: getAnnotationEvaluatorSlug(step, m),
+                    }
                 })
-            }
-        }
-        return refMap
-    }),
-)
-
-/**
- * Step keys indexed by evaluator slug.
- * Maps evaluator slug → annotation step key.
- * Used for duplicate detection and step key resolution during submission.
- */
-const stepKeysByEvaluatorSlugAtomFamily = atomFamily((runId: string) =>
-    atom<Map<string, string>>((get) => {
-        const steps = get(annotationStepsAtomFamily(runId))
-        const keyMap = new Map<string, string>()
-        for (const step of steps) {
-            const evalSlug = step.references?.evaluator?.slug
-            if (evalSlug && step.key) {
-                keyMap.set(evalSlug, step.key)
-            }
-        }
-        return keyMap
-    }),
-)
-
-/**
- * Invocation step key for a scenario.
- * Finds the first step result with a trace_id and step_key (the invocation step).
- * Used for building annotation links during submission.
- */
-const scenarioInvocationStepKeyAtomFamily = atomFamily(
-    ({runId, scenarioId}: ScenarioStepsKey) =>
-        atom<string | null>((get) => {
-            const query = get(scenarioStepsQueryAtomFamily({runId, scenarioId}))
-            const steps = query.data ?? []
-            for (const step of steps) {
-                if (step.trace_id && step.step_key) {
-                    return step.step_key
-                }
-            }
-            return null
         }),
-    (a: ScenarioStepsKey, b: ScenarioStepsKey) =>
-        a.runId === b.runId && a.scenarioId === b.scenarioId,
+    runKeyEqual,
 )
 
 // ============================================================================
@@ -428,33 +378,23 @@ const scenarioInvocationStepKeyAtomFamily = atomFamily(
  * Uses `atomWithQuery` with imperative projectId read + retry.
  */
 export const scenarioStepsQueryAtomFamily = atomFamily(
-    ({runId, scenarioId}: ScenarioStepsKey) =>
+    ({projectId, runId, scenarioId}: ScenarioStepsKey) =>
         atomWithQuery(() => ({
-            queryKey: ["scenarioSteps", runId, scenarioId],
+            queryKey: ["scenarioSteps", projectId, runId, scenarioId],
             queryFn: async (): Promise<EvaluationResult[]> => {
-                const projectId = getStore().get(projectIdAtom)
-                if (!runId || !scenarioId) return []
-                if (!projectId) {
-                    throw new Error("projectId not yet available")
-                }
+                if (!projectId || !runId || !scenarioId) return []
                 return queryEvaluationResults({
                     projectId,
                     runId,
                     scenarioIds: [scenarioId],
                 })
             },
-            enabled: !!runId && !!scenarioId,
-            retry: (failureCount: number, error: Error) => {
-                if (error?.message === "projectId not yet available" && failureCount < 5) {
-                    return true
-                }
-                return false
-            },
+            enabled: !!projectId && !!runId && !!scenarioId,
+            retry: false,
             retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
             staleTime: 60_000,
         })),
-    (a: ScenarioStepsKey, b: ScenarioStepsKey) =>
-        a.runId === b.runId && a.scenarioId === b.scenarioId,
+    scenarioStepsKeyEqual,
 )
 
 /**
@@ -462,9 +402,9 @@ export const scenarioStepsQueryAtomFamily = atomFamily(
  * The input step (or first step with a trace_id) provides the trace reference.
  */
 const scenarioTraceRefAtomFamily = atomFamily(
-    ({runId, scenarioId}: ScenarioStepsKey) =>
+    ({projectId, runId, scenarioId}: ScenarioStepsKey) =>
         atom((get) => {
-            const query = get(scenarioStepsQueryAtomFamily({runId, scenarioId}))
+            const query = get(scenarioStepsQueryAtomFamily({projectId, runId, scenarioId}))
             const steps = query.data ?? []
 
             // Find the first step with a trace_id (typically the "input" step)
@@ -478,8 +418,7 @@ const scenarioTraceRefAtomFamily = atomFamily(
             }
             return {traceId: "", spanId: ""}
         }),
-    (a: ScenarioStepsKey, b: ScenarioStepsKey) =>
-        a.runId === b.runId && a.scenarioId === b.scenarioId,
+    scenarioStepsKeyEqual,
 )
 
 /**
@@ -487,9 +426,9 @@ const scenarioTraceRefAtomFamily = atomFamily(
  * The input step (or first step with a testcase_id) provides the testcase reference.
  */
 const scenarioTestcaseRefAtomFamily = atomFamily(
-    ({runId, scenarioId}: ScenarioStepsKey) =>
+    ({projectId, runId, scenarioId}: ScenarioStepsKey) =>
         atom((get) => {
-            const query = get(scenarioStepsQueryAtomFamily({runId, scenarioId}))
+            const query = get(scenarioStepsQueryAtomFamily({projectId, runId, scenarioId}))
             const steps = query.data ?? []
 
             // Find the first step with a testcase_id (typically the "input" step)
@@ -500,8 +439,7 @@ const scenarioTestcaseRefAtomFamily = atomFamily(
             }
             return {testcaseId: ""}
         }),
-    (a: ScenarioStepsKey, b: ScenarioStepsKey) =>
-        a.runId === b.runId && a.scenarioId === b.scenarioId,
+    scenarioStepsKeyEqual,
 )
 
 // ============================================================================
@@ -511,9 +449,9 @@ const scenarioTestcaseRefAtomFamily = atomFamily(
 /**
  * Invalidate a single run's cache.
  */
-export function invalidateEvaluationRunCache(runId: string, options?: StoreOptions) {
+function invalidateEvaluationRunCache({projectId, runId}: RunKey, options?: StoreOptions) {
     const store = getStore(options)
-    const current = store.get(evaluationRunQueryAtomFamily(runId))
+    const current = store.get(evaluationRunQueryAtomFamily({projectId, runId}))
     if (current?.refetch) {
         current.refetch()
     }
@@ -552,12 +490,6 @@ export const evaluationRunMolecule = {
         annotationMappings: annotationMappingsAtomFamily,
         /** Annotation column definitions (steps + mappings joined with evaluator refs) */
         annotationColumnDefs: annotationColumnDefsAtomFamily,
-        /** Step references indexed by evaluator ID (for annotation creation) */
-        stepReferencesByEvaluatorId: stepReferencesByEvaluatorIdAtomFamily,
-        /** Step keys indexed by evaluator slug (for duplicate detection) */
-        stepKeysByEvaluatorSlug: stepKeysByEvaluatorSlugAtomFamily,
-        /** Invocation step key for a scenario (first step with trace_id) */
-        scenarioInvocationStepKey: scenarioInvocationStepKeyAtomFamily,
         /** Scenario step results (evaluation results for a scenario) */
         scenarioSteps: scenarioStepsQueryAtomFamily,
         /** Trace/span reference for a scenario (derived from steps) */
@@ -580,32 +512,34 @@ export const evaluationRunMolecule = {
     // GET (imperative read API)
     // ========================================================================
     get: {
-        data: (runId: string, options?: StoreOptions) =>
-            getStore(options).get(dataAtomFamily(runId)),
-        steps: (runId: string, options?: StoreOptions) =>
-            getStore(options).get(stepsAtomFamily(runId)),
-        annotationSteps: (runId: string, options?: StoreOptions) =>
-            getStore(options).get(annotationStepsAtomFamily(runId)),
-        evaluatorIds: (runId: string, options?: StoreOptions) =>
-            getStore(options).get(evaluatorIdsAtomFamily(runId)),
-        evaluatorRevisionIds: (runId: string, options?: StoreOptions) =>
-            getStore(options).get(evaluatorRevisionIdsAtomFamily(runId)),
-        mappings: (runId: string, options?: StoreOptions) =>
-            getStore(options).get(mappingsAtomFamily(runId)),
-        annotationMappings: (runId: string, options?: StoreOptions) =>
-            getStore(options).get(annotationMappingsAtomFamily(runId)),
-        annotationColumnDefs: (runId: string, options?: StoreOptions) =>
-            getStore(options).get(annotationColumnDefsAtomFamily(runId)),
-        stepReferencesByEvaluatorId: (runId: string, options?: StoreOptions) =>
-            getStore(options).get(stepReferencesByEvaluatorIdAtomFamily(runId)),
-        stepKeysByEvaluatorSlug: (runId: string, options?: StoreOptions) =>
-            getStore(options).get(stepKeysByEvaluatorSlugAtomFamily(runId)),
-        scenarioInvocationStepKey: (runId: string, scenarioId: string, options?: StoreOptions) =>
-            getStore(options).get(scenarioInvocationStepKeyAtomFamily({runId, scenarioId})),
-        scenarioTraceRef: (runId: string, scenarioId: string, options?: StoreOptions) =>
-            getStore(options).get(scenarioTraceRefAtomFamily({runId, scenarioId})),
-        scenarioTestcaseRef: (runId: string, scenarioId: string, options?: StoreOptions) =>
-            getStore(options).get(scenarioTestcaseRefAtomFamily({runId, scenarioId})),
+        data: (projectId: string, runId: string, options?: StoreOptions) =>
+            getStore(options).get(dataAtomFamily({projectId, runId})),
+        steps: (projectId: string, runId: string, options?: StoreOptions) =>
+            getStore(options).get(stepsAtomFamily({projectId, runId})),
+        annotationSteps: (projectId: string, runId: string, options?: StoreOptions) =>
+            getStore(options).get(annotationStepsAtomFamily({projectId, runId})),
+        evaluatorIds: (projectId: string, runId: string, options?: StoreOptions) =>
+            getStore(options).get(evaluatorIdsAtomFamily({projectId, runId})),
+        evaluatorRevisionIds: (projectId: string, runId: string, options?: StoreOptions) =>
+            getStore(options).get(evaluatorRevisionIdsAtomFamily({projectId, runId})),
+        mappings: (projectId: string, runId: string, options?: StoreOptions) =>
+            getStore(options).get(mappingsAtomFamily({projectId, runId})),
+        annotationMappings: (projectId: string, runId: string, options?: StoreOptions) =>
+            getStore(options).get(annotationMappingsAtomFamily({projectId, runId})),
+        annotationColumnDefs: (projectId: string, runId: string, options?: StoreOptions) =>
+            getStore(options).get(annotationColumnDefsAtomFamily({projectId, runId})),
+        scenarioTraceRef: (
+            projectId: string,
+            runId: string,
+            scenarioId: string,
+            options?: StoreOptions,
+        ) => getStore(options).get(scenarioTraceRefAtomFamily({projectId, runId, scenarioId})),
+        scenarioTestcaseRef: (
+            projectId: string,
+            runId: string,
+            scenarioId: string,
+            options?: StoreOptions,
+        ) => getStore(options).get(scenarioTestcaseRefAtomFamily({projectId, runId, scenarioId})),
     },
 
     // ========================================================================
@@ -615,5 +549,3 @@ export const evaluationRunMolecule = {
         invalidateDetail: invalidateEvaluationRunCache,
     },
 }
-
-export type EvaluationRunMolecule = typeof evaluationRunMolecule

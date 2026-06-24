@@ -18,3 +18,6 @@ export type {User} from "./user"
 
 // LLM provider configuration
 export type {LlmProvider} from "./llmProvider"
+
+// snake_case → camelCase key conversion helpers
+export type {SnakeToCamelCase, SnakeToCamelCaseKeys} from "./caseConversion"

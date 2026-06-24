@@ -1,0 +1,62 @@
+{
+    "name": "@agenta/evaluations",
+    "version": "0.75.0",
+    "private": true,
+    "sideEffects": false,
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "scripts": {
+        "build": "tsc --noEmit",
+        "types:check": "tsc --noEmit",
+        "types:check:integration": "tsc --noEmit --project tsconfig.integration.json",
+        "lint": "eslint --config ../eslint.config.mjs src/",
+        "test": "pnpm run test:unit",
+        "test:unit": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "test:all": "pnpm run test:unit && pnpm run test:integration",
+        "check": "pnpm run types:check && pnpm run lint"
+    },
+    "exports": {
+        ".": "./src/index.ts",
+        "./core": "./src/core/index.ts",
+        "./hooks": "./src/hooks/index.ts",
+        "./controllers": "./src/controllers/index.ts",
+        "./state": "./src/state/index.ts",
+        "./state/evalRun": "./src/state/evalRun/index.ts",
+        "./state/runsTable": "./src/state/runsTable/index.ts",
+        "./etl": "./src/etl/index.ts",
+        "./services": "./src/services/index.ts",
+        "./services/runShape": "./src/services/runShape.ts",
+        "./services/results": "./src/services/results.ts",
+        "./services/scenarios": "./src/services/scenarios.ts",
+        "./services/invocations": "./src/services/invocations.ts",
+        "./services/workerUtils": "./src/services/workerUtils.ts"
+    },
+    "dependencies": {
+        "@agenta/entities": "workspace:../agenta-entities",
+        "@agenta/playground": "workspace:../agenta-playground",
+        "@agenta/sdk": "workspace:../agenta-sdk",
+        "@agenta/shared": "workspace:../agenta-shared",
+        "@agenta/ui": "workspace:../agenta-ui",
+        "@agentaai/api-client": "workspace:../agenta-api-client",
+        "fast-deep-equal": "^3.1.3",
+        "jotai-scheduler": "^0.0.5",
+        "swr": "^2.4.0"
+    },
+    "peerDependencies": {
+        "@tanstack/react-query": ">=5.0.0",
+        "jotai": ">=2.0.0",
+        "jotai-family": ">=0.1.0",
+        "jotai-tanstack-query": ">=0.9.0",
+        "react": ">=18.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.8.10",
+        "@types/react": "^19.0.10",
+        "@vitest/coverage-v8": "^4.1.4",
+        "typescript": "5.8.3",
+        "vitest": "^4.1.4"
+    }
+}

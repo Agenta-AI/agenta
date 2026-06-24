@@ -236,3 +236,6 @@ export type {
     ParseResult,
     SourceSpan,
 } from "./mustache"
+
+export {getReferenceToneColors} from "./referenceColors"
+export type {ReferenceTone, ReferenceToneColors} from "./referenceColors"

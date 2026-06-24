@@ -6,9 +6,6 @@ export {
     registerAnnotationCallbacks,
     annotationFormController,
     type AnnotationFormController,
-    getOutputsSchema,
-    getMetricFieldsFromEvaluator,
-    getMetricsFromAnnotation,
     isEmptyValue,
     OUTPUT_KEYS,
 } from "./controllers"

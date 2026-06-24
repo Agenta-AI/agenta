@@ -46,53 +46,38 @@ import {
 import type {QueueType} from "@agenta/entities/queue"
 import {registerQueueTypeHint, clearQueueTypeHint} from "@agenta/entities/queue"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
-import {fetchTestcase, fetchTestcasesBatch, SYSTEM_FIELDS} from "@agenta/entities/testcase"
-import type {Testcase} from "@agenta/entities/testcase"
-import {
-    createTestset,
-    fetchLatestRevision,
-    fetchLatestRevisionsBatch,
-    fetchRevisionWithTestcases,
-    fetchTestsetsBatch,
-    patchRevision,
-} from "@agenta/entities/testset"
 import {
     traceEntityAtomFamily,
-    traceInputsAtomFamily,
-    traceOutputsAtomFamily,
     traceRootSpanAtomFamily,
     type TraceSpan,
 } from "@agenta/entities/trace"
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {axios, getAgentaApiUrl, queryClient} from "@agenta/shared/api"
+import {
+    evaluationSessionController as sessionEngine,
+    listColumnSelectors as evaluationsListColumns,
+    OUTPUT_KEYS,
+    registerSessionCallbacks as registerEngineCallbacks,
+    scenarioDataSelectors,
+    resolveMetricValue,
+    resolveMetricStats,
+    type ScenarioMetricData,
+} from "@agenta/evaluations/state"
+import {axios, queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
-import {extractApiErrorMessage} from "@agenta/shared/utils"
-import {atom, type Getter, type Setter} from "jotai"
+import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {
-    buildAddToTestsetOperations,
-    buildTestcaseExportRows,
-    buildTraceTestsetRows,
-    buildTestsetSyncOperations,
-    buildTestsetSyncPreview,
     filterQueueScopedAnnotations,
-    getTestcaseDedupId,
-    getTestsetSyncEvaluatorColumnKey,
-    remapTargetRowsToBaseRevision,
     selectQueueScopedAnnotation,
-    type CompletedScenarioRef,
     type TestsetSyncEvaluator,
 } from "../testsetSync"
-import {getTraceInputDisplayKeys} from "../traceInputDisplay"
 import type {
     AnnotationColumnDef,
-    ScenarioListColumnDef,
     OpenQueuePayload,
     ApplyRouteStatePayload,
-    AnnotationProgress,
     AnnotationSessionCallbacks,
     SessionView,
     ScenarioEvaluatorKey,
@@ -100,69 +85,60 @@ import type {
     EvaluatorStepRef,
 } from "../types"
 
+import {
+    addScenariosToTestsetAtom,
+    addToTestsetExportJobAtom,
+    addToTestsetModalOpenAtom,
+    addToTestsetScenarioIdsAtom,
+    addToTestsetScopeAtom,
+    canAddToTestsetAtom,
+    canSyncToTestsetAtom,
+    closeAddToTestsetModalAtom,
+    defaultTargetTestsetNameAtom,
+    isAddToTestsetExportingAtom,
+    openAddToTestsetModalAtom,
+    pendingTestsetSelectionAtom,
+    pendingTestsetSelectionNameAtom,
+    selectedScenarioIdsAtom,
+    setPendingTestsetSelectionAtom,
+    setSelectedScenarioIdsAtom,
+    syncToTestsetsAtom,
+    type AddScenariosToTestsetPayload,
+    type AddToTestsetScope,
+} from "./addToTestset"
+
+export type {AddToTestsetExportJob, AddToTestsetScope} from "./addToTestset"
+
 // ============================================================================
 // CORE ATOMS
 // ============================================================================
 
 /** The active queue ID being annotated */
-const activeQueueIdAtom = atom<string | null>(null)
+export const activeQueueIdAtom = atom<string | null>(null)
 
 /** The active queue's type (simple or evaluation) */
 const activeQueueTypeAtom = atom<QueueType | null>(null)
 
 /** The evaluation run ID — derived from queue data via simpleQueueMolecule */
-const activeRunIdAtom = atom<string | null>((get) => {
+export const activeRunIdAtom = atom<string | null>((get) => {
     const queueId = get(activeQueueIdAtom)
     if (!queueId) return null
     return get(simpleQueueMolecule.selectors.runId(queueId))
 })
 
-/** Requested/focused scenario ID from route or navigation state */
-const focusedScenarioIdAtom = atom<string | null>(null)
-
-/** Raw scenario records from the queue query */
 type ScenarioRecord = Record<string, unknown>
-const rawScenarioRecordsAtom = atom<ScenarioRecord[]>((get) => {
-    const queueId = get(activeQueueIdAtom)
-    if (!queueId) return []
-    return get(simpleQueueMolecule.selectors.scenarios(queueId)) as ScenarioRecord[]
-})
 
-/** Stable session-local scenario order to avoid refetch reordering in focus mode. */
-const scenarioOrderAtom = atom<string[]>([])
+// --- Session navigation/focus/view re-bound to the generic engine ------------
+// (@agenta/evaluations session engine). Annotation feeds it the QUEUE scenario source
+// in openQueue; these locals now point at the engine's atoms so every internal reader and
+// the public facade stay unchanged. The engine owns navigation/progress/focus/view; the
+// scenario source stays queue-scoped (user-filtered) — see openQueueAtom.
+const focusedScenarioIdAtom = sessionEngine.selectors.focusedScenarioId()
 
-/** Full scenario records — derived from simpleQueueMolecule.selectors.scenarios */
-const scenarioRecordsAtom = atom<ScenarioRecord[]>((get) => {
-    const records = get(rawScenarioRecordsAtom)
-    const orderedIds = get(scenarioOrderAtom)
-
-    if (records.length === 0 || orderedIds.length === 0) return records
-
-    const recordById = new Map<string, ScenarioRecord>()
-    for (const record of records) {
-        const id = typeof record.id === "string" ? record.id : ""
-        if (!id) continue
-        recordById.set(id, record)
-    }
-
-    const orderedRecords: ScenarioRecord[] = []
-    const seen = new Set<string>()
-
-    for (const id of orderedIds) {
-        const record = recordById.get(id)
-        if (!record) continue
-        orderedRecords.push(record)
-        seen.add(id)
-    }
-
-    for (const record of records) {
-        const id = typeof record.id === "string" ? record.id : ""
-        if (!id || seen.has(id)) continue
-        orderedRecords.push(record)
-    }
-
-    return orderedRecords
-})
+/** Full scenario records (queue scenarios, engine-ordered) — cast for the local helpers. */
+export const scenarioRecordsAtom = atom<ScenarioRecord[]>(
+    (get) => get(sessionEngine.selectors.scenarioRecords()) as ScenarioRecord[],
+)
 
 function findScenarioRecordById(
     records: ScenarioRecord[],
@@ -207,170 +183,17 @@ function extractScenarioTestcaseRef(scenario: ScenarioRecord | null): {testcaseI
     }
 }
 
-/** All scenario IDs — derived from scenario records */
-const scenarioIdsAtom = atom<string[]>((get) => {
-    const records = get(scenarioRecordsAtom)
-    return records.map((s) => (s.id as string) || "").filter(Boolean)
-})
+/** All scenario IDs / query state / view / completion — re-bound to the engine. */
+export const scenarioIdsAtom = sessionEngine.selectors.scenarioIds()
+const scenariosQueryAtom = sessionEngine.selectors.scenariosQuery()
+const activeSessionViewAtom = sessionEngine.selectors.activeView()
+const hideCompletedInFocusAtom = sessionEngine.selectors.hideCompletedInFocus()
+const focusAutoNextAtom = sessionEngine.selectors.focusAutoNext()
+export const completedScenarioIdsAtom = sessionEngine.selectors.completedScenarioIds()
 
-/** Scenarios query state — for loading indicators */
-const scenariosQueryAtom = atom((get) => {
-    const queueId = get(activeQueueIdAtom)
-    if (!queueId) return {isPending: false, isError: false, data: null}
-    return get(simpleQueueMolecule.selectors.scenariosQuery(queueId))
-})
-
-/** Set of completed scenario IDs */
-const completedScenarioIdsAtom = atom<Set<string>>(new Set<string>())
-
-/** Active view in the annotation session ("list" or "annotate") */
-const activeSessionViewAtom = atom<SessionView>("annotate")
-
-const hideCompletedInFocusAtom = atom<boolean>(false)
-const focusAutoNextAtom = atom<boolean>(true)
-
-export type AddToTestsetScope = "single" | "selected" | "all" | "complete"
-
-export interface AddToTestsetExportJob {
-    id: string
-    status: "idle" | "preparing" | "committing" | "success" | "error"
-    total: number
-    processed: number
-    targetTestsetId?: string
-    targetRevisionId?: string
-    targetTestsetName?: string
-    error?: string
-}
-
-interface AddScenariosToTestsetPayload {
-    targetMode: "existing" | "new"
-    commitMessage: string
-    newTestsetName?: string
-    newTestsetSlug?: string
-}
-
-const lastUsedTestsetByProjectAtom = atom<Record<string, string | null>>({})
-
-const lastUsedTestsetIdAtom = atom(
-    (get) => {
-        const projectId = get(projectIdAtom)
-        if (!projectId) return null
-        return get(lastUsedTestsetByProjectAtom)[projectId] ?? null
-    },
-    (get, set, testsetId: string | null) => {
-        const projectId = get(projectIdAtom)
-        if (!projectId) return
-        const byProject = get(lastUsedTestsetByProjectAtom)
-        set(lastUsedTestsetByProjectAtom, {...byProject, [projectId]: testsetId})
-    },
-)
-
-const defaultTargetTestsetQueryAtom = atomWithQuery((get) => {
-    const projectId = get(projectIdAtom)
-    const testsetId = get(lastUsedTestsetIdAtom)
-
-    return {
-        queryKey: ["annotation-default-target-testset", projectId, testsetId],
-        queryFn: async () => {
-            if (!projectId || !testsetId) return null
-            const testsets = await fetchTestsetsBatch(projectId, [testsetId])
-            return testsets.get(testsetId) ?? null
-        },
-        enabled: Boolean(projectId && testsetId),
-        staleTime: 5 * 60_000,
-        refetchOnWindowFocus: false,
-    }
-})
-
-const defaultTargetTestsetNameAtom = atom<string | null>((get) => {
-    const query = get(defaultTargetTestsetQueryAtom)
-    return query.data?.name ?? null
-})
-
-const addToTestsetModalOpenAtom = atom<boolean>(false)
-const addToTestsetScopeAtom = atom<AddToTestsetScope>("all")
-const addToTestsetScenarioIdsAtom = atom<string[]>([])
-const pendingTestsetSelectionAtom = atom<string | null>(null)
-const pendingTestsetSelectionNameAtom = atom<string | null>(null)
-const selectedScenarioIdsAtom = atom<string[]>([])
-const addToTestsetExportJobAtom = atom<AddToTestsetExportJob>({
-    id: "",
-    status: "idle",
-    total: 0,
-    processed: 0,
-})
-
-const isAddToTestsetExportingAtom = atom<boolean>((get) => {
-    const status = get(addToTestsetExportJobAtom).status
-    return status === "preparing" || status === "committing"
-})
-
-const syncScenarioOrderAtom = atom(null, (get, set) => {
-    const nextIds = get(rawScenarioRecordsAtom)
-        .map((record) => (typeof record.id === "string" ? record.id : ""))
-        .filter(Boolean)
-
-    if (nextIds.length === 0) {
-        if (get(scenarioOrderAtom).length > 0) {
-            set(scenarioOrderAtom, [])
-        }
-        return
-    }
-
-    const currentIds = get(scenarioOrderAtom)
-    const nextIdSet = new Set(nextIds)
-    const mergedIds = currentIds.filter((id) => nextIdSet.has(id))
-    const seen = new Set(mergedIds)
-
-    for (const id of nextIds) {
-        if (seen.has(id)) continue
-        mergedIds.push(id)
-        seen.add(id)
-    }
-
-    if (
-        mergedIds.length === currentIds.length &&
-        mergedIds.every((id, index) => currentIds[index] === id)
-    ) {
-        return
-    }
-
-    set(scenarioOrderAtom, mergedIds)
-})
-
-function getScenarioStatusValue({
-    scenarioId,
-    records,
-    completed,
-}: {
-    scenarioId: string
-    records: ScenarioRecord[]
-    completed: Set<string>
-}): string | null {
-    if (completed.has(scenarioId)) return "success"
-    const record = records.find((r) => r.id === scenarioId)
-    return (record?.status as string) ?? null
-}
-
-function getNavigableScenarioIds({get, view}: {get: Getter; view?: SessionView}): string[] {
-    const ids = get(scenarioIdsAtom)
-    const activeView = view ?? get(activeSessionViewAtom)
-    if (activeView !== "annotate") return ids
-
-    const hideCompleted = get(hideCompletedInFocusAtom)
-    const records = get(scenarioRecordsAtom)
-    const completed = get(completedScenarioIdsAtom)
-
-    return ids.filter((scenarioId) => {
-        const status = getScenarioStatusValue({scenarioId, records, completed})
-        if (hideCompleted && status === "success") {
-            return false
-        }
-        return true
-    })
-}
-
-const navigableScenarioIdsAtom = atom<string[]>((get) => getNavigableScenarioIds({get}))
+// Scenario ordering + navigable filtering are owned by the engine now.
+const syncScenarioOrderAtom = sessionEngine.actions.syncScenarioOrder
+const navigableScenarioIdsAtom = sessionEngine.selectors.navigableScenarioIds()
 
 // ============================================================================
 // DERIVED ATOMS — Queue-level
@@ -379,101 +202,24 @@ const navigableScenarioIdsAtom = atom<string[]>((get) => getNavigableScenarioIds
 /** Is a session currently active? */
 const isActiveAtom = atom<boolean>((get) => get(activeQueueIdAtom) !== null)
 
-/** The current scenario ID */
-const currentScenarioIdAtom = atom<string | null>((get) => {
-    const allIds = get(scenarioIdsAtom)
-    if (allIds.length === 0) return null
-
-    const focusedScenarioId = get(focusedScenarioIdAtom)
-    if (focusedScenarioId && allIds.includes(focusedScenarioId)) {
-        return focusedScenarioId
-    }
-
-    const visibleIds = get(navigableScenarioIdsAtom)
-    if (visibleIds.length > 0) return visibleIds[0] ?? null
-
-    return allIds[0] ?? null
-})
-
-/** Current scenario index (0-based) */
-const currentScenarioIndexAtom = atom<number>((get) => {
-    const ids = get(scenarioIdsAtom)
-    const currentScenarioId = get(currentScenarioIdAtom)
-
-    if (!currentScenarioId) return 0
-
-    const index = ids.indexOf(currentScenarioId)
-    return index >= 0 ? index : 0
-})
-
-/** Can navigate to next item? */
-const hasNextAtom = atom<boolean>(
-    (get) => resolveAdjacentNavigableScenarioId({get, direction: "next"}) !== null,
-)
-
-/** Can navigate to previous item? */
-const hasPrevAtom = atom<boolean>(
-    (get) => resolveAdjacentNavigableScenarioId({get, direction: "prev"}) !== null,
-)
-
-/** Progress tracker */
-const progressAtom = atom<AnnotationProgress>((get) => {
-    const ids = get(scenarioIdsAtom)
-    const records = get(scenarioRecordsAtom)
-    const locallyCompleted = get(completedScenarioIdsAtom)
-    const completedCount = ids.filter((id) => {
-        if (locallyCompleted.has(id)) return true
-        const record = records.find((r) => r.id === id)
-        return record?.status === "success"
-    }).length
-    return {
-        total: ids.length,
-        completed: completedCount,
-        remaining: ids.length - completedCount,
-        currentIndex: get(currentScenarioIndexAtom),
-    }
-})
-
-/** Is the current scenario already completed? */
-const isCurrentCompletedAtom = atom<boolean>((get) => {
-    const currentId = get(currentScenarioIdAtom)
-    if (!currentId) return false
-    if (get(completedScenarioIdsAtom).has(currentId)) return true
-    const records = get(scenarioRecordsAtom)
-    const record = records.find((r) => r.id === currentId)
-    return record?.status === "success"
-})
-
-/**
- * Scenario statuses — derived from scenario records with completed overlay.
- * Scenarios marked complete locally (via markCompleted) are shown as "success"
- * even before the server query refreshes.
- */
-const scenarioStatusesAtom = atom<Record<string, string | null>>((get) => {
-    const records = get(scenarioRecordsAtom)
-    const completed = get(completedScenarioIdsAtom)
-    const map: Record<string, string | null> = {}
-    for (const s of records) {
-        const id = s.id as string
-        if (!id) continue
-        if (completed.has(id)) {
-            map[id] = "success"
-        } else {
-            map[id] = getScenarioStatusValue({scenarioId: id, records, completed})
-        }
-    }
-    return map
-})
+// Navigation / progress / status are owned by the engine (re-bound).
+const currentScenarioIdAtom = sessionEngine.selectors.currentScenarioId()
+const currentScenarioIndexAtom = sessionEngine.selectors.currentScenarioIndex()
+const hasNextAtom = sessionEngine.selectors.hasNext()
+const hasPrevAtom = sessionEngine.selectors.hasPrev()
+const progressAtom = sessionEngine.selectors.progress()
+const isCurrentCompletedAtom = sessionEngine.selectors.isCurrentCompleted()
+const scenarioStatusesAtom = sessionEngine.selectors.scenarioStatuses()
 
 /** Queue name — derived from simpleQueueMolecule */
-const queueNameAtom = atom<string | null>((get) => {
+export const queueNameAtom = atom<string | null>((get) => {
     const queueId = get(activeQueueIdAtom)
     if (!queueId) return null
     return get(simpleQueueMolecule.selectors.name(queueId))
 })
 
 /** Queue kind (traces / testcases) — derived from simpleQueueMolecule */
-const queueKindAtom = atom<string | null>((get) => {
+export const queueKindAtom = atom<string | null>((get) => {
     const queueId = get(activeQueueIdAtom)
     if (!queueId) return null
     return get(simpleQueueMolecule.selectors.kind(queueId))
@@ -494,8 +240,9 @@ const queueDescriptionAtom = atom<string | null>((get) => {
  */
 const evaluatorIdsAtom = atom<string[]>((get) => {
     const runId = get(activeRunIdAtom)
-    if (!runId) return []
-    return get(evaluationRunMolecule.selectors.evaluatorIds(runId))
+    const projectId = get(projectIdAtom)
+    if (!runId || !projectId) return []
+    return get(scenarioDataSelectors.evaluatorIds({projectId, runId}))
 })
 
 /**
@@ -505,8 +252,9 @@ const evaluatorIdsAtom = atom<string[]>((get) => {
  */
 const evaluatorRevisionIdsAtom = atom<string[]>((get) => {
     const runId = get(activeRunIdAtom)
-    if (!runId) return []
-    return get(evaluationRunMolecule.selectors.evaluatorRevisionIds(runId))
+    const projectId = get(projectIdAtom)
+    if (!runId || !projectId) return []
+    return get(scenarioDataSelectors.evaluatorRevisionIds({projectId, runId}))
 })
 
 function deriveEvaluatorSlugFromStepKey(stepKey: string | null | undefined): string | null {
@@ -522,33 +270,19 @@ function deriveEvaluatorSlugFromStepKey(stepKey: string | null | undefined): str
  */
 const evaluatorStepRefsAtom = atom<EvaluatorStepRef[]>((get) => {
     const runId = get(activeRunIdAtom)
-    if (!runId) return []
-
-    const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps(runId))
-
-    return annotationSteps
-        .map((step) => ({
-            workflowId: step.references?.evaluator?.id ?? null,
-            variantId: step.references?.evaluator_variant?.id ?? null,
-            revisionId: step.references?.evaluator_revision?.id ?? null,
-            slug:
-                step.references?.evaluator?.slug ??
-                step.references?.evaluator_variant?.slug ??
-                deriveEvaluatorSlugFromStepKey(step.key) ??
-                step.references?.evaluator_revision?.slug ??
-                null,
-            stepKey: step.key ?? null,
-        }))
-        .filter((ref) => Boolean(ref.workflowId || ref.revisionId || ref.slug))
+    const projectId = get(projectIdAtom)
+    if (!runId || !projectId) return []
+    return get(scenarioDataSelectors.evaluatorStepRefs({projectId, runId}))
 })
 
 /** Evaluator metadata for queue-scoped testcase sync. */
-const testsetSyncEvaluatorsAtom = atom<TestsetSyncEvaluator[]>((get) => {
+export const testsetSyncEvaluatorsAtom = atom<TestsetSyncEvaluator[]>((get) => {
     const runId = get(activeRunIdAtom)
-    if (!runId) return []
+    const projectId = get(projectIdAtom)
+    if (!runId || !projectId) return []
 
     const byKey = new Map<string, TestsetSyncEvaluator>()
-    const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps(runId))
+    const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps({projectId, runId}))
 
     for (const step of annotationSteps) {
         const workflowId = step.references?.evaluator?.id ?? null
@@ -581,278 +315,47 @@ const testsetSyncEvaluatorsAtom = atom<TestsetSyncEvaluator[]>((get) => {
  */
 const annotationColumnDefsAtom = atom<AnnotationColumnDef[]>((get) => {
     const runId = get(activeRunIdAtom)
-    if (!runId) return []
-    return get(evaluationRunMolecule.selectors.annotationColumnDefs(runId)) as AnnotationColumnDef[]
+    const projectId = get(projectIdAtom)
+    if (!runId || !projectId) return []
+    return get(
+        scenarioDataSelectors.evaluatorColumnDefs({projectId, runId}),
+    ) as AnnotationColumnDef[]
 })
 
 /**
  * Trace input keys — discovered from the first scenario's trace inputs.
- * Used by the list view to build per-key input columns for trace-based queues.
  *
- * Reactively resolves: scenarioIds[0] → traceRef → traceInputs → Object.keys()
+ * Delegates to the generic evaluations list-column tier
+ * (`evaluationsListColumns.traceInputKeys`), which reads the session engine's
+ * injected `kind` + `{projectId, runId}` context. Annotation injects its queue
+ * `kind` via `setScenarioSource` in `openQueue`.
  */
-const traceInputKeysAtom = atom<string[]>((get) => {
-    const kind = get(queueKindAtom)
-    if (kind !== "traces") return []
-
-    const ids = get(scenarioIdsAtom)
-    if (ids.length === 0) return []
-
-    // Resolve the first scenario's trace ID
-    const firstScenarioId = ids[0]
-    const runId = get(activeRunIdAtom)
-    if (!runId || !firstScenarioId) return []
-
-    const traceRef = get(
-        evaluationRunMolecule.selectors.scenarioTraceRef({runId, scenarioId: firstScenarioId}),
-    )
-    const traceId = traceRef?.traceId
-    if (!traceId) return []
-
-    // Read the trace inputs and extract keys
-    const inputs = get(traceInputsAtomFamily(traceId))
-    if (!inputs) return []
-
-    return getTraceInputDisplayKeys(inputs)
-})
+const traceInputKeysAtom = evaluationsListColumns.traceInputKeys()
 
 /**
  * Testcase data — fetched by testcaseId via atomWithQuery.
  * Used by list view cell renderers and testcase key discovery.
  */
 const testcaseDataAtomFamily = atomFamily((testcaseId: string) =>
-    atomWithQuery<Testcase | null>((get) => {
+    atom((get) => {
         const projectId = get(projectIdAtom)
-
-        return {
-            queryKey: ["annotation-testcase", projectId, testcaseId],
-            queryFn: async () => {
-                if (!projectId || !testcaseId) return null
-                return fetchTestcase({projectId, testcaseId})
-            },
-            enabled: !!projectId && !!testcaseId,
-            staleTime: 5 * 60_000,
-            refetchOnWindowFocus: false,
-        }
+        return get(scenarioDataSelectors.testcaseData({projectId: projectId ?? "", testcaseId}))
     }),
 )
 
 /**
- * All testcase IDs referenced by the current queue scenarios.
- * Used for batch testcase fetch + unioned column discovery.
- */
-const scenarioTestcaseIdsAtom = atom<string[]>((get) => {
-    const kind = get(queueKindAtom)
-    if (kind !== "testcases") return []
-
-    const scenarioIds = get(scenarioIdsAtom)
-    const seen = new Set<string>()
-
-    for (const scenarioId of scenarioIds) {
-        const testcaseId = get(scenarioTestcaseRefAtomFamily(scenarioId)).testcaseId
-        if (testcaseId) {
-            seen.add(testcaseId)
-        }
-    }
-
-    return Array.from(seen)
-})
-
-/**
- * Batch testcase data for all testcase scenarios in the current queue.
- * Used for unioned testcase column discovery across the whole queue.
- */
-const scenarioTestcasesQueryAtom = atomWithQuery<Testcase[]>((get) => {
-    const queueId = get(activeQueueIdAtom)
-    const testcaseIds = get(scenarioTestcaseIdsAtom)
-
-    return {
-        queryKey: ["annotation-testcases-batch", queueId ?? "none", testcaseIds],
-        queryFn: async () => {
-            const projectId = getDefaultStore().get(projectIdAtom)
-            if (testcaseIds.length === 0) return []
-            if (!projectId) {
-                throw new Error("projectId not yet available")
-            }
-
-            const testcaseMap = await fetchTestcasesBatch({projectId, testcaseIds})
-            return testcaseIds
-                .map((testcaseId) => testcaseMap.get(testcaseId) ?? null)
-                .filter((testcase): testcase is Testcase => testcase !== null)
-        },
-        enabled: testcaseIds.length > 0,
-        retry: (failureCount: number, error: Error) => {
-            if (error?.message === "projectId not yet available" && failureCount < 5) {
-                return true
-            }
-            return false
-        },
-        retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
-        staleTime: 5 * 60_000,
-        refetchOnWindowFocus: false,
-    }
-})
-
-/**
  * Testcase input keys — discovered from all testcase data in the queue.
- * Used by the list view to build per-key columns for testcase-based queues.
- *
- * Reactively resolves: scenarioIds[] → testcaseIds[] → batched testcase fetch → union(Object.keys(data))
+ * Delegates to the generic evaluations list-column tier (which internally
+ * resolves the queue's testcase IDs + batch testcase data).
  */
-const testcaseInputKeysAtom = atom<string[]>((get) => {
-    const kind = get(queueKindAtom)
-    if (kind !== "testcases") return []
-
-    const query = get(scenarioTestcasesQueryAtom)
-    const testcases = query.data ?? []
-    if (testcases.length === 0) return []
-
-    const keys = new Set<string>()
-    for (const testcase of testcases) {
-        for (const key of Object.keys(testcase.data ?? {})) {
-            if (!TESTCASE_SYSTEM_KEYS.has(key)) {
-                keys.add(key)
-            }
-        }
-    }
-
-    return Array.from(keys)
-})
-
-// ============================================================================
-// COLUMN DISCOVERY HELPERS (for testcase-based queues)
-// ============================================================================
-
-/** System keys to exclude from testcase data columns (internal fields not for display) */
-const TESTCASE_SYSTEM_KEYS = new Set(["testcase_dedup_id", "__dedup_id__"])
-
-/** Keys to exclude from display in testcase columns */
-const EXCLUDE_KEYS = new Set([
-    "id",
-    "created_at",
-    "updated_at",
-    "created_by_id",
-    "updated_by_id",
-    "run_id",
-    "version",
-    "__isSkeleton",
-    "key",
-    "trace_id",
-    "span_id",
-    "status",
-    "interval",
-    "timestamp",
-])
-
-/** Keys that represent outputs */
-export const OUTPUT_KEYS = new Set(["output", "outputs", "result", "response", "completion"])
-
-/** Keys that represent expected/reference outputs */
-const EXPECTED_OUTPUT_KEYS = new Set([
-    "expected_output",
-    "expected",
-    "reference",
-    "reference_output",
-    "ground_truth",
-    "golden",
-    "target",
-    "correct_answer",
-])
-
-/** Keys that represent metadata (tags/meta) */
-const META_KEYS = new Set(["tags", "meta"])
-
-type TestcaseColumnGroup = "input" | "output" | "expected"
-
-function getAnnotationDisplayTitle(get: Getter, def: AnnotationColumnDef): string {
-    const evaluatorLookupId = def.evaluatorRevisionId ?? def.evaluatorId
-    const evaluator = evaluatorLookupId
-        ? get(workflowMolecule.selectors.data(evaluatorLookupId))
-        : null
-    return (
-        evaluator?.name?.trim() ||
-        def.evaluatorSlug?.trim() ||
-        evaluator?.slug?.trim() ||
-        def.columnName?.trim() ||
-        def.stepKey?.trim() ||
-        ""
-    )
-}
-
-function getAnnotationGroupKey(get: Getter, def: AnnotationColumnDef): string {
-    return (
-        def.evaluatorId?.trim() ||
-        def.evaluatorSlug?.trim() ||
-        getAnnotationDisplayTitle(get, def).trim().toLowerCase() ||
-        def.stepKey
-    )
-}
-
-function stripOutputPathPrefix(path: string): string {
-    for (const prefix of ["attributes.ag.data.outputs.", "data.outputs.", "outputs."]) {
-        if (path.startsWith(prefix)) {
-            return path.slice(prefix.length)
-        }
-    }
-    return path
-}
-
-function getAnnotationChildTitle(def: AnnotationColumnDef): string {
-    const path = def.path?.trim()
-    if (path) {
-        const stripped = stripOutputPathPrefix(path)
-        if (stripped && stripped !== path) return stripped
-
-        const leaf = stripped.split(".").filter(Boolean).at(-1)
-        if (leaf && leaf !== "outputs") return leaf
-    }
-
-    return def.columnName?.trim() || def.stepKey
-}
+const testcaseInputKeysAtom = evaluationsListColumns.testcaseInputKeys()
 
 /**
- * Analyze scenario records to discover dynamic testcase columns.
- * Returns column definitions grouped by input/output/expected.
+ * Output-key category set — re-exported from the generic evaluations list-column
+ * tier (canonical copy now lives there). Kept exported here so existing
+ * consumers (`@agenta/annotation`'s `OUTPUT_KEYS`) keep resolving.
  */
-function discoverTestcaseColumns(
-    scenarios: ScenarioRecord[],
-): {key: string; title: string; group: TestcaseColumnGroup}[] {
-    const seen = new Map<string, TestcaseColumnGroup>()
-
-    for (const scenario of scenarios) {
-        for (const key of Object.keys(scenario)) {
-            if (EXCLUDE_KEYS.has(key) || META_KEYS.has(key) || seen.has(key)) continue
-
-            let group: TestcaseColumnGroup = "input"
-            if (OUTPUT_KEYS.has(key)) group = "output"
-            else if (EXPECTED_OUTPUT_KEYS.has(key)) group = "expected"
-
-            seen.set(key, group)
-        }
-
-        // Also inspect `meta` for nested data fields
-        const meta = scenario.meta
-        if (meta && typeof meta === "object") {
-            for (const key of Object.keys(meta as Record<string, unknown>)) {
-                const prefixed = `meta.${key}`
-                if (seen.has(prefixed)) continue
-                if (["trace_id", "span_id"].includes(key)) continue
-
-                let group: TestcaseColumnGroup = "input"
-                if (OUTPUT_KEYS.has(key)) group = "output"
-                else if (EXPECTED_OUTPUT_KEYS.has(key)) group = "expected"
-
-                seen.set(prefixed, group)
-            }
-        }
-    }
-
-    return Array.from(seen.entries()).map(([key, group]) => ({
-        key,
-        title: key.startsWith("meta.") ? key.slice(5) : key,
-        group,
-    }))
-}
+export {OUTPUT_KEYS}
 
 // ============================================================================
 // DERIVED ATOM — Full list column definitions
@@ -860,214 +363,11 @@ function discoverTestcaseColumns(
 
 /**
  * Complete ordered list of column definitions for the scenario list table.
- * Combines: index + data columns (trace or testcase) + annotation columns + status + actions.
- *
- * The presentation layer maps each def to a renderer based on `columnType`.
+ * Delegates to the generic evaluations list-column tier, which reads the
+ * session engine's injected `kind` + context and the generic scenario-data
+ * selectors.
  */
-const listColumnDefsAtom = atom<ScenarioListColumnDef[]>((get) => {
-    const kind = get(queueKindAtom)
-    const inputKeys = get(traceInputKeysAtom)
-    const annotationDefs = get(annotationColumnDefsAtom)
-    const records = get(scenarioRecordsAtom)
-    // Note: if two annotation defs resolve to the same lowercase title, the later one wins.
-    // This is acceptable since duplicate evaluator names within a single run are uncommon.
-    const annotationColumnsByTitle = new Map(
-        annotationDefs
-            .map((def) => {
-                const title = getAnnotationDisplayTitle(get, def)
-                return title ? ([title.trim().toLowerCase(), def] as const) : null
-            })
-            .filter((entry): entry is readonly [string, AnnotationColumnDef] => entry !== null),
-    )
-    const mergedFallbackKeys = new Map<string, string>()
-
-    // Leading: index column
-    const leading: ScenarioListColumnDef[] = [
-        {columnType: "index", key: "__index", title: "#", width: 64, fixed: "left"},
-    ]
-
-    // Data columns depend on queue kind
-    let dataColumns: ScenarioListColumnDef[] = []
-
-    if (kind === "traces") {
-        // Trace-based: name + per-key inputs (or fallback) + outputs
-        const traceName: ScenarioListColumnDef = {
-            columnType: "trace-name",
-            key: "__trace_name",
-            title: "Trace",
-            width: 180,
-        }
-
-        const traceInputGroup: ScenarioListColumnDef = {
-            columnType: "trace-input-group",
-            key: "__trace_inputs",
-            title: "Inputs",
-            width: inputKeys.length > 1 ? 250 * inputKeys.length : 300,
-            inputKeys,
-        }
-
-        const traceOutput: ScenarioListColumnDef = {
-            columnType: "trace-output",
-            key: "__trace_outputs",
-            title: "Outputs",
-            width: 300,
-        }
-
-        dataColumns = [traceName, traceInputGroup, traceOutput]
-    } else {
-        // Testcase-based: discover columns from fetched testcase data keys
-        const testcaseKeys = get(testcaseInputKeysAtom)
-
-        if (testcaseKeys.length > 0) {
-            // Categorize keys using the same sets used for scenario records
-            const inputCols: string[] = []
-            const outputCols: string[] = []
-            const expectedCols: string[] = []
-
-            for (const key of testcaseKeys) {
-                const normalizedKey = key.trim().toLowerCase()
-                if (annotationColumnsByTitle.has(normalizedKey)) {
-                    mergedFallbackKeys.set(normalizedKey, key)
-                    continue
-                }
-                if (OUTPUT_KEYS.has(key)) outputCols.push(key)
-                else if (EXPECTED_OUTPUT_KEYS.has(key)) expectedCols.push(key)
-                else inputCols.push(key)
-            }
-
-            dataColumns = [
-                ...inputCols.map(
-                    (key): ScenarioListColumnDef => ({
-                        columnType: "testcase-input",
-                        key,
-                        title: key,
-                        width: 200,
-                        dataKey: key,
-                    }),
-                ),
-                ...outputCols.map(
-                    (key): ScenarioListColumnDef => ({
-                        columnType: "testcase-output",
-                        key,
-                        title: key,
-                        width: 200,
-                        dataKey: key,
-                    }),
-                ),
-                ...expectedCols.map(
-                    (key): ScenarioListColumnDef => ({
-                        columnType: "testcase-expected",
-                        key,
-                        title: key,
-                        width: 200,
-                        dataKey: key,
-                    }),
-                ),
-            ]
-        } else {
-            // Fallback: discover from scenario records (works if data is inline)
-            const discovered = discoverTestcaseColumns(records).filter((col) => {
-                const normalizedTitle = col.title.trim().toLowerCase()
-                if (annotationColumnsByTitle.has(normalizedTitle)) {
-                    mergedFallbackKeys.set(normalizedTitle, col.key)
-                    return false
-                }
-                return true
-            })
-            const inputColsF = discovered.filter((c) => c.group === "input")
-            const outputColsF = discovered.filter((c) => c.group === "output")
-            const expectedColsF = discovered.filter((c) => c.group === "expected")
-
-            dataColumns = [
-                ...inputColsF.map(
-                    (col): ScenarioListColumnDef => ({
-                        columnType: "testcase-input",
-                        key: col.key,
-                        title: col.title,
-                        width: 200,
-                        dataKey: col.key,
-                    }),
-                ),
-                ...outputColsF.map(
-                    (col): ScenarioListColumnDef => ({
-                        columnType: "testcase-output",
-                        key: col.key,
-                        title: col.title,
-                        width: 200,
-                        dataKey: col.key,
-                    }),
-                ),
-                ...expectedColsF.map(
-                    (col): ScenarioListColumnDef => ({
-                        columnType: "testcase-expected",
-                        key: col.key,
-                        title: col.title,
-                        width: 200,
-                        dataKey: col.key,
-                    }),
-                ),
-            ]
-        }
-    }
-
-    // Annotation columns — group mapping columns under their evaluator parent.
-    const annotationGroups = new Map<
-        string,
-        {title: string; defs: AnnotationColumnDef[]; fallbackDataKey: string | null}
-    >()
-    for (const def of annotationDefs) {
-        const displayTitle = getAnnotationDisplayTitle(get, def)
-        const groupKey = getAnnotationGroupKey(get, def)
-        const existing = annotationGroups.get(groupKey)
-
-        if (existing) {
-            existing.defs.push(def)
-            continue
-        }
-
-        annotationGroups.set(groupKey, {
-            title: displayTitle || def.columnName || def.evaluatorSlug || def.stepKey,
-            defs: [def],
-            fallbackDataKey: mergedFallbackKeys.get(displayTitle.trim().toLowerCase()) ?? null,
-        })
-    }
-
-    const annotationColumns: ScenarioListColumnDef[] = Array.from(annotationGroups.entries()).map(
-        ([groupKey, group]) => {
-            const childTitleCounts = new Map<string, number>()
-            const outputColumns = group.defs.map((def) => {
-                const title = getAnnotationChildTitle(def)
-                const count = childTitleCounts.get(title) ?? 0
-                childTitleCounts.set(title, count + 1)
-
-                return {
-                    key: `__annot_${groupKey}_${title}_${count}`,
-                    title,
-                    annotationDef: def,
-                }
-            })
-
-            return {
-                columnType: "annotation" as const,
-                key: `__annot_${groupKey}`,
-                title: group.title,
-                width: 150 * Math.max(outputColumns.length, 1),
-                annotationDef: group.defs[0],
-                outputKeys: outputColumns.map((column) => column.title),
-                outputColumns,
-                fallbackDataKey: group.fallbackDataKey,
-            }
-        },
-    )
-
-    // Trailing: review status + actions
-    const trailing: ScenarioListColumnDef[] = [
-        {columnType: "status", key: "__status", title: "Review Status", width: 120},
-        {columnType: "actions", key: "__actions", title: "", width: 48},
-    ]
-
-    return [...leading, ...dataColumns, ...annotationColumns, ...trailing]
-})
+const listColumnDefsAtom = evaluationsListColumns.listColumnDefs()
 
 // ============================================================================
 // DERIVED ATOMS — Per-task (keyed by scenarioId)
@@ -1077,11 +377,12 @@ const listColumnDefsAtom = atom<ScenarioListColumnDef[]>((get) => {
  * Trace ref for a scenario — derived from evaluation run steps.
  * Resolves trace_id and span_id from the scenario's step results.
  */
-const scenarioStepsQueryStateAtomFamily = atomFamily((scenarioId: string) =>
+export const scenarioStepsQueryStateAtomFamily = atomFamily((scenarioId: string) =>
     atom((get) => {
         const runId = get(activeRunIdAtom)
-        if (!runId || !scenarioId) return null
-        return get(evaluationRunMolecule.selectors.scenarioSteps({runId, scenarioId}))
+        const projectId = get(projectIdAtom)
+        if (!runId || !scenarioId || !projectId) return null
+        return get(scenarioDataSelectors.scenarioSteps({projectId, runId, scenarioId}))
     }),
 )
 
@@ -1089,15 +390,16 @@ const scenarioStepsQueryStateAtomFamily = atomFamily((scenarioId: string) =>
  * Trace ref for a scenario — derived from evaluation run steps.
  * Resolves trace_id and span_id from the scenario's step results.
  */
-const scenarioTraceRefAtomFamily = atomFamily((scenarioId: string) =>
+export const scenarioTraceRefAtomFamily = atomFamily((scenarioId: string) =>
     atom((get) => {
         const records = get(scenarioRecordsAtom)
         const directRef = extractScenarioTraceRef(findScenarioRecordById(records, scenarioId))
 
         const runId = get(activeRunIdAtom)
-        if (!runId || !scenarioId) return directRef
+        const projectId = get(projectIdAtom)
+        if (!runId || !scenarioId || !projectId) return directRef
 
-        const stepRef = get(evaluationRunMolecule.selectors.scenarioTraceRef({runId, scenarioId}))
+        const stepRef = get(scenarioDataSelectors.scenarioTraceRef({projectId, runId, scenarioId}))
         if (stepRef.traceId) return stepRef
 
         return directRef
@@ -1108,16 +410,17 @@ const scenarioTraceRefAtomFamily = atomFamily((scenarioId: string) =>
  * Testcase ref for a scenario — derived from evaluation run steps.
  * Resolves testcase_id from the scenario's step results.
  */
-const scenarioTestcaseRefAtomFamily = atomFamily((scenarioId: string) =>
+export const scenarioTestcaseRefAtomFamily = atomFamily((scenarioId: string) =>
     atom((get) => {
         const records = get(scenarioRecordsAtom)
         const directRef = extractScenarioTestcaseRef(findScenarioRecordById(records, scenarioId))
 
         const runId = get(activeRunIdAtom)
-        if (!runId || !scenarioId) return directRef
+        const projectId = get(projectIdAtom)
+        if (!runId || !scenarioId || !projectId) return directRef
 
         const stepRef = get(
-            evaluationRunMolecule.selectors.scenarioTestcaseRef({runId, scenarioId}),
+            scenarioDataSelectors.scenarioTestcaseRef({projectId, runId, scenarioId}),
         )
         if (stepRef.testcaseId) return stepRef
 
@@ -1161,14 +464,19 @@ const scenarioRootSpanAtomFamily = atomFamily((scenarioId: string) =>
 const scenarioAnnotationTraceIdsAtomFamily = atomFamily((scenarioId: string) =>
     atom<string[]>((get) => {
         const runId = get(activeRunIdAtom)
-        if (!runId || !scenarioId) return []
+        const projectId = get(projectIdAtom)
+        if (!runId || !scenarioId || !projectId) return []
 
         // Get annotation step info from the run definition
-        const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps(runId))
+        const annotationSteps = get(
+            evaluationRunMolecule.selectors.annotationSteps({projectId, runId}),
+        )
         if (annotationSteps.length === 0) return []
 
         // Get scenario step results (evaluation results)
-        const stepsQuery = get(evaluationRunMolecule.selectors.scenarioSteps({runId, scenarioId}))
+        const stepsQuery = get(
+            evaluationRunMolecule.selectors.scenarioSteps({projectId, runId, scenarioId}),
+        )
         const steps = stepsQuery.data ?? []
 
         return extractAnnotationTraceIdsFromSteps({annotationSteps, steps})
@@ -1194,7 +502,7 @@ function buildAnnotationStepMatchers(annotationSteps: EvaluationRunDataStep[]) {
     return {stepKeys, suffixes}
 }
 
-function extractAnnotationTraceIdsFromSteps({
+export function extractAnnotationTraceIdsFromSteps({
     annotationSteps,
     steps,
 }: {
@@ -1348,7 +656,7 @@ const scenarioAnnotationsByTestcaseQueryAtomFamily = atomFamily(
  * cross-queue bleed, cross-scenario bleed, and 500 errors on submit.
  * Step result upserts are now awaited (not fire-and-forget) to ensure path 1 always works.
  */
-const scenarioAnnotationsAtomFamily = atomFamily((scenarioId: string) =>
+export const scenarioAnnotationsAtomFamily = atomFamily((scenarioId: string) =>
     atom<Annotation[]>((get) => {
         // Path 1: Step-based resolution (primary)
         const traceIds = get(scenarioAnnotationTraceIdsAtomFamily(scenarioId))
@@ -1374,7 +682,7 @@ const scenarioAnnotationsAtomFamily = atomFamily((scenarioId: string) =>
     }),
 )
 
-const scenarioAnnotationsQueryStateAtomFamily = atomFamily((scenarioId: string) =>
+export const scenarioAnnotationsQueryStateAtomFamily = atomFamily((scenarioId: string) =>
     atom((get) => {
         const traceIds = get(scenarioAnnotationTraceIdsAtomFamily(scenarioId))
         if (traceIds.length > 0) {
@@ -1401,238 +709,21 @@ const scenarioAnnotationsQueryStateAtomFamily = atomFamily((scenarioId: string) 
 // ============================================================================
 
 /**
- * Metrics data for a single scenario, fetched from
- * `POST /evaluations/metrics/query`.
- *
- * `raw`  — nested metric data as returned by the API (merged across entries).
- * `flat` — flattened key→value map for easy column lookup.
- */
-export interface ScenarioMetricData {
-    raw: Record<string, unknown>
-    flat: Record<string, unknown>
-    /** Full metric stats objects keyed the same as `flat`, for distribution rendering */
-    stats: Record<string, Record<string, unknown>>
-}
-
-/** Deep-merge two plain objects (arrays and primitives are overwritten). */
-function mergeDeep(
-    target: Record<string, unknown>,
-    source: Record<string, unknown>,
-): Record<string, unknown> {
-    const output: Record<string, unknown> = {...target}
-    for (const [key, value] of Object.entries(source ?? {})) {
-        if (
-            value &&
-            typeof value === "object" &&
-            !Array.isArray(value) &&
-            typeof output[key] === "object" &&
-            output[key] !== null &&
-            !Array.isArray(output[key])
-        ) {
-            output[key] = mergeDeep(
-                output[key] as Record<string, unknown>,
-                value as Record<string, unknown>,
-            )
-        } else {
-            output[key] = value
-        }
-    }
-    return output
-}
-
-/**
- * Check if an object is a metric data shape (has a `type` field like "binary",
- * "categorical/multiple", "string", "continuous").
- * These are leaf metric objects that should be resolved to a display value.
- */
-function isMetricDataObject(v: Record<string, unknown>): boolean {
-    return (
-        typeof v.type === "string" &&
-        ["binary", "categorical/multiple", "categorical/single", "string", "continuous"].includes(
-            v.type as string,
-        )
-    )
-}
-
-/**
- * Extract a display value from a metric data object.
- * - binary: returns the boolean value of the dominant frequency entry
- * - categorical: returns the array of unique values
- * - continuous: returns the mean or first freq value
- * - string: returns the count or freq values
- */
-function extractMetricDisplayValue(v: Record<string, unknown>): unknown {
-    const type = v.type as string
-    const freq = Array.isArray(v.freq) ? v.freq : []
-
-    if (type === "binary") {
-        // Find the freq entry with count > 0
-        const active = freq.find(
-            (f: Record<string, unknown>) => typeof f.count === "number" && f.count > 0,
-        )
-        return active?.value ?? null
-    }
-    if (type === "categorical/multiple" || type === "categorical/single") {
-        // Return array of values with count > 0
-        const activeValues = freq
-            .filter((f: Record<string, unknown>) => typeof f.count === "number" && f.count > 0)
-            .map((f: Record<string, unknown>) => f.value)
-        return activeValues.length > 0 ? activeValues : (v.uniq ?? null)
-    }
-    if (type === "continuous") {
-        if (typeof v.mean === "number") return v.mean
-        const active = freq.find(
-            (f: Record<string, unknown>) => typeof f.count === "number" && f.count > 0,
-        )
-        return active?.value ?? null
-    }
-    if (type === "string") {
-        if (freq.length > 0) {
-            const active = freq.find(
-                (f: Record<string, unknown>) => typeof f.count === "number" && f.count > 0,
-            )
-            return active?.value ?? null
-        }
-        return v.count ?? null
-    }
-    return null
-}
-
-/** Flatten nested metric data to dot-notation keys for easy lookup. */
-function flattenMetrics(raw: Record<string, unknown>): {
-    flat: Record<string, unknown>
-    stats: Record<string, Record<string, unknown>>
-} {
-    const flat: Record<string, unknown> = {}
-    const stats: Record<string, Record<string, unknown>> = {}
-
-    const storeKeys = (
-        fullKey: string,
-        prefix: string,
-        key: string,
-        displayValue: unknown,
-        statsObj: Record<string, unknown> | null,
-    ) => {
-        flat[fullKey] = displayValue
-        if (statsObj) stats[fullKey] = statsObj
-
-        // Stripped prefix: "query-direct.slug.attributes.ag.data.outputs.isAwesome" → "isAwesome"
-        const outputMatch = fullKey.match(
-            /(?:attributes\.ag\.data\.outputs\.|data\.outputs\.|outputs\.)(.+)$/,
-        )
-        if (outputMatch) {
-            const outputKey = outputMatch[1]
-            if (flat[outputKey] === undefined) {
-                flat[outputKey] = displayValue
-                if (statsObj) stats[outputKey] = statsObj
-            }
-        }
-        if (prefix && flat[key] === undefined) {
-            flat[key] = displayValue
-            if (statsObj) stats[key] = statsObj
-        }
-    }
-
-    const walk = (obj: Record<string, unknown>, prefix: string) => {
-        for (const [key, value] of Object.entries(obj)) {
-            const fullKey = prefix ? `${prefix}.${key}` : key
-
-            if (value && typeof value === "object" && !Array.isArray(value)) {
-                const v = value as Record<string, unknown>
-
-                // Check if it's a metric data shape — extract display value + keep stats
-                if (isMetricDataObject(v)) {
-                    const displayValue = extractMetricDisplayValue(v)
-                    storeKeys(fullKey, prefix, key, displayValue, v)
-                    continue
-                }
-
-                // Check if it's a stats object with a scalar value
-                if (typeof v.mean === "number") {
-                    flat[fullKey] = v.mean
-                    stats[fullKey] = v
-                } else if (typeof v.sum === "number") {
-                    flat[fullKey] = v.sum
-                    stats[fullKey] = v
-                }
-                // Recurse into nested objects
-                walk(v, fullKey)
-            } else {
-                flat[fullKey] = value
-            }
-
-            // Also store unprefixed key for easier lookup
-            if (prefix && flat[key] === undefined) {
-                if (value && typeof value === "object" && !Array.isArray(value)) {
-                    const v = value as Record<string, unknown>
-                    if (typeof v.mean === "number") {
-                        flat[key] = v.mean
-                        stats[key] = v
-                    } else if (typeof v.sum === "number") {
-                        flat[key] = v.sum
-                        stats[key] = v
-                    }
-                } else {
-                    flat[key] = value
-                }
-            }
-        }
-    }
-
-    walk(raw, "")
-    return {flat, stats}
-}
-
-/**
- * Per-scenario metrics query — fetches from `POST /evaluations/metrics/query`.
- *
- * Annotation queues ARE evaluation runs, so each scenario has metrics
- * produced by evaluator steps. This is the same endpoint used by
- * EvalRunDetails but scoped to the annotation session's run + scenario.
+ * Per-scenario metrics query — delegates to the evaluations engine's generic
+ * metrics query family. Yields the same TanStack query object so existing
+ * consumers (which read `.data`/`.refetch`) keep working.
  */
 const scenarioMetricsQueryAtomFamily = atomFamily((scenarioId: string) =>
-    atomWithQuery<ScenarioMetricData | null>((get) => {
+    atom((get) => {
         const runId = get(activeRunIdAtom)
         const projectId = get(projectIdAtom)
-
-        return {
-            queryKey: ["annotation-session", "scenario-metrics", projectId, runId, scenarioId],
-            queryFn: async (): Promise<ScenarioMetricData | null> => {
-                if (!projectId || !runId || !scenarioId) return null
-
-                const response = await axios.post(
-                    `/evaluations/metrics/query`,
-                    {
-                        metrics: {
-                            scenario_ids: [scenarioId],
-                        },
-                    },
-                    {params: {project_id: projectId}},
-                )
-
-                const rawMetrics = Array.isArray(response.data?.metrics)
-                    ? response.data.metrics
-                    : []
-
-                if (rawMetrics.length === 0) return null
-
-                // Merge all metric entries for this scenario
-                let merged: Record<string, unknown> = {}
-                for (const entry of rawMetrics) {
-                    const data = entry.data ?? entry
-                    if (data && typeof data === "object") {
-                        merged = mergeDeep(merged, data as Record<string, unknown>)
-                    }
-                }
-
-                const {flat, stats} = flattenMetrics(merged)
-                return {raw: merged, flat, stats}
-            },
-            enabled: Boolean(projectId && runId && scenarioId),
-            staleTime: 30_000,
-            gcTime: 5 * 60_000,
-            refetchOnWindowFocus: false,
-        }
+        return get(
+            scenarioDataSelectors.scenarioMetricsQuery({
+                projectId: projectId ?? "",
+                runId: runId ?? "",
+                scenarioId,
+            }),
+        )
     }),
 )
 
@@ -1642,125 +733,12 @@ const scenarioMetricsQueryAtomFamily = atomFamily((scenarioId: string) =>
  */
 const scenarioMetricsAtomFamily = atomFamily((scenarioId: string) =>
     atom<ScenarioMetricData | null>((get) => {
-        if (!scenarioId) return null
-        const query = get(scenarioMetricsQueryAtomFamily(scenarioId))
-        return query.data ?? null
+        const runId = get(activeRunIdAtom)
+        const projectId = get(projectIdAtom)
+        if (!runId || !projectId || !scenarioId) return null
+        return get(scenarioDataSelectors.scenarioMetrics({projectId, runId, scenarioId}))
     }),
 )
-
-/**
- * Resolve a metric value for a specific scenario + evaluator step.
- *
- * Looks up the value from the flattened metrics map using multiple
- * candidate keys (stepKey-prefixed, evaluatorSlug-prefixed, and plain path).
- */
-function resolveMetricValue(
-    metrics: ScenarioMetricData | null,
-    path: string | null | undefined,
-    stepKey: string | null | undefined,
-    evaluatorSlug: string | null | undefined,
-): unknown {
-    if (!metrics || !path) return undefined
-
-    const flat = metrics.flat
-    if (!flat || Object.keys(flat).length === 0) return undefined
-
-    // Strip common prefixes from path
-    let cleanPath = path
-    for (const prefix of ["attributes.ag.data.outputs.", "data.outputs.", "outputs."]) {
-        if (cleanPath.startsWith(prefix)) {
-            cleanPath = cleanPath.slice(prefix.length)
-            break
-        }
-    }
-
-    // Build candidate keys in priority order
-    const candidates: string[] = []
-
-    // Step-prefixed candidates (most specific)
-    if (stepKey) {
-        candidates.push(`${stepKey}.${cleanPath}`)
-        candidates.push(`${stepKey}.${path}`)
-    }
-
-    // Evaluator-slug-prefixed candidates
-    if (evaluatorSlug) {
-        candidates.push(`${evaluatorSlug}.${cleanPath}`)
-        candidates.push(`${evaluatorSlug}.${path}`)
-    }
-
-    // Plain path candidates
-    candidates.push(cleanPath)
-    candidates.push(path)
-
-    // Direct lookup
-    for (const key of candidates) {
-        if (Object.prototype.hasOwnProperty.call(flat, key)) {
-            return flat[key]
-        }
-    }
-
-    // Suffix match — find any key ending with the path
-    for (const suffix of [`.${cleanPath}`, `.${path}`]) {
-        const matchKey = Object.keys(flat).find((k) => k.endsWith(suffix))
-        if (matchKey !== undefined) {
-            return flat[matchKey]
-        }
-    }
-
-    return undefined
-}
-
-/**
- * Resolve the full stats object for a metric (for distribution bar rendering).
- * Uses the same candidate-key logic as resolveMetricValue but reads from `stats` map.
- */
-function resolveMetricStats(
-    metrics: ScenarioMetricData | null,
-    path: string | null | undefined,
-    stepKey: string | null | undefined,
-    evaluatorSlug: string | null | undefined,
-): Record<string, unknown> | undefined {
-    if (!metrics || !path) return undefined
-
-    const statsMap = metrics.stats
-    if (!statsMap || Object.keys(statsMap).length === 0) return undefined
-
-    let cleanPath = path
-    for (const prefix of ["attributes.ag.data.outputs.", "data.outputs.", "outputs."]) {
-        if (cleanPath.startsWith(prefix)) {
-            cleanPath = cleanPath.slice(prefix.length)
-            break
-        }
-    }
-
-    const candidates: string[] = []
-    if (stepKey) {
-        candidates.push(`${stepKey}.${cleanPath}`)
-        candidates.push(`${stepKey}.${path}`)
-    }
-    if (evaluatorSlug) {
-        candidates.push(`${evaluatorSlug}.${cleanPath}`)
-        candidates.push(`${evaluatorSlug}.${path}`)
-    }
-    candidates.push(cleanPath)
-    candidates.push(path)
-
-    for (const key of candidates) {
-        if (Object.prototype.hasOwnProperty.call(statsMap, key)) {
-            return statsMap[key]
-        }
-    }
-
-    for (const suffix of [`.${cleanPath}`, `.${path}`]) {
-        const matchKey = Object.keys(statsMap).find((k) => k.endsWith(suffix))
-        if (matchKey !== undefined) {
-            return statsMap[matchKey]
-        }
-    }
-
-    return undefined
-}
 
 // ============================================================================
 // COMPOUND SELECTORS (convenience accessors for common composite patterns)
@@ -1937,15 +915,15 @@ async function invalidateScenarioAnnotations(
                 runId,
                 scenarioIds: [scenarioId],
             })
-            queryClient.setQueryData(["scenarioSteps", runId, scenarioId], freshSteps)
+            queryClient.setQueryData(["scenarioSteps", projectId, runId, scenarioId], freshSteps)
         } catch {
             freshSteps = null
         }
     }
 
-    if (runId && !freshSteps) {
+    if (projectId && runId && !freshSteps) {
         const stepsQuery = store.get(
-            evaluationRunMolecule.selectors.scenarioSteps({runId, scenarioId}),
+            evaluationRunMolecule.selectors.scenarioSteps({projectId, runId, scenarioId}),
         )
         if (stepsQuery?.refetch) {
             try {
@@ -1959,9 +937,10 @@ async function invalidateScenarioAnnotations(
 
     // Step 2: Refetch annotation queries (awaited).
     // Now that steps are updated, scenarioAnnotationTraceIdsAtomFamily has fresh data.
-    const annotationSteps = runId
-        ? store.get(evaluationRunMolecule.selectors.annotationSteps(runId))
-        : []
+    const annotationSteps =
+        runId && projectId
+            ? store.get(evaluationRunMolecule.selectors.annotationSteps({projectId, runId}))
+            : []
     const traceIds =
         freshSteps && annotationSteps.length > 0
             ? extractAnnotationTraceIdsFromSteps({annotationSteps, steps: freshSteps})
@@ -2072,290 +1051,53 @@ async function invalidateScenarioAnnotations(
  * Open a queue for annotation.
  * Registers a type hint and sets up the session state.
  */
-const openQueueAtom = atom(null, (_get, set, payload: OpenQueuePayload) => {
+const openQueueAtom = atom(null, (get, set, payload: OpenQueuePayload) => {
     const {queueId, queueType, initialView, initialScenarioId} = payload
 
     // Register type hint for the queue controller
     registerQueueTypeHint(queueId, queueType)
 
-    // Set session state
-    // activeRunIdAtom is derived from simpleQueueMolecule — no manual set needed
+    // Queue lifecycle (annotation-owned)
     set(activeQueueIdAtom, queueId)
     set(activeQueueTypeAtom, queueType)
-    set(focusedScenarioIdAtom, initialScenarioId ?? null)
-    set(completedScenarioIdsAtom, new Set())
-    set(scenarioOrderAtom, [])
-    set(activeSessionViewAtom, initialView ?? "annotate")
-    set(hideCompletedInFocusAtom, false)
-    set(focusAutoNextAtom, true)
 
-    // scenarioIdsAtom and scenarioRecordsAtom are now derived from
-    // simpleQueueMolecule.selectors.scenarios(queueId) — no manual set needed.
+    // Hand the session over to the generic engine: bind run/project + reset session state,
+    // and inject the QUEUE scenario source (user-scoped) reactively — the engine reads
+    // through these atom refs, so queue refetches flow in with no effects.
+    const projectId = get(projectIdAtom)
+    const runId = get(simpleQueueMolecule.selectors.runId(queueId))
+    set(sessionEngine.actions.openSession, {
+        projectId: projectId ?? "",
+        runId,
+        initialView,
+        initialScenarioId,
+    })
+    set(sessionEngine.actions.setScenarioSource, {
+        scenarios: simpleQueueMolecule.selectors.scenarios(queueId),
+        query: simpleQueueMolecule.selectors.scenariosQuery(queueId) as never,
+        // Inject the queue kind ("traces" | "testcases") reactively so the engine's
+        // list-column tier shapes trace- vs testcase-based columns. The engine reads
+        // through this atom ref, so kind changes flow in with no effects.
+        kind: queueKindAtom,
+    })
 
     // Notify callback
     _onQueueOpened?.(queueId, queueType)
 })
 
-/**
- * Navigate to next scenario.
- */
-const navigateNextAtom = atom(null, (get, set) => {
-    const scenarioId = resolveAdjacentNavigableScenarioId({
-        get,
-        direction: "next",
-    })
-    if (scenarioId) {
-        setFocusedScenarioId({get, set, scenarioId, notify: true})
-    }
-})
+// Navigation + completion delegate to the engine.
+const navigateNextAtom = sessionEngine.actions.navigateNext
+const navigatePrevAtom = sessionEngine.actions.navigatePrev
+const navigateToIndexAtom = sessionEngine.actions.navigateToIndex
+const markCompletedAtom = sessionEngine.actions.markCompleted
 
-/**
- * Navigate to previous scenario.
- */
-const navigatePrevAtom = atom(null, (get, set) => {
-    const scenarioId = resolveAdjacentNavigableScenarioId({
-        get,
-        direction: "prev",
-    })
-    if (scenarioId) {
-        setFocusedScenarioId({get, set, scenarioId, notify: true})
-    }
-})
+// Remaining session actions delegate to the engine.
+const completeAndAdvanceAtom = sessionEngine.actions.completeAndAdvance
+const setActiveViewAtom = sessionEngine.actions.setActiveView
+const setHideCompletedInFocusAtom = sessionEngine.actions.setHideCompletedInFocus
+const setFocusAutoNextAtom = sessionEngine.actions.setFocusAutoNext
+const applyRouteStateAtom = sessionEngine.actions.applyRouteState
 
-/**
- * Navigate to a specific scenario by index.
- */
-const navigateToIndexAtom = atom(null, (get, set, index: number) => {
-    const ids = get(navigableScenarioIdsAtom)
-    if (index >= 0 && index < ids.length) {
-        setFocusedScenarioId({get, set, scenarioId: ids[index], notify: true})
-    }
-})
-
-/**
- * Mark a scenario as completed.
- */
-const markCompletedAtom = atom(null, (get, set, scenarioId: string) => {
-    const current = get(completedScenarioIdsAtom)
-    const next = new Set(current)
-    next.add(scenarioId)
-    set(completedScenarioIdsAtom, next)
-})
-
-/**
- * Check if a scenario is completed (locally or server-side).
- */
-function isScenarioCompleted(
-    id: string,
-    completed: Set<string>,
-    records: Record<string, unknown>[],
-): boolean {
-    if (completed.has(id)) return true
-    const record = records.find((r) => r.id === id)
-    return record?.status === "success"
-}
-
-function resolveFallbackScenarioId({
-    ids,
-    records,
-    completed,
-    view,
-}: {
-    ids: string[]
-    records: Record<string, unknown>[]
-    completed: Set<string>
-    view: SessionView
-}): string | null {
-    if (ids.length === 0) return null
-
-    if (view === "annotate") {
-        return ids.find((id) => !isScenarioCompleted(id, completed, records)) ?? ids[0] ?? null
-    }
-
-    return ids[0] ?? null
-}
-
-function resolveAdjacentNavigableScenarioId({
-    get,
-    direction,
-}: {
-    get: Getter
-    direction: "next" | "prev"
-}): string | null {
-    const ids = get(navigableScenarioIdsAtom)
-    if (ids.length === 0) return null
-
-    const currentId = get(focusedScenarioIdAtom) ?? get(currentScenarioIdAtom)
-    if (!currentId) {
-        return direction === "next" ? (ids[0] ?? null) : (ids[ids.length - 1] ?? null)
-    }
-
-    const visibleIndex = ids.indexOf(currentId)
-    if (visibleIndex >= 0) {
-        return direction === "next"
-            ? (ids[visibleIndex + 1] ?? null)
-            : (ids[visibleIndex - 1] ?? null)
-    }
-
-    const allIds = get(scenarioIdsAtom)
-    const currentIndex = allIds.indexOf(currentId)
-    if (currentIndex < 0) {
-        return direction === "next" ? (ids[0] ?? null) : (ids[ids.length - 1] ?? null)
-    }
-
-    const matches = ids.filter((id) => {
-        const idIndex = allIds.indexOf(id)
-        return direction === "next" ? idIndex > currentIndex : idIndex < currentIndex
-    })
-
-    return direction === "next" ? (matches[0] ?? null) : (matches[matches.length - 1] ?? null)
-}
-
-function setFocusedScenarioId({
-    get,
-    set,
-    scenarioId,
-    notify = false,
-}: {
-    get: Getter
-    set: Setter
-    scenarioId: string | null
-    notify?: boolean
-}) {
-    const previousScenarioId = get(currentScenarioIdAtom)
-    set(focusedScenarioIdAtom, scenarioId)
-
-    if (!notify || !scenarioId || scenarioId === previousScenarioId) return
-
-    const ids = get(navigableScenarioIdsAtom)
-    const index = ids.indexOf(scenarioId)
-
-    if (index >= 0) {
-        _onNavigate?.(scenarioId, index)
-    }
-}
-
-/**
- * Mark current scenario as completed and advance to the next pending scenario.
- */
-const completeAndAdvanceAtom = atom(null, (get, set) => {
-    const currentId = get(currentScenarioIdAtom)
-    if (currentId) {
-        set(markCompletedAtom, currentId)
-        _onAnnotationSubmitted?.(currentId)
-    }
-
-    const nextScenarioId = resolveAdjacentNavigableScenarioId({
-        get,
-        direction: "next",
-    })
-    if (nextScenarioId) {
-        setFocusedScenarioId({get, set, scenarioId: nextScenarioId, notify: true})
-    }
-})
-
-/**
- * Set the active session view ("list" or "annotate").
- * When switching to "annotate", keep the current focused scenario if valid;
- * otherwise focus the first pending scenario.
- */
-const setActiveViewAtom = atom(null, (get, set, view: SessionView) => {
-    set(activeSessionViewAtom, view)
-
-    if (view !== "annotate") return
-
-    const focusedScenarioId = get(focusedScenarioIdAtom)
-    const allIds = get(scenarioIdsAtom)
-    if (focusedScenarioId && allIds.includes(focusedScenarioId)) {
-        setFocusedScenarioId({get, set, scenarioId: focusedScenarioId})
-        return
-    }
-
-    const currentScenarioId = get(currentScenarioIdAtom)
-    if (currentScenarioId && allIds.includes(currentScenarioId)) {
-        set(focusedScenarioIdAtom, currentScenarioId)
-        return
-    }
-
-    const ids = getNavigableScenarioIds({get, view})
-    const records = get(scenarioRecordsAtom) as Record<string, unknown>[]
-    const completed = get(completedScenarioIdsAtom)
-    const fallbackScenarioId = resolveFallbackScenarioId({ids, records, completed, view})
-
-    if (fallbackScenarioId) {
-        setFocusedScenarioId({get, set, scenarioId: fallbackScenarioId})
-    }
-})
-
-const setHideCompletedInFocusAtom = atom(null, (get, set, hideCompleted: boolean) => {
-    const previousScenarioId = get(currentScenarioIdAtom)
-    set(hideCompletedInFocusAtom, hideCompleted)
-
-    const ids = get(navigableScenarioIdsAtom)
-    if (previousScenarioId && ids.includes(previousScenarioId)) {
-        setFocusedScenarioId({get, set, scenarioId: previousScenarioId, notify: true})
-        return
-    }
-
-    if (ids.length === 0) {
-        setFocusedScenarioId({get, set, scenarioId: null, notify: true})
-        return
-    }
-
-    const records = get(scenarioRecordsAtom) as Record<string, unknown>[]
-    const completed = get(completedScenarioIdsAtom)
-    const fallbackScenarioId = resolveFallbackScenarioId({
-        ids,
-        records,
-        completed,
-        view: "annotate",
-    })
-
-    setFocusedScenarioId({get, set, scenarioId: fallbackScenarioId, notify: true})
-})
-
-const setFocusAutoNextAtom = atom(null, (_get, set, autoNext: boolean) => {
-    set(focusAutoNextAtom, autoNext)
-})
-
-/**
- * Apply route state from URL parameters.
- */
-const applyRouteStateAtom = atom(null, (get, set, payload: ApplyRouteStatePayload) => {
-    const nextView = payload.view ?? get(activeSessionViewAtom)
-    set(activeSessionViewAtom, nextView)
-
-    const allIds = get(scenarioIdsAtom)
-    const ids = getNavigableScenarioIds({get, view: nextView})
-    const requestedScenarioId =
-        payload.scenarioId === undefined ? get(focusedScenarioIdAtom) : payload.scenarioId
-
-    if (requestedScenarioId && allIds.includes(requestedScenarioId)) {
-        setFocusedScenarioId({get, set, scenarioId: requestedScenarioId, notify: true})
-        return
-    }
-
-    if (allIds.length === 0) {
-        set(focusedScenarioIdAtom, null)
-        return
-    }
-
-    const records = get(scenarioRecordsAtom) as Record<string, unknown>[]
-    const completed = get(completedScenarioIdsAtom)
-    const fallbackScenarioId = resolveFallbackScenarioId({
-        ids,
-        records,
-        completed,
-        view: nextView,
-    })
-
-    setFocusedScenarioId({get, set, scenarioId: fallbackScenarioId, notify: true})
-})
-
-/**
- * Close the annotation session.
- * Clears all session state and type hints.
- */
 const closeSessionAtom = atom(null, (get, set) => {
     const queueId = get(activeQueueIdAtom)
 
@@ -2364,17 +1106,14 @@ const closeSessionAtom = atom(null, (get, set) => {
         clearQueueTypeHint(queueId)
     }
 
-    // Reset all state
-    // Derived atoms (activeRunIdAtom, scenarioIdsAtom, scenarioRecordsAtom)
-    // clear automatically when activeQueueIdAtom becomes null.
+    // Queue lifecycle (annotation-owned)
     set(activeQueueIdAtom, null)
     set(activeQueueTypeAtom, null)
-    set(focusedScenarioIdAtom, null)
-    set(completedScenarioIdsAtom, new Set())
-    set(scenarioOrderAtom, [])
-    set(activeSessionViewAtom, "annotate")
-    set(hideCompletedInFocusAtom, false)
-    set(focusAutoNextAtom, true)
+
+    // Engine tears down session state + scenario source.
+    set(sessionEngine.actions.closeSession)
+
+    // Annotation-specific UI state
     set(addToTestsetModalOpenAtom, false)
     set(addToTestsetScopeAtom, "all")
     set(addToTestsetScenarioIdsAtom, [])
@@ -2396,7 +1135,7 @@ const closeSessionAtom = atom(null, (get, set) => {
 // IMPERATIVE API
 // ============================================================================
 
-function getStore() {
+export function getStore() {
     return getDefaultStore()
 }
 
@@ -2404,998 +1143,11 @@ function getStore() {
 // SIDE-EFFECT CALLBACKS
 // ============================================================================
 
+// Annotation-owned callbacks (fired in annotation's own open/close actions).
 let _onQueueOpened: ((queueId: string, queueType: QueueType) => void) | null = null
-let _onAnnotationSubmitted: ((scenarioId: string) => void) | null = null
 let _onSessionClosed: (() => void) | null = null
-let _onNavigate: ((scenarioId: string, index: number) => void) | null = null
-
-async function fetchBaseRevisionRows(params: {projectId: string; revisionId: string}) {
-    // Fetch the RAW testcases — not via fetchRevisionWithTestcases.
-    //
-    // AGE-3761: normalizeRevision()/normalizeTestcase() strips system fields,
-    // including `testcase_dedup_id`, from each row's data. The add-to-testset
-    // matching (buildAddToTestsetOperations) relies on that dedup id to
-    // re-identify a row by content lineage after an earlier save reassigned its
-    // (immutable) testcase id. With the dedup stripped, the fallback match never
-    // fired, so the second save appended the annotated row instead of replacing
-    // it — duplicating it. Reading the raw rows keeps the dedup id intact.
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/testsets/revisions/query`,
-        {
-            testset_revision_refs: [{id: params.revisionId}],
-            windowing: {limit: 1},
-        },
-        {params: {project_id: params.projectId, include_testcases: true}},
-    )
-
-    const revision = response.data?.testset_revisions?.[0]
-    const rawRows = revision?.data?.testcases ?? []
-
-    return rawRows as {
-        id?: string | null
-        data?: Record<string, unknown> | null
-    }[]
-}
-
-interface QueryStateLike {
-    isPending?: boolean
-    isFetching?: boolean
-    data?: unknown
-    error?: unknown
-}
-
-interface LatestRevisionWithRows {
-    id: string
-    data?: {
-        testcases?: {
-            id?: string | null
-            data?: Record<string, unknown> | null
-        }[]
-    } | null
-}
-
-const TRACE_OUTPUT_COLUMN_PREFERENCES = ["correct_answer", "output", "outputs", "answer"]
-
-function createExportJobId() {
-    return typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
-
-function isQuerySettledForExport(value: QueryStateLike | null | undefined): boolean {
-    return Boolean(
-        !value?.isPending && !value?.isFetching && (value?.data !== undefined || value?.error),
-    )
-}
-
-function isQuerySettledOrNullForExport(value: QueryStateLike | null | undefined): boolean {
-    return !value || isQuerySettledForExport(value)
-}
-
-async function waitForStoreAtomValue<T>(
-    atomToWatch: unknown,
-    isReady: (value: T) => boolean,
-    timeoutMs = 5000,
-): Promise<T> {
-    const store = getStore()
-    const atomRef = atomToWatch as unknown as Parameters<typeof store.get>[0]
-    const subRef = atomToWatch as unknown as Parameters<typeof store.sub>[0]
-    const current = store.get(atomRef) as T
-    if (isReady(current)) return current
-
-    return await new Promise<T>((resolve) => {
-        const timeout = setTimeout(() => {
-            unsubscribe()
-            resolve(store.get(atomRef) as T)
-        }, timeoutMs)
-
-        const unsubscribe = store.sub(subRef, () => {
-            const next = store.get(atomRef) as T
-            if (isReady(next)) {
-                clearTimeout(timeout)
-                unsubscribe()
-                resolve(next)
-            }
-        })
-    })
-}
-
-function resolveScenarioIdsForAddToTestset(get: Getter): string[] {
-    const scope = get(addToTestsetScopeAtom)
-    const queueKind = get(queueKindAtom)
-
-    if (queueKind === "testcases" && (scope === "all" || scope === "complete")) {
-        const completed = get(completedScenarioIdsAtom)
-        const records = get(scenarioRecordsAtom)
-        return get(scenarioIdsAtom).filter((id) => isScenarioCompleted(id, completed, records))
-    }
-
-    if (scope === "all" || scope === "complete") {
-        return get(scenarioIdsAtom)
-    }
-    return get(addToTestsetScenarioIdsAtom)
-}
-
-function resolveCompletedScenarioIdsForAnnotationExport(
-    get: Getter,
-    scenarioIds: string[],
-): Set<string> {
-    const completed = get(completedScenarioIdsAtom)
-    const records = get(scenarioRecordsAtom)
-    return new Set(scenarioIds.filter((id) => isScenarioCompleted(id, completed, records)))
-}
-
-function extractExistingColumns(
-    rows: {data?: Record<string, unknown> | null}[] | null | undefined,
-): Set<string> {
-    const columns = new Set<string>()
-
-    for (const row of rows ?? []) {
-        collectDataColumnKeys(row.data ?? {}, columns)
-    }
-
-    return columns
-}
-
-function collectRowColumns(rows: {data: Record<string, unknown>}[]): Set<string> {
-    const columns = new Set<string>()
-
-    for (const row of rows) {
-        collectDataColumnKeys(row.data, columns)
-    }
-
-    return columns
-}
-
-function getColumnLeafName(columnKey: string): string {
-    return columnKey.split(".").at(-1) ?? columnKey
-}
-
-function buildColumnPathsByLeaf(columns: Set<string>): Map<string, string[]> {
-    const pathsByLeaf = new Map<string, string[]>()
-
-    for (const column of columns) {
-        const leaf = getColumnLeafName(column)
-        pathsByLeaf.set(leaf, [...(pathsByLeaf.get(leaf) ?? []), column])
-    }
-
-    return pathsByLeaf
-}
-
-function buildColumnLeafCounts(columns: Set<string>): Map<string, number> {
-    const counts = new Map<string, number>()
-
-    for (const column of columns) {
-        const leaf = getColumnLeafName(column)
-        counts.set(leaf, (counts.get(leaf) ?? 0) + 1)
-    }
-
-    return counts
-}
-
-function resolveExistingColumnPath(params: {
-    exportedColumn: string
-    exportedLeafCounts: Map<string, number>
-    existingColumns: Set<string>
-    existingPathsByLeaf: Map<string, string[]>
-}): string {
-    if (params.existingColumns.has(params.exportedColumn)) return params.exportedColumn
-
-    const leaf = getColumnLeafName(params.exportedColumn)
-    if ((params.exportedLeafCounts.get(leaf) ?? 0) !== 1) return params.exportedColumn
-
-    const existingMatches = params.existingPathsByLeaf.get(leaf) ?? []
-    return existingMatches.length === 1 ? existingMatches[0] : params.exportedColumn
-}
-
-function setColumnPathValue(data: Record<string, unknown>, columnPath: string, value: unknown) {
-    const parts = columnPath.split(".").filter(Boolean)
-    if (parts.length === 0) return
-
-    let cursor = data
-    for (let index = 0; index < parts.length - 1; index++) {
-        const part = parts[index]
-        const next = cursor[part]
-
-        if (!next || typeof next !== "object" || Array.isArray(next)) {
-            cursor[part] = {}
-        }
-
-        cursor = cursor[part] as Record<string, unknown>
-    }
-
-    cursor[parts[parts.length - 1]] = value
-}
-
-function collectColumnPathValues(
-    data: Record<string, unknown>,
-    values: {path: string; value: unknown}[],
-    parentKey?: string,
-) {
-    for (const [key, value] of Object.entries(data)) {
-        if (!parentKey && SYSTEM_FIELDS.has(key)) continue
-
-        const columnKey = parentKey ? `${parentKey}.${key}` : key
-        if (value && typeof value === "object" && !Array.isArray(value)) {
-            collectColumnPathValues(value as Record<string, unknown>, values, columnKey)
-            continue
-        }
-
-        values.push({path: columnKey, value})
-    }
-}
-
-function remapRowsToExistingLeafColumns<T extends {data: Record<string, unknown>}>(
-    rows: T[],
-    existingColumns: Set<string>,
-): T[] {
-    if (existingColumns.size === 0) return rows
-
-    const exportedColumns = collectRowColumns(rows)
-    const exportedLeafCounts = buildColumnLeafCounts(exportedColumns)
-    const existingPathsByLeaf = buildColumnPathsByLeaf(existingColumns)
-
-    return rows.map((row) => {
-        const values: {path: string; value: unknown}[] = []
-        collectColumnPathValues(row.data, values)
-
-        const data: Record<string, unknown> = {}
-        for (const {path, value} of values) {
-            const targetPath = resolveExistingColumnPath({
-                exportedColumn: path,
-                exportedLeafCounts,
-                existingColumns,
-                existingPathsByLeaf,
-            })
-            setColumnPathValue(data, targetPath, value)
-        }
-
-        return {...row, data}
-    })
-}
-
-function collectDataColumnKeys(
-    data: Record<string, unknown>,
-    columns: Set<string>,
-    parentKey?: string,
-) {
-    for (const [key, value] of Object.entries(data)) {
-        if (!parentKey && SYSTEM_FIELDS.has(key)) continue
-
-        const columnKey = parentKey ? `${parentKey}.${key}` : key
-        if (value && typeof value === "object" && !Array.isArray(value)) {
-            collectDataColumnKeys(value as Record<string, unknown>, columns, columnKey)
-            continue
-        }
-
-        columns.add(columnKey)
-    }
-}
-
-function resolveTraceOutputColumnName(params: {
-    targetMode: "existing" | "new"
-    existingColumns: Set<string>
-}): string {
-    if (params.targetMode === "new") return "outputs"
-
-    const existingPathsByLeaf = buildColumnPathsByLeaf(params.existingColumns)
-
-    for (const columnName of TRACE_OUTPUT_COLUMN_PREFERENCES) {
-        if (params.existingColumns.has(columnName)) return columnName
-
-        const existingMatches = existingPathsByLeaf.get(columnName) ?? []
-        if (existingMatches.length === 1) return existingMatches[0]
-    }
-
-    return "output"
-}
-
-async function fetchLatestRevisionWithRows(params: {
-    projectId: string
-    testsetId: string
-}): Promise<LatestRevisionWithRows> {
-    // Resolve the latest *non-archived* revision (AGE-3761).
-    //
-    // The `retrieve {testset_ref}` path (fetchLatestRevisionWithTestcases)
-    // returns archived revisions as "latest". Basing the add-to-testset commit
-    // on an archived revision re-mutates rows whose identity the queue can no
-    // longer match (the archived revision holds reassigned testcase ids), which
-    // duplicates testcases. The revisions `query` path excludes archived
-    // revisions, so we resolve the base revision id through it. Verified against
-    // the live backend: after archiving the head revision, `retrieve` still
-    // returns it while `query` (descending, limit 1) returns the prior live one.
-    const latest = await fetchLatestRevision({
-        projectId: params.projectId,
-        testsetId: params.testsetId,
-    })
-    if (!latest?.id) {
-        throw new Error("The latest revision for the selected testset could not be resolved.")
-    }
-
-    // Re-fetch with a 1-row sample purely for column detection.
-    const latestRevision = await fetchRevisionWithTestcases({
-        id: latest.id,
-        projectId: params.projectId,
-        testcaseLimit: 1,
-    })
-    if (!latestRevision?.id) {
-        throw new Error("The latest revision for the selected testset could not be resolved.")
-    }
-
-    return latestRevision as LatestRevisionWithRows
-}
-
-function buildTraceAnnotationOutputs(params: {
-    annotations: Annotation[]
-    evaluators: TestsetSyncEvaluator[]
-    queueId: string
-}): Record<string, Record<string, unknown>> {
-    const result: Record<string, Record<string, unknown>> = {}
-
-    for (const evaluator of params.evaluators) {
-        const selection = selectQueueScopedAnnotation({
-            annotations: params.annotations,
-            queueId: params.queueId,
-            evaluatorSlug: evaluator.slug,
-            evaluatorWorkflowId: evaluator.workflowId,
-        })
-
-        if (!selection.annotation || selection.conflictCode) continue
-
-        const outputs = selection.annotation.data?.outputs
-        if (!outputs || typeof outputs !== "object" || Array.isArray(outputs)) continue
-
-        const columnKey = getTestsetSyncEvaluatorColumnKey({
-            evaluator,
-            annotation: selection.annotation,
-        })
-        if (!columnKey) continue
-
-        result[columnKey] = outputs as Record<string, unknown>
-    }
-
-    return result
-}
-
-async function fetchTraceAnnotationOutputsForExport(params: {
-    projectId: string
-    scenarioId: string
-    queueId: string
-    evaluators: TestsetSyncEvaluator[]
-}): Promise<Record<string, Record<string, unknown>>> {
-    const store = getStore()
-    const runId = store.get(activeRunIdAtom)
-
-    if (runId) {
-        const annotationSteps = store.get(evaluationRunMolecule.selectors.annotationSteps(runId))
-        if (annotationSteps.length > 0) {
-            const steps = await queryEvaluationResults({
-                projectId: params.projectId,
-                runId,
-                scenarioIds: [params.scenarioId],
-            })
-            const annotationTraceIds = extractAnnotationTraceIdsFromSteps({
-                annotationSteps,
-                steps,
-            })
-
-            if (annotationTraceIds.length > 0) {
-                const response = await queryAnnotations({
-                    projectId: params.projectId,
-                    annotationLinks: annotationTraceIds.map((traceId) => ({trace_id: traceId})),
-                })
-
-                return buildTraceAnnotationOutputs({
-                    annotations: response.annotations ?? [],
-                    evaluators: params.evaluators,
-                    queueId: params.queueId,
-                })
-            }
-        }
-    }
-
-    return buildTraceAnnotationOutputs({
-        annotations: store.get(scenarioAnnotationsAtomFamily(params.scenarioId)),
-        evaluators: params.evaluators,
-        queueId: params.queueId,
-    })
-}
-
-async function prepareTraceExportRows(params: {
-    projectId: string
-    scenarioIds: string[]
-    outputColumnName: string
-    queueId: string
-    evaluators: TestsetSyncEvaluator[]
-    requireAnnotationOutputScenarioIds: Set<string>
-    setProcessed: (processed: number) => void
-}) {
-    const traceInputsByScenario = new Map<string, Record<string, unknown>>()
-    const traceOutputsByScenario = new Map<string, unknown>()
-    const annotationsByScenario = new Map<string, Record<string, Record<string, unknown>>>()
-    const exportableScenarioIds: string[] = []
-    let processed = 0
-
-    for (const scenarioId of params.scenarioIds) {
-        const traceRef = getStore().get(scenarioTraceRefAtomFamily(scenarioId))
-        if (!traceRef.traceId) {
-            processed += 1
-            params.setProcessed(processed)
-            continue
-        }
-
-        const traceQueryAtom = traceEntityAtomFamily(traceRef.traceId)
-        const traceQuery = await waitForStoreAtomValue<QueryStateLike | null | undefined>(
-            traceQueryAtom,
-            isQuerySettledOrNullForExport,
-        )
-        if (!isQuerySettledForExport(traceQuery)) {
-            throw new Error("Timed out loading trace data for export")
-        }
-        if (traceQuery?.error) {
-            throw new Error(extractApiErrorMessage(traceQuery.error))
-        }
-
-        exportableScenarioIds.push(scenarioId)
-        traceInputsByScenario.set(
-            scenarioId,
-            getStore().get(traceInputsAtomFamily(traceRef.traceId)) ?? {},
-        )
-        traceOutputsByScenario.set(
-            scenarioId,
-            getStore().get(traceOutputsAtomFamily(traceRef.traceId)),
-        )
-
-        const stepsQueryAtom = scenarioStepsQueryStateAtomFamily(scenarioId)
-        await waitForStoreAtomValue<QueryStateLike | null | undefined>(
-            stepsQueryAtom,
-            isQuerySettledOrNullForExport,
-        )
-
-        const annotationsQueryAtom = scenarioAnnotationsQueryStateAtomFamily(scenarioId)
-        await waitForStoreAtomValue<QueryStateLike | null | undefined>(
-            annotationsQueryAtom,
-            isQuerySettledOrNullForExport,
-            2500,
-        )
-
-        const annotationOutputs = await fetchTraceAnnotationOutputsForExport({
-            projectId: params.projectId,
-            scenarioId,
-            queueId: params.queueId,
-            evaluators: params.evaluators,
-        })
-
-        if (
-            params.requireAnnotationOutputScenarioIds.has(scenarioId) &&
-            params.evaluators.length > 0 &&
-            Object.keys(annotationOutputs).length === 0
-        ) {
-            throw new Error(
-                "Could not load annotation data for one or more completed scenarios. Please try again.",
-            )
-        }
-
-        annotationsByScenario.set(scenarioId, annotationOutputs)
-
-        processed += 1
-        params.setProcessed(processed)
-    }
-
-    return buildTraceTestsetRows({
-        scenarioIds: exportableScenarioIds,
-        traceInputsByScenario,
-        traceOutputsByScenario,
-        annotationsByScenario,
-        outputColumnName: params.outputColumnName,
-    })
-}
-
-async function prepareTestcaseExportRows(params: {
-    projectId: string
-    scenarioIds: string[]
-    queueId: string
-    evaluators: TestsetSyncEvaluator[]
-    setProcessed: (processed: number) => void
-}) {
-    const testcaseIdByScenarioId = new Map<string, string>()
-    const testcaseIds: string[] = []
-
-    for (const scenarioId of params.scenarioIds) {
-        const testcaseId = getStore().get(scenarioTestcaseRefAtomFamily(scenarioId)).testcaseId
-        if (!testcaseId) continue
-        testcaseIdByScenarioId.set(scenarioId, testcaseId)
-        testcaseIds.push(testcaseId)
-    }
-
-    const uniqueTestcaseIds = Array.from(new Set(testcaseIds))
-    const fetchedTestcases = await fetchTestcasesBatch({
-        projectId: params.projectId,
-        testcaseIds: uniqueTestcaseIds,
-    })
-    const testcasesByScenarioId = new Map<string, Testcase>()
-    const annotationsByTestcaseId = new Map<string, Annotation[]>()
-    let processed = 0
-
-    for (const scenarioId of params.scenarioIds) {
-        const testcaseId = testcaseIdByScenarioId.get(scenarioId)
-        if (!testcaseId) {
-            processed += 1
-            params.setProcessed(processed)
-            continue
-        }
-
-        const testcase = fetchedTestcases.get(testcaseId)
-        if (testcase) {
-            testcasesByScenarioId.set(scenarioId, testcase)
-        }
-
-        const response = await queryAnnotations({
-            projectId: params.projectId,
-            annotation: {
-                references: {
-                    testcase: {id: testcaseId},
-                },
-            },
-        })
-        // Scope to the active queue: a testcase-id query returns annotations
-        // from every queue that touched this testcase, so without this filter
-        // the export bleeds stale annotations onto rows (every row ends up
-        // "annotated" even in a fresh queue).
-        annotationsByTestcaseId.set(
-            testcaseId,
-            filterQueueScopedAnnotations(response.annotations ?? [], params.queueId),
-        )
-
-        processed += 1
-        params.setProcessed(processed)
-    }
-
-    return buildTestcaseExportRows({
-        scenarioIds: params.scenarioIds,
-        testcasesByScenarioId,
-        annotationsByTestcaseId,
-        evaluators: params.evaluators,
-        queueId: params.queueId,
-    })
-}
-
-const openAddToTestsetModalAtom = atom(
-    null,
-    (
-        get,
-        set,
-        payload: {
-            scope: AddToTestsetScope
-            scenarioIds?: string[]
-        },
-    ) => {
-        if (get(isAddToTestsetExportingAtom)) return
-
-        set(addToTestsetScopeAtom, payload.scope)
-        set(addToTestsetScenarioIdsAtom, payload.scenarioIds ?? [])
-        set(pendingTestsetSelectionAtom, get(lastUsedTestsetIdAtom))
-        set(pendingTestsetSelectionNameAtom, get(defaultTargetTestsetNameAtom))
-        set(addToTestsetExportJobAtom, {
-            id: "",
-            status: "idle",
-            total: 0,
-            processed: 0,
-        })
-        set(addToTestsetModalOpenAtom, true)
-    },
-)
-
-const setPendingTestsetSelectionAtom = atom(
-    null,
-    (_get, set, payload: {testsetId: string | null; testsetName?: string | null}) => {
-        set(pendingTestsetSelectionAtom, payload.testsetId)
-        set(pendingTestsetSelectionNameAtom, payload.testsetName ?? null)
-    },
-)
-
-const closeAddToTestsetModalAtom = atom(null, (_get, set) => {
-    set(addToTestsetModalOpenAtom, false)
-    set(pendingTestsetSelectionAtom, null)
-    set(pendingTestsetSelectionNameAtom, null)
-})
-
-const setSelectedScenarioIdsAtom = atom(null, (_get, set, scenarioIds: string[]) => {
-    set(selectedScenarioIdsAtom, scenarioIds)
-})
-
-const addScenariosToTestsetAtom = atom(
-    null,
-    async (get, set, payload: AddScenariosToTestsetPayload): Promise<{jobId: string}> => {
-        if (get(isAddToTestsetExportingAtom)) {
-            throw new Error("A testset export is already running")
-        }
-
-        const projectId = getStore().get(projectIdAtom)
-        if (!projectId) throw new Error("No project ID")
-
-        const queueId = get(activeQueueIdAtom)
-        if (!queueId) throw new Error("No active queue")
-
-        const scenarioIds = resolveScenarioIdsForAddToTestset(get)
-        if (scenarioIds.length === 0) throw new Error("No scenarios selected for export")
-
-        const targetTestsetId =
-            payload.targetMode === "existing" ? get(pendingTestsetSelectionAtom) : null
-        if (payload.targetMode === "existing" && !targetTestsetId) {
-            throw new Error("Select a testset before exporting")
-        }
-
-        if (payload.targetMode === "new" && !payload.newTestsetName?.trim()) {
-            throw new Error("Enter a testset name before exporting")
-        }
-
-        const targetTestsetName =
-            payload.targetMode === "existing"
-                ? get(pendingTestsetSelectionNameAtom) ||
-                  get(defaultTargetTestsetNameAtom) ||
-                  "selected testset"
-                : payload.newTestsetName?.trim() || "new testset"
-        const jobId = createExportJobId()
-
-        set(addToTestsetExportJobAtom, {
-            id: jobId,
-            status: "preparing",
-            total: scenarioIds.length,
-            processed: 0,
-            targetTestsetId: targetTestsetId ?? undefined,
-            targetTestsetName,
-        })
-
-        const runExport = async () => {
-            let latestRevision: LatestRevisionWithRows | null = null
-            let existingColumns = new Set<string>()
-            let committedTestsetId = targetTestsetId ?? undefined
-            let committedTestsetName = targetTestsetName
-
-            try {
-                if (payload.targetMode === "existing" && targetTestsetId) {
-                    latestRevision = await fetchLatestRevisionWithRows({
-                        projectId,
-                        testsetId: targetTestsetId,
-                    })
-                    existingColumns = extractExistingColumns(latestRevision.data?.testcases)
-                }
-
-                const queueKind = get(queueKindAtom)
-                const evaluators = get(testsetSyncEvaluatorsAtom)
-                const setProcessed = (processed: number) => {
-                    set(addToTestsetExportJobAtom, (prev) =>
-                        prev.id === jobId ? {...prev, processed} : prev,
-                    )
-                }
-
-                const rows =
-                    queueKind === "traces"
-                        ? await prepareTraceExportRows({
-                              projectId,
-                              scenarioIds,
-                              outputColumnName: resolveTraceOutputColumnName({
-                                  targetMode: payload.targetMode,
-                                  existingColumns,
-                              }),
-                              queueId,
-                              evaluators,
-                              requireAnnotationOutputScenarioIds:
-                                  resolveCompletedScenarioIdsForAnnotationExport(get, scenarioIds),
-                              setProcessed,
-                          })
-                        : await prepareTestcaseExportRows({
-                              projectId,
-                              scenarioIds,
-                              queueId,
-                              evaluators,
-                              setProcessed,
-                          })
-
-                if (rows.length === 0) {
-                    throw new Error("No exportable rows were found for the selected scenarios")
-                }
-
-                set(addToTestsetExportJobAtom, (prev) =>
-                    prev.id === jobId ? {...prev, status: "committing"} : prev,
-                )
-
-                let committedRevisionId: string | undefined
-
-                if (payload.targetMode === "new") {
-                    const result = await createTestset({
-                        projectId,
-                        name: payload.newTestsetName?.trim() || "Annotation queue export",
-                        slug: payload.newTestsetSlug,
-                        testcases: rows.map((row) => row.data),
-                        commitMessage: payload.commitMessage,
-                    })
-                    committedTestsetId = result?.testset?.id
-                    committedRevisionId = result?.revisionId
-                    committedTestsetName = result?.testset?.name ?? committedTestsetName
-                } else {
-                    if (!targetTestsetId || !latestRevision) {
-                        throw new Error("The selected testset could not be prepared")
-                    }
-
-                    const rowsForCommit = remapRowsToExistingLeafColumns(rows, existingColumns)
-
-                    // Match each annotated row against the testset's LATEST
-                    // revision so it replaces its existing row (by testcase id,
-                    // falling back to testcase_dedup_id) instead of being
-                    // appended. Basing on latest accumulates prior annotations
-                    // and respects external edits; the queue's testcases match
-                    // by id on a fresh testset and by dedup once an earlier save
-                    // has reassigned their ids. The dedup id is read from the
-                    // original (pre-remap) data because the remap strips system
-                    // fields like `testcase_dedup_id`.
-                    const baseRows = await fetchBaseRevisionRows({
-                        projectId,
-                        revisionId: latestRevision.id,
-                    })
-
-                    const commitRows = rowsForCommit.map((row, index) => {
-                        const sourceRow = rows[index] as {
-                            rowId?: string | null
-                            data?: Record<string, unknown> | null
-                        }
-                        const dedupId = getTestcaseDedupId(sourceRow?.data)
-                        // `remapRowsToExistingLeafColumns` strips system fields
-                        // (incl. `testcase_dedup_id`). Re-inject it so the
-                        // replaced testcase keeps its identity lineage across
-                        // revisions — otherwise the testset UI treats the
-                        // updated row as a brand-new one instead of an update.
-                        const data =
-                            dedupId && row.data.testcase_dedup_id === undefined
-                                ? {...row.data, testcase_dedup_id: dedupId}
-                                : row.data
-                        return {
-                            rowId: sourceRow?.rowId ?? null,
-                            dedupId,
-                            data,
-                        }
-                    })
-
-                    const operations = buildAddToTestsetOperations({
-                        rows: commitRows,
-                        baseRows,
-                    })
-
-                    // Idempotency (AGE-3761): if every annotated row already
-                    // matches an identical base row, the delta is empty.
-                    // Committing an empty delta still mints a new (identical)
-                    // revision on the backend, so skip the commit and keep the
-                    // current head — re-saving with nothing changed is a no-op.
-                    const hasChanges = Boolean(
-                        operations.rows?.replace?.length || operations.rows?.add?.length,
-                    )
-
-                    if (hasChanges) {
-                        const patchResult = await patchRevision({
-                            projectId,
-                            testsetId: targetTestsetId,
-                            baseRevisionId: latestRevision.id,
-                            operations,
-                            message: payload.commitMessage,
-                        })
-                        committedRevisionId = patchResult?.testset_revision?.id
-                    } else {
-                        committedRevisionId = latestRevision.id
-                    }
-                }
-
-                if (committedTestsetId) {
-                    set(lastUsedTestsetIdAtom, committedTestsetId)
-                }
-                queryClient.invalidateQueries({queryKey: ["testsets-list"]})
-                if (committedTestsetId) {
-                    queryClient.invalidateQueries({queryKey: ["testset"], exact: false})
-                    queryClient.invalidateQueries({queryKey: ["latest-revision"], exact: false})
-                    queryClient.invalidateQueries({queryKey: ["revisions-list"], exact: false})
-                }
-                set(selectedScenarioIdsAtom, [])
-                set(addToTestsetExportJobAtom, {
-                    id: jobId,
-                    status: "success",
-                    total: scenarioIds.length,
-                    processed: rows.length,
-                    targetTestsetId: committedTestsetId,
-                    targetRevisionId: committedRevisionId,
-                    targetTestsetName: committedTestsetName,
-                })
-            } catch (error) {
-                set(addToTestsetExportJobAtom, {
-                    id: jobId,
-                    status: "error",
-                    total: scenarioIds.length,
-                    processed: get(addToTestsetExportJobAtom).processed,
-                    targetTestsetId: committedTestsetId,
-                    targetTestsetName: committedTestsetName,
-                    error: extractApiErrorMessage(error),
-                })
-            }
-        }
-
-        void runExport()
-        return {jobId}
-    },
-)
-
-// ============================================================================
-// SYNC TO TESTSET
-// ============================================================================
-
-/**
- * Whether the session can sync annotated data back to the source testset.
- * True when queue kind is "testcases" and at least one scenario is completed.
- */
-const canSyncToTestsetAtom = atom<boolean>((get) => {
-    const queueKind = get(queueKindAtom)
-    if (queueKind !== "testcases") return false
-    const ids = get(scenarioIdsAtom)
-    const completed = get(completedScenarioIdsAtom)
-    const records = get(scenarioRecordsAtom)
-    return ids.some((id) => isScenarioCompleted(id, completed, records))
-})
-
-const canAddToTestsetAtom = atom<boolean>((get) => {
-    const queueKind = get(queueKindAtom)
-    const ids = get(scenarioIdsAtom)
-    if (ids.length === 0) return false
-    if (queueKind === "traces") return true
-
-    const completed = get(completedScenarioIdsAtom)
-    const records = get(scenarioRecordsAtom)
-    return ids.some((id) => isScenarioCompleted(id, completed, records))
-})
-
-async function buildTestsetSyncPreviewForSession(get: Getter) {
-    const projectId = getStore().get(projectIdAtom)
-    if (!projectId) throw new Error("No project ID")
-
-    const queueId = get(activeQueueIdAtom)
-    if (!queueId) throw new Error("No active queue")
-
-    if (get(queueKindAtom) !== "testcases") {
-        throw new Error("Testset sync is only available for testcase queues")
-    }
-
-    const scenarioIds = get(scenarioIdsAtom)
-    const completedIds = get(completedScenarioIdsAtom)
-    const records = get(scenarioRecordsAtom)
-
-    const completedScenarios: CompletedScenarioRef[] = scenarioIds
-        .filter((id) => isScenarioCompleted(id, completedIds, records))
-        .map((scenarioId) => ({
-            scenarioId,
-            testcaseId: get(scenarioTestcaseRefAtomFamily(scenarioId)).testcaseId,
-        }))
-        .filter((entry) => entry.testcaseId)
-
-    if (completedScenarios.length === 0) {
-        throw new Error("No completed testcase scenarios")
-    }
-
-    const testcaseIds = Array.from(new Set(completedScenarios.map((entry) => entry.testcaseId)))
-    const testcases = await fetchTestcasesBatch({projectId, testcaseIds})
-
-    const testsetIds = Array.from(
-        new Set(
-            Array.from(testcases.values())
-                .map((testcase) => testcase.testset_id ?? testcase.set_id ?? null)
-                .filter(Boolean),
-        ),
-    ) as string[]
-
-    const [latestRevisionMap, annotationsByTestcaseId] = await Promise.all([
-        fetchLatestRevisionsBatch(projectId, testsetIds),
-        (async () => {
-            const entries = await Promise.all(
-                testcaseIds.map(async (testcaseId) => {
-                    const response = await queryAnnotations({
-                        projectId,
-                        annotation: {
-                            references: {
-                                testcase: {id: testcaseId},
-                            },
-                        },
-                    })
-                    return [testcaseId, response.annotations ?? []] as const
-                }),
-            )
-            return new Map(entries)
-        })(),
-    ])
-
-    const latestRevisionIdsByTestsetId = new Map<string, string>()
-    latestRevisionMap.forEach((revision, testsetId) => {
-        latestRevisionIdsByTestsetId.set(testsetId, revision.id)
-    })
-
-    return buildTestsetSyncPreview({
-        queueId,
-        completedScenarios,
-        testcasesById: testcases,
-        annotationsByTestcaseId,
-        evaluators: get(testsetSyncEvaluatorsAtom),
-        latestRevisionIdsByTestsetId,
-    })
-}
-
-const syncToTestsetsAtom = atom(null, async (get, set) => {
-    const projectId = getStore().get(projectIdAtom)
-    if (!projectId) throw new Error("No project ID")
-
-    const queueName = get(queueNameAtom) ?? "Annotation queue results"
-    const preview = await buildTestsetSyncPreviewForSession(get)
-
-    if (preview.hasBlockingConflicts) {
-        throw new Error("No exportable testcase annotations available for sync")
-    }
-
-    const preparedTargets = await Promise.all(
-        preview.targets.map(async (target) => {
-            const baseRows = await fetchBaseRevisionRows({
-                revisionId: target.baseRevisionId,
-                projectId,
-            })
-
-            return remapTargetRowsToBaseRevision({
-                target,
-                baseRows,
-            })
-        }),
-    )
-
-    const syncTargets = preparedTargets
-        .map((entry) => entry.target)
-        .filter((target) => target.rows.length > 0)
-    const remapDroppedRows = preparedTargets.reduce((sum, entry) => sum + entry.droppedRowCount, 0)
-
-    const results = await Promise.allSettled(
-        syncTargets.map(async (target) => {
-            await patchRevision({
-                projectId,
-                testsetId: target.testsetId,
-                baseRevisionId: target.baseRevisionId,
-                operations: buildTestsetSyncOperations(target),
-                message: `${queueName}: synced annotations`,
-            })
-
-            return target
-        }),
-    )
-
-    const successfulTargets = results.flatMap((result) =>
-        result.status === "fulfilled" ? [result.value] : [],
-    )
-    const failedTargets = results.flatMap((result, index) =>
-        result.status === "rejected"
-            ? [
-                  {
-                      testsetId: syncTargets[index]?.testsetId ?? "",
-                      rowCount: syncTargets[index]?.rowCount ?? 0,
-                      reason: result.reason,
-                  },
-              ]
-            : [],
-    )
-
-    if (successfulTargets.length === 0) {
-        throw new Error("Failed to sync annotations to testsets")
-    }
-
-    return {
-        targets: successfulTargets,
-        revisionsCreated: successfulTargets.length,
-        rowsExported: successfulTargets.reduce((sum, target) => sum + target.rowCount, 0),
-        skippedRows: preview.skippedRows + remapDroppedRows,
-        rowsFailed: failedTargets.reduce((sum, target) => sum + target.rowCount, 0),
-        conflicts: preview.conflicts,
-        failedTargets,
-    }
-})
+// onNavigate / onAnnotationSubmitted are forwarded to the engine (navigation + complete
+// are delegated to it) — see registerAnnotationCallbacks.
 
 /**
  * Register callbacks for annotation session side-effects.
@@ -3411,9 +1163,12 @@ const syncToTestsetsAtom = atom(null, async (get, set) => {
  */
 export function registerAnnotationCallbacks(callbacks: AnnotationSessionCallbacks) {
     _onQueueOpened = callbacks.onQueueOpened ?? null
-    _onAnnotationSubmitted = callbacks.onAnnotationSubmitted ?? null
     _onSessionClosed = callbacks.onSessionClosed ?? null
-    _onNavigate = callbacks.onNavigate ?? null
+    // Navigation + completion run in the engine — forward those hooks to it.
+    registerEngineCallbacks({
+        onNavigate: callbacks.onNavigate,
+        onSubmitted: callbacks.onAnnotationSubmitted,
+    })
 }
 
 // ============================================================================
@@ -3562,8 +1317,6 @@ export const annotationSessionController = {
         applyRouteState: applyRouteStateAtom,
         /** Sync testcase annotations back into one or more testsets */
         syncToTestsets: syncToTestsetsAtom,
-        /** Sync annotated data back to source testset as new revision */
-        syncToTestset: syncToTestsetsAtom,
         /** Open the add-to-testset commit modal */
         openAddToTestsetModal: openAddToTestsetModalAtom,
         /** Close the add-to-testset commit modal */
@@ -3659,7 +1412,6 @@ export const annotationSessionController = {
         applyRouteState: (payload: ApplyRouteStatePayload) =>
             getStore().set(applyRouteStateAtom, payload),
         syncToTestsets: () => getStore().set(syncToTestsetsAtom),
-        syncToTestset: () => getStore().set(syncToTestsetsAtom),
         openAddToTestsetModal: (payload: {scope: AddToTestsetScope; scenarioIds?: string[]}) =>
             getStore().set(openAddToTestsetModalAtom, payload),
         closeAddToTestsetModal: () => getStore().set(closeAddToTestsetModalAtom),

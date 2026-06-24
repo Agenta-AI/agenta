@@ -23,7 +23,7 @@
 // MOLECULE (Primary API)
 // ============================================================================
 
-export {evaluationQueueMolecule, type EvaluationQueueMolecule} from "./state/molecule"
+export {evaluationQueueMolecule} from "./state/molecule"
 
 // ============================================================================
 // SCHEMAS & TYPES
@@ -32,7 +32,7 @@ export {evaluationQueueMolecule, type EvaluationQueueMolecule} from "./state/mol
 export {
     // Re-exported shared enum
     evaluationStatusSchema,
-    type EvaluationStatus,
+    type SimpleQueueStatus,
     // Sub-schemas
     evaluationQueueFlagsSchema,
     type EvaluationQueueFlags,
@@ -50,27 +50,15 @@ export {
     type EvaluationQueueIdResponse,
     evaluationQueueIdsResponseSchema,
     type EvaluationQueueIdsResponse,
-    evaluationQueueScenarioIdsResponseSchema,
-    type EvaluationQueueScenarioIdsResponse,
 } from "./core"
 
-export type {
-    EvaluationQueueListParams,
-    EvaluationQueueDetailParams,
-    EvaluationQueueScenariosParams,
-} from "./core"
+export type {EvaluationQueueListParams, EvaluationQueueDetailParams} from "./core"
 
 // ============================================================================
 // API FUNCTIONS
 // ============================================================================
 
-export {
-    queryEvaluationQueues,
-    fetchEvaluationQueue,
-    deleteEvaluationQueue,
-    deleteEvaluationQueues,
-    queryEvaluationQueueScenarios,
-} from "./api"
+export {queryEvaluationQueues, fetchEvaluationQueue, deleteEvaluationQueue} from "./api"
 
 // ============================================================================
 // STATE ATOMS

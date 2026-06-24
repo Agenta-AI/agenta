@@ -22,7 +22,7 @@ import {Cascader, Input} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
-import QuickDateRangePicker from "@/oss/components/EvaluationRunsTablePOC/components/filters/QuickDateRangePicker"
+import QuickDateRangePicker from "@/oss/components/Filters/QuickDateRangePicker"
 
 const HIDDEN_EVENT_TYPE_PREFIXES = ["applications.revisions.", "evaluators.revisions."]
 const HIDDEN_EVENT_TYPES = ["unknown"]

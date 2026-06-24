@@ -153,7 +153,11 @@ export {
  * Atom for fetching the latest revision of a testset.
  * Used by entity adapters for display and selection.
  */
-export {latestRevisionForTestsetAtomFamily, testsetQueryAtomFamily} from "./state/store"
+export {
+    latestRevisionForTestsetAtomFamily,
+    testsetQueryAtomFamily,
+    testsetsListQueryAtomFamily,
+} from "./state/store"
 
 /**
  * Save mutation atom for committing testset changes.

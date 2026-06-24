@@ -117,6 +117,12 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../packages/agenta-entity-ui
         version: link:../packages/agenta-entity-ui
+      '@agenta/evaluations':
+        specifier: workspace:../packages/agenta-evaluations
+        version: link:../packages/agenta-evaluations
+      '@agenta/evaluations-ui':
+        specifier: workspace:../packages/agenta-evaluations-ui
+        version: link:../packages/agenta-evaluations-ui
       '@agenta/oss':
         specifier: workspace:../oss
         version: link:../oss
@@ -331,6 +337,12 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../packages/agenta-entity-ui
         version: link:../packages/agenta-entity-ui
+      '@agenta/evaluations':
+        specifier: workspace:../packages/agenta-evaluations
+        version: link:../packages/agenta-evaluations
+      '@agenta/evaluations-ui':
+        specifier: workspace:../packages/agenta-evaluations-ui
+        version: link:../packages/agenta-evaluations-ui
       '@agenta/playground':
         specifier: workspace:../packages/agenta-playground
         version: link:../packages/agenta-playground
@@ -671,6 +683,9 @@ importers:
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
+      '@agenta/evaluations':
+        specifier: workspace:../agenta-evaluations
+        version: link:../agenta-evaluations
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared
@@ -711,6 +726,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../agenta-entity-ui
         version: link:../agenta-entity-ui
+      '@agenta/evaluations-ui':
+        specifier: workspace:../agenta-evaluations-ui
+        version: link:../agenta-evaluations-ui
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared
@@ -1057,6 +1075,149 @@ importers:
         specifier: ^4.1.4
         version: 4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(vite@8.0.12(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
 
+  packages/agenta-evaluations:
+    dependencies:
+      '@agenta/entities':
+        specifier: workspace:../agenta-entities
+        version: link:../agenta-entities
+      '@agenta/playground':
+        specifier: workspace:../agenta-playground
+        version: link:../agenta-playground
+      '@agenta/sdk':
+        specifier: workspace:../agenta-sdk
+        version: link:../agenta-sdk
+      '@agenta/shared':
+        specifier: workspace:../agenta-shared
+        version: link:../agenta-shared
+      '@agenta/ui':
+        specifier: workspace:../agenta-ui
+        version: link:../agenta-ui
+      '@agentaai/api-client':
+        specifier: workspace:../agenta-api-client
+        version: link:../agenta-api-client
+      '@tanstack/react-query':
+        specifier: '>=5.0.0'
+        version: 5.100.9(react@19.2.6)
+      fast-deep-equal:
+        specifier: ^3.1.3
+        version: 3.1.3
+      jotai:
+        specifier: '>=2.0.0'
+        version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
+      jotai-family:
+        specifier: '>=0.1.0'
+        version: 1.0.1(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))
+      jotai-scheduler:
+        specifier: ^0.0.5
+        version: 0.0.5(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
+      jotai-tanstack-query:
+        specifier: '>=0.9.0'
+        version: 0.11.0(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.6))(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
+      react:
+        specifier: '>=18.0.0'
+        version: 19.2.6
+      swr:
+        specifier: ^2.4.0
+        version: 2.4.1(react@19.2.6)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.8.10
+        version: 20.19.39
+      '@types/react':
+        specifier: ^19.0.10
+        version: 19.2.14
+      '@vitest/coverage-v8':
+        specifier: ^4.1.4
+        version: 4.1.6(vitest@4.1.6)
+      typescript:
+        specifier: 5.8.3
+        version: 5.8.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(vite@8.0.12(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
+
+  packages/agenta-evaluations-ui:
+    dependencies:
+      '@agenta/entities':
+        specifier: workspace:../agenta-entities
+        version: link:../agenta-entities
+      '@agenta/entity-ui':
+        specifier: workspace:../agenta-entity-ui
+        version: link:../agenta-entity-ui
+      '@agenta/evaluations':
+        specifier: workspace:../agenta-evaluations
+        version: link:../agenta-evaluations
+      '@agenta/sdk':
+        specifier: workspace:../agenta-sdk
+        version: link:../agenta-sdk
+      '@agenta/shared':
+        specifier: workspace:../agenta-shared
+        version: link:../agenta-shared
+      '@agenta/ui':
+        specifier: workspace:../agenta-ui
+        version: link:../agenta-ui
+      '@ant-design/icons':
+        specifier: ^6.1.0
+        version: 6.2.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@phosphor-icons/react':
+        specifier: ^2.1.10
+        version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@tanstack/react-query':
+        specifier: '>=5.0.0'
+        version: 5.100.9(react@19.2.6)
+      antd:
+        specifier: '>=5.0.0'
+        version: 6.3.7(date-fns@3.6.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      dayjs:
+        specifier: ^1.11.20
+        version: 1.11.20
+      fast-deep-equal:
+        specifier: ^3.1.3
+        version: 3.1.3
+      jotai:
+        specifier: '>=2.0.0'
+        version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
+      jotai-immer:
+        specifier: ^0.4.1
+        version: 0.4.3(immer@11.1.7)(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))
+      jotai-scheduler:
+        specifier: ^0.0.5
+        version: 0.0.5(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
+      lucide-react:
+        specifier: ^0.479.0
+        version: 0.479.0(react@19.2.6)
+      next:
+        specifier: '>=14.0.0'
+        version: 15.5.18(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      react:
+        specifier: '>=18.0.0'
+        version: 19.2.6
+      react-dom:
+        specifier: '>=18.0.0'
+        version: 19.2.6(react@19.2.6)
+      recharts:
+        specifier: ^3.1.0
+        version: 3.8.1(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react-is@18.3.1)(react@19.2.6)(redux@5.0.1)
+      usehooks-ts:
+        specifier: ^3.1.1
+        version: 3.1.1(react@19.2.6)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.8.10
+        version: 20.19.39
+      '@types/react':
+        specifier: ^19.0.10
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.2.3(@types/react@19.2.14)
+      typescript:
+        specifier: 5.8.3
+        version: 5.8.3
+
   packages/agenta-playground:
     dependencies:
       '@agenta/entities':
@@ -1297,6 +1458,9 @@ importers:
       fast-deep-equal:
         specifier: ^3.1.3
         version: 3.1.3
+      immer:
+        specifier: ^10.1.3
+        version: 10.2.0
       jotai:
         specifier: ^2.16.1
         version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
@@ -1305,7 +1469,7 @@ importers:
         version: 1.0.1(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))
       jotai-immer:
         specifier: ^0.4.3
-        version: 0.4.3(immer@11.1.7)(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))
+        version: 0.4.3(immer@10.2.0)(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))
       jotai-scheduler:
         specifier: ^0.0.5
         version: 0.0.5(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
@@ -6636,6 +6800,11 @@ packages:
     peerDependencies:
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
       typescript: '>=4.8.4 <6.1.0'
+
+  typescript@5.8.3:
+    resolution: {integrity: sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ==}
+    engines: {node: '>=14.17'}
+    hasBin: true
 
   typescript@5.9.3:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
@@ -12662,6 +12831,8 @@ snapshots:
       typescript: 5.9.3
     transitivePeerDependencies:
       - supports-color
+
+  typescript@5.8.3: {}
 
   typescript@5.9.3: {}
 

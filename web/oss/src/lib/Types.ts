@@ -1,22 +1,6 @@
+import {EvaluationStatus} from "@agenta/entities/evaluationRun"
 import type {GlobalToken} from "antd"
 import type {StaticImageData} from "next/image"
-
-// Type utility to convert snake_case object properties to camelCase
-export type SnakeToCamelCaseKeys<T> = T extends readonly any[]
-    ? T extends [infer First, ...infer Rest]
-        ? [SnakeToCamelCaseKeys<First>, ...SnakeToCamelCaseKeys<Rest>]
-        : T extends (infer U)[]
-          ? SnakeToCamelCaseKeys<U>[]
-          : T
-    : T extends object
-      ? {
-            [K in keyof T as SnakeToCamelCase<K & string>]: SnakeToCamelCaseKeys<T[K]>
-        }
-      : T
-
-export type SnakeToCamelCase<S extends string> = S extends `${infer T}_${infer U}`
-    ? `${T}${Capitalize<SnakeToCamelCase<U>>}`
-    : S
 
 export interface WorkspaceRole {
     role_description: string
@@ -298,23 +282,6 @@ export interface TypedValue {
     type: ValueTypeOptions
     value: ValueType
     error: null | EvaluationError
-}
-
-export enum EvaluationStatus {
-    INITIALIZED = "EVALUATION_INITIALIZED",
-    STARTED = "EVALUATION_STARTED",
-    FINISHED = "EVALUATION_FINISHED",
-    FINISHED_WITH_ERRORS = "EVALUATION_FINISHED_WITH_ERRORS",
-    ERROR = "EVALUATION_FAILED",
-    AGGREGATION_FAILED = "EVALUATION_AGGREGATION_FAILED",
-    RUNNING = "running",
-    SUCCESS = "success",
-    FAILURE = "failure",
-    FAILED = "failed",
-    ERRORS = "errors",
-    CANCELLED = "cancelled",
-    PENDING = "pending",
-    INCOMPLETE = "incomplete",
 }
 
 export enum EvaluationStatusType {

@@ -19,67 +19,99 @@ import {auditFieldsSchema, timestampFieldsSchema} from "../../shared/utils/zodSc
 // ENUMS
 // ============================================================================
 
-export const evaluationRunStepTypeSchema = z.enum(["input", "invocation", "annotation"])
-export type EvaluationRunStepType = z.infer<typeof evaluationRunStepTypeSchema>
+// These string-union "kinds" are deliberately validated as plain `z.string()`, NOT
+// `z.enum([...])`. The backend mounts run payloads with `extra="allow"` and its taxonomy
+// drifts (e.g. mapping `kind` emits "testset"/"invocation", not the older
+// "input"/"ground_truth"/... set). A `z.enum` here is catastrophic: these fields sit deep
+// inside the optional `data.steps[]` / `data.mappings[]` tree, and a single unrecognized
+// value fails the ENTIRE run parse, which fails the whole `runs: z.array(...)` batch ->
+// `safeParseWithLogging` returns null -> the run table renders blank cells. We keep the
+// known values as documented unions (for autocomplete) but never reject unknown strings.
+export const EVALUATION_RUN_STEP_TYPES = ["input", "invocation", "annotation"] as const
+export const evaluationRunStepTypeSchema = z.string()
+export type EvaluationRunStepType = (typeof EVALUATION_RUN_STEP_TYPES)[number] | (string & {})
 
-export const evaluationRunStepOriginSchema = z.enum(["custom", "human", "auto"])
-export type EvaluationRunStepOrigin = z.infer<typeof evaluationRunStepOriginSchema>
+export const EVALUATION_RUN_STEP_ORIGINS = ["custom", "human", "auto"] as const
+export const evaluationRunStepOriginSchema = z.string()
+export type EvaluationRunStepOrigin = (typeof EVALUATION_RUN_STEP_ORIGINS)[number] | (string & {})
 
-export const evaluationRunMappingKindSchema = z.enum([
+export const EVALUATION_RUN_MAPPING_KINDS = [
+    "testset",
+    "invocation",
+    "annotation",
+    // legacy / alternate taxonomy still accepted defensively
     "input",
     "ground_truth",
     "application",
     "evaluator",
-    "annotation",
-])
-export type EvaluationRunMappingKind = z.infer<typeof evaluationRunMappingKindSchema>
+] as const
+export const evaluationRunMappingKindSchema = z.string()
+export type EvaluationRunMappingKind = (typeof EVALUATION_RUN_MAPPING_KINDS)[number] | (string & {})
 
 // ============================================================================
 // SUB-SCHEMAS
 // ============================================================================
 
-export const evaluationRunStepInputSchema = z.object({
-    key: z.string(),
-})
+// NOTE: every object schema in this file uses `.passthrough()` so unknown backend
+// fields survive validation instead of being silently stripped. The backend mounts
+// these payloads with `extra="allow"`, and downstream consumers (e.g. the OSS
+// EvalRunDetails run enrichment: buildRunIndex, evaluator-ref patching) read fields
+// beyond what this schema declares. Stripping them would silently lose data. Known
+// fields are still strictly validated; this is a validator, not a field filter.
+export const evaluationRunStepInputSchema = z
+    .object({
+        key: z.string(),
+    })
+    .passthrough()
 
-export const evaluationRunStepReferenceSchema = z.object({
-    id: z.string(),
-    slug: z.string().nullable().optional(),
-    version: z.coerce.number().nullable().optional(),
-})
+export const evaluationRunStepReferenceSchema = z
+    .object({
+        id: z.string(),
+        slug: z.string().nullable().optional(),
+        version: z.coerce.number().nullable().optional(),
+    })
+    .passthrough()
 
-export const evaluationRunDataStepSchema = z.object({
-    key: z.string(),
-    type: evaluationRunStepTypeSchema,
-    origin: evaluationRunStepOriginSchema.nullable().optional(),
-    inputs: z.array(evaluationRunStepInputSchema).nullable().optional(),
-    references: z.record(z.string(), evaluationRunStepReferenceSchema).nullable().optional(),
-})
+export const evaluationRunDataStepSchema = z
+    .object({
+        key: z.string(),
+        type: evaluationRunStepTypeSchema,
+        origin: evaluationRunStepOriginSchema.nullable().optional(),
+        inputs: z.array(evaluationRunStepInputSchema).nullable().optional(),
+        references: z.record(z.string(), evaluationRunStepReferenceSchema).nullable().optional(),
+    })
+    .passthrough()
 export type EvaluationRunDataStep = z.infer<typeof evaluationRunDataStepSchema>
 
-export const evaluationRunDataMappingSchema = z.object({
-    column: z
-        .object({
-            kind: evaluationRunMappingKindSchema.nullable().optional(),
-            name: z.string().nullable().optional(),
-        })
-        .nullable()
-        .optional(),
-    step: z
-        .object({
-            key: z.string(),
-            path: z.string().nullable().optional(),
-        })
-        .nullable()
-        .optional(),
-})
+export const evaluationRunDataMappingSchema = z
+    .object({
+        column: z
+            .object({
+                kind: evaluationRunMappingKindSchema.nullable().optional(),
+                name: z.string().nullable().optional(),
+            })
+            .passthrough()
+            .nullable()
+            .optional(),
+        step: z
+            .object({
+                key: z.string(),
+                path: z.string().nullable().optional(),
+            })
+            .passthrough()
+            .nullable()
+            .optional(),
+    })
+    .passthrough()
 export type EvaluationRunDataMapping = z.infer<typeof evaluationRunDataMappingSchema>
 
-export const evaluationRunDataSchema = z.object({
-    steps: z.array(evaluationRunDataStepSchema).nullable().optional(),
-    repeats: z.number().nullable().optional(),
-    mappings: z.array(evaluationRunDataMappingSchema).nullable().optional(),
-})
+export const evaluationRunDataSchema = z
+    .object({
+        steps: z.array(evaluationRunDataStepSchema).nullable().optional(),
+        repeats: z.number().nullable().optional(),
+        mappings: z.array(evaluationRunDataMappingSchema).nullable().optional(),
+    })
+    .passthrough()
 export type EvaluationRunData = z.infer<typeof evaluationRunDataSchema>
 
 export const evaluationRunFlagsSchema = z.record(z.string(), z.unknown()).nullable().optional()
@@ -113,6 +145,7 @@ export const evaluationRunSchema = z
     })
     .merge(timestampFieldsSchema)
     .merge(auditFieldsSchema)
+    .passthrough()
 
 export type EvaluationRun = z.infer<typeof evaluationRunSchema>
 
@@ -140,6 +173,9 @@ export const evaluationRunsResponseSchema = z.object({
 })
 export type EvaluationRunsResponse = z.infer<typeof evaluationRunsResponseSchema>
 
+// NOTE: EvaluationScenario schemas were promoted to a first-class entity —
+// see @agenta/entities/evaluationScenario.
+
 // ============================================================================
 // EVALUATION RESULT (SCENARIO STEP) SCHEMAS
 // ============================================================================
@@ -150,19 +186,21 @@ export type EvaluationRunsResponse = z.infer<typeof evaluationRunsResponseSchema
  *
  * Fetched via `POST /evaluations/results/query`.
  */
-export const evaluationResultSchema = z.object({
-    id: z.string().optional(),
-    run_id: z.string(),
-    scenario_id: z.string(),
-    step_key: z.string(),
-    status: z.string().nullable().optional(),
-    trace_id: z.string().nullable().optional(),
-    span_id: z.string().nullable().optional(),
-    testcase_id: z.string().nullable().optional(),
-    references: z.record(z.string(), z.unknown()).nullable().optional(),
-    data: z.record(z.string(), z.unknown()).nullable().optional(),
-    error: z.record(z.string(), z.unknown()).nullable().optional(),
-})
+export const evaluationResultSchema = z
+    .object({
+        id: z.string().optional(),
+        run_id: z.string(),
+        scenario_id: z.string(),
+        step_key: z.string(),
+        status: z.string().nullable().optional(),
+        trace_id: z.string().nullable().optional(),
+        span_id: z.string().nullable().optional(),
+        testcase_id: z.string().nullable().optional(),
+        references: z.record(z.string(), z.unknown()).nullable().optional(),
+        data: z.record(z.string(), z.unknown()).nullable().optional(),
+        error: z.record(z.string(), z.unknown()).nullable().optional(),
+    })
+    .passthrough()
 export type EvaluationResult = z.infer<typeof evaluationResultSchema>
 
 /**
@@ -208,6 +246,7 @@ export const evaluationMetricSchema = z
     })
     .merge(timestampFieldsSchema)
     .merge(auditFieldsSchema)
+    .passthrough()
 
 export type EvaluationMetric = z.infer<typeof evaluationMetricSchema>
 

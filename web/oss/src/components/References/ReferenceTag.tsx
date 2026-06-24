@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState, type ComponentType, type ReactNode} from "react"
 
+import {getReferenceToneColors, type ReferenceTone} from "@agenta/shared/utils"
 import {
     ArrowSquareOut,
     BracketsCurly,
@@ -19,8 +20,6 @@ import clsx from "clsx"
 import {useRouter} from "next/router"
 
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-
-import {getReferenceToneColors, type ReferenceTone} from "./referenceColors"
 
 /**
  * Identifier set behind a reference chip. Feeds the slug crossfade on hover,

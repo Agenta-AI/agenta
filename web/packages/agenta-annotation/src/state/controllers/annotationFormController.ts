@@ -40,11 +40,17 @@ import {
     type CreateAnnotationPayload,
 } from "@agenta/entities/annotation"
 import {
+    editEvaluationRun,
     evaluationRunMolecule,
     queryEvaluationResults,
+    queryEvaluationRuns,
     type EvaluationResult,
     type EvaluationRunDataStep,
 } from "@agenta/entities/evaluationRun"
+import {
+    queryEvaluationScenarios,
+    setEvaluationScenarioStatuses,
+} from "@agenta/entities/evaluationScenario"
 import {
     invalidateScenarioProgressCache,
     invalidateSimpleQueueCache,
@@ -52,18 +58,18 @@ import {
     simpleQueuePaginatedStore,
 } from "@agenta/entities/simpleQueue"
 import {fetchPreviewTrace, type TraceSpan} from "@agenta/entities/trace"
+import {type Workflow} from "@agenta/entities/workflow"
+import {upsertScenarioMetricData} from "@agenta/evaluations/services"
 import {
-    resolveOutputSchema,
-    workflowLatestRevisionQueryAtomFamily,
-    workflowQueryAtomFamily,
-    type Workflow,
-} from "@agenta/entities/workflow"
+    computeBaseline,
+    resolveEvaluators,
+    type ResolvedEvaluatorRef,
+} from "@agenta/evaluations/state"
 import {axios, getAgentaApiUrl, queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import deepEqual from "fast-deep-equal"
-import {atom, type Getter} from "jotai"
+import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-import {getDefaultStore} from "jotai/vanilla"
 
 import {mergeTestcaseAnnotationTags, selectQueueScopedAnnotation} from "../testsetSync"
 import type {
@@ -76,228 +82,17 @@ import type {
     EvaluatorStepRef,
 } from "../types"
 
-import {annotationSessionController} from "./annotationSessionController"
+import {annotationSessionController, getStore} from "./annotationSessionController"
 
 // ============================================================================
-// SCHEMA EXTRACTION HELPERS (pure functions, no React)
+// SCHEMA EXTRACTION HELPERS
 // ============================================================================
-
-const USEABLE_METRIC_TYPES = ["number", "integer", "float", "boolean", "string", "array"]
-
-/**
- * Extract the outputs schema from an evaluator entity.
- */
-export function getOutputsSchema(evaluator: Workflow): {
-    properties?: Record<string, unknown>
-    required?: string[]
-} {
-    return (
-        (resolveOutputSchema(evaluator.data) as {
-            properties?: Record<string, unknown>
-            required?: string[]
-        } | null) ?? {}
-    )
-}
-
-/**
- * Derive empty form fields from an evaluator's output schema.
- */
-export function getMetricFieldsFromEvaluator(
-    evaluator: Workflow,
-): Record<string, AnnotationMetricField> {
-    const schema = getOutputsSchema(evaluator)?.properties ?? {}
-    const fields: Record<string, AnnotationMetricField> = {}
-
-    for (const [key, rawProp] of Object.entries(schema)) {
-        if (!rawProp || typeof rawProp !== "object") continue
-
-        const prop = (rawProp as Record<string, unknown>).anyOf
-            ? ((rawProp as Record<string, unknown>).anyOf as unknown[])[0]
-            : rawProp
-        const propObj = prop as Record<string, unknown>
-        const rawType = propObj?.type as string | string[] | undefined
-
-        if (!rawType) continue
-
-        if (Array.isArray(rawType)) {
-            const enumValues =
-                (propObj.enum as unknown[] | undefined)?.filter(
-                    (value) => value !== null && value !== undefined && value !== "",
-                ) || []
-            const filteredTypes = rawType.filter((value) => value !== "null")
-            if (filteredTypes.length === 0) continue
-            const baseType = filteredTypes[0]
-            fields[key] = {
-                value: baseType === "string" ? "" : null,
-                type: filteredTypes,
-                enum: enumValues,
-                minimum: propObj.minimum as number | undefined,
-                maximum: propObj.maximum as number | undefined,
-            }
-            continue
-        }
-
-        const type = rawType
-
-        if (type === "array") {
-            const items = propObj.items as Record<string, unknown> | undefined
-            fields[key] = {
-                value: [],
-                type: "array",
-                items: {
-                    type: (typeof items?.type === "string" ? items.type : "string") as string,
-                    enum: (items?.enum as string[] | undefined) ?? [],
-                },
-            }
-        } else if (USEABLE_METRIC_TYPES.includes(type)) {
-            fields[key] = {
-                value: type === "string" ? "" : null,
-                type,
-                minimum: propObj.minimum as number | undefined,
-                maximum: propObj.maximum as number | undefined,
-            }
-        }
-    }
-
-    return fields
-}
-
-/**
- * Derive form fields from an existing annotation, filling values from outputs.
- */
-export function getMetricsFromAnnotation(
-    annotation: Annotation,
-    evaluator: Workflow,
-): Record<string, AnnotationMetricField> {
-    const schema = getOutputsSchema(evaluator)?.properties ?? {}
-    const rawOutputs = (annotation.data?.outputs as Record<string, unknown>) ?? {}
-
-    // Flatten nested structures
-    const outputs: Record<string, unknown> = {}
-    if (rawOutputs.metrics && typeof rawOutputs.metrics === "object") {
-        Object.assign(outputs, rawOutputs.metrics)
-    }
-    if (rawOutputs.notes && typeof rawOutputs.notes === "object") {
-        Object.assign(outputs, rawOutputs.notes)
-    }
-    if (rawOutputs.extra && typeof rawOutputs.extra === "object") {
-        Object.assign(outputs, rawOutputs.extra)
-    }
-    for (const [k, v] of Object.entries(rawOutputs)) {
-        if (k !== "metrics" && k !== "notes" && k !== "extra") {
-            outputs[k] = v
-        }
-    }
-
-    if (!Object.keys(schema).length) {
-        return inferFieldsFromOutputs(outputs)
-    }
-
-    const fields: Record<string, AnnotationMetricField> = {}
-
-    for (const [key, rawProp] of Object.entries(schema)) {
-        if (!rawProp || typeof rawProp !== "object") continue
-
-        const prop = (rawProp as Record<string, unknown>).anyOf
-            ? ((rawProp as Record<string, unknown>).anyOf as unknown[])[0]
-            : rawProp
-        const propObj = prop as Record<string, unknown>
-        const rawType = propObj?.type as string | string[] | undefined
-
-        if (!rawType) continue
-
-        const hasValue = key in outputs
-        const value = hasValue ? outputs[key] : undefined
-
-        if (Array.isArray(rawType)) {
-            const enumValues =
-                (propObj.enum as unknown[] | undefined)?.filter(
-                    (item) => item !== null && item !== undefined && item !== "",
-                ) || []
-            const filteredTypes = rawType.filter((item) => item !== "null")
-            if (filteredTypes.length === 0) continue
-            const baseType = filteredTypes[0]
-            const defaultValue = baseType === "string" ? "" : null
-            fields[key] = {
-                value: hasValue ? value : defaultValue,
-                type: filteredTypes,
-                enum: enumValues,
-                minimum: propObj.minimum as number | undefined,
-                maximum: propObj.maximum as number | undefined,
-            }
-            continue
-        }
-
-        const type = rawType
-
-        if (type === "array") {
-            const items = propObj.items as Record<string, unknown> | undefined
-            fields[key] = {
-                value: value ?? [],
-                type: "array",
-                items: {
-                    type: (typeof items?.type === "string" ? items.type : "string") as string,
-                    enum: (items?.enum as string[] | undefined) ?? [],
-                },
-            }
-        } else if (USEABLE_METRIC_TYPES.includes(type)) {
-            const defaultValue = type === "string" ? "" : null
-            fields[key] = {
-                value: hasValue ? value : defaultValue,
-                type,
-                minimum: propObj.minimum as number | undefined,
-                maximum: propObj.maximum as number | undefined,
-            }
-        }
-    }
-
-    return fields
-}
-
-function inferFieldType(value: unknown): AnnotationMetricField | null {
-    if (value === null || value === undefined) {
-        return {value: null, type: "string"}
-    }
-    if (typeof value === "boolean") {
-        return {value, type: "boolean"}
-    }
-    if (typeof value === "number") {
-        return {value, type: Number.isInteger(value) ? "integer" : "number"}
-    }
-    if (typeof value === "string") {
-        return {value, type: "string"}
-    }
-    if (Array.isArray(value)) {
-        const sample = value.find((entry) => entry !== null && entry !== undefined)
-        const itemType =
-            typeof sample === "boolean"
-                ? "boolean"
-                : typeof sample === "number"
-                  ? Number.isInteger(sample)
-                      ? "integer"
-                      : "number"
-                  : "string"
-        return {
-            value,
-            type: "array",
-            items: {type: itemType, enum: []},
-        }
-    }
-    if (typeof value === "object") {
-        return {value: JSON.stringify(value), type: "string"}
-    }
-    return null
-}
-
-function inferFieldsFromOutputs(outputs: Record<string, unknown>) {
-    const fields: Record<string, AnnotationMetricField> = {}
-    for (const [key, value] of Object.entries(outputs)) {
-        const field = inferFieldType(value)
-        if (!field) continue
-        fields[key] = field
-    }
-    return fields
-}
+//
+// `getOutputsSchema`, `getMetricFieldsFromEvaluator`, `getMetricsFromAnnotation`
+// (and their `inferFieldsFromOutputs`/`inferFieldType` helpers, plus the
+// `USEABLE_METRIC_TYPES` const) now live in `@agenta/evaluations/state`. They are
+// re-exported for existing importers from `controllers/index.ts`. The baseline
+// computation below calls the imported `computeBaseline`/`resolveEvaluators`.
 
 export function isEmptyValue(value: unknown): boolean {
     if (value === null || value === undefined || value === "") return true
@@ -306,25 +101,11 @@ export function isEmptyValue(value: unknown): boolean {
 }
 
 function isEmptyMetrics(fields: Record<string, {value: unknown}>): boolean {
-    return Object.values(fields).every(
-        (f) =>
-            f.value === null ||
-            f.value === undefined ||
-            f.value === "" ||
-            (Array.isArray(f.value) && f.value.length === 0),
-    )
+    return Object.values(fields).every((f) => isEmptyValue(f.value))
 }
 
 async function patchScenarioStatus(projectId: string, scenarioId: string, status: string) {
-    await axios.patch(
-        `${getAgentaApiUrl()}/evaluations/scenarios/`,
-        {
-            scenarios: [{id: scenarioId, status}],
-        },
-        {
-            params: {project_id: projectId},
-        },
-    )
+    await setEvaluationScenarioStatuses({projectId, scenarios: [{id: scenarioId, status}]})
 }
 
 const TERMINAL_SCENARIO_STATUSES = new Set([
@@ -403,6 +184,10 @@ async function upsertStepResultWithAnnotation({
 
     // The setter upserts on the natural key (run_id, scenario_id, step_key,
     // repeat_idx), so a single POST handles both create and edit — no `id` needed.
+    // NOTE: kept on raw axios (not the entities setEvaluationResults wrapper)
+    // because this call also sends span_id, which the wrapper's typed input
+    // deliberately omits (no backend column); migrating would drop span_id and
+    // cascade an annotationSpanId param removal through the submit-entry flow.
     await axios.post(
         `${apiUrl}/evaluations/results/`,
         {
@@ -479,10 +264,8 @@ async function upsertAnnotationMetrics({
     outputs: Record<string, unknown>
     stepKey: string
 }) {
-    const apiUrl = getAgentaApiUrl()
-
-    // Build metric data for each output key
-    const metricsForStep: Record<string, unknown> = {}
+    // Build metric data for each output key (annotation-specific shaping).
+    const metricsForStep: Record<string, Record<string, unknown>> = {}
     for (const [metricName, value] of Object.entries(outputs)) {
         if (value === null || value === undefined) continue
         const metricData = buildMetricDataFromValue(value)
@@ -492,89 +275,37 @@ async function upsertAnnotationMetrics({
 
     if (Object.keys(metricsForStep).length === 0) return
 
-    const data = {[stepKey]: metricsForStep}
-
-    // Query existing metrics for this scenario
-    let existingMetric: {id?: string; data?: Record<string, unknown>; status?: string} | null = null
-    try {
-        const queryResponse = await axios.post(
-            `${apiUrl}/evaluations/metrics/query`,
-            {
-                metrics: {run_ids: [runId], scenario_ids: [scenarioId]},
-                windowing: {},
-            },
-            {params: {project_id: projectId}},
-        )
-        const existingMetrics = Array.isArray(queryResponse?.data?.metrics)
-            ? queryResponse.data.metrics
-            : []
-        existingMetric =
-            existingMetrics.find(
-                (m: Record<string, unknown>) => (m?.scenario_id || m?.scenarioId) === scenarioId,
-            ) ?? null
-    } catch {
-        // Ignore query errors
-    }
-
-    // Merge with existing data
-    const mergedData = {...(existingMetric?.data || {}), ...data}
-
-    // The setter upserts on the natural key (run_id, scenario_id), so a single
-    // POST handles both create and edit — no `id` needed. The existence query
-    // above is still required: it supplies the data to merge into.
-    await axios.post(
-        `${apiUrl}/evaluations/metrics/`,
-        {
-            metrics: [
-                {
-                    run_id: runId,
-                    scenario_id: scenarioId,
-                    data: mergedData,
-                    status: existingMetric?.status || "success",
-                },
-            ],
-        },
-        {params: {project_id: projectId}},
-    )
+    // Persistence (query existing → merge → upsert on natural key) is shared with
+    // the eval run-details annotate flow.
+    await upsertScenarioMetricData({
+        projectId,
+        runId,
+        scenarioId,
+        data: {[stepKey]: metricsForStep},
+    })
 }
 
 /**
  * Check if all scenarios in a run are complete, and if so update the run status.
  */
 async function checkAndUpdateRunStatus(projectId: string, runId: string) {
-    const apiUrl = getAgentaApiUrl()
-
     try {
-        const scenariosResponse = await axios.post(
-            `${apiUrl}/evaluations/scenarios/query`,
-            {
-                scenario: {run_ids: [runId]},
-                windowing: {limit: 1000},
-            },
-            {params: {project_id: projectId}},
-        )
-
-        const scenarios = scenariosResponse.data?.scenarios ?? []
+        const scenarios = await queryEvaluationScenarios({projectId, runId})
         if (scenarios.length === 0) return
 
         const newRunStatus = getTerminalParentStatus(scenarios)
         if (!newRunStatus) return
 
         // Fetch existing run data to preserve all fields
-        const runResponse = await axios.post(
-            `${apiUrl}/evaluations/runs/query`,
-            {run: {ids: [runId]}},
-            {params: {project_id: projectId}},
-        )
-
-        const existingRun = runResponse.data?.runs?.[0]
+        const runResponse = await queryEvaluationRuns({projectId, ids: [runId]})
+        const existingRun = runResponse.runs?.[0]
         if (!existingRun) return
 
-        await axios.patch(
-            `${apiUrl}/evaluations/runs/${runId}`,
-            {run: {...existingRun, id: runId, status: newRunStatus}},
-            {params: {project_id: projectId}},
-        )
+        await editEvaluationRun({
+            projectId,
+            runId,
+            run: {...existingRun, id: runId, status: newRunStatus},
+        })
     } catch (error) {
         console.warn("[annotationForm] checkAndUpdateRunStatus failed:", error)
     }
@@ -610,152 +341,13 @@ async function resolveTraceLinkSpanId({
 }
 
 // ============================================================================
-// BASELINE COMPUTATION (pure function, called by atoms)
+// BASELINE COMPUTATION
 // ============================================================================
-
-/**
- * Compute baseline metrics from annotations + evaluator schemas.
- *
- * Accepts a Jotai `get` function for reactive reads — this creates proper
- * subscriptions so derived atoms re-evaluate when evaluator data arrives.
- */
-interface ResolvedEvaluatorRef {
-    workflowId: string | null
-    variantId: string | null
-    revisionId: string | null
-    stepKey: string | null
-    evaluator: Workflow
-}
-
-interface ResolvedEvaluators {
-    evaluators: Workflow[]
-    resolvedRefs: ResolvedEvaluatorRef[]
-    evaluatorResolution: EvaluatorResolutionState
-}
-
-interface BaselineComputationResult extends ResolvedEvaluators {
-    baseline: AnnotationMetrics
-}
-
-function normalizeResolvedEvaluator(ref: EvaluatorStepRef, evaluator: Workflow): Workflow {
-    const variantId = evaluator.workflow_variant_id ?? evaluator.variant_id ?? ref.variantId ?? null
-    return {
-        ...evaluator,
-        slug: ref.slug ?? evaluator.slug ?? null,
-        workflow_id: evaluator.workflow_id ?? ref.workflowId ?? null,
-        workflow_variant_id: variantId,
-        variant_id: variantId,
-        revision_id: evaluator.revision_id ?? ref.revisionId ?? evaluator.id ?? null,
-    }
-}
-
-function resolveEvaluators(get: Getter, evaluatorStepRefs: EvaluatorStepRef[]): ResolvedEvaluators {
-    const resolvedRefs: ResolvedEvaluatorRef[] = []
-    let isPending = false
-    let hasError = false
-
-    for (const ref of evaluatorStepRefs) {
-        const revisionId = ref.revisionId ?? null
-        const workflowId = ref.workflowId ?? null
-
-        if (!revisionId && !workflowId) {
-            hasError = true
-            continue
-        }
-
-        const query = revisionId
-            ? get(workflowQueryAtomFamily(revisionId))
-            : workflowId
-              ? get(workflowLatestRevisionQueryAtomFamily(workflowId))
-              : null
-
-        if (!query) {
-            hasError = true
-            continue
-        }
-
-        if (query.isPending && !query.data) {
-            isPending = true
-        }
-
-        if (query.isError || (!query.data && !query.isPending)) {
-            hasError = true
-        }
-
-        if (!query.data) continue
-
-        const evaluator = normalizeResolvedEvaluator(ref, query.data)
-
-        resolvedRefs.push({
-            workflowId: evaluator.workflow_id ?? ref.workflowId ?? null,
-            variantId:
-                evaluator.workflow_variant_id ?? evaluator.variant_id ?? ref.variantId ?? null,
-            revisionId: evaluator.id ?? ref.revisionId ?? null,
-            stepKey: ref.stepKey ?? null,
-            evaluator,
-        })
-    }
-
-    return {
-        evaluators: resolvedRefs.map((entry) => entry.evaluator),
-        resolvedRefs,
-        evaluatorResolution: {isPending, hasError},
-    }
-}
-
-function computeBaseline(
-    get: Getter,
-    evaluatorStepRefs: EvaluatorStepRef[],
-    annotations: Annotation[],
-): BaselineComputationResult {
-    const {evaluators, resolvedRefs, evaluatorResolution} = resolveEvaluators(
-        get,
-        evaluatorStepRefs,
-    )
-    const evaluatorMap = new Map<string, Workflow>()
-
-    for (const resolved of resolvedRefs) {
-        const evaluator = resolved.evaluator
-        if (evaluator.slug) evaluatorMap.set(evaluator.slug, evaluator)
-        if (resolved.workflowId) evaluatorMap.set(resolved.workflowId, evaluator)
-        if (resolved.revisionId) evaluatorMap.set(resolved.revisionId, evaluator)
-        if (evaluator.id) evaluatorMap.set(evaluator.id, evaluator)
-    }
-
-    const result: AnnotationMetrics = {}
-
-    // Add metrics from existing annotations
-    for (const ann of annotations) {
-        const evaluatorRef = ann.references?.evaluator
-        const evaluatorKey = evaluatorRef?.slug ?? evaluatorRef?.id
-        if (!evaluatorKey) continue
-
-        const evaluator = evaluatorMap.get(evaluatorKey)
-        if (!evaluator) continue
-
-        const slug = evaluator.slug ?? evaluatorKey
-        if (!slug) continue
-
-        result[slug] = getMetricsFromAnnotation(ann, evaluator)
-    }
-
-    // Add empty metrics for unannotated evaluators
-    const annotatedKeys = new Set(
-        annotations
-            .flatMap((a) => [a.references?.evaluator?.slug, a.references?.evaluator?.id])
-            .filter(Boolean) as string[],
-    )
-    for (const evaluator of evaluators) {
-        const slug = evaluator.slug
-        if (!slug) continue
-        if (annotatedKeys.has(slug)) continue
-        const workflowId = evaluator.workflow_id ?? null
-        if (workflowId && annotatedKeys.has(workflowId)) continue
-        result[slug] = getMetricFieldsFromEvaluator(evaluator)
-    }
-
-    return {baseline: result, evaluators, resolvedRefs, evaluatorResolution}
-}
+//
+// `resolveEvaluators` and `computeBaseline` (with `normalizeResolvedEvaluator`
+// and the `ResolvedEvaluatorRef`/`ResolvedEvaluators`/`BaselineComputationResult`
+// types) now live in `@agenta/evaluations/state` and are imported above. The
+// atoms below call them directly.
 
 // ============================================================================
 // CORE ATOMS
@@ -1336,7 +928,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
 
         const activeRunId = get(annotationSessionController.selectors.activeRunId())
         const annotationSteps = activeRunId
-            ? get(evaluationRunMolecule.selectors.annotationSteps(activeRunId))
+            ? get(evaluationRunMolecule.selectors.annotationSteps({projectId, runId: activeRunId}))
             : []
         const stepRefsByEvalId = buildStepReferences(annotationSteps)
 
@@ -1354,7 +946,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
         let invocationStepKey: string | null = null
         if (runId) {
             const stepsQuery = get(
-                evaluationRunMolecule.selectors.scenarioSteps({runId, scenarioId}),
+                evaluationRunMolecule.selectors.scenarioSteps({projectId, runId, scenarioId}),
             )
             invocationStepKey = await resolveInvocationStepKey({
                 cachedSteps: stepsQuery.data ?? [],
@@ -1567,7 +1159,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
             })
 
             const currentAnnotationSteps = get(
-                evaluationRunMolecule.selectors.annotationSteps(runId),
+                evaluationRunMolecule.selectors.annotationSteps({projectId, runId}),
             )
 
             await awaitStepResultUpserts({
@@ -1637,10 +1229,6 @@ const clearFormStateAtom = atom(null, () => {
 // ============================================================================
 // IMPERATIVE API
 // ============================================================================
-
-function getStore() {
-    return getDefaultStore()
-}
 
 // ============================================================================
 // CONTROLLER EXPORT

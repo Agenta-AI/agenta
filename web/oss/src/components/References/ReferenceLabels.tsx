@@ -1,6 +1,7 @@
 import {memo, useMemo} from "react"
 
 import {getWorkflowTypeColor, workflowMolecule} from "@agenta/entities/workflow"
+import type {ReferenceTone} from "@agenta/shared/utils"
 import {Skeleton, Typography} from "antd"
 import type {TooltipPlacement} from "antd/es/tooltip"
 import clsx from "clsx"
@@ -15,7 +16,6 @@ import {
     previewTestsetReferenceAtomFamily,
     queryReferenceAtomFamily,
 } from "./atoms/entityReferences"
-import type {ReferenceTone} from "./referenceColors"
 import ReferenceTag from "./ReferenceTag"
 
 const {Text} = Typography

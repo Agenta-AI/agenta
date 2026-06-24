@@ -32,11 +32,6 @@ const TraceDrawer = dynamic(
     {ssr: false},
 )
 
-const EvalRunFocusDrawerPreview = dynamic(
-    () => import("@/oss/components/EvalRunDetails/components/EvalRunFocusDrawerMount"),
-    {ssr: false},
-)
-
 const SelectDeployVariantModalWrapper = dynamic(
     () => import("@/oss/components/DeploymentsDashboard/modals/SelectDeployVariantModalWrapper"),
     {ssr: false},
@@ -204,7 +199,6 @@ const AppGlobalWrappers = () => {
         <EntityModalsProvider>
             <NavigationCommandListener />
             <TraceDrawer />
-            <EvalRunFocusDrawerPreview />
             <DeleteAppModalWrapper />
             <EditAppModalWrapper />
             <WorkflowRevisionDrawerWrapper />

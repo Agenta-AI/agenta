@@ -3,7 +3,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import {Button, Divider, Typography} from "antd"
 import {useAtom} from "jotai"
 
-import QuickDateRangePicker from "@/oss/components/EvaluationRunsTablePOC/components/filters/QuickDateRangePicker"
+import QuickDateRangePicker from "@/oss/components/Filters/QuickDateRangePicker"
 import {
     getTestsetTableState,
     type TestsetDateRange,

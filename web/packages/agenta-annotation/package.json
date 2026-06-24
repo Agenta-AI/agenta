@@ -23,6 +23,7 @@
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
+        "@agenta/evaluations": "workspace:../agenta-evaluations",
         "@agenta/shared": "workspace:../agenta-shared",
         "fast-deep-equal": "^3.1.3"
     },

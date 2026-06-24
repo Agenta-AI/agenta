@@ -1,4 +1,4 @@
-import {canonicalizeMetricKey, getMetricDisplayName} from "@/oss/lib/metricUtils"
+import {canonicalizeMetricKey, getMetricDisplayName} from "@agenta/shared/metrics"
 
 // Shared helpers for metric key humanisation and sorting
 // ------------------------------------------------------

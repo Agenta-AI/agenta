@@ -2,7 +2,7 @@ import {DrawerProps} from "antd"
 
 import {TooltipButtonProps} from "@/oss/components/EnhancedUIs/Button"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {EvaluatorPreviewDto} from "@/oss/services/evaluations/api/evaluatorTypes"
+import {EvaluatorDto, EvaluatorPreviewDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
 import {AnnotateDrawerSteps} from "./enum"
 
@@ -64,6 +64,12 @@ export interface AnnotateProps {
     annotations: AnnotationDto[]
     updatedMetrics: UpdatedMetricsType
     selectedEvaluators: string[]
+    /**
+     * Run-scoped evaluators (already schema-resolved). When provided, these are used
+     * instead of the global human-evaluators list — required in views (e.g. the eval
+     * run-details table tab) where that global list isn't warmed.
+     */
+    evaluators?: EvaluatorDto[]
     tempSelectedEvaluators?: string[]
     errorMessage?: string[]
     disabled?: boolean

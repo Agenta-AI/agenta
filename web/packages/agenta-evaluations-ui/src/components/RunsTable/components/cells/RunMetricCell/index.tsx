@@ -1,0 +1,314 @@
+import {memo, useEffect, useMemo, useRef, type ReactNode} from "react"
+
+import {humanizeMetricPath} from "@agenta/evaluations/core"
+import {
+    createEvaluatorOutputTypesKey,
+    getOutputTypesMap,
+    setOutputTypesMap,
+} from "@agenta/evaluations/state/runsTable"
+import {useRunMetricSelection} from "@agenta/evaluations/state/runsTable"
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
+import type {RunMetricDescriptor} from "@agenta/evaluations/state/runsTable"
+import {canonicalizeMetricKey} from "@agenta/shared/metrics"
+import {type BasicStats} from "@agenta/shared/metrics"
+import {EvaluatorMetricBar} from "@agenta/ui/cell-renderers"
+import {SkeletonLine} from "@agenta/ui/table"
+import {Typography} from "antd"
+import {atom, useAtomValue} from "jotai"
+import {useSetAtomWithSchedule, LOW_PRIORITY} from "jotai-scheduler"
+
+import {injectedResolvedMetricLabelsFamilyAtom} from "../../../../../host/runViewInjection"
+import {
+    buildFrequencyEntries,
+    formatEvaluatorMetricValue,
+    formatInvocationMetricValue,
+    formatPercent,
+} from "../../../assets/runMetricFormatters"
+import MetricValueWithPopover from "../../common/MetricValueWithPopover"
+
+import CategoryTags from "./CategoryTags"
+
+const RunMetricCellSkeleton = () => <SkeletonLine width="55%" />
+
+const OUTPUT_METRIC_PATH_PREFIX = /^attributes\.ag\.data\.outputs\.?/i
+
+const stripOutputsNamespace = (value?: string | null) => {
+    if (!value) return null
+    const stripped = value.replace(OUTPUT_METRIC_PATH_PREFIX, "")
+    return stripped.length ? stripped : "output"
+}
+
+const RunMetricCellContent = memo(
+    ({
+        record,
+        descriptor,
+        isVisible = true,
+    }: {
+        record: EvaluationRunTableRow
+        descriptor: RunMetricDescriptor
+        isVisible?: boolean
+    }) => {
+        const rawRunId = record.preview?.id ?? record.runId ?? null
+        const runId = typeof rawRunId === "string" && rawRunId.trim().length > 0 ? rawRunId : null
+        const runScopedMetricPath = runId ? descriptor.metricPathsByRunId?.[runId] : undefined
+        const runScopedStepKey = runId ? descriptor.stepKeysByRunId?.[runId] : undefined
+
+        const metricPathForSelection =
+            descriptor.kind === "evaluator"
+                ? runScopedMetricPath
+                : (runScopedMetricPath ?? descriptor.metricPath)
+
+        const stepKeyForSelection =
+            descriptor.kind === "evaluator"
+                ? runScopedStepKey
+                : (runScopedStepKey ?? descriptor.stepKey)
+
+        const metricKeyForSelection =
+            descriptor.kind === "evaluator" &&
+            (descriptor.metricPathsByRunId || descriptor.stepKeysByRunId) &&
+            !metricPathForSelection &&
+            !stepKeyForSelection
+                ? undefined
+                : descriptor.metricKey
+
+        // Get evaluation kind from record - for online evaluations, use temporal metrics
+        const evaluationKind = record.evaluationKind
+
+        const selection = useRunMetricSelection(
+            {
+                runId,
+                metricKey: metricKeyForSelection,
+                metricPath: metricPathForSelection,
+                stepKey: stepKeyForSelection,
+                evaluationKind,
+            },
+            {
+                enabled: Boolean(isVisible),
+            },
+        )
+
+        const resolvedMetricLabelsFamily = useAtomValue(injectedResolvedMetricLabelsFamilyAtom)
+        const resolvedLabelAtom = useMemo(
+            () =>
+                resolvedMetricLabelsFamily
+                    ? resolvedMetricLabelsFamily(descriptor.id)
+                    : atom<string | null>(null),
+            [resolvedMetricLabelsFamily, descriptor.id],
+        )
+        const setResolvedLabel = useSetAtomWithSchedule(resolvedLabelAtom, {
+            priority: LOW_PRIORITY,
+        })
+
+        const isGenericOutputsMetric =
+            descriptor.kind === "evaluator" &&
+            descriptor.metricPath?.startsWith("attributes.ag.data.outputs") &&
+            descriptor.metricPath?.endsWith(".outputs")
+
+        useEffect(() => {
+            if (!isGenericOutputsMetric) return
+            if (selection.state !== "hasData") return
+            const resolvedKey = selection.resolvedKey
+            if (!resolvedKey) return
+            const label = humanizeMetricPath(stripOutputsNamespace(resolvedKey) ?? resolvedKey)
+            setResolvedLabel((prev) => (prev === label ? prev : label))
+        }, [isGenericOutputsMetric, selection.state, selection.resolvedKey, setResolvedLabel])
+
+        // Track per-metric cache contributions for this component instance.
+        // Virtualized rows can reuse component instances across different descriptors,
+        // so a single boolean guard can hide valid updates.
+        const contributedOutputTypesRef = useRef<Set<string>>(new Set())
+
+        // Update outputTypesMap cache from stats.type when available
+        // This allows SDK-based evaluators (which don't have schema) to still have their
+        // string metrics filtered out from aggregation columns
+        useEffect(() => {
+            // Only process evaluator metrics
+            if (descriptor.kind !== "evaluator") return
+            if (selection.state !== "hasData") return
+
+            const stats = selection.stats as BasicStats | undefined
+            const statsType = (stats as BasicStats & {type?: string})?.type
+            if (!statsType) return
+
+            const projectId = descriptor.evaluatorRef?.projectId ?? record.projectId ?? null
+            const evaluatorIdentity =
+                descriptor.evaluatorRef?.slug ??
+                descriptor.evaluatorRef?.id ??
+                stepKeyForSelection ??
+                descriptor.stepKey ??
+                null
+            if (!evaluatorIdentity) return
+
+            const outputTypesKey = createEvaluatorOutputTypesKey(projectId, evaluatorIdentity)
+            const currentMap = getOutputTypesMap(outputTypesKey)
+
+            const metricPath = metricPathForSelection ?? descriptor.metricPath
+            if (!metricPath) return
+
+            const canonicalFullPath = canonicalizeMetricKey(metricPath)
+            const metricLeaf = metricPath.includes(".")
+                ? (metricPath.split(".").pop() ?? metricPath)
+                : metricPath
+            const canonicalLeafPath = canonicalizeMetricKey(metricLeaf)
+            const contributionKey = `${outputTypesKey}:${canonicalFullPath}:${statsType}`
+
+            if (contributedOutputTypesRef.current.has(contributionKey)) {
+                return
+            }
+
+            // Only update if we have new information
+            if (
+                currentMap.get(canonicalFullPath) === statsType &&
+                currentMap.get(canonicalLeafPath) === statsType
+            ) {
+                contributedOutputTypesRef.current.add(contributionKey)
+                return
+            }
+
+            // Create a new map with the updated type
+            const newMap = new Map(currentMap)
+            newMap.set(canonicalFullPath, statsType)
+            newMap.set(canonicalLeafPath, statsType)
+            setOutputTypesMap(outputTypesKey, newMap)
+            contributedOutputTypesRef.current.add(contributionKey)
+        }, [
+            descriptor.kind,
+            descriptor.evaluatorRef?.projectId,
+            descriptor.evaluatorRef?.id,
+            descriptor.evaluatorRef?.slug,
+            descriptor.metricPath,
+            descriptor.stepKey,
+            metricPathForSelection,
+            record.projectId,
+            selection.state,
+            selection.stats,
+            stepKeyForSelection,
+        ])
+
+        // const resolvedPathsAtom = useMemo(
+        //     () => resolvedMetricPathsAtomFamily(descriptor.id),
+        //     [descriptor.id],
+        // )
+        // const setResolvedPaths = useSetAtom(resolvedPathsAtom)
+
+        // useEffect(() => {
+        //     if (!runId) return
+        //     if (selection.state !== "hasData") return
+        //     const resolvedKey = selection.resolvedKey
+        //     if (!resolvedKey) return
+        //     setResolvedPaths((prev) => {
+        //         if (prev[runId] === resolvedKey) {
+        //             return prev
+        //         }
+        //         return {...prev, [runId]: resolvedKey}
+        //     })
+        // }, [runId, selection.state, selection.resolvedKey, setResolvedPaths])
+
+        if (!runId) {
+            return <Typography.Text>—</Typography.Text>
+        }
+
+        // Check if metric is unavailable for this run BEFORE checking loading state
+        // This prevents cells from being stuck in loading when the metric simply doesn't exist for this run
+        const isUnavailable =
+            descriptor.kind === "evaluator" &&
+            (descriptor.metricPathsByRunId || descriptor.stepKeysByRunId) &&
+            !metricPathForSelection &&
+            !stepKeyForSelection
+
+        if (isUnavailable) {
+            return <div className="not-available-table-cell" />
+        }
+
+        if (selection.state === "loading") {
+            return <RunMetricCellSkeleton />
+        }
+        if (selection.state === "hasError") {
+            return <Typography.Text type="secondary">—</Typography.Text>
+        }
+
+        const stats = selection.stats as BasicStats | undefined
+
+        let display =
+            descriptor.kind === "invocation"
+                ? formatInvocationMetricValue(
+                      metricPathForSelection ?? descriptor.metricPath ?? "",
+                      stats,
+                  )
+                : formatEvaluatorMetricValue(stats, metricPathForSelection)
+
+        let highlight: ReactNode = display
+        // `fallbackValue` on MetricValueWithPopover is `unknown` — it may carry the raw stats
+        // object or the normalized frequency entries, not just a renderable node.
+        let fallback: unknown = stats ?? display
+        let customChildren: ReactNode | undefined
+
+        if (descriptor.kind === "evaluator") {
+            const frequencyEntries = buildFrequencyEntries(stats)
+            if (frequencyEntries.length > 0) {
+                const total = frequencyEntries.reduce((acc, entry) => acc + entry.count, 0)
+                if (total > 0) {
+                    const normalized = frequencyEntries.map((entry) => ({
+                        label: entry.label,
+                        percent: entry.count / total,
+                    }))
+
+                    // Check if this is an array-type metric (more than 2 categories)
+                    // Array metrics should display as category tags, not a bar
+                    const isArrayType = descriptor.outputType?.toLowerCase() === "array"
+                    const hasMoreThanTwoCategories = frequencyEntries.length > 2
+
+                    if (isArrayType || hasMoreThanTwoCategories) {
+                        // Use category tags for array-type metrics
+                        customChildren = <CategoryTags entries={frequencyEntries} />
+                        // Display the top category with count
+                        display = frequencyEntries[0]
+                            ? `${frequencyEntries[0].label} (${frequencyEntries[0].count})`
+                            : ""
+                    } else {
+                        // Use bar for boolean/binary metrics
+                        const segments = frequencyEntries.map((entry) => ({
+                            label: entry.label,
+                            value: entry.count,
+                        }))
+                        customChildren = <EvaluatorMetricBar segments={segments} />
+                        display = `${normalized[0]?.label ?? ""} ${formatPercent(normalized[0]?.percent ?? 0)}`
+                    }
+
+                    highlight = display
+                    fallback = stats ?? normalized
+                }
+            }
+        }
+
+        const className = isUnavailable ? "not-available-table-cell" : undefined
+
+        return (
+            <MetricValueWithPopover
+                runId={runId}
+                metricKey={descriptor.metricKey}
+                metricPath={metricPathForSelection ?? descriptor.metricPath}
+                metricLabel={descriptor.label}
+                stepKey={stepKeyForSelection ?? descriptor.stepKey}
+                stepType={
+                    descriptor.kind === "invocation"
+                        ? "invocation"
+                        : descriptor.kind === "evaluator"
+                          ? "annotation"
+                          : undefined
+                }
+                highlightValue={highlight}
+                fallbackValue={fallback}
+                display={display}
+                isPlaceholder={display === "" || display === "—"}
+                showScenarioValue={false}
+                className={className}
+                disablePopover={isUnavailable}
+                children={customChildren}
+                prefetchedStats={stats}
+            />
+        )
+    },
+)
+
+export {RunMetricCellSkeleton, RunMetricCellContent}

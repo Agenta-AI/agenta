@@ -1,18 +1,15 @@
 import {useMemo} from "react"
 
 import {testsetMolecule} from "@agenta/entities/testset"
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
+import type {ReferenceColumnDescriptor} from "@agenta/evaluations/state/runsTable"
+import {useRunRowReferences, useRunRowSummary} from "@agenta/evaluations/state/runsTable"
+import {getSlotByRoleOrdinal} from "@agenta/evaluations/state/runsTable"
 import {SkeletonLine} from "@agenta/ui/table"
 import {Tag} from "antd"
 import {getDefaultStore} from "jotai"
 import {useAtomValue} from "jotai"
 
-import {
-    useRunRowReferences,
-    useRunRowSummary,
-} from "@/oss/components/EvaluationRunsTablePOC/context/RunRowDataContext"
-import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
-import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
-import {getSlotByRoleOrdinal} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 import {revision} from "@/oss/state/entities/testset"
 
 // Entity molecule atoms must be read from the default store because they depend on

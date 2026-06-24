@@ -12,6 +12,7 @@ import {
     workflowMolecule,
     workflowsListQueryStateAtom,
 } from "@agenta/entities/workflow"
+import {canonicalizeMetricKey} from "@agenta/shared/metrics"
 import {createBatchFetcher} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -19,7 +20,6 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
-import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared query-result shape for consumers that expect {data, isPending, ...}

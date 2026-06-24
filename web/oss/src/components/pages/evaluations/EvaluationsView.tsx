@@ -9,6 +9,15 @@ import {
     type ReactNode,
 } from "react"
 
+import {
+    ConcreteEvaluationRunKind,
+    type EvaluationRunKind,
+} from "@agenta/evaluations/state/runsTable"
+import {
+    EvaluationRunsTablePOC,
+    evaluationRunsTableContextSetterAtom,
+    evaluationRunsTypeFiltersAtom,
+} from "@agenta/evaluations-ui"
 import {PageLayout} from "@agenta/ui"
 import {CloudServerOutlined} from "@ant-design/icons"
 import {ChartDonutIcon, CodeIcon, ListChecksIcon} from "@phosphor-icons/react"
@@ -16,17 +25,10 @@ import type {TabsProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {
-    EvaluationRunsTablePOC,
-    type EvaluationRunKind,
-} from "@/oss/components/EvaluationRunsTablePOC"
-import {evaluationRunsTableContextSetterAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/context"
-import {evaluationRunsTypeFiltersAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/view"
+import EvalRunsViewHost from "@/oss/components/pages/evaluations/EvalRunsViewHost"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useQueryParamState} from "@/oss/state/appState"
 import {projectIdAtom} from "@/oss/state/project"
-
-import {ConcreteEvaluationRunKind} from "../../EvaluationRunsTablePOC/types"
 
 type EvaluationScope = "app" | "project"
 type AppTabKey = EvaluationRunKind
@@ -249,12 +251,14 @@ const EvaluationsView = ({scope = "app", appId}: EvaluationsViewProps) => {
     const tabItems = scope === "project" ? PROJECT_TAB_ITEMS : APP_TAB_ITEMS
 
     return (
-        <EvaluationTabs
-            scope={scope}
-            tabItems={tabItems}
-            tabColorMap={TAB_COLOR_MAP}
-            appId={appId}
-        />
+        <EvalRunsViewHost>
+            <EvaluationTabs
+                scope={scope}
+                tabItems={tabItems}
+                tabColorMap={TAB_COLOR_MAP}
+                appId={appId}
+            />
+        </EvalRunsViewHost>
     )
 }
 

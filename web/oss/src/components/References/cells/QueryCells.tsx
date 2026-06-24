@@ -1,13 +1,9 @@
+import type {EvaluationRunTableRow} from "@agenta/evaluations/state/runsTable"
+import type {ReferenceColumnDescriptor} from "@agenta/evaluations/state/runsTable"
+import {formatSamplingRate, formatWindowRange} from "@agenta/evaluations-ui"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {SkeletonLine} from "@agenta/ui/table"
 import {Typography} from "antd"
-
-import {
-    formatSamplingRate,
-    formatWindowRange,
-} from "@/oss/components/EvalRunDetails/components/views/ConfigurationView/utils"
-import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
-import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 
 import FiltersPreview from "../../pages/evaluations/onlineEvaluation/components/FiltersPreview"
 import usePreviewQueryRevision from "../hooks/usePreviewQueryRevision"

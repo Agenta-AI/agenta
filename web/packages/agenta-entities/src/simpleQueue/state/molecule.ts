@@ -43,7 +43,7 @@ import {
     addSimpleQueueTraces,
     addSimpleQueueTestcases,
 } from "../api"
-import type {SimpleQueue, SimpleQueueKind, EvaluationStatus, EvaluationScenario} from "../core"
+import type {SimpleQueue, SimpleQueueKind, SimpleQueueStatus, EvaluationScenario} from "../core"
 
 import {simpleQueuePaginatedStore} from "./paginatedStore"
 
@@ -69,8 +69,8 @@ const TERMINAL_SCENARIO_STATUSES = new Set([
 
 function deriveQueueStatusFromScenarios(
     scenarios: {status?: string | null}[],
-    fallbackStatus: EvaluationStatus | null,
-): EvaluationStatus | null {
+    fallbackStatus: SimpleQueueStatus | null,
+): SimpleQueueStatus | null {
     if (scenarios.length === 0) return fallbackStatus
 
     const statuses = scenarios.map((scenario) => scenario.status?.toLowerCase() ?? "")
@@ -595,9 +595,9 @@ const scenariosQueryAtomFamily = scenarioProgressQueryAtomFamily
  * loading or if it errors, but does not rely on imperative queue status syncs.
  */
 const statusAtomFamily = atomFamily((queueId: string) =>
-    atom<EvaluationStatus | null>((get) => {
+    atom<SimpleQueueStatus | null>((get) => {
         const entity = get(simpleQueueEntityAtomFamily(queueId))
-        const fallbackStatus = (entity?.status as EvaluationStatus | null) ?? null
+        const fallbackStatus = (entity?.status as SimpleQueueStatus | null) ?? null
         const query = get(scenarioProgressQueryAtomFamily(queueId))
 
         if (query.isPending || query.isError) {
