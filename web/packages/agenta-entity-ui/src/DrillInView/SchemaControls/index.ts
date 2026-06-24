@@ -61,6 +61,12 @@ export type {ToolSelectorPopoverProps} from "./ToolSelectorPopover"
 export {TOOL_PROVIDERS_META, TOOL_SPECS} from "./toolUtils"
 export type {ToolObj, ToolFunction} from "./toolUtils"
 
+export {SkillConfigControl} from "./SkillConfigControl"
+export type {SkillConfigControlProps} from "./SkillConfigControl"
+
+export {AgentConfigControl} from "./AgentConfigControl"
+export type {AgentConfigControlProps} from "./AgentConfigControl"
+
 // ============================================================================
 // COMPOSITE CONTROLS
 // ============================================================================
