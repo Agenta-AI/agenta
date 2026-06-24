@@ -726,3 +726,22 @@ export function invalidateRevisionsListCache(testsetId: string): void {
             query.queryKey[0] === "revisions-list" && query.queryKey[2] === testsetId,
     })
 }
+
+/**
+ * Eagerly populate the revisions list cache for a testset.
+ *
+ * Use this after creating a new revision so the Load Testset entity picker
+ * reads fresh data immediately. `invalidateRevisionsListCache` only marks the
+ * query as stale — TanStack Query still returns the old cached value on the
+ * next read while background-fetching, which causes the entity picker's
+ * auto-select to fire with the previous (stale) latest revision. Setting the
+ * data directly means the next read returns the new revision list with the
+ * freshly created revision, so auto-select picks the correct entry.
+ */
+export function setRevisionsListCache(testsetId: string, revisions: RevisionListItem[]): void {
+    const store = getDefaultStore()
+    const queryClient = store.get(queryClientAtom)
+    const projectId = store.get(projectIdAtom)
+    if (!projectId) return
+    queryClient.setQueryData(["revisions-list", projectId, testsetId], revisions)
+}

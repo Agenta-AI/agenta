@@ -10,7 +10,7 @@ Tests are organised into:
 5. Error handling — non-200 status codes, client-side network errors, oversized response.
 
 async handlers are called via asyncio.run() so no pytest-asyncio marker is needed.
-The @instrument() decorator is bypassed via __wrapped__.
+Forwarding now lives in remote_forward_v0 (undecorated), called directly.
 """
 
 import asyncio
@@ -27,9 +27,10 @@ from agenta.sdk.workflows.errors import (
     WebhookClientV0Error,
     WebhookServerV0Error,
 )
-from agenta.sdk.workflows.handlers import hook_v0
+from agenta.sdk.workflows.handlers import remote_forward_v0
 
-_hook_v0 = hook_v0.__wrapped__
+# Forwarding moved from hook_v0 to remote_forward_v0 (undecorated plumbing).
+_hook_v0 = remote_forward_v0
 
 
 # ---------------------------------------------------------------------------

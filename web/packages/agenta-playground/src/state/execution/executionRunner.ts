@@ -10,6 +10,11 @@ import {
     type EntitySelection,
 } from "@agenta/entities/runnable"
 import {isLocalDraftId} from "@agenta/entities/shared"
+import {
+    MISSING_INVOCATION_URL_ERROR,
+    describeUnreachableService,
+    isHtmlBody,
+} from "@agenta/entities/shared/execution/invocationErrors"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {generateId} from "@agenta/shared/utils"
 import type {Getter, Setter} from "jotai"
@@ -904,6 +909,16 @@ async function executeViaFetch(params: {
     const executionId = generateId()
     const startedAt = new Date().toISOString()
 
+    if (!invocationUrl) {
+        return {
+            executionId,
+            status: "error",
+            startedAt,
+            completedAt: new Date().toISOString(),
+            error: {message: MISSING_INVOCATION_URL_ERROR},
+        }
+    }
+
     try {
         const response = await fetch(invocationUrl, {
             method: "POST",
@@ -931,7 +946,11 @@ async function executeViaFetch(params: {
                     errorMessage = errorData.detail
                 }
             } catch {
-                if (errorText) errorMessage = errorText
+                if (isHtmlBody(errorText)) {
+                    errorMessage = describeUnreachableService(invocationUrl, response.status)
+                } else if (errorText) {
+                    errorMessage = errorText
+                }
             }
 
             return {

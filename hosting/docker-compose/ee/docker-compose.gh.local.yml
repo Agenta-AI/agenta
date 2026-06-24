@@ -447,6 +447,7 @@ services:
             - --api.dashboard=true
             - --api.insecure=true
             - --providers.docker
+            - --providers.docker.constraints=Label(`com.docker.compose.project`,`${COMPOSE_PROJECT_NAME:-agenta-ee-gh-local}`)
             - --entrypoints.web.address=:80
         # === STORAGE ============================================== #
         volumes:

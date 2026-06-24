@@ -50,9 +50,13 @@ const SessionsTable: React.FC = () => {
         resetSessionPages,
     } = useSessions()
 
-    // The store the page lives in (has projectId + the session/span queries + their data). The
-    // table renders rows in its own isolated store, so cells are handed this one via context.
-    const pageStore = useStore()
+    // The per-session cells (Traces count, First input, metrics, …) read their
+    // data from page-level atoms keyed by session id (e.g. `sessionsSpansAtom`).
+    // Without this, the table mounts its rows inside an isolated Jotai store
+    // (`useIsolatedStore` when no `store` is passed), where those atoms are empty
+    // — so every cell renders 0/"-" even though the data is loaded in the page
+    // store. Sharing the page store lets the cells resolve the real data.
+    const store = useStore()
 
     const isNewUser = useAtomValue(isNewUserAtom)
     const onboardingStorageUserId = useAtomValue(onboardingStorageUserIdAtom)
@@ -116,18 +120,40 @@ const SessionsTable: React.FC = () => {
     const isEmptyState = sessionIds.length === 0 && !isLoading
 
     return (
-        <SessionStoreProvider value={pageStore}>
-            <div className="flex h-full min-h-0 flex-col gap-2">
-                <ObservabilityHeader
+        <div className="flex flex-col h-full gap-2 min-h-0">
+            <ObservabilityHeader
+                columns={columns}
+                componentType="sessions"
+                isLoading={isLoading}
+                onRefresh={handleRefresh}
+                realtimeMode={realtimeMode}
+                setRealtimeMode={setRealtimeMode}
+                autoRefresh={autoRefresh}
+                setAutoRefresh={setAutoRefresh}
+                refreshTrigger={refreshTrigger}
+            />
+
+            {isEmptyState ? (
+                <EmptySessions showOnboarding={showOnboarding} />
+            ) : (
+                <InfiniteVirtualTableFeatureShell<SessionRow>
+                    store={store}
+                    tableScope={tableScope}
                     columns={columns}
-                    componentType="sessions"
-                    isLoading={isLoading}
-                    onRefresh={handleRefresh}
-                    realtimeMode={realtimeMode}
-                    setRealtimeMode={setRealtimeMode}
-                    autoRefresh={autoRefresh}
-                    setAutoRefresh={setAutoRefresh}
-                    refreshTrigger={refreshTrigger}
+                    rowKey="session_id"
+                    pagination={pagination}
+                    resizableColumns
+                    enableExport={false}
+                    useSettingsDropdown={false}
+                    className="[&_.ant-table-tbody_.ant-table-cell]:align-top"
+                    tableProps={{
+                        bordered: true,
+                        loading: isLoading && sessionIds.length === 0,
+                        onRow: (record) => ({
+                            onClick: () => openDrawer({sessionId: record.session_id}),
+                            style: {cursor: "pointer"},
+                        }),
+                    }}
                 />
 
                 {isEmptyState ? (
