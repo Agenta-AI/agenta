@@ -14,12 +14,10 @@ import {useAtomValue, useStore} from "jotai"
 import {getObservabilityColumns} from "@/oss/components/pages/observability/assets/getObservabilityColumns"
 
 import {
-    buildTraceEvaluationQueryName,
     buildTraceIdFilter,
     rootKeysForTraceIds,
     selectedKeysToTraceIds,
 } from "../evalSteps/sourceHelpers"
-import {evaluationNameAtom} from "../evalSteps/state"
 import type {EvalStepSectionProps} from "../evalSteps/types"
 
 type TraceRow = TraceSpanNode & {key: Key; [extra: string]: unknown}
@@ -98,11 +96,6 @@ const TracesSourceSection = ({value, slot, context}: EvalStepSectionProps<string
         }),
         [isPending, traces],
     )
-    // Read the name from the atom (not context.getEvaluationName(), which is a
-    // ref) so the alert updates live as the user edits the always-visible name.
-    const evaluationName = useAtomValue(evaluationNameAtom)
-    const queryName = buildTraceEvaluationQueryName(evaluationName)
-
     if (!sourceTraceIds.length) {
         return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No traces selected" />
     }
@@ -111,45 +104,33 @@ const TracesSourceSection = ({value, slot, context}: EvalStepSectionProps<string
     }
 
     return (
-        <div className="flex h-full min-h-0 flex-col gap-3">
-            <Alert
-                type="info"
-                showIcon
-                message={
-                    <span>
-                        A query named <strong>{queryName}</strong> will be created in Query Registry
-                        when this evaluation starts.
-                    </span>
-                }
-            />
-            <InfiniteVirtualTableFeatureShell<TraceRow>
-                tableScope={tableScope}
-                columns={columns}
-                rowKey={(record) => record.span_id || record.key}
-                pagination={pagination}
-                resizableColumns
-                enableExport={false}
-                useSettingsDropdown={false}
-                store={store}
-                className="min-h-0 flex-1 [&_.ant-table-thead_tr:nth-child(2)]:hidden"
-                rowSelection={{
-                    type: "checkbox",
-                    selectedRowKeys,
-                    getCheckboxProps: (record) => ({
-                        disabled: !rootKeys.has(String(record.span_id || record.key)),
-                    }),
-                    onChange: (keys) => {
-                        context.setStepValue("traces", selectedKeysToTraceIds(traces, keys))
-                    },
-                }}
-                tableProps={{
-                    bordered: true,
-                    loading: isPending,
-                    sticky: true,
-                    size: "small",
-                }}
-            />
-        </div>
+        <InfiniteVirtualTableFeatureShell<TraceRow>
+            tableScope={tableScope}
+            columns={columns}
+            rowKey={(record) => record.span_id || record.key}
+            pagination={pagination}
+            resizableColumns
+            enableExport={false}
+            useSettingsDropdown={false}
+            store={store}
+            className="h-full [&_.ant-table-thead_tr:nth-child(2)]:hidden"
+            rowSelection={{
+                type: "checkbox",
+                selectedRowKeys,
+                getCheckboxProps: (record) => ({
+                    disabled: !rootKeys.has(String(record.span_id || record.key)),
+                }),
+                onChange: (keys) => {
+                    context.setStepValue("traces", selectedKeysToTraceIds(traces, keys))
+                },
+            }}
+            tableProps={{
+                bordered: true,
+                loading: isPending,
+                sticky: true,
+                size: "small",
+            }}
+        />
     )
 }
 

@@ -346,7 +346,7 @@ export const evalStepRegistry: EvalStepDescriptorRegistry = {
                 throw new Error("Select at least one trace before creating an evaluation.")
             }
             const queryName = buildTraceEvaluationQueryName(context.getEvaluationName())
-            const {queryId, revisionId} = await createSimpleQuery({
+            const {revisionId} = await createSimpleQuery({
                 projectId: context.projectId,
                 query: {
                     name: queryName,
@@ -354,7 +354,6 @@ export const evalStepRegistry: EvalStepDescriptorRegistry = {
                     data: {filtering: buildTraceIdFilter(value)},
                 },
             })
-            context.onQueryCreated({queryId, revisionId, name: queryName})
             invalidateQueryCache()
             return {query_steps: {[revisionId]: "auto"}}
         },

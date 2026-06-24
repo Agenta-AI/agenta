@@ -42,12 +42,6 @@ export interface EvalStepValueMap {
     query: QueryStepValue
 }
 
-export interface CreatedSourceQuery {
-    queryId: string
-    revisionId: string
-    name: string
-}
-
 export type EvalStepSlot<Kind extends EvalStepKind = EvalStepKind> = {
     [StepKind in Kind]: CoreEvaluationStepSlot<EvalStepKind, StepKind, EvalStepValueMap[StepKind]>
 }[Kind]
@@ -59,7 +53,6 @@ export interface EvalStepContext {
     preview: boolean
     liveCompatibleEvaluatorsOnly: boolean
     getEvaluationName: () => string
-    onQueryCreated: (query: CreatedSourceQuery) => void
     getStepValue: <Kind extends EvalStepKind>(kind: Kind) => EvalStepValueMap[Kind]
     setStepValue: <Kind extends EvalStepKind>(
         kind: Kind,
