@@ -22,4 +22,5 @@ resolvers that turn config into concrete inputs.
 - [Model connection resolution](model-connection-resolution.md): config to one connection.
 - [Runner engine internals](runner-engine-internals.md): the runner's shared engine seam.
 - [Permission responder](permission-responder.md): headless policy and human approval.
-- [Sandbox permission](sandbox-permission.md): the declared network and filesystem boundary.
+- [Sandbox permission](sandbox-permission.md): the network and filesystem boundary, and where
+  each part is actually enforced.

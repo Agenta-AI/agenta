@@ -5,6 +5,11 @@ without touching the orchestration. They are Python ABCs in one file. The servic
 them; the adapters implement them. Read this page to understand the lifecycle a run moves
 through, from backend to sandbox to session to harness.
 
+The port-by-port narrative, with the hexagonal layering and the current implementation
+status of each, is in
+[Ports and adapters](../../documentation/ports-and-adapters.md). This page owns the review
+lens: which seam a change touches and what it can break.
+
 ## The ports
 
 All in `interfaces.py`. Each has a narrow job:
@@ -52,3 +57,10 @@ All in `interfaces.py`. Each has a narrow job:
 - **Durable history.** Wiring a real `SessionStore` changes the `/load-session` contract.
 - **Harness responsibilities.** `_to_harness_config` is the single point a new harness has to
   implement.
+
+## Required test updates
+
+- `sdks/python/oss/tests/pytest/unit/agents/test_environment_lifecycle.py`: backend, sandbox,
+  and environment lifecycle.
+- `sdks/python/oss/tests/pytest/unit/agents/test_harness_adapters.py`: the `Harness` seam and
+  `_to_harness_config` per adapter.

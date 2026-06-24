@@ -5,6 +5,10 @@ adapters are where that difference lives: each turns a neutral `SessionConfig` i
 harness-specific config and decides how tools, prompts, and policy reach the agent. When a
 behavior should differ by harness, it differs here.
 
+The `Harness` port and the per-harness roles are narrated in
+[Ports and adapters](../../documentation/ports-and-adapters.md#harness). This page owns the
+review lens: the wire-shape differences and what to check when one moves.
+
 ## The contract
 
 Each adapter implements `_to_harness_config(...)` and emits a different `/run` wire shape:
@@ -14,8 +18,9 @@ Each adapter implements `_to_harness_config(...)` and emits a different `/run` w
   tool use.
 - **`ClaudeHarness`** delivers tools over MCP, not natively, and has no Pi built-ins (it warns
   if any are set). It carries `permission_policy` and renders `.claude/settings.json` from
-  `harness_options` and the sandbox permission, shipped as `harnessFiles`. It cannot load
-  inline skill packages, so its `wire_skills()` returns `{}`.
+  `harness_options` and the sandbox permission, shipped as `harnessFiles`. It carries inline
+  skill packages on the wire like the others; the runner materializes them under
+  `.claude/skills` in the session cwd, matching Claude's project-local skill layout.
 - **`AgentaHarness`** runs on the same Pi engine but forces Agenta's opinion: it composes the
   base instructions over the author's, forces the Agenta tool set, and layers the Agenta
   persona into `append_system`.
@@ -28,7 +33,7 @@ The wire shapes, side by side:
 | custom tools | native | over MCP | native |
 | prompt overrides | `system`/`append_system` | none (reads `harness_options`) | forced `append_system` + author `system` |
 | permission policy | dropped | carried | dropped |
-| inline skills | yes | no (`{}`) | yes |
+| inline skills | yes (agent-dir scope) | yes (materialized to `.claude/skills`) | yes (agent-dir scope) |
 | harness files | none | `.claude/settings.json` | none |
 
 ## Owned by
@@ -43,7 +48,9 @@ The wire shapes, side by side:
   tools natively; everyone else gets them over the MCP bridge.
 - **Prompt override behavior.** Pi replaces or appends; Claude reads options; Agenta composes.
 - **Forced Agenta behavior.** Instruction composition and the forced tool set are deliberate.
-- **The Claude skills override.** `wire_skills()` must stay `{}`. It was lost in a merge once
-  and regressed a cross-harness test.
+- **Claude skill delivery.** Claude wires inline skills like the other harnesses; the runner
+  materializes them under `.claude/skills`. (An earlier revision suppressed Claude's
+  `wire_skills()` to `{}`; that override is gone, and `test_claude_carries_skills_for_project_local_materialization`
+  now pins the carry-on-wire behavior.)
 - **Harness options.** The `harness_options` bag is keyed by harness; each adapter reads only
   its own slice.
