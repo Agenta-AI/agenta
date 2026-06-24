@@ -19,6 +19,7 @@ import {
     getAtPath,
     groupResolvedColumns,
     resolveMappings,
+    RESULT_ERROR_SOURCE,
     type RunSchema,
     type StepResolver,
 } from "../../src/etl/resolveMappings"
@@ -228,6 +229,38 @@ describe("invocation step → resolveFromTrace", () => {
         assert.equal(col.value, "the answer")
         assert.equal(col.source, "trace")
         assert.equal(col.stepType, "invocation")
+    })
+
+    it("surfaces result.error before treating missing trace output as a missing value", () => {
+        const error = {
+            code: 424,
+            message: "Provider quota exceeded",
+            stacktrace: ["Traceback...\n", "AuthenticationError\n"],
+        }
+        const row = makeRow({
+            results: [
+                {
+                    run_id: "r1",
+                    scenario_id: "scen1",
+                    step_key: "app-1",
+                    trace_id: "trace-abc",
+                    status: "failure",
+                    error,
+                },
+            ],
+            traces: {
+                "trace-abc": {
+                    spans: {
+                        completion_v0: {
+                            attributes: {ag: {data: {outputs: undefined}}},
+                        },
+                    },
+                },
+            },
+        })
+        const [col] = resolveMappings(row, schema)
+        assert.equal(col.value, error)
+        assert.equal(col.source, RESULT_ERROR_SOURCE)
     })
 
     it("returns missing when no result for the step", () => {

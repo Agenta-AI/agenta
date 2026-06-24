@@ -29,6 +29,7 @@ import {evaluationResultMolecule, evaluationMetricMolecule} from "@agenta/entiti
 import {
     CellMaterializerContext,
     hydrationVersionAtom,
+    RESULT_ERROR_SOURCE,
     resolveMappings,
     unwrapStatsForCompare,
     type RunSchema,
@@ -42,10 +43,12 @@ import {
     scenarioRowHeightAtom,
     type ScenarioRowHeight,
 } from "@agenta/evaluations/state/evalRun"
+import {CellContentPopover} from "@agenta/ui/cell-renderers"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {Tag} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
+import {AlertCircle} from "lucide-react"
 
 type ColumnKind = ColumnGroup["kind"]
 
@@ -321,7 +324,9 @@ const EtlResolvedCell = ({
     const isTerminal = isTerminalStatus(scenarioStatus)
 
     let content: React.ReactNode
-    if (hasValue) {
+    if (resolved?.source === RESULT_ERROR_SOURCE) {
+        content = <ResultErrorContent value={resolved.value} stepType={resolved.stepType} />
+    } else if (hasValue) {
         content = (
             <div
                 className="scenario-table-text w-full"
@@ -377,6 +382,79 @@ export const EtlSkeletonCell = () => (
         <div className="h-3 w-2/3 rounded bg-neutral-200 animate-pulse" />
     </div>
 )
+
+interface NormalizedResultError {
+    message: string
+    type?: string
+    code?: string | number
+    stacktrace?: string
+}
+
+function normalizeResultError(value: unknown): NormalizedResultError {
+    if (!value || typeof value !== "object") {
+        return {message: value == null ? "Step failed" : String(value)}
+    }
+
+    const error = value as Record<string, unknown>
+    const message =
+        typeof error.message === "string" && error.message.trim().length
+            ? error.message
+            : "Step failed"
+    const type = typeof error.type === "string" && error.type.trim().length ? error.type : undefined
+    const code =
+        typeof error.code === "string" || typeof error.code === "number" ? error.code : undefined
+    const rawStacktrace = error.stacktrace
+    const stacktrace = Array.isArray(rawStacktrace)
+        ? rawStacktrace.map((entry) => String(entry)).join("")
+        : typeof rawStacktrace === "string"
+          ? rawStacktrace
+          : undefined
+
+    return {message, type, code, stacktrace}
+}
+
+const ResultErrorContent = ({value, stepType}: {value: unknown; stepType: string}) => {
+    const error = normalizeResultError(value)
+    const copyText = [error.message, error.stacktrace].filter(Boolean).join("\n")
+    const label =
+        stepType === "annotation" || stepType === "evaluator"
+            ? "Evaluator Error"
+            : "Invocation Error"
+
+    const popoverContent = (
+        <div className="flex max-h-[360px] max-w-[520px] flex-col gap-2 overflow-auto text-xs text-red-600">
+            <div className="flex items-center gap-1.5 text-red-500">
+                <AlertCircle size={14} className="flex-shrink-0" />
+                <span className="font-medium">{label}</span>
+            </div>
+            {error.type || error.code ? (
+                <span className="text-red-500/80">
+                    {[error.code, error.type].filter(Boolean).join(" / ")}
+                </span>
+            ) : null}
+            <span className="whitespace-pre-wrap break-words font-medium">{error.message}</span>
+            {error.stacktrace ? (
+                <span className="whitespace-pre-wrap break-words border-t border-red-200 pt-2 text-red-500/80">
+                    {error.stacktrace}
+                </span>
+            ) : null}
+        </div>
+    )
+
+    return (
+        <CellContentPopover fullContent={popoverContent} copyText={copyText} maxWidth={560}>
+            <div
+                className="scenario-table-text flex w-full cursor-help items-start gap-1.5 text-red-600"
+                title={copyText}
+            >
+                <AlertCircle size={14} className="mt-0.5 flex-shrink-0 text-red-500" />
+                <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+                    {error.message}
+                </span>
+            </div>
+        </CellContentPopover>
+    )
+}
 
 function formatValue(v: unknown): React.ReactNode {
     if (v === null || v === undefined) {

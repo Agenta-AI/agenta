@@ -27,11 +27,15 @@ const Annotate = ({
     tempSelectedEvaluators = [],
     errorMessage = [],
     disabled = false,
+    evaluators: evaluatorsProp,
     setUpdatedMetrics,
     onCaptureError,
 }: AnnotateProps) => {
     const evaluatorRefs = useAtomValue(humanEvaluatorsListDataAtom)
-    const evaluators = useEvaluatorSchemas(evaluatorRefs as any)
+    const resolvedEvaluators = useEvaluatorSchemas(evaluatorRefs as any)
+    // Prefer run-scoped evaluators supplied by the host (e.g. the eval run-details table
+    // tab) over the global human-evaluators list, which isn't warmed in every view.
+    const evaluators = evaluatorsProp?.length ? evaluatorsProp : resolvedEvaluators
 
     // Stabilize array dependencies to prevent infinite loops
     const selectedEvaluatorsKey = useMemo(
