@@ -1,0 +1,377 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>persistent-sessions playground</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #ddd; background: #14161a; }
+  header { padding: 10px 16px; background: #1c1f26; border-bottom: 1px solid #2a2e37; font-weight: 600; }
+  .wrap { display: grid; grid-template-columns: 340px 1fr; height: 100vh; }
+  .side { border-right: 1px solid #2a2e37; overflow: auto; padding: 10px; }
+  .main { overflow: auto; padding: 16px; display: grid; gap: 16px; grid-template-rows: auto auto 1fr; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #8a93a3; margin: 0 0 8px; }
+  .sess { position: relative; padding: 9px 46px 9px 11px; border: 1px solid #2a2e37; border-radius: 6px; margin-bottom: 6px; cursor: pointer; }
+  .sess:hover { background: #1c1f26; }
+  .sess .actions { position: absolute; top: 0; bottom: 0; right: 0; padding: 7px 6px; display: flex; flex-direction: column; justify-content: space-between; gap: 2px; border-left: 1px solid #2a2e37; }
+  .sess .actions button { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: transparent; color: #6a7383; border: 0; border-radius: 5px; padding: 0; cursor: pointer; transition: color .12s, background .12s; }
+  .sess .actions button svg { display: block; flex: 0 0 auto; aspect-ratio: 1 / 1; }
+  .sess .actions .slot { width: 28px; height: 28px; }  /* spacer keeps delete pinned bottom when no kill */
+  .sess .del:hover { color: #f56b6b; background: rgba(245,107,107,.14); }
+  .sess .actions button.kill { color: #c2412f; }  /* dark red — kill only renders when a sandbox is live (killable) */
+  .sess .actions button.kill:hover { color: #e25555; background: rgba(226,85,85,.16); }
+  .sess .live { color: #5ec98a; }
+  .sess.active { border-color: #4c8bf5; background: #1a2230; }
+  .sess .id { color: #7fd1b9; word-break: break-all; font-size: 11.5px; margin-bottom: 4px; }
+  textarea, input, select { width: 100%; background: #0f1115; color: #ddd; border: 1px solid #2a2e37; border-radius: 6px; padding: 8px; font: inherit; }
+  textarea:focus, input:focus, select:focus { outline: none; border-color: #4c8bf5; }
+  select {
+    -webkit-appearance: none; appearance: none; cursor: pointer; padding-right: 30px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' fill='none' stroke='%238a93a3' stroke-width='1.5'/></svg>");
+    background-repeat: no-repeat; background-position: right 10px center;
+  }
+  select:hover { border-color: #3a414e; }
+  select:disabled { opacity: .55; cursor: default; }
+  select option { background: #1c1f26; color: #ddd; }
+  button { background: #4c8bf5; color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer; font: inherit; }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .dim { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+  .dim > span { font-size: 9.5px; text-transform: uppercase; letter-spacing: .07em; color: #6a7383; }
+  .card { border: 1px solid #2a2e37; border-radius: 8px; padding: 12px; }
+  .files { display: grid; grid-template-columns: 200px 1fr; gap: 12px; min-height: 200px; }
+  .filelist div { padding: 4px 6px; border-radius: 4px; cursor: pointer; }
+  .filelist div:hover { background: #1c1f26; }
+  .filelist div.active { background: #1a2230; color: #7fd1b9; }
+  pre { margin: 0; white-space: pre-wrap; word-break: break-word; background: #0f1115; padding: 10px; border-radius: 6px; overflow: auto; }
+  .ev { border-left: 2px solid #2a2e37; padding: 2px 0 2px 10px; margin: 2px 0; }
+  .ev .tag { color: #c08bf5; }
+  .ev.client .tag { color: #f5b14c; }
+  .muted { color: #8a93a3; }
+  .badge { display: inline-block; font-size: 11.5px; line-height: 1.3; padding: 1px 8px; border-radius: 9px; background: #2a2e37; color: #aab; white-space: nowrap; }
+  /* one colour per dimension so a card reads at a glance */
+  .badge.b-sandbox  { background: #243044; color: #9cc1f5; }  /* blue  = where */
+  .badge.b-harness  { background: #2c2440; color: #c2a5f5; }  /* purple = agent */
+  .badge.b-provider { background: #1f3a2e; color: #7fd1a0; }  /* green = LLM api */
+  .badge.b-model    { background: #382f1c; color: #e5b878; }  /* amber = model */
+  .badge.b-reasoning{ background: #3a2430; color: #f0a0bc; }  /* pink  = reasoning */
+  .sess .meta { color: #8a93a3; font-size: 11px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-top: 4px; }
+  .sess .meta.line-events { margin-top: 2px; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="side">
+    <button onclick="newSession()" style="width:100%;margin-bottom:10px">+ new session</button>
+    <div id="sessions"></div>
+  </div>
+  <div class="main">
+    <div class="card">
+      <h2>Invoke <span class="muted" id="runner" style="font-size:11px;text-transform:none;letter-spacing:0"></span></h2>
+      <div class="row" style="margin-bottom:8px">
+        <label class="dim"><span>sandbox</span>
+          <select id="sandbox" onchange="onHarnessChange()">
+            <option value="local">local</option>
+            <option value="modal">modal</option>
+            <option value="e2b">e2b</option>
+            <option value="daytona">daytona (tier-blocked)</option>
+          </select>
+        </label>
+        <label class="dim"><span>harness</span>
+          <select id="harness" onchange="onHarnessChange()">
+            <option value="claude">claude</option>
+            <option value="codex">codex</option>
+            <option value="opencode">opencode</option>
+            <option value="pi">pi</option>
+          </select>
+        </label>
+      </div>
+      <div class="row" style="margin-bottom:8px">
+        <label class="dim"><span>provider</span>
+          <select id="provider" onchange="onProviderChange()">
+            <option value="anthropic">anthropic</option>
+            <option value="openai">openai</option>
+          </select>
+        </label>
+        <label class="dim"><span>model</span>
+          <select id="model"></select>
+        </label>
+        <label class="dim"><span>reasoning</span>
+          <select id="reasoning">
+            <option value="none">none</option>
+            <option value="low">low</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
+          </select>
+        </label>
+      </div>
+      <div class="row" style="margin-bottom:8px">
+        <input id="sid" placeholder="session id (blank = new session)" />
+      </div>
+      <textarea id="prompt" rows="3" placeholder="e.g. create notes.md summarizing the Fibonacci sequence"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button id="run" onclick="invoke()">Run</button>
+        <span id="status" class="muted"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Filesystem <span class="muted" id="fsroot"></span></h2>
+      <div class="files">
+        <div class="filelist" id="filelist"><span class="muted">select a session</span></div>
+        <pre id="filebody" class="muted">select a file</pre>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Transcript</h2>
+      <div id="transcript"><span class="muted">select a session</span></div>
+    </div>
+  </div>
+</div>
+<script>
+let current = null;
+
+let allSessions = [];
+
+// Model vocabularies are HARNESS-specific (discovered from each adapter), not just
+// provider-specific. claude is anthropic-only, codex is openai-only; opencode & pi
+// accept both and use provider/model-prefixed ids.
+//   - providers: which LLM APIs a harness supports (first = default; single = locked)
+//   - models[provider]: the selectable model ids for that harness+provider
+const HARNESS = {
+  claude: {
+    providers: ["anthropic"],
+    models: { anthropic: ["default", "opus[1m]", "sonnet", "sonnet[1m]", "haiku"] },
+  },
+  codex: {
+    providers: ["openai"],
+    models: { openai: ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"] },
+  },
+  opencode: {
+    providers: ["anthropic", "openai"],
+    models: {
+      anthropic: ["anthropic/claude-opus-4-8", "anthropic/claude-sonnet-4-6", "anthropic/claude-haiku-4-5"],
+      openai: ["openai/gpt-5.5", "openai/gpt-5.4", "openai/gpt-5.4-mini", "openai/o4-mini"],
+    },
+  },
+  pi: {
+    providers: ["anthropic", "openai"],
+    models: {
+      anthropic: ["anthropic/claude-opus-4-8", "anthropic/claude-sonnet-4-6", "anthropic/claude-haiku-4-5"],
+      openai: ["openai/gpt-5.5", "openai/gpt-5.4", "openai/gpt-5.4-mini", "openai/o4-mini"],
+    },
+  },
+};
+
+const $ = (id) => document.getElementById(id);
+// runner is derived from sandbox, not chosen
+function runnerFor(sandbox) { return sandbox === "local" ? "local" : "rivet"; }
+// the list filter key = sandbox/harness (where × what)
+function harness(s) { return `${s.sandbox}/${s.harness}`; }
+// model id sometimes carries a redundant "provider/" prefix (opencode/pi) — drop it
+function modelShort(s) {
+  if (!s.model) return '';
+  return s.model.startsWith(s.provider + '/') ? s.model.slice(s.provider.length + 1) : s.model;
+}
+
+// Cascade: harness -> allowed providers (lock if single) -> models for that provider.
+// Pass selected provider/model to preserve them when reflecting an existing session.
+function refreshProviderAndModels(selProvider, selModel) {
+  const h = $('harness').value;
+  const spec = HARNESS[h] || HARNESS.claude;
+  const provSel = $('provider');
+  provSel.innerHTML = spec.providers.map(p => `<option value="${p}">${p}</option>`).join('');
+  if (selProvider && spec.providers.includes(selProvider)) provSel.value = selProvider;
+  // claude/codex have a single provider -> lock it; opencode/pi -> selectable
+  provSel.disabled = spec.providers.length === 1 || $('sandbox').disabled;
+  refreshModels(selModel);
+}
+
+function refreshModels(selModel) {
+  const h = $('harness').value, prov = $('provider').value;
+  const models = (HARNESS[h]?.models?.[prov]) || [];
+  const sel = $('model');
+  sel.innerHTML = models.map(m => `<option value="${m}">${m}</option>`).join('');
+  if (selModel && models.includes(selModel)) sel.value = selModel;
+}
+
+function onProviderChange() { refreshModels(); }
+
+async function refreshSessions() {
+  const { sessions } = await (await fetch('/sessions')).json();
+  allSessions = sessions;
+  $('runner').textContent = `· runner: ${runnerFor($('sandbox').value)}`;
+  // show ALL sessions (no filtering by the invoke selection)
+  const shown = sessions;
+  const el = document.getElementById('sessions');
+  el.innerHTML = '';
+  for (const s of shown) {
+    const d = document.createElement('div');
+    d.className = 'sess' + (s.id === current ? ' active' : '');
+    // actions stack vertically on the right: kill (top, if live), then delete (bottom)
+    const delBtn = `<button class="del" title="delete session" aria-label="delete session">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+        </svg></button>`;
+    // kill slot is always rendered (empty spacer when no live sandbox) so kill stays
+    // pinned top and delete pinned bottom regardless of whether a sandbox is live.
+    const killBtn = s.sandbox_id ? `<button class="kill" title="kill sandbox (cwd stays durable)" aria-label="kill sandbox">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
+        </svg></button>` : `<span class="slot"></span>`;
+    d.innerHTML = `<div class="actions">${killBtn}${delBtn}</div>
+      <div class="id">${s.id}</div>
+      <div class="meta line-events">${s.events} events · ${new Date(s.updated_at).toLocaleTimeString()}${s.sandbox_id ? ' · <span class="live">● live</span>' : ''}</div>
+      <div class="meta">
+        <span class="badge b-sandbox" title="sandbox">${s.sandbox}</span><span class="badge b-harness" title="harness">${s.harness}</span>
+      </div>
+      <div class="meta">
+        <span class="badge b-provider" title="provider">${s.provider}</span>${modelShort(s) ? `<span class="badge b-model" title="model">${modelShort(s)}</span>` : ''}${s.reasoning && s.reasoning !== 'none' ? `<span class="badge b-reasoning" title="reasoning">${s.reasoning}</span>` : ''}
+      </div>`;
+    d.onclick = () => select(s.id);
+    d.querySelector('.del').onclick = (e) => { e.stopPropagation(); delSession(s.id); };
+    const kb = d.querySelector('.kill');
+    if (kb) kb.onclick = (e) => { e.stopPropagation(); killSandbox(s.id); };
+    el.appendChild(d);
+  }
+}
+
+const DIMS = ['sandbox', 'harness', 'provider', 'model', 'reasoning'];
+function setDimsDisabled(v) {
+  DIMS.forEach(d => $(d).disabled = v);
+  // when unlocking, provider stays locked for single-provider harnesses (claude/codex)
+  if (!v) { const spec = HARNESS[$('harness').value]; if (spec) $('provider').disabled = spec.providers.length === 1; }
+}
+
+// Changing sandbox/harness starts a new-session selection: deselect any active
+// session and rebuild the harness-specific provider/model cascade.
+function onHarnessChange() {
+  current = null;
+  $('sid').value = '';
+  setDimsDisabled(false);
+  refreshProviderAndModels();
+  refreshSessions();
+}
+
+async function killSandbox(sid) {
+  // destroy the remote sandbox; cwd stays durable in SeaweedFS (next invoke remounts it)
+  await fetch(`/sessions/${sid}/sandbox`, { method: 'DELETE' });
+  await refreshSessions();
+}
+
+async function delSession(sid) {
+  await fetch(`/sessions/${sid}`, { method: 'DELETE' });
+  if (current === sid) { current = null; newSession();
+    document.getElementById('filelist').innerHTML = '<span class="muted">select a session</span>';
+    document.getElementById('filebody').textContent = 'select a file';
+    document.getElementById('transcript').innerHTML = '<span class="muted">select a session</span>';
+  }
+  await refreshSessions();
+}
+
+function newSession() {
+  current = null;
+  $('sid').value = '';
+  setDimsDisabled(false);
+  // clear the detail panes + drop the active highlight on the previously selected card
+  $('fsroot').textContent = '';
+  $('filelist').innerHTML = '<span class="muted">select a session</span>';
+  $('filebody').textContent = 'select a file';
+  $('transcript').innerHTML = '<span class="muted">select a session</span>';
+  refreshSessions();
+  $('prompt').focus();
+}
+
+async function select(sid) {
+  current = sid;
+  $('sid').value = sid;
+  $('fsroot').textContent = `demo/${sid}/`;
+  // a session's dimensions are fixed once created — reflect them and lock the selects
+  const s = allSessions.find(x => x.id === sid);
+  if (s) {
+    $('sandbox').value = s.sandbox;
+    $('harness').value = s.harness;
+    refreshProviderAndModels(s.provider, s.model);  // harness-aware cascade
+    $('reasoning').value = s.reasoning || 'none';
+    setDimsDisabled(true);
+  }
+  await Promise.all([refreshSessions(), loadFiles(sid), loadTranscript(sid)]);
+}
+
+async function loadFiles(sid) {
+  const list = document.getElementById('filelist');
+  const body = document.getElementById('filebody');
+  body.textContent = 'select a file'; body.className = 'muted';
+  const { files } = await (await fetch(`/sessions/${sid}/files`)).json();
+  if (!files || !files.length) { list.innerHTML = '<span class="muted">empty</span>'; return; }
+  list.innerHTML = '';
+  for (const f of files) {
+    const d = document.createElement('div');
+    d.textContent = `${f.path} (${f.size}b)`;
+    d.onclick = async () => {
+      [...list.children].forEach(c => c.classList.remove('active'));
+      d.classList.add('active');
+      const r = await (await fetch(`/sessions/${sid}/files?read=${encodeURIComponent(f.path)}`)).json();
+      body.textContent = r.content; body.className = '';
+    };
+    list.appendChild(d);
+  }
+}
+
+async function loadTranscript(sid) {
+  const t = document.getElementById('transcript');
+  const { events } = await (await fetch(`/sessions/${sid}/transcript`)).json();
+  if (!events.length) { t.innerHTML = '<span class="muted">no events</span>'; return; }
+  t.innerHTML = '';
+  for (const e of events) {
+    const p = e.payload || {};
+    let text = '';
+    if (p.method === 'session/prompt') text = '“' + (p.params?.prompt?.[0]?.text || '') + '”';
+    else if (e.session_update === 'agent_message' || e.session_update === 'agent_message_chunk') text = p.params?.update?.content?.text || '';
+    else if (e.session_update?.startsWith('tool_call')) text = p.params?.update?.title || e.session_update;
+    else text = e.session_update || p.method || '';
+    if (text === '') continue;
+    const d = document.createElement('div');
+    d.className = 'ev ' + (e.sender || '');
+    d.innerHTML = `<span class="tag">[${e.seq}] ${e.sender || ''} ${e.session_update || p.method || ''}</span> ${escapeHtml(text)}`;
+    t.appendChild(d);
+  }
+}
+
+function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+async function invoke() {
+  const btn = document.getElementById('run');
+  const status = document.getElementById('status');
+  const sid = document.getElementById('sid').value.trim();
+  const prompt = document.getElementById('prompt').value.trim();
+  if (!prompt) { status.textContent = 'enter a prompt'; return; }
+  btn.disabled = true; status.textContent = 'running…';
+  const body = {
+    prompt,
+    sandbox: $('sandbox').value,
+    harness: $('harness').value,
+    provider: $('provider').value,
+    model: $('model').value || null,
+    reasoning: $('reasoning').value,
+  };
+  if (sid) body.session_id = sid;
+  try {
+    const r = await (await fetch('/invoke', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    })).json();
+    if (r.detail) { status.textContent = 'error: ' + r.detail.slice(0, 120); }
+    else { status.textContent = `done · ${r.stop_reason}`; document.getElementById('prompt').value = ''; await select(r.session_id); }
+  } catch (e) { status.textContent = 'error: ' + e; }
+  btn.disabled = false;
+}
+
+refreshProviderAndModels();
+refreshSessions();
+setInterval(refreshSessions, 4000);
+</script>
+</body>
+</html>

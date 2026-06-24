@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@e2b/code-interpreter": "^2.6.1"
+  }
+}

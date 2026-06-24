@@ -1,0 +1,12 @@
+{
+  "name": "demo-sidecar",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "@e2b/code-interpreter": "^1.0.0",
+    "express": "^4.21.2",
+    "sandbox-agent": "0.4.x"
+  }
+}

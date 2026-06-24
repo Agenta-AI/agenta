@@ -1,0 +1,126 @@
+name: persistent-sessions-demo
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    command: >
+      server -dir=/data -ip=seaweedfs
+      -master.volumeSizeLimitMB=1024
+      -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
+    volumes:
+      - ./seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+      - seaweed_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9333/cluster/healthz >/dev/null || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  # Creates the `demo` bucket once seaweedfs is up, then exits.
+  seaweedfs-init:
+    image: chrislusf/seaweedfs:latest
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    environment:
+      SEAWEEDFS_S3_BUCKET: ${SEAWEEDFS_S3_BUCKET}
+    entrypoint: >
+      sh -c "echo \"s3.bucket.create -name $${SEAWEEDFS_S3_BUCKET}\" | weed shell -master=seaweedfs:9333 || true"
+
+  # Public tunnel so cloud sandboxes (e2b/daytona) can reach local SeaweedFS.
+  # Only needed for remote providers — start with: docker compose --profile remote up -d
+  ngrok:
+    image: ngrok/ngrok:latest
+    profiles: ["remote"]
+    command: ["http", "seaweedfs:8333", "--log=stdout"]
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    ports:
+      - "4040:4040"   # ngrok local inspection API (sidecar reads the public URL from here)
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+
+  sandbox:
+    build:
+      context: .
+      dockerfile: sandbox/Dockerfile
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse
+    security_opt:
+      - apparmor:unconfined
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:2468/v1/health >/dev/null || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  sidecar:
+    build:
+      context: ./sidecar
+    # hot reload: mount source, keep image's node_modules (anonymous volume), node --watch
+    command: ["node", "--watch", "server.js"]
+    volumes:
+      - ./sidecar:/app
+      - /app/node_modules
+    environment:
+      SANDBOX_AGENT_URL: http://sandbox:2468
+      SEAWEEDFS_S3_URL: ${SEAWEEDFS_S3_URL}
+      SEAWEEDFS_S3_ACCESS_KEY: ${SEAWEEDFS_S3_ACCESS_KEY}
+      SEAWEEDFS_S3_SECRET_KEY: ${SEAWEEDFS_S3_SECRET_KEY}
+      SEAWEEDFS_S3_BUCKET: ${SEAWEEDFS_S3_BUCKET}
+      # agent creds forwarded into remote (e2b) sandboxes
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # remote providers
+      E2B_API_KEY: ${E2B_API_KEY}
+      E2B_TEMPLATE: agenta-sandbox-agent
+      MODAL_TOKEN_ID: ${MODAL_TOKEN_ID}
+      MODAL_TOKEN_SECRET: ${MODAL_TOKEN_SECRET}
+      NGROK_API_URL: http://ngrok:4040/api/tunnels
+    depends_on:
+      sandbox:
+        condition: service_healthy
+
+  fastapi:
+    build:
+      context: ./api
+    # hot reload: mount source, uvicorn --reload watches db.py/main.py/static
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    volumes:
+      - ./api:/app
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_URI: ${POSTGRES_URI}
+      POSTGRES_DB: ${POSTGRES_DB}
+      SIDECAR_URL: http://sidecar:8080
+      SEAWEEDFS_S3_URL: ${SEAWEEDFS_S3_URL}
+      SEAWEEDFS_S3_ACCESS_KEY: ${SEAWEEDFS_S3_ACCESS_KEY}
+      SEAWEEDFS_S3_SECRET_KEY: ${SEAWEEDFS_S3_SECRET_KEY}
+      SEAWEEDFS_S3_BUCKET: ${SEAWEEDFS_S3_BUCKET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      sidecar:
+        condition: service_started
+
+volumes:
+  seaweed_data:
