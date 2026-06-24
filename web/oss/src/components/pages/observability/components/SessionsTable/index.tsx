@@ -120,46 +120,25 @@ const SessionsTable: React.FC = () => {
     const isEmptyState = sessionIds.length === 0 && !isLoading
 
     return (
-        <div className="flex flex-col h-full gap-2 min-h-0">
-            <ObservabilityHeader
-                columns={columns}
-                componentType="sessions"
-                isLoading={isLoading}
-                onRefresh={handleRefresh}
-                realtimeMode={realtimeMode}
-                setRealtimeMode={setRealtimeMode}
-                autoRefresh={autoRefresh}
-                setAutoRefresh={setAutoRefresh}
-                refreshTrigger={refreshTrigger}
-            />
-
-            {isEmptyState ? (
-                <EmptySessions showOnboarding={showOnboarding} />
-            ) : (
-                <InfiniteVirtualTableFeatureShell<SessionRow>
-                    store={store}
-                    tableScope={tableScope}
+        <SessionStoreProvider>
+            <div className="flex h-full min-h-0 flex-col gap-2">
+                <ObservabilityHeader
                     columns={columns}
-                    rowKey="session_id"
-                    pagination={pagination}
-                    resizableColumns
-                    enableExport={false}
-                    useSettingsDropdown={false}
-                    className="[&_.ant-table-tbody_.ant-table-cell]:align-top"
-                    tableProps={{
-                        bordered: true,
-                        loading: isLoading && sessionIds.length === 0,
-                        onRow: (record) => ({
-                            onClick: () => openDrawer({sessionId: record.session_id}),
-                            style: {cursor: "pointer"},
-                        }),
-                    }}
+                    componentType="sessions"
+                    isLoading={isLoading}
+                    onRefresh={handleRefresh}
+                    realtimeMode={realtimeMode}
+                    setRealtimeMode={setRealtimeMode}
+                    autoRefresh={autoRefresh}
+                    setAutoRefresh={setAutoRefresh}
+                    refreshTrigger={refreshTrigger}
                 />
 
                 {isEmptyState ? (
                     <EmptySessions showOnboarding={showOnboarding} />
                 ) : (
                     <InfiniteVirtualTableFeatureShell<SessionRow>
+                        store={store}
                         tableScope={tableScope}
                         columns={columns}
                         rowKey="session_id"
