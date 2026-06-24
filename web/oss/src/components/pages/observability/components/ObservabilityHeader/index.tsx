@@ -4,7 +4,7 @@ import type {SimpleQueue} from "@agenta/entities/simpleQueue"
 import {exportMatchingTraces} from "@agenta/entities/trace/etl"
 import {invalidateEvaluatorsListCache} from "@agenta/entities/workflow"
 import {message, modal} from "@agenta/ui/app-message"
-import {ArrowsClockwiseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
+import {ArrowsClockwiseIcon, ChartDonutIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -15,6 +15,7 @@ import Papa from "papaparse"
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {SortResult} from "@/oss/components/Filters/Sort"
 import type {FilterItem} from "@/oss/components/Filters/types"
+import type {EvalStepSlot} from "@/oss/components/pages/evaluations/NewEvaluation/evalSteps/types"
 import {fieldConfigByOptionKey} from "@/oss/components/pages/observability/assets/filters/fieldAdapter"
 import AddActionsDropdown from "@/oss/components/SharedActions/AddActionsDropdown"
 import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
@@ -36,7 +37,6 @@ import getFilterColumns from "../../assets/getFilterColumns"
 import {ObservabilityHeaderProps} from "../../assets/types"
 import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
-import RunEvaluationDropdown from "./RunEvaluationDropdown"
 import {useBatchAddTracesToQueue} from "./useBatchAddTracesToQueue"
 
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
@@ -47,6 +47,11 @@ const DeleteTraceModal = dynamic(
     {
         ssr: false,
     },
+)
+
+const NewEvaluationModal = dynamic(
+    () => import("@/oss/components/pages/evaluations/NewEvaluation"),
+    {ssr: false},
 )
 
 const AutoRefreshControl: React.FC<{
@@ -115,6 +120,7 @@ const ObservabilityHeader = ({
 }: ObservabilityHeaderProps) => {
     const [internalRefreshTrigger, setInternalRefreshTrigger] = useState(0)
     const [isExporting, setIsExporting] = useState(false)
+    const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false)
     const exportAbortRef = useRef<AbortController | null>(null)
     const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
     const {canExportData} = useProjectPermissions()
@@ -248,9 +254,36 @@ const ObservabilityHeader = ({
             ),
         [traces, selectedRowKeys],
     )
-    const handleEvaluationModalClose = useCallback(
-        () => setSelectedRowKeys([]),
-        [setSelectedRowKeys],
+    const handleEvaluationModalClose = useCallback(() => {
+        setIsEvaluationModalOpen(false)
+        setSelectedRowKeys([])
+    }, [setSelectedRowKeys])
+
+    const evaluationSteps = useMemo<EvalStepSlot[]>(
+        () => [
+            {kind: "traces", required: true, preset: [...selectedTraceIds]},
+            {kind: "evaluator", required: true},
+            {kind: "advanced", required: true},
+        ],
+        [selectedTraceIds],
+    )
+
+    const handleRunEvaluationSelect = useCallback(() => {
+        if (selectedTraceIds.length === 0) return
+        setIsEvaluationModalOpen(true)
+    }, [selectedTraceIds])
+
+    const addDropdownAdditionalActions = useMemo(
+        () => [
+            {
+                key: "auto-eval",
+                label: "Run auto evaluation",
+                icon: <ChartDonutIcon size={14} />,
+                disabled: selectedTraceIds.length === 0,
+                onSelect: handleRunEvaluationSelect,
+            },
+        ],
+        [handleRunEvaluationSelect, selectedTraceIds.length],
     )
 
     useEffect(
@@ -720,10 +753,7 @@ const ObservabilityHeader = ({
                                     onBeforeOpen: onAddAllMatchingBeforeOpen,
                                     onQueueSelected: onAddAllMatchingQueueSelected,
                                 }}
-                            />
-                            <RunEvaluationDropdown
-                                selectedTraceIds={selectedTraceIds}
-                                onModalClose={handleEvaluationModalClose}
+                                additionalActions={addDropdownAdditionalActions}
                             />
                         </Space>
                     </div>
@@ -743,6 +773,15 @@ const ObservabilityHeader = ({
                 ) : null}
             </section>
             <DeleteTraceModal />
+            <NewEvaluationModal
+                open={isEvaluationModalOpen}
+                onCancel={handleEvaluationModalClose}
+                onSuccess={handleEvaluationModalClose}
+                evaluationType="auto"
+                preview={false}
+                liveCompatibleEvaluatorsOnly
+                steps={evaluationSteps}
+            />
         </>
     )
 }
