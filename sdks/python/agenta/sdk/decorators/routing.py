@@ -14,6 +14,7 @@ from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.models.workflows import (
     WorkflowInvokeRequest,
     WorkflowInspectRequest,
+    WorkflowInspectResponse,
     WorkflowServiceStatus,
     WorkflowBatchResponse,
     WorkflowStreamingResponse,
@@ -350,11 +351,32 @@ async def handle_invoke_failure(exception: Exception) -> Response:
     return _make_json_response(error)
 
 
+def _to_inspect_response(
+    request: WorkflowInvokeRequest,
+) -> WorkflowInspectResponse:
+    """Normalize the internally-built ``WorkflowInvokeRequest`` into the canonical response.
+
+    ``workflow.inspect()`` builds its result as a ``WorkflowInvokeRequest`` (a REQUEST model), so
+    the resolved interface lands nested at ``data.revision.data``. The public ``/inspect``
+    contract is :class:`WorkflowInspectResponse` instead, which lifts that
+    :class:`WorkflowRevisionData` up to a flat top-level ``revision`` — so a client reads schemas
+    at ``response.revision.schemas`` rather than guessing the request envelope.
+    """
+    nested = (request.data.revision or {}) if request.data else {}
+    revision_data = nested.get("data") if isinstance(nested, dict) else None
+    return WorkflowInspectResponse(
+        version=request.version,
+        revision=revision_data,
+        meta=request.meta,
+    )
+
+
 async def handle_inspect_success(
     request: Optional[WorkflowInvokeRequest],
 ):
     if request:
-        return JSONResponse(request.model_dump(mode="json", exclude_none=True))
+        response = _to_inspect_response(request)
+        return JSONResponse(response.model_dump(mode="json", exclude_none=True))
 
     return JSONResponse({"details": {"message": "Workflow not found"}}, status_code=404)
 
@@ -544,7 +566,7 @@ class route:
                 self.path + "/inspect",
                 inspect_endpoint,
                 methods=["POST"],
-                response_model=WorkflowInvokeRequest,
+                response_model=WorkflowInspectResponse,
             )
             if agent_enabled:
                 _add_agent_routes(self.router_fallback, self.path)
@@ -568,7 +590,7 @@ class route:
                 "/inspect",
                 inspect_endpoint,
                 methods=["POST"],
-                response_model=WorkflowInvokeRequest,
+                response_model=WorkflowInspectResponse,
             )
             if agent_enabled:
                 _add_agent_routes(self.mount_root, "")
@@ -587,7 +609,7 @@ class route:
             "/inspect",
             inspect_endpoint,
             methods=["POST"],
-            response_model=WorkflowInvokeRequest,
+            response_model=WorkflowInspectResponse,
         )
         if agent_enabled:
             _add_agent_routes(sub_app, "")
