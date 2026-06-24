@@ -50,25 +50,25 @@ describe("unenforceableCapabilityConfig (in-process pi guard)", () => {
     assert.match(msg ?? "", /filesystem='readonly'/);
   });
 
-  it("rejects a deny tool disposition and names the tool", () => {
+  it("rejects a deny tool permission and names the tool", () => {
     const msg = unenforceableCapabilityConfig(
-      req({ customTools: [{ kind: "code", name: "danger", disposition: "deny" } as never] }),
+      req({ customTools: [{ kind: "code", name: "danger", permission: "deny" } as never] }),
     );
-    assert.match(msg ?? "", /does not enforce tool dispositions/);
+    assert.match(msg ?? "", /does not enforce tool permissions/);
     assert.match(msg ?? "", /danger/);
   });
 
-  it("rejects an ask tool disposition", () => {
+  it("rejects an ask tool permission", () => {
     const msg = unenforceableCapabilityConfig(
-      req({ customTools: [{ kind: "code", name: "t", disposition: "ask" } as never] }),
+      req({ customTools: [{ kind: "code", name: "t", permission: "ask" } as never] }),
     );
     assert.match(msg ?? "", /deny\/ask/);
   });
 
-  it("passes an allow disposition (no enforcement needed)", () => {
+  it("passes an allow permission (no enforcement needed)", () => {
     assert.equal(
       unenforceableCapabilityConfig(
-        req({ customTools: [{ kind: "code", name: "t", disposition: "allow" } as never] }),
+        req({ customTools: [{ kind: "code", name: "t", permission: "allow" } as never] }),
       ),
       undefined,
     );

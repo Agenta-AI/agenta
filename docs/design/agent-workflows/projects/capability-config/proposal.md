@@ -92,7 +92,7 @@ filesystem without enforcing it.
 This layer is the sidecar's own permission policy, and it carries the human-in-the-loop gate. It
 subsumes `permission_policy`: that auto/deny switch is just this layer's global default.
 
-For each tool, the author assigns one disposition, stored on the tool's own spec:
+For each tool, the author assigns one permission, stored on the tool's own spec:
 
 - **allow.** The call runs with no prompt. If the tool is one we resolved (a gateway or
   code tool, not a harness builtin), the runner runs it through the relay. This is today's
@@ -102,25 +102,25 @@ For each tool, the author assigns one disposition, stored on the tool's own spec
   or scheduled run can be answered even when no one has the chat open (Flow 7).
 - **deny.** The call never runs.
 
-The disposition lives next to the thing it governs. A resolved tool carries its disposition on
+The permission lives next to the thing it governs. A resolved tool carries its permission on
 its tool spec; an MCP server carries one on its server spec, which the runner renders as a
 whole-server `mcp__<server>` rule or a per-tool `mcp__<server>__<tool>` rule. Anything with no
-explicit disposition falls back to the global default, `permission_policy`. Harness builtins have
-no spec, so their disposition is rendered in Layer 1 instead: Claude builtins as settings.json
+explicit permission falls back to the global default, `permission_policy`. Harness builtins have
+no spec, so their permission is rendered in Layer 1 instead: Claude builtins as settings.json
 rules, Pi builtins as `builtin_names` selection.
 
 Where Layer 3 is enforced depends on where the tool runs, and this is the subtle part. There
 are two cases.
 
 Resolved tools (gateway, code) run in the runner, through the relay. The runner is the choke
-point, so it applies the disposition directly: allow runs the call, ask parks it, deny
+point, so it applies the permission directly: allow runs the call, ask parks it, deny
 refuses it. This works the same on `pi` and `claude`.
 
 Harness builtins (Claude `Bash`/`Edit`/`Read`, Pi `bash`/`read`) run inside the harness, where
 the runner cannot intercept them. For Claude, the settings.json `allow`/`deny`/`ask` rules set
 the static baseline, and any call that still needs a decision arrives at the runner's responder
 through Claude's permission callback, carrying the tool name. The responder applies the
-disposition there. For Pi, builtins cannot be gated, because Pi never asks. The only way to deny
+permission there. For Pi, builtins cannot be gated, because Pi never asks. The only way to deny
 a Pi builtin is to not grant it in Layer 1.
 
 The author should not have to label every tool by hand. Composio already tells us whether a tool
@@ -132,15 +132,15 @@ default.
 ## Where `permission_policy` fits
 
 Folded in. `permission_policy` (auto or deny) is the global default of Layer 3: the answer the
-sidecar gives for any tool with no explicit disposition and no human. The HITL gate, the
-per-tool dispositions, and `permission_policy` are one thing, the sidecar-managed permission
+sidecar gives for any tool with no explicit permission and no human. The HITL gate, the
+per-tool permissions, and `permission_policy` are one thing, the sidecar-managed permission
 policy. There is no separate permission plane.
 
 One implementation caution, so the fold does not blur two ideas in code. Layer 3 carries two
 distinct things, and they must stay distinct internally even though they are one policy to the
 author:
 
-- the **disposition** of a tool — allow, ask, or deny. This is static capability config and
+- the **permission** of a tool — allow, ask, or deny. This is static capability config and
   rides on the tool's spec.
 - the **responder mode** for an `ask` that reaches the runtime with no human — block and wait for
   the UI, emit a durable approval event, auto-allow, or deny. This is a runtime answering choice,
@@ -148,7 +148,7 @@ author:
 
 A tool set to `ask` always asks; what happens to that ask when nobody is watching is the
 responder mode. Collapsing the two — treating `permission_policy` as if it were a fourth
-disposition — is the mistake to avoid.
+permission — is the mistake to avoid.
 
 ## A worked example: web off, read-only, on Daytona
 
@@ -159,7 +159,7 @@ on Daytona.
   `WebFetch`, and `WebSearch`. Pi gets a `builtin_names` of `read` only.
 - Layer 2 tells the Daytona backend to create the sandbox with `networkBlockAll: true`.
 - Layer 3 has little to do here, because the write and web tools are already gone. Any resolved
-  tool the agent still calls runs through the relay under its disposition.
+  tool the agent still calls runs through the relay under its permission.
 
 Claude now holds no write or web tools, and the VM has no egress. Pi holds only `read`, and its
 `bash` is gone, so it cannot `curl` even if it tried, and the VM would block it anyway. Both

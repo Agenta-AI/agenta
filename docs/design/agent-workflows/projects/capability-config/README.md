@@ -11,7 +11,7 @@ Three configuration layers, each with one job and one enforcement point. **Layer
 configuration:** the runner translates author kwargs into the harness's own config (a
 `.claude/settings.json` for Claude, `builtin_names` for Pi). **Layer 2, sandbox permission:** an
 optional `sandbox_permission` field draws the network and filesystem boundary, enforced by the
-backend when it provisions the sandbox. **Layer 3, tool permission:** a per-tool disposition
+backend when it provisions the sandbox. **Layer 3, tool permission:** a per-tool permission
 (always-allow / ask / deny), enforced at the runner relay for resolved tools and at the harness
 permission plane for builtins. The work spans the playground frontend, the schema, the SDK, the
 service, and the runner.

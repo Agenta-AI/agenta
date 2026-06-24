@@ -3,7 +3,7 @@
 This is the translation that used to live in the TS runner's ``claude-settings.ts``. It merges
 three rule sources into one ``.claude/settings.json``: the author's
 ``harness_options["claude"]["permissions"]`` slice, the Layer-2 sandbox-boundary derivation, and
-the per-MCP-server Layer-3 dispositions. The runner is now a dumb writer of the rendered
+the per-MCP-server Layer-3 permissions. The runner is now a dumb writer of the rendered
 ``harnessFiles`` entry this produces.
 """
 
@@ -81,9 +81,9 @@ def test_filesystem_off_denies_write_edit():
     assert _settings(files)["permissions"]["deny"] == ["Write", "Edit"]
 
 
-def test_mcp_disposition_deny_renders_server_rule():
+def test_mcp_permission_deny_renders_server_rule():
     server = ResolvedMCPServer(
-        name="github", transport="http", url="https://x", disposition="deny"
+        name="github", transport="http", url="https://x", permission="deny"
     )
     files = build_claude_settings_files(None, None, [server])
     perms = _settings(files)["permissions"]
@@ -92,16 +92,16 @@ def test_mcp_disposition_deny_renders_server_rule():
     assert "ask" not in perms
 
 
-def test_mcp_dispositions_route_to_their_lists_and_skip_unset():
+def test_mcp_permissions_route_to_their_lists_and_skip_unset():
     servers = [
         ResolvedMCPServer(
-            name="filesystem", transport="http", url="https://x", disposition="allow"
+            name="filesystem", transport="http", url="https://x", permission="allow"
         ),
         ResolvedMCPServer(
-            name="github", transport="http", url="https://x", disposition="ask"
+            name="github", transport="http", url="https://x", permission="ask"
         ),
         ResolvedMCPServer(
-            name="shell", transport="http", url="https://x", disposition="deny"
+            name="shell", transport="http", url="https://x", permission="deny"
         ),
         ResolvedMCPServer(name="unset", transport="http", url="https://x"),
     ]
@@ -145,7 +145,7 @@ def test_accepts_plain_dicts_for_sandbox_and_mcp():
     files = build_claude_settings_files(
         None,
         {"network": {"mode": "off"}},
-        [{"name": "github", "disposition": "deny"}],
+        [{"name": "github", "permission": "deny"}],
     )
     perms = _settings(files)["permissions"]
     assert perms["deny"] == ["WebFetch", "WebSearch", "mcp__github"]
@@ -162,7 +162,7 @@ def test_empty_inputs_render_nothing():
         )
         == []
     )
-    # an MCP server with no disposition contributes nothing.
+    # an MCP server with no permission contributes nothing.
     assert (
         build_claude_settings_files(
             None, None, [ResolvedMCPServer(name="x", transport="http", url="https://x")]

@@ -40,8 +40,8 @@ def test_code_spec_serializes_only_runner_fields():
         "env": {"TOKEN": "secret"},
         "needsApproval": True,
         "render": {"kind": "component", "component": "Calculator"},
-        # needs_approval with no explicit disposition -> derived `ask`.
-        "disposition": "ask",
+        # needs_approval with no explicit permission -> derived `ask`.
+        "permission": "ask",
     }
 
 
@@ -65,7 +65,7 @@ def test_secret_values_are_hidden_from_repr():
     assert "do-not-print" not in repr(spec)
 
 
-# --- Layer-3 disposition default ladder (S3a) -----------------------------------------
+# --- Layer-3 permission default ladder (S3a) -----------------------------------------
 
 
 def _spec(**kwargs):
@@ -77,40 +77,40 @@ def _spec(**kwargs):
     )
 
 
-def test_disposition_explicit_author_value_wins():
-    # An explicit author disposition wins over any read_only/needs_approval default.
-    spec = _spec(read_only=False, disposition="allow")
-    assert spec.effective_disposition() == "allow"
-    assert spec.to_wire()["disposition"] == "allow"
+def test_permission_explicit_author_value_wins():
+    # An explicit author permission wins over any read_only/needs_approval default.
+    spec = _spec(read_only=False, permission="allow")
+    assert spec.effective_permission() == "allow"
+    assert spec.to_wire()["permission"] == "allow"
 
 
-def test_disposition_default_from_read_only_true_is_allow():
+def test_permission_default_from_read_only_true_is_allow():
     spec = _spec(read_only=True)
-    assert spec.effective_disposition() == "allow"
-    assert spec.to_wire()["disposition"] == "allow"
+    assert spec.effective_permission() == "allow"
+    assert spec.to_wire()["permission"] == "allow"
 
 
-def test_disposition_default_from_read_only_false_is_ask():
+def test_permission_default_from_read_only_false_is_ask():
     spec = _spec(read_only=False)
-    assert spec.effective_disposition() == "ask"
-    assert spec.to_wire()["disposition"] == "ask"
+    assert spec.effective_permission() == "ask"
+    assert spec.to_wire()["permission"] == "ask"
 
 
-def test_disposition_needs_approval_beats_read_only_auto_allow():
-    # needs_approval (no explicit disposition) forces `ask` even when read_only would allow.
+def test_permission_needs_approval_beats_read_only_auto_allow():
+    # needs_approval (no explicit permission) forces `ask` even when read_only would allow.
     spec = _spec(read_only=True, needs_approval=True)
-    assert spec.effective_disposition() == "ask"
-    assert spec.to_wire()["disposition"] == "ask"
+    assert spec.effective_permission() == "ask"
+    assert spec.to_wire()["permission"] == "ask"
 
 
-def test_disposition_absent_when_all_unset():
-    # read_only is None and nothing explicit -> no disposition on the wire (runner falls back).
+def test_permission_absent_when_all_unset():
+    # read_only is None and nothing explicit -> no permission on the wire (runner falls back).
     spec = _spec()
-    assert spec.effective_disposition() is None
-    assert "disposition" not in spec.to_wire()
+    assert spec.effective_permission() is None
+    assert "permission" not in spec.to_wire()
 
 
-def test_disposition_accepts_fe_permission_mode_alias():
+def test_permission_accepts_fe_permission_mode_alias():
     # The playground writes `permission_mode` into agenta_metadata; the spec deserializes it.
     spec = CallbackToolSpec.model_validate(
         {
@@ -120,5 +120,5 @@ def test_disposition_accepts_fe_permission_mode_alias():
             "permission_mode": "deny",
         }
     )
-    assert spec.disposition == "deny"
-    assert spec.to_wire()["disposition"] == "deny"
+    assert spec.permission == "deny"
+    assert spec.to_wire()["permission"] == "deny"

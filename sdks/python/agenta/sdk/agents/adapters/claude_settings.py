@@ -14,11 +14,11 @@ Three rule sources merge here:
  - rules DERIVED from ``sandbox_permission`` (Layer 2): baseline reinforcement of the sandbox
    boundary as Claude-tool rules (block web tools when egress is off, block edits when the
    filesystem is read-only/off). A safety floor, not the primary enforcement.
- - rules DERIVED from per-MCP-server ``disposition`` (Layer 3, S3b): each user MCP server with a
-   set disposition becomes a whole-server ``mcp__<server>`` allow/ask/deny rule.
+ - rules DERIVED from per-MCP-server ``permission`` (Layer 3, S3b): each user MCP server with a
+   set permission becomes a whole-server ``mcp__<server>`` allow/ask/deny rule.
 
 Layer 3 enforcement is split by tool source: resolved tools (code / gateway-callback) run
-runner-side and are enforced at the relay, NOT here. Only the per-MCP-server disposition lands in
+runner-side and are enforced at the relay, NOT here. Only the per-MCP-server permission lands in
 this file.
 """
 
@@ -101,12 +101,12 @@ def _rules_from_sandbox_permission(sandbox_permission: Any) -> Dict[str, List[st
     return {"deny": deny}
 
 
-def _rules_from_mcp_dispositions(mcp_servers: Any) -> Dict[str, List[str]]:
-    """Derive whole-server Claude rules from each MCP server's Layer-3 ``disposition`` (S3b).
+def _rules_from_mcp_permissions(mcp_servers: Any) -> Dict[str, List[str]]:
+    """Derive whole-server Claude rules from each MCP server's Layer-3 ``permission`` (S3b).
 
     Claude addresses a whole MCP server as ``mcp__<serverName>`` (a per-tool rule is
     ``mcp__<server>__<tool>``); the server name is the ``name`` carried to the runtime verbatim.
-    ``allow``/``ask``/``deny`` route to the matching list; a server with no disposition contributes
+    ``allow``/``ask``/``deny`` route to the matching list; a server with no permission contributes
     nothing (falls back to the global policy). Accepts a list of
     :class:`~agenta.sdk.agents.mcp.models.ResolvedMCPServer` or plain dicts.
     """
@@ -115,15 +115,15 @@ def _rules_from_mcp_dispositions(mcp_servers: Any) -> Dict[str, List[str]]:
     deny: List[str] = []
     for server in mcp_servers or []:
         name = _get(server, "name")
-        disposition = _get(server, "disposition")
-        if not disposition or not name:
+        permission = _get(server, "permission")
+        if not permission or not name:
             continue
         rule = f"mcp__{name}"
-        if disposition == "allow":
+        if permission == "allow":
             allow.append(rule)
-        elif disposition == "ask":
+        elif permission == "ask":
             ask.append(rule)
-        elif disposition == "deny":
+        elif permission == "deny":
             deny.append(rule)
     return {"allow": allow, "ask": ask, "deny": deny}
 
@@ -158,7 +158,7 @@ def build_claude_settings_files(
     # Merge order: author rules first, then derived rules (Layer 2, then Layer 3). ``_dedupe``
     # keeps first-seen order, so an author rule wins its position and derived rules append.
     sandbox_rules = _rules_from_sandbox_permission(sandbox_permission)
-    mcp_rules = _rules_from_mcp_dispositions(mcp_servers)
+    mcp_rules = _rules_from_mcp_permissions(mcp_servers)
 
     allow = _dedupe([*author["allow"], *mcp_rules.get("allow", [])])
     deny = _dedupe(

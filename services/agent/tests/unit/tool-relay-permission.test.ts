@@ -1,16 +1,17 @@
 /**
- * Unit tests for Layer-3 disposition enforcement in the runner-side tool relay (S3b).
+ * Unit tests for Layer-3 permission enforcement in the runner-side tool relay (S3b).
  *
- *  - `resolveDisposition` is the pure ladder: allow/deny are honored as-is; ask/unset degrade to
+ *  - `resolvePermission` is the pure ladder: allow/deny are honored as-is; ask/unset degrade to
  *    the headless permission policy (auto -> allow, deny -> deny).
  *  - `startToolRelay` enforces that ladder before executing a relayed tool: a `deny` spec is
- *    refused (its `code` never runs) and an `allow` spec executes normally.
+ *    refused before execution and an `allow` code spec reaches the sidecar unsupported gate.
  *
  * The relay loop is driven over a real temp dir via `localRelayHost`: write a `<id>.req.json`,
- * poll for the `<id>.res.json` the runner writes back. A `code` spec is used so execution needs
- * no network or callback (it shells out to python3, available locally).
+ * poll for the `<id>.res.json` the runner writes back. A `code` spec is used so execution
+ * needs no network or callback; the sidecar now returns a deterministic unsupported error
+ * instead of spawning a runtime.
  *
- * Run: pnpm test (or: pnpm exec vitest run tests/unit/tool-relay-disposition.test.ts)
+ * Run: pnpm test (or: pnpm exec vitest run tests/unit/tool-relay-permission.test.ts)
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
@@ -20,7 +21,7 @@ import { join } from "node:path";
 
 import {
   localRelayHost,
-  resolveDisposition,
+  resolvePermission,
   startToolRelay,
   type RelayResponse,
 } from "../../src/tools/relay.ts";
@@ -28,14 +29,13 @@ import type { ResolvedToolSpec } from "../../src/protocol.ts";
 
 const codeSpec = (
   name: string,
-  disposition?: ResolvedToolSpec["disposition"],
+  permission?: ResolvedToolSpec["permission"],
 ): ResolvedToolSpec => ({
   name,
   kind: "code",
   runtime: "python",
-  // Marks that the snippet actually ran (a denied tool must never reach this).
   code: 'def main(**kw):\n    return {"ran": True, "echo": kw}\n',
-  disposition,
+  permission,
 });
 
 /** Drive one tool call through the relay loop and return the response the runner wrote. */
@@ -64,8 +64,8 @@ async function relayOnce(
   }
 }
 
-describe("resolveDisposition", () => {
-  const cases: Array<[ResolvedToolSpec["disposition"], "auto" | "deny", "allow" | "deny"]> = [
+describe("resolvePermission", () => {
+  const cases: Array<[ResolvedToolSpec["permission"], "auto" | "deny", "allow" | "deny"]> = [
     ["allow", "auto", "allow"],
     ["allow", "deny", "allow"],
     ["deny", "auto", "deny"],
@@ -74,19 +74,19 @@ describe("resolveDisposition", () => {
     ["ask", "deny", "deny"],
     [undefined, "auto", "allow"],
     [undefined, "deny", "deny"],
-    // A garbage/unrecognized disposition must fall to the policy (never auto-allow).
-    ["bogus" as ResolvedToolSpec["disposition"], "auto", "allow"],
-    ["bogus" as ResolvedToolSpec["disposition"], "deny", "deny"],
+    // A garbage/unrecognized permission must fall to the policy (never auto-allow).
+    ["bogus" as ResolvedToolSpec["permission"], "auto", "allow"],
+    ["bogus" as ResolvedToolSpec["permission"], "deny", "deny"],
   ];
 
-  for (const [disposition, policy, expected] of cases) {
-    it(`disposition=${disposition ?? "unset"} policy=${policy} -> ${expected}`, () => {
-      assert.equal(resolveDisposition(disposition, policy), expected);
+  for (const [permission, policy, expected] of cases) {
+    it(`permission=${permission ?? "unset"} policy=${policy} -> ${expected}`, () => {
+      assert.equal(resolvePermission(permission, policy), expected);
     });
   }
 });
 
-describe("startToolRelay disposition enforcement", () => {
+describe("startToolRelay permission enforcement", () => {
   it("refuses a deny spec without executing its code", async () => {
     const res = await relayOnce(codeSpec("blocked", "deny"), "auto");
     assert.equal(res.ok, true, "a policy refusal rides as an ok tool result, not an error");
@@ -95,10 +95,10 @@ describe("startToolRelay disposition enforcement", () => {
     assert.ok(!String(res.text).includes("ran"), "the denied tool's code did not run");
   });
 
-  it("runs an allow spec", async () => {
+  it("returns unsupported for an allow code spec", async () => {
     const res = await relayOnce(codeSpec("permitted", "allow"), "auto");
-    assert.equal(res.ok, true);
-    assert.deepEqual(JSON.parse(res.text ?? "{}"), { ran: true, echo: { a: 1 } });
+    assert.equal(res.ok, false);
+    assert.match(res.error ?? "", /Code tools are not supported by the sidecar\./);
   });
 
   it("refuses an unset spec when the headless policy is deny", async () => {

@@ -62,13 +62,13 @@ From a code sweep on 2026-06-23. Reconfirm line numbers when implementing.
 - `AgentConfig` (~309-369) holds `instructions`, `model`, `tools`, `mcp_servers`, `skills`,
   `harness_options`. Add optional `sandbox_permission` here.
 - `RunSelection` (~372-395) already holds `harness`, `sandbox`, `permission_policy`.
-- `SessionConfig` (~571-620) is the wire bag. Per-tool dispositions ride on each `ToolSpec`, not
-  a separate map here; MCP dispositions ride on each `mcp_servers` entry.
+- `SessionConfig` (~571-620) is the wire bag. Per-tool permissions ride on each `ToolSpec`, not
+  a separate map here; MCP permissions ride on each `mcp_servers` entry.
 - `PiAgentConfig` / `ClaudeAgentConfig` / `AgentaAgentConfig` (~468-564) and their `wire_tools()`
   are where tool/permission serialization happens.
 - `ToolSpec` (`tools/models.py:95-157`) already has `needs_approval` and `render`; add the
-  permission disposition (always-allow/ask/deny) and the `read_only` flag, and serialize both in
-  `to_wire()`. Each `mcp_servers` entry gains a matching disposition field.
+  permission (always-allow/ask/deny) and the `read_only` flag, and serialize both in
+  `to_wire()`. Each `mcp_servers` entry gains a matching permission field.
 
 **Schema generation:**
 - `AgentConfigSchema` (`sdk/utils/types.py` ~1065-1138) is the `agent_config` catalog type the
@@ -142,11 +142,11 @@ fields that the schema declares render through the existing pipeline.
 - CORRECTION (S3a, verified 2026-06-23): the FE does **not** round-trip
   `tool.agenta_metadata.permission_mode` today — there are zero `permission_mode` references in
   `web/`. The earlier "head start" claim was a future-state assumption. `ToolItemControl` /
-  `AgentConfigControl` round-trip a free-form `agenta_metadata` bag with no disposition. So S4 must
-  **build** the per-tool disposition control, not just wire it. Good news: the SDK `disposition`
+  `AgentConfigControl` round-trip a free-form `agenta_metadata` bag with no permission. So S4 must
+  **build** the per-tool permission control, not just wire it. Good news: the SDK `permission`
   field accepts `permission_mode` / `permissionMode` via `AliasChoices`, so if S4 writes
   `agenta_metadata.permission_mode` with the `allow|ask|deny` vocabulary, it deserializes into
-  `disposition` with no mapping and no breaking change.
+  `permission` with no mapping and no breaking change.
 - The HITL "ask" surface DOES have a head start (confirmed in S2 review): the agent chat uses
   ai-sdk `useChat` and already exposes `addToolApprovalResponse`
   (`web/oss/src/components/AgentChatSlice/AgentChatPanel.tsx:86`), and `ToolPart.tsx:153` already
@@ -170,7 +170,7 @@ Composio returns MCP behavioral hint tags per action (`readOnlyHint`, `destructi
 `ToolCatalogActionDetails` (`api/oss/src/core/tools/dtos.py:41-54`) carry no mutation field. So
 the read-vs-write signal exists at the source and we discard it. Phase 0 keeps it: derive
 `read_only` from `readOnlyHint` (and treat `destructiveHint`/`updateHint` as mutating), carry it
-on the catalog action and the resolved tool, and default Layer 3 dispositions from it.
+on the catalog action and the resolved tool, and default Layer 3 permissions from it.
 
 ## 5. Security caveat: the runner-host execution surface
 
@@ -194,11 +194,11 @@ egress through either. Two ways out, gating the `network: off` guarantee in Phas
 1. How the Layer 2 policy threads into `buildSandboxProvider` (no config param today).
 2. Mutation detection for `read_only` enforcement on arbitrary resolved-tool code (explicit flag
    vs input inspection). The honest first cut is to treat `read_only` as an advisory default for
-   the disposition, not a hard runtime block on resolved tools.
+   the permission, not a hard runtime block on resolved tools.
 3. `LocalBackend.create_sandbox` signature parity with the new policy parameter.
 4. The exact `.claude/settings.json` contents validated against Claude Code's settings schema,
    and the `mcp__<server>__<tool>` naming validated on a live run.
-5. Resolved: per-tool dispositions live on the tool spec, and MCP dispositions live on the MCP
+5. Resolved: per-tool permissions live on the tool spec, and MCP permissions live on the MCP
    server spec. (The FE does NOT round-trip `permission_mode` yet — see the S3a correction in
    section 3; S4 builds that control.)
    Keep the wire field name consistent across SDK, wire, and FE.

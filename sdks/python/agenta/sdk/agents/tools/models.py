@@ -19,10 +19,10 @@ def _empty_object_schema() -> Dict[str, Any]:
     return {"type": "object", "properties": {}}
 
 
-# Layer-3 per-tool permission disposition: ``allow`` runs with no prompt, ``ask`` raises a
+# Layer-3 per-tool permission: ``allow`` runs with no prompt, ``ask`` raises a
 # human-in-the-loop request, ``deny`` never runs. Absent means "fall back to the global
 # ``permissionPolicy`` default" (the runner resolves that, in a later slice).
-Disposition = Literal["allow", "ask", "deny"]
+Permission = Literal["allow", "ask", "deny"]
 
 
 class ToolConfigBase(BaseModel):
@@ -32,16 +32,16 @@ class ToolConfigBase(BaseModel):
 
     needs_approval: bool = False
     render: Optional[Dict[str, Any]] = None
-    # Layer-3 permission disposition the author set on this tool. Mirrors
-    # ``ToolSpecBase.disposition``: accepts ``permission_mode``/``permissionMode`` too (the keys
+    # Layer-3 permission the author set on this tool. Mirrors
+    # ``ToolSpecBase.permission``: accepts ``permission_mode``/``permissionMode`` too (the keys
     # the playground writes), so an FE-set value deserializes onto the ``extra="forbid"`` config
     # without a breaking change. ``_apply_tool_metadata`` then carries it onto the resolved spec.
-    disposition: Optional[Disposition] = Field(
+    permission: Optional[Permission] = Field(
         default=None,
         validation_alias=AliasChoices(
-            "disposition", "permission_mode", "permissionMode"
+            "permission", "permission_mode", "permissionMode"
         ),
-        serialization_alias="disposition",
+        serialization_alias="permission",
     )
 
 
@@ -136,22 +136,22 @@ class ToolSpecBase(BaseModel):
         validation_alias=AliasChoices("read_only", "readOnly"),
         serialization_alias="readOnly",
     )
-    # Layer-3 permission disposition the author set on this tool. Accepts ``permission_mode``
+    # Layer-3 permission the author set on this tool. Accepts ``permission_mode``
     # too, the key the playground writes into ``agenta_metadata``, so an FE-set value
     # deserializes without a later breaking change. Unset means "no explicit author choice";
-    # ``effective_disposition`` then derives a default from ``read_only`` / ``needs_approval``.
-    disposition: Optional[Disposition] = Field(
+    # ``effective_permission`` then derives a default from ``read_only`` / ``needs_approval``.
+    permission: Optional[Permission] = Field(
         default=None,
         validation_alias=AliasChoices(
-            "disposition", "permission_mode", "permissionMode"
+            "permission", "permission_mode", "permissionMode"
         ),
-        serialization_alias="disposition",
+        serialization_alias="permission",
     )
 
-    def effective_disposition(self) -> Optional[Disposition]:
-        """Resolve the disposition that rides the wire, by this precedence:
+    def effective_permission(self) -> Optional[Permission]:
+        """Resolve the permission that rides the wire, by this precedence:
 
-        1. An explicit author ``disposition`` wins outright.
+        1. An explicit author ``permission`` wins outright.
         2. Else, when ``needs_approval`` is set, the default is ``"ask"`` (approval beats the
            read-only auto-allow: an author who asked to be prompted still gets prompted).
         3. Else, default from ``read_only``: ``True`` -> ``"allow"`` (read-only tools are safe to
@@ -159,8 +159,8 @@ class ToolSpecBase(BaseModel):
         4. Else (``read_only`` is ``None`` and nothing explicit) -> ``None`` (unset), so the runner
            falls back to the global ``permissionPolicy`` default in a later slice.
         """
-        if self.disposition is not None:
-            return self.disposition
+        if self.permission is not None:
+            return self.permission
         if self.needs_approval:
             return "ask"
         if self.read_only is True:
@@ -179,11 +179,11 @@ class ToolSpecBase(BaseModel):
             wire.pop("needsApproval", None)
         if not wire.get("env"):
             wire.pop("env", None)
-        disposition = self.effective_disposition()
-        if disposition is not None:
-            wire["disposition"] = disposition
+        permission = self.effective_permission()
+        if permission is not None:
+            wire["permission"] = permission
         else:
-            wire.pop("disposition", None)
+            wire.pop("permission", None)
         return wire
 
 

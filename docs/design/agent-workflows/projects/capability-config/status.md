@@ -17,7 +17,7 @@ Ran on the deployed stack (`agenta-ee-dev-wp-b2-rendering`, sidecar mounts `serv
 tsx, so a restart deployed the runner changes). Drove `/run` directly with forced un-guessable
 tokens. **No feature-code bugs found.**
 
-- **L3 per-tool `deny` — PASS.** Identical code tool, only `disposition` flipped: `deny` →
+- **L3 per-tool `deny` — PASS.** Identical code tool, only `permission` flipped: `deny` →
   `tool_result="Tool 'get_build_id' is denied by policy."`, token `BUILDID_A7F3_QA` absent, code
   never ran; `allow` → token present. (relay.ts enforcement.)
 - **L1 Claude `.claude/settings.json` — write PASS, behavior BLOCKED.** Captured the file the
@@ -61,9 +61,9 @@ project Anthropic key). The enforcement LOGIC is otherwise live-proven.
    chat tool-approval surface (Phase 5).
 8. **`sandbox_permission` is the confirmed name for Layer 2.**
 9. **`permission_policy` folds into Layer 3 as its global default.** The HITL gate, the per-tool
-   dispositions, and `permission_policy` are one sidecar-managed permission policy. There is no
+   permissions, and `permission_policy` are one sidecar-managed permission policy. There is no
    separate permission plane.
-10. **Dispositions live on the spec they govern:** a resolved tool's disposition on its tool
+10. **Permissions live on the spec they govern:** a resolved tool's permission on its tool
     spec, an MCP server's permission on its server spec. Not a separate map. Harness builtins
     have no spec, so their permission is rendered in Layer 1 (Claude settings.json rules, Pi
     `builtin_names`).
@@ -86,12 +86,12 @@ project Anthropic key). The enforcement LOGIC is otherwise live-proven.
 - `sandbox_permission` is the confirmed name for Layer 2.
 - `permission_policy` folds into Layer 3 as the global default of the sidecar-managed permission
   policy. The HITL gate is the same thing, not a separate plane.
-- Per-tool dispositions live on the tool spec; MCP permissions live on the MCP server spec.
+- Per-tool permissions live on the tool spec; MCP permissions live on the MCP server spec.
 
 ## Codex review (2026-06-23)
 
 Codex (gpt-5.5, xhigh, read-only) reviewed the project. Verdict: "Good direction, not ready to
-implement as written" — the three-layer shape is right, three seams need work. Disposition of
+implement as written" — the three-layer shape is right, three seams need work. Summary of
 its seven points:
 
 **Acting on (Codex correct, verified in code):**
@@ -124,7 +124,7 @@ its seven points:
    recorded so the objection is not lost.
 7. **Keep `permission_policy` folded into Layer 3.** The user decided this. Codex's fair
    sub-distinction is captured as a note: Layer 3 holds two things that must not be conflated in
-   code — the per-tool *disposition* (allow/ask/deny, static, on the spec) and the *responder
+   code — the per-tool *permission* (allow/ask/deny, static, on the spec) and the *responder
    mode* (what a headless `ask` does: block for UI / emit durable approval / auto-allow / deny).
    `permission_policy` is the responder-mode default; both live in the one sidecar-managed policy.
 
@@ -136,7 +136,7 @@ its seven points:
    (reject `code`, gateway/callback, and stdio MCP when exec/network are off). Blocks the
    `network: off` guarantee. See `research.md` section 5.
 2. **`read_only` enforcement strength.** Is `read_only` a hard runtime block on resolved tools,
-   or only an advisory default for the disposition? The honest first cut is advisory.
+   or only an advisory default for the permission? The honest first cut is advisory.
 3. ~~**Pi's real control surface (Phase 0).**~~ **Resolved by S0b.** Backend-dependent: supported
    in-process (`pi.ts:311` passes `tools`), unsupported over sandbox-agent ACP (`pi-acp@0.0.29`
    forwards nothing). Design: honor `builtin_names` in-process, fail loud over sandbox-agent.
@@ -195,7 +195,7 @@ Smallest shippable, independently reviewable units. Each names its acceptance ch
   so `network: off` + `strict` runs unconfined there while the local-sidecar path correctly
   rejects. Add the same fail-loud check to the in-process engine. Reviewer-flagged, nice-to-have.
 - **S4-readonly-fe — surface Composio `read_only` in the FE tool catalog.** The per-tool
-  disposition control defaults from `read_only`, but the FE tool catalog / `ToolSelectionMeta`
+  permission control defaults from `read_only`, but the FE tool catalog / `ToolSelectionMeta`
   (`ToolSelectorPopover.tsx`) doesn't carry `read_only` yet, so the default shows "Inherit policy"
   until an author picks. The backend catalog already exposes `read_only` (S0a); plumb it from the
   `/tools` catalog response into the added tool object so the default auto-populates. Layer 3 works
@@ -208,15 +208,15 @@ Smallest shippable, independently reviewable units. Each names its acceptance ch
   `buildClaudeSettings` returns `undefined` for Pi (no file) and when fully-open+unset. Structured
   as `RuleSet[]` for S3. Reviewer live-verified the ACP adapter reads it + rejects invalid modes;
   mkdir-before-write safe both ways. 136 TS + 274 SDK pass, tsc + ruff clean. Live rule-syntax
-  check deferred to Phase 3. mcp__ tool-spec rules + Layer-3 dispositions deferred to S3.
-- **S3a — Layer 3 disposition plumbing** (`done`, self-reviewed). `disposition`
+  check deferred to Phase 3. mcp__ tool-spec rules + Layer-3 permissions deferred to S3.
+- **S3a — Layer 3 permission plumbing** (`done`, self-reviewed). `permission`
   (`allow`/`ask`/`deny`) on `ToolSpecBase` + `MCPServerConfig`/`ResolvedMCPServer` + `protocol.ts`
-  `ResolvedToolSpec`/`McpServerConfig`. `effective_disposition()` default ladder: explicit wins →
+  `ResolvedToolSpec`/`McpServerConfig`. `effective_permission()` default ladder: explicit wins →
   `needs_approval`→ask → `read_only` true→allow/false→ask → unset (runner falls to
   `permissionPolicy`). `AliasChoices` accepts the FE's `permission_mode`. Goldens + contract tests
   updated (sub-key, no `KNOWN_REQUEST_KEYS` change). 148 TS + 286 SDK pass. NO enforcement (S3b).
-- **S3b — Layer 3 enforcement** (`done`, reviewed). Relay enforces resolved-tool disposition
-  (`resolveDisposition`: deny→refusal string before any execution, allow→run, ask/unset→headless
+- **S3b — Layer 3 enforcement** (`done`, reviewed). Relay enforces resolved-tool permission
+  (`resolvePermission`: deny→refusal string before any execution, allow→run, ask/unset→headless
   `permissionPolicy`); `permissionPolicy` threaded into `startToolRelay`, same resolver as the
   Claude-builtin responder. `claude-settings.ts` renders per-MCP-server `mcp__<server>` rules
   (name verified against `toAcpMcpServers`). Responder untouched (Claude builtins handled by S2
@@ -225,15 +225,15 @@ Smallest shippable, independently reviewable units. Each names its acceptance ch
   MCP-name both verified against downstream consumers).
 - **S4 — Playground form** (`done`, reviewed + fixed). New controls: `SandboxPermissionControl`
   (network mode/allowlist/filesystem/enforcement), `ClaudePermissionsControl` (mode +
-  allow/deny/ask, gated to Claude harness, collapsible advanced), per-tool `ToolDispositionControl`
+  allow/deny/ask, gated to Claude harness, collapsible advanced), per-tool `ToolPermissionControl`
   (allow/ask/deny). Persist under `data.parameters.agent.*` (`sandbox_permission`,
-  `harness_options.claude.permissions` preserving sibling slices, top-level tool `disposition`).
+  `harness_options.claude.permissions` preserving sibling slices, top-level tool `permission`).
   Non-destructive; lint + typecheck clean. Live browser check deferred to Phase 3.
-- **S4b — Layer 3 persistence fix** (`done`). Review caught that per-tool disposition was written
+- **S4b — Layer 3 persistence fix** (`done`). Review caught that per-tool permission was written
   into `agenta_metadata` (stripped on save) AND that the authored config layer didn't carry it.
-  Fixed end to end: `ToolConfigBase.disposition` (AliasChoices), `_copy_tool_metadata` +
+  Fixed end to end: `ToolConfigBase.permission` (AliasChoices), `_copy_tool_metadata` +
   `_apply_tool_metadata` + `platform/gateway.py` `CallbackToolSpec` (the gateway/playground path,
-  an extra miss) all carry it, FE writes top-level `disposition` (survives strip). Round-trip
+  an extra miss) all carry it, FE writes top-level `permission` (survives strip). Round-trip
   tests prove config dict → `ToolSpec.to_wire()` carries it (52 pass). Also fixed the `&#10;`
   placeholder cosmetic.
 - **S5 — Playground HITL parked/resume** (`done` core, live round-trip deferred). The HITL path
@@ -298,7 +298,7 @@ gh pr create --head feat/agent-capability-config --base main
 - 2026-06-23: Project created from `../../scratch/capability-architecture.md`. Design, plan,
   research, and status written. Scope extended to the playground frontend.
 - 2026-06-23: Confirmed `sandbox_permission` naming; folded `permission_policy` into Layer 3 as
-  its global default; placed per-tool dispositions on the tool spec and MCP permissions on the
+  its global default; placed per-tool permissions on the tool spec and MCP permissions on the
   MCP server spec.
 - 2026-06-23: Codex reviewed (verdict above). Verified two claims in code: `pi-acp@0.0.29`
   spawns `pi --mode rpc` with no `tools` field, and `relay.ts` runs gateway/callback tools
@@ -317,13 +317,13 @@ gh pr create --head feat/agent-capability-config --base main
   is code-correct but env-inconclusive (org blocks all egress); Claude behavioral refusal needs a
   project Anthropic key. Found + FIXED + live-verified a footgun: `backend:"pi"` (in-process engine)
   silently ignored all 3 layers; added `unenforceableCapabilityConfig` fail-loud guard in
-  `engines/pi.ts` (rejects restrictive sandbox_permission + deny/ask dispositions), 8 tests, live
+  `engines/pi.ts` (rejects restrictive sandbox_permission + deny/ask permissions), 8 tests, live
   rejection confirmed. 185 TS green. Note: `engines/pi.ts` is in the shared-files set (carries the
   guard); test `pi-capability-guard.test.ts` is new.
 - 2026-06-24: Landed Layers 1 + 3 + the playground (code-complete, reviewed). S2 (Claude
-  `.claude/settings.json`, reviewed), S3a (disposition plumbing), S3b (relay + MCP-rule
+  `.claude/settings.json`, reviewed), S3a (permission plumbing), S3b (relay + MCP-rule
   enforcement, reviewed), S4 (playground form, reviewed) + S4b (fixed the `agenta_metadata`-strip
-  + authored-config-layer gap so per-tool disposition persists end to end), S5 (HITL cross-turn
+  + authored-config-layer gap so per-tool permission persists end to end), S5 (HITL cross-turn
   responder core; multi-turn round-trip + relay HITL deferred to live verification / S5.2). Full
   suites green together: 293 SDK + 15 API + 10 services/oss + 177 TS, tsc + ruff clean. Corrected
   two stale research claims (FE `permission_mode` round-trip did not exist; Pi restriction is

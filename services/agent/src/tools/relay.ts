@@ -46,21 +46,21 @@ export function sanitizeRelayId(id: string): string {
 export const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Layer 3 enforcement (S3b): resolve a resolved-tool spec's `disposition` to a concrete
- * runner-side decision. `allow` runs, `deny` never runs; `ask` and an UNSET disposition
+ * Layer 3 enforcement (S3b): resolve a resolved-tool spec's `permission` to a concrete
+ * runner-side decision. `allow` runs, `deny` never runs; `ask` and an UNSET permission
  * degrade to the run's headless `permissionPolicy` (`auto` -> allow, `deny` -> deny).
  *
  * Resolved tools (code / gateway-callback) run runner-side via the relay, harness-agnostic, so
- * this is where their disposition is enforced (Claude builtins are enforced at Layer 1 via
+ * this is where their permission is enforced (Claude builtins are enforced at Layer 1 via
  * .claude/settings.json instead). Surfacing an `ask` to a live human is the cross-turn HITL
  * path (S5); here `ask` is a headless run, so it collapses onto the policy.
  */
-export function resolveDisposition(
-  disposition: string | undefined,
+export function resolvePermission(
+  permission: string | undefined,
   policy: PermissionPolicy,
 ): "allow" | "deny" {
-  if (disposition === "allow") return "allow";
-  if (disposition === "deny") return "deny";
+  if (permission === "allow") return "allow";
+  if (permission === "deny") return "deny";
   // `ask` or unset: headless, so defer to the run policy.
   // TODO(S5): surface ask to HITL instead of collapsing onto permissionPolicy.
   return policy === "deny" ? "deny" : "allow";
@@ -117,12 +117,12 @@ async function executeRelayedTool(
   callback: ToolCallbackContext | undefined,
   policy: PermissionPolicy,
 ): Promise<string> {
-  // Layer 3 enforcement (S3b): gate the call on the spec's disposition before it runs.
+  // Layer 3 enforcement (S3b): gate the call on the spec's permission before it runs.
   // `deny` returns a refusal string (not a throw) so the harness folds it into the tool
   // result and the model loop continues. `ask`/unset degrade to the headless policy.
-  const decision = resolveDisposition(spec.disposition, policy);
+  const decision = resolvePermission(spec.permission, policy);
   if (decision === "deny") {
-    if (spec.disposition === "deny") {
+    if (spec.permission === "deny") {
       return `Tool '${spec.name}' is denied by policy.`;
     }
     // ask/unset that the headless policy refused. TODO(S5): surface ask to HITL.
@@ -148,7 +148,7 @@ async function executeRelayedTool(
 
 /**
  * Runner-side relay loop. Polls the sandbox relay dir for request files, executes each
- * against Agenta's /tools/call (which the runner can reach), and writes the response file
+ * against the private spec in memory, and writes the response file
  * the in-sandbox extension is waiting on. Returns `stop()` to end the loop and drain any
  * in-flight executions; call it once the prompt resolves.
  */

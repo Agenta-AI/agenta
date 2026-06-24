@@ -20,7 +20,7 @@ Two latent gaps that the rest of the design assumes are closed.
   into the cwd, or an ACP session field — or conclude that Pi built-in restriction is unsupported
   over sandbox-agent. Read-only; record the finding in `research.md`.
 - **(S0a) Stop stripping Composio read/write hints.** Carry a `read_only` flag from the catalog
-  through to the resolved tool, so Phase 3 can default dispositions from it.
+  through to the resolved tool, so Phase 3 can default permissions from it.
   (`api/oss/src/core/tools/providers/composio/catalog.py`, `api/oss/src/core/tools/dtos.py`, the
   resolved `ToolSpec`.)
 
@@ -73,18 +73,18 @@ Acceptance: a Claude run with a settings.json `deny` rule does not call the deni
 
 ## Phase 3: Layer 3, tool permission (backend + runner)
 
-Per-tool disposition: always-allow / ask / deny.
+Per-tool permission: always-allow / ask / deny.
 
-- Carry the disposition on each tool's spec and each MCP server's spec. The frontend already
+- Carry the permission on each tool's spec and each MCP server's spec. The frontend already
   stores `agenta_metadata.permission_mode` on each tool; define its canonical values
   (always-allow/ask/deny) and serialize them. `permission_policy` stays as the global default.
   Add `read_only` to `ToolSpec` (Phase 0). (`dtos.py`, `tools/models.py`.)
 - Enforce resolved tools at the relay: deny refuses, ask parks, always-allow runs.
   (`services/agent/src/tools/relay.ts`.)
 - Enforce Claude builtins through the responder: pass the per-tool map to the responder, which
-  reads the tool name off the permission request and applies the disposition.
+  reads the tool name off the permission request and applies the permission.
   (`responder.ts`, `engines/sandbox_agent/permissions.ts`.)
-- Default the disposition from the `read_only` flag: read-only to always-allow, mutating to ask.
+- Default the permission from the `read_only` flag: read-only to always-allow, mutating to ask.
   The author overrides.
 
 Known risk handled in S1g (Phase 1), not here: resolved `code` **and** gateway/callback tools run
@@ -112,7 +112,7 @@ work is the controls and the gating.
   `mcp_servers` where not applicable), reading the harness-capabilities map from `/inspect`.
   (`AgentConfigControl.tsx`, `SchemaPropertyRenderer.tsx`.)
 
-Acceptance: an author sets a preset and a per-tool disposition in the playground, saves, and the
+Acceptance: an author sets a preset and a per-tool permission in the playground, saves, and the
 values persist on the variant config and reach the run.
 
 ## Phase 5: playground HITL approval surface (the "ask" path)
@@ -134,9 +134,9 @@ answer resolves the parked call end to end.
 
 ## Phase 6 (S6): tests and live verification
 
-**Unit / golden — DONE.** The settings.json builder, the relay disposition enforcement, the
-`resolveDisposition` table, the `HITLResponder`, the Composio `read_only` mapping, and the
-disposition default ladder are all unit-tested; the new wire fields cross the golden fixtures and
+**Unit / golden — DONE.** The settings.json builder, the relay permission enforcement, the
+`resolvePermission` table, the `HITLResponder`, the Composio `read_only` mapping, and the
+permission default ladder are all unit-tested; the new wire fields cross the golden fixtures and
 both contract tests. 293 SDK + 15 API + 10 services/oss + 177 TS pass.
 
 **Live — PENDING (needs a deployed stack).** The running dev stack is
@@ -156,12 +156,12 @@ checks reflect this branch. Run each check and record pass/fail here:
    (or `network:off` to derive it). Ask Claude to fetch a URL. Expect Claude NOT to call WebFetch.
    Confirm `<cwd>/.claude/settings.json` was written (sidecar logs / Daytona FS). Also verify a
    `defaultMode` takes effect.
-4. **L1 MCP `mcp__<server>` rule.** An MCP server with `disposition:"deny"` → confirm Claude cannot
-   call its tools; `disposition:"allow"` → confirm it runs without a prompt.
-5. **L3 per-tool deny / read-only default.** A gateway tool with `disposition:"deny"` → the relay
+4. **L1 MCP `mcp__<server>` rule.** An MCP server with `permission:"deny"` → confirm Claude cannot
+   call its tools; `permission:"allow"` → confirm it runs without a prompt.
+5. **L3 per-tool deny / read-only default.** A gateway tool with `permission:"deny"` → the relay
    refuses it (refusal string in the transcript, tool not executed). A read-only Composio tool with
-   no explicit disposition → defaults to allow (runs without a prompt). A mutating one → defaults to
-   ask. Verify the disposition survived the save (it is a TOP-LEVEL `disposition` key on the tool,
+   no explicit permission → defaults to allow (runs without a prompt). A mutating one → defaults to
+   ask. Verify the permission survived the save (it is a TOP-LEVEL `permission` key on the tool,
    not in `agenta_metadata`).
 6. **L3 HITL multi-turn round-trip (the deferred S5 unknown).** In the `/messages` playground chat,
    trigger an `ask` tool. Turn 1: expect a `tool-approval-request` to surface (approve/deny buttons)

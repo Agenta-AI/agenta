@@ -436,76 +436,76 @@ function defaultRenderProviderIcon(providerKey: string): React.ReactNode {
 }
 
 // ============================================================================
-// PER-TOOL DISPOSITION (Layer 3: allow / ask / deny)
+// PER-TOOL PERMISSION (Layer 3: allow / ask / deny)
 // ============================================================================
 
 /**
- * The tool-use disposition vocabulary. Stored as a TOP-LEVEL `disposition` key on the tool
+ * The tool-use permission vocabulary. Stored as a TOP-LEVEL `permission` key on the tool
  * object (not inside `agenta_metadata`, which `stripAgentaMetadataDeep` removes on every
  * save/run path). The SDK tool config/spec deserializes it with no mapping
- * (`AliasChoices("disposition", "permission_mode", "permissionMode")`). Unset means the tool
+ * (`AliasChoices("permission", "permission_mode", "permissionMode")`). Unset means the tool
  * inherits the global permission policy.
  */
-type ToolDisposition = "allow" | "ask" | "deny"
+type ToolPermission = "allow" | "ask" | "deny"
 
-const DISPOSITION_OPTIONS: {value: ToolDisposition; label: string}[] = [
+const PERMISSION_OPTIONS: {value: ToolPermission; label: string}[] = [
     {value: "allow", label: "Allow"},
     {value: "ask", label: "Ask"},
     {value: "deny", label: "Deny"},
 ]
 
 /**
- * Default the disposition from the tool's `read_only` metadata, when the catalog supplied it:
+ * Default the permission from the tool's `read_only` metadata, when the catalog supplied it:
  * `read_only === true` → allow (no side effect), `read_only === false` → ask, unknown → unset
  * (inherit the global policy). This is a display default only — it is not written back unless
  * the author changes it.
  */
-function defaultDispositionFromReadOnly(
+function defaultPermissionFromReadOnly(
     metadata: Record<string, unknown> | undefined,
-): ToolDisposition | undefined {
+): ToolPermission | undefined {
     const readOnly = metadata?.read_only
     if (readOnly === true) return "allow"
     if (readOnly === false) return "ask"
     return undefined
 }
 
-function isDisposition(value: unknown): value is ToolDisposition {
+function isPermission(value: unknown): value is ToolPermission {
     return value === "allow" || value === "ask" || value === "deny"
 }
 
 /**
- * Read the stored disposition. Canonical home is the TOP-LEVEL `disposition` key (it survives
+ * Read the stored permission. Canonical home is the TOP-LEVEL `permission` key (it survives
  * `stripAgentaMetadataDeep`); fall back to any legacy `agenta_metadata.permission_mode` so values
  * written before this change still display.
  */
-function readDisposition(
+function readPermission(
     topLevel: unknown,
     metadata: Record<string, unknown> | undefined,
-): ToolDisposition | undefined {
-    if (isDisposition(topLevel)) return topLevel
-    if (isDisposition(metadata?.permission_mode)) return metadata.permission_mode
+): ToolPermission | undefined {
+    if (isPermission(topLevel)) return topLevel
+    if (isPermission(metadata?.permission_mode)) return metadata.permission_mode
     return undefined
 }
 
-interface ToolDispositionControlProps {
-    /** The current top-level `disposition` value on the tool (canonical store). */
-    disposition: unknown
+interface ToolPermissionControlProps {
+    /** The current top-level `permission` value on the tool (canonical store). */
+    permission: unknown
     /** The current `agenta_metadata` of the tool (read for the read_only default + legacy mode). */
     metadata: Record<string, unknown> | undefined
-    /** Called with the chosen disposition (or null to clear back to the global policy). */
-    onChange: (disposition: ToolDisposition | null) => void
+    /** Called with the chosen permission (or null to clear back to the global policy). */
+    onChange: (permission: ToolPermission | null) => void
     disabled?: boolean
 }
 
 /** Compact allow/ask/deny selector for one tool. Displays the read_only-derived default unwritten. */
-function ToolDispositionControl({
-    disposition,
+function ToolPermissionControl({
+    permission,
     metadata,
     onChange,
     disabled,
-}: ToolDispositionControlProps) {
-    const stored = readDisposition(disposition, metadata)
-    const displayDefault = defaultDispositionFromReadOnly(metadata)
+}: ToolPermissionControlProps) {
+    const stored = readPermission(permission, metadata)
+    const displayDefault = defaultPermissionFromReadOnly(metadata)
     return (
         <div className="flex items-center gap-2 px-1 py-0.5">
             <Tooltip title="How tool-use is gated: allow auto-approves, ask prompts, deny blocks. Unset inherits the global permission policy.">
@@ -513,10 +513,10 @@ function ToolDispositionControl({
                     Permission
                 </Typography.Text>
             </Tooltip>
-            <Select<ToolDisposition>
+            <Select<ToolPermission>
                 value={stored ?? undefined}
                 onChange={(v) => onChange(v ?? null)}
-                options={DISPOSITION_OPTIONS}
+                options={PERMISSION_OPTIONS}
                 disabled={disabled}
                 placeholder={displayDefault ? `${displayDefault} (default)` : "Inherit policy"}
                 allowClear
@@ -592,7 +592,7 @@ export const ToolItemControl = memo(function ToolItemControl({
         [onChange, agentaMetadata],
     )
 
-    // The current `agenta_metadata` as an object (read for the disposition control's read_only
+    // The current `agenta_metadata` as an object (read for the permission control's read_only
     // default and any legacy `permission_mode`).
     const metadataObj = useMemo(
         () =>
@@ -602,26 +602,41 @@ export const ToolItemControl = memo(function ToolItemControl({
         [agentaMetadata],
     )
 
-    // The current top-level `disposition` on the tool (canonical store, survives metadata strip).
-    const topLevelDisposition = useMemo(
+    const {
+        toolObj,
+        editorText,
+        editorValid: _editorValid,
+        onEditorChange,
+    } = useToolState(cleanedValue, isReadOnly, handleChange)
+
+    // The current top-level `permission` on the tool (canonical store, survives metadata strip).
+    // Read off the LIVE editor object (`toolObj`), not the `cleanedValue` prop: the JSON editor
+    // mutates `toolObj` inside `useToolState` and only propagates to the parent (and back into
+    // `value`/`cleanedValue`) asynchronously, so the prop lags in-flight edits.
+    const topLevelPermission = useMemo(
         () =>
-            cleanedValue && typeof cleanedValue === "object" && !Array.isArray(cleanedValue)
-                ? (cleanedValue as Record<string, unknown>).disposition
+            toolObj && typeof toolObj === "object" && !Array.isArray(toolObj)
+                ? (toolObj as Record<string, unknown>).permission
                 : undefined,
-        [cleanedValue],
+        [toolObj],
     )
 
-    // Set (or clear) the TOP-LEVEL `disposition` key on this tool, leaving the rest of the tool
+    // Set (or clear) the TOP-LEVEL `permission` key on this tool, leaving the rest of the tool
     // definition intact. It lives at the top level (not inside `agenta_metadata`) so it survives
     // `stripAgentaMetadataDeep` on the save/run path. Clearing removes the key (and any legacy
     // `agenta_metadata.permission_mode`) so the tool falls back to the global policy.
-    const handleDispositionChange = useCallback(
-        (disposition: "allow" | "ask" | "deny" | null) => {
+    //
+    // Compose off the LIVE editor object (`toolObj`), the same source `handleChange` propagates
+    // through `useToolState`, so a permission change merges with in-flight JSON edits instead of
+    // clobbering them with the stale `cleanedValue` prop.
+    const handlePermissionChange = useCallback(
+        (permission: "allow" | "ask" | "deny" | null) => {
             if (!onChange) return
-            const base = (
-                cleanedValue && typeof cleanedValue === "object" ? cleanedValue : {}
-            ) as Record<string, unknown>
-            const {disposition: _dropDisposition, ...restBase} = base
+            const base = (toolObj && typeof toolObj === "object" ? toolObj : {}) as Record<
+                string,
+                unknown
+            >
+            const {permission: _dropPermission, ...restBase} = base
             // Drop any legacy `permission_mode` stored inside `agenta_metadata`; the top-level key
             // is now canonical.
             const {permission_mode: _dropLegacy, ...restMeta} = metadataObj ?? {}
@@ -629,18 +644,11 @@ export const ToolItemControl = memo(function ToolItemControl({
                 Object.keys(restMeta).length > 0
                     ? {...restBase, agenta_metadata: restMeta}
                     : restBase
-            const merged = disposition ? {...withMeta, disposition} : withMeta
+            const merged = permission ? {...withMeta, permission} : withMeta
             onChange(merged as ToolObj)
         },
-        [onChange, metadataObj, cleanedValue],
+        [onChange, metadataObj, toolObj],
     )
-
-    const {
-        toolObj,
-        editorText,
-        editorValid: _editorValid,
-        onEditorChange,
-    } = useToolState(cleanedValue, isReadOnly, handleChange)
 
     const functionName =
         (toolObj as Record<string, unknown>)?.function &&
@@ -797,10 +805,10 @@ export const ToolItemControl = memo(function ToolItemControl({
                             onChange={(e) => onEditorChange(e.target.value)}
                             readOnly={isReadOnly}
                         />
-                        <ToolDispositionControl
-                            disposition={topLevelDisposition}
+                        <ToolPermissionControl
+                            permission={topLevelPermission}
                             metadata={metadataObj}
-                            onChange={handleDispositionChange}
+                            onChange={handlePermissionChange}
                             disabled={isReadOnly}
                         />
                     </>
@@ -871,10 +879,10 @@ export const ToolItemControl = memo(function ToolItemControl({
                 }
             />
             {!minimized && (
-                <ToolDispositionControl
-                    disposition={topLevelDisposition}
+                <ToolPermissionControl
+                    permission={topLevelPermission}
                     metadata={metadataObj}
-                    onChange={handleDispositionChange}
+                    onChange={handlePermissionChange}
                     disabled={isReadOnly}
                 />
             )}

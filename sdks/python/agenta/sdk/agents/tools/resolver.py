@@ -40,7 +40,7 @@ def _apply_tool_metadata(tool_spec: ToolSpec, tool_config: ToolConfig) -> ToolSp
         update={
             "needs_approval": tool_config.needs_approval,
             "render": tool_config.render,
-            "disposition": tool_config.disposition,
+            "permission": tool_config.permission,
         }
     )
 

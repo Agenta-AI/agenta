@@ -27,7 +27,7 @@ permission a real, configurable, end-to-end feature.
 1. A three-layer configuration model the author can set: harness configuration, sandbox
    permission, and per-tool permission. Each layer has one job and one enforcement point.
 2. End to end. The playground frontend is in scope: the config form gains the new sections, and
-   the agent chat gains a tool-approval surface for the "ask" disposition.
+   the agent chat gains a tool-approval surface for the "ask" permission.
 3. Honest enforcement. The sandbox layer is authoritative for the network and the filesystem. A
    run fails loud when a backend cannot deliver a requested guarantee, rather than pretending.
 4. Sensible defaults. Read-only tools default to always-allow and mutating tools to ask, using
@@ -40,7 +40,7 @@ permission a real, configurable, end-to-end feature.
 - **A real filesystem jail.** No backend confines the filesystem today; the local cwd is a temp
   dir, not a jail. Layer 2 ships network first; filesystem stays tool-plane only until a backend
   can enforce it.
-- **Durable / unattended HITL approval.** The "ask" disposition this project ships asks the user
+- **Durable / unattended HITL approval.** The "ask" permission this project ships asks the user
   in the open chat. The global, durable approval channel that survives a closed tab or a
   scheduled run is Flow 7 in `../../scratch/flows-and-capabilities.md`, a later milestone.
 - **A sandbox boundary for the local backend.** The local sidecar is the host; it cannot enforce
