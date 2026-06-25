@@ -38,7 +38,16 @@ export function attachPermissionResponder({
       .onPermission({ id, availableReplies, raw: req })
       .then((decision) => {
         if (!req?.id) return;
-        return session.respondPermission(req.id, decisionToReply(decision, availableReplies) as any);
+        // PARK (cross-turn HITL): send NO reply. The `interaction_request` above is the last
+        // word on this tool call; the harness ends the turn with the tool PENDING and the next
+        // turn's stored decision resolves it. Replying `reject` here would make Claude emit a
+        // failed tool call ("User refused permission") that clobbers the approval prompt on the
+        // same tool-call id (F-024) — do NOT map park onto a reply.
+        if (decision === "park") return;
+        return session.respondPermission(
+          req.id,
+          decisionToReply(decision, availableReplies) as any,
+        );
       })
       .catch(() => {});
   });

@@ -51,6 +51,7 @@ import {
   assertRequiredCapabilities,
   probeCapabilities,
 } from "./sandbox_agent/capabilities.ts";
+import { createAcpFetch } from "./sandbox_agent/acp-fetch.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./sandbox_agent/daemon.ts";
 import {
   createCookieFetch,
@@ -139,6 +140,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   resolveDaemonBinary?: typeof resolveDaemonBinary;
   buildSandboxProvider?: typeof buildSandboxProvider;
   createCookieFetch?: typeof createCookieFetch;
+  createAcpFetch?: typeof createAcpFetch;
   prepareWorkspace?: typeof prepareWorkspace;
   probeCapabilities?: typeof probeCapabilities;
   applyModel?: typeof applyModel;
@@ -235,11 +237,14 @@ export async function runSandboxAgent(
       // Propagate caller cancellation (a client disconnect on the streaming HTTP edge) so an
       // in-flight run aborts instead of finishing unobserved. The `finally` still disposes.
       ...(signal ? { signal } : {}),
-      // Daytona's preview proxy authenticates with a per-sandbox cookie; carry it across
-      // requests so ACP calls after the first don't 401. Harmless for local.
-      ...(plan.isDaytona
-        ? { fetch: (deps.createCookieFetch ?? createCookieFetch)() }
-        : {}),
+      // Drive the ACP HTTP client through a long-timeout undici dispatcher so a parked HITL
+      // turn (the connection held open while a human approves a tool) is NOT reaped by
+      // undici's default `headersTimeout` (which would kill it with UND_ERR_HEADERS_TIMEOUT).
+      // Daytona additionally needs the per-sandbox auth cookie carried across requests, so it
+      // uses the cookie fetch — which itself layers on the same long-timeout ACP dispatcher.
+      fetch: plan.isDaytona
+        ? (deps.createCookieFetch ?? createCookieFetch)()
+        : (deps.createAcpFetch ?? createAcpFetch)(),
     });
 
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote

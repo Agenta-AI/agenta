@@ -11,6 +11,7 @@ import {
   resolvePromptText,
 } from "../../protocol.ts";
 import { executableToolSpecs } from "../../tools/public-spec.ts";
+import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "../../tools/code.ts";
 import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../tools/mcp-bridge.ts";
 import {
   type MaterializedSkill,
@@ -118,6 +119,15 @@ function hasStdioMcpServer(servers: McpServerConfig[] | undefined): boolean {
   );
 }
 
+/**
+ * True when any resolved tool is a `code` tool. Code execution was removed for security
+ * (F-010); the sidecar must refuse a run that carries one rather than advertise it and then
+ * launder a per-call rejection into a "successful" reply (F-016).
+ */
+function hasCodeTool(specs: ResolvedToolSpec[]): boolean {
+  return specs.some((spec) => spec.kind === "code");
+}
+
 function defaultLocalCwd(): string {
   return mkdtempSync(join(tmpdir(), "agenta-sandbox-agent-"));
 }
@@ -190,6 +200,16 @@ export function buildRunPlan(
   const networkRestricted = !!network && (network.mode ?? "on") !== "on";
   if (networkRestricted && !isDaytona) {
     return { ok: false, error: LOCAL_NETWORK_UNSUPPORTED_MESSAGE };
+  }
+
+  // Code tools were removed (F-010 security): the sidecar no longer executes author-supplied
+  // snippets. `runCodeTool` throws per-call, but a per-call throw becomes a tool RESULT the
+  // model launders into an `ok:true` reply ("Code tools are not supported by the sidecar."),
+  // so a removed capability reads as a SUCCESS at the response envelope (F-016). Fail loud
+  // up-front instead: refuse any run that carries a `code` tool, the way stdio MCP is gated.
+  // Keep the wire shape; the delivery is not supported.
+  if (hasCodeTool(toolSpecs)) {
+    return { ok: false, error: CODE_TOOL_UNSUPPORTED_MESSAGE };
   }
 
   // stdio MCP servers run as arbitrary processes on the RUNNER HOST, outside the sandbox

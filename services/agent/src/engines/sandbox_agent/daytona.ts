@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { createAcpFetch } from "./acp-fetch.ts";
 import {
   uploadPiExtensionToSandbox,
   uploadSkillsToSandbox,
@@ -156,8 +157,11 @@ export async function prepareDaytonaPiAssets({
  * `daytona-sandbox-auth-*` cookie set on the first response; Node's fetch keeps no cookie
  * jar, so without this the proxy rejects later ACP requests with "Authentication
  * required" / 502. The sandbox-agent SDK accepts a custom fetch, so we hand it this one.
+ *
+ * It layers on {@link createAcpFetch} (the long-timeout ACP dispatcher) so a parked HITL turn
+ * over Daytona is not reaped by undici's default `headersTimeout` either.
  */
-export function createCookieFetch(): typeof fetch {
+export function createCookieFetch(inner: typeof fetch = createAcpFetch()): typeof fetch {
   const jar = new Map<string, Map<string, string>>(); // host -> (name -> "name=value")
   return async (input: any, init?: any) => {
     const url = new URL(typeof input === "string" ? input : input.url);
@@ -170,7 +174,7 @@ export function createCookieFetch(): typeof fetch {
       if (existing) merged.unshift(existing);
       headers.set("cookie", merged.join("; "));
     }
-    const response = await fetch(input, { ...init, headers });
+    const response = await inner(input, { ...init, headers });
     const setCookies =
       typeof (response.headers as any).getSetCookie === "function"
         ? (response.headers as any).getSetCookie()

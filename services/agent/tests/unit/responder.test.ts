@@ -108,10 +108,16 @@ describe("HITLResponder", () => {
     );
   });
 
-  it("parks (deny) when there is a human surface and no stored decision", async () => {
+  it("parks when there is a human surface and no stored decision (NOT deny)", async () => {
     // `basePolicy` is "auto" so this proves the park overrides the policy, not the policy.
+    // Park must NOT be `deny`: replying `reject` to Claude clobbers the approval prompt (F-024).
     const responder = new HITLResponder(new Map(), "auto", true);
-    assert.equal(await responder.onPermission(permReq("tc-x", "edit")), "deny");
+    assert.equal(await responder.onPermission(permReq("tc-x", "edit")), "park");
+
+    // A deny basePolicy must still PARK (the human surface wins): a human can decide, so the
+    // turn ends pending rather than refusing the tool with a clobbering reject.
+    const denyBase = new HITLResponder(new Map(), "deny", true);
+    assert.equal(await denyBase.onPermission(permReq("tc-w", "edit")), "park");
   });
 
   it("headless: no decision + no human surface falls back to basePolicy (PolicyResponder parity)", async () => {

@@ -268,6 +268,54 @@ describe("buildRunPlan", () => {
     assert.match(result.error, /MCP servers are not supported by the sidecar/);
   });
 
+  it("errors on any run carrying a code tool (code execution removed, fail loud)", () => {
+    // Code tools were removed for security (F-010). The run is refused up-front so the failure
+    // surfaces as a non-success result (ok:false) rather than being laundered into a 200 reply
+    // (F-016: a per-call throw becomes a tool result the model echoes back as "success").
+    let created = false;
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        sandbox: "local",
+        prompt: "compute it",
+        customTools: [
+          {
+            name: "secret_math",
+            kind: "code",
+            runtime: "python",
+            code: "def main(x=0):\n    return x * 7 + 1\n",
+          },
+        ],
+      } as AgentRunRequest,
+      {
+        createLocalCwd: () => {
+          created = true;
+          return "/tmp/local-cwd";
+        },
+      },
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /Code tools are not supported by the sidecar\./);
+    // Fails before any cwd is created (parity with the other up-front gates).
+    assert.equal(created, false);
+  });
+
+  it("allows a run with a non-code (callback) tool", () => {
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        sandbox: "local",
+        prompt: "do it",
+        customTools: [{ name: "server_tool", kind: "callback" }],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+  });
+
   it("allows a strict restricted-network Daytona run with only a remote MCP server", () => {
     const result = buildRunPlan(
       {

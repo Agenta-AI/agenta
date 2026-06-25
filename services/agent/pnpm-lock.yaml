@@ -41,6 +41,9 @@ importers:
       sandbox-agent:
         specifier: 0.4.2
         version: 0.4.2(@daytonaio/sdk@0.187.0(ws@8.21.0))(zod@4.4.3)
+      undici:
+        specifier: 8.3.0
+        version: 8.3.0
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

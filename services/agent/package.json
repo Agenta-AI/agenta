@@ -28,7 +28,8 @@
     "@opentelemetry/semantic-conventions": "1.28.0",
     "@zed-industries/claude-agent-acp": "^0.23.1",
     "pi-acp": "0.0.29",
-    "sandbox-agent": "0.4.2"
+    "sandbox-agent": "0.4.2",
+    "undici": "8.3.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
