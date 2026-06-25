@@ -2836,9 +2836,14 @@ async def get_org_details(organization) -> dict:
     is_demo = organization.flags.get("is_demo", False) if organization.flags else False
 
     default_workspace_db = await get_org_default_workspace(organization)
-    default_workspace = (
+    default_workspace_obj = (
         await get_workspace_details(default_workspace_db, include_members=not is_demo)
         if default_workspace_db is not None
+        else None
+    )
+    default_workspace = (
+        default_workspace_obj.model_dump(mode="json")
+        if default_workspace_obj is not None
         else None
     )
     workspaces = await get_organization_workspaces(organization_id=str(organization.id))
