@@ -3,7 +3,7 @@ import uuid
 import json
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 from fastapi import HTTPException
 from sqlalchemy.future import select
@@ -51,7 +51,16 @@ from oss.src.models.db_models import (
 )
 from oss.src.dbs.postgres.webhooks.dbes import WebhookSubscriptionDBE
 from oss.src.models.api.workspace_models import UserRole
-from oss.src.core.access.permissions.types import DefaultRole
+from oss.src.core.access.permissions.types import (
+    DefaultRole,
+    Permission,
+    RequiredRole,
+)
+from oss.src.core.access.controls import (
+    get_roles,
+    get_role_description,
+    get_role_permissions,
+)
 from oss.src.core.testcases.dtos import Testcase
 from oss.src.core.testsets.dtos import (
     TestsetRevisionData,
@@ -2544,3 +2553,875 @@ async def get_user_org_and_workspace_id(
             "workspace_ids": workspaces_ids,
             "organization_ids": organization_ids,
         }
+
+
+# ---------------------------------------------------------------------------
+# Organization / workspace helpers (moved from ee/services/db_manager_ee.py)
+# ---------------------------------------------------------------------------
+
+
+async def get_organizations_by_list_ids(organization_ids: List) -> List[OrganizationDB]:
+    """Retrieve organizations from the database by their IDs."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        organization_uuids = [
+            uuid.UUID(organization_id) for organization_id in organization_ids
+        ]
+        query = select(OrganizationDB).where(OrganizationDB.id.in_(organization_uuids))
+        result = await session.execute(query)
+        organizations = result.scalars().all()
+        return organizations
+
+
+async def count_organization_members(organization_id: str) -> int:
+    """Count the number of members in an organization."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(func.count(OrganizationMemberDB.id)).where(
+                OrganizationMemberDB.organization_id == uuid.UUID(organization_id)
+            )
+        )
+        return result.scalar() or 0
+
+
+async def get_organization_workspaces(organization_id: str):
+    """Retrieve workspaces belonging to an organization."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(WorkspaceDB)
+            .filter_by(organization_id=uuid.UUID(organization_id))
+            .options(  # type: ignore
+                load_only(WorkspaceDB.id, WorkspaceDB.organization_id)
+            )
+        )
+        workspaces = result.scalars().all()
+        return workspaces
+
+
+async def get_workspace_administrators(workspace: WorkspaceDB) -> List[UserDB]:
+    """Retrieve the administrators (ADMIN or OWNER role) of a workspace."""
+
+    members = await get_workspace_members(workspace_id=str(workspace.id))
+
+    admin_user_ids = [
+        str(member.user_id)
+        for member in members
+        if member.role in (RequiredRole.ADMIN, RequiredRole.OWNER)
+    ]
+
+    administrators: List[UserDB] = []
+    for user_id in admin_user_ids:
+        user = await get_user_with_id(user_id=user_id)
+        if user:
+            administrators.append(user)
+
+    return administrators
+
+
+async def create_project(
+    project_name: str,
+    workspace_id: str,
+    organization_id: str,
+    session: AsyncSession,
+    *,
+    is_default: bool = False,
+) -> ProjectDB:
+    """Create a new project."""
+
+    project_db = ProjectDB(
+        project_name=project_name,
+        is_default=is_default,
+        organization_id=uuid.UUID(organization_id),
+        workspace_id=uuid.UUID(workspace_id),
+    )
+
+    session.add(project_db)
+
+    await session.commit()
+
+    log.info(
+        "[scopes] project created",
+        organization_id=organization_id,
+        workspace_id=workspace_id,
+        project_id=project_db.id,
+    )
+
+    return project_db
+
+
+async def create_default_project(
+    organization_id: str, workspace_id: str, session: AsyncSession
+) -> ProjectDB:
+    """Create a default project for an organization."""
+
+    project_db = await create_project(
+        "Default",
+        workspace_id=workspace_id,
+        organization_id=organization_id,
+        session=session,
+        is_default=True,
+    )
+    return project_db
+
+
+async def get_default_workspace_id_from_organization(
+    organization_id: str,
+) -> str:
+    """Get the default (first) workspace ID belonging to an organization."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        workspace_query = await session.execute(
+            select(WorkspaceDB)
+            .where(
+                WorkspaceDB.organization_id == uuid.UUID(organization_id),
+            )
+            .options(load_only(WorkspaceDB.id))
+        )
+        workspace = workspace_query.scalars().first()
+        if workspace is None:
+            raise NoResultFound(
+                f"No default workspace for the provided organization_id {organization_id} found"
+            )
+        return str(workspace.id)
+
+
+async def create_project_member(
+    user_id: str, project_id: str, role: str, session: AsyncSession
+) -> None:
+    """Create a new project member."""
+
+    project = await fetch_project_by_id(project_id=project_id)
+
+    if not project:
+        raise Exception(f"No project found with ID {project_id}")
+
+    project_member = ProjectMemberDB(
+        user_id=uuid.UUID(user_id),
+        project_id=uuid.UUID(project_id),
+        role=role,
+    )
+
+    session.add(project_member)
+
+    await session.commit()
+
+    log.info(
+        "[scopes] project membership created",
+        organization_id=project.organization_id,
+        workspace_id=project.workspace_id,
+        project_id=project_id,
+        user_id=user_id,
+        membership_id=project_member.id,
+    )
+
+
+async def create_workspace_db_object(
+    session: AsyncSession,
+    payload,
+    organization: OrganizationDB,
+    user: UserDB,
+    return_wrk_prj: bool = False,
+):
+    """Create a new workspace with its owner membership, default project, and seeds."""
+
+    workspace = WorkspaceDB(
+        name=payload.name,
+        type=payload.type if payload.type else "",
+        description=payload.description if payload.description else "",
+        organization_id=organization.id,
+    )
+
+    session.add(workspace)
+
+    await session.commit()
+
+    log.info(
+        "[scopes] workspace created",
+        organization_id=organization.id,
+        workspace_id=workspace.id,
+    )
+
+    workspace_member = WorkspaceMemberDB(
+        user_id=user.id,
+        workspace_id=workspace.id,
+        role="owner",
+    )
+
+    session.add(workspace_member)
+
+    await session.commit()
+    await session.refresh(workspace, attribute_names=["organization"])
+
+    log.info(
+        "[scopes] workspace membership created",
+        organization_id=workspace.organization_id,
+        workspace_id=workspace.id,
+        user_id=user.id,
+        membership_id=workspace_member.id,
+    )
+
+    project_db = await create_default_project(
+        organization_id=str(organization.id),
+        workspace_id=str(workspace.id),
+        session=session,
+    )
+
+    await create_project_member(
+        user_id=str(user.id),
+        project_id=str(project_db.id),
+        role=workspace_member.role,
+        session=session,
+    )
+
+    await add_default_simple_testsets(
+        project_id=str(project_db.id),
+        user_id=str(user.id),
+    )
+
+    from oss.src.core.evaluators.defaults import create_default_evaluators
+    from oss.src.core.environments.defaults import create_default_environments
+
+    await create_default_evaluators(
+        project_id=project_db.id,
+        user_id=user.id,
+    )
+    await create_default_environments(
+        project_id=project_db.id,
+        user_id=user.id,
+    )
+
+    if return_wrk_prj:
+        return workspace, project_db
+
+    return workspace
+
+
+async def create_workspace_with_defaults(payload, organization_id: str, user_uid: str):
+    """Create a new workspace (rich form, with owner/project/seeds).
+
+    Renamed from the EE `create_workspace` to avoid colliding with the OSS
+    `create_workspace(name, organization_id)` helper.
+    """
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        user_result = await session.execute(select(UserDB).filter_by(uid=user_uid))
+        user = user_result.scalars().first()
+
+        organization_result = await session.execute(
+            select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
+        )
+        organization = organization_result.scalars().first()
+
+        workspace_db = await create_workspace_db_object(
+            session, payload, organization, user
+        )
+
+        return await get_workspace_in_format(workspace_db)
+
+
+async def update_workspace(payload, workspace: WorkspaceDB):
+    """Update a workspace's details."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(select(WorkspaceDB).filter_by(id=workspace.id))
+        workspace = result.scalars().first()
+
+        if not workspace:
+            raise NoResultFound(f"Workspace with id {str(workspace.id)} not found")
+
+        for key, value in payload.dict(exclude_unset=True).items():
+            if hasattr(workspace, key):
+                setattr(workspace, key, value)
+
+        await session.commit()
+        await session.refresh(workspace)
+
+        return await get_workspace_in_format(workspace)
+
+
+async def mark_invitation_as_used(
+    project_id: str, user_id: str, invitation: InvitationDB
+) -> bool:
+    """Mark an invitation as used."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(InvitationDB).filter_by(
+                project_id=uuid.UUID(project_id), token=invitation.token
+            )
+        )
+        organization_invitation = result.scalars().first()
+        if not organization_invitation:
+            return False
+
+        organization_invitation.used = True
+        organization_invitation.user_id = uuid.UUID(user_id)
+
+        await session.commit()
+        return True
+
+
+async def get_org_details(organization) -> dict:
+    """Retrieve details of an organization (with default workspace + members)."""
+
+    is_demo = organization.flags.get("is_demo", False) if organization.flags else False
+
+    default_workspace_db = await get_org_default_workspace(organization)
+    default_workspace = (
+        await get_workspace_details(default_workspace_db, include_members=not is_demo)
+        if default_workspace_db is not None
+        else None
+    )
+    workspaces = await get_organization_workspaces(organization_id=str(organization.id))
+
+    sample_organization = {
+        "id": str(organization.id),
+        "slug": organization.slug,
+        "name": organization.name,
+        "description": organization.description,
+        "flags": organization.flags,
+        "tags": organization.tags,
+        "meta": organization.meta,
+        "owner_id": str(organization.owner_id),
+        "workspaces": [str(workspace.id) for workspace in workspaces],
+        "default_workspace": default_workspace,
+    }
+    return sample_organization
+
+
+async def get_workspace_details(workspace: WorkspaceDB, include_members: bool = True):
+    """Retrieve details of a workspace in the WorkspaceResponse format."""
+
+    return await get_workspace_in_format(workspace, include_members=include_members)
+
+
+async def get_project_invitations_filtered(project_id: str, **kwargs):
+    """Get project invitations, optionally filtered to pending ones."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        stmt = select(InvitationDB).filter(
+            InvitationDB.project_id == uuid.UUID(project_id)
+        )
+        if kwargs.get("has_pending", False):
+            stmt = stmt.filter(InvitationDB.used == kwargs["invitation_used"])
+
+        result = await session.execute(stmt)
+        invitations = result.scalars().all()
+        return invitations
+
+
+async def get_all_pending_invitations(email: str):
+    """Get all pending invitations for a given email."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(InvitationDB).filter(
+                InvitationDB.email == email,
+                InvitationDB.used == False,  # noqa: E712
+            )
+        )
+        invitations = result.scalars().all()
+        return invitations
+
+
+async def get_project_invitation(
+    project_id: str, token: str, email: str
+) -> InvitationDB:
+    """Get project invitation by project ID, token and email."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(InvitationDB).filter_by(
+                project_id=uuid.UUID(project_id), token=token, email=email
+            )
+        )
+        invitation = result.scalars().first()
+        return invitation
+
+
+async def create_org_workspace_invitation(
+    workspace_role: str,
+    token: str,
+    email: str,
+    project_id: str,
+    expiration_date,
+) -> InvitationDB:
+    """Create an organization/workspace invitation."""
+
+    user = await get_user_with_email(email=email)
+
+    user_id = None
+    if user:
+        user_id = user.id
+
+    project = await fetch_project_by_id(project_id=project_id)
+
+    if not project:
+        raise Exception(f"No project found with ID {project_id}")
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        invitation = InvitationDB(
+            token=token,
+            email=email,
+            project_id=uuid.UUID(project_id),
+            expiration_date=expiration_date,
+            role=workspace_role,
+            used=False,
+        )
+
+        session.add(invitation)
+
+        log.info(
+            "[scopes] invitation created",
+            organization_id=project.organization_id,
+            workspace_id=project.workspace_id,
+            project_id=project_id,
+            user_id=user_id,
+            invitation_id=invitation.id,
+        )
+
+        await session.commit()
+
+        return invitation
+
+
+async def get_all_workspace_roles() -> List[dict]:
+    """Return the effective workspace role catalog."""
+    return get_roles("workspace")
+
+
+# ---------------------------------------------------------------------------
+# Platform Admin helpers
+# ---------------------------------------------------------------------------
+
+
+async def admin_delete_org_membership(membership_id: uuid.UUID) -> bool:
+    """Delete an org membership by ID. Returns False if not found."""
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(OrganizationMemberDB).filter_by(id=membership_id)
+        )
+        membership = result.scalars().first()
+        if not membership:
+            return False
+        await session.delete(membership)
+        await session.commit()
+        return True
+
+
+async def admin_delete_workspace_membership(membership_id: uuid.UUID) -> bool:
+    """Delete a workspace membership by ID. Returns False if not found."""
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(WorkspaceMemberDB).filter_by(id=membership_id)
+        )
+        membership = result.scalars().first()
+        if not membership:
+            return False
+        await session.delete(membership)
+        await session.commit()
+        return True
+
+
+async def admin_delete_project_membership(membership_id: uuid.UUID) -> bool:
+    """Delete a project membership by ID. Returns False if not found."""
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(ProjectMemberDB).filter_by(id=membership_id)
+        )
+        membership = result.scalars().first()
+        if not membership:
+            return False
+        await session.delete(membership)
+        await session.commit()
+        return True
+
+
+async def admin_get_member_org_ids(
+    user_id: uuid.UUID,
+    org_ids: List[uuid.UUID],
+) -> Set[uuid.UUID]:
+    """Return the subset of org_ids where the user has a membership row."""
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        rows = (
+            (
+                await session.execute(
+                    select(OrganizationMemberDB.organization_id).where(
+                        OrganizationMemberDB.user_id == user_id,
+                        OrganizationMemberDB.organization_id.in_(org_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return set(rows)
+
+
+async def admin_swap_org_memberships(
+    org_ids: List[uuid.UUID],
+    source_id: uuid.UUID,
+    target_id: uuid.UUID,
+) -> None:
+    """Swap org membership roles between source and target."""
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        source_rows = (
+            (
+                await session.execute(
+                    select(OrganizationMemberDB).where(
+                        OrganizationMemberDB.user_id == source_id,
+                        OrganizationMemberDB.organization_id.in_(org_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        target_rows = (
+            (
+                await session.execute(
+                    select(OrganizationMemberDB).where(
+                        OrganizationMemberDB.user_id == target_id,
+                        OrganizationMemberDB.organization_id.in_(org_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        source_by_org = {row.organization_id: row.role for row in source_rows}
+        target_by_org = {row.organization_id: row.role for row in target_rows}
+
+        for org_id in set(source_by_org) & set(target_by_org):
+            await session.execute(
+                update(OrganizationMemberDB)
+                .where(
+                    OrganizationMemberDB.user_id == target_id,
+                    OrganizationMemberDB.organization_id == org_id,
+                )
+                .values(role=source_by_org[org_id])
+            )
+            await session.execute(
+                update(OrganizationMemberDB)
+                .where(
+                    OrganizationMemberDB.user_id == source_id,
+                    OrganizationMemberDB.organization_id == org_id,
+                )
+                .values(role=target_by_org[org_id])
+            )
+
+        await session.commit()
+
+
+async def admin_swap_workspace_memberships(
+    workspace_ids: List[uuid.UUID],
+    source_id: uuid.UUID,
+    target_id: uuid.UUID,
+) -> None:
+    """Swap workspace membership roles between source and target."""
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        source_rows = (
+            (
+                await session.execute(
+                    select(WorkspaceMemberDB).where(
+                        WorkspaceMemberDB.user_id == source_id,
+                        WorkspaceMemberDB.workspace_id.in_(workspace_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        target_rows = (
+            (
+                await session.execute(
+                    select(WorkspaceMemberDB).where(
+                        WorkspaceMemberDB.user_id == target_id,
+                        WorkspaceMemberDB.workspace_id.in_(workspace_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        source_by_ws = {row.workspace_id: row.role for row in source_rows}
+        target_by_ws = {row.workspace_id: row.role for row in target_rows}
+
+        for ws_id in set(source_by_ws) & set(target_by_ws):
+            await session.execute(
+                update(WorkspaceMemberDB)
+                .where(
+                    WorkspaceMemberDB.user_id == target_id,
+                    WorkspaceMemberDB.workspace_id == ws_id,
+                )
+                .values(role=source_by_ws[ws_id])
+            )
+            await session.execute(
+                update(WorkspaceMemberDB)
+                .where(
+                    WorkspaceMemberDB.user_id == source_id,
+                    WorkspaceMemberDB.workspace_id == ws_id,
+                )
+                .values(role=target_by_ws[ws_id])
+            )
+
+        await session.commit()
+
+
+async def admin_swap_project_memberships(
+    project_ids: List[uuid.UUID],
+    source_id: uuid.UUID,
+    target_id: uuid.UUID,
+) -> None:
+    """Swap project membership roles between source and target."""
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        source_rows = (
+            (
+                await session.execute(
+                    select(ProjectMemberDB).where(
+                        ProjectMemberDB.user_id == source_id,
+                        ProjectMemberDB.project_id.in_(project_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        target_rows = (
+            (
+                await session.execute(
+                    select(ProjectMemberDB).where(
+                        ProjectMemberDB.user_id == target_id,
+                        ProjectMemberDB.project_id.in_(project_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        source_by_proj = {row.project_id: row.role for row in source_rows}
+        target_by_proj = {row.project_id: row.role for row in target_rows}
+
+        for proj_id in set(source_by_proj) & set(target_by_proj):
+            await session.execute(
+                update(ProjectMemberDB)
+                .where(
+                    ProjectMemberDB.user_id == target_id,
+                    ProjectMemberDB.project_id == proj_id,
+                )
+                .values(role=source_by_proj[proj_id])
+            )
+            await session.execute(
+                update(ProjectMemberDB)
+                .where(
+                    ProjectMemberDB.user_id == source_id,
+                    ProjectMemberDB.project_id == proj_id,
+                )
+                .values(role=target_by_proj[proj_id])
+            )
+
+        await session.commit()
+
+
+async def admin_delete_user_memberships(user_id: uuid.UUID) -> None:
+    """Delete all org/workspace/project memberships for a user."""
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        await session.execute(
+            delete(OrganizationMemberDB).where(OrganizationMemberDB.user_id == user_id)
+        )
+        await session.execute(
+            delete(WorkspaceMemberDB).where(WorkspaceMemberDB.user_id == user_id)
+        )
+        await session.execute(
+            delete(ProjectMemberDB).where(ProjectMemberDB.user_id == user_id)
+        )
+        await session.commit()
+
+
+async def user_exists(user_email: str) -> bool:
+    """Check if a user exists in the database."""
+
+    user = await get_user_with_email(email=user_email)
+    return False if not user else True
+
+
+async def get_org_default_workspace(organization) -> WorkspaceDB:
+    """Get the default workspace for an organization."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(WorkspaceDB).filter_by(
+                organization_id=organization.id,
+                type="default",
+            )
+        )
+        workspace = result.scalars().first()
+        if workspace is not None:
+            return workspace
+
+        result = await session.execute(
+            select(WorkspaceDB).filter_by(
+                organization_id=organization.id,
+            )
+        )
+        return result.scalars().first()
+
+
+def _role_slug(role: Any) -> str:
+    """Normalize an enum or string role to its slug form."""
+    return role.value if hasattr(role, "value") else str(role)
+
+
+def _expand_permissions(slugs: List[str]) -> List[str]:
+    """Expand the `"*"` wildcard to the full list of Permission enum values."""
+    if "*" not in slugs:
+        return slugs
+    return [p.value for p in Permission]
+
+
+async def get_workspace_in_format(
+    workspace: WorkspaceDB,
+    include_members: bool = True,
+):
+    """Convert a workspace object to the WorkspaceResponse model."""
+
+    from oss.src.models.api.workspace_models import WorkspaceResponse
+
+    members = []
+
+    if include_members:
+        project = await get_project_by_workspace(workspace_id=str(workspace.id))
+        project_members = await get_project_members(project_id=str(project.id))
+        invitations = await get_project_invitations_filtered(
+            project_id=str(project.id), invitation_used=False
+        )
+
+        if len(invitations) > 0:
+            for invitation in invitations:
+                if not invitation.used and str(invitation.project_id) == str(
+                    project.id
+                ):
+                    user = await get_user_with_email(invitation.email)
+                    member_dict = {
+                        "user": {
+                            "id": str(user.id) if user else invitation.email,
+                            "email": user.email if user else invitation.email,
+                            "username": (
+                                user.username
+                                if user
+                                else invitation.email.split("@")[0]
+                            ),
+                            "status": (
+                                "pending"
+                                if invitation.expiration_date
+                                > datetime.now(timezone.utc)
+                                else "expired"
+                            ),
+                            "created_at": (
+                                str(user.created_at)
+                                if user
+                                else (
+                                    str(invitation.created_at)
+                                    if str(invitation.created_at)
+                                    else None
+                                )
+                            ),
+                        },
+                        "roles": [
+                            {
+                                "role_name": invitation.role,
+                                "role_description": get_role_description(
+                                    "workspace", _role_slug(invitation.role)
+                                ),
+                            }
+                        ],
+                    }
+                    members.append(member_dict)
+
+        for project_member in project_members:
+            member_role = project_member.role
+            member_dict = {
+                "user": {
+                    "id": str(project_member.user.id),
+                    "email": project_member.user.email,
+                    "username": project_member.user.username,
+                    "status": "member",
+                    "created_at": str(project_member.user.created_at),
+                },
+                "roles": (
+                    [
+                        {
+                            "role_name": member_role,
+                            "role_description": get_role_description(
+                                "project", _role_slug(member_role)
+                            ),
+                            "permissions": _expand_permissions(
+                                get_role_permissions("project", _role_slug(member_role))
+                            ),
+                        }
+                    ]
+                    if member_role
+                    else []
+                ),
+            }
+            members.append(member_dict)
+
+    workspace_response = WorkspaceResponse(
+        id=str(workspace.id),
+        name=workspace.name,
+        description=workspace.description,
+        type=workspace.type,
+        members=members,
+        organization=str(workspace.organization_id),
+        created_at=str(workspace.created_at),
+        updated_at=str(workspace.updated_at),
+    )
+    return workspace_response

@@ -4,7 +4,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.services import db_manager
+from oss.src.services import db_manager, organization_service
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.workspace_models import Workspace, UserRole
 
@@ -85,6 +85,27 @@ async def get_all_workspace_roles(request: Request) -> List[Dict[str, str]]:
     ]
 
     return workspace_roles_with_description
+
+
+@router.get(
+    "/permissions/",
+    operation_id="get_all_workspace_permissions",
+    response_model=List[Permission],
+)
+async def get_all_workspace_permissions() -> List[Permission]:
+    """Get all available workspace permissions."""
+
+    try:
+        permissions = await organization_service.get_all_workspace_permissions()
+        return sorted(permissions)
+    except Exception:
+        log.error(
+            "Unexpected error while fetching workspace permissions", exc_info=True
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while fetching workspace permissions.",
+        )
 
 
 @router.post("/{workspace_id}/roles/", operation_id="assign_role_to_user")

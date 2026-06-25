@@ -259,7 +259,7 @@ async def invite_user_to_organization(
         )
 
     if organization_id and is_ee():
-        from ee.src.services.organization_service import (  # noqa: PLC0415
+        from ee.src.core.organizations.service import (  # noqa: PLC0415
             assert_invite_domain_allowed,
         )
 
@@ -477,12 +477,32 @@ async def accept_organization_invitation(
         user_id=str(user_exists.id),
     )
 
-    if is_ee():
-        from ee.src.services.organization_service import (  # noqa: PLC0415
-            notify_org_admin_invitation,
-        )
+    await notify_org_admin_invitation(workspace, user_exists)
 
-        await notify_org_admin_invitation(workspace, user_exists)
+    return True
+
+
+async def notify_org_admin_invitation(workspace: WorkspaceDB, user: UserDB) -> bool:
+    """Email the workspace admins when a new member joins."""
+
+    organization = await db_manager.get_organization(str(workspace.organization_id))
+    project = await db_manager.get_project_by_workspace(str(workspace.id))
+
+    workspace_admins = await db_manager.get_workspace_administrators(workspace)
+
+    for workspace_admin in workspace_admins:
+        await emailing.send_email(
+            from_email="account@hello.agenta.ai",
+            to_email=workspace_admin.email,
+            subject=f"New Member Joined {organization.name}",
+            username=user.username,
+            action="joined your Workspace",
+            workspace=f'"{organization.name}"',
+            call_to_action=(
+                "Click the link below to view your Organization:</p><br>"
+                f'<a href="{env.agenta.web_url}/w/{workspace.id}/p/{project.id}/settings?tab=workspace">View Organization</a>'
+            ),
+        )
 
     return True
 
@@ -501,16 +521,11 @@ async def get_workspace(workspace_id: str) -> WorkspaceDB:
 async def create_new_workspace(
     payload: CreateWorkspace, organization_id: str, user_uid: str
 ) -> WorkspaceResponse:
-    """Create a new workspace. Multi-workspace creation is an EE feature."""
+    """Create a new workspace (with owner membership, default project, seeds)."""
 
-    if not is_ee():
-        raise HTTPException(
-            status_code=403, detail="Creating workspaces is not available."
-        )
-
-    from ee.src.services import db_manager_ee  # noqa: PLC0415
-
-    return await db_manager_ee.create_workspace(payload, organization_id, user_uid)
+    return await db_manager.create_workspace_with_defaults(
+        payload, organization_id, user_uid
+    )
 
 
 async def update_workspace(
@@ -520,14 +535,7 @@ async def update_workspace(
 
     workspace = await get_workspace(workspace_id)
 
-    if not is_ee():
-        raise HTTPException(
-            status_code=403, detail="Updating workspaces is not available."
-        )
-
-    from ee.src.services import db_manager_ee  # noqa: PLC0415
-
-    return await db_manager_ee.update_workspace(payload, workspace)
+    return await db_manager.update_workspace(payload, workspace)
 
 
 async def get_all_workspace_permissions() -> List[Permission]:

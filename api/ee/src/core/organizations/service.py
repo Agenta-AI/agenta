@@ -1,7 +1,8 @@
 from typing import List
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
-from urllib.parse import quote
+
+import re
 
 import httpx
 import secrets
@@ -9,9 +10,13 @@ import dns.resolver
 
 from fastapi import HTTPException
 
+from sqlalchemy.future import select
+from sqlalchemy.exc import NoResultFound, IntegrityError
+
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
+from oss.src.services import db_manager
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
@@ -24,6 +29,11 @@ from oss.src.core.secrets.dtos import (
 from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.core.shared.dtos import Header
+from oss.src.models.db_models import (
+    OrganizationDB,
+)
+from oss.src.models.api.organization_models import OrganizationUpdate
+
 from ee.src.dbs.postgres.organizations.dao import (
     OrganizationDomainsDAO,
     OrganizationProvidersDAO,
@@ -34,91 +44,153 @@ from ee.src.core.organizations.types import (
     OrganizationProvider,
     OrganizationProviderCreate,
     OrganizationProviderUpdate,
-    OrganizationUpdate,
 )
-
-from ee.src.services import db_manager_ee
-from oss.src.utils import emailing
-from oss.src.models.db_models import UserDB
-from oss.src.models.db_models import (
-    WorkspaceDB,
-    OrganizationDB,
-)
+from ee.src.core.organizations.exceptions import OrganizationSlugConflictError
 
 
 log = get_module_logger(__name__)
 
 
-class NotFound(Exception):
-    """Custom exception for credentials not found"""
-
-    pass
-
-
-async def update_an_organization(
+async def update_organization(
     organization_id: str, payload: OrganizationUpdate
 ) -> OrganizationDB:
-    org = await db_manager_ee.get_organization(organization_id)
-    if org is not None:
-        updated_org = await db_manager_ee.update_organization(str(org.id), payload)
-        return updated_org
-    raise NotFound("Organization not found")
+    """Update an organization's details (EE: validates SSO/domain auth flags)."""
 
+    engine = get_transactions_engine()
 
-async def send_invitation_email(
-    email: str,
-    token: str,
-    project_id: str,
-    workspace: WorkspaceDB,
-    organization: OrganizationDB,
-    user: UserDB,
-):
-    """
-    Sends an invitation email to the specified email address, containing a link to accept the invitation.
+    async with engine.session() as session:
+        result = await session.execute(
+            select(OrganizationDB).filter_by(id=UUID(organization_id))
+        )
+        organization = result.scalars().first()
 
-    Args:
-        email (str): The email address to send the invitation to.
-        token (str): The token to include in the invitation link.
-        project_id (str): The ID of the project that the user is being invited to join.
-        workspace (WorkspaceDB): The workspace that the user is being invited to join.
-        user (UserDB): The user who is sending the invitation.
+        if not organization:
+            raise NoResultFound(f"Organization with id {organization_id} not found")
 
-    Returns:
-        bool: True if the email was sent successfully, False otherwise.
-    """
+        payload_dict = payload.model_dump(exclude_unset=True)
+        if "slug" in payload_dict:
+            new_slug = payload_dict["slug"]
 
-    token_param = quote(token, safe="")
-    email_param = quote(email, safe="")
-    org_param = quote(str(organization.id), safe="")
-    workspace_param = quote(str(workspace.id), safe="")
-    project_param = quote(project_id, safe="")
+            if new_slug is not None:
+                if len(new_slug) > 64:
+                    raise ValueError("Organization slug cannot exceed 64 characters.")
+                if not re.match(r"^[a-z-]+$", new_slug):
+                    raise ValueError(
+                        "Organization slug can only contain lowercase letters (a-z) and hyphens (-)."
+                    )
 
-    invite_link = (
-        f"{env.agenta.web_url}/auth"
-        f"?token={token_param}"
-        f"&email={email_param}"
-        f"&organization_id={org_param}"
-        f"&workspace_id={workspace_param}"
-        f"&project_id={project_param}"
-    )
+            if organization.slug is not None and new_slug != organization.slug:
+                raise ValueError(
+                    f"Organization slug cannot be changed once set. "
+                    f"Current slug: '{organization.slug}'"
+                )
 
-    # If email delivery is not configured, return the link for manual sharing.
-    if not (env.smtp.enabled or env.sendgrid.enabled):
-        return invite_link
+        # Flags: merge instead of replace, and guard against auth lockout.
+        if "flags" in payload_dict:
+            new_flags = payload_dict["flags"]
+            if new_flags is not None:
+                existing_flags = organization.flags or {}
 
-    await emailing.send_email(
-        from_email="account@hello.agenta.ai",
-        to_email=email,
-        subject=f"{user.username} invited you to join {organization.name}",
-        username=user.username,
-        action="invited you to join",
-        workspace=organization.name,
-        call_to_action=(
-            "Click the link below to accept the invitation:</p><br>"
-            f'<a href="{invite_link}">Accept Invitation</a>'
-        ),
-    )
-    return True
+                default_flags = {
+                    "is_demo": False,
+                    "allow_email": env.auth.email_enabled,
+                    "allow_social": env.auth.oidc_enabled,
+                    "allow_sso": False,
+                    "allow_root": False,
+                    "domains_only": False,
+                    "auto_join": False,
+                }
+
+                merged_flags = {**default_flags, **existing_flags, **new_flags}
+
+                allow_email = merged_flags.get("allow_email", False)
+                allow_social = merged_flags.get("allow_social", False)
+                allow_sso = merged_flags.get("allow_sso", False)
+                allow_root = merged_flags.get("allow_root", False)
+
+                changing_auth_flags = any(
+                    key in new_flags
+                    for key in ("allow_email", "allow_social", "allow_sso")
+                )
+                changing_auto_join = "auto_join" in new_flags
+                changing_domains_only = "domains_only" in new_flags
+
+                if changing_auth_flags and allow_sso:
+                    providers_dao = OrganizationProvidersDAO(session)
+                    providers = await providers_dao.list_by_organization(
+                        organization_id=organization_id
+                    )
+                    active_valid = [
+                        provider
+                        for provider in providers
+                        if (provider.flags or {}).get("is_active")
+                        and (provider.flags or {}).get("is_valid")
+                    ]
+                    if not active_valid:
+                        raise ValueError(
+                            "SSO cannot be enabled until at least one SSO provider is "
+                            "active and verified."
+                        )
+                    if not allow_email and not allow_social:
+                        if not active_valid:
+                            raise ValueError(
+                                "SSO-only authentication requires at least one SSO provider to "
+                                "be active and verified."
+                            )
+
+                if changing_auto_join and merged_flags.get("auto_join", False):
+                    domains_dao = OrganizationDomainsDAO(session)
+                    domains = await domains_dao.list_by_organization(
+                        organization_id=organization_id
+                    )
+                    has_verified_domain = any(
+                        (domain.flags or {}).get("is_verified") for domain in domains
+                    )
+                    if not has_verified_domain:
+                        raise ValueError(
+                            "Auto-join requires at least one verified domain."
+                        )
+
+                if changing_domains_only and merged_flags.get("domains_only", False):
+                    domains_dao = OrganizationDomainsDAO(session)
+                    domains = await domains_dao.list_by_organization(
+                        organization_id=organization_id
+                    )
+                    has_verified_domain = any(
+                        (domain.flags or {}).get("is_verified") for domain in domains
+                    )
+                    if not has_verified_domain:
+                        raise ValueError(
+                            "Domains-only requires at least one verified domain."
+                        )
+
+                all_auth_disabled = not (allow_email or allow_social or allow_sso)
+
+                if all_auth_disabled and not allow_root:
+                    merged_flags["allow_root"] = True
+                    log.warning(
+                        f"All authentication methods disabled for organization {organization_id}. "
+                        f"Auto-enabling allow_root to prevent lockout."
+                    )
+
+                organization.flags = merged_flags
+            del payload_dict["flags"]
+
+        for key, value in payload_dict.items():
+            if hasattr(organization, key):
+                setattr(organization, key, value)
+
+        try:
+            await session.commit()
+        except Exception as e:
+            if isinstance(e, IntegrityError) and "uq_organizations_slug" in str(e):
+                raise OrganizationSlugConflictError(
+                    slug=payload_dict.get("slug", "unknown")
+                ) from e
+            raise
+
+        await session.refresh(organization)
+        return organization
 
 
 async def assert_invite_domain_allowed(organization_id: str, email: str) -> None:
@@ -128,7 +200,7 @@ async def assert_invite_domain_allowed(organization_id: str, email: str) -> None
     Called from the OSS invite orchestrator via the `is_ee()` seam.
     """
 
-    organization = await db_manager_ee.get_organization(organization_id)
+    organization = await db_manager.get_organization(organization_id)
     if not (organization.flags or {}).get("domains_only", False):
         return
 
@@ -155,72 +227,6 @@ async def assert_invite_domain_allowed(organization_id: str, email: str) -> None
         )
 
 
-async def notify_org_admin_invitation(workspace: WorkspaceDB, user: UserDB) -> bool:
-    """
-    Sends an email notification to the owner of an organization when a new member joins.
-
-    Args:
-        workspace (WorkspaceDB): The workspace that the user has joined.
-        user (UserDB): The user who has joined the organization.
-
-    Returns:
-        bool: True if the email was sent successfully, False otherwise.
-    """
-
-    organization = await db_manager_ee.get_organization(str(workspace.organization_id))
-    project = await db_manager_ee.get_project_by_workspace(str(workspace.id))
-
-    workspace_admins = await db_manager_ee.get_workspace_administrators(workspace)
-
-    for workspace_admin in workspace_admins:
-        await emailing.send_email(
-            from_email="account@hello.agenta.ai",
-            to_email=workspace_admin.email,
-            subject=f"New Member Joined {organization.name}",
-            username=user.username,
-            action="joined your Workspace",
-            workspace=f'"{organization.name}"',
-            call_to_action=(
-                "Click the link below to view your Organization:</p><br>"
-                f'<a href="{env.agenta.web_url}/w/{workspace.id}/p/{project.id}/settings?tab=workspace">View Organization</a>'
-            ),
-        )
-
-    return True
-
-
-async def get_organization_details(organization_id: str) -> dict:
-    organization = await db_manager_ee.get_organization(organization_id)
-    return await db_manager_ee.get_org_details(organization)
-
-
-async def transfer_organization_ownership(
-    organization_id: str,
-    new_owner_id: str,
-    current_user_id: str,
-) -> OrganizationDB:
-    """Transfer organization ownership to another member.
-
-    Args:
-        organization_id: The ID of the organization
-        new_owner_id: The UUID of the new owner
-        current_user_id: The UUID of the current user (initiating the transfer)
-
-    Returns:
-        OrganizationDB: The updated organization
-
-    Raises:
-        NotFound: If organization or new owner member not found
-        ValueError: If new owner is not a member of the organization
-    """
-    # Delegate to db_manager_ee
-    return await db_manager_ee.transfer_organization_ownership(
-        organization_id=organization_id,
-        new_owner_id=new_owner_id,
-        current_user_id=current_user_id,
-    )
-
-
 class OrganizationDomainsService:
     """Service for managing domain verification."""
 
@@ -229,10 +235,7 @@ class OrganizationDomainsService:
     @staticmethod
     def generate_verification_token() -> str:
         """Generate a unique verification token."""
-        # Generate cryptographically secure random token (16 bytes = 64 hex chars)
         random_part = secrets.token_hex(16)
-
-        # Add prefix to make it identifiable as an Agenta verification token
         return f"{random_part}"
 
     @staticmethod
@@ -264,7 +267,6 @@ class OrganizationDomainsService:
                 for rdata in answers:
                     txt_value = rdata.to_text().strip('"')
 
-                    # Extract the token value from "_agenta-verification=TOKEN" format
                     if txt_value.startswith("_agenta-verification="):
                         token = txt_value.split("=", 1)[1]
                         if token == expected_token:
@@ -310,7 +312,6 @@ class OrganizationDomainsService:
         async with engine.session() as session:
             dao = OrganizationDomainsDAO(session)
 
-            # Block if a verified domain already exists anywhere
             existing_verified = await dao.get_verified_by_slug(slug=payload.slug)
             if existing_verified:
                 raise HTTPException(
@@ -318,7 +319,6 @@ class OrganizationDomainsService:
                     detail=f"Domain {payload.slug} is already verified",
                 )
 
-            # Reuse existing unverified domain for this organization, if any
             existing = await dao.get_by_slug(
                 slug=payload.slug, organization_id=organization_id
             )
@@ -332,10 +332,8 @@ class OrganizationDomainsService:
                 await session.refresh(existing)
                 domain = existing
             else:
-                # Generate verification token
                 token = self.generate_verification_token()
 
-                # Create domain with token
                 domain = await dao.create(
                     created_by_id=user_id,
                     slug=payload.slug,
@@ -375,11 +373,9 @@ class OrganizationDomainsService:
             if not domain:
                 raise HTTPException(status_code=404, detail="Domain not found")
 
-            # Check if already verified by this organization
             if domain.flags and domain.flags.get("is_verified"):
                 raise HTTPException(status_code=400, detail="Domain already verified")
 
-            # Check if domain is already verified by another organization
             verified_by_other = await dao.get_verified_by_slug(slug=domain.slug)
             if (
                 verified_by_other
@@ -390,7 +386,6 @@ class OrganizationDomainsService:
                     detail=f"Domain {domain.slug} is already verified by another organization",
                 )
 
-            # Check if token has expired (48 hours from creation)
             token_age = datetime.now(timezone.utc) - domain.created_at
             if token_age > timedelta(hours=self.TOKEN_EXPIRY_HOURS):
                 raise HTTPException(
@@ -398,7 +393,6 @@ class OrganizationDomainsService:
                     detail=f"Verification token expired after {self.TOKEN_EXPIRY_HOURS} hours. Please refresh the token.",
                 )
 
-            # Perform DNS verification
             is_valid = await self.verify_domain_dns(domain.slug, domain.token)
 
             if not is_valid:
@@ -407,7 +401,6 @@ class OrganizationDomainsService:
                     detail="Domain verification failed. Please ensure the DNS TXT record is correctly configured.",
                 )
 
-            # Mark as verified and clear the token (one-time use)
             domain.flags = {"is_verified": True}
             domain.token = None
             domain.updated_by_id = user_id
@@ -427,11 +420,7 @@ class OrganizationDomainsService:
             )
 
     async def list_domains(self, organization_id: str) -> List[OrganizationDomain]:
-        """List all domains for an organization.
-
-        Tokens are returned for unverified domains (within expiry period).
-        Verified domains have token=None (cleared after verification).
-        """
+        """List all domains for an organization."""
         engine = get_transactions_engine()
 
         async with engine.session() as session:
@@ -445,7 +434,7 @@ class OrganizationDomainsService:
                     slug=d.slug,
                     name=d.name,
                     description=d.description,
-                    token=d.token,  # Token available for unverified domains, None for verified
+                    token=d.token,
                     flags=d.flags or {},
                     created_at=d.created_at,
                     updated_at=d.updated_at,
@@ -456,11 +445,7 @@ class OrganizationDomainsService:
     async def refresh_token(
         self, organization_id: str, domain_id: str, user_id: str
     ) -> OrganizationDomain:
-        """Refresh the verification token for a domain.
-
-        Generates a new token and resets the 48-hour expiry window.
-        For verified domains, this marks them as unverified for re-verification.
-        """
+        """Refresh the verification token for a domain."""
         engine = get_transactions_engine()
 
         async with engine.session() as session:
@@ -472,11 +457,8 @@ class OrganizationDomainsService:
             if not domain:
                 raise HTTPException(status_code=404, detail="Domain not found")
 
-            # Generate new token
             new_token = self.generate_verification_token()
 
-            # Update domain with new token and reset created_at to restart the 48-hour expiry window
-            # If domain was verified, mark as unverified for re-verification
             domain.token = new_token
             domain.created_at = datetime.now(timezone.utc)
             domain.flags = {"is_verified": False}
@@ -499,10 +481,7 @@ class OrganizationDomainsService:
     async def reset_domain(
         self, organization_id: str, domain_id: str, user_id: str
     ) -> OrganizationDomain:
-        """Reset a verified domain to unverified state for re-verification.
-
-        Generates a new token and marks the domain as unverified.
-        """
+        """Reset a verified domain to unverified state for re-verification."""
         engine = get_transactions_engine()
 
         async with engine.session() as session:
@@ -514,10 +493,8 @@ class OrganizationDomainsService:
             if not domain:
                 raise HTTPException(status_code=404, detail="Domain not found")
 
-            # Generate new token
             new_token = self.generate_verification_token()
 
-            # Reset domain to unverified state with new token
             domain.token = new_token
             domain.created_at = datetime.now(timezone.utc)
             domain.flags = {"is_verified": False}
@@ -579,7 +556,6 @@ class OrganizationProvidersService:
     ) -> bool:
         """Test OIDC provider connection by fetching discovery document."""
         try:
-            # Try to fetch OIDC discovery document
             discovery_url = f"{issuer_url.rstrip('/')}/.well-known/openid-configuration"
 
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -590,7 +566,6 @@ class OrganizationProvidersService:
 
                 config = response.json()
 
-                # Verify required OIDC endpoints exist
                 required_fields = [
                     "authorization_endpoint",
                     "token_endpoint",
@@ -615,10 +590,8 @@ class OrganizationProvidersService:
         async with engine.session() as session:
             dao = OrganizationProvidersDAO(session)
 
-            # Use the slug from payload (already validated to be lowercase letters and hyphens)
             slug = payload.slug
 
-            # Check if provider with this slug already exists
             existing = await dao.get_by_slug(slug=slug, organization_id=organization_id)
             if existing:
                 raise HTTPException(
@@ -626,12 +599,10 @@ class OrganizationProvidersService:
                     detail=f"Provider with slug '{payload.slug}' already exists",
                 )
 
-            # Merge provided settings with defaults
             settings = {
                 **payload.settings,
             }
 
-            # Ensure scopes have default if not provided
             if "scopes" not in settings or not settings["scopes"]:
                 settings["scopes"] = ["openid", "profile", "email"]
 
@@ -656,14 +627,12 @@ class OrganizationProvidersService:
                 create_secret_dto=secret_payload,
             )
 
-            # Merge provided flags with defaults
             flags = payload.flags or {}
             if "is_valid" not in flags:
                 flags["is_valid"] = False
             if "is_active" not in flags:
                 flags["is_active"] = False
 
-            # Create provider
             provider = await dao.create(
                 created_by_id=user_id,
                 slug=slug,
@@ -698,7 +667,6 @@ class OrganizationProvidersService:
             if not provider:
                 raise HTTPException(status_code=404, detail="Provider not found")
 
-            # Update settings if provided
             settings = await self._get_provider_settings(
                 organization_id, str(provider.secret_id)
             )
@@ -708,20 +676,16 @@ class OrganizationProvidersService:
                 settings.update(payload.settings)
                 settings_changed = True
 
-            # Update flags if provided
             flags = provider.flags.copy() if provider.flags else {}
 
             if payload.flags is not None:
                 flags.update(payload.flags)
 
-            # If settings changed, invalidate the provider (needs re-testing)
             if settings_changed:
                 flags["is_valid"] = False
                 flags["is_active"] = False
 
-            # Update slug if provided
             if payload.slug is not None:
-                # Check if new slug already exists
                 existing = await dao.get_by_slug(
                     slug=payload.slug, organization_id=organization_id
                 )
@@ -730,14 +694,11 @@ class OrganizationProvidersService:
                         status_code=400,
                         detail=f"Provider with slug '{payload.slug}' already exists",
                     )
-                # Update slug in the provider
                 provider.slug = payload.slug
 
-            # Update name if provided
             if payload.name is not None:
                 provider.name = payload.name
 
-            # Update description if provided
             if payload.description is not None:
                 provider.description = payload.description
 
@@ -821,20 +782,17 @@ class OrganizationProvidersService:
                 organization_id, str(provider.secret_id)
             )
 
-            # Test OIDC connection
             is_valid = await self.test_oidc_connection(
                 issuer_url=settings.get("issuer_url", ""),
                 client_id=settings.get("client_id", ""),
                 client_secret=settings.get("client_secret", ""),
             )
 
-            # Update flags based on test result
             flags = provider.flags.copy() if provider.flags else {}
             flags["is_valid"] = is_valid
             if is_valid:
                 flags["is_active"] = True
 
-            # If validation failed, deactivate the provider
             if not is_valid:
                 flags["is_active"] = False
 
@@ -864,7 +822,7 @@ class OrganizationProvidersService:
             if not provider:
                 raise HTTPException(status_code=404, detail="Provider not found")
 
-            organization = await db_manager_ee.get_organization(organization_id)
+            organization = await db_manager.get_organization(organization_id)
             flags = organization.flags or {}
             if flags.get("allow_sso"):
                 providers = await dao.list_by_organization(
@@ -932,3 +890,80 @@ class OrganizationProvidersService:
             created_at=provider.created_at,
             updated_at=provider.updated_at,
         )
+
+
+# ---------------------------------------------------------------------------
+# Subscription provisioning (EE signup/org-creation hooks)
+# ---------------------------------------------------------------------------
+
+from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO  # noqa: E402
+from ee.src.core.subscriptions.service import SubscriptionsService  # noqa: E402
+from ee.src.core.subscriptions.types import get_default_plan  # noqa: E402
+from ee.src.core.access.entitlements.service import (  # noqa: E402
+    check_entitlements,
+    scope_from,
+    Gauge,
+)
+
+
+_subscription_service = SubscriptionsService(
+    subscriptions_dao=SubscriptionsDAO(),
+)
+
+
+async def provision_signup_subscription(
+    organization: OrganizationDB,
+    *,
+    organization_email: str,
+) -> None:
+    """Provision the signup subscription + seed the user gauge for a new org.
+
+    Cloud (Stripe enabled) gets a reverse trial; self-hosted gets the default
+    plan. Called from the OSS signup flow via the `is_ee()` seam.
+    """
+
+    try:
+        await _subscription_service.provision_subscription(
+            organization_id=str(organization.id),
+            organization_name=organization.name,
+            organization_email=organization_email,
+        )
+    except Exception as exc:
+        log.error(
+            "[scopes] Failed to create subscription for organization [%s]: %s",
+            organization.id,
+            exc,
+        )
+        raise
+
+    await check_entitlements(
+        key=Gauge.USERS,
+        delta=1,
+        scope=scope_from(organization_id=organization.id),
+    )
+
+
+async def provision_user_subscription(organization: OrganizationDB) -> None:
+    """Start the default plan + seed the user gauge for an explicitly-created org.
+
+    Entry point for `POST /organizations/`. Called from OSS via the `is_ee()` seam.
+    """
+
+    try:
+        await _subscription_service.start_plan(
+            organization_id=str(organization.id),
+            plan=get_default_plan(),
+        )
+    except Exception as exc:
+        log.error(
+            "[scopes] Failed to create subscription for organization [%s]: %s",
+            organization.id,
+            exc,
+        )
+        raise
+
+    await check_entitlements(
+        key=Gauge.USERS,
+        delta=1,
+        scope=scope_from(organization_id=organization.id),
+    )
