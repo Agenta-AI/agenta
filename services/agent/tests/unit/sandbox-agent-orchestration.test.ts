@@ -52,6 +52,7 @@ function fakeHarness(options: FakeOptions = {}) {
     }>,
     runFinished: 0,
     runFlushed: 0,
+    recordedErrors: [] as Array<{ message: string; provider?: string }>,
   };
   const events: AgentEvent[] = [];
   let eventHandler: ((event: any) => void) | undefined;
@@ -119,6 +120,12 @@ function fakeHarness(options: FakeOptions = {}) {
     },
     finish() {
       calls.runFinished += 1;
+      return options.output ?? "assistant output";
+    },
+    recordError(message: string, provider?: string) {
+      calls.recordedErrors.push({ message, provider });
+    },
+    output() {
       return options.output ?? "assistant output";
     },
     async flush() {

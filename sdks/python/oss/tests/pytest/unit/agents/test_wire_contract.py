@@ -32,7 +32,11 @@ from agenta.sdk.agents import (
     ToolCallback,
     TraceContext,
 )
-from agenta.sdk.agents.utils.wire import request_to_wire, result_from_wire
+from agenta.sdk.agents.utils.wire import (
+    request_to_wire,
+    result_from_wire,
+    sanitize_runner_error,
+)
 
 # The full set of top-level keys ``request_to_wire`` may emit. The TS ``AgentRunRequest``
 # interface must declare a superset of these. Adding a key here without adding it to
@@ -359,6 +363,52 @@ def test_result_from_wire_parses_ok(golden):
 def test_result_from_wire_raises_on_failure(golden):
     with pytest.raises(RuntimeError, match="model exploded"):
         result_from_wire(golden("run_result.error.json"))
+
+
+def test_sanitize_runner_error_passes_clean_message_through():
+    # A concise, single-line message (what conciseError emits for known cases) is unchanged.
+    clean = "pi_core: model authentication failed — add the project's Anthropic key."
+    assert sanitize_runner_error(clean) == clean
+
+
+def test_sanitize_runner_error_strips_multiline_stack_to_first_line():
+    raw = (
+        "TypeError: cannot read x\n"
+        "    at run (/app/services/agent/src/engine.ts:12:3)\n"
+        "    at process (/app/node_modules/foo.js:99:1)"
+    )
+    # Only the first line survives; the stack frames never reach the caller.
+    assert sanitize_runner_error(raw) == "TypeError: cannot read x"
+
+
+def test_sanitize_runner_error_falls_back_when_first_line_is_a_stack_frame():
+    raw = 'File "/abs/secret/path.py", line 12, in run\n    raise ValueError("boom")'
+    assert sanitize_runner_error(raw) == "agent run failed"
+
+
+def test_sanitize_runner_error_caps_length():
+    raw = "x" * 1000
+    result = sanitize_runner_error(raw)
+    assert len(result) <= 300
+    assert result.endswith("…")
+
+
+def test_sanitize_runner_error_handles_none_and_empty():
+    assert sanitize_runner_error(None) == "agent run failed"
+    assert sanitize_runner_error("") == "agent run failed"
+
+
+def test_result_from_wire_sanitizes_a_leaky_error():
+    leaky = {
+        "ok": False,
+        "error": "boom\n    at run (/app/src/engine.ts:1:1)",
+    }
+    with pytest.raises(RuntimeError) as exc:
+        result_from_wire(leaky)
+    message = str(exc.value)
+    assert "boom" in message
+    assert "/app/src/engine.ts" not in message
+    assert "\n" not in message
 
 
 def test_result_from_wire_minimal_ok():

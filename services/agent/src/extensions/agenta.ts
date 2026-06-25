@@ -35,6 +35,19 @@ function log(message: string): void {
   process.stderr.write(`[agenta-pi-ext] ${message}\n`);
 }
 
+/** Parse the JSON array of loaded skill names from AGENTA_SKILLS_LOADED; [] on absent/malformed. */
+function parseSkillsLoaded(raw: string | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((s): s is string => typeof s === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 /** Register public tool metadata as Pi tools whose execution relays to the runner. */
 function registerTools(pi: ExtensionAPI): void {
   const raw = process.env.AGENTA_TOOL_PUBLIC_SPECS;
@@ -78,8 +91,12 @@ function registerTools(pi: ExtensionAPI): void {
 const factory = (pi: ExtensionAPI): void => {
   // Fully inert unless Agenta wired this run (so it is safe to install globally in a
   // shared Pi agent dir — a normal `pi` session with no Agenta env does nothing).
-  const hasTracing = !!(process.env.AGENTA_TRACEPARENT || process.env.AGENTA_OTLP_ENDPOINT);
-  const hasTools = !!(process.env.AGENTA_TOOL_PUBLIC_SPECS && process.env.AGENTA_TOOL_RELAY_DIR);
+  const hasTracing = !!(
+    process.env.AGENTA_TRACEPARENT || process.env.AGENTA_OTLP_ENDPOINT
+  );
+  const hasTools = !!(
+    process.env.AGENTA_TOOL_PUBLIC_SPECS && process.env.AGENTA_TOOL_RELAY_DIR
+  );
   const usageOut = process.env.AGENTA_USAGE_OUT;
   if (!hasTracing && !hasTools && !usageOut) return;
 
@@ -96,6 +113,9 @@ const factory = (pi: ExtensionAPI): void => {
     endpoint: process.env.AGENTA_OTLP_ENDPOINT,
     authorization: process.env.AGENTA_OTLP_AUTHORIZATION,
     captureContent: process.env.AGENTA_CAPTURE_CONTENT !== "false",
+    // The skills that loaded for this run (author + forced `_agenta.*`), stamped on the agent
+    // span so a trace shows which skills surfaced (F-029). A JSON array string from the runner.
+    skills: parseSkillsLoaded(process.env.AGENTA_SKILLS_LOADED),
   });
   otel.register(pi); // lifecycle handlers (spans + usage accumulation)
 

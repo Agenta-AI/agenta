@@ -190,6 +190,10 @@ export async function runSandboxAgent(
     ? buildPiExtensionEnv(request, !plan.isDaytona, {
         relayDir: plan.relayDir,
         usageOutPath: plan.usageOutPath,
+        // The materialized skill names (author + forced `_agenta.*`) so Pi's own agent span
+        // records which skills loaded (F-029); local Pi self-instruments, so the runner's
+        // sandbox-agent otel has no span to stamp here.
+        skills: plan.skillDirs.map((s) => s.name),
       })
     : {};
   Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
@@ -293,6 +297,9 @@ export async function runSandboxAgent(
       isPi: plan.isPi,
       capabilities,
       harness: plan.harness,
+      // Daytona: skip the internal loopback HTTP MCP channel (unreachable from the in-sandbox
+      // harness); gateway tools are delivered through the Daytona file relay started below.
+      isDaytona: plan.isDaytona,
       toolSpecs: plan.toolSpecs,
       userMcpServers: request.mcpServers,
       relayDir: plan.relayDir,
@@ -321,6 +328,9 @@ export async function runSandboxAgent(
     const run = (deps.createOtel ?? createSandboxAgentOtel)({
       harness: plan.harness,
       model,
+      // The names of every skill that materialized for this run (author + forced `_agenta.*`),
+      // stamped on the agent span so the trace shows which skills loaded (F-029).
+      skills: plan.skillDirs.map((s) => s.name),
       traceparent: request.trace?.traceparent,
       baggage: request.trace?.baggage,
       endpoint: request.trace?.endpoint,
@@ -400,34 +410,38 @@ export async function runSandboxAgent(
     });
     run.setUsage(usage);
 
+    // Peek for a swallowed model error BEFORE finishing the trace so the error message + provider
+    // can be stamped on the still-open agent span (F-030). When Pi's provider call fails
+    // (out-of-quota, bad key, rate limit, unknown model, ...), Pi's pi-acp bridge reports the
+    // turn as a plain `end_turn` with NO content, so without this the run would return an
+    // `ok:true` empty turn and the user would see a silent "No response" instead of the real
+    // failure. On the LOCAL Pi path the error is recoverable from Pi's own session transcript.
+    // Only checked when the turn produced no output and ran no tools (a real tool-only turn
+    // legitimately has empty text), and never on Daytona (the transcript lives in the remote
+    // sandbox).
+    const swallowedPiError =
+      plan.isPi &&
+      !plan.isDaytona &&
+      !run.output().trim() &&
+      !run.events().some((e) => e.type === "tool_call")
+        ? findSwallowedPiError(plan.sourcePiAgentDir, plan.cwd)
+        : undefined;
+    let swallowedError: string | undefined;
+    if (swallowedPiError) {
+      swallowedError = conciseError(
+        new Error(swallowedPiError),
+        plan.harness,
+        request.provider,
+      );
+      run.recordError(swallowedError, request.provider);
+    }
+
     const output = run.finish();
     await run.flush();
 
-    // Fail loud on a swallowed model error (A7 / "fail loud, not silent"). When Pi's provider
-    // call fails (out-of-quota, bad key, rate limit, unknown model, ...), Pi's pi-acp bridge
-    // reports the turn as a plain `end_turn` with NO content, so without this the run would
-    // return an `ok:true` empty turn and the user would see a silent "No response" instead of
-    // the real failure. On the LOCAL Pi path the error is recoverable from Pi's own session
-    // transcript; surface it as a run error. Only checked when the turn produced no output and
-    // ran no tools (a real tool-only turn legitimately has empty text), and never on Daytona
-    // (the transcript lives in the remote sandbox).
-    if (
-      plan.isPi &&
-      !plan.isDaytona &&
-      !output.trim() &&
-      !run.events().some((e) => e.type === "tool_call")
-    ) {
-      const piError = findSwallowedPiError(plan.sourcePiAgentDir, plan.cwd);
-      if (piError) {
-        return {
-          ok: false,
-          error: conciseError(
-            new Error(piError),
-            plan.harness,
-            request.provider,
-          ),
-        };
-      }
+    // Fail loud on the swallowed error detected above (A7 / "fail loud, not silent").
+    if (swallowedError) {
+      return { ok: false, error: swallowedError };
     }
 
     return {
@@ -450,11 +464,15 @@ export async function runSandboxAgent(
       traceId: run.traceId(),
     };
   } catch (err) {
+    const error = conciseError(err, plan.harness, request.provider);
+    // Stamp the error message + provider on the agent span before finishing it (F-030), so a
+    // trace carries the same diagnostic the response does (it previously held only a count).
+    otel?.recordError(error, request.provider);
     otel?.finish();
     await otel?.flush().catch(() => {});
     return {
       ok: false,
-      error: conciseError(err, plan.harness, request.provider),
+      error,
     };
   } finally {
     await toolRelay?.stop().catch(() => {});
