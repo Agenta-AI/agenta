@@ -1,9 +1,10 @@
 # Research
 
 How `skills` embedding works today, the tool taxonomy, and the exact seams to mirror for
-`tools`. Everything below is grounded in the current code; file paths are absolute-from-repo.
+`tools` — under the **two-syntax** model (embed vs reference). Everything below is grounded in
+the current code; file paths are absolute-from-repo.
 
-## Part 1 — How `@ag.embed` embedding works (the skills case)
+## Part 1 — How `@ag.embed` embedding works (the skills case), and what `@ag.reference` adds
 
 ### There is no `EmbedRef` model — an embed is a structural marker
 
@@ -15,6 +16,13 @@ There is no dedicated Pydantic class for it on the runtime path.
 - API markers: `api/oss/src/core/embeds/utils.py` —
   `AG_EMBED_KEY = "@ag.embed"`, `AG_REFERENCES_KEY = "@ag.references"`,
   `AG_SELECTOR_KEY = "@ag.selector"`.
+
+**Confirmed: there is no reference-only marker today.** `@ag.references` and `@ag.selector` are
+strictly **sub-keys inside an `@ag.embed` block** — they are not standalone top-level markers,
+and the embed resolver always *inlines* the resolved value. The two-syntax model needs a **new
+top-level marker** (e.g. `@ag.reference`, singular) that the same recursive walker recognizes but
+treats as "leave in place" instead of "inline." It reuses the same inner `@ag.references` /
+`@ag.selector` shape to name the target; only the inline-vs-leave behavior differs.
 
 The canonical object-embed shape (the form `skills` uses):
 
@@ -45,7 +53,9 @@ Two layers:
    POSTs `parameters` to `{api}/workflows/revisions/resolve` and replaces them with the
    resolved result. Its own comment says: *"The embed resolver walks arrays, so an
    `@ag.embed` inside `parameters.skills[i]` resolves on either path."* The same is true of
-   `parameters.tools[i]`.
+   `parameters.tools[i]`. Under the two-syntax model the marker check also recognizes
+   `@ag.reference`, but the resolve pass **leaves that node untouched** (inline-vs-leave is the
+   only difference); the walk and the list-descent are unchanged.
 
 2. **API generic resolver** — `api/oss/src/core/embeds/utils.py`, `resolve_embeds(...)`.
    It deep-copies the config and loops up to `max_depth`, each pass calling
@@ -63,15 +73,19 @@ The resolver callback routes a `workflow` reference to
 
 **Ordering in the agent run path** (`services/oss/src/agent/app.py`, `_agent`):
 
-1. Embed resolution — already done by the SDK middleware against `parameters`, before
-   `_agent` is even called.
-2. `agent_config = AgentConfig.from_params(params, ...)` — parses the *now-inlined* config.
-3. `resolved_tools = await resolve_tools(agent_config.tools)` — sees only concrete,
-   embed-free tool configs.
+1. Resolution — done by the SDK middleware against `parameters`, before `_agent` is even
+   called. `@ag.embed` nodes are inlined to their value; `@ag.reference` nodes are **left in
+   place**.
+2. `agent_config = AgentConfig.from_params(params, ...)` — parses the config. An inlined
+   `@ag.embed` is now a concrete tool config; a kept `@ag.reference` parses as the reference arm.
+3. `resolved_tools = await resolve_tools(agent_config.tools)` — sees concrete tool configs **and**
+   any kept `@ag.reference` arms.
 
-**Implication:** an `@ag.embed` in `tools[i]` is inlined at step 1 with no resolver change.
-By step 3 it is a concrete tool config. The work is making steps 2-3 (and the schema)
-understand *what* it inlines into.
+**Implication:** an `@ag.embed` in `tools[i]` is inlined at step 1 with only a tiny resolver
+addition (the "leave it" branch for the sibling `@ag.reference` marker — embed inlining itself is
+unchanged). A kept `@ag.reference` survives to step 3, where `resolve_tools` does the
+tool-specific mapping. The work is two schema arms (step 2) plus the `resolve_tools` reference arm
+(step 3); the generic resolver gains only the "leave it" branch.
 
 ### The `_agenta.*` platform catalog short-circuit (background only)
 
@@ -95,11 +109,13 @@ in the DB and never hit this validation.
 - Strict `AgentConfigSchema.skills`: `sdks/python/agenta/sdk/utils/types.py` —
   `List[Union["SkillConfigSchema", "_SkillEmbedRefSchema"]]`. The embed arm is
   `_SkillEmbedRefSchema` with `embed: Dict[str, Any] = Field(alias="@ag.embed")` and
-  `extra="forbid"`. This is the exact arm to mirror for tools.
+  `extra="forbid"`. This is the exact arm to mirror for the tools **embed** arm. Tools add one
+  more arm — a `_ToolReferenceSchema` with `reference: Dict[str, Any] = Field(alias="@ag.reference")`
+  — for the kept-reference syntax. Skills do not need it (a skill is always a value).
 - Default config: `build_agent_v0_default(...)` in
   `sdks/python/agenta/sdk/utils/types.py` ships the skill `@ag.embed` block.
 
-## Part 2 — The tool taxonomy (what an embedded tool must become)
+## Part 2 — The tool taxonomy (what each syntax must become)
 
 ### Two lives, three axes
 
@@ -140,44 +156,55 @@ tool_callback}`). The TS twin is `ResolvedToolSpec` in `services/agent/src/proto
   POSTs back to `/tools/call`** (directly, or via the Daytona file relay). Absent `kind`
   defaults to `callback`.
 
-### Why `callback` is the right executor for a *runnable* workflow tool
+### Why `callback` for `@ag.reference` and `client` for `@ag.embed`
 
-The branch that matters is **runnable vs non-runnable** (see [plan.md](plan.md)). The taxonomy
-already has a home for each:
+The branch is the **author's syntax** (see [plan.md](plan.md)), and the taxonomy already has a
+home for each:
 
-- A **runnable** workflow tool is **server-executed**: calling it means invoking another Agenta
-  workflow revision, which lives behind the API and may itself use connections and secrets. That
-  is exactly the gateway tool's safety shape — the harness decides *which* tool and *with what
-  arguments*, the service runs it, and no credential reaches the sandbox. So it resolves to a
-  `CallbackToolSpec`. The runner needs **no new `kind`** — `callback` already dispatches to
-  `callAgentaTool`, works under the Daytona file relay, and is delivered to both Pi (native) and
-  Claude (the `agenta-tools` MCP bridge). The only difference from a gateway tool is the
-  `call_ref` grammar and the execute target: instead of a Composio action, the service invokes a
-  workflow revision.
-- A **non-runnable** (client) workflow tool fits the existing **`client`** executor: the resolve
-  step turns the reference into a concrete `client` tool config, and at run time the runner
-  returns a `client` spec for the browser to fulfill next turn (`models.py:206` —
-  `kind: "client"`). No callback, no server-side execute.
+- An **`@ag.reference`** workflow tool is **server-executed**: calling it means invoking another
+  Agenta workflow revision, which lives behind the API and may itself use connections and
+  secrets. That is exactly the gateway tool's safety shape — the harness decides *which* tool and
+  *with what arguments*, the service runs it, and no credential reaches the sandbox. So
+  `resolve_tools` maps it to a `CallbackToolSpec`. The runner needs **no new `kind`** — `callback`
+  already dispatches to `callAgentaTool`, works under the Daytona file relay, and is delivered to
+  both Pi (native) and Claude (the `agenta-tools` MCP bridge). The only difference from a gateway
+  tool is the `call_ref` grammar and the execute target: instead of a Composio action, the
+  service invokes a workflow revision. **Crucially, the reference is *not* inlined before
+  `resolve_tools` runs** — that is the whole point of the second syntax: the generic resolver
+  leaves it, so `resolve_tools` sees the kept reference (slug + version + the model-facing
+  surface) and builds the callback spec from it. The callback path never needs the *resolved
+  workflow artifact* at config time; it carries only the identity (`call_ref`) and resolves the
+  revision lazily, server-side, when the model actually calls the tool.
+- An **`@ag.embed`** (client) workflow tool fits the existing **`client`** executor: the generic
+  resolver inlines the reference into a concrete `client` tool config *before* `resolve_tools`
+  runs, so `resolve_tools` sees a plain `ClientToolConfig` and the runner returns a `client` spec
+  for the browser to fulfill next turn (`models.py:206` — `kind: "client"`). No callback, no
+  server-side execute.
+
+This is what the earlier "keep the reference but it's already inlined" tension was about: with a
+single `@ag.embed` syntax, a tool could not both stay a reference for callback resolution *and* be
+inlined before `resolve_tools`. The two-syntax model removes the contradiction — embed inlines,
+reference is kept — so each path sees exactly the form it needs.
 
 ## Part 3 — The seams to touch (summary)
 
 | Seam | File | Change |
 | --- | --- | --- |
-| Strict schema embed arm | `sdks/python/agenta/sdk/utils/types.py` | add `_ToolEmbedRefSchema`, make `AgentConfigSchema.tools` a `Union[ToolConfig-twin, _ToolEmbedRefSchema]` (mirror skills) |
-| Resolve step (runnable vs not) | service resolve step (where references resolve) | decide runnable vs not; runnable → keep the reference for callback resolution; non-runnable → resolve to a concrete `client` tool config |
-| Runnable resolution branch | `sdks/python/agenta/sdk/agents/tools/resolver.py` + a platform resolver in `.../platform/` | resolve a referenced runnable workflow to a `CallbackToolSpec` + a `ToolCallback` to the new execute endpoint (mirror gateway) |
+| Strict schema arms | `sdks/python/agenta/sdk/utils/types.py` | add `_ToolEmbedRefSchema` (alias `@ag.embed`) **and** `_ToolReferenceSchema` (alias `@ag.reference`); make `AgentConfigSchema.tools` a `Union[ToolConfig-twin, _ToolEmbedRefSchema, _ToolReferenceSchema]` (the embed arm mirrors skills; the reference arm is new) |
+| Generic resolver "leave it" branch | SDK `ResolverMiddleware` + `api/oss/src/core/embeds/utils.py` | recognize the new `@ag.reference` marker and **leave it in place** (inline only `@ag.embed`). Tool-agnostic — no tool knowledge added |
+| `resolve_tools` reference arm | `sdks/python/agenta/sdk/agents/tools/resolver.py` + a platform resolver in `.../platform/` | partition out a kept `@ag.reference`; resolve it to a `CallbackToolSpec` + a `ToolCallback` to the new execute endpoint (mirror gateway). The embed case arrives as a plain `ClientToolConfig` — no new arm |
 | Server-side execute | `api/oss/src/apis/fastapi/tools/router.py` (+ core) | a `/tools/call`-style target that invokes the referenced workflow revision and returns the result |
-| Embed resolver | `api/oss/src/core/embeds/utils.py` | **no change** — already walks `tools[]` |
-| Wire | `services/agent/src/protocol.ts`, `sdks/python/agenta/sdk/agents/utils/wire.py`, golden fixtures | **no new field** — runnable rides as a `callback` spec, non-runnable as a `client` spec; only the `call_ref` content is new |
-| Docs | `documentation/tools.md`, `interfaces/public-edge/agent-config-schema.md`, the interface inventory | document the embed arm + the runnable-vs-not behavior |
+| Wire | `services/agent/src/protocol.ts`, `sdks/python/agenta/sdk/agents/utils/wire.py`, golden fixtures | **no new field** — a reference rides as a `callback` spec, an embed as a `client` spec; only the `call_ref` content is new |
+| Docs | `documentation/tools.md`, `interfaces/public-edge/agent-config-schema.md`, the interface inventory | document both syntaxes + the syntax-decides-behavior model |
 
 No `WorkflowToolConfig` variant, no `compat.py` `"workflow"` allowlist entry, no
 platform-catalog change — all dropped per the PR #4837 review.
 
 ## Open research questions (carried into the plan)
 
-1. **Where the runnable/not decision is made** — confirm it is the service resolve step (where
-   the referenced workflow is fetched), so the SDK/runner stay schema-driven.
+1. **The `@ag.reference` marker shape** — confirm it reuses the inner `@ag.references` /
+   `@ag.selector` block (same target-naming as `@ag.embed`) and differs only in the "leave it"
+   behavior; confirm the singular `@ag.reference` name.
 2. **What does invoking the workflow mean** — call `/workflows/.../invoke` with the model's
    arguments as inputs, and map the workflow output back as the tool result? What is the
    input/output contract between a tool call and a workflow invoke?

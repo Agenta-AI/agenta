@@ -9,9 +9,10 @@ not symmetric today.
   `SkillConfig`, OR drop an `@ag.embed` reference to a workflow and the backend inlines that
   workflow's content into a concrete `SkillConfig` before the runner sees it. The default
   config ships exactly such an embed (the `_agenta.agenta-getting-started` platform skill).
+  A skill is always passive content, so embedding (inline the value) is the only mode it needs.
 - **`tools`** accepts only the four concrete variants `ToolConfig = builtin | gateway | code
-  | client`. There is no embed-ref arm, so a tool cannot be authored as a workflow and reused
-  by reference.
+  | client`. There is no embed/reference arm, so a tool cannot be authored as a workflow and
+  reused by pointing at it.
 
 PR #4821 review comment
 [3469653315](https://github.com/Agenta-AI/agenta/pull/4821#discussion_r3469653315) asks to
@@ -27,15 +28,20 @@ channel, chain — there is no special "tool workflow" type.
 
 ## Goals
 
-- Make `tools` accept a workflow **reference** (the `@ag.embed` arm), mirroring the `skills`
-  shape.
-- Define the one branch that matters: **runnable vs non-runnable**, and how each is handled
-  (runnable → server-side callback execute, like gateway; non-runnable → resolve-to-value plus
-  the existing client-tool handling).
-- Keep the runner free of a new `kind`: runnable rides as a `callback` spec, non-runnable as a
+- Make `tools` accept a workflow via the **same two syntaxes** skills can use plus one more:
+  `@ag.embed` (inline the value) and a new `@ag.reference` (keep the reference). Mirror the
+  `skills` schema shape for the embed arm and add a reference arm.
+- Define the model: **the author's syntax decides the behavior.** `@ag.reference` → a kept
+  reference → a server-side `callback` call spec (the service runs the referenced workflow
+  revision, like gateway). `@ag.embed` → an inlined value → a `client` spec.
+- Keep the **generic resolver tool-agnostic.** It only does "inline the value" (embed) vs
+  "leave the reference" (reference). It learns nothing about tools.
+- Put the **tool-specific logic in `resolve_tools`**: a kept reference becomes a callback spec,
+  an embedded value becomes a client spec.
+- Keep the runner free of a new `kind`: a reference rides as a `callback` spec, an embed as a
   `client` spec.
-- Keep secrets and connection auth server-side for the runnable case, the same safety property
-  gateway tools have.
+- Keep secrets and connection auth server-side for the reference (callback) case, the same
+  safety property gateway tools have.
 
 ## Non-goals
 
@@ -49,38 +55,43 @@ channel, chain — there is no special "tool workflow" type.
   the tool picker; it is noted, not designed here.
 - Building the workflow-authoring UI for tools. This design assumes a workflow revision exists;
   producing it is a separate surface.
-- Changing the generic embed resolver. It already walks `tools[]`; this design relies on
-  that, it does not modify it.
-- A new vault or connection concept. Runnable workflow tools reuse the existing named-secret
-  and connection resolution.
+- Changing the generic resolver's contract. It already inlines `@ag.embed` and walks `tools[]`;
+  the only addition is teaching it to **leave** an `@ag.reference` in place (a "leave it"
+  branch, not tool-aware logic). It does not gain any tool knowledge.
+- A new vault or connection concept. Referenced (callback) workflow tools reuse the existing
+  named-secret and connection resolution.
 - MCP. `mcp_servers` is a sibling field with its own deferral; out of scope here.
 
 ## The reviewer's ask, restated
 
-Add an embed-ref arm to `tools` so a tool can be created as a workflow and referenced. Two
-mechanisms must meet: the **referencing** mechanism (already exists, generic) and the
-**tool-ness** mechanism (the referenced workflow has to end up as a tool the agent can call).
+Add an embed/reference arm to `tools` so a tool can be created as a workflow and pointed at. Two
+mechanisms must meet: the **pointing** mechanism (the resolver, generic, now with two syntaxes)
+and the **tool-ness** mechanism (in `resolve_tools`: the pointed-at workflow has to end up as a
+tool the agent can call or a client tool the browser fulfills).
 
-## The one branch that matters: runnable vs non-runnable
+## The two syntaxes: embed vs reference
 
-A skill is always passive content (markdown + files; the model reads it, nothing executes).
-A referenced workflow is not uniform — it can be runnable or not — and that is the whole
-design:
+A skill is always passive content (markdown + files; the model reads it, nothing executes), so
+it only ever needs **embedding** — inline the value. A tool is not uniform: it can be a runnable
+workflow you want to **call**, or a non-runnable client tool that is just a **value**. So tools
+need both syntaxes, and **the syntax the author writes decides the behavior**:
 
-- **Runnable** (a completion, an agent, a channel, a chain — anything the platform can
-  invoke). You **reference** it because you want to **call** it. When the model calls the
-  tool, the call routes server-side and Agenta **invokes the workflow revision**, exactly like
-  a gateway tool: the sidecar/runner relays the call back, the service runs it, the result
-  returns to the model. Execution and any connections/secrets stay server-side. This resolves
-  to the existing `callback` executor — **no new runner `kind`**.
+- **`@ag.reference`** (new) — the resolver **leaves the reference in the config**. You reference
+  a workflow *because you want to call it* (a completion, an agent, a channel, a chain —
+  anything the platform can run). `resolve_tools` turns the kept reference into a
+  `CallbackToolSpec`: when the model calls the tool, the call routes server-side and Agenta
+  **invokes the workflow revision**, exactly like a gateway tool — the sidecar/runner relays the
+  call back, the service runs it, the result returns to the model. Execution and any
+  connections/secrets stay server-side. This rides on the existing `callback` executor — **no
+  new runner `kind`**.
 
-- **Non-runnable** (a client tool — fulfilled in the browser, nothing to execute
-  server-side). Referencing-to-call does not apply. It is handled the way client tools are
-  handled today: the resolve step in the service **resolves the reference into its value** (a
-  concrete `client` tool config), and at run time the model's call is fulfilled client-side
-  next turn, the existing `client` path.
+- **`@ag.embed`** (existing) — the resolver **inlines the value**. You embed when the referenced
+  thing is a non-runnable client tool: there is nothing to call server-side, so the resolver
+  resolves the reference into its value (**a concrete `client` tool config**). `resolve_tools`
+  sees that concrete config and produces a `client` spec, and at run time the model's call is
+  fulfilled client-side next turn — the existing `client` path.
 
-So **what you reference decides the behavior**. The runnable/not decision is made in the
-service / the resolve step, where the referenced workflow is known. A unifying way to say it:
-reference everything as a tool, and **in the sidecar, if it is runnable, run it; if it is not,
-return its schema**. See [plan.md](plan.md) for the concrete shape.
+So **the syntax decides the behavior**, and the choice is made by the author at config time, not
+inferred server-side. The decision boundary is clean: the **generic resolver** does inline-vs-leave;
+**`resolve_tools`** does the tool-specific mapping (kept reference → callback spec; embedded value
+→ client spec). See [plan.md](plan.md) for the concrete shape.
