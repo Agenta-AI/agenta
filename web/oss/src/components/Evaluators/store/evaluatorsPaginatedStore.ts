@@ -366,7 +366,12 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
             // regresses.
             {is_evaluator: true, is_managed: true},
             {next: cursor ?? undefined, limit: limit ?? undefined, order: "descending"},
-            meta.searchTerm,
+            // Do NOT pass meta.searchTerm here: the search term is already
+            // applied at the workflow level in ensureEvaluatorWorkflowCache
+            // (via queryWorkflows name filter). cache.workflowIds already
+            // contains only the matching workflows. Filtering revisions by
+            // name again would exclude them when revision.name is null
+            // (which is the common case for evaluator revisions).
         )
 
         // Filter out v0 revisions (auto-created initial revisions)

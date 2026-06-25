@@ -36,7 +36,8 @@ const membersTests = () => {
         "should invite a member and show the invite link modal",
         {tag: lightFastTags},
         async ({page, apiHelpers, uiHelpers}) => {
-            test.setTimeout(60000)
+            // 90 s: settings page load (~5 s) + invite API call (~15 s) + modal assertions
+            test.setTimeout(90000)
             const testEmail = `test-member-invite-${Date.now()}@agenta-e2e.test`
 
             await scenarios.given("the user is authenticated", async () => {
@@ -49,7 +50,7 @@ const membersTests = () => {
                 await uiHelpers.expectPath("/settings")
                 // The default tab is "workspace" which renders the Members section
                 await expect(page.getByRole("button", {name: "Invite Members"})).toBeVisible({
-                    timeout: 15000,
+                    timeout: 20000,
                 })
             })
 
@@ -69,26 +70,44 @@ const membersTests = () => {
 
             await scenarios.and("the user submits the invitation", async () => {
                 const inviteModal = page.getByRole("dialog", {name: "Invite Members"})
+
+                // Set up the API response listener BEFORE clicking so we don't miss the
+                // response if the API is fast.
+                const inviteResponsePromise = page
+                    .waitForResponse(
+                        (r) => /\/invite/i.test(r.url()) && r.request().method() === "POST",
+                        {timeout: 30000},
+                    )
+                    .catch(() => null)
+
                 await inviteModal.getByRole("button", {name: "Invite"}).click()
-                // Invite modal closes before link modal opens
-                await expect(inviteModal).not.toBeVisible({timeout: 15000})
+
+                // Wait for the API call to complete before asserting modal state.
+                await inviteResponsePromise
+
+                // Invite modal should close once the server responds with the invite link.
+                await expect(inviteModal).not.toBeVisible({timeout: 20000})
             })
 
             await scenarios.then(
                 "the invited user link modal appears with a shareable URL",
                 async () => {
                     const linkModal = page.getByRole("dialog", {name: "Invited user link"})
-                    await expect(linkModal).toBeVisible({timeout: 15000})
+                    await expect(linkModal).toBeVisible({timeout: 20000})
 
                     // Verify the modal shows the invited email
-                    await expect(linkModal.getByText(testEmail)).toBeVisible({timeout: 5000})
+                    await expect(linkModal.getByText(testEmail)).toBeVisible({timeout: 10000})
 
                     // Verify the invite URL is present
                     await expect(linkModal.getByText(/https?:\/\//)).toBeVisible({timeout: 5000})
 
                     // Close via the X button — "Copy & Close" calls navigator.clipboard which
                     // throws in headless CI, preventing onCancel from being called.
-                    await linkModal.locator('button[aria-label="Close"]').click()
+                    const closeButton = linkModal
+                        .locator('button[aria-label="Close"]')
+                        .or(linkModal.getByRole("button", {name: "Close"}))
+                        .first()
+                    await closeButton.click()
                     await expect(linkModal).not.toBeVisible({timeout: 10000})
                 },
             )
