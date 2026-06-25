@@ -31,5 +31,17 @@
       "path": ".claude/settings.json",
       "content": "{\n  \"permissions\": {\n    \"defaultMode\": \"acceptEdits\",\n    \"allow\": [\n      \"Read\",\n      \"Bash(npm run:*)\"\n    ],\n    \"deny\": [\n      \"WebFetch\"\n    ]\n  }\n}"
     }
+  ],
+  "skills": [
+    {
+      "name": "release-notes",
+      "description": "Draft release notes from a changelog.",
+      "body": "Read the changelog, then write release notes.",
+      "files": [
+        {"path": "scripts/draft.py", "content": "print('draft')", "executable": true}
+      ],
+      "disableModelInvocation": true,
+      "allowExecutableFiles": true
+    }
   ]
 }

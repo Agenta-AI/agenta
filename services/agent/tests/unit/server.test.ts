@@ -11,7 +11,11 @@ import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
 
-import { createAgentServer, type RunAgent } from "../../src/server.ts";
+import {
+  createAgentServer,
+  registerShutdownHandler,
+  type RunAgent,
+} from "../../src/server.ts";
 
 const TOKEN_ENV = "AGENTA_AGENT_RUNNER_TOKEN";
 const previousToken = process.env[TOKEN_ENV];
@@ -223,5 +227,85 @@ describe("createAgentServer", () => {
     } finally {
       await s.close();
     }
+  });
+});
+
+describe("registerShutdownHandler (sandbox-leak backstop on docker stop)", () => {
+  // Register on real, but harmless, signals so we can drive process.emit without touching SIGTERM
+  // (which would kill the test runner). The injected exit() makes the handler a no-op on exit.
+  const TEST_SIGNALS = ["SIGUSR2"] as const;
+  const registered: NodeJS.Signals[] = [];
+
+  afterEach(() => {
+    for (const signal of registered.splice(0))
+      process.removeAllListeners(signal);
+  });
+
+  function register(opts: Parameters<typeof registerShutdownHandler>[0]) {
+    registerShutdownHandler({ signals: TEST_SIGNALS, ...opts });
+    registered.push(...TEST_SIGNALS);
+  }
+
+  it("registers a listener for each shutdown signal", () => {
+    register({ onCleanup: async () => {}, exit: () => {} });
+    for (const signal of TEST_SIGNALS) {
+      assert.ok(
+        process.listenerCount(signal) >= 1,
+        `expected a listener on ${signal}`,
+      );
+    }
+  });
+
+  it("runs cleanup then exits when a signal fires", async () => {
+    let cleaned = false;
+    let exitCode: number | undefined;
+    register({
+      onCleanup: async () => {
+        cleaned = true;
+      },
+      exit: (code) => {
+        exitCode = code;
+      },
+    });
+
+    process.emit("SIGUSR2", "SIGUSR2");
+    // The handler awaits cleanup before exiting; let the microtasks settle.
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(cleaned, true, "cleanup ran");
+    assert.equal(exitCode, 0, "process exited 0 after cleanup");
+  });
+
+  it("still exits when cleanup rejects (cleanup must never block shutdown)", async () => {
+    let exitCode: number | undefined;
+    register({
+      onCleanup: async () => {
+        throw new Error("daytona delete failed");
+      },
+      exit: (code) => {
+        exitCode = code;
+      },
+    });
+
+    process.emit("SIGUSR2", "SIGUSR2");
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(exitCode, 0, "a failing cleanup does not prevent exit");
+  });
+
+  it("cleans up only once even if the signal fires repeatedly", async () => {
+    let cleanups = 0;
+    register({
+      onCleanup: async () => {
+        cleanups += 1;
+      },
+      exit: () => {},
+    });
+
+    process.emit("SIGUSR2", "SIGUSR2");
+    process.emit("SIGUSR2", "SIGUSR2");
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(cleanups, 1, "a repeated signal does not re-run cleanup");
   });
 });

@@ -67,6 +67,21 @@ describe("resolveSkillDirs (materializer)", () => {
     );
   });
 
+  it("uses the hyphenated disable-model-invocation key, never the camelCase/snake_case spellings", () => {
+    // The composed frontmatter must use exactly the hyphenated YAML key the harness reads. The
+    // wire field is `disableModelInvocation` (camelCase) and the SDK field is
+    // `disable_model_invocation` (snake_case); both must be translated to `disable-model-invocation`
+    // here. Pinning all three spellings guards against a future edit silently emitting the wrong
+    // one (which would make the flag a no-op).
+    const [hidden] = materialize([{ ...SKILL, disableModelInvocation: true }]);
+    const md = readFileSync(join(hidden.dir, "SKILL.md"), "utf-8");
+    // The exact hyphenated frontmatter line is present.
+    assert.match(md, /^disable-model-invocation: true$/m);
+    // Neither the wire camelCase nor the SDK snake_case spelling leaks into the rendered file.
+    assert.doesNotMatch(md, /disableModelInvocation/);
+    assert.doesNotMatch(md, /disable_model_invocation/);
+  });
+
   it("lays bundled files at their relative paths", () => {
     const [skill] = materialize([
       {

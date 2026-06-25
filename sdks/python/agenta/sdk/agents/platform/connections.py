@@ -18,6 +18,10 @@ import httpx
 
 from agenta.sdk.utils.logging import get_module_logger
 
+from ..capabilities import (
+    CLAUDE_MODEL_ALIASES,
+    HARNESS_CONNECTION_CAPABILITIES,
+)
 from ..connections import (
     AmbiguousConnectionError,
     ConnectionNotFoundError,
@@ -45,6 +49,47 @@ _PROVIDER_ENV_VARS: Dict[str, str] = {
     "together_ai": "TOGETHERAI_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
 }
+
+# The Claude harness selects a model by a bare alias (``haiku``/``sonnet``/``opus`` + ``[1m]``)
+# or by a dated id (``claude-opus-4-8``), never with a ``provider/`` prefix. Those bare ids are
+# unambiguously Anthropic, so the F-017 "needs a provider prefix" rule must not reject them: a
+# bare alias resolves to ``anthropic`` here before the fail-loud check. The canonical alias set
+# lives in ``capabilities.py`` (the ``/inspect`` surface) so the two never drift.
+_CLAUDE_ALIASES: Set[str] = {alias.lower() for alias in CLAUDE_MODEL_ALIASES}
+
+
+def _inferred_claude_provider(model: ModelRef) -> Optional[str]:
+    """Return ``"anthropic"`` when a bare model id is a known Claude alias, else ``None``.
+
+    Only fires for a bare id (no explicit ``provider``). A known alias (the ``capabilities.py``
+    set) or any ``claude-*`` dated id (the Anthropic naming convention) is unambiguously
+    Anthropic, so it resolves to the ``anthropic`` provider rather than failing loud as a
+    provider-less model.
+    """
+    if model.provider:
+        return None
+    bare = (model.model or "").strip().lower()
+    if not bare:
+        return None
+    if bare in _CLAUDE_ALIASES or bare.startswith("claude-"):
+        return "anthropic"
+    return None
+
+
+def _harness_default_provider(harness: Optional[str]) -> str:
+    """The provider to suggest in a missing-provider hint for ``harness``.
+
+    Claude reaches Anthropic only, so its hint must read ``anthropic/<model>``; every other
+    harness defaults to ``openai`` (the existing hint). Derived from the capability table's
+    provider list so a harness's reachable providers stay the single source of truth.
+    """
+    caps = HARNESS_CONNECTION_CAPABILITIES.get(harness or "")
+    if caps and caps.providers:
+        if "openai" in caps.providers:
+            return "openai"
+        return caps.providers[0]
+    return "openai"
+
 
 # Extras keys the current UI stores on custom_provider secrets, normalized to harness env.
 _SNAKE_EXTRA_ENV_ALIASES: Dict[str, str] = {
@@ -299,14 +344,19 @@ def _candidate_pool(
 
 
 def _choose_default(
-    candidates: Sequence[_ConnectionCandidate], model: ModelRef
+    candidates: Sequence[_ConnectionCandidate],
+    model: ModelRef,
+    harness: Optional[str] = None,
 ) -> _ConnectionCandidate:
     pool = _candidate_pool(candidates, model)
     if not pool and not model.provider:
         # A bare model id (no provider prefix) matched nothing by model id, so there is no
         # provider to look a credential up against. Fail loud with an actionable message rather
         # than degrade to no-credential and surface later as a misleading "add your key" error.
-        raise MissingProviderError(model=model.model)
+        # The hint names the harness-reachable provider (anthropic for Claude, not openai).
+        raise MissingProviderError(
+            model=model.model, hint_provider=_harness_default_provider(harness)
+        )
     if len(pool) == 1:
         return pool[0]
     default_named = [candidate for candidate in pool if candidate.slug == "default"]
@@ -350,9 +400,15 @@ def _choose_named(
 
 
 def _resolve_from_secrets(
-    *, secrets: Sequence[Any], model: ModelRef
+    *, secrets: Sequence[Any], model: ModelRef, harness: Optional[str] = None
 ) -> ResolvedConnection:
     connection = model.connection
+    # A bare Claude alias (haiku/sonnet/opus + [1m]) or a dated claude-* id is unambiguously
+    # Anthropic: infer the provider so the F-017 fail-loud rule does not reject a documented
+    # Claude model id. Inference only fills a missing provider; an explicit provider is honored.
+    inferred = _inferred_claude_provider(model)
+    if inferred:
+        model = model.model_copy(update={"provider": inferred})
     if connection.mode == "self_managed":
         return ResolvedConnection(
             provider=model.provider or "",
@@ -368,7 +424,7 @@ def _resolve_from_secrets(
     chosen = (
         _choose_named(candidates, model, slug)
         if slug
-        else _choose_default(candidates, model)
+        else _choose_default(candidates, model, harness)
     )
     provider = chosen.resolved_provider(model)
     env = chosen.resolved_env(provider)
@@ -434,7 +490,7 @@ class VaultConnectionResolver:
         data = response.json() or []
         if not isinstance(data, list):
             raise ConnectionResolutionError("connection resolution returned a non-list")
-        return _resolve_from_secrets(secrets=data, model=model)
+        return _resolve_from_secrets(secrets=data, model=model, harness=context.harness)
 
 
 class _StaticSecretsResolver:
@@ -447,4 +503,6 @@ class _StaticSecretsResolver:
         model: ModelRef,
         context: RuntimeAuthContext,
     ) -> ResolvedConnection:
-        return _resolve_from_secrets(secrets=self._secrets, model=model)
+        return _resolve_from_secrets(
+            secrets=self._secrets, model=model, harness=context.harness
+        )

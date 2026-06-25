@@ -128,7 +128,7 @@ async def test_bare_model_without_provider_fails_loud(fake_http, connection):
     # F-017: a bare model id (no `provider/` prefix) that matches no vault candidate by model
     # id has no provider to look a credential up against. It must fail loud with an actionable
     # message, not degrade silently to no-credential (which surfaced as a misleading auth error
-    # even when the key was present).
+    # even when the key was present). On a Pi harness the hint suggests an openai/ prefix.
     fake_http(connections, payload=[_provider_key("openai-prod", "openai", "sk-prod")])
     with pytest.raises(MissingProviderError) as exc:
         await VaultConnectionResolver(connection).resolve(
@@ -136,6 +136,56 @@ async def test_bare_model_without_provider_fails_loud(fake_http, connection):
         )
     assert "provider prefix" in str(exc.value)
     assert "openai/gpt-4o-mini" in str(exc.value)
+
+
+async def test_missing_provider_hint_is_harness_correct_for_claude(
+    fake_http, connection
+):
+    # F-031: the missing-provider hint must name a harness-REACHABLE provider. On a Claude
+    # harness (Anthropic only) an unrecognized bare id must read "anthropic/<m>", never
+    # "openai/<m>" (which Claude cannot reach). Use a non-alias bare id so it still fails loud.
+    fake_http(
+        connections, payload=[_provider_key("anthropic-prod", "anthropic", "sk-ant")]
+    )
+    with pytest.raises(MissingProviderError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=ModelRef.coerce("some-unknown-model"),
+            context=RuntimeAuthContext(harness="claude"),
+        )
+    message = str(exc.value)
+    assert "anthropic/some-unknown-model" in message
+    assert "openai/" not in message
+
+
+async def test_bare_claude_alias_resolves_to_anthropic(fake_http, connection):
+    # F-031: a bare Claude alias (haiku/sonnet/opus + [1m]) is unambiguously Anthropic, so the
+    # F-017 prefix rule must NOT reject it. It resolves against the vault's anthropic key the
+    # same way the documented `anthropic/haiku` form does, instead of failing loud.
+    fake_http(
+        connections, payload=[_provider_key("anthropic-prod", "anthropic", "sk-ant")]
+    )
+    for alias in ("haiku", "sonnet", "opus", "opus[1m]"):
+        resolved = await VaultConnectionResolver(connection).resolve(
+            model=ModelRef.coerce(alias),
+            context=RuntimeAuthContext(harness="claude"),
+        )
+        assert resolved.provider == "anthropic", alias
+        assert resolved.model == alias, alias
+        assert resolved.env == {"ANTHROPIC_API_KEY": "sk-ant"}, alias
+
+
+async def test_bare_claude_dated_id_resolves_to_anthropic(fake_http, connection):
+    # F-031: a bare dated Anthropic id (claude-opus-4-8) is also unambiguously Anthropic via the
+    # claude-* naming convention, so it resolves rather than failing loud on a missing prefix.
+    fake_http(
+        connections, payload=[_provider_key("anthropic-prod", "anthropic", "sk-ant")]
+    )
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef.coerce("claude-opus-4-8"),
+        context=RuntimeAuthContext(harness="claude"),
+    )
+    assert resolved.provider == "anthropic"
+    assert resolved.model == "claude-opus-4-8"
 
 
 async def test_bare_model_matching_a_candidate_infers_the_provider(

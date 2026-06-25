@@ -169,6 +169,11 @@ These are the agent-relevant variables. The example file lists them commented ou
 - `SANDBOX_AGENT_PROVIDER`. `local` or `daytona`. Default `local`.
 - `SANDBOX_AGENT_DAYTONA_API_KEY`, `_API_URL`, `_TARGET`, `_SNAPSHOT`, `_IMAGE`,
   `_INSTALL_PI`. Daytona credentials the runner reads for the `daytona` sandbox provider.
+- `SANDBOX_AGENT_DAYTONA_AUTOSTOP_MINUTES`. Idle minutes before Daytona auto-stops a sandbox.
+  Default `15`. Leak backstop: the create object pairs `ephemeral` (auto-delete on stop) with
+  this non-zero auto-stop so a sandbox the runner leaks (a process KILL skips the per-run
+  teardown) self-reaps instead of burning credit. Values below `1` fall back to the default
+  (a `0` would re-disable auto-stop and reintroduce the leak).
 
 The `sandbox-agent` container deliberately has no `env_file`. The harness sandbox must not
 inherit the stack's secrets. The compose block comments explain this

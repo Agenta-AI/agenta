@@ -352,3 +352,5 @@ export {
 
 // Agent-lane request builder (bypasses buffered-fetch execution; useChat streams).
 export {buildAgentRequest, buildAgentReferences, type AgentRequest} from "./agentRequest"
+// Agent-lane HITL resume predicate (approve AND deny both resume the conversation).
+export {agentShouldResumeAfterApproval} from "./agentApprovalResume"

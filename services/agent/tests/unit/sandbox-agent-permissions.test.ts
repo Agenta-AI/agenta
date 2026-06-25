@@ -73,7 +73,9 @@ describe("attachPermissionResponder", () => {
         },
       },
     ]);
-    assert.deepEqual(replies, [{ id: "perm-1", reply: "always" }]);
+    // allow maps to ONCE, not always: a per-call approval must not broaden into a
+    // turn-wide grant that skips re-gating later calls (the over-authorization hole).
+    assert.deepEqual(replies, [{ id: "perm-1", reply: "once" }]);
   });
 
   it("parks: emits the interaction_request but sends NO harness reply (F-024 regression)", async () => {

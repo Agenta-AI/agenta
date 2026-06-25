@@ -49,8 +49,7 @@ group by job:
   "secrets":        { "OPENAI_API_KEY": "..." },   // the only vault-key channel on the wire
 
   // turn
-  "prompt":   "...",                     // explicit latest turn; falls back to last user msg
-  "messages": [ /* neutral ChatMessage[] */ ],
+  "messages": [ /* neutral ChatMessage[] */ ],  // the only turn channel; the runner derives the latest user turn (no separate `prompt` field on the wire)
 
   // tools + skills (see runner-to-tool-callback.md, runner-to-mcp-server.md)
   "tools":        [ "read", "edit" ],    // built-in tool names
