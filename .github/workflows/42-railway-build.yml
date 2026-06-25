@@ -109,7 +109,7 @@ jobs:
           - agenta-api
           - agenta-web
           - agenta-services
-          - agenta-sandbox-agent
+          - agenta-agent-runner
         arch:
           - amd64
           - arm64
@@ -128,7 +128,7 @@ jobs:
           - image_name: agenta-services
             context: .
             dockerfile: services/oss/docker/Dockerfile.gh
-          - image_name: agenta-sandbox-agent
+          - image_name: agenta-agent-runner
             context: services/agent
             dockerfile: services/agent/docker/Dockerfile
           # Per-arch config (runner + platform string)
@@ -219,7 +219,7 @@ jobs:
           - agenta-api
           - agenta-web
           - agenta-services
-          - agenta-sandbox-agent
+          - agenta-agent-runner
     steps:
       - name: Log in to GHCR
         uses: docker/login-action@v3

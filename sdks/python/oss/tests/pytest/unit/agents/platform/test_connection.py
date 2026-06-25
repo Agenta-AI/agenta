@@ -9,8 +9,6 @@ from agenta.sdk.agents.platform.connection import DEFAULT_TOOLS_TIMEOUT
 
 # Env vars the connection reads; cleared per test so the host environment can't leak in.
 _ENV_VARS = (
-    "AGENTA_AGENT_TOOLS_TIMEOUT",
-    "AGENTA_AGENT_TOOLS_API_URL",
     "AGENTA_API_URL",
     "AGENTA_API_KEY",
 )
@@ -31,23 +29,13 @@ def _clean_env(monkeypatch):
 # --- timeout ---------------------------------------------------------------
 
 
-def test_timeout_defaults_when_unset():
+def test_timeout_is_fixed_default():
+    # The backend round-trip budget is a fixed constant, not env-configurable.
     assert default_timeout() == DEFAULT_TOOLS_TIMEOUT
     assert PlatformConnection().timeout == DEFAULT_TOOLS_TIMEOUT
 
 
-def test_timeout_reads_env(monkeypatch):
-    monkeypatch.setenv("AGENTA_AGENT_TOOLS_TIMEOUT", "5")
-    assert default_timeout() == 5.0
-
-
-def test_timeout_falls_back_on_malformed_env(monkeypatch):
-    monkeypatch.setenv("AGENTA_AGENT_TOOLS_TIMEOUT", "not-a-number")
-    assert default_timeout() == DEFAULT_TOOLS_TIMEOUT  # guarded, no ValueError at use
-
-
-def test_explicit_timeout_wins(monkeypatch):
-    monkeypatch.setenv("AGENTA_AGENT_TOOLS_TIMEOUT", "5")
+def test_explicit_timeout_wins():
     assert PlatformConnection(timeout=12.0).timeout == 12.0
 
 
@@ -58,11 +46,6 @@ def test_base_url_explicit_overrides_everything(monkeypatch):
     monkeypatch.setenv("AGENTA_API_URL", "https://env.example/api")
     conn = PlatformConnection(base_url="https://explicit.example/api/")
     assert conn.base_url() == "https://explicit.example/api"  # trailing slash trimmed
-
-
-def test_base_url_from_tools_api_url_env(monkeypatch):
-    monkeypatch.setenv("AGENTA_AGENT_TOOLS_API_URL", "https://tools.example/api/")
-    assert PlatformConnection().base_url() == "https://tools.example/api"
 
 
 def test_base_url_from_api_url_env(monkeypatch):

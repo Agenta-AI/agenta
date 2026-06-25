@@ -11,9 +11,9 @@
  */
 export type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
 
-/** Per-tool budget for the /tools/call round-trip. Surfaced as a tool error on timeout. */
+/** Per-tool budget (ms) for the /tools/call round-trip. Surfaced as a tool error on timeout. */
 export const TOOL_CALL_TIMEOUT_MS = Number(
-  process.env.AGENTA_AGENT_TOOL_CALL_TIMEOUT_MS ?? 30000,
+  process.env.AGENTA_AGENT_TOOLS_TIMEOUT ?? 30000,
 );
 
 /** Permissive default when a resolved tool has no input schema. */

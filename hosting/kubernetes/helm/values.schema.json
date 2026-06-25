@@ -393,7 +393,7 @@
         "port":        { "type": ["integer", "string"] },
         "externalUrl": { "type": "string", "description": "External runner URL. Emitted as AGENTA_AGENT_RUNNER_URL when set." },
         "provider":    { "type": "string", "enum": ["local", "daytona"], "description": "SANDBOX_AGENT_PROVIDER." },
-        "enableMcp":   { "type": ["boolean", "string"], "description": "AGENTA_AGENT_ENABLE_MCP on the services pod." },
+        "enableMcp":   { "type": ["boolean", "string"], "description": "AGENTA_AGENT_MCP_SERVERS_ENABLED on the services pod." },
         "logLevel":    { "type": "string", "description": "SANDBOX_AGENT_LOG_LEVEL." },
         "image": {
           "type": "object",
@@ -408,12 +408,12 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "apiKey":    { "type": "string", "description": "SANDBOX_AGENT_DAYTONA_API_KEY via Secret." },
-            "apiUrl":    { "type": "string", "description": "SANDBOX_AGENT_DAYTONA_API_URL." },
-            "target":    { "type": "string", "description": "SANDBOX_AGENT_DAYTONA_TARGET." },
-            "snapshot":  { "type": "string", "description": "SANDBOX_AGENT_DAYTONA_SNAPSHOT." },
-            "image":     { "type": "string", "description": "SANDBOX_AGENT_DAYTONA_IMAGE." },
-            "installPi": { "type": ["boolean", "string"], "description": "SANDBOX_AGENT_DAYTONA_INSTALL_PI." }
+            "apiKey":    { "type": "string", "description": "DAYTONA_API_KEY via Secret." },
+            "apiUrl":    { "type": "string", "description": "DAYTONA_API_URL." },
+            "target":    { "type": "string", "description": "DAYTONA_TARGET." },
+            "snapshot":  { "type": "string", "description": "DAYTONA_SNAPSHOT." },
+            "image":     { "type": "string", "description": "DAYTONA_IMAGE." },
+            "installPi": { "type": ["boolean", "string"], "description": "AGENTA_AGENT_SANDBOX_PI_INSTALLED." }
           }
         },
         "resources":   { "type": "object", "additionalProperties": true },

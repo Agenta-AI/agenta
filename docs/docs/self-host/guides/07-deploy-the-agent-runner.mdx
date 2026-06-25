@@ -22,8 +22,8 @@ AGENTA_AGENT_RUNNER_URL=http://sandbox-agent:8765
 Use these variables when you need to override the image or default sandbox provider:
 
 ```bash
-AGENTA_SANDBOX_AGENT_IMAGE_NAME=agenta-sandbox-agent
-AGENTA_SANDBOX_AGENT_IMAGE_TAG=latest
+AGENTA_AGENT_RUNNER_IMAGE_NAME=agenta-agent-runner
+AGENTA_AGENT_RUNNER_IMAGE_TAG=latest
 SANDBOX_AGENT_PROVIDER=local
 ```
 
@@ -56,7 +56,7 @@ runner's private Railway URL. For image-based deploys, provide the runner image 
 other Agenta images:
 
 ```bash
-export AGENTA_SANDBOX_AGENT_IMAGE="ghcr.io/agenta-ai/agenta-sandbox-agent:latest"
+export AGENTA_AGENT_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-agent-runner:latest"
 ```
 
 ## Related

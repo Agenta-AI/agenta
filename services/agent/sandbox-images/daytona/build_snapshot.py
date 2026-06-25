@@ -8,8 +8,8 @@ Bakes the `pi` CLI into a sandbox-agent base image (which already ships the sand
 daemon, the Claude CLI, and CA certs) so Daytona runs don't pay a ~150s per-invoke
 `npm install pi`. Set the runner service to use it:
 
-    SANDBOX_AGENT_DAYTONA_SNAPSHOT=agenta-sandbox-pi
-    SANDBOX_AGENT_DAYTONA_INSTALL_PI=false
+    DAYTONA_SNAPSHOT=agenta-sandbox-pi
+    AGENTA_AGENT_SANDBOX_PI_INSTALLED=false
 
 Run: DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py [--force]
 

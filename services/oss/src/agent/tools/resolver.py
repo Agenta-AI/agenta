@@ -2,8 +2,8 @@
 
 The three resolution entrypoints now live in the SDK (``agenta.sdk.agents.platform``) so the
 service and a standalone SDK user share them. ``resolve_tools`` is re-exported as-is; the
-service only adds the MCP deployment gate (``AGENTA_AGENT_ENABLE_MCP``, off by default) on top
-of the SDK's ``resolve_mcp``.
+service only adds the MCP deployment gate (``AGENTA_AGENT_MCP_SERVERS_ENABLED``, off by
+default) on top of the SDK's ``resolve_mcp``.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ __all__ = ["resolve_tools", "resolve_mcp_servers"]
 
 
 def _mcp_enabled() -> bool:
-    return os.getenv("AGENTA_AGENT_ENABLE_MCP", "").strip().lower() in TRUTHY
+    return os.getenv("AGENTA_AGENT_MCP_SERVERS_ENABLED", "").strip().lower() in TRUTHY
 
 
 async def resolve_mcp_servers(
@@ -28,7 +28,7 @@ async def resolve_mcp_servers(
     *,
     secret_provider: Optional[ToolSecretProvider] = None,
 ) -> List[ResolvedMCPServer]:
-    """Resolve MCP servers, gated by ``AGENTA_AGENT_ENABLE_MCP`` (off by default).
+    """Resolve MCP servers, gated by ``AGENTA_AGENT_MCP_SERVERS_ENABLED`` (off by default).
 
     Returns the resolved servers when enabled, an empty list when not.
     """

@@ -19,7 +19,9 @@ from agenta.sdk.agents import TraceContext
 
 log = get_module_logger(__name__)
 
-_CAPTURE_CONTENT = os.getenv("AGENTA_AGENT_CAPTURE_CONTENT", "true").lower() not in (
+_CAPTURE_CONTENT = os.getenv(
+    "AGENTA_AGENT_CONTENT_CAPTURE_ENABLED", "true"
+).lower() not in (
     "0",
     "false",
     "no",

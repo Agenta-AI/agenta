@@ -298,7 +298,7 @@ services:
         environment:
             - SCRIPT_NAME=/services
             - AGENTA_AGENT_RUNNER_URL=${AGENTA_AGENT_RUNNER_URL:-http://sandbox-agent:8765}
-            - AGENTA_AGENT_ENABLE_MCP=${AGENTA_AGENT_ENABLE_MCP:-false}
+            - AGENTA_AGENT_MCP_SERVERS_ENABLED=${AGENTA_AGENT_MCP_SERVERS_ENABLED:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -327,16 +327,16 @@ services:
             dockerfile: docker/Dockerfile
         # === CONFIGURATION ======================================== #
         environment:
-            PORT: "8765"
-            AGENTA_HOST: ${AGENTA_HOST:-}
+            AGENTA_AGENT_RUNNER_PORT: "8765"
+            AGENTA_API_URL: ${AGENTA_API_URL:-}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
-            SANDBOX_AGENT_DAYTONA_API_KEY: ${SANDBOX_AGENT_DAYTONA_API_KEY:-}
-            SANDBOX_AGENT_DAYTONA_API_URL: ${SANDBOX_AGENT_DAYTONA_API_URL:-}
-            SANDBOX_AGENT_DAYTONA_TARGET: ${SANDBOX_AGENT_DAYTONA_TARGET:-}
-            SANDBOX_AGENT_DAYTONA_SNAPSHOT: ${SANDBOX_AGENT_DAYTONA_SNAPSHOT:-}
-            SANDBOX_AGENT_DAYTONA_IMAGE: ${SANDBOX_AGENT_DAYTONA_IMAGE:-}
-            SANDBOX_AGENT_DAYTONA_INSTALL_PI: ${SANDBOX_AGENT_DAYTONA_INSTALL_PI:-false}
+            DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
+            DAYTONA_API_URL: ${DAYTONA_API_URL:-}
+            DAYTONA_TARGET: ${DAYTONA_TARGET:-}
+            DAYTONA_SNAPSHOT: ${DAYTONA_SNAPSHOT:-}
+            DAYTONA_IMAGE: ${DAYTONA_IMAGE:-}
+            AGENTA_AGENT_SANDBOX_PI_INSTALLED: ${AGENTA_AGENT_SANDBOX_PI_INSTALLED:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network

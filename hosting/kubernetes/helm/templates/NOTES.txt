@@ -137,7 +137,7 @@ Ensure it contains the following keys:
     - NEWRELIC_LICENSE_KEY
     - LOOPS_API_KEY
     - DAYTONA_API_KEY
-    - SANDBOX_AGENT_DAYTONA_API_KEY
+    - DAYTONA_API_KEY
     - AGENTA_AI_SERVICES_API_KEY
     - AGENTA_AI_SERVICES_REFINE_PROMPT_KEY
     - <PROVIDER>_API_KEY            # llm providers (openai, anthropic, …)

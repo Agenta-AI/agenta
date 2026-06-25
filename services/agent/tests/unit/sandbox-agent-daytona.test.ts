@@ -13,21 +13,12 @@ import {
   DAYTONA_PI_DIR,
   DAYTONA_PI_INSTALL,
   DAYTONA_PI_INSTALL_DIR,
-  applyDaytonaClientEnv,
   createCookieFetch,
   daytonaEnvVars,
   uploadPiAuthToSandbox,
 } from "../../src/engines/sandbox_agent/daytona.ts";
 
-const envKeys = [
-  "SANDBOX_AGENT_DAYTONA_API_KEY",
-  "SANDBOX_AGENT_DAYTONA_API_URL",
-  "SANDBOX_AGENT_DAYTONA_TARGET",
-  "DAYTONA_API_KEY",
-  "DAYTONA_API_URL",
-  "DAYTONA_TARGET",
-  "PI_CODING_AGENT_DIR",
-];
+const envKeys = ["PI_CODING_AGENT_DIR"];
 const previousEnv = new Map<string, string | undefined>();
 for (const key of envKeys) previousEnv.set(key, process.env[key]);
 
@@ -46,31 +37,17 @@ afterEach(() => {
 describe("daytonaEnvVars", () => {
   it("combines Pi agent dir, extension env, provider secrets, and Pi command", () => {
     const env = daytonaEnvVars(
-      { AGENTA_TRACEPARENT: "trace", AGENTA_TOOL_RELAY_DIR: "/relay" },
+      { TRACEPARENT: "trace", AGENTA_AGENT_TOOLS_RELAY_DIR: "/relay" },
       { OPENAI_API_KEY: "key" },
     );
 
     assert.equal(env.PI_CODING_AGENT_DIR, DAYTONA_PI_DIR);
-    assert.equal(env.AGENTA_TRACEPARENT, "trace");
-    assert.equal(env.AGENTA_TOOL_RELAY_DIR, "/relay");
+    assert.equal(env.TRACEPARENT, "trace");
+    assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, "/relay");
     assert.equal(env.OPENAI_API_KEY, "key");
     if (DAYTONA_PI_INSTALL) {
       assert.equal(env.PI_ACP_PI_COMMAND, `${DAYTONA_PI_INSTALL_DIR}/node_modules/.bin/pi`);
     }
-  });
-});
-
-describe("applyDaytonaClientEnv", () => {
-  it("normalizes sandbox-agent Daytona env names to Daytona SDK names", () => {
-    process.env.SANDBOX_AGENT_DAYTONA_API_KEY = "api-key";
-    process.env.SANDBOX_AGENT_DAYTONA_API_URL = "https://daytona.example.test";
-    process.env.SANDBOX_AGENT_DAYTONA_TARGET = "us";
-
-    applyDaytonaClientEnv();
-
-    assert.equal(process.env.DAYTONA_API_KEY, "api-key");
-    assert.equal(process.env.DAYTONA_API_URL, "https://daytona.example.test");
-    assert.equal(process.env.DAYTONA_TARGET, "us");
   });
 });
 

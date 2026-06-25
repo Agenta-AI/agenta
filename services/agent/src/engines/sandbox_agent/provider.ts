@@ -2,7 +2,7 @@ import { local } from "sandbox-agent/local";
 import { daytona } from "sandbox-agent/daytona";
 
 import type { SandboxPermission } from "../../protocol.ts";
-import { applyDaytonaClientEnv, daytonaEnvVars } from "./daytona.ts";
+import { daytonaEnvVars } from "./daytona.ts";
 
 /**
  * Translate the Layer 2 network policy into Daytona create fields. Daytona enforces egress
@@ -49,10 +49,9 @@ export function buildSandboxProvider(
   sandboxPermission?: SandboxPermission,
 ) {
   if (sandboxId === "daytona") {
-    applyDaytonaClientEnv();
-    const snapshot = process.env.SANDBOX_AGENT_DAYTONA_SNAPSHOT;
-    const image = process.env.SANDBOX_AGENT_DAYTONA_IMAGE;
-    const target = process.env.SANDBOX_AGENT_DAYTONA_TARGET;
+    const snapshot = process.env.DAYTONA_SNAPSHOT;
+    const image = process.env.DAYTONA_IMAGE;
+    const target = process.env.DAYTONA_TARGET;
     return daytona({
       ...(image ? { image } : {}),
       create: {

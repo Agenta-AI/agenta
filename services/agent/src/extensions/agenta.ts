@@ -11,12 +11,12 @@
  * Everything is read from the environment (injected at the daemon's birth). Tool env is
  * intentionally public-only; execution relays back to the runner where private specs/auth
  * remain in memory:
- *   AGENTA_TRACEPARENT            W3C traceparent of the caller's /invoke span
- *   AGENTA_OTLP_ENDPOINT          OTLP traces URL (e.g. https://host/api/otlp/v1/traces)
- *   AGENTA_OTLP_AUTHORIZATION     Authorization header for the OTLP export
- *   AGENTA_CAPTURE_CONTENT        "false" to drop prompt/completion/tool I/O from spans
- *   AGENTA_TOOL_PUBLIC_SPECS      JSON [{ name, description, inputSchema }]
- *   AGENTA_TOOL_RELAY_DIR         relay tool calls through the runner via files here
+ *   TRACEPARENT                       W3C traceparent of the caller's /invoke span
+ *   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT  OTLP traces URL (e.g. https://host/api/otlp/v1/traces)
+ *   OTEL_EXPORTER_OTLP_HEADERS        key=value list for export headers (e.g. Authorization=...)
+ *   AGENTA_AGENT_CONTENT_CAPTURE_ENABLED "false" to drop prompt/completion/tool I/O from spans
+ *   AGENTA_AGENT_TOOLS_PUBLIC_SPECS   JSON [{ name, description, inputSchema }]
+ *   AGENTA_AGENT_TOOLS_RELAY_DIR      relay tool calls through the runner via files here
  *
  * Bundled self-contained (esbuild) so its OpenTelemetry deps resolve wherever Pi loads
  * it (local, the docker sidecar, a Daytona snapshot). Default export is the Pi
@@ -29,6 +29,19 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createAgentaOtel } from "../tracing/otel.ts";
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA } from "../tools/callback.ts";
+
+/** Pull the Authorization value out of an OTEL_EXPORTER_OTLP_HEADERS key=value list. */
+function authorizationFromOtlpHeaders(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  for (const pair of raw.split(",")) {
+    const eq = pair.indexOf("=");
+    if (eq === -1) continue;
+    if (pair.slice(0, eq).trim().toLowerCase() === "authorization") {
+      return pair.slice(eq + 1).trim();
+    }
+  }
+  return undefined;
+}
 import { runResolvedTool } from "../tools/dispatch.ts";
 
 function log(message: string): void {
@@ -37,15 +50,15 @@ function log(message: string): void {
 
 /** Register public tool metadata as Pi tools whose execution relays to the runner. */
 function registerTools(pi: ExtensionAPI): void {
-  const raw = process.env.AGENTA_TOOL_PUBLIC_SPECS;
-  const relayDir = process.env.AGENTA_TOOL_RELAY_DIR;
+  const raw = process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS;
+  const relayDir = process.env.AGENTA_AGENT_TOOLS_RELAY_DIR;
   if (!raw || !relayDir) return;
 
   let specs: ResolvedToolSpec[] = [];
   try {
     specs = JSON.parse(raw);
   } catch (err) {
-    log(`bad AGENTA_TOOL_PUBLIC_SPECS: ${(err as Error).message}`);
+    log(`bad AGENTA_AGENT_TOOLS_PUBLIC_SPECS: ${(err as Error).message}`);
     return;
   }
 
@@ -78,9 +91,14 @@ function registerTools(pi: ExtensionAPI): void {
 const factory = (pi: ExtensionAPI): void => {
   // Fully inert unless Agenta wired this run (so it is safe to install globally in a
   // shared Pi agent dir — a normal `pi` session with no Agenta env does nothing).
-  const hasTracing = !!(process.env.AGENTA_TRACEPARENT || process.env.AGENTA_OTLP_ENDPOINT);
-  const hasTools = !!(process.env.AGENTA_TOOL_PUBLIC_SPECS && process.env.AGENTA_TOOL_RELAY_DIR);
-  const usageOut = process.env.AGENTA_USAGE_OUT;
+  const hasTracing = !!(
+    process.env.TRACEPARENT || process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+  );
+  const hasTools = !!(
+    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS &&
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR
+  );
+  const usageOut = process.env.AGENTA_AGENT_USAGE_CAPTURE_PATH;
   if (!hasTracing && !hasTools && !usageOut) return;
 
   if (hasTools) registerTools(pi);
@@ -92,10 +110,10 @@ const factory = (pi: ExtensionAPI): void => {
   if (!hasTracing && !usageOut) return;
 
   const otel = createAgentaOtel({
-    traceparent: process.env.AGENTA_TRACEPARENT,
-    endpoint: process.env.AGENTA_OTLP_ENDPOINT,
-    authorization: process.env.AGENTA_OTLP_AUTHORIZATION,
-    captureContent: process.env.AGENTA_CAPTURE_CONTENT !== "false",
+    traceparent: process.env.TRACEPARENT,
+    endpoint: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+    authorization: authorizationFromOtlpHeaders(process.env.OTEL_EXPORTER_OTLP_HEADERS),
+    captureContent: process.env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED !== "false",
   });
   otel.register(pi); // lifecycle handlers (spans + usage accumulation)
 

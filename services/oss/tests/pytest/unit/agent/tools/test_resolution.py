@@ -71,7 +71,7 @@ async def test_missing_tool_secret_is_not_silently_omitted():
 
 
 async def test_mcp_is_disabled_at_service_composition_by_default(monkeypatch):
-    monkeypatch.delenv("AGENTA_AGENT_ENABLE_MCP", raising=False)
+    monkeypatch.delenv("AGENTA_AGENT_MCP_SERVERS_ENABLED", raising=False)
     assert await resolve_mcp_servers([{"name": "github", "command": "npx"}]) == []
 
 

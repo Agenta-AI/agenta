@@ -39,7 +39,7 @@ spec:
               containerPort: {{ include "agenta.agentRunner.port" . }}
               protocol: TCP
           env:
-            - name: PORT
+            - name: AGENTA_AGENT_RUNNER_PORT
               value: {{ include "agenta.agentRunner.port" . | quote }}
             - name: SANDBOX_AGENT_PROVIDER
               value: {{ default "local" $runner.provider | quote }}
@@ -48,31 +48,31 @@ spec:
               value: {{ $runner.logLevel | quote }}
             {{- end }}
             {{- if $daytona.apiUrl }}
-            - name: SANDBOX_AGENT_DAYTONA_API_URL
+            - name: DAYTONA_API_URL
               value: {{ $daytona.apiUrl | quote }}
             {{- end }}
             {{- if $daytona.target }}
-            - name: SANDBOX_AGENT_DAYTONA_TARGET
+            - name: DAYTONA_TARGET
               value: {{ $daytona.target | quote }}
             {{- end }}
             {{- if $daytona.snapshot }}
-            - name: SANDBOX_AGENT_DAYTONA_SNAPSHOT
+            - name: DAYTONA_SNAPSHOT
               value: {{ $daytona.snapshot | quote }}
             {{- end }}
             {{- if $daytona.image }}
-            - name: SANDBOX_AGENT_DAYTONA_IMAGE
+            - name: DAYTONA_IMAGE
               value: {{ $daytona.image | quote }}
             {{- end }}
             {{- if hasKey $daytona "installPi" }}
-            - name: SANDBOX_AGENT_DAYTONA_INSTALL_PI
+            - name: AGENTA_AGENT_SANDBOX_PI_INSTALLED
               value: {{ $daytona.installPi | quote }}
             {{- end }}
             {{- if or $daytona.apiKey (eq (default "local" $runner.provider) "daytona") }}
-            - name: SANDBOX_AGENT_DAYTONA_API_KEY
+            - name: DAYTONA_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "agenta.secretName" . }}
-                  key: SANDBOX_AGENT_DAYTONA_API_KEY
+                  key: DAYTONA_API_KEY
                   optional: true
             {{- end }}
             {{- range $key, $val := $runner.env }}
