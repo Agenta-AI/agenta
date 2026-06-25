@@ -33,7 +33,7 @@ import httpx
 
 BASE = os.environ.get("AGENTA_BASE", "http://localhost:8280")
 PROJ = os.environ.get("AGENTA_PROJECT_ID", "019e8df5-2a58-7501-8fe2-56f7b332bd00")
-MODEL = os.environ.get("AGENTA_QA_MODEL", "gpt-4o-mini")
+MODEL = os.environ.get("AGENTA_QA_MODEL", "openai/gpt-4o-mini")
 RUNS = pathlib.Path(__file__).resolve().parents[1] / "runs"
 
 
@@ -87,7 +87,7 @@ SCENARIOS = [
         "id": "smoke_chat_pi",
         "group": "core",
         "capability": "chat+instructions+model",
-        "harness": "pi",
+        "harness": "pi_core",
         "agent": {
             "agents_md": "Reply with exactly the requested word and nothing else."
         },
@@ -99,7 +99,7 @@ SCENARIOS = [
         "id": "smoke_chat_agenta",
         "group": "core",
         "capability": "chat+instructions+model",
-        "harness": "agenta",
+        "harness": "pi_agenta",
         "agent": {
             "agents_md": "When asked to reply with a word, output exactly that word."
         },
@@ -111,7 +111,7 @@ SCENARIOS = [
         "id": "code_tool_pi",
         "group": "core",
         "capability": "code tool",
-        "harness": "pi",
+        "harness": "pi_core",
         "agent": {
             "agents_md": "When asked to compute, call secret_math and report exactly its output.",
             "tools": [SECRET_MATH],
@@ -124,7 +124,7 @@ SCENARIOS = [
         "id": "code_tool_agenta",
         "group": "core",
         "capability": "code tool",
-        "harness": "agenta",
+        "harness": "pi_agenta",
         "agent": {
             "agents_md": "When asked to compute, call secret_math and report exactly its output.",
             "tools": [SECRET_MATH],
@@ -137,7 +137,7 @@ SCENARIOS = [
         "id": "builtin_bash_pi",
         "group": "core",
         "capability": "builtin bash",
-        "harness": "pi",
+        "harness": "pi_core",
         "agent": {
             "agents_md": "Use the bash tool when asked to run a command. Report only its stdout.",
             "tools": [{"type": "builtin", "name": "bash"}],
@@ -150,7 +150,7 @@ SCENARIOS = [
         "id": "builtin_bash_agenta",
         "group": "core",
         "capability": "builtin bash (forced)",
-        "harness": "agenta",
+        "harness": "pi_agenta",
         "agent": {
             "agents_md": "Use the bash tool when asked to run a command. Report only its stdout.",
         },
@@ -162,11 +162,11 @@ SCENARIOS = [
         "id": "append_system_pi",
         "group": "f001",
         "capability": "pi append_system override",
-        "harness": "pi",
+        "harness": "pi_core",
         "agent": {
             "agents_md": "Be brief.",
             "harness_options": {
-                "pi": {
+                "pi_core": {
                     "append_system": "Always end every reply with the exact token ZK-9-END."
                 }
             },
