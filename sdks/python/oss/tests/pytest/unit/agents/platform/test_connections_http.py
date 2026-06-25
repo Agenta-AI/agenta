@@ -8,6 +8,7 @@ from agenta.sdk.agents.connections import (
     AmbiguousConnectionError,
     ConnectionNotFoundError,
     ConnectionResolutionError,
+    MissingProviderError,
     ModelRef,
     ProviderMismatchError,
     RuntimeAuthContext,
@@ -121,6 +122,37 @@ async def test_default_connection_ambiguous(fake_http, connection):
         await VaultConnectionResolver(connection).resolve(
             model=_model(slug=None), context=_context()
         )
+
+
+async def test_bare_model_without_provider_fails_loud(fake_http, connection):
+    # F-017: a bare model id (no `provider/` prefix) that matches no vault candidate by model
+    # id has no provider to look a credential up against. It must fail loud with an actionable
+    # message, not degrade silently to no-credential (which surfaced as a misleading auth error
+    # even when the key was present).
+    fake_http(connections, payload=[_provider_key("openai-prod", "openai", "sk-prod")])
+    with pytest.raises(MissingProviderError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=ModelRef.coerce("gpt-4o-mini"), context=_context()
+        )
+    assert "provider prefix" in str(exc.value)
+    assert "openai/gpt-4o-mini" in str(exc.value)
+
+
+async def test_bare_model_matching_a_candidate_infers_the_provider(
+    fake_http, connection
+):
+    # F-017: a bare model id still resolves when a vault candidate matches it by model id; the
+    # provider is then inferred from the matched candidate. Only the no-match case fails loud.
+    fake_http(
+        connections,
+        payload=[
+            _custom_provider("my-gw", "openai", key="sk-gw", models=["gpt-4o-mini"])
+        ],
+    )
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef.coerce("gpt-4o-mini"), context=_context()
+    )
+    assert resolved.credential_mode == "env"
 
 
 async def test_missing_named_connection_fails_loud(fake_http, connection):

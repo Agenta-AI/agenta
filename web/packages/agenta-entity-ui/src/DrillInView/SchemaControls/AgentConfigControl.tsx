@@ -118,7 +118,7 @@ function isBuiltinPayloadMatch(tool: unknown, payload: ToolObj): boolean {
 function enumLabel(schema: SchemaProperty | undefined, value: unknown): string | null {
     if (value == null || value === "") return null
     const v = String(value)
-    const s = schema as Record<string, any> | undefined
+    const s = schema as Record<string, unknown> | undefined
     const meta = s?.["x-model-metadata"] as Record<string, {name?: string}> | undefined
     if (meta?.[v]?.name) return meta[v]!.name as string
     const variants = (s?.anyOf ?? s?.oneOf) as {const?: unknown; title?: string}[] | undefined
@@ -460,6 +460,9 @@ export function AgentConfigControl({
     // silently drops them. The picker is harness-filtered: selecting a model sets BOTH the model id
     // and its provider, fed by the `/inspect` capability map below.
     const harnessValue = typeof config.harness === "string" ? config.harness : null
+    // Pi (`pi_core`/`pi_agenta`) never gates tool use (`permissions: false`); a permission
+    // policy is meaningless for it, so the field is hidden for Pi. Only Claude honors it.
+    const isPiHarness = harnessValue === "pi_core" || harnessValue === "pi_agenta"
     const modelId = useMemo(() => modelIdFromConfig(config.model), [config.model])
     const connection = useMemo(() => connectionFromConfig(config.model), [config.model])
 
@@ -1146,7 +1149,7 @@ export function AgentConfigControl({
                             disabled={disabled}
                         />
                     )}
-                    {props.permission_policy && (
+                    {props.permission_policy && !isPiHarness && (
                         <EnumSelectControl
                             schema={props.permission_policy}
                             label="Permission policy"

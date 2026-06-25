@@ -11,13 +11,33 @@ import {
   resolvePromptText,
 } from "../../protocol.ts";
 import { executableToolSpecs } from "../../tools/public-spec.ts";
+import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "../../tools/code.ts";
+import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../tools/mcp-bridge.ts";
 import {
   type MaterializedSkill,
   resolveSkillDirs as defaultResolveSkillDirs,
 } from "../skills.ts";
+import { assert } from "./capabilities.ts";
 import { buildTurnText } from "./transcript.ts";
 
 type Log = (message: string) => void;
+
+/**
+ * Not-implemented sandbox-boundary gates. These mirror the code-tool gate
+ * (`tools/code.ts` `CODE_TOOL_UNSUPPORTED_MESSAGE`): a declared capability the runner cannot
+ * actually enforce fails loudly with a single named-constant message rather than being silently
+ * accepted, so a run never proceeds believing a boundary holds when it does not.
+ */
+
+/** A restricted `network` policy on the LOCAL sandbox is not enforceable (no host egress control). */
+export const LOCAL_NETWORK_UNSUPPORTED_MESSAGE =
+  "Network sandbox policy is not enforceable on the local sandbox (the sidecar runs on this " +
+  "host with no egress control); run on daytona, or remove sandbox_permission.network.";
+
+/** `filesystem` confinement is declared on the wire but applied by no backend. */
+export const FILESYSTEM_UNSUPPORTED_MESSAGE =
+  "Filesystem sandbox policy is not implemented (no backend applies a filesystem jail); " +
+  "remove sandbox_permission.filesystem.";
 
 export interface RunPlan {
   harness: string;
@@ -89,12 +109,23 @@ export interface BuildRunPlanDeps {
  * True when an MCP server runs as a host command (stdio) rather than a remote URL. Mirrors
  * the delivery rule in `mcp.ts` (`toAcpMcpServers`): the default transport is `stdio`, and a
  * stdio server only runs when it carries a `command`. Such a server is an arbitrary process
- * on the RUNNER HOST, so a network-blocked sandbox does not confine it.
+ * on the RUNNER HOST, so a network-blocked sandbox does not confine it. HTTP servers
+ * (`transport: "http"`) are delivered (the harness connects to the remote URL with the secret
+ * in a header) and are NOT flagged here — they have no runner-host process to confine.
  */
 function hasStdioMcpServer(servers: McpServerConfig[] | undefined): boolean {
   return (servers ?? []).some(
     (s) => (s.transport ?? "stdio") === "stdio" && !!s.command,
   );
+}
+
+/**
+ * True when any resolved tool is a `code` tool. Code execution was removed for security
+ * (F-010); the sidecar must refuse a run that carries one rather than advertise it and then
+ * launder a per-call rejection into a "successful" reply (F-016).
+ */
+function hasCodeTool(specs: ResolvedToolSpec[]): boolean {
+  return specs.some((spec) => spec.kind === "code");
 }
 
 function defaultLocalCwd(): string {
@@ -125,6 +156,14 @@ export function buildRunPlan(
   const acpAgent =
     harness === "pi_core" || harness === "pi_agenta" ? "pi" : harness;
 
+  // Debug assertion: every Pi identity must resolve to the `pi` ACP agent and nothing else may.
+  // Catches a future harness-id typo (e.g. a new `pi_*` value forgotten here) at plan-build time
+  // rather than as a daemon "unknown agent" error mid-run.
+  assert(
+    (harness === "pi_core" || harness === "pi_agenta") === (acpAgent === "pi"),
+    `harness '${harness}' resolved to ACP agent '${acpAgent}', but pi identity mapping disagrees`,
+  );
+
   const prompt = resolvePromptText(request);
   if (!prompt) {
     return {
@@ -142,38 +181,59 @@ export function buildRunPlan(
   const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];
   const executableToolSpecsForRun = executableToolSpecs(toolSpecs);
 
-  // Layer 2 (S1b/S1g): enforce the declared network boundary, and fail loud where it cannot
-  // be a hard guarantee. Only `strict` blocks; `best_effort` is the per-axis opt-out that
-  // accepts the boundary may not hold. `mode: "on"` (or no policy) imposes no restriction.
-  // Checked before any cwd is created so a rejected run does not orphan a temp dir.
+  // Not-implemented boundary gates (sidecar-trust Part 2): a declared capability the runner
+  // cannot actually enforce fails loudly, the way code tools do (`tools/code.ts`), rather than
+  // being silently accepted. These fire BEFORE any cwd is created (so a rejected run never
+  // orphans a temp dir) and are unconditional — `enforcement` is no longer the escape hatch,
+  // because the boundary is not applied on any path regardless of strict/best_effort.
+
+  // `filesystem` confinement is declared on the wire but applied by no backend. Specifying it
+  // therefore errors everywhere; do not pretend a jail exists.
+  if (request.sandboxPermission?.filesystem !== undefined) {
+    return { ok: false, error: FILESYSTEM_UNSUPPORTED_MESSAGE };
+  }
+
+  // A restricted `network` policy on the LOCAL sandbox cannot be enforced (the sidecar runs on
+  // this host with no per-run egress control), so it errors regardless of `enforcement`. On
+  // Daytona the policy IS applied (`provider.ts` `daytonaNetworkFields`).
   const network = request.sandboxPermission?.network;
   const networkRestricted = !!network && (network.mode ?? "on") !== "on";
+  if (networkRestricted && !isDaytona) {
+    return { ok: false, error: LOCAL_NETWORK_UNSUPPORTED_MESSAGE };
+  }
+
+  // Code tools were removed (F-010 security): the sidecar no longer executes author-supplied
+  // snippets. `runCodeTool` throws per-call, but a per-call throw becomes a tool RESULT the
+  // model launders into an `ok:true` reply ("Code tools are not supported by the sidecar."),
+  // so a removed capability reads as a SUCCESS at the response envelope (F-016). Fail loud
+  // up-front instead: refuse any run that carries a `code` tool, the way stdio MCP is gated.
+  // Keep the wire shape; the delivery is not supported.
+  if (hasCodeTool(toolSpecs)) {
+    return { ok: false, error: CODE_TOOL_UNSUPPORTED_MESSAGE };
+  }
+
+  // stdio MCP servers run as arbitrary processes on the RUNNER HOST, outside the sandbox
+  // boundary, and the sidecar's stdio MCP implementation is disabled (parity with the removed
+  // code execution) until its security is fixed. Refuse any run carrying one, the way code
+  // tools are gated — keep the wire shape, but the delivery is not supported.
+  if (hasStdioMcpServer(request.mcpServers)) {
+    return { ok: false, error: USER_MCP_UNSUPPORTED_MESSAGE };
+  }
+
+  // Layer 2: even on Daytona, code/gateway tools run on the RUNNER HOST via the relay, not
+  // inside the sandbox, so they bypass the sandbox network boundary. Under `strict` + a
+  // restricted network, refuse them; `best_effort` is the opt-out that accepts the boundary is
+  // not a hard guarantee.
   const strict = request.sandboxPermission?.enforcement === "strict";
-  if (networkRestricted && strict) {
+  if (networkRestricted && isDaytona && strict) {
     const mode = network?.mode ?? "on";
-    // Most specific first: the local sidecar has no egress control at all, so any restricted
-    // network is unenforceable; Daytona applies it via networkBlockAll/networkAllowList.
-    if (!isDaytona) {
+    if (executableToolSpecsForRun.length > 0) {
       return {
         ok: false,
         error:
-          `local sandbox cannot enforce network:${mode} (the local sidecar runs on this ` +
-          `host with no egress control); set enforcement=best_effort to run locally without ` +
-          `the guarantee, or run on daytona.`,
-      };
-    }
-    // Even on Daytona, code/gateway tools and stdio MCP run on the RUNNER HOST via the relay,
-    // not inside the sandbox, so they bypass the sandbox network boundary.
-    if (
-      executableToolSpecsForRun.length > 0 ||
-      hasStdioMcpServer(request.mcpServers)
-    ) {
-      return {
-        ok: false,
-        error:
-          `code/gateway tools and stdio MCP servers run on the runner host and would bypass ` +
-          `the sandbox network boundary; remove them, or set enforcement=best_effort to accept ` +
-          `that network:${mode} is not a hard guarantee.`,
+          `code/gateway tools run on the runner host and would bypass the sandbox network ` +
+          `boundary; remove them, or set enforcement=best_effort to accept that ` +
+          `network:${mode} is not a hard guarantee.`,
       };
     }
   }
@@ -197,6 +257,19 @@ export function buildRunPlan(
   const appendSystemPrompt = isPi
     ? request.appendSystemPrompt?.trim() || undefined
     : undefined;
+
+  // Debug assertions: the derived run state must be self-consistent before the engine acts on
+  // it. A cwd that is empty, or a relay dir not nested under it, would only surface later as a
+  // confusing filesystem error inside the sandbox.
+  assert(!!cwd, `buildRunPlan produced an empty cwd for harness '${harness}'`);
+  assert(
+    relayDir.startsWith(cwd),
+    `relay dir '${relayDir}' is not under cwd '${cwd}'`,
+  );
+  assert(
+    isPi === (acpAgent === "pi"),
+    `isPi (${isPi}) disagrees with acpAgent '${acpAgent}'`,
+  );
 
   return {
     ok: true,

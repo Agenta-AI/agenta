@@ -28,8 +28,18 @@ into `env`. The `to_wire()` emits only the keys that are set, so an empty `args`
 `url`, or `tools` is omitted from the `/run` payload.
 
 **Resolution.** The resolver collects every named secret across all servers, fetches them in
-one call, and injects each into its server's `env`. A missing secret raises under the error
-policy. Stdio servers run today; remote (`http`) servers are modeled but deferred.
+one call, and injects each into its server's `env` (the same for both transports — there is no
+separate `headers` wire field). A missing secret raises under the error policy.
+
+**Transport delivery (runner side).** HTTP (`transport: "http"` + `url`) servers are delivered:
+the runner (`toAcpMcpServers`) reads each resolved `env` entry and emits it as an HTTP request
+header (so `secrets: {"Authorization": "vault-name"}` becomes an `Authorization` header on the
+remote call). Stdio (`transport: "stdio"` + `command`) servers are disabled in the sidecar — a
+stdio server runs an arbitrary process on the runner host, outside the sandbox boundary — so a
+run carrying one is refused (`USER_MCP_UNSUPPORTED_MESSAGE`). This is the USER MCP capability and
+is distinct from the runner's internal gateway-tool MCP channel (delivered over loopback HTTP;
+see `runner-to-mcp-server.md`). The SDK models, resolver, and wire are transport-agnostic; the
+enable/disable split lives entirely in the runner.
 
 ## Owned by
 
@@ -39,9 +49,11 @@ policy. Stdio servers run today; remote (`http`) servers are modeled but deferre
 
 ## Watch for when changing
 
-- **Stdio versus remote.** Only stdio is wired. Enabling remote is a real change.
+- **Stdio versus remote.** HTTP (remote) is delivered; stdio is disabled (runner-host process,
+  outside the sandbox). The split is in the runner, not the SDK.
 - **Secret env resolution.** Secrets are named in config, fetched once, and injected into
-  `env`. The config never holds a token.
+  `env`. The config never holds a token. For http the runner reads that `env` as request
+  headers; for stdio it would be process env (if/when re-enabled).
 - **Tool allowlists and the permission model.** Per-server gating flows to the runner.
 - **Wire serialization.** Empty fields are omitted; that omission is part of the `/run`
   contract.

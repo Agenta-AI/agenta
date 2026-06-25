@@ -50,8 +50,10 @@ this page and the referenced code as the source of truth.
   tool secrets.
 - Callback tools route through `/tools/call`. On Daytona, Pi tool calls use the runner file
   relay.
-- MCP delivery exists for non-Pi harnesses through the stdio MCP bridge, but service-side
-  MCP resolution is feature-gated.
+- Gateway/code tool delivery to non-Pi harnesses (Claude) exists through the internal MCP
+  channel, served over a loopback HTTP MCP endpoint the runner stands up (no runner-host child
+  process). User-declared MCP resolution is feature-gated (`AGENTA_AGENT_ENABLE_MCP`, off by
+  default).
 
 ## Not Implemented
 
@@ -71,8 +73,10 @@ this page and the referenced code as the source of truth.
   per option (`HARNESS_IDENTITIES`); the stored/wire harness value stays the bare string.
 - Per-request model override is not honored on the Pi ACP path. pi-acp accepts only its
   default model and silently falls back (`projects/qa/findings.md`, F-007).
-- Remote (`http`) MCP servers are skipped by the runner path. Local stdio MCP is the path
-  represented by the bridge.
+- User-declared MCP transports split: remote (`http`) servers are delivered by the runner
+  (`toAcpMcpServers`, #4834); stdio servers are disabled (`USER_MCP_UNSUPPORTED_MESSAGE`) because
+  they launch a process on the runner host. The runner's own internal gateway-tool channel is a
+  separate thing and is delivered over loopback HTTP.
 - Trigger lifecycle, Compose.io trigger integration, and event-to-agent mapping are not
   implemented in the agent workflow code.
 - A persisted agent template object that separates `AGENTS.md`, skills, tools,

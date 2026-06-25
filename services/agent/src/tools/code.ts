@@ -1,10 +1,15 @@
 /**
  * Code-tool sidecar execution gate.
  *
- * The code-tool interface still exists and code tools are still advertised to harnesses. The
- * sidecar no longer executes author-supplied snippets locally, though: every delivery path
- * funnels a `kind: "code"` call through this function, so throwing here makes direct Pi,
- * sandbox Pi, and the ACP/MCP bridge fail consistently without changing the public wire shape.
+ * The code-tool interface still exists on the wire, but the sidecar no longer executes
+ * author-supplied snippets locally (F-010 security removal). A run that carries a `code` tool
+ * is refused UP FRONT in `buildRunPlan` (`run-plan.ts` `hasCodeTool` ->
+ * `CODE_TOOL_UNSUPPORTED_MESSAGE`) so the failure surfaces as a non-success run result rather
+ * than being laundered into an `ok:true` reply (F-016: a per-call throw becomes a tool RESULT
+ * the model echoes back as "success"). This per-call throw remains as a defense-in-depth
+ * backstop: every delivery path (direct Pi, sandbox Pi, the ACP/MCP bridge, the relay) funnels
+ * a `kind: "code"` call through here, so even if a code tool reaches execution it fails
+ * consistently, without changing the public wire shape.
  */
 
 export type CodeRuntime = "python" | "node";

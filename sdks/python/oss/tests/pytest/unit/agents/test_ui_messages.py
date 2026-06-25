@@ -319,6 +319,44 @@ class TestUIMessageStream:
         assert synth["toolCallId"] == "call_1"
         assert synth["toolName"] == "deleteFile"
 
+    async def test_parked_gate_emits_only_approval_request_no_error_output(self):
+        # The "park does not clobber" contract (F-024): once the runner stops replying `reject`
+        # on a parked gate, a turn's events are [tool_call, interaction_request(permission),
+        # done] with NO error tool_result. The egress must then emit exactly one
+        # tool-approval-request for the tool and NO tool-output-error/-denied on the same id, so
+        # the approval prompt is the last word on the tool part.
+        run = _run(
+            events=[
+                {
+                    "type": "tool_call",
+                    "id": "call_5",
+                    "name": "deleteFile",
+                    "input": {"path": "/x"},
+                },
+                {
+                    "type": "interaction_request",
+                    "id": "perm_5",
+                    "kind": "permission",
+                    "payload": {
+                        "toolCallId": "call_5",
+                        "availableReplies": ["once", "always", "reject"],
+                        "toolCall": {"toolCallId": "call_5", "name": "deleteFile"},
+                    },
+                },
+                {"type": "done"},
+            ],
+            result={"output": ""},
+        )
+        parts = await _collect(run, session_id="s1")
+        approvals = [p for p in parts if p["type"] == "tool-approval-request"]
+        assert len(approvals) == 1
+        assert approvals[0]["toolCallId"] == "call_5"
+        # No error/denied part clobbers the approval prompt for this tool call.
+        for kind in ("tool-output-error", "tool-output-denied"):
+            assert all(
+                p.get("toolCallId") != "call_5" for p in parts if p["type"] == kind
+            )
+
     async def test_permission_tool_call_id_falls_back_to_nested_tool_call(self):
         # No top-level toolCallId on the payload: dig it out of the nested ACP toolCall detail.
         run = _run(

@@ -611,28 +611,105 @@ function acpToolContentText(content: any): string {
 }
 
 /**
- * Strip the pi-acp startup banner that some setups emit as the first agent message
- * chunk (a "pi vX.Y.Z" / "## Context" / file list / "New version available" prelude,
- * surfaced ahead of the real answer). Removes only a leading run of those marker lines
- * so a genuine answer is never touched.
+ * Is this line part of the pi-acp startup banner that some setups emit as the first agent
+ * message chunk, ahead of the real answer? pi-acp's `buildStartupInfo` produces, in order:
+ *
+ *   pi v0.79.4
+ *   ---
+ *   (blank)
+ *   ## Context
+ *   - /tmp/agenta-sandbox-agent-XXXX/AGENTS.md
+ *   (blank)
+ *   ## Skills            (when skills are installed)
+ *   - /path/to/skill.md
+ *   (blank)
+ *   New version available: v0.80.2 (installed v0.79.4). Run: `npm i -g @earendil-works/pi-coding-agent`
+ *
+ * The markdown markers (`## `, `- `) are stripped when the playground renders the text, so the
+ * user sees a bare `Context` heading and an unprefixed absolute `.../AGENTS.md` path — but the
+ * raw chunk still carries the markdown, so we match BOTH the raw and the rendered shapes. The
+ * "New version available" notice is emitted even when `quietStartup` suppresses the rest, so it
+ * must be matched on its own. We only ever strip a LEADING run of these lines, so a genuine
+ * answer that happens to contain such words later is never touched.
  */
-function stripStartupBanner(text: string): string {
+export function isBannerLine(line: string): boolean {
+  const t = line.trim();
+  return (
+    t === "" ||
+    t === "---" ||
+    /^pi v\d+\.\d+\.\d+\b/.test(t) ||
+    // section heading, raw ("## Context") or rendered ("Context"); same for "Skills"
+    /^(?:#{1,6}\s*)?(?:Context|Skills)\s*$/.test(t) ||
+    // an AGENTS.md / *.md path item, list-prefixed ("- /…/AGENTS.md") or bare ("/…/AGENTS.md")
+    /^(?:-\s+)?\/\S*\.md\s*$/.test(t) ||
+    // upgrade notice: "New version available: vX (installed vY). Run: `npm i -g …`"
+    /^New version available:/.test(t) ||
+    /^Run:\s*`?npm\s+i\b/.test(t)
+  );
+}
+
+/**
+ * Strip a leading run of pi-acp startup-banner lines from `text`. Returns the text past the
+ * banner (trimmed) when at least one non-blank banner line was seen, otherwise the original.
+ */
+export function stripStartupBanner(text: string): string {
   const lines = text.split("\n");
-  const isBanner = (line: string) =>
-    /^pi v\d+\.\d+\.\d+/.test(line) ||
-    /^## Context\b/.test(line) ||
-    /^-\s+\/.*AGENTS\.md\s*$/.test(line) ||
-    /^New version available:/.test(line) ||
-    /^Run: `npm/.test(line) ||
-    line.trim() === "---" ||
-    line.trim() === "";
   let i = 0;
   let sawBanner = false;
-  while (i < lines.length && isBanner(lines[i])) {
+  while (i < lines.length && isBannerLine(lines[i])) {
     if (lines[i].trim() !== "") sawBanner = true;
     i++;
   }
   return sawBanner ? lines.slice(i).join("\n").trim() : text;
+}
+
+/**
+ * Streaming-safe variant. Given the cumulative assistant text so far, return the portion that
+ * is safe to surface as a delta now, plus whether the leading banner region is fully resolved.
+ *
+ * The banner always arrives at the START of the stream and may straddle chunk boundaries, so we
+ * must not classify the LAST line until we know it is complete (a trailing newline, or a later
+ * chunk, settles it). While the text seen so far is entirely banner-or-blank we return
+ * `{ body: "", settled: false }` and the caller holds emission; once a non-banner line appears
+ * we return everything from it onward and never re-buffer again. `start` is the byte offset of
+ * the body within `text` (after leading whitespace), so the caller can slice later chunks from
+ * the same offset — the banner is a stable leading prefix of the cumulative stream.
+ */
+export function splitLeadingBanner(text: string): {
+  body: string;
+  settled: boolean;
+  start: number;
+} {
+  const endsWithNewline = text.endsWith("\n");
+  const lines = text.split("\n");
+  // The final element is a partial line unless the text ended on a newline.
+  const lastIsPartial = !endsWithNewline;
+  let i = 0;
+  let offset = 0; // byte offset of line i within `text`
+  let sawBanner = false;
+  while (i < lines.length) {
+    const isLast = i === lines.length - 1;
+    if (isLast && lastIsPartial && sawBanner) {
+      // We are at the banner boundary with a still-arriving partial line. It could complete into
+      // either another banner line or the first line of the real answer — only a later chunk (or
+      // a newline) settles it, so hold. (When no banner has been seen, there is nothing to
+      // suppress: settle on the partial line and stream it without latency.)
+      return { body: "", settled: false, start: -1 };
+    }
+    if (!isBannerLine(lines[i])) break;
+    sawBanner = true;
+    offset += lines[i].length + 1; // +1 for the consumed "\n"
+    i++;
+  }
+  if (i >= lines.length) {
+    // Consumed every (complete) line as banner — nothing real has started yet.
+    return { body: "", settled: false, start: -1 };
+  }
+  const rest = text.slice(offset);
+  // Drop the blank line(s) that separate the banner from the answer, but never trim a
+  // banner-free stream — a genuine answer may legitimately begin with whitespace.
+  const ws = sawBanner ? rest.length - rest.replace(/^\s+/, "").length : 0;
+  return { body: rest.slice(ws), settled: true, start: offset + ws };
 }
 
 /** Split a resolved model id ("openai-codex/gpt-5.5") into provider + id. */
@@ -767,6 +844,16 @@ export function createSandboxAgentOtel(init: SandboxAgentOtelInit): SandboxAgent
   let textBlockId: string | undefined;
   let textEmitted = "";
   let anyTextDelta = false;
+  // Streaming banner suppression: pi-acp emits its startup banner as the FIRST agent message
+  // chunk, ahead of the real answer. The one-shot `finish()` path strips it from the coalesced
+  // text, but the streaming path flushes deltas as they arrive, before finish() ever runs — so
+  // the banner would leak to the client. We hold the leading deltas until the banner region is
+  // resolved (it may straddle chunk boundaries), then stream only the body past it. Once a real
+  // line has started, `bannerSettled` latches true and we never strip again.
+  let bannerSettled = false;
+  // Once the banner region resolves, the real answer begins at this byte offset in `accumulated`;
+  // every later chunk is streamed as `accumulated.slice(bannerEnd)` so the banner never reappears.
+  let bannerEnd = 0;
   let reasoningBlockId: string | undefined;
   let reasoningEmitted = "";
   let blockSeq = 0;
@@ -798,6 +885,25 @@ export function createSandboxAgentOtel(init: SandboxAgentOtelInit): SandboxAgent
     record({ type: "message_delta", id: textBlockId, delta });
     textEmitted = target.startsWith(textEmitted) ? target : textEmitted + delta;
     anyTextDelta = true;
+  }
+
+  /**
+   * Stream the assistant text for the cumulative `accumulated`, with the leading startup banner
+   * suppressed. Until the banner region resolves we emit nothing; afterwards we stream the body
+   * past it. `body` is a prefix-growing view of the real answer, so `streamText`'s delta logic
+   * stays correct.
+   */
+  function streamAssistantText(): void {
+    if (bannerSettled) {
+      // The banner is a stable leading prefix; stream everything past it.
+      streamText(accumulated.slice(bannerEnd));
+      return;
+    }
+    const { body, settled, start } = splitLeadingBanner(accumulated);
+    if (!settled) return; // banner region still arriving — hold emission
+    bannerSettled = true;
+    bannerEnd = start;
+    if (body) streamText(body);
   }
 
   /** Open (if needed) the reasoning block and emit the pure delta up to `target`. */
@@ -869,8 +975,9 @@ export function createSandboxAgentOtel(init: SandboxAgentOtelInit): SandboxAgent
       else accumulated += t;
       // Live deltas run independent of span emission (text, not a span), so they flow even
       // when the harness self-instruments (emitSpans=false). `accumulated` is the cumulative
-      // text, so the pure delta is its tail past what we already sent.
-      if (sink) streamText(accumulated);
+      // text, so the pure delta is its tail past what we already sent — minus the leading
+      // startup banner, which is held back until the body begins (see streamAssistantText).
+      if (sink) streamAssistantText();
       return;
     }
 

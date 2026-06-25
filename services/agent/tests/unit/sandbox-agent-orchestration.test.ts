@@ -162,10 +162,14 @@ function fakeHarness(options: FakeOptions = {}) {
     }) as any,
     probeCapabilities: async () =>
       ({
-        mcpTools: true,
-        usage: true,
-        streamingDeltas: true,
-        ...(options.capabilities ?? {}),
+        source: "probed",
+        capabilities: {
+          mcpTools: true,
+          toolCalls: true,
+          usage: true,
+          streamingDeltas: true,
+          ...(options.capabilities ?? {}),
+        },
       }) as any,
     applyModel: async (_session, model, _log, options) => {
       calls.applyModelArgs.push({ model, options });
@@ -292,9 +296,12 @@ describe("runSandboxAgent orchestration", () => {
   it("starts and stops the tool relay only when executable tools are present", async () => {
     const { calls, deps } = fakeHarness();
 
+    // Pi delivers tools through its native extension (not the MCP bridge), so the relay path
+    // is exercised on a Pi run. The MCP bridge is disabled in the sidecar (see the dedicated
+    // test below), so a non-Pi harness can no longer take custom tools at all.
     const result = await runSandboxAgent(
       {
-        harness: "claude",
+        harness: "pi_core",
         prompt: "use the tool",
         customTools: [{ name: "server_tool", kind: "callback" }],
       } as AgentRunRequest,
@@ -318,6 +325,124 @@ describe("runSandboxAgent orchestration", () => {
       2,
       "stopped after prompt and again in finally",
     );
+  });
+
+  it("delivers a non-Pi run's gateway tools over the internal HTTP MCP channel", async () => {
+    // Claude takes tools only over MCP. The INTERNAL gateway-tool channel (distinct from the
+    // disabled USER stdio MCP path) is restored over a loopback HTTP MCP server the runner
+    // serves, so a Claude run with a gateway tool now SUCCEEDS and the tool is advertised to the
+    // harness. This is the #4831 regression fix (project gateway-tool-mcp): the run no longer
+    // hard-fails with the user-facing MCP-unsupported error.
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        prompt: "use the tool",
+        customTools: [{ name: "server_tool", kind: "callback" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(
+      result.ok,
+      true,
+      "the run succeeds; gateway tools reach Claude",
+    );
+    const mcpServers =
+      calls.createSessionOptions?.sessionInit?.mcpServers ?? [];
+    assert.equal(
+      mcpServers.length,
+      1,
+      "one internal MCP server delivered to the session",
+    );
+    assert.equal(mcpServers[0].name, "agenta-tools");
+    assert.equal(
+      mcpServers[0].type,
+      "http",
+      "delivered over http, not a stdio child process",
+    );
+    assert.match(
+      mcpServers[0].url,
+      /^http:\/\/127\.0\.0\.1:\d+\/mcp$/,
+      "loopback url",
+    );
+    assert.deepEqual(mcpServers[0].headers, [], "no credential on the channel");
+    // The internal server is opened then released, so its port does not leak past the run.
+    assert.equal(calls.sandboxDestroyed, 1, "sandbox disposed in finally");
+  });
+
+  it("still refuses a run carrying a USER stdio MCP server (user gate untouched)", async () => {
+    // The user-facing stdio MCP path stays disabled (parity with removed code execution); only
+    // the internal gateway-tool channel was restored. A user-declared stdio MCP server is still
+    // rejected up front with the user-facing message.
+    const { deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        prompt: "go",
+        mcpServers: [{ name: "github", transport: "stdio", command: "npx" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.deepEqual(result, {
+      ok: false,
+      error: "MCP servers are not supported by the sidecar.",
+    });
+  });
+
+  it("fails loud when a non-Pi harness probes mcpTools:false but the run carries tools", async () => {
+    // A7: the capability gate runs BEFORE the MCP bridge, so a harness whose probe reports it
+    // cannot receive tools fails with a SPECIFIC capability error (not the generic MCP-disabled
+    // line, and never a silent drop). This is the silent-degradation case the staff review
+    // flagged: a wrong/missing `mcpTools` flag must error, not change behavior quietly.
+    const { calls, deps } = fakeHarness({ capabilities: { mcpTools: false } });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        prompt: "use the tool",
+        customTools: [{ name: "server_tool", kind: "callback" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error ?? "", /harness 'claude' cannot receive tools/);
+    assert.match(result.error ?? "", /mcpTools:false/);
+    // The gate fires before the session is created, so no session/prompt happened.
+    assert.equal(calls.createSessionOptions, undefined);
+    // The acquired sandbox is still disposed in the finally.
+    assert.equal(calls.sandboxDestroyed, 1);
+  });
+
+  it("does not gate tool delivery for a Pi run even when mcpTools is false", async () => {
+    // Pi delivers tools through its native extension, not MCP, so a Pi run with tools and a
+    // `mcpTools:false` probe must proceed (the gate exempts Pi).
+    const { calls, deps } = fakeHarness({ capabilities: { mcpTools: false } });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        prompt: "use the tool",
+        customTools: [{ name: "server_tool", kind: "callback" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.notEqual(calls.createSessionOptions, undefined);
   });
 
   it("flushes a partial trace and cleans up on prompt errors", async () => {
@@ -444,7 +569,10 @@ describe("runSandboxAgent orchestration", () => {
         model: "claude-sonnet-4",
         deployment: "vertex_ai",
         credentialMode: "env",
-        secrets: { GOOGLE_CLOUD_PROJECT: "proj", GOOGLE_CLOUD_LOCATION: "us-central1" },
+        secrets: {
+          GOOGLE_CLOUD_PROJECT: "proj",
+          GOOGLE_CLOUD_LOCATION: "us-central1",
+        },
       } as AgentRunRequest,
       undefined,
       undefined,
@@ -508,7 +636,7 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     ]);
   });
 
-  it("human surface (/messages: sessionId set) with no decision parks the tool (reject)", async () => {
+  it("human surface (/messages: sessionId set) with no decision PARKS the tool, no harness reply (F-024)", async () => {
     const { calls, deps } = depsWithDefaultResponder();
 
     const result = await runSandboxAgent(
@@ -524,11 +652,20 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     await flushPromises();
 
     assert.equal(result.ok, true);
-    // Park: decline the unapproved tool this turn (the interaction_request already prompted
-    // the browser); the next turn carrying the decision resolves it.
-    assert.deepEqual(calls.permissionReplies, [
-      { id: "perm-1", reply: "reject" },
-    ]);
+    // Park: the interaction_request IS emitted (the FE prompts the browser) ...
+    assert.deepEqual(
+      result.events
+        ?.filter((e) => e.type === "interaction_request")
+        .map((e) => ({
+          type: e.type,
+          id: (e as any).id,
+        })),
+      [{ type: "interaction_request", id: "perm-1" }],
+    );
+    // ... but the harness gets NO reply: a `reject` here would make Claude emit a failed tool
+    // call that clobbers the approval prompt on the same tool-call id (F-024). The turn ends
+    // with the tool pending; the next turn carrying the decision resolves it.
+    assert.deepEqual(calls.permissionReplies, []);
   });
 
   it("human surface with a stored approval resumes the tool (always)", async () => {

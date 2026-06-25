@@ -21,6 +21,7 @@ from agenta.sdk.agents import (
     Backend,
     ConnectionResolutionError,
     Environment,
+    MissingProviderError,
     ModelRef,
     ResolvedConnection,
     RuntimeAuthContext,
@@ -166,6 +167,11 @@ async def _resolve_session_connection(
         return resolved
     try:
         resolved = await resolve_connection(model=model_ref, context=context)
+    except MissingProviderError:
+        # A bare model id with no provider is an underspecified config, not a missing
+        # credential, so it fails loud even on a default connection (the user sees the clear
+        # "needs a provider prefix" message instead of a misleading "add your key" auth error).
+        raise
     except ConnectionResolutionError:
         log.warning(
             "agent: no connection resolved for provider %r (mode=%s); "

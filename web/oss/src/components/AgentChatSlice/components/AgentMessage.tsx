@@ -234,18 +234,22 @@ const AgentMessage = ({
     const defaultBody = (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
             {message.parts.map((part, i) => {
+                // Stable, globally-unique key per rendered part. The part index alone collides
+                // across messages that React reconciles together (duplicate-key warnings); the
+                // message id scopes it so each part is unique across the whole conversation.
+                const partKey = `${message.id}-${i}`
                 if (part.type === "text") {
                     const text = (part as {text: string}).text
                     if (!text) return null
                     // Render markdown for both roles so typed markdown displays properly.
-                    return <Markdown key={i} content={text} />
+                    return <Markdown key={partKey} content={text} />
                 }
                 if (part.type === "reasoning") {
                     const reasoning = part as ReasoningUIPart
                     if (!reasoning.text) return null
                     return (
                         <ReasoningPart
-                            key={i}
+                            key={partKey}
                             text={reasoning.text}
                             streaming={reasoning.state === "streaming"}
                         />
@@ -254,7 +258,7 @@ const AgentMessage = ({
                 if (isToolPart(part.type)) {
                     return (
                         <ToolPart
-                            key={i}
+                            key={partKey}
                             part={part as ToolUIPart}
                             onApprovalResponse={onApprovalResponse}
                             disabled={busy}
@@ -269,7 +273,7 @@ const AgentMessage = ({
                     const kind = fileKind(file.mediaType)
                     return (
                         <FileCard
-                            key={i}
+                            key={partKey}
                             name={filePartName(file)}
                             type={kind}
                             src={file.url}
@@ -299,7 +303,7 @@ const AgentMessage = ({
                     </Text>
                     {sources.map((s, i) => (
                         <a
-                            key={i}
+                            key={`${message.id}-source-${i}`}
                             href={s.url}
                             target="_blank"
                             rel="noreferrer"

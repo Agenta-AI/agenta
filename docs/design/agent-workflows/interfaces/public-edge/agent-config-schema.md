@@ -148,13 +148,30 @@ resolution](../in-service/tool-models-and-resolution.md).
 ```jsonc
 {
   "name": "files",
-  "transport": "stdio",            // "stdio" (needs command) | "http" (needs url; deferred)
+  "transport": "stdio",            // "stdio" (needs command; DISABLED) | "http" (needs url; delivered)
   "command": "npx", "args": ["-y", "server-filesystem"],
   "env": {},                       // non-secret env
   "url": null,                     // http transport only
-  "secrets": { "TOKEN_ENV": "vault-secret-name" },  // {env var: vault secret name}
+  "secrets": { "TOKEN_ENV": "vault-secret-name" },  // {env-or-header name: vault secret name}
   "tools": [],                     // allowlist; empty = all
   "permission": null               // "allow" | "ask" | "deny"
+}
+```
+
+For an **http** server the resolved secret is sent as a request header named by the secret-map
+key, so a bearer token is `secrets: {"Authorization": "vault-name"}` (value `"Bearer ..."`).
+**stdio** servers are disabled in the sidecar (they launch a runner-host process); a run
+carrying one is refused.
+
+```jsonc
+// http (remote) MCP server example
+{
+  "name": "linear",
+  "transport": "http",
+  "url": "https://mcp.linear.app/sse",
+  "secrets": { "Authorization": "linear-mcp-token" },  // -> Authorization request header
+  "tools": [],
+  "permission": "ask"
 }
 ```
 

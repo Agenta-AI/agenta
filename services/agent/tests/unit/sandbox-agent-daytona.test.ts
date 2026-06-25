@@ -100,11 +100,11 @@ describe("uploadPiAuthToSandbox", () => {
 describe("createCookieFetch", () => {
   it("persists Daytona preview cookies per host", async () => {
     const seenCookies: Array<string | null> = [];
-    globalThis.fetch = (async (_input: any, init?: any) => {
+    const innerFetch = (async (_input: any, init?: any) => {
       seenCookies.push(new Headers(init?.headers).get("cookie"));
       return new Response("ok", { headers: { "set-cookie": "session=abc; Path=/" } });
     }) as typeof fetch;
-    const cookieFetch = createCookieFetch();
+    const cookieFetch = createCookieFetch(innerFetch);
 
     await cookieFetch("https://sandbox.example.test/first");
     await cookieFetch("https://sandbox.example.test/second", {

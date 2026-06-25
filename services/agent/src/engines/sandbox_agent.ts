@@ -46,7 +46,12 @@ import {
   type ToolCallbackContext,
   resolveRunSessionId,
 } from "../protocol.ts";
-import { probeCapabilities } from "./sandbox_agent/capabilities.ts";
+import {
+  assert,
+  assertRequiredCapabilities,
+  probeCapabilities,
+} from "./sandbox_agent/capabilities.ts";
+import { createAcpFetch } from "./sandbox_agent/acp-fetch.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./sandbox_agent/daemon.ts";
 import {
   createCookieFetch,
@@ -55,6 +60,7 @@ import {
 import { conciseError } from "./sandbox_agent/errors.ts";
 import { buildSessionMcpServers } from "./sandbox_agent/mcp.ts";
 import { applyModel } from "./sandbox_agent/model.ts";
+import { findSwallowedPiError } from "./sandbox_agent/pi-error.ts";
 import {
   buildPiExtensionEnv,
   prepareLocalPiAssets,
@@ -81,7 +87,12 @@ function log(message: string): void {
 
 type Log = (message: string) => void;
 
-const CLAUDE_STRICT_DEPLOYMENTS = new Set(["custom", "bedrock", "vertex", "vertex_ai"]);
+const CLAUDE_STRICT_DEPLOYMENTS = new Set([
+  "custom",
+  "bedrock",
+  "vertex",
+  "vertex_ai",
+]);
 
 function applyClaudeConnectionEnv(
   env: Record<string, string>,
@@ -110,7 +121,10 @@ function applyClaudeConnectionEnv(
     env.CLAUDE_CODE_USE_VERTEX = "1";
   }
 
-  if (selectedModel && (baseUrl || (deployment && CLAUDE_STRICT_DEPLOYMENTS.has(deployment)))) {
+  if (
+    selectedModel &&
+    (baseUrl || (deployment && CLAUDE_STRICT_DEPLOYMENTS.has(deployment)))
+  ) {
     env.ANTHROPIC_MODEL = selectedModel;
     env.ANTHROPIC_CUSTOM_MODEL_OPTION = selectedModel;
     return true;
@@ -126,6 +140,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   resolveDaemonBinary?: typeof resolveDaemonBinary;
   buildSandboxProvider?: typeof buildSandboxProvider;
   createCookieFetch?: typeof createCookieFetch;
+  createAcpFetch?: typeof createAcpFetch;
   prepareWorkspace?: typeof prepareWorkspace;
   probeCapabilities?: typeof probeCapabilities;
   applyModel?: typeof applyModel;
@@ -162,7 +177,12 @@ export async function runSandboxAgent(
     clearProviderEnv,
   });
   Object.assign(env, plan.secrets); // apply only the resolved provider keys
-  const strictModel = applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
+  const strictModel = applyClaudeConnectionEnv(
+    env,
+    request,
+    plan.acpAgent,
+    logger,
+  );
   // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
   // via the Agenta extension. Tool execution always relays back to this runner, which keeps
   // private specs, scoped env, callback endpoints, and callback auth in memory.
@@ -187,6 +207,9 @@ export async function runSandboxAgent(
   let otel: ReturnType<typeof createSandboxAgentOtel> | undefined;
   // Daytona tool relay loop (started once the session exists, stopped after the prompt).
   let toolRelay: { stop: () => Promise<void> } | undefined;
+  // Internal gateway-tool MCP server closer (set when an internal channel is built for a non-Pi
+  // harness with executable tools; a no-op otherwise). Released in the `finally`.
+  let closeToolMcp: (() => Promise<void>) | undefined;
   let workspace: { cleanup: () => Promise<void> } | undefined = plan.isDaytona
     ? undefined
     : {
@@ -214,11 +237,14 @@ export async function runSandboxAgent(
       // Propagate caller cancellation (a client disconnect on the streaming HTTP edge) so an
       // in-flight run aborts instead of finishing unobserved. The `finally` still disposes.
       ...(signal ? { signal } : {}),
-      // Daytona's preview proxy authenticates with a per-sandbox cookie; carry it across
-      // requests so ACP calls after the first don't 401. Harmless for local.
-      ...(plan.isDaytona
-        ? { fetch: (deps.createCookieFetch ?? createCookieFetch)() }
-        : {}),
+      // Drive the ACP HTTP client through a long-timeout undici dispatcher so a parked HITL
+      // turn (the connection held open while a human approves a tool) is NOT reaped by
+      // undici's default `headersTimeout` (which would kill it with UND_ERR_HEADERS_TIMEOUT).
+      // Daytona additionally needs the per-sandbox auth cookie carried across requests, so it
+      // uses the cookie fetch — which itself layers on the same long-timeout ACP dispatcher.
+      fetch: plan.isDaytona
+        ? (deps.createCookieFetch ?? createCookieFetch)()
+        : (deps.createAcpFetch ?? createAcpFetch)(),
     });
 
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote
@@ -233,29 +259,52 @@ export async function runSandboxAgent(
       log: logger,
     });
 
+    // Sandbox-start invariant: `startSandboxAgent` must hand back a usable handle, or the
+    // probe/createSession below fail with an opaque "cannot read property of undefined".
+    assert(
+      sandbox && typeof sandbox.createSession === "function",
+      `sandbox provider '${plan.sandboxId}' returned no usable sandbox handle`,
+    );
+
     // Probe what this harness supports and branch on capabilities, not on the harness
     // name. Tool delivery: Pi loads our extension (native tools, set up above); any other
     // harness takes tools over MCP only when it advertises `mcpTools` (pi-acp does not
     // forward MCP, Claude/Codex do).
-    const capabilities = await (deps.probeCapabilities ?? probeCapabilities)(
+    const probed = await (deps.probeCapabilities ?? probeCapabilities)(
       sandbox,
       plan.acpAgent,
     );
-    const mcpServers = buildSessionMcpServers({
+    const capabilities = probed.capabilities;
+
+    // Fail loud (A7): a run that REQUIRES a capability the harness lacks errors with a
+    // specific message instead of silently dropping the behavior, the way the
+    // `*_UNSUPPORTED_MESSAGE` gates in `run-plan.ts` do. Today: tool delivery to a non-Pi
+    // harness whose probe reports `mcpTools:false` / `toolCalls:false`. The throw is caught
+    // below and returned as `{ ok: false, error }`.
+    assertRequiredCapabilities({
+      harness: plan.harness,
+      isPi: plan.isPi,
+      probed,
+      toolSpecs: plan.toolSpecs,
+      log: logger,
+    });
+
+    const sessionMcp = await buildSessionMcpServers({
       isPi: plan.isPi,
       capabilities,
       harness: plan.harness,
       toolSpecs: plan.toolSpecs,
       userMcpServers: request.mcpServers,
-      toolCallback: request.toolCallback as ToolCallbackContext | undefined,
       relayDir: plan.relayDir,
       log: logger,
     });
+    // Close the internal gateway-tool MCP server (if one started) when the run ends.
+    closeToolMcp = sessionMcp.close;
 
     const session = await sandbox.createSession({
       agent: plan.acpAgent,
       cwd: plan.cwd,
-      sessionInit: { cwd: plan.cwd, mcpServers },
+      sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
     });
     const sessionId = resolveRunSessionId(request, session.id);
 
@@ -354,6 +403,33 @@ export async function runSandboxAgent(
     const output = run.finish();
     await run.flush();
 
+    // Fail loud on a swallowed model error (A7 / "fail loud, not silent"). When Pi's provider
+    // call fails (out-of-quota, bad key, rate limit, unknown model, ...), Pi's pi-acp bridge
+    // reports the turn as a plain `end_turn` with NO content, so without this the run would
+    // return an `ok:true` empty turn and the user would see a silent "No response" instead of
+    // the real failure. On the LOCAL Pi path the error is recoverable from Pi's own session
+    // transcript; surface it as a run error. Only checked when the turn produced no output and
+    // ran no tools (a real tool-only turn legitimately has empty text), and never on Daytona
+    // (the transcript lives in the remote sandbox).
+    if (
+      plan.isPi &&
+      !plan.isDaytona &&
+      !output.trim() &&
+      !run.events().some((e) => e.type === "tool_call")
+    ) {
+      const piError = findSwallowedPiError(plan.sourcePiAgentDir, plan.cwd);
+      if (piError) {
+        return {
+          ok: false,
+          error: conciseError(
+            new Error(piError),
+            plan.harness,
+            request.provider,
+          ),
+        };
+      }
+    }
+
     return {
       ok: true,
       output,
@@ -376,9 +452,13 @@ export async function runSandboxAgent(
   } catch (err) {
     otel?.finish();
     await otel?.flush().catch(() => {});
-    return { ok: false, error: conciseError(err, plan.harness) };
+    return {
+      ok: false,
+      error: conciseError(err, plan.harness, request.provider),
+    };
   } finally {
     await toolRelay?.stop().catch(() => {});
+    await closeToolMcp?.().catch(() => {});
     await sandbox?.destroySandbox().catch(() => {});
     await sandbox?.dispose().catch(() => {});
     await workspace?.cleanup().catch(() => {});
