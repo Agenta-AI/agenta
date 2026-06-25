@@ -10,7 +10,7 @@ import type {
     SidebarEntitySource,
 } from "./types"
 
-const DEFAULT_MAX_ITEMS = 10
+const DEFAULT_SIDEBAR_ENTITY_LIMIT = 3
 
 // Sidebar item keys that own a dynamic entity list. The static row in
 // `useSidebarConfig` and the registry entry below must share the same key —
@@ -34,7 +34,7 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
     getLabel: (ref) => config.getLabel(ref as TRef),
     childLink: (ref, projectURL) => `${projectURL}${config.childPath(ref as TRef)}`,
     emptyLabel: config.emptyLabel,
-    maxItems: config.maxItems ?? DEFAULT_MAX_ITEMS,
+    maxItems: config.maxItems ?? DEFAULT_SIDEBAR_ENTITY_LIMIT,
     showAllLink: config.showAllPath
         ? (projectURL) => `${projectURL}${config.showAllPath}`
         : undefined,

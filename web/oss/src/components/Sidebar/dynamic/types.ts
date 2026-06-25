@@ -39,7 +39,7 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     childPath: (ref: TRef) => string
     /** Shown (muted, disabled) when the group is open but has no items. */
     emptyLabel?: string
-    /** Cap on rendered rows; overflow adds a "Show all" row. Defaults to `DEFAULT_MAX_ITEMS`. */
+    /** Cap on rendered rows; overflow adds a "Show all" row. Defaults to 3. */
     maxItems?: number
     /** Project-relative path for the "Show all" overflow row. */
     showAllPath?: string
