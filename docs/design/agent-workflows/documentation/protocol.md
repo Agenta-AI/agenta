@@ -6,7 +6,6 @@ The agent workflow has two public HTTP surfaces and one internal runner surface.
 | --- | --- | --- | --- |
 | `POST /invoke` | Implemented | Generic workflow clients | Batch workflow call. Returns one final response. |
 | `POST /messages` | Implemented | Browser chat clients | Agent chat call. Accepts Vercel `UIMessage` input and can stream Vercel SSE. |
-| `POST /load-session` | Shell implemented | Browser chat clients | Loads saved session history. Returns empty history by default because storage is not wired. |
 | `POST /run` | Implemented internal wire | Python SDK backend adapters | Runs one agent turn through the TypeScript runner sidecar or CLI. |
 
 ## `/invoke`
@@ -52,9 +51,9 @@ Important details:
 
 - `session_id` is optional. The server mints one when it is absent.
 - Client-supplied ids must match `^[A-Za-z0-9._:-]{1,128}$`.
-- The intended storage behavior is create-or-resume: a known id resumes, and a valid unknown
-  id creates a new session with that id. This is not observable yet because durable storage
-  is not implemented.
+- The runtime is cold: the client sends the full conversation in `data.messages` on every
+  turn. The server does not persist session history, so the id only tags the turn (for
+  tracing) and is echoed back.
 - `data.messages` is a Vercel `UIMessage[]`. The adapter folds it into neutral runtime
   `Message` objects before invoking the workflow.
 - `data.stream` is not a stored config value. The route sets it from the `Accept` header.
@@ -90,28 +89,6 @@ The runtime emits neutral `AgentEvent` objects. The Vercel adapter maps them to 
 
 The first `start` part carries `messageMetadata.sessionId`. The SSE stream ends with
 `data: [DONE]`.
-
-## `/load-session`
-
-`/load-session` accepts:
-
-```json
-{ "session_id": "sess_abc" }
-```
-
-It returns:
-
-```json
-{ "session_id": "sess_abc", "messages": [] }
-```
-
-The route is real, but the default store is `NoopSessionStore`. Until a production
-`SessionStore` is injected and completed turns call `save_turn`, the endpoint only confirms
-the contract.
-
-Clients that already know a session id should call this endpoint before the first chat turn
-if they need history on screen. The normal chat path should not require a separate explicit
-create-session call.
 
 ## `/run`
 

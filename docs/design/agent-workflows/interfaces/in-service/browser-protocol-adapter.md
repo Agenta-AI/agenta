@@ -4,8 +4,7 @@ The Vercel adapter is the translation layer between the browser's protocol and t
 runtime. It exists so Vercel names stay out of the runtime DTOs: the adapter converts
 `UIMessage[]` to neutral `Message[]` on the way in, and neutral `AgentEvent`s to Vercel UI
 Message Stream parts on the way out. It owns the public [`/messages`](../public-edge/agent-messages.md)
-and [`/load-session`](../public-edge/agent-load-session.md) contracts, so a change here is
-usually a change a browser will notice.
+contract, so a change here is usually a change a browser will notice.
 
 The adapter's place in the layering is narrated in
 [Ports and adapters](../../documentation/ports-and-adapters.md#browser-protocol-adapter), and

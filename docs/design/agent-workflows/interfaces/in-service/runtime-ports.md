@@ -38,9 +38,9 @@ All in `interfaces.py`. Each has a narrow job:
 - **`Harness`**: maps a neutral `SessionConfig` to a harness-specific config and runs turns.
   The one abstract method is `_to_harness_config(config) -> HarnessAgentConfig`; the base
   supplies `prompt`, `stream`, and `create_session`.
-- **`SessionStore`**: durable message history. `load(session_id)` and
-  `save_turn(session_id, *, messages, result)`. Only `NoopSessionStore` is wired today, so
-  history is not persisted yet (see [Agent load session](../public-edge/agent-load-session.md)).
+
+There is no durable-history port: the runtime is cold and the client resends full history
+each turn (see [Sessions](../../documentation/sessions.md)).
 
 ## Owned by
 
@@ -54,7 +54,8 @@ All in `interfaces.py`. Each has a narrow job:
   (full history every turn) hang off these ports.
 - **Session teardown.** `destroy()` defaults to a no-op; an implementation that holds
   resources has to override it.
-- **Durable history.** Wiring a real `SessionStore` changes the `/load-session` contract.
+- **Durable history.** Persisting session history would mean adding a new store port and a
+  history-load endpoint; neither exists today.
 - **Harness responsibilities.** `_to_harness_config` is the single point a new harness has to
   implement.
 

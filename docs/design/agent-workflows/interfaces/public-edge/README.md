@@ -11,8 +11,6 @@ a reason not to.
 ## Interfaces
 
 - [Agent messages](agent-messages.md): the streaming browser chat contract.
-- [Agent load session](agent-load-session.md): the history-resume contract, not yet wired
-  to durable storage.
 - [Workflow invoke](workflow-invoke.md): the generic batch invocation envelope.
 - [Workflow inspect](workflow-inspect.md): the schema the playground reads to build the
   config form.

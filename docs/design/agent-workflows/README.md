@@ -25,7 +25,7 @@ from in-flight project notes and historical archaeology.
    what is still missing.
 2. [Architecture](documentation/architecture.md): the service, agent runner sidecar,
    harnesses, and sandboxes.
-3. [Protocol](documentation/protocol.md): `/invoke`, `/messages`, `/load-session`, and the
+3. [Protocol](documentation/protocol.md): `/invoke`, `/messages`, and the
    runner `/run` wire contract.
 4. [Ports and Adapters](documentation/ports-and-adapters.md): the SDK runtime ports,
    backend adapters, harness adapters, and browser protocol adapter.

@@ -349,20 +349,6 @@ WorkflowServiceResponse = Union[
 ]
 
 
-class LoadSessionRequest(BaseModel):
-    """``POST /load-session`` body. The session id is required (RFC §7.1)."""
-
-    session_id: str
-
-
-class LoadSessionResponse(BaseModel):
-    """``POST /load-session`` response: a session's history as Vercel ``UIMessage`` objects,
-    the shape ``useChat`` takes as its initial ``messages``."""
-
-    session_id: str
-    messages: List[Dict[str, Any]] = Field(default_factory=list)
-
-
 # aliases ----------------------------------------------------------------------
 
 

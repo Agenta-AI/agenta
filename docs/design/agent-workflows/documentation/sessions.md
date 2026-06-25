@@ -58,18 +58,12 @@ them as SSE.
 So the browser can see text, reasoning, tool calls, tool results, data parts, files, errors,
 and finish metadata as they happen. This is live delivery, not a warm or persisted session.
 
-### `/load-session`
+### No history load path
 
-The route exists and calls a `SessionStore` port. The default store is `NoopSessionStore`
-(`sdks/python/agenta/sdk/agents/interfaces.py:112`), and the route registration passes no
-other store (`sdks/python/agenta/sdk/decorators/routing.py:515`). So it always returns an
-empty list:
-
-```json
-{ "session_id": "sess_abc", "messages": [] }
-```
-
-That makes the protocol testable. It does not restore history.
+There is no endpoint that returns a session's stored history, because the server does not
+store it. A client that needs prior turns on screen must keep its own history and resend it
+on each turn. A history-load contract is part of the durable-store work below, not something
+shipped today.
 
 ## Intended (not implemented)
 
@@ -89,17 +83,17 @@ There should not be a required `create-session` endpoint for the normal chat pat
 implicit creation should cover pre-message operations too. For example, a file upload before
 the first typed message can create a session and return the id later chat turns use.
 
-A client that already knows a session id and needs to render history should call
-`/load-session` before the first message.
+A client that already knows a session id and needs to render history would, once a store
+exists, fetch that history before the first message.
 
 ### A real session store
 
 To make sessions real, the platform needs:
 
-- A production `SessionStore` implementation, injected where `NoopSessionStore` is today.
-- A call to `save_turn` after each completed `/messages` turn.
+- A durable session store, plus a port and adapter to reach it.
+- A write path that persists each completed `/messages` turn.
 - Ownership checks keyed by project and caller.
-- A load path that returns persisted Vercel `UIMessage` history.
+- A load path (and a load endpoint) that returns persisted Vercel `UIMessage` history.
 - A policy for failed, cancelled, and partially streamed turns.
 
 Until that lands, clients must keep sending full history.
@@ -115,11 +109,12 @@ Examples of state that may not be recoverable from messages alone:
 - Tool or harness state created during setup.
 - Filesystem or process metadata needed to resume a warm session after a cold restart.
 
-This interface is not designed yet. The `SessionStore` port covers message history only; a
-snapshot port would be a separate addition. It likely needs explicit `save_session` and
-`load_session` semantics around cleanup and setup, plus a storage decision after we measure the
-size and shape of sandbox-agent/ACP session data. Small JSON blobs may fit in Postgres. Large
-opaque blobs may need object storage. Retention should be short by default, measured in days.
+This interface is not designed yet. A durable message-history store would cover transcripts
+only; a snapshot port would be a separate addition. It likely needs explicit `save_session`
+and `load_session` semantics around cleanup and setup, plus a storage decision after we
+measure the size and shape of sandbox-agent/ACP session data. Small JSON blobs may fit in
+Postgres. Large opaque blobs may need object storage. Retention should be short by default,
+measured in days.
 
 ### Warm sessions
 

@@ -39,7 +39,7 @@ from agenta.sdk.engines.running.errors import ErrorStatus
 # These names are used by the per-route namespace triple itself.
 # ---------------------------------------------------------------------------
 
-_RESERVED_PATHS = {"invoke", "inspect", "messages", "load-session"}
+_RESERVED_PATHS = {"invoke", "inspect", "messages"}
 
 
 def _validate_path(path: str) -> None:
@@ -513,7 +513,7 @@ class route:
         agent_enabled = bool(self.flags and self.flags.get("is_agent"))
 
         def _add_agent_routes(target: Any, prefix: str) -> None:
-            """Register the agent-only /messages + /load-session routes on a target
+            """Register the agent-only /messages route on a target
             (sub-app / router / mount root), mirroring how /invoke + /inspect are added."""
             register_agent_message_routes(
                 target,
