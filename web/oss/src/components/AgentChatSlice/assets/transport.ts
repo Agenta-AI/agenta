@@ -99,7 +99,13 @@ async function requestMeta(track: AgentChatTrack, appId?: string | null) {
     // `Accept: text/event-stream` makes the agent `/messages` endpoint serve the v6 SSE
     // stream useChat consumes; without it the endpoint negotiates down to batch JSON
     // (the AI-SDK transport sets no Accept), which useChat can't render.
-    const headers: Record<string, string> = {Accept: "text/event-stream"}
+    // `x-ag-messages-format` declares the request body's message format (AI-SDK / Vercel
+    // UIMessages) so `/messages` picks the right adapter; "vercel" matches the backend's
+    // VERCEL_MESSAGE_PROTOCOL identity (sdk/agents/adapters/vercel/routing.py).
+    const headers: Record<string, string> = {
+        Accept: "text/event-stream",
+        "x-ag-messages-format": "vercel",
+    }
     if (jwt) headers.Authorization = `Bearer ${jwt}`
     const projectId = getDefaultStore().get(projectIdAtom) || undefined
     const api = withQuery(trackApi(track), {

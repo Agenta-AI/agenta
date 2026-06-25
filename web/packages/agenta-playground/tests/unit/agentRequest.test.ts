@@ -230,6 +230,12 @@ describe("buildAgentRequest", () => {
         expect(req!.headers.Accept).toBe("text/event-stream")
     })
 
+    it("declares the Vercel message format via x-ag-messages-format", async () => {
+        seed(store, "e", {})
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        expect(req!.headers["x-ag-messages-format"]).toBe("vercel")
+    })
+
     it("omits project_id from the query when unauthenticated", async () => {
         store.set(executionHeadersAtom, () => async () => ({}))
         seed(store, "e", {data: {workflow_id: REAL_APP}})

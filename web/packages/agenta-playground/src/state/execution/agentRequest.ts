@@ -262,6 +262,11 @@ export async function buildAgentRequest(
     // Accept), which `useChat` can't render — the run succeeds but nothing appears.
     const headers: Record<string, string> = {
         Accept: "text/event-stream",
+        // Declare the request body's message format so the agent `/messages` endpoint can pick
+        // the right adapter. Our payload is AI-SDK (Vercel) UIMessages, so the value matches the
+        // backend's `VERCEL_MESSAGE_PROTOCOL` ("vercel"), the same identity it stamps on the
+        // response (`x-ag-messages-format`). See sdk/agents/adapters/vercel/routing.py.
+        "x-ag-messages-format": "vercel",
         ...(headersFactory ? await headersFactory() : {}),
     }
 
