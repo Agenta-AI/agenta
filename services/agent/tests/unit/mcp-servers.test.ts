@@ -1,13 +1,17 @@
 /**
- * Unit tests for the user-declared MCP server conversion — stdio delivery now DISABLED.
+ * Unit tests for the user-declared MCP server conversion — HTTP enabled, stdio disabled.
  *
- * `resolve_mcp_servers` (Python) still emits the McpServerConfig wire shape and the wire shape
- * is unchanged. The sidecar, however, no longer delivers stdio MCP servers: a stdio server runs
- * an arbitrary process on the RUNNER HOST, outside the sandbox boundary, so the implementation
- * is disabled (parity with the removed code execution) until its security is fixed. Converting a
- * stdio server now throws `MCP_UNSUPPORTED_MESSAGE`; remote (`http`) and command-less stdio
- * servers were never delivered over ACP and are still skipped, so an all-remote request stays a
- * no-op.
+ * `resolve_mcp_servers` (Python) emits the McpServerConfig wire shape; the wire is unchanged.
+ *
+ * - HTTP (`transport: "http"` + `url`) is DELIVERED. A remote server has no child process on the
+ *   runner host: the harness connects to the URL with the named secret in a request header, so it
+ *   does not bypass the sandbox boundary. The resolved secret arrives on the wire under the
+ *   server's `env` map (the SDK resolver merges named secrets into `env` regardless of transport,
+ *   and the wire has no separate `headers` field), so each `env` entry becomes an HTTP header.
+ * - STDIO is DISABLED: a stdio server runs an arbitrary process on the RUNNER HOST, outside the
+ *   sandbox boundary, so it throws `MCP_UNSUPPORTED_MESSAGE` (parity with the removed code
+ *   execution) until its security is fixed.
+ * - A command-less stdio server or a url-less http server was never deliverable and is skipped.
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/mcp-servers.test.ts)
  */
@@ -15,10 +19,11 @@ import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import { toAcpMcpServers } from "../../src/engines/sandbox_agent.ts";
+import type { McpServerHttp } from "../../src/engines/sandbox_agent/mcp.ts";
 import { MCP_UNSUPPORTED_MESSAGE } from "../../src/tools/mcp-bridge.ts";
 import type { McpServerConfig } from "../../src/protocol.ts";
 
-describe("toAcpMcpServers (stdio disabled)", () => {
+describe("toAcpMcpServers (http enabled, stdio disabled)", () => {
   it("maps empty input to []", () => {
     assert.deepEqual(toAcpMcpServers(undefined), [], "undefined -> []");
     assert.deepEqual(toAcpMcpServers([]), [], "[] -> []");
@@ -40,15 +45,52 @@ describe("toAcpMcpServers (stdio disabled)", () => {
     );
   });
 
-  it("skips remote/http and command-less stdio servers without throwing", () => {
+  it("delivers an http server, routing the resolved secret into a header", () => {
     const out = toAcpMcpServers([
-      { name: "remote", transport: "http", url: "https://example.com/mcp" },
-      { name: "broken", transport: "stdio" }, // no command -> never launched, skipped
+      {
+        name: "linear",
+        transport: "http",
+        url: "https://mcp.linear.app/sse",
+        // The SDK resolver put the resolved `linear-mcp-token` secret here under the
+        // author-chosen header name "Authorization"; the wire has no separate `headers` key.
+        env: { Authorization: "Bearer secret-token-value" },
+      },
     ]);
+
+    assert.equal(out.length, 1, "one server delivered");
+    const server = out[0] as McpServerHttp;
+    assert.equal(server.type, "http", "ACP http variant");
+    assert.equal(server.name, "linear");
+    assert.equal(server.url, "https://mcp.linear.app/sse");
     assert.deepEqual(
-      out,
-      [],
-      "http + command-less stdio both skipped, no throw",
+      server.headers,
+      [{ name: "Authorization", value: "Bearer secret-token-value" }],
+      "env entry -> request header",
     );
+  });
+
+  it("delivers an http server with no secrets as an empty header list", () => {
+    const out = toAcpMcpServers([
+      { name: "public", transport: "http", url: "https://mcp.example/sse" },
+    ]);
+    const server = out[0] as McpServerHttp;
+    assert.equal(server.type, "http");
+    assert.deepEqual(server.headers, [], "no env -> no headers");
+  });
+
+  it("does not throw on a mix of http (delivered) and command-less stdio (skipped)", () => {
+    const out = toAcpMcpServers([
+      {
+        name: "remote",
+        transport: "http",
+        url: "https://example.com/mcp",
+        env: { "X-Api-Key": "k" },
+      },
+      { name: "broken", transport: "stdio" }, // no command -> never launched, skipped
+      { name: "no-url", transport: "http" }, // no url -> never deliverable, skipped
+    ]);
+
+    assert.equal(out.length, 1, "only the valid http server is delivered");
+    assert.equal((out[0] as McpServerHttp).name, "remote");
   });
 });
