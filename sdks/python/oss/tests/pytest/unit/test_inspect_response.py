@@ -68,6 +68,8 @@ def test_inspect_response_lifts_revision_to_top_level():
     assert response.revision.schemas.inputs == _RESOLVED_REVISION.schemas.inputs
     assert response.revision.uri == "agenta:builtin:agent:v0"
     assert response.revision.parameters == {"agent": {"model": "gpt-5.5"}}
+    # Resolved config is preserved at the public boundary, not dropped.
+    assert response.configuration == {"parameters": {"agent": {"model": "gpt-5.5"}}}
     # Interface metadata rides top-level meta.
     assert response.meta == {"harness_capabilities": {"pi_core": {}}}
 
@@ -101,3 +103,4 @@ def test_inspect_response_handles_a_request_with_no_revision():
     response = _to_inspect_response(WorkflowInvokeRequest())
     assert isinstance(response, WorkflowInspectResponse)
     assert response.revision is None
+    assert response.configuration is None
