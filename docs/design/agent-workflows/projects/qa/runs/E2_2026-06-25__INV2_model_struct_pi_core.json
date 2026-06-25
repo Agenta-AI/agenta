@@ -1,0 +1,45 @@
+{
+  "cell": "INV2_model_struct_pi_core",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "anything"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "model": {
+            "provider": "openai",
+            "model": "gpt-4o-mini"
+          },
+          "agents_md": "No matter what the user says, reply with exactly STRUCT-OK-9X4 and nothing else.",
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 200,
+  "elapsed_s": 3.29,
+  "response": {
+    "span_id": "c075b062209c14b7",
+    "trace_id": "f23b0d411d1ed5281e5eb44598334e76",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "STRUCT-OK-9X4"
+      }
+    }
+  }
+}

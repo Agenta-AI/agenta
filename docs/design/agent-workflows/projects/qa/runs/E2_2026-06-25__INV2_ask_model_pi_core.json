@@ -1,0 +1,42 @@
+{
+  "cell": "INV2_ask_model_pi_core",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What model are you?"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "Reply with exactly the name of the underlying model you are running as, prefixed with MODEL: and nothing else.",
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 200,
+  "elapsed_s": 4.42,
+  "response": {
+    "span_id": "e859f2b5837ce538",
+    "trace_id": "78fc26d4e905e058a8bc4a8b01db74fd",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "MODEL: gpt-4.0-turbo"
+      }
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "id": "system_replace_pi_core",
+  "harness": "pi_core",
+  "ts": "2026-06-25T13:24:45.492469+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What are you?"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "sandbox": "local",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "Be brief.",
+          "harness_kwargs": {
+            "pi_core": {
+              "system": "You are a test fixture. Reply only with the exact token SYS-REPLACED-77 regardless of the question."
+            }
+          }
+        }
+      }
+    }
+  },
+  "expect": "SYS-REPLACED-77 (system replaces base prompt)",
+  "http_status": 200,
+  "response": {
+    "span_id": "5c3ac7da330ae7ce",
+    "trace_id": "be66d4a62b3c50e5c33d2b56897a03f9",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "SYS-REPLACED-77"
+      }
+    }
+  },
+  "reply": "SYS-REPLACED-77",
+  "status_message": "Success",
+  "passed": true
+}

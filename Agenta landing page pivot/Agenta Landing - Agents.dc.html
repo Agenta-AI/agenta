@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/colors.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/typography.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/effects.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/styles.css">
+<script src="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/_ds_bundle.js"></script>
+<style>
+  body { margin: 0; background: #ECEBE8; }
+  @keyframes ag-pulse { 0% { transform: scale(1); opacity: 0.55; } 70% { transform: scale(1.7); opacity: 0; } 100% { opacity: 0; } }
+</style>
+</helmet>
+
+<div style="width:1440px;margin:0 auto;background:var(--surface-page);padding:0 12px;box-sizing:border-box;font-family:var(--font-sans);">
+
+  <x-import component-from-global-scope="AgentaDesignSystem_e4caef.NavBar" logo-src="assets/logos/Agenta-logo-full-light.svg" hint-size="100%,68px"></x-import>
+
+  <!-- ============ HERO ============ -->
+  <section data-screen-label="Hero" style="background:var(--surface-section);border:1px solid var(--border-default);margin-top:-1px;padding:64px 0 88px;text-align:center;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:32px;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:28px;">
+        <sc-if value="{{ showAnnouncement }}" hint-placeholder-val="{{ true }}">
+          <x-import component-from-global-scope="AgentaDesignSystem_e4caef.Badge" hint-size="auto,22px">Now in beta — skills &amp; tools →</x-import>
+        </sc-if>
+        <h1 style="margin:0;font:var(--text-display-xl);color:var(--text-heading);max-width:920px;text-wrap:pretty;">{{ heroPre }}<span style="display:inline-block;padding:0.02em 0.18em 0.08em;border-radius:10px;background:var(--grad-chip);box-shadow:inset 0 2px 0.4px #FFFFFF;font-family:var(--font-bitmap,'PP Mondwest',monospace);font-weight:400;line-height:1.06;color:var(--ink-900);vertical-align:baseline;">{{ heroChip }}</span>{{ heroPost }}</h1>
+        <p style="margin:0;font:var(--text-body-md);color:var(--text-muted);max-width:600px;text-wrap:pretty;">{{ heroSub }}</p>
+      </div>
+      <div style="display:flex;gap:12px;">
+        <x-import component-from-global-scope="AgentaDesignSystem_e4caef.Button" variant="primary" size="lg" hint-size="auto,44px">Start building</x-import>
+        <x-import component-from-global-scope="AgentaDesignSystem_e4caef.Button" variant="outline" size="lg" hint-size="auto,44px">Read the docs</x-import>
+      </div>
+
+      <!-- hero video placeholder -->
+      <div style="position:relative;width:1016px;height:452px;margin-top:28px;border-radius:8px;background:linear-gradient(180deg,#FCFBFA,#F1EFEC);box-shadow:var(--shadow-frame);overflow:hidden;display:flex;align-items:center;justify-content:center;">
+        <img src="assets/logos/Agenta-symbol-light.svg" alt="" style="position:absolute;left:-40px;bottom:-60px;width:340px;opacity:0.05;">
+        <div style="position:absolute;top:16px;left:16px;display:flex;gap:6px;">
+          <span style="width:10px;height:10px;border-radius:50%;background:#E5E5E3;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:#E5E5E3;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:#E5E5E3;"></span>
+        </div>
+        <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:18px;">
+          <div style="position:relative;width:76px;height:76px;">
+            <span style="position:absolute;inset:0;border-radius:50%;background:var(--yellow-400);animation:ag-pulse 2.6s ease-out infinite;"></span>
+            <span style="position:relative;display:flex;align-items:center;justify-content:center;width:76px;height:76px;border-radius:50%;background:#fff;box-shadow:0 8px 30px rgba(36,36,36,0.16),0 0 0 1px #EFEDEA;">
+              <svg width="22" height="24" viewBox="0 0 22 24" fill="none"><path d="M2 2.5 19.5 12 2 21.5V2.5Z" fill="var(--ink-900)"/></svg>
+            </span>
+          </div>
+          <span style="font:var(--text-label);color:var(--text-body);">Watch: build a support agent in 2 min</span>
+        </div>
+        <div style="position:absolute;bottom:16px;left:18px;font:var(--text-caption);letter-spacing:0.03em;color:var(--text-faint);">2:04 · Product overview</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BUILD WITH SKILLS & TOOLS — playground mock ============ -->
+  <section data-screen-label="Build" style="background:var(--surface-section);border:1px solid var(--border-default);margin-top:-1px;padding:112px 0;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:56px;">
+      <x-import component-from-global-scope="AgentaDesignSystem_e4caef.SectionTitle" badge="Build" title="Build agents using skills and tools" subtitle="Compose reusable skills and connected tools into agents — in a playground where PMs, experts, and devs work side by side." hint-size="677px,auto"></x-import>
+
+      <!-- playground app mock -->
+      <div style="width:1016px;height:432px;border-radius:8px;background:var(--surface-app);box-shadow:var(--shadow-frame);display:flex;overflow:hidden;text-align:left;">
+        <!-- sidebar -->
+        <div style="width:202px;background:var(--paper-50);border-right:1px solid var(--divider-app);padding:14px 10px;display:flex;flex-direction:column;gap:16px;box-sizing:border-box;">
+          <div style="display:flex;align-items:center;gap:8px;padding:4px 8px;">
+            <span style="width:22px;height:22px;border-radius:6px;background:var(--ink-900);color:#fff;font:600 12px/1 var(--font-sans);display:flex;align-items:center;justify-content:center;">A</span>
+            <span style="font:var(--app-text-label);color:var(--app-text-heading);">Acme</span>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="margin-left:auto;"><path d="M3 7.5 6 4.5l3 3" stroke="#A3A19F" stroke-width="1.3"/></svg>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <div style="display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;background:var(--surface-selected);">
+              <span style="width:7px;height:7px;border-radius:2px;background:var(--ink-700);"></span>
+              <span style="font:var(--app-text-label);color:var(--app-text-heading);">Agents</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:9px;padding:7px 10px;">
+              <span style="width:7px;height:7px;border-radius:2px;background:#C9C7C4;"></span>
+              <span style="font:var(--app-text-label);color:var(--app-text-secondary);">Skills</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:9px;padding:7px 10px;">
+              <span style="width:7px;height:7px;border-radius:2px;background:#C9C7C4;"></span>
+              <span style="font:var(--app-text-label);color:var(--app-text-secondary);">Tools</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:9px;padding:7px 10px;">
+              <span style="width:7px;height:7px;border-radius:2px;background:#C9C7C4;"></span>
+              <span style="font:var(--app-text-label);color:var(--app-text-secondary);">Evaluations</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:9px;padding:7px 10px;">
+              <span style="width:7px;height:7px;border-radius:2px;background:#C9C7C4;"></span>
+              <span style="font:var(--app-text-label);color:var(--app-text-secondary);">Traces</span>
+            </div>
+          </div>
+        </div>
+        <!-- main -->
+        <div style="flex:1;padding:8px;min-width:0;">
+          <div style="height:100%;background:#fff;border-radius:8px;box-shadow:var(--shadow-ring);padding:18px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;overflow:hidden;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span style="font:var(--app-text-title);color:var(--app-text-heading);">Support Agent</span>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <div style="display:flex;align-items:center;gap:7px;height:32px;padding:0 10px;border-radius:10px;background:#fff;box-shadow:var(--shadow-ring);box-sizing:border-box;">
+                  <span style="width:18px;height:18px;border-radius:5px;background:var(--grad-chip);box-shadow:inset 0 1px 0.4px #fff;display:flex;align-items:center;justify-content:center;font:600 10px/1 var(--font-sans);color:var(--ink-700);">C</span>
+                  <span style="font:var(--app-text-label);color:var(--app-text-body);">Claude Code</span>
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M3 4.5 6 7.5l3-3" stroke="#848B8C" stroke-width="1.3"/></svg>
+                </div>
+                <span style="display:inline-flex;align-items:center;height:32px;padding:0 14px;border-radius:8px;background:var(--grad-btn-dark);box-shadow:var(--shadow-btn-dark);color:#fff;font:var(--app-text-label);">Run</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;flex:1;min-height:0;">
+              <div style="flex:1;border-radius:10px;box-shadow:var(--shadow-ring);padding:14px;display:flex;flex-direction:column;gap:9px;min-height:0;">
+                <span style="font:var(--app-text-small);letter-spacing:0.03em;text-transform:uppercase;color:var(--app-text-placeholder);">Skills</span>
+                <span style="display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--paper-50);box-shadow:inset 0 0 0 1px var(--divider-app);font:var(--app-text-label);color:var(--app-text-body);"><span style="width:6px;height:6px;border-radius:50%;background:var(--terracotta-500);"></span>Triage ticket</span>
+                <span style="display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--paper-50);box-shadow:inset 0 0 0 1px var(--divider-app);font:var(--app-text-label);color:var(--app-text-body);"><span style="width:6px;height:6px;border-radius:50%;background:var(--terracotta-500);"></span>Look up order</span>
+                <span style="display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--paper-50);box-shadow:inset 0 0 0 1px var(--divider-app);font:var(--app-text-label);color:var(--app-text-body);"><span style="width:6px;height:6px;border-radius:50%;background:var(--terracotta-500);"></span>Draft reply</span>
+              </div>
+              <div style="flex:1;border-radius:10px;box-shadow:var(--shadow-ring);padding:14px;display:flex;flex-direction:column;gap:9px;min-height:0;">
+                <span style="font:var(--app-text-small);letter-spacing:0.03em;text-transform:uppercase;color:var(--app-text-placeholder);">Tools</span>
+                <span style="display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--paper-50);box-shadow:inset 0 0 0 1px var(--divider-app);font:var(--app-text-mono);color:var(--app-text-secondary);">search_kb()</span>
+                <span style="display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--paper-50);box-shadow:inset 0 0 0 1px var(--divider-app);font:var(--app-text-mono);color:var(--app-text-secondary);">orders.query()</span>
+                <span style="display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--paper-50);box-shadow:inset 0 0 0 1px var(--divider-app);font:var(--app-text-mono);color:var(--app-text-secondary);">send_email()</span>
+              </div>
+            </div>
+            <div style="border-radius:8px;background:var(--paper-50);box-shadow:inset 0 0 0 1px var(--divider-app);padding:10px 12px;font:var(--app-text-mono);color:var(--app-text-secondary);">→ resolved in 1.2s · 3 tool calls · evaluation passed</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HARNESS / MODEL ============ -->
+  <section data-screen-label="Harness" style="background:var(--surface-section);border:1px solid var(--border-default);margin-top:-1px;padding:112px 0;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:56px;">
+      <x-import component-from-global-scope="AgentaDesignSystem_e4caef.SectionTitle" badge="Run anywhere" title="Switch harness or model, never rewrite" subtitle="Build once and run on the harness your team prefers, with any model — hosted or self-hosted." hint-size="677px,auto"></x-import>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;width:1072px;border:1px solid var(--border-default);">
+        <div style="padding:36px 40px;display:flex;flex-direction:column;gap:20px;">
+          <span style="font:var(--text-caption);letter-spacing:0.03em;text-transform:uppercase;color:var(--text-faint);">Harnesses</span>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;">
+            <sc-for list="{{ harnesses }}" as="item" hint-placeholder-count="4">
+              <div style="display:inline-flex;align-items:center;gap:10px;padding:9px 15px;border-radius:10px;background:var(--surface-section);box-shadow:0 0 0 1px var(--border-soft), inset 0 2px 0.4px #fff;">
+                <span style="width:28px;height:28px;border-radius:7px;background:var(--grad-chip);box-shadow:inset 0 1px 0.4px #fff;display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-sans);color:var(--ink-700);">{{ item.mono }}</span>
+                <span style="font:var(--text-label);color:var(--text-heading);">{{ item.name }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="padding:36px 40px;display:flex;flex-direction:column;gap:20px;border-left:1px solid var(--border-default);">
+          <span style="font:var(--text-caption);letter-spacing:0.03em;text-transform:uppercase;color:var(--text-faint);">Models</span>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;">
+            <sc-for list="{{ models }}" as="item" hint-placeholder-count="4">
+              <div style="display:inline-flex;align-items:center;gap:10px;padding:9px 15px;border-radius:10px;background:var(--surface-section);box-shadow:0 0 0 1px var(--border-soft), inset 0 2px 0.4px #fff;">
+                <span style="width:28px;height:28px;border-radius:7px;background:var(--grad-chip);box-shadow:inset 0 1px 0.4px #fff;display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-sans);color:var(--ink-700);">{{ item.mono }}</span>
+                <span style="font:var(--text-label);color:var(--text-heading);">{{ item.name }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RUN ON ANY ENVIRONMENT — dark hub diagram ============ -->
+  <section data-screen-label="Environments" style="background:var(--surface-dark);border:1px solid var(--border-on-dark);margin-top:-1px;padding:120px 0;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:72px;">
+      <x-import component-from-global-scope="AgentaDesignSystem_e4caef.SectionTitle" dark="dark" badge="Environments" title="Run in any environment" subtitle="Your laptop, an ephemeral sandbox, or your own cloud — agents run the same everywhere Agenta orchestrates." hint-size="677px,auto"></x-import>
+      <div style="position:relative;width:1072px;height:380px;">
+        <svg viewBox="0 0 1072 380" width="1072" height="380" style="position:absolute;inset:0;" fill="none">
+          <line x1="536" y1="190" x2="170" y2="74" stroke="rgba(242,242,92,0.28)" stroke-width="1.5" stroke-dasharray="4 5"/>
+          <line x1="536" y1="190" x2="902" y2="74" stroke="rgba(242,242,92,0.28)" stroke-width="1.5" stroke-dasharray="4 5"/>
+          <line x1="536" y1="190" x2="170" y2="306" stroke="rgba(242,242,92,0.28)" stroke-width="1.5" stroke-dasharray="4 5"/>
+          <line x1="536" y1="190" x2="902" y2="306" stroke="rgba(242,242,92,0.28)" stroke-width="1.5" stroke-dasharray="4 5"/>
+        </svg>
+        <!-- center -->
+        <div style="position:absolute;left:536px;top:190px;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:10px;">
+          <div style="width:88px;height:88px;border-radius:20px;background:rgba(242,242,92,0.08);box-shadow:0 0 0 1px rgba(242,242,92,0.22),0 0 60px rgba(242,242,92,0.12);display:flex;align-items:center;justify-content:center;">
+            <img src="assets/logos/Agenta-symbol-dark-accent.svg" alt="Agenta" style="width:46px;">
+          </div>
+          <span style="font:var(--text-label);color:#fff;">Agenta</span>
+        </div>
+        <!-- nodes -->
+        <div style="position:absolute;left:170px;top:74px;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:11px;padding:12px 18px;border-radius:12px;background:rgba(255,255,255,0.04);box-shadow:0 0 0 1px rgba(255,255,255,0.12);">
+          <span style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-sans);color:rgba(255,255,255,0.85);">L</span>
+          <span style="display:flex;flex-direction:column;"><span style="font:var(--text-label);color:#fff;">Local machine</span><span style="font:var(--text-caption);color:var(--text-on-dark-muted);">Claude Code, CLI</span></span>
+        </div>
+        <div style="position:absolute;left:902px;top:74px;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:11px;padding:12px 18px;border-radius:12px;background:rgba(255,255,255,0.04);box-shadow:0 0 0 1px rgba(255,255,255,0.12);">
+          <span style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-sans);color:rgba(255,255,255,0.85);">D</span>
+          <span style="display:flex;flex-direction:column;"><span style="font:var(--text-label);color:#fff;">Daytona</span><span style="font:var(--text-caption);color:var(--text-on-dark-muted);">Dev environment</span></span>
+        </div>
+        <div style="position:absolute;left:170px;top:306px;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:11px;padding:12px 18px;border-radius:12px;background:rgba(255,255,255,0.04);box-shadow:0 0 0 1px rgba(255,255,255,0.12);">
+          <span style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-sans);color:rgba(255,255,255,0.85);">E</span>
+          <span style="display:flex;flex-direction:column;"><span style="font:var(--text-label);color:#fff;">E2B</span><span style="font:var(--text-caption);color:var(--text-on-dark-muted);">Ephemeral sandbox</span></span>
+        </div>
+        <div style="position:absolute;left:902px;top:306px;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:11px;padding:12px 18px;border-radius:12px;background:rgba(255,255,255,0.04);box-shadow:0 0 0 1px rgba(255,255,255,0.12);">
+          <span style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-sans);color:rgba(255,255,255,0.85);">☁</span>
+          <span style="display:flex;flex-direction:column;"><span style="font:var(--text-label);color:#fff;">Your own cloud</span><span style="font:var(--text-caption);color:var(--text-on-dark-muted);">Self-hosted</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ COLLABORATE ============ -->
+  <section data-screen-label="Collaborate" style="background:var(--surface-section);border:1px solid var(--border-default);margin-top:-1px;padding:112px 0;">
+    <div style="display:flex;align-items:center;gap:80px;width:1072px;margin:0 auto;">
+      <div style="flex:0 0 392px;display:flex;flex-direction:column;gap:24px;">
+        <x-import component-from-global-scope="AgentaDesignSystem_e4caef.SectionTitle" align="left" badge="Collaborate" title="Build it with the whole team" subtitle="Share skills, tools, and agents in one registry. PMs and domain experts iterate alongside engineers — every change versioned." hint-size="392px,auto"></x-import>
+        <x-import component-from-global-scope="AgentaDesignSystem_e4caef.Button" variant="outline" size="md" hint-size="auto,36px">Invite your team</x-import>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:12px;">
+        <sc-for list="{{ collabCards }}" as="item" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center;gap:16px;padding:20px 22px;border-radius:12px;background:var(--surface-section);box-shadow:var(--shadow-ring);">
+            <span style="flex:0 0 auto;width:42px;height:42px;border-radius:10px;background:var(--grad-chip);box-shadow:inset 0 1px 0.4px #fff;display:flex;align-items:center;justify-content:center;font:400 20px/1 var(--font-bitmap,'PP Mondwest',monospace);color:var(--ink-700);">{{ item.mono }}</span>
+            <div style="display:flex;flex-direction:column;gap:3px;">
+              <span style="font:var(--text-title);color:var(--text-heading);">{{ item.title }}</span>
+              <span style="font:var(--text-body-sm);color:var(--text-body);">{{ item.desc }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ INTEGRATIONS ============ -->
+  <section data-screen-label="Integrations" style="background:var(--surface-section);border:1px solid var(--border-default);margin-top:-1px;padding:112px 0;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:56px;">
+      <x-import component-from-global-scope="AgentaDesignSystem_e4caef.SectionTitle" badge="Integrations" title="Integrate with everything" subtitle="Dozens of built-in integrations push traces, feedback, and alerts to the tools your team already lives in." hint-size="677px,auto"></x-import>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);width:1072px;border:1px solid var(--border-default);">
+        <sc-for list="{{ integrations }}" as="item" hint-placeholder-count="8">
+          <div style="display:flex;align-items:center;gap:14px;padding:24px 26px;background:#fff;box-shadow:0 0 0 0.5px var(--border-default);">
+            <span style="width:38px;height:38px;border-radius:9px;background:var(--grad-chip);box-shadow:inset 0 1px 0.4px #fff;display:flex;align-items:center;justify-content:center;font:600 15px/1 var(--font-sans);color:var(--ink-700);">{{ item.mono }}</span>
+            <span style="font:var(--text-label);color:var(--text-heading);">{{ item.name }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MONITOR ============ -->
+  <section data-screen-label="Monitor" style="background:var(--surface-section);border:1px solid var(--border-default);margin-top:-1px;padding:112px 0;">
+    <div style="display:flex;align-items:center;gap:80px;width:1072px;margin:0 auto;">
+      <!-- video placeholder left -->
+      <div style="flex:1;position:relative;height:340px;border-radius:8px;background:linear-gradient(180deg,#FCFBFA,#F1EFEC);box-shadow:var(--shadow-frame);overflow:hidden;display:flex;align-items:center;justify-content:center;">
+        <img src="assets/logos/Agenta-symbol-light.svg" alt="" style="position:absolute;right:-30px;top:-40px;width:220px;opacity:0.05;">
+        <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:14px;">
+          <div style="position:relative;width:64px;height:64px;">
+            <span style="position:absolute;inset:0;border-radius:50%;background:var(--yellow-400);animation:ag-pulse 2.6s ease-out infinite;"></span>
+            <span style="position:relative;display:flex;align-items:center;justify-content:center;width:64px;height:64px;border-radius:50%;background:#fff;box-shadow:0 8px 30px rgba(36,36,36,0.16),0 0 0 1px #EFEDEA;">
+              <svg width="18" height="20" viewBox="0 0 22 24" fill="none"><path d="M2 2.5 19.5 12 2 21.5V2.5Z" fill="var(--ink-900)"/></svg>
+            </span>
+          </div>
+          <span style="font:var(--text-label);color:var(--text-body);">Watch: monitoring &amp; evals</span>
+        </div>
+        <div style="position:absolute;bottom:16px;left:18px;font:var(--text-caption);letter-spacing:0.03em;color:var(--text-faint);">1:38 · Observability</div>
+      </div>
+      <div style="flex:0 0 392px;display:flex;flex-direction:column;gap:24px;">
+        <x-import component-from-global-scope="AgentaDesignSystem_e4caef.SectionTitle" align="left" badge="Observability" title="Monitor usage, improve quality" subtitle="Trace every run, collect user feedback, and run evaluations on real production data — then close the loop." hint-size="392px,auto"></x-import>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div style="display:flex;align-items:flex-start;gap:12px;">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="margin-top:2px;flex:0 0 auto;"><circle cx="9" cy="9" r="9" fill="var(--yellow-400)"/><path d="M5 9.2 7.6 11.8 13 6.4" stroke="var(--ink-900)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span style="font:var(--text-body-sm);color:var(--text-body);">Capture feedback on every trace, from your team or your users</span>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:12px;">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="margin-top:2px;flex:0 0 auto;"><circle cx="9" cy="9" r="9" fill="var(--yellow-400)"/><path d="M5 9.2 7.6 11.8 13 6.4" stroke="var(--ink-900)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span style="font:var(--text-body-sm);color:var(--text-body);">Evaluate on real production data, not vibes</span>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:12px;">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="margin-top:2px;flex:0 0 auto;"><circle cx="9" cy="9" r="9" fill="var(--yellow-400)"/><path d="M5 9.2 7.6 11.8 13 6.4" stroke="var(--ink-900)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span style="font:var(--text-body-sm);color:var(--text-body);">Turn failures into test cases for continuous self-improvement</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CTA ============ -->
+  <section data-screen-label="CTA" style="background:{{ ctaBg }};border:{{ ctaBorder }};margin-top:-1px;padding:96px 0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;width:1072px;margin:0 auto;gap:48px;">
+      <div style="display:flex;flex-direction:column;gap:24px;max-width:520px;">
+        <h2 style="margin:0;font:var(--text-display-lg);color:{{ ctaHead }};text-wrap:pretty;">Ship agents that actually work</h2>
+        <p style="margin:0;font:var(--text-body-md);color:{{ ctaSub }};">Build with skills and tools, run on any harness in any environment, and improve with real feedback — all open source.</p>
+        <div style="display:flex;gap:12px;">
+          <x-import component-from-global-scope="AgentaDesignSystem_e4caef.Button" variant="{{ ctaBtn }}" size="lg" hint-size="auto,44px">Start building</x-import>
+          <x-import component-from-global-scope="AgentaDesignSystem_e4caef.Button" variant="outline" size="lg" hint-size="auto,44px">Book a demo</x-import>
+        </div>
+      </div>
+      <img src="assets/logos/Agenta-symbol-light.svg" alt="" style="width:150px;opacity:{{ ctaSymbolOpacity }};">
+    </div>
+  </section>
+
+  <x-import component-from-global-scope="AgentaDesignSystem_e4caef.Footer" logo-src="assets/logos/Agenta-logo-full-light.svg" social-srcs="{{ socialSrcs }}" hint-size="100%,320px"></x-import>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;$preview&quot;: { &quot;width&quot;: 1440, &quot;height&quot;: 900 },
+  &quot;copyVariant&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;Direct&quot;, &quot;Bold&quot;, &quot;Technical&quot;], &quot;default&quot;: &quot;Direct&quot;, &quot;tsType&quot;: &quot;string&quot; },
+  &quot;showAnnouncement&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot; },
+  &quot;ctaVariant&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;Yellow&quot;, &quot;Dark&quot;], &quot;default&quot;: &quot;Yellow&quot;, &quot;tsType&quot;: &quot;string&quot; }
+}">
+class Component extends DCLogic {
+  renderVals() {
+    const variants = {
+      Direct: {
+        pre: 'Build agents and AI automations that ',
+        chip: 'work',
+        post: '.',
+        sub: 'Build using skills and tools, run on any harness, in any environment.',
+      },
+      Bold: {
+        pre: 'Ship agents that ',
+        chip: 'actually',
+        post: ' work.',
+        sub: 'From prompt to production — build with skills and tools, run anywhere, and improve with real feedback.',
+      },
+      Technical: {
+        pre: 'The open platform for ',
+        chip: 'agents',
+        post: ' & AI automation.',
+        sub: 'Build with skills and tools. Run on any harness or model, in any environment. Collaborate, integrate, evaluate.',
+      },
+    };
+    const v = variants[this.props.copyVariant] || variants.Direct;
+
+    const dark = (this.props.ctaVariant || 'Yellow') === 'Dark';
+    const cta = dark
+      ? { bg: 'var(--carbon-900)', head: '#FFFFFF', sub: 'rgba(255,255,255,0.64)', btn: 'primary', border: '1px solid var(--border-on-dark)', symbol: 0.1 }
+      : { bg: 'var(--surface-cta)', head: 'var(--text-on-yellow)', sub: 'rgba(36,36,36,0.72)', btn: 'dark', border: '1px solid var(--border-default)', symbol: 0.16 };
+
+    return {
+      heroPre: v.pre,
+      heroChip: v.chip,
+      heroPost: v.post,
+      heroSub: v.sub,
+      showAnnouncement: this.props.showAnnouncement ?? true,
+      ctaBg: cta.bg,
+      ctaHead: cta.head,
+      ctaSub: cta.sub,
+      ctaBtn: cta.btn,
+      ctaBorder: cta.border,
+      ctaSymbolOpacity: cta.symbol,
+      harnesses: [
+        { name: 'Claude Code', mono: 'C' },
+        { name: 'Codex', mono: 'O' },
+        { name: 'Pi', mono: 'π' },
+        { name: 'Your own', mono: '+' },
+      ],
+      models: [
+        { name: 'Claude', mono: 'C' },
+        { name: 'GPT', mono: 'G' },
+        { name: 'Llama', mono: 'L' },
+        { name: 'Self-hosted', mono: '⌂' },
+      ],
+      integrations: [
+        { name: 'Slack', mono: 'S' },
+        { name: 'PostHog', mono: 'P' },
+        { name: 'GitHub', mono: 'G' },
+        { name: 'Linear', mono: 'L' },
+        { name: 'Sentry', mono: 'S' },
+        { name: 'Datadog', mono: 'D' },
+        { name: 'Webhooks', mono: '{}' },
+        { name: 'REST API', mono: '/' },
+      ],
+      collabCards: [
+        { title: 'Skills', desc: 'Reusable capabilities your team shares and versions.', mono: 'S' },
+        { title: 'Tools', desc: 'Connect an API or function once, use it everywhere.', mono: 'T' },
+        { title: 'Agents', desc: 'Compose skills and tools into agents anyone can run.', mono: 'A' },
+      ],
+      socialSrcs: [
+        'assets/icons/social-1.svg',
+        'assets/icons/social-2.svg',
+        'assets/icons/social-3.svg',
+        'assets/icons/social-4.svg',
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

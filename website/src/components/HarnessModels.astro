@@ -1,0 +1,75 @@
+---
+import SectionTitle from "./SectionTitle.astro";
+
+const harnesses = [
+  { name: "Claude Code", mono: "C" },
+  { name: "Codex", mono: "O" },
+  { name: "Pi", mono: "π" },
+  { name: "Your own", mono: "+" },
+];
+const models = [
+  { name: "Claude", mono: "C" },
+  { name: "GPT", mono: "G" },
+  { name: "Llama", mono: "L" },
+  { name: "Self-hosted", mono: "⌂" },
+];
+
+const chip =
+  "display:inline-flex;align-items:center;gap:10px;padding:9px 15px;border-radius:10px;background:rgba(255,255,255,0.04);box-shadow:0 0 0 1px rgba(255,255,255,0.1);";
+const mono =
+  "width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-sans);color:rgba(255,255,255,0.85);";
+const colLabel =
+  "font:var(--text-caption);letter-spacing:0.03em;text-transform:uppercase;color:rgba(255,255,255,0.4);";
+---
+
+<section
+  data-screen-label="Harness"
+  class="ag-secpad"
+  style="background:#0E0D0F;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:112px 0;"
+>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:56px;">
+    <SectionTitle
+      dark
+      badge="Run anywhere"
+      title="Switch harness or model, never rewrite"
+      subtitle="Build once and run on the harness your team prefers, with any model — hosted or self-hosted."
+    />
+    <div
+      class="ag-harness"
+      style="display:grid;grid-template-columns:1fr 1fr;gap:0;width:min(1072px,100%);border:1px solid rgba(255,255,255,0.09);"
+    >
+      <div style="padding:36px 40px;display:flex;flex-direction:column;gap:20px;">
+        <span style={colLabel}>Harnesses</span>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          {
+            harnesses.map((item) => (
+              <div style={chip}>
+                <span style={mono}>{item.mono}</span>
+                <span style="font:var(--text-label);color:#F7F6F4;">
+                  {item.name}
+                </span>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+      <div
+        style="padding:36px 40px;display:flex;flex-direction:column;gap:20px;border-left:1px solid rgba(255,255,255,0.09);"
+      >
+        <span style={colLabel}>Models</span>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          {
+            models.map((item) => (
+              <div style={chip}>
+                <span style={mono}>{item.mono}</span>
+                <span style="font:var(--text-label);color:#F7F6F4;">
+                  {item.name}
+                </span>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

@@ -32,19 +32,26 @@ Use this shape unless the change is truly trivial:
 
 ```
 ## Context
-<one or two sentences: the symptom a user or teammate would notice, then the root cause in plain words>
+<one or two sentences: the symptom a user or teammate would notice, then the root cause in plain words.
+This is REQUIRED — reviewers must know WHY this change exists before they can evaluate it.>
 
 ## Changes
 <plain-words explanation of the change, with a concrete before/after when a data shape, signature, or behavior changed>
 
+## Scope / risk
+<what this PR does NOT do, known limitations, follow-ups filed, and anything that could regress.
+This is REQUIRED for any non-trivial PR — reviewers always ask "what did you not touch?" and
+"what could break?". Skip only for truly trivial changes (typo fix, one-line rename).>
+
 ## Tests / notes
 <short bullet list or prose: what you verified, anything reviewers should watch for>
 
-## What to QA
-<only for user-visible changes: short steps for the manual tester, see section 7>
+## How to QA
+<required when the change is user-visible or touches a code path a reviewer can exercise;
+see section 7 for the full spec>
 ```
 
-Adapt the headings if the situation calls for it (e.g. a pure feature PR might use "What this adds" instead of "What was broken"). The order stays the same: the obeservation (symptom or user-visible change first or intent), then the changes, then verification and validation.
+Adapt the headings if the situation calls for it (e.g. a pure feature PR might use "What this adds" instead of "What was broken"). The order stays the same: the observation (symptom or user-visible change first or intent), then the changes, then scope/risk, then verification and validation.
 
 ## 3. Show, don't restate the diff
 
@@ -105,33 +112,52 @@ Keep this section short and concrete. Useful contents:
 
 Skip the section entirely if there is nothing real to say. A blank "Tests" heading is worse than no heading.
 
-## 7. What to QA section
+## 7. How to QA section
 
-If the change is user-visible and a teammate will test it manually, add a "What to QA" section. Write it for a tester who knows the product and has context: skip the basics, point at the right screens, and state the expected result of every check.
+Add a "How to QA" section whenever the change is user-visible OR touches a code path a reviewer can exercise (API endpoint, CLI flag, config option). Skip it only for pure refactors, CI changes, and doc-only commits. A reviewer who cannot run the stack should still be able to understand what the expected outcome is.
 
-- One line per check: where to go, what to do, what they should see.
-- Name the exact pages and flows. "Test the feature" is not a check.
-- Include the regression to watch for: the thing this change is most likely to have broken.
-- If a check needs setup (a seeded project, an older record, a feature flag), say so in the same line.
-- Use simple, clear language. Same prose rules as section 5.
+Write it for a reviewer who knows the product but has not read the diff. Structure it in five parts:
+
+**Prerequisites.** Name the stack or environment to use (e.g. "local dev stack via `run.sh`", "the Hetzner dev box at the live port", "a local `pytest` run"). List any one-time setup: a feature flag to flip, an env var to set, a project to seed, a dependency to start. Be specific enough that someone cold can follow without guessing.
+
+**Steps.** Number each action. For UI changes: name the exact page or panel, what to click or fill, in what order. For backend changes: the exact curl command or test invocation, including any required headers or payloads. For CLI changes: the exact command. Do not say "test the feature" — say what to do.
+
+**Expected result.** State what you should see after the steps. One sentence per check is enough. Be concrete: a value, a label, a response field, a rendered panel — not "it works".
+
+**Automated tests.** List the test files or test IDs that cover this change and the exact command to run them locally. If there are no automated tests, say so explicitly. Reviewers should not have to hunt for coverage.
+
+**Edge cases / what to watch for.** Name the one or two things this change is most likely to have broken (the regression), and any inputs or states where the behavior might differ from the happy path.
 
 Example:
 
-> ## What to QA
-> - Create a new automatic evaluator, name it, save. The table shows your name with a v1 tag, not "default".
-> - Edit it and commit a config change. The name stays, the version bumps to v2.
-> - Regression: run a new evaluation. The variant chips still say "default", not the app name.
-
-Skip the section when nothing is user-visible (pure refactor, CI, docs). A reviewer-only change needs the Tests section, not this one.
+> ## How to QA
+>
+> **Prerequisites:** local dev stack (`docker compose up`, or `run.sh` with the `--dev` flag). No extra setup needed.
+>
+> **Steps:**
+> 1. Open the Playground at `/apps/<any-app>/playground`.
+> 2. Select an automatic evaluator variant. Click "Edit config".
+> 3. Change the name field. Click "Save".
+>
+> **Expected result:** The evaluator table shows the new name with a v1 tag. The variant selector still shows the old name until you refresh.
+>
+> **Automated tests:**
+> ```
+> pnpm --filter @agenta/evaluators test -- --run evaluator-name
+> ```
+>
+> **Edge cases:** If you edit a variant that already has run results attached, the name change must not affect the run history rows. Check one such variant.
 
 ## 8. Reviewer's first-30-seconds test
 
 Before you finalize, read your own draft and ask:
 
-1. After 30 seconds, does a reviewer know **the context** and **what changed**?
+1. After 30 seconds, does a reviewer know **the context** (the symptom, the why) and **what changed**?
 2. Is there a concrete before/after anywhere a shape or behavior moved?
-3. Did you delete every sentence that doesn't earn its place?
-4. Did you scan for em dashes and marketing words?
+3. Does the **Scope / risk** section tell reviewers what was NOT touched and what could regress?
+4. Does **How to QA** give a concrete path: prerequisites, numbered steps, expected result, exact test command, and edge cases?
+5. Did you delete every sentence that doesn't earn its place?
+6. Did you scan for em dashes and marketing words?
 
 If any answer is no, edit before you push.
 
@@ -166,13 +192,33 @@ Before:
 After:
 [{type: "function", function: {name: "get_weather", parameters: {...}}}]
 
+## Scope / risk
+This only affects the OpenInference parser. Traces from the OpenAI SDK and Anthropic SDK pass through the existing path unchanged. The playground tool panel is the only UI surface touched.
+
 ## Tests
 - Added a unit test in parseToolsFromTrace.test.ts covering both shapes.
 - Opened a real OpenInference trace from the staging project and confirmed the tools panel renders.
+  ```
+  pnpm --filter @agenta/observability test -- --run parseToolsFromTrace
+  ```
 
-## What to QA
-- Open an OpenInference trace in the playground (the staging project has them). The tools panel lists the tools.
-- Regression: open a trace from the OpenAI SDK. The tools panel still renders as before.
+## How to QA
+
+**Prerequisites:** local dev stack or the staging environment. The staging project already has OpenInference traces.
+
+**Steps:**
+1. Open the Observability page and click any OpenInference trace.
+2. Open that trace in the Playground via the "Open in Playground" button.
+3. Check the Tools panel on the right side of the Playground.
+
+**Expected result:** The tools panel lists all tool definitions from the trace. Each entry shows a name and the parameter schema.
+
+**Automated tests:**
+```
+pnpm --filter @agenta/observability test -- --run parseToolsFromTrace
+```
+
+**Edge cases:** Open a trace from the OpenAI SDK (not OpenInference). The tools panel must still render as before — the new parser must not touch the existing shape.
 ```
 
 The second version is cleaner and tells the reviewer everything they need to start reading the diff.

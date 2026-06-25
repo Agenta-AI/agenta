@@ -1,0 +1,81 @@
+---
+import SectionTitle from "./SectionTitle.astro";
+
+const nodeChip =
+  "display:inline-flex;align-items:center;gap:11px;padding:12px 18px;border-radius:12px;background:rgba(255,255,255,0.04);box-shadow:0 0 0 1px rgba(255,255,255,0.12);";
+const nodeMono =
+  "width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-sans);color:rgba(255,255,255,0.85);";
+
+const nodes = [
+  { left: 170, top: 74, mono: "L", name: "Local machine", sub: "Claude Code, CLI" },
+  { left: 902, top: 74, mono: "D", name: "Daytona", sub: "Dev environment" },
+  { left: 170, top: 306, mono: "E", name: "E2B", sub: "Ephemeral sandbox" },
+  { left: 902, top: 306, mono: "☁", name: "Your own cloud", sub: "Self-hosted" },
+];
+---
+
+<section
+  data-screen-label="Environments"
+  class="ag-secpad"
+  style="background:#0A090A;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:120px 0;"
+>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:72px;">
+    <SectionTitle
+      dark
+      badge="Environments"
+      title="Run in any environment"
+      subtitle="Your laptop, an ephemeral sandbox, or your own cloud — agents run the same everywhere Agenta orchestrates."
+    />
+    <div
+      class="ag-diagram"
+      style="position:relative;width:min(1072px,100%);height:380px;"
+    >
+      <svg
+        class="ag-diagram-svg"
+        viewBox="0 0 1072 380"
+        width="1072"
+        height="380"
+        style="position:absolute;inset:0;"
+        fill="none"
+      >
+        <line x1="536" y1="190" x2="170" y2="74" stroke="rgba(242,242,92,0.28)" stroke-width="1.5" stroke-dasharray="4 5"></line>
+        <line x1="536" y1="190" x2="902" y2="74" stroke="rgba(242,242,92,0.28)" stroke-width="1.5" stroke-dasharray="4 5"></line>
+        <line x1="536" y1="190" x2="170" y2="306" stroke="rgba(242,242,92,0.28)" stroke-width="1.5" stroke-dasharray="4 5"></line>
+        <line x1="536" y1="190" x2="902" y2="306" stroke="rgba(242,242,92,0.28)" stroke-width="1.5" stroke-dasharray="4 5"></line>
+      </svg>
+
+      <div
+        class="ag-node"
+        style="position:absolute;left:536px;top:190px;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:10px;"
+      >
+        <div
+          style="width:88px;height:88px;border-radius:20px;background:rgba(242,242,92,0.08);box-shadow:0 0 0 1px rgba(242,242,92,0.22),0 0 60px rgba(242,242,92,0.12);display:flex;align-items:center;justify-content:center;"
+        >
+          <img
+            src="/logos/Agenta-symbol-dark-accent.svg"
+            alt="Agenta"
+            style="width:46px;"
+          />
+        </div>
+        <span style="font:var(--text-label);color:#fff;">Agenta</span>
+      </div>
+
+      {
+        nodes.map((n) => (
+          <div
+            class="ag-node"
+            style={`position:absolute;left:${n.left}px;top:${n.top}px;transform:translate(-50%,-50%);${nodeChip}`}
+          >
+            <span style={nodeMono}>{n.mono}</span>
+            <span style="display:flex;flex-direction:column;">
+              <span style="font:var(--text-label);color:#fff;">{n.name}</span>
+              <span style="font:var(--text-caption);color:rgba(255,255,255,0.5);">
+                {n.sub}
+              </span>
+            </span>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>

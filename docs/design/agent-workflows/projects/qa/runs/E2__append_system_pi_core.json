@@ -1,0 +1,50 @@
+{
+  "id": "append_system_pi_core",
+  "harness": "pi_core",
+  "ts": "2026-06-25T13:24:41.130691+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Say hello in one short sentence."
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "sandbox": "local",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "Be brief.",
+          "harness_kwargs": {
+            "pi_core": {
+              "append_system": "Always end every reply with the exact token ZK-9-END."
+            }
+          }
+        }
+      }
+    }
+  },
+  "expect": "ZK-9-END (F-001 regression guard)",
+  "http_status": 200,
+  "response": {
+    "span_id": "c5b3326adf5c8823",
+    "trace_id": "503c5f926723eff8fd21938be8ca19a0",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "Hello! ZK-9-END"
+      }
+    }
+  },
+  "reply": "Hello! ZK-9-END",
+  "status_message": "Success",
+  "passed": true
+}

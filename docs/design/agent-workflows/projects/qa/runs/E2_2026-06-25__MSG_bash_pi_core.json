@@ -1,0 +1,8 @@
+{
+  "cell": "MSG_bash_pi_core",
+  "status": 200,
+  "n_chunks": 1,
+  "chunks": [
+    "{\"span_id\":\"f66c0858acfbcac3\",\"trace_id\":\"40f68220a310c8f09fe751219fe5a1a1\",\"version\":\"2025.07.14\",\"status\":{\"code\":200,\"message\":\"Success\"},\"session_id\":\"sess_2b10e64641554f8ab5d24c783d2d94d9\",\"data\":{\"outputs\":{\"role\":\"assistant\",\"content\":\"The machine architecture is QA-BASH-x86_64.\"}}}"
+  ]
+}

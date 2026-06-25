@@ -1,0 +1,144 @@
+---
+// SiteFooter — dark footer. Content + links from the design's content/site.json
+// (inlined to keep the website package self-contained). External links are real;
+// internal routes point at their intended path (some 404 until those pages ship).
+const blurb = "Fast-tracking LLM apps\nto production";
+
+const socials = [
+  { platform: "x", url: "https://x.com/agenta_ai", icon: "/icons/social-1.svg" },
+  {
+    platform: "linkedin",
+    url: "https://www.linkedin.com/company/agenta-ai",
+    icon: "/icons/social-2.svg",
+  },
+  {
+    platform: "github",
+    url: "https://github.com/Agenta-AI/agenta",
+    icon: "/icons/social-3.svg",
+  },
+  { platform: "slack", url: "https://join.slack.com/", icon: "/icons/social-4.svg" },
+];
+
+type Link = { label: string; href: string; external?: boolean };
+const columns: { heading: string; links: Link[] }[] = [
+  {
+    heading: "Product",
+    links: [
+      { label: "Prompt Engineering", href: "/product/prompt-engineering" },
+      { label: "Evaluation", href: "/product/evaluation" },
+      { label: "Human annotation", href: "/product/human-annotation" },
+      { label: "Deployment", href: "/product/deployment" },
+      { label: "Observability", href: "/product/observability" },
+    ],
+  },
+  {
+    heading: "Company",
+    links: [
+      { label: "Home", href: "/" },
+      { label: "Pricing", href: "/pricing" },
+      { label: "Contact", href: "/contact" },
+    ],
+  },
+  {
+    heading: "Resources",
+    links: [
+      { label: "Docs", href: "https://docs.agenta.ai/", external: true },
+      { label: "Tutorial", href: "/tutorial" },
+      { label: "Changelog", href: "/changelog" },
+      { label: "Roadmap", href: "/roadmap" },
+      { label: "Blog", href: "/blog" },
+      { label: "Status", href: "https://status.agenta.ai", external: true },
+    ],
+  },
+  {
+    heading: "Legal",
+    links: [
+      { label: "Imprint", href: "/imprint" },
+      { label: "Terms of services", href: "/terms" },
+      { label: "Privacy Policy", href: "/privacy" },
+      { label: "DPA", href: "/dpa" },
+      { label: "Trust Center", href: "/trust" },
+    ],
+  },
+];
+
+const copyright = "Copyright © 2020 – 2060 Agentatech UG";
+---
+
+<footer
+  style="background:#100F11;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;box-sizing:border-box;"
+>
+  <div
+    class="ag-foot-top"
+    style="display:flex;justify-content:space-between;gap:64px;padding:64px 172px 96px;flex-wrap:wrap;"
+  >
+    <div style="display:flex;flex-direction:column;gap:16px;max-width:268px;">
+      <img
+        src="/logos/Agenta-logo-full-dark.svg"
+        alt="Agenta"
+        style="height:23px;width:fit-content;display:block;"
+      />
+      <span
+        style="font:var(--text-label);line-height:1.25;color:rgba(255,255,255,0.6);white-space:pre-line;"
+        >{blurb}</span
+      >
+      <div style="display:flex;gap:4px;margin-top:8px;">
+        {
+          socials.map((s) => (
+            <a
+              href={s.url}
+              target="_blank"
+              rel="noopener"
+              aria-label={s.platform}
+              style="width:32px;height:32px;background:rgba(255,255,255,0.06);display:inline-flex;align-items:center;justify-content:center;"
+            >
+              <img
+                src={s.icon}
+                alt=""
+                style="width:20px;height:20px;display:block;filter:invert(1) brightness(0.8);"
+              />
+            </a>
+          ))
+        }
+      </div>
+    </div>
+    <div
+      class="ag-foot-cols"
+      style="display:flex;gap:64px;flex-wrap:wrap;"
+    >
+      {
+        columns.map((col) => (
+          <div style="display:flex;flex-direction:column;gap:12px;min-width:120px;">
+            <span style="font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.38);">
+              {col.heading}
+            </span>
+            {col.links.map((link) => (
+              <a
+                class="ag-foot-link"
+                href={link.href}
+                target={link.external ? "_blank" : undefined}
+                rel={link.external ? "noopener" : undefined}
+                style="font:var(--text-label);color:rgba(255,255,255,0.62);cursor:pointer;text-decoration:none;"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        ))
+      }
+    </div>
+  </div>
+  <div
+    style="display:flex;justify-content:space-between;align-items:center;padding:16px 32px;border-top:1px solid rgba(255,255,255,0.07);"
+  >
+    <span style="font:var(--text-caption);color:rgba(255,255,255,0.38);"
+      >{copyright}</span
+    >
+    <a
+      class="ag-foot-link"
+      href="/privacy"
+      style="font:var(--text-caption);color:rgba(255,255,255,0.38);text-decoration:none;"
+      >Privacy policy</a
+    >
+  </div>
+</footer>

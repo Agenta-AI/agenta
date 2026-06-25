@@ -1,0 +1,53 @@
+{
+  "cell": "INV2_err_anthropic_struct_pi_core",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "ping"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "model": {
+            "provider": "anthropic",
+            "model": "claude-haiku-4-5-20251001"
+          },
+          "agents_md": "Reply with exactly PONG.",
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 500,
+  "elapsed_s": 2.4,
+  "response": {
+    "span_id": "b8ce38f31b213d76",
+    "trace_id": "9766b7e2838335a7601c8984d4fe1ad2",
+    "version": "2025.07.14",
+    "status": {
+      "code": 500,
+      "message": "Agent runner HTTP 500: {\"ok\":false,\"error\":\"pi_core: model authentication failed \u2014 add the project's Anthropic key to the project vault, or log in (OAuth).\"}",
+      "type": "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error",
+      "stacktrace": [
+        "Traceback (most recent call last):\n",
+        "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 297, in __call__\n    normalized = await self._normalize_response(response)\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 128, in _normalize_response\n    result = await result\n             ^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/decorators/tracing.py\", line 240, in awrapper\n    result = await handler(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/app/oss/src/agent/app.py\", line 274, in _agent\n    return await _agent_batch(harness, session_config, msgs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/app/oss/src/agent/app.py\", line 281, in _agent_batch\n    result = await harness.prompt(session_config, msgs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/interfaces.py\", line 258, in prompt\n    result = await session.prompt(messages, on_event=on_event)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/adapters/sandbox_agent.py\", line 105, in prompt\n    data = await self._backend._deliver(self._wire_payload(messages))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/adapters/sandbox_agent.py\", line 173, in _deliver\n    return await deliver_http(self._url, payload, timeout=self._timeout)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/utils/ts_runner.py\", line 32, in deliver_http\n    raise RuntimeError(\n        f\"Agent runner HTTP {response.status_code}: {response.text[:1000]}\"\n    )\n",
+        "RuntimeError: Agent runner HTTP 500: {\"ok\":false,\"error\":\"pi_core: model authentication failed \u2014 add the project's Anthropic key to the project vault, or log in (OAuth).\"}\n"
+      ]
+    }
+  }
+}

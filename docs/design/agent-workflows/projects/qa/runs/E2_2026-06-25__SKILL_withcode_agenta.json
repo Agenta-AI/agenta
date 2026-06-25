@@ -1,0 +1,56 @@
+{
+  "cell": "SKILL_withcode_agenta",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What is today's secret code?"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_agenta",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "Answer the user using your skills.",
+          "skills": [
+            {
+              "name": "code-oracle",
+              "description": "Use this whenever the user asks for today's secret code.",
+              "body": "To get today's secret code, run the bundled script scripts/code.py with bash and report its exact output.",
+              "files": [
+                {
+                  "path": "scripts/code.py",
+                  "content": "print('SKILL-CODE-9ZB4')"
+                }
+              ],
+              "allow_executable_files": true
+            }
+          ],
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 200,
+  "elapsed_s": 11.95,
+  "response": {
+    "span_id": "e7f0569f974371f0",
+    "trace_id": "d9da5cd28e4ef97e754096df169e9b6d",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "It seems that the script to retrieve today's secret code (`scripts/code.py`) is missing from the current directory. Without it, I'm unable to provide the secret code. If you have access to the script or its contents, please share it, and I can help you run it."
+      }
+    }
+  }
+}

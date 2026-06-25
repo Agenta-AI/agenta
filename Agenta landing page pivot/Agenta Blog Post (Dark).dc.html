@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/colors.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/typography.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/effects.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/styles.css">
+<script src="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/_ds_bundle.js"></script>
+<style>
+  html, body { margin: 0; background: #0A0A0B; }
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.26); background-clip: content-box; }
+  html { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent; }
+  .ag-menu { display: none; }
+  .ag-prose a { color: var(--yellow-400); text-decoration: none; border-bottom: 1px solid rgba(242,242,92,0.35); }
+  .ag-prose a:hover { border-bottom-color: var(--yellow-400); }
+  .ag-prose code { font-family: var(--font-mono,'Geist Mono',monospace); font-size: 0.88em; background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 5px; color: #F2F25C; }
+  @media (max-width: 980px) {
+    .ag-wrap { padding: 0 !important; }
+    .ag-navlinks { display: none !important; }
+    .ag-navcta { display: none !important; }
+    .ag-menu { display: inline-flex !important; }
+    .ag-pad { padding-left: 20px !important; padding-right: 20px !important; }
+    .ag-h1 { font-size: 34px !important; line-height: 1.1 !important; }
+    .ag-dlg { font-size: 30px !important; line-height: 1.12 !important; }
+    .ag-hero-img { height: 200px !important; }
+    .ag-grid { grid-template-columns: 1fr !important; }
+    .ag-prose h2 { font-size: 26px !important; }
+    .ag-cta-row { flex-direction: column !important; width: auto !important; align-items: flex-start !important; gap: 28px !important; }
+    .ag-cta-img { display: none !important; }
+    .ag-foot-top { padding: 48px 24px 56px !important; flex-direction: column !important; gap: 36px !important; }
+    .ag-author { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+  }
+  @media (min-width: 981px) { .ag-mobile-menu { display: none !important; } }
+  .ag-navcta span { white-space: nowrap; }
+</style>
+</helmet>
+
+<div class="ag-wrap" style="width:100%;max-width:1440px;margin:0 auto;background:#0A0A0B;padding:0 12px;box-sizing:border-box;font-family:var(--font-sans);">
+
+  <!-- ============ NAV ============ -->
+  <nav style="position:relative;display:flex;align-items:center;justify-content:space-between;height:68px;padding:0 20px;background:#100F11;border:1px solid rgba(255,255,255,0.07);box-sizing:border-box;">
+    <a href="Agenta%20Landing%20-%20Agents%20(Dark).dc.html" style="display:flex;align-items:center;"><img src="assets/logos/Agenta-logo-full-dark.svg" alt="Agenta" style="height:23px;display:block;"></a>
+    <div class="ag-navlinks" style="display:flex;align-items:center;gap:2px;">
+      <a href="Agenta%20Pricing%20(Dark).dc.html" style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;text-decoration:none;">Pricing</a>
+      <span style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;">Docs</span>
+      <a href="Agenta%20Blog%20(Dark).dc.html" style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:var(--yellow-400);cursor:pointer;text-decoration:none;">Blog</a>
+      <span style="display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;">Resources<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.25 6 7.75l3.5-3.5" stroke="currentColor" stroke-width="1.5"/></svg></span>
+      <span style="display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;">Community<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.25 6 7.75l3.5-3.5" stroke="currentColor" stroke-width="1.5"/></svg></span>
+    </div>
+    <div class="ag-navcta" style="display:flex;align-items:center;gap:12px;">
+      <span style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;">Book a demo</span>
+      <span style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;">Get started</span>
+    </div>
+    <button class="ag-menu" onClick="{{ toggleMenu }}" style="align-items:center;justify-content:center;width:38px;height:34px;border:none;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);cursor:pointer;padding:0;">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 5h14M2 9h14M2 13h14" stroke="#F7F6F4" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+  </nav>
+
+  <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+    <div class="ag-mobile-menu" style="display:flex;flex-direction:column;gap:2px;padding:12px 16px 16px;background:#100F11;border:1px solid rgba(255,255,255,0.07);border-top:none;margin-top:-1px;">
+      <sc-for list="{{ navItems }}" as="it" hint-placeholder-count="6">
+        <span style="display:flex;align-items:center;height:42px;padding:0 12px;border-radius:8px;font:var(--text-body-md);color:{{ it.color }};cursor:pointer;">{{ it.label }}</span>
+      </sc-for>
+      <div style="display:flex;gap:10px;margin-top:10px;">
+        <span style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;">Book a demo</span>
+        <span style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;">Get started</span>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ ARTICLE ============ -->
+  <article data-screen-label="Article" style="background:#0E0D0F;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:0 0 24px;">
+
+    <!-- header -->
+    <div class="ag-pad" style="max-width:760px;margin:0 auto;padding:56px 24px 36px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:20px;">
+      <a href="Agenta%20Blog%20(Dark).dc.html" style="display:inline-flex;align-items:center;gap:7px;font:var(--text-label);color:rgba(255,255,255,0.55);text-decoration:none;">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M8.5 3.5 5 7l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>All blogs
+      </a>
+      <span style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:rgba(242,242,92,0.12);box-shadow:inset 0 0 0 1px rgba(242,242,92,0.3);font:var(--text-caption);letter-spacing:0.04em;color:var(--yellow-400);">Engineering</span>
+      <h1 class="ag-h1" style="margin:0;font:300 52px/1.08 var(--font-display,'GT Alpina',serif);color:#F7F6F4;text-wrap:pretty;">Prompt Drift: What It Is and How to Detect It</h1>
+      <p style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);max-width:600px;text-wrap:pretty;">What is prompt drift and why do LLM outputs change without prompt edits? Learn the three causes, how to detect drift, and how to prevent it.</p>
+      <div style="display:flex;align-items:center;gap:14px;font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.45);">
+        <span>Feb 11, 2026</span>
+        <span style="width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,0.3);"></span>
+        <span>8 min read</span>
+      </div>
+    </div>
+
+    <!-- hero image -->
+    <div class="ag-pad" style="max-width:1016px;margin:0 auto;padding:0 24px;">
+      <img class="ag-hero-img" src="assets/blog/og-prompt-drift.png" alt="Prompt Drift: What It Is and How to Detect It" style="display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:14px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);">
+    </div>
+
+    <!-- body + inline CTA -->
+    <div class="ag-prose ag-pad" style="max-width:720px;margin:0 auto;padding:48px 24px 8px;display:flex;flex-direction:column;gap:22px;">
+
+      <!-- inline CTA card -->
+      <div style="border-radius:14px;background:linear-gradient(150deg,#15151A,#100F12);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);padding:26px 28px;display:flex;flex-direction:column;gap:14px;">
+        <span style="font:400 21px/1.3 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">Ship reliable AI apps faster</span>
+        <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.6);">Agenta is the <strong style="color:#F7F6F4;font-weight:600;">open-source</strong> LLMOps platform: prompt management, evals, and LLM observability all in one place.</span>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
+          <span style="display:inline-flex;align-items:center;height:38px;padding:0 16px;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;">Star on Github</span>
+          <span style="display:inline-flex;align-items:center;height:38px;padding:0 16px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;">Get started</span>
+        </div>
+      </div>
+
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">Your LLM application worked fine last month. Same prompt, same code, same pipeline. But this week, users started complaining. Responses are longer than they used to be. The tone shifted. A classification task that used to hit 95% accuracy now hovers around 80%.</p>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">You didn’t change anything. So what happened?</p>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">This is prompt drift. And if you’re running LLMs in production, it’s one of the hardest problems to catch before your users catch it for you.</p>
+
+      <h2 style="margin:14px 0 0;font:300 32px/1.18 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">What Is Prompt Drift?</h2>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);"><strong style="color:#F7F6F4;font-weight:600;">Prompt drift is the gradual change in an LLM’s output behavior over time, even when the prompt itself hasn’t been modified.</strong> The same prompt that produced reliable results last month may produce different results today — not because you changed anything, but because something underneath you changed.</p>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">This is different from prompt regression, where a deliberate edit to a prompt causes worse performance. With prompt drift, the prompt stays the same. The world around it shifts.</p>
+
+      <h2 style="margin:14px 0 0;font:300 32px/1.18 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">Three Causes of Prompt Drift</h2>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">Prompt drift doesn’t have a single root cause. It usually comes from one of three directions.</p>
+
+      <h3 style="margin:10px 0 0;font:400 22px/1.3 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">1. Silent Model Updates</h3>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">Model providers update their models without always telling you. OpenAI, Anthropic, Google, and others regularly push updates to the models behind their API endpoints.</p>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">The most well-documented case comes from a Stanford and UC Berkeley study published in 2023 (Chen, Zaharia, and Zou, “How Is ChatGPT’s Behavior Changing over Time?”). The researchers tested GPT-4 on identical tasks in March 2023 and June 2023. The results were striking:</p>
+      <ul style="margin:0;padding-left:22px;display:flex;flex-direction:column;gap:10px;font:400 18px/1.7 var(--font-sans);color:rgba(255,255,255,0.74);">
+        <li>GPT-4’s accuracy on identifying prime numbers dropped from 84% to 51% between the March and June versions.</li>
+        <li>Code generation produced more formatting mistakes in June than March.</li>
+        <li>The model became less willing to answer certain categories of questions.</li>
+      </ul>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">All of this happened while the model was still called “GPT-4.” No version number changed. No changelog was published. Teams relying on GPT-4 for production tasks had no warning.</p>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">This isn’t a one-time event. In early 2025, developers reported that <code>gpt-4o-2024-08-06</code> — a supposedly fixed, dated version — had changed behavior.</p>
+      <blockquote style="margin:6px 0;padding:16px 22px;border-left:3px solid var(--yellow-400);background:rgba(242,242,92,0.05);border-radius:0 8px 8px 0;font:400 18px/1.7 var(--font-display,'GT Alpina',serif);font-style:italic;color:rgba(255,255,255,0.82);">“I can accept an outage as that I can see immediately, but if the model changes behavior that scares me a lot — I can’t see this until customers complain.”</blockquote>
+
+      <h3 style="margin:10px 0 0;font:400 22px/1.3 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">2. Input Distribution Shifts</h3>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">Your prompt was designed and tested on a certain type of input. Over time, the inputs your application receives in production change. New user segments arrive. Seasonal patterns shift the kinds of questions people ask. Edge cases that were rare become common.</p>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">The prompt hasn’t changed, but it’s now being applied to inputs it wasn’t designed for. A support bot tuned for English-language queries starts receiving multilingual inputs. A summarization prompt tuned for short articles starts getting 10,000-word documents. The prompt drifts not because it changed, but because the ground beneath it shifted.</p>
+
+      <h3 style="margin:10px 0 0;font:400 22px/1.3 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">3. Dependent Prompt Changes</h3>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">Most production LLM applications don’t use a single prompt in isolation. They chain prompts together — a retrieval step feeds a generation step; a classification prompt routes to specialized prompts; an extraction prompt feeds a formatting prompt.</p>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">When you update one prompt in a chain, every downstream prompt is affected. You might improve your retrieval prompt and inadvertently change the context your generation prompt receives. The generation prompt hasn’t changed, but its outputs have. This is a form of drift that’s easy to miss because the drifting prompt was never touched.</p>
+
+      <h2 style="margin:14px 0 0;font:300 32px/1.18 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">Why Prompt Drift Is Hard to Catch</h2>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">Traditional software either works or it doesn’t. A function returns the right value or throws an error. LLMs occupy a gray zone that makes drift particularly sneaky.</p>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);"><strong style="color:#F7F6F4;font-weight:600;">Outputs are stochastic.</strong> LLMs don’t produce identical outputs for identical inputs. You can’t just compare output A to output B and call it drift — you need to look at distributions of outputs over time. A single bad response might be normal variance; a pattern of degradation is drift.</p>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);"><strong style="color:#F7F6F4;font-weight:600;">There’s no error to catch.</strong> Drift doesn’t throw exceptions. The API returns a 200. The response looks like valid text. The failure is qualitative — a shift in tone, accuracy, or relevance that never trips an alert.</p>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);"><strong style="color:#F7F6F4;font-weight:600;">It’s slow.</strong> Drift often happens gradually. A model update makes responses slightly more verbose; over weeks it compounds. By the time someone notices, it has been affecting users for a while.</p>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);"><strong style="color:#F7F6F4;font-weight:600;">You don’t own the model.</strong> With LLM APIs the model is a black box maintained by someone else. You can’t diff the weights, and you can’t review a changelog that often doesn’t exist.</p>
+
+      <h2 style="margin:14px 0 0;font:300 32px/1.18 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">How to Detect Prompt Drift</h2>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">Detecting drift requires three capabilities working together: observability, evaluation, and version tracking.</p>
+
+      <h3 style="margin:10px 0 0;font:400 22px/1.3 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">Step 1 — Instrument with tracing</h3>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">You can’t detect drift if you can’t see what’s happening. Add <a href="#">observability</a> to your LLM application. Tracing captures every interaction — the prompt sent, the model used, the parameters, and the output. When traces are linked to specific prompt versions, you can answer the key question: “Did outputs change even though the prompt didn’t?” Agenta’s observability is built on OpenTelemetry, so it integrates with your existing monitoring stack.</p>
+
+      <h3 style="margin:10px 0 0;font:400 22px/1.3 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">Step 2 — Run automated evaluation on production traffic</h3>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">Tracing tells you what happened; <a href="#">evaluation</a> tells you whether what happened was good. Set up evaluators that score a sample of production traffic — LLM-as-judge for tone and accuracy, or programmatic checks for required fields and length. Run them continuously. If scores drop while your prompt version hasn’t changed, that’s a strong drift signal.</p>
+
+      <h3 style="margin:10px 0 0;font:400 22px/1.3 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">Step 3 — Track and compare metrics over time</h3>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">A single run tells you how things are now; drift detection requires comparison. Track evaluation scores daily or weekly and watch for:</p>
+      <ul style="margin:0;padding-left:22px;display:flex;flex-direction:column;gap:10px;font:400 18px/1.7 var(--font-sans);color:rgba(255,255,255,0.74);">
+        <li><strong style="color:#F7F6F4;font-weight:600;">Score drops without prompt changes</strong> — points to model updates or input shifts.</li>
+        <li><strong style="color:#F7F6F4;font-weight:600;">Increased output variance</strong> — the model may be behaving less predictably.</li>
+        <li><strong style="color:#F7F6F4;font-weight:600;">Length creep</strong> — climbing average output length without prompt changes is a drift signal.</li>
+        <li><strong style="color:#F7F6F4;font-weight:600;">Latency changes</strong> — a sudden shift with no code change may indicate a model swap.</li>
+      </ul>
+
+      <h2 style="margin:14px 0 0;font:300 32px/1.18 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">How to Prevent Prompt Drift</h2>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);">Detection is half the battle. Here’s how to reduce your exposure in the first place.</p>
+      <ul style="margin:0;padding-left:22px;display:flex;flex-direction:column;gap:12px;font:400 18px/1.7 var(--font-sans);color:rgba(255,255,255,0.74);">
+        <li><strong style="color:#F7F6F4;font-weight:600;">Pin model versions.</strong> Specify a dated version like <code>gpt-4o-2024-08-06</code> instead of the floating alias. It buys you time to test new versions before they hit production.</li>
+        <li><strong style="color:#F7F6F4;font-weight:600;">Build a regression test suite.</strong> Create test cases from production data and run them against every new model version before switching.</li>
+        <li><strong style="color:#F7F6F4;font-weight:600;">Set up monitoring alerts.</strong> Trigger an alert when evaluation scores cross a threshold — turning drift detection into an automated safety net.</li>
+        <li><strong style="color:#F7F6F4;font-weight:600;">Version everything.</strong> Version prompts, model configs, and parameters so you can trace back to the last known good state.</li>
+      </ul>
+
+      <h2 style="margin:14px 0 0;font:300 32px/1.18 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">Getting Started with Agenta</h2>
+      <p style="margin:0;font:400 18px/1.75 var(--font-sans);color:rgba(255,255,255,0.74);"><a href="#">Agenta</a> is an open-source LLMOps platform that gives you the tools to detect and prevent prompt drift in one place: add observability, set up online evaluation, build regression tests, and version your prompts. Prompt drift is inevitable when you depend on third-party models — the question isn’t whether it will happen, but whether you’ll catch it before your users do.</p>
+
+      <h2 style="margin:14px 0 0;font:300 32px/1.18 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">FAQ</h2>
+      <div style="display:flex;flex-direction:column;gap:18px;">
+        <div style="display:flex;flex-direction:column;gap:8px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.08);">
+          <span style="font:400 20px/1.3 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">What’s the difference between prompt drift and prompt regression?</span>
+          <span style="font:400 17px/1.7 var(--font-sans);color:rgba(255,255,255,0.62);">Prompt drift happens without any edit to the prompt — caused by external factors like model updates or input shifts. Prompt regression is when a deliberate change to a prompt causes worse performance. Both need monitoring, but they have different root causes and fixes.</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.08);">
+          <span style="font:400 20px/1.3 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">Can pinning a model version prevent all prompt drift?</span>
+          <span style="font:400 17px/1.7 var(--font-sans);color:rgba(255,255,255,0.62);">Pinning prevents drift from model updates — the most common source — but not from input distribution shifts or changes to dependent prompts in a pipeline. You still need evaluation and observability for those.</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.08);">
+          <span style="font:400 20px/1.3 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">How often should I check for prompt drift?</span>
+          <span style="font:400 17px/1.7 var(--font-sans);color:rgba(255,255,255,0.62);">For production apps, continuous monitoring is ideal — score a sample of every day’s traffic. At minimum, run your regression suite weekly and whenever you change a prompt, update a dependency, or your provider announces a model update.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- author bio -->
+    <div class="ag-pad" style="max-width:720px;margin:40px auto 0;padding:0 24px;">
+      <div class="ag-author" style="display:flex;align-items:center;gap:18px;padding:24px;border-radius:14px;background:rgba(255,255,255,0.02);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);">
+        <a href="Agenta%20Author%20-%20Mahmoud%20(Dark).dc.html" style="flex:0 0 auto;"><img src="assets/blog/author-mahmoud.png" alt="Mahmoud Mabrouk" style="display:block;width:56px;height:56px;border-radius:50%;object-fit:cover;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.1);"></a>
+        <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;">
+          <a href="Agenta%20Author%20-%20Mahmoud%20(Dark).dc.html" style="font:var(--text-label);color:#F7F6F4;text-decoration:none;">Mahmoud Mabrouk</a>
+          <span style="font:var(--text-caption);color:rgba(255,255,255,0.55);">Co-Founder Agenta &amp; LLM Engineering Expert</span>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <span style="width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.1);display:inline-flex;align-items:center;justify-content:center;"><img src="assets/icons/social-3.svg" alt="" style="width:17px;height:17px;filter:invert(1) brightness(0.85);"></span>
+          <span style="width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.1);display:inline-flex;align-items:center;justify-content:center;"><img src="assets/icons/social-4.svg" alt="" style="width:17px;height:17px;filter:invert(1) brightness(0.85);"></span>
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <!-- ============ MORE FROM THE BLOG ============ -->
+  <section data-screen-label="More posts" class="ag-pad" style="background:#0A0A0B;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:72px 64px 88px;">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:32px;flex-wrap:wrap;">
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <h2 class="ag-dlg" style="margin:0;font:var(--text-display-lg);color:#F7F6F4;">More from the blog</h2>
+        <p style="margin:0;font:var(--text-body-sm);color:rgba(255,255,255,0.55);">The latest updates and insights from Agenta</p>
+      </div>
+      <a href="Agenta%20Blog%20(Dark).dc.html" style="display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 18px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);text-decoration:none;">View all blogs<svg width="13" height="13" viewBox="0 0 12 12" fill="none"><path d="M3 2.5 6.5 6 3 9.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    </div>
+    <div class="ag-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;">
+      <sc-for list="{{ related }}" as="post" hint-placeholder-count="4">
+        <a href="Agenta%20Blog%20Post%20(Dark).dc.html" style="text-decoration:none;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;background:rgba(255,255,255,0.02);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);" style-hover="box-shadow:inset 0 0 0 1px rgba(255,255,255,0.16)">
+          <div style="position:relative;height:160px;background:linear-gradient(150deg,#15181C,#101113);overflow:hidden;display:flex;align-items:flex-end;padding:16px;box-sizing:border-box;">
+            <img src="assets/logos/Agenta-symbol-dark.svg" alt="" style="position:absolute;right:-18px;top:-22px;width:130px;opacity:0.06;">
+            <span style="position:relative;display:inline-flex;align-items:center;height:22px;padding:0 11px;border-radius:999px;background:rgba(0,0,0,0.35);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);font:var(--text-caption);letter-spacing:0.04em;color:rgba(255,255,255,0.85);">{{ post.category }}</span>
+          </div>
+          <div style="padding:18px 18px 20px;display:flex;flex-direction:column;gap:10px;flex:1;">
+            <h3 style="margin:0;font:300 19px/1.25 var(--font-display,'GT Alpina',serif);color:#F7F6F4;text-wrap:pretty;">{{ post.title }}</h3>
+            <span style="font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.4);margin-top:auto;">{{ post.date }}</span>
+          </div>
+        </a>
+      </sc-for>
+    </div>
+  </section>
+
+  <!-- ============ CTA ============ -->
+  <section data-screen-label="CTA" style="background:var(--surface-cta);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:96px 24px;">
+    <div class="ag-cta-row" style="display:flex;align-items:center;justify-content:space-between;width:1072px;max-width:100%;margin:0 auto;gap:48px;">
+      <div style="display:flex;flex-direction:column;gap:24px;max-width:520px;">
+        <h2 class="ag-dlg" style="margin:0;font:var(--text-display-lg);color:var(--text-on-yellow);text-wrap:pretty;">Ship reliable agents faster with Agenta</h2>
+        <p style="margin:0;font:var(--text-body-md);color:rgba(36,36,36,0.72);">Build reliable LLM apps together with integrated prompt management, evaluation, and observability.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <x-import component-from-global-scope="AgentaDesignSystem_e4caef.Button" variant="dark" size="lg" hint-size="auto,44px">Start building</x-import>
+          <x-import component-from-global-scope="AgentaDesignSystem_e4caef.Button" variant="outline" size="lg" hint-size="auto,44px">Read the docs</x-import>
+        </div>
+      </div>
+      <img class="ag-cta-img" src="assets/logos/Agenta-symbol-light.svg" alt="" style="width:150px;opacity:0.16;">
+    </div>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <footer style="background:#100F11;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;box-sizing:border-box;">
+    <div class="ag-foot-top" style="display:flex;justify-content:space-between;gap:64px;padding:64px 172px 96px;flex-wrap:wrap;">
+      <div style="display:flex;flex-direction:column;gap:16px;max-width:268px;">
+        <img src="assets/logos/Agenta-logo-full-dark.svg" alt="Agenta" style="height:23px;width:fit-content;display:block;">
+        <span style="font:var(--text-label);line-height:1.25;color:rgba(255,255,255,0.6);white-space:pre-line;">Fast-tracking LLM apps
+to production</span>
+        <div style="display:flex;gap:4px;margin-top:8px;">
+          <span style="width:32px;height:32px;background:rgba(255,255,255,0.06);display:inline-flex;align-items:center;justify-content:center;"><img src="assets/icons/social-1.svg" alt="" style="width:20px;height:20px;display:block;filter:invert(1) brightness(0.8);"></span>
+          <span style="width:32px;height:32px;background:rgba(255,255,255,0.06);display:inline-flex;align-items:center;justify-content:center;"><img src="assets/icons/social-2.svg" alt="" style="width:20px;height:20px;display:block;filter:invert(1) brightness(0.8);"></span>
+          <span style="width:32px;height:32px;background:rgba(255,255,255,0.06);display:inline-flex;align-items:center;justify-content:center;"><img src="assets/icons/social-3.svg" alt="" style="width:20px;height:20px;display:block;filter:invert(1) brightness(0.8);"></span>
+          <span style="width:32px;height:32px;background:rgba(255,255,255,0.06);display:inline-flex;align-items:center;justify-content:center;"><img src="assets/icons/social-4.svg" alt="" style="width:20px;height:20px;display:block;filter:invert(1) brightness(0.8);"></span>
+        </div>
+      </div>
+      <div style="display:flex;gap:64px;flex-wrap:wrap;">
+        <sc-for list="{{ footerColumns }}" as="col" hint-placeholder-count="4">
+          <div style="display:flex;flex-direction:column;gap:12px;min-width:120px;">
+            <span style="font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.38);">{{ col.heading }}</span>
+            <sc-for list="{{ col.links }}" as="link" hint-placeholder-count="4">
+              <span style="font:var(--text-label);color:rgba(255,255,255,0.62);cursor:pointer;">{{ link }}</span>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-top:1px solid rgba(255,255,255,0.07);">
+      <span style="font:var(--text-caption);color:rgba(255,255,255,0.38);">Copyright © 2020 – 2060 Agentatech UG</span>
+      <span style="font:var(--text-caption);color:rgba(255,255,255,0.38);">Privacy policy</span>
+    </div>
+  </footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{ &quot;$preview&quot;: { &quot;width&quot;: 1440, &quot;height&quot;: 900 } }">
+class Component extends DCLogic {
+  state = { menuOpen: false };
+
+  renderVals() {
+    const navItems = ['Pricing', 'Docs', 'Blog', 'Resources', 'Community'].map((l) => ({
+      label: l,
+      color: l === 'Blog' ? 'var(--yellow-400)' : 'rgba(255,255,255,0.78)',
+    }));
+
+    return {
+      navItems,
+      menuOpen: this.state.menuOpen,
+      toggleMenu: () => this.setState((s) => ({ menuOpen: !s.menuOpen })),
+      related: [
+        { category: 'Engineering', title: 'Git vs. Prompt Management Tools: Which Should You Use?', date: 'Feb 11, 2026' },
+        { category: 'Engineering', title: 'CI/CD for LLM Prompts: How to Build a Prompt Deployment Pipeline', date: 'Feb 11, 2026' },
+        { category: 'Engineering', title: 'Prompt Management for Non-Engineers: How Product Teams Can Own Their AI Prompts', date: 'Feb 11, 2026' },
+        { category: 'Engineering', title: 'Prompt Versioning: The Complete Guide', date: 'Feb 11, 2026' },
+      ],
+      footerColumns: [
+        { heading: 'Product', links: ['Prompt Engineering', 'Evaluation', 'Human annotation', 'Deployment', 'Observability'] },
+        { heading: 'Company', links: ['Home', 'Pricing', 'Contact'] },
+        { heading: 'Resources', links: ['Docs', 'Tutorial', 'Changelog', 'Roadmap', 'Blog', 'Status'] },
+        { heading: 'Legal', links: ['Imprint', 'Terms of services', 'Privacy Policy', 'DPA', 'Trust Center'] },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

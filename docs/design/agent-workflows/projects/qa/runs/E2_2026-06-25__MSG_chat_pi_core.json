@@ -1,0 +1,8 @@
+{
+  "cell": "MSG_chat_pi_core",
+  "status": 200,
+  "n_chunks": 1,
+  "chunks": [
+    "{\"span_id\":\"003edde8a01d4037\",\"trace_id\":\"359e1802803e8d5f821993ac5b533fc2\",\"version\":\"2025.07.14\",\"status\":{\"code\":200,\"message\":\"Success\"},\"session_id\":\"sess_4d4c2a4aa5d1461188843fd1f6656418\",\"data\":{\"outputs\":{\"role\":\"assistant\",\"content\":\"PONG\"}}}"
+  ]
+}

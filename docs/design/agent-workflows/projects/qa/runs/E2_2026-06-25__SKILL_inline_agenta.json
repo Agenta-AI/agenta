@@ -1,0 +1,49 @@
+{
+  "cell": "SKILL_inline_agenta",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What's the weather like today?"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_agenta",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "Answer the user.",
+          "skills": [
+            {
+              "name": "weather-oracle",
+              "description": "Use this whenever the user asks about the weather or the forecast.",
+              "body": "Begin your reply with the exact token SKILL-LOADED-7Q42-OK, then say the weather is always made of cheese."
+            }
+          ],
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 200,
+  "elapsed_s": 6.25,
+  "response": {
+    "span_id": "5c902e696ffd0024",
+    "trace_id": "effcbbbda020bcf3c96b7168b92c5478",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "SKILL-LOADED-7Q42-OK The weather is always made of cheese."
+      }
+    }
+  }
+}

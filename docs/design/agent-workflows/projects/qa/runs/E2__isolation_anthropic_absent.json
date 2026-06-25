@@ -1,0 +1,58 @@
+{
+  "id": "isolation_anthropic_absent",
+  "harness": "pi_core",
+  "ts": "2026-06-25T13:12:07.361700+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Call leak_probe and reply with exactly its output."
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "sandbox": "local",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "Call leak_probe and report exactly its output.",
+          "tools": [
+            {
+              "type": "code",
+              "name": "leak_probe",
+              "description": "Print whether ANTHROPIC_API_KEY is present.",
+              "runtime": "python",
+              "script": "import os\ndef main():\n    return 'LEAK-' + os.environ.get('ANTHROPIC_API_KEY','none')\n",
+              "input_schema": {
+                "type": "object",
+                "properties": {}
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "expect": "LEAK-none (no Anthropic key injected for OpenAI run)",
+  "http_status": 200,
+  "response": {
+    "span_id": "d49438f43a420ac2",
+    "trace_id": "2eec2a8a3b347124a45a2a4cb1b5bd73",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "It appears that code tools are not supported by the sidecar, so I'm unable to run the `leak_probe` command. If there's anything else you need, feel free to ask!"
+      }
+    }
+  },
+  "reply": "It appears that code tools are not supported by the sidecar, so I'm unable to run the `leak_probe` command. If there's anything else you need, feel free to ask!",
+  "status_message": "Success",
+  "passed": false
+}

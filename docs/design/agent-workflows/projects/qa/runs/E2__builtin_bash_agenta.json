@@ -5,8 +5,8 @@
   "env_label": "E2",
   "sandbox": "local",
   "harness": "agenta",
-  "model": "gpt-4o-mini",
-  "ts": "2026-06-20T11:01:03.659378+00:00",
+  "model": "openai/gpt-4o-mini",
+  "ts": "2026-06-25T21:46:30.040148+00:00",
   "request": {
     "data": {
       "inputs": {
@@ -21,30 +21,37 @@
         "agent": {
           "harness": "agenta",
           "sandbox": "local",
-          "model": "gpt-4o-mini",
+          "model": "openai/gpt-4o-mini",
           "agents_md": "Use the bash tool when asked to run a command. Report only its stdout."
         }
       }
     }
   },
-  "http_status": 200,
+  "http_status": 500,
   "response": {
-    "span_id": "f58c8dbd9397cef9",
-    "trace_id": "5cb07a97476fc68b4624ce87326e16cb",
+    "span_id": "4d682d06ce3d2c8f",
+    "trace_id": "b9290db6020a19e8509080438c207671",
     "version": "2025.07.14",
     "status": {
-      "code": 200,
-      "message": "Success"
-    },
-    "data": {
-      "outputs": {
-        "role": "assistant",
-        "content": "QA-BASH-x86_64"
-      }
+      "code": 500,
+      "message": "'agenta' is not a valid HarnessType",
+      "type": "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error",
+      "stacktrace": [
+        "Traceback (most recent call last):\n",
+        "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 297, in __call__\n    normalized = await self._normalize_response(response)\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 128, in _normalize_response\n    result = await result\n             ^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/decorators/tracing.py\", line 240, in awrapper\n    result = await handler(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/app/oss/src/agent/app.py\", line 264, in _agent\n    harness = make_harness(\n        agent_config.harness, Environment(select_backend(agent_config))\n    )\n",
+        "  File \"/sdks/python/agenta/sdk/agents/adapters/harnesses.py\", line 164, in make_harness\n    resolved = HarnessType.coerce(harness_type)\n",
+        "  File \"/sdks/python/agenta/sdk/agents/dtos.py\", line 58, in coerce\n    return cls(str(value).lower())\n",
+        "  File \"/usr/local/lib/python3.13/enum.py\", line 728, in __call__\n    return cls.__new__(cls, value)\n           ~~~~~~~~~~~^^^^^^^^^^^^\n",
+        "  File \"/usr/local/lib/python3.13/enum.py\", line 1205, in __new__\n    raise ve_exc\n",
+        "ValueError: 'agenta' is not a valid HarnessType\n"
+      ]
     }
   },
-  "reply": "QA-BASH-x86_64",
-  "status_message": "Success",
-  "passed": true,
+  "reply": "",
+  "status_message": "'agenta' is not a valid HarnessType",
+  "passed": false,
   "expect": "QA-BASH-<arch>; bash is forced for agenta"
 }

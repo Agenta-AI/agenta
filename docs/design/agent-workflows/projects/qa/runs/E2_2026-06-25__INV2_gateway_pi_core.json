@@ -1,0 +1,57 @@
+{
+  "cell": "INV2_gateway_pi_core",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Who is the authenticated github user?"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "Use the available github tool to get the authenticated user and reply with GH:<login>.",
+          "tools": [
+            {
+              "type": "composio",
+              "provider": "composio",
+              "integration": "github",
+              "action": "GET_THE_AUTHENTICATED_USER",
+              "connection": "github-tvn"
+            }
+          ],
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 500,
+  "elapsed_s": 0.04,
+  "response": {
+    "span_id": "f7846799718fe296",
+    "trace_id": "772170041ae82b572d06fda4911743dc",
+    "version": "2025.07.14",
+    "status": {
+      "code": 500,
+      "message": "Gateway tool resolution failed (HTTP 404)",
+      "type": "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error",
+      "stacktrace": [
+        "Traceback (most recent call last):\n",
+        "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 297, in __call__\n    normalized = await self._normalize_response(response)\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 128, in _normalize_response\n    result = await result\n             ^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/decorators/tracing.py\", line 240, in awrapper\n    result = await handler(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/app/oss/src/agent/app.py\", line 230, in _agent\n    resolved_tools = await resolve_tools(agent_config.tools)\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/platform/resolve.py\", line 59, in resolve_tools\n    return await ToolResolver(\n           ^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n    ).resolve(coerce_tool_configs(tools).tool_configs)\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/tools/resolver.py\", line 166, in resolve\n    gateway_resolution = await self._gateway_resolver.resolve(gateway_configs)\n                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/platform/gateway.py\", line 118, in resolve\n    raise error\n",
+        "agenta.sdk.agents.tools.errors.GatewayToolResolutionError: Gateway tool resolution failed (HTTP 404)\n"
+      ]
+    }
+  }
+}

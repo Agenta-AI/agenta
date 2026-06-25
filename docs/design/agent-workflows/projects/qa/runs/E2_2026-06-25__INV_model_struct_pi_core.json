@@ -1,0 +1,45 @@
+{
+  "cell": "INV_model_struct_pi_core",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "ping"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "model": {
+            "provider": "openai",
+            "model": "gpt-4o-mini"
+          },
+          "agents_md": "Reply with exactly STRUCT-OK-9X4 and nothing else.",
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 200,
+  "elapsed_s": 3.43,
+  "response": {
+    "span_id": "00728978eba101b1",
+    "trace_id": "181bc7c051f0cceb37cde42b5c0da5d1",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "It seems like you're testing the connection. How can I assist you today?"
+      }
+    }
+  }
+}

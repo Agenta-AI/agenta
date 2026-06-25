@@ -1,0 +1,65 @@
+{
+  "id": "code_tool_pi_core",
+  "harness": "pi_core",
+  "ts": "2026-06-25T13:24:15.145643+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Call secret_math with x=6 and reply with exactly the tool output, nothing else."
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "sandbox": "local",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "When asked to compute, call secret_math and report exactly its output.",
+          "tools": [
+            {
+              "type": "code",
+              "name": "secret_math",
+              "description": "Compute the QA code for an integer.",
+              "runtime": "python",
+              "script": "def main(x=0):\n    return 'QA-CODE-OK-' + str(int(x) * 7 + 1)\n",
+              "input_schema": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "expect": "QA-CODE-OK-43 (code tool ran)",
+  "http_status": 200,
+  "response": {
+    "span_id": "f5aedb8ec6113977",
+    "trace_id": "082e013e89bc64b2dbe399c800ab6942",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "Code tools are not supported by the sidecar."
+      }
+    }
+  },
+  "reply": "Code tools are not supported by the sidecar.",
+  "status_message": "Success",
+  "passed": false
+}

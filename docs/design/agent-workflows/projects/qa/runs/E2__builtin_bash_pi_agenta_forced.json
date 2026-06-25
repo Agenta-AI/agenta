@@ -1,0 +1,45 @@
+{
+  "id": "builtin_bash_pi_agenta_forced",
+  "harness": "pi_agenta",
+  "ts": "2026-06-25T13:24:30.380942+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Use the bash tool to run: echo \"QA-BASH-$(uname -m)\" and reply with exactly its stdout."
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_agenta",
+          "sandbox": "local",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "Use the bash tool when asked to run a command. Report only its stdout."
+        }
+      }
+    }
+  },
+  "expect": "QA-BASH-<arch>, bash forced for agenta",
+  "http_status": 200,
+  "response": {
+    "span_id": "1efbcbed3c0b0bd4",
+    "trace_id": "3214d5ba7bd53f2f2d092f4b97a55821",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "QA-BASH-x86_64"
+      }
+    }
+  },
+  "reply": "QA-BASH-x86_64",
+  "status_message": "Success",
+  "passed": true
+}

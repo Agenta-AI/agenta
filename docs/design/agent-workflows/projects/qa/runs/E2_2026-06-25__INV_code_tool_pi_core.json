@@ -1,0 +1,69 @@
+{
+  "cell": "INV_code_tool_pi_core",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Call secret_math with x=6 and reply with exactly the tool output."
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "When asked to compute, call secret_math and reply with exactly the tool output.",
+          "tools": [
+            {
+              "type": "code",
+              "name": "secret_math",
+              "runtime": "python",
+              "description": "Computes a secret value from x.",
+              "code": "import sys,json\nx=json.loads(sys.stdin.read()).get('x',0)\nprint('QA-CODE-OK-'+str(x*7+1))",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ]
+              }
+            }
+          ],
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 500,
+  "elapsed_s": 0.03,
+  "response": {
+    "span_id": "a33405269c24fd54",
+    "trace_id": "8f245fa2bc5ccea3d0f229abba14a1ab",
+    "version": "2025.07.14",
+    "status": {
+      "code": 500,
+      "message": "Invalid tool configuration: [{'type': 'missing', 'loc': ('code', 'script'), 'msg': 'Field required'}, {'type': 'extra_forbidden', 'loc': ('code', 'code'), 'msg': 'Extra inputs are not permitted'}, {'type': 'extra_forbidden', 'loc': ('code', 'parameters'), 'msg': 'Extra inputs are not permitted'}]",
+      "type": "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error",
+      "stacktrace": [
+        "Traceback (most recent call last):\n",
+        "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 297, in __call__\n    normalized = await self._normalize_response(response)\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 128, in _normalize_response\n    result = await result\n             ^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/decorators/tracing.py\", line 240, in awrapper\n    result = await handler(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/app/oss/src/agent/app.py\", line 225, in _agent\n    agent_config = AgentConfig.from_params(params, defaults=_default_agent_config())\n",
+        "  File \"/sdks/python/agenta/sdk/agents/dtos.py\", line 493, in from_params\n    return cls(\n        instructions=instructions,\n    ...<8 lines>...\n        permission_policy=permission_policy,\n    )\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/pydantic/main.py\", line 263, in __init__\n    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)\n",
+        "  File \"/sdks/python/agenta/sdk/agents/dtos.py\", line 462, in _coerce_tools\n    return coerce_tool_configs(_as_list(value)).tool_configs\n           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/tools/compat.py\", line 137, in coerce_tool_configs\n    raise error\n",
+        "agenta.sdk.agents.tools.errors.ToolConfigurationError: Invalid tool configuration: [{'type': 'missing', 'loc': ('code', 'script'), 'msg': 'Field required'}, {'type': 'extra_forbidden', 'loc': ('code', 'code'), 'msg': 'Extra inputs are not permitted'}, {'type': 'extra_forbidden', 'loc': ('code', 'parameters'), 'msg': 'Extra inputs are not permitted'}]\n"
+      ]
+    }
+  }
+}

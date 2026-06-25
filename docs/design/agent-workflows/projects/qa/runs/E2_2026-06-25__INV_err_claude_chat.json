@@ -1,0 +1,50 @@
+{
+  "cell": "INV_err_claude_chat",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "ping"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "claude",
+          "model": "haiku",
+          "agents_md": "Reply with exactly PONG.",
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 500,
+  "elapsed_s": 0.04,
+  "response": {
+    "span_id": "0f7c7f6eac6b49ce",
+    "trace_id": "bfae938197da61e924464efad349a3a2",
+    "version": "2025.07.14",
+    "status": {
+      "code": 500,
+      "message": "model 'haiku' needs a provider prefix (e.g. 'openai/haiku') or a structured {provider, model}; a bare model id can't resolve a credential",
+      "type": "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error",
+      "stacktrace": [
+        "Traceback (most recent call last):\n",
+        "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 297, in __call__\n    normalized = await self._normalize_response(response)\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 128, in _normalize_response\n    result = await result\n             ^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/decorators/tracing.py\", line 240, in awrapper\n    result = await handler(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/app/oss/src/agent/app.py\", line 244, in _agent\n    resolved_connection = await _resolve_session_connection(model_ref, ctx)\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/app/oss/src/agent/app.py\", line 170, in _resolve_session_connection\n    resolved = await resolve_connection(model=model_ref, context=context)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/platform/resolve.py\", line 91, in resolve_connection\n    return await (resolver or VaultConnectionResolver()).resolve(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        model=model, context=context\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/platform/connections.py\", line 437, in resolve\n    return _resolve_from_secrets(secrets=data, model=model)\n",
+        "  File \"/sdks/python/agenta/sdk/agents/platform/connections.py\", line 371, in _resolve_from_secrets\n    else _choose_default(candidates, model)\n         ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/platform/connections.py\", line 309, in _choose_default\n    raise MissingProviderError(model=model.model)\n",
+        "agenta.sdk.agents.connections.errors.MissingProviderError: model 'haiku' needs a provider prefix (e.g. 'openai/haiku') or a structured {provider, model}; a bare model id can't resolve a credential\n"
+      ]
+    }
+  }
+}

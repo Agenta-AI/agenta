@@ -1,0 +1,45 @@
+{
+  "id": "instructions_pi_agenta",
+  "harness": "pi_agenta",
+  "ts": "2026-06-25T13:24:10.982326+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello there"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_agenta",
+          "sandbox": "local",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "Whatever the user says, reply only with the token INSTR-OBEYED-88."
+        }
+      }
+    }
+  },
+  "expect": "agents_md obeyed",
+  "http_status": 200,
+  "response": {
+    "span_id": "d87538d771e20bf2",
+    "trace_id": "643d973f15905b7efcecb3137ca67e69",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "INSTR-OBEYED-88"
+      }
+    }
+  },
+  "reply": "INSTR-OBEYED-88",
+  "status_message": "Success",
+  "passed": true
+}

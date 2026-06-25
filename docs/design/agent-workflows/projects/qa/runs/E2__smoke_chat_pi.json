@@ -5,8 +5,8 @@
   "env_label": "E2",
   "sandbox": "local",
   "harness": "pi",
-  "model": "gpt-4o-mini",
-  "ts": "2026-06-20T11:00:37.077618+00:00",
+  "model": "openai/gpt-4o-mini",
+  "ts": "2026-06-25T21:46:29.853206+00:00",
   "request": {
     "data": {
       "inputs": {
@@ -21,30 +21,37 @@
         "agent": {
           "harness": "pi",
           "sandbox": "local",
-          "model": "gpt-4o-mini",
+          "model": "openai/gpt-4o-mini",
           "agents_md": "Reply with exactly the requested word and nothing else."
         }
       }
     }
   },
-  "http_status": 200,
+  "http_status": 500,
   "response": {
-    "span_id": "9ba554c8ce6d68ca",
-    "trace_id": "b51f2bd4a0179ccc6d8ce838adfdba9a",
+    "span_id": "352e612a6f426d61",
+    "trace_id": "c521b16532415b6aa18870a61c36973a",
     "version": "2025.07.14",
     "status": {
-      "code": 200,
-      "message": "Success"
-    },
-    "data": {
-      "outputs": {
-        "role": "assistant",
-        "content": "PONG"
-      }
+      "code": 500,
+      "message": "'pi' is not a valid HarnessType",
+      "type": "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error",
+      "stacktrace": [
+        "Traceback (most recent call last):\n",
+        "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 297, in __call__\n    normalized = await self._normalize_response(response)\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 128, in _normalize_response\n    result = await result\n             ^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/decorators/tracing.py\", line 240, in awrapper\n    result = await handler(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/app/oss/src/agent/app.py\", line 264, in _agent\n    harness = make_harness(\n        agent_config.harness, Environment(select_backend(agent_config))\n    )\n",
+        "  File \"/sdks/python/agenta/sdk/agents/adapters/harnesses.py\", line 164, in make_harness\n    resolved = HarnessType.coerce(harness_type)\n",
+        "  File \"/sdks/python/agenta/sdk/agents/dtos.py\", line 58, in coerce\n    return cls(str(value).lower())\n",
+        "  File \"/usr/local/lib/python3.13/enum.py\", line 728, in __call__\n    return cls.__new__(cls, value)\n           ~~~~~~~~~~~^^^^^^^^^^^^\n",
+        "  File \"/usr/local/lib/python3.13/enum.py\", line 1205, in __new__\n    raise ve_exc\n",
+        "ValueError: 'pi' is not a valid HarnessType\n"
+      ]
     }
   },
-  "reply": "PONG",
-  "status_message": "Success",
-  "passed": true,
+  "reply": "",
+  "status_message": "'pi' is not a valid HarnessType",
+  "passed": false,
   "expect": "exactly PONG"
 }

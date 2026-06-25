@@ -1,0 +1,49 @@
+{
+  "cell": "INV2_mcp_http_pi_core",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "get the remote record"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "Use the remote tool to get the record and reply with it.",
+          "mcp_servers": [
+            {
+              "name": "qaremote",
+              "transport": "http",
+              "url": "https://mcp.example.invalid/sse"
+            }
+          ],
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 200,
+  "elapsed_s": 5.72,
+  "response": {
+    "span_id": "16e3a400bd406a60",
+    "trace_id": "1864005ec29e905fa7ce3ddc66ec657a",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "It seems there was an attempt to use a command that isn't available in this environment. To assist you better, could you clarify which specific record you need to retrieve?"
+      }
+    }
+  }
+}

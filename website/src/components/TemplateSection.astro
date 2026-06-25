@@ -1,0 +1,23 @@
+---
+import SectionTitle from "./SectionTitle.astro";
+import TemplateExplorer from "./TemplateExplorer.tsx";
+---
+
+<section
+  data-screen-label="Templates"
+  class="ag-secpad"
+  style="background:#161518;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:112px 0;"
+>
+  <div
+    style="display:flex;flex-direction:column;align-items:center;gap:56px;"
+  >
+    <SectionTitle
+      dark
+      badge="Build"
+      title="Build agents using skills and tools"
+      subtitle="Compose reusable skills and connected tools into agents — in a playground where PMs, experts, and devs work side by side."
+    />
+    <!-- React island — hydrates when scrolled into view. -->
+    <TemplateExplorer client:visible />
+  </div>
+</section>

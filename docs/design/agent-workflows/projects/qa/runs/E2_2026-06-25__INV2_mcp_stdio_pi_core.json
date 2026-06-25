@@ -1,0 +1,52 @@
+{
+  "cell": "INV2_mcp_stdio_pi_core",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "get the secret record"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "Use the secret tool to get the record and reply with it.",
+          "mcp_servers": [
+            {
+              "name": "qa",
+              "transport": "stdio",
+              "command": "node",
+              "args": [
+                "/nonexistent.mjs"
+              ]
+            }
+          ],
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 200,
+  "elapsed_s": 6.38,
+  "response": {
+    "span_id": "6a24baadb9e5f600",
+    "trace_id": "93ff7494edccd56c3294ce5f38648c03",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "It seems I need to use a specific secret tool to retrieve the record. If you can provide more details about how to access that tool or its functionality, I can assist you further!"
+      }
+    }
+  }
+}

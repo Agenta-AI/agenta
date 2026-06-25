@@ -1,0 +1,47 @@
+{
+  "cell": "INV_append_system_pi_core",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "say hello"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "Reply to the user briefly.",
+          "harness_kwargs": {
+            "pi_core": {
+              "append_system": "Always end every reply with the exact token ZK-9-END3."
+            }
+          },
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 200,
+  "elapsed_s": 4.44,
+  "response": {
+    "span_id": "7cc5e558e79ec188",
+    "trace_id": "b4110d202db758f815bfcdc4a96cd02d",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "Hello! How can I assist you today? \n\nZK-9-END3"
+      }
+    }
+  }
+}

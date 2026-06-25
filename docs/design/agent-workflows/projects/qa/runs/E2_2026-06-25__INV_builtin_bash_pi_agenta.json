@@ -1,0 +1,42 @@
+{
+  "cell": "INV_builtin_bash_pi_agenta",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What is the machine architecture? Use bash."
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_agenta",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "When asked for the machine arch, use the bash tool to run 'uname -m' and reply with exactly QA-BASH-<result>.",
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 200,
+  "elapsed_s": 6.07,
+  "response": {
+    "span_id": "f042f017cac390a4",
+    "trace_id": "0b6db9875229e1cecbcf61a560003f77",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "The machine architecture is QA-BASH-x86_64."
+      }
+    }
+  }
+}

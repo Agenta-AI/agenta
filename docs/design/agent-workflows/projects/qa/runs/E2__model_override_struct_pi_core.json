@@ -1,0 +1,48 @@
+{
+  "id": "model_override_struct_pi_core",
+  "harness": "pi_core",
+  "ts": "2026-06-25T13:24:07.722255+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Reply with exactly: STRUCT-OK"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "sandbox": "local",
+          "model": {
+            "provider": "openai",
+            "model": "gpt-4o-mini"
+          },
+          "agents_md": "Reply with exactly the requested word and nothing else."
+        }
+      }
+    }
+  },
+  "expect": "structured ModelRef resolves",
+  "http_status": 200,
+  "response": {
+    "span_id": "c6d0917de492591f",
+    "trace_id": "0827c196a9c2e6cef75ace37638ec162",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "STRUCT-OK"
+      }
+    }
+  },
+  "reply": "STRUCT-OK",
+  "status_message": "Success",
+  "passed": true
+}

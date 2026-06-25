@@ -1,0 +1,358 @@
+{
+  "plugins": [
+    "react",
+    "import"
+  ],
+  "rules": {
+    "react/forbid-elements": [
+      "warn",
+      {
+        "forbid": []
+      }
+    ],
+    "no-restricted-imports": [
+      "warn",
+      {
+        "patterns": [
+          {
+            "group": [
+              "components/app/**",
+              "components/buttons/**",
+              "components/marketing/**",
+              "ui_kits/web_app/**",
+              "ui_kits/website/**"
+            ],
+            "message": "Import design-system components from 'index.js', not component internals."
+          }
+        ]
+      }
+    ],
+    "no-restricted-syntax": [
+      "warn",
+      {
+        "selector": "Literal[value=/#[0-9a-fA-F]{3,8}\\b/]",
+        "message": "Raw hex color — use a design-system color token via var()."
+      },
+      {
+        "selector": "Literal[value=/\\b\\d+px\\b/]",
+        "message": "Raw px value — use a design-system spacing token via var()."
+      },
+      {
+        "selector": "Literal[value=/font-family\\s*:\\s*(?!['\\\"]?(?:GT Alpina|PP Mondwest|Inter|Geist|Geist Mono))/i]",
+        "message": "Font not provided by the design system. Available: GT Alpina, PP Mondwest, Inter, Geist, Geist Mono."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='AppButton'] > JSXAttribute > JSXIdentifier[name!=/^(?:variant|children|style|key|ref|className|style|children)$/]",
+        "message": "<AppButton> doesn't accept that prop. Declared props: variant, children, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='AppButton'] > JSXAttribute[name.name='variant'] > Literal[value!=/^(?:dark|default)$/]",
+        "message": "<AppButton> variant must be one of 'dark' | 'default'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='AppSidebar'] > JSXAttribute > JSXIdentifier[name!=/^(?:workspace|sections|footerItems|onSelect|style|key|ref|className|style|children)$/]",
+        "message": "<AppSidebar> doesn't accept that prop. Declared props: workspace, sections, footerItems, onSelect, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Badge'] > JSXAttribute > JSXIdentifier[name!=/^(?:variant|children|style|key|ref|className|style|children)$/]",
+        "message": "<Badge> doesn't accept that prop. Declared props: variant, children, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Badge'] > JSXAttribute[name.name='variant'] > Literal[value!=/^(?:default|dark|yellow)$/]",
+        "message": "<Badge> variant must be one of 'default' | 'dark' | 'yellow'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute > JSXIdentifier[name!=/^(?:variant|size|href|children|style|key|ref|className|style|children)$/]",
+        "message": "<Button> doesn't accept that prop. Declared props: variant, size, href, children, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='variant'] > Literal[value!=/^(?:primary|outline|dark|ghost)$/]",
+        "message": "<Button> variant must be one of 'primary' | 'outline' | 'dark' | 'ghost'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='size'] > Literal[value!=/^(?:sm|md|lg)$/]",
+        "message": "<Button> size must be one of 'sm' | 'md' | 'lg'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='FAQItem'] > JSXAttribute > JSXIdentifier[name!=/^(?:question|answer|defaultOpen|style|key|ref|className|style|children)$/]",
+        "message": "<FAQItem> doesn't accept that prop. Declared props: question, answer, defaultOpen, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Footer'] > JSXAttribute > JSXIdentifier[name!=/^(?:logoSrc|socialSrcs|columns|style|key|ref|className|style|children)$/]",
+        "message": "<Footer> doesn't accept that prop. Declared props: logoSrc, socialSrcs, columns, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='HighlightChip'] > JSXAttribute > JSXIdentifier[name!=/^(?:children|fontSize|style|key|ref|className|style|children)$/]",
+        "message": "<HighlightChip> doesn't accept that prop. Declared props: children, fontSize, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='NavBar'] > JSXAttribute > JSXIdentifier[name!=/^(?:logoSrc|links|withChevron|style|key|ref|className|style|children)$/]",
+        "message": "<NavBar> doesn't accept that prop. Declared props: logoSrc, links, withChevron, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='PillTabs'] > JSXAttribute > JSXIdentifier[name!=/^(?:tabs|active|onChange|style|key|ref|className|style|children)$/]",
+        "message": "<PillTabs> doesn't accept that prop. Declared props: tabs, active, onChange, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SearchField'] > JSXAttribute > JSXIdentifier[name!=/^(?:placeholder|icon|label|value|onChange|style|key|ref|className|style|children)$/]",
+        "message": "<SearchField> doesn't accept that prop. Declared props: placeholder, icon, label, value, onChange, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SectionTitle'] > JSXAttribute > JSXIdentifier[name!=/^(?:badge|title|subtitle|dark|align|size|style|key|ref|className|style|children)$/]",
+        "message": "<SectionTitle> doesn't accept that prop. Declared props: badge, title, subtitle, dark, align, size, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SectionTitle'] > JSXAttribute[name.name='align'] > Literal[value!=/^(?:center|left)$/]",
+        "message": "<SectionTitle> align must be one of 'center' | 'left'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SectionTitle'] > JSXAttribute[name.name='size'] > Literal[value!=/^(?:lg|xl)$/]",
+        "message": "<SectionTitle> size must be one of 'lg' | 'xl'."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "**/index.js"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ],
+  "x-omelette": {
+    "components": {
+      "AppButton": {
+        "replaces": []
+      },
+      "AppSidebar": {
+        "replaces": []
+      },
+      "Badge": {
+        "replaces": []
+      },
+      "Button": {
+        "replaces": []
+      },
+      "FAQItem": {
+        "replaces": []
+      },
+      "Footer": {
+        "replaces": []
+      },
+      "HighlightChip": {
+        "replaces": []
+      },
+      "NavBar": {
+        "replaces": []
+      },
+      "PillTabs": {
+        "replaces": []
+      },
+      "SearchField": {
+        "replaces": []
+      },
+      "SectionTitle": {
+        "replaces": []
+      }
+    },
+    "tokens": [
+      "--accent-primary",
+      "--app-item-height",
+      "--app-sidebar-width",
+      "--app-text-body",
+      "--app-text-heading",
+      "--app-text-label",
+      "--app-text-mono",
+      "--app-text-placeholder",
+      "--app-text-secondary",
+      "--app-text-small",
+      "--app-text-title",
+      "--border-default",
+      "--border-on-dark",
+      "--border-soft",
+      "--carbon-700",
+      "--carbon-800",
+      "--carbon-900",
+      "--content-width",
+      "--divider-app",
+      "--font-bitmap",
+      "--font-display",
+      "--font-mono",
+      "--font-sans",
+      "--font-ui",
+      "--grad-btn-dark",
+      "--grad-btn-outline",
+      "--grad-btn-primary",
+      "--grad-chip",
+      "--ink-300",
+      "--ink-450",
+      "--ink-500",
+      "--ink-600",
+      "--ink-700",
+      "--ink-900",
+      "--nav-height",
+      "--paper-0",
+      "--paper-100",
+      "--paper-150",
+      "--paper-200",
+      "--paper-50",
+      "--prose-width",
+      "--radius-lg",
+      "--radius-md",
+      "--radius-pill",
+      "--radius-sm",
+      "--radius-xl",
+      "--section-pad-y",
+      "--section-pad-y-dark",
+      "--shadow-badge",
+      "--shadow-btn-dark",
+      "--shadow-btn-outline",
+      "--shadow-btn-primary",
+      "--shadow-frame",
+      "--shadow-ring",
+      "--shadow-ring-soft",
+      "--site-gutter",
+      "--site-width",
+      "--space-1",
+      "--space-10",
+      "--space-2",
+      "--space-3",
+      "--space-4",
+      "--space-5",
+      "--space-6",
+      "--space-7",
+      "--space-8",
+      "--space-9",
+      "--surface-app",
+      "--surface-card",
+      "--surface-cta",
+      "--surface-dark",
+      "--surface-page",
+      "--surface-section",
+      "--surface-selected",
+      "--terracotta-500",
+      "--text-body",
+      "--text-body-md",
+      "--text-body-sm",
+      "--text-caption",
+      "--text-display-lg",
+      "--text-display-md",
+      "--text-display-xl",
+      "--text-faint",
+      "--text-heading",
+      "--text-label",
+      "--text-muted",
+      "--text-on-dark",
+      "--text-on-dark-muted",
+      "--text-on-yellow",
+      "--text-title",
+      "--tracking-caption",
+      "--yellow-400",
+      "--yellow-500"
+    ],
+    "tokenKinds": {
+      "--ink-900": "color",
+      "--ink-700": "color",
+      "--ink-600": "color",
+      "--ink-500": "color",
+      "--ink-450": "color",
+      "--ink-300": "color",
+      "--paper-0": "color",
+      "--paper-50": "color",
+      "--paper-100": "color",
+      "--paper-150": "color",
+      "--paper-200": "color",
+      "--yellow-400": "color",
+      "--yellow-500": "color",
+      "--terracotta-500": "color",
+      "--carbon-900": "color",
+      "--carbon-800": "color",
+      "--carbon-700": "color",
+      "--text-heading": "font",
+      "--text-body": "font",
+      "--text-muted": "font",
+      "--text-faint": "font",
+      "--text-on-dark": "font",
+      "--text-on-dark-muted": "font",
+      "--text-on-yellow": "font",
+      "--app-text-heading": "font",
+      "--app-text-body": "font",
+      "--app-text-secondary": "font",
+      "--app-text-placeholder": "font",
+      "--surface-page": "color",
+      "--surface-section": "color",
+      "--surface-app": "color",
+      "--surface-card": "color",
+      "--surface-dark": "color",
+      "--surface-cta": "color",
+      "--surface-selected": "color",
+      "--border-default": "color",
+      "--border-soft": "color",
+      "--border-on-dark": "color",
+      "--divider-app": "color",
+      "--accent-primary": "color",
+      "--grad-btn-primary": "color",
+      "--grad-btn-dark": "color",
+      "--grad-btn-outline": "color",
+      "--grad-chip": "color",
+      "--font-display": "font",
+      "--font-bitmap": "font",
+      "--font-sans": "font",
+      "--font-ui": "font",
+      "--font-mono": "font",
+      "--text-display-xl": "font",
+      "--text-display-lg": "font",
+      "--text-display-md": "font",
+      "--text-title": "font",
+      "--text-body-md": "font",
+      "--text-body-sm": "font",
+      "--text-label": "font",
+      "--text-caption": "font",
+      "--tracking-caption": "font",
+      "--app-text-title": "font",
+      "--app-text-label": "font",
+      "--app-text-small": "font",
+      "--app-text-mono": "font",
+      "--radius-sm": "radius",
+      "--radius-md": "radius",
+      "--radius-lg": "radius",
+      "--radius-xl": "radius",
+      "--radius-pill": "radius",
+      "--shadow-ring": "shadow",
+      "--shadow-ring-soft": "shadow",
+      "--shadow-btn-primary": "shadow",
+      "--shadow-btn-dark": "shadow",
+      "--shadow-btn-outline": "shadow",
+      "--shadow-badge": "shadow",
+      "--shadow-frame": "shadow",
+      "--space-1": "spacing",
+      "--space-2": "spacing",
+      "--space-3": "spacing",
+      "--space-4": "spacing",
+      "--space-5": "spacing",
+      "--space-6": "spacing",
+      "--space-7": "spacing",
+      "--space-8": "spacing",
+      "--space-9": "spacing",
+      "--space-10": "spacing",
+      "--site-gutter": "spacing",
+      "--site-width": "spacing",
+      "--content-width": "spacing",
+      "--prose-width": "spacing",
+      "--nav-height": "spacing",
+      "--section-pad-y": "spacing",
+      "--section-pad-y-dark": "spacing",
+      "--app-sidebar-width": "spacing",
+      "--app-item-height": "spacing"
+    },
+    "fontFamilies": [
+      "GT Alpina",
+      "Geist",
+      "Geist Mono",
+      "Inter",
+      "PP Mondwest"
+    ]
+  }
+}

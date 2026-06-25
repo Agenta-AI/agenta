@@ -1,0 +1,18 @@
+data: {"type": "start", "messageId": "msg-1", "messageMetadata": {"sessionId": "sess_6203f5200d3146c09f9aebce591a02a0"}}
+
+data: {"type": "start-step"}
+
+data: {"type": "text-start", "id": "msg-0"}
+
+data: {"type": "text-delta", "id": "msg-0", "delta": "P"}
+
+data: {"type": "text-delta", "id": "msg-0", "delta": "ONG"}
+
+data: {"type": "text-end", "id": "msg-0"}
+
+data: {"type": "finish-step"}
+
+data: {"type": "finish", "messageMetadata": {"usage": {"input": 166, "output": 4, "total": 1194, "cost": 0.0001041}, "traceId": "9237654213d1127d8e1d452cc2d2c3e2"}}
+
+data: [DONE]
+

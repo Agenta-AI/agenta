@@ -1,0 +1,51 @@
+{
+  "id": "builtin_bash_pi_core",
+  "harness": "pi_core",
+  "ts": "2026-06-25T13:24:25.765723+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Use the bash tool to run: echo \"QA-BASH-$(uname -m)\" and reply with exactly its stdout."
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "sandbox": "local",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "Use the bash tool when asked to run a command. Report only its stdout.",
+          "tools": [
+            {
+              "type": "builtin",
+              "name": "bash"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "expect": "QA-BASH-<arch>",
+  "http_status": 200,
+  "response": {
+    "span_id": "cee7e0aa0fe593be",
+    "trace_id": "dd2bf0fc48faad729678821187302701",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "QA-BASH-x86_64"
+      }
+    }
+  },
+  "reply": "QA-BASH-x86_64",
+  "status_message": "Success",
+  "passed": true
+}

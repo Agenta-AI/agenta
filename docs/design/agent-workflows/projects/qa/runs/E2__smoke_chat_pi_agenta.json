@@ -1,0 +1,45 @@
+{
+  "id": "smoke_chat_pi_agenta",
+  "harness": "pi_agenta",
+  "ts": "2026-06-25T13:24:01.310208+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Reply with exactly: PONG"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_agenta",
+          "sandbox": "local",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "When asked to reply with a word, output exactly that word."
+        }
+      }
+    }
+  },
+  "expect": "contains PONG",
+  "http_status": 200,
+  "response": {
+    "span_id": "23a957d2e6997640",
+    "trace_id": "602d9d5ee210e8cd606fe7d3b44b59ea",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "PONG"
+      }
+    }
+  },
+  "reply": "PONG",
+  "status_message": "Success",
+  "passed": true
+}

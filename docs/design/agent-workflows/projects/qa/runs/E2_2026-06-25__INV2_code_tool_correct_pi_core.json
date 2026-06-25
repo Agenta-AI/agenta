@@ -1,0 +1,70 @@
+{
+  "cell": "INV2_code_tool_correct_pi_core",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Call secret_math with x=6 and reply with exactly the tool output."
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "When asked to compute, call secret_math and reply with exactly the tool output and nothing else.",
+          "tools": [
+            {
+              "type": "code",
+              "name": "secret_math",
+              "runtime": "python",
+              "description": "Computes a secret value from x.",
+              "script": "import sys,json\nd=json.loads(sys.stdin.read() or '{}')\nx=d.get('x',0)\nprint('QA-CODE-OK-'+str(x*7+1))",
+              "input_schema": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ]
+              }
+            }
+          ],
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 500,
+  "elapsed_s": 0.15,
+  "response": {
+    "span_id": "3446990c2dccb459",
+    "trace_id": "96391c21698897e84541812a62ad95b8",
+    "version": "2025.07.14",
+    "status": {
+      "code": 500,
+      "message": "Agent runner HTTP 500: {\"ok\":false,\"error\":\"Code tools are not supported by the sidecar.\"}",
+      "type": "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error",
+      "stacktrace": [
+        "Traceback (most recent call last):\n",
+        "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 297, in __call__\n    normalized = await self._normalize_response(response)\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 128, in _normalize_response\n    result = await result\n             ^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/decorators/tracing.py\", line 240, in awrapper\n    result = await handler(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/app/oss/src/agent/app.py\", line 274, in _agent\n    return await _agent_batch(harness, session_config, msgs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/app/oss/src/agent/app.py\", line 281, in _agent_batch\n    result = await harness.prompt(session_config, msgs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/interfaces.py\", line 258, in prompt\n    result = await session.prompt(messages, on_event=on_event)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/adapters/sandbox_agent.py\", line 105, in prompt\n    data = await self._backend._deliver(self._wire_payload(messages))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/adapters/sandbox_agent.py\", line 173, in _deliver\n    return await deliver_http(self._url, payload, timeout=self._timeout)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/utils/ts_runner.py\", line 32, in deliver_http\n    raise RuntimeError(\n        f\"Agent runner HTTP {response.status_code}: {response.text[:1000]}\"\n    )\n",
+        "RuntimeError: Agent runner HTTP 500: {\"ok\":false,\"error\":\"Code tools are not supported by the sidecar.\"}\n"
+      ]
+    }
+  }
+}

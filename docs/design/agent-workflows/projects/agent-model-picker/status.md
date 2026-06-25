@@ -10,7 +10,46 @@ contract-versioning (#4829) and wire-schema (#4830) work; this lane is stacked o
 [../provider-model-auth/](../provider-model-auth/) (PR #4815) is **merged** and provides the
 backend `ModelRef` + connection resolver + `/inspect` capability table + a minimal form.
 
-Last updated: 2026-06-24.
+**Phase F (connection-UX rework) — DEFERRED 2026-06-25.** Implemented + green + reviewer-clean,
+but REVERTED to unblock a merge: a frontend engineer needed #4839 (`feat/agent-model-picker`)
+in `big-agents` to land their playground work, so #4839 is merged at its last clean WORKING
+picker state and Phase F resumes after. The rework was uncommitted working-tree only; reverting
+left the lane untouched and mergeable. Resume notes below.
+
+### Phase F resume notes (design is DECIDED — just re-apply)
+
+Goal (user decision): align the agent credential UX with the completion/chat playground —
+drop the user-facing "Project default", rename copy away from "connection", keep standard
+provider keys implicit (resolved server-side by provider kind). FE sends a reference, never a
+key (already true).
+
+Codex (xhigh) BLESSED the plan with one correction, folded in:
+- **Keep `ModelRef.connection {mode, slug}`** — the right agent abstraction (agents have the
+  real extra axis Agenta-vault vs harness-own-login that completion/chat lacks). But stop using
+  "connection" as a user-facing noun.
+- **Rename UI copy:** Authentication / Agenta-managed / **Self-hosted** (was "Self-managed") /
+  **"Provider key"** (was "Connection") for the optional selector.
+- **Standard `provider_key` secrets stay IMPLICIT** — do NOT list `OPENAI_API_KEY` as a
+  pickable value (invents vocabulary the product lacks). Keep `namedConnectionOptions`
+  custom-provider-only (it already is). Show the picker only when `connectionOptions.length > 0`.
+- **Keep `_choose_default`** as the implicit server fallback (no slug → resolve by provider
+  kind). `connection.mode="agenta"` with omitted `slug` stays the implicit default — never a
+  labeled UI value.
+- **Smallest change = pure FE** (`AgentConfigControl.tsx` Authentication section +
+  `connectionUtils.ts` comments). NO SDK / `/run` wire / resolver change. No new tests strictly
+  required (the load-bearing logic — `composeModelValue` omitting the connection block for the
+  default, the round-trip, custom-provider-only options — is already covered in
+  `tests/unit/connectionUtils.test.ts`).
+
+Exact edit that was verified green (entity-ui 126 tests + tsc + eslint + a reviewer pass, no
+regressions): in `AgentConfigControl.tsx` replace the Authentication block's `__default__`
+Select with a picker rendered only when `connectionOptions.length > 0` (label "Provider key",
+`allowClear`, `value={connection.slug ?? undefined}`, placeholder, `onChange/onClear` →
+`writeModel({slug: v ?? null})`), an empty-state note otherwise, and rename the Segmented
+"Self-managed" label to "Self-hosted"; update the `connectionUtils.ts` doc comments to say the
+default is the implicit server-side behaviour, not a UI value.
+
+Last updated: 2026-06-25.
 
 ## What landed
 

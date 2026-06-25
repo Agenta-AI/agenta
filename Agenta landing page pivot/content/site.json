@@ -1,0 +1,78 @@
+{
+  "nav": {
+    "links": [
+      { "label": "Product", "href": "/product", "hasDropdown": true },
+      { "label": "Pricing", "href": "/pricing" },
+      { "label": "Docs", "href": "https://docs.agenta.ai", "external": true },
+      { "label": "Blog", "href": "/blog" },
+      { "label": "Resources", "href": "/resources", "hasDropdown": true },
+      { "label": "Community", "href": "/community", "hasDropdown": true }
+    ],
+    "secondaryCta": { "label": "Book a demo", "href": "/demo", "style": "outline" },
+    "cta": { "label": "Get started", "href": "https://cloud.agenta.ai", "style": "primary" }
+  },
+  "footer": {
+    "blurb": "Fast-tracking LLM apps\nto production",
+    "socials": [
+      { "platform": "x", "url": "https://x.com/agenta_ai", "icon": "assets/icons/social-1.svg" },
+      { "platform": "linkedin", "url": "https://www.linkedin.com/company/agenta-ai", "icon": "assets/icons/social-2.svg" },
+      { "platform": "github", "url": "https://github.com/Agenta-AI/agenta", "icon": "assets/icons/social-3.svg" },
+      { "platform": "slack", "url": "https://join.slack.com/", "icon": "assets/icons/social-4.svg" }
+    ],
+    "columns": [
+      {
+        "heading": "Product",
+        "links": [
+          { "label": "Prompt Engineering", "href": "/product/prompt-engineering" },
+          { "label": "Evaluation", "href": "/product/evaluation" },
+          { "label": "Human annotation", "href": "/product/human-annotation" },
+          { "label": "Deployment", "href": "/product/deployment" },
+          { "label": "Observability", "href": "/product/observability" }
+        ]
+      },
+      {
+        "heading": "Company",
+        "links": [
+          { "label": "Home", "href": "/" },
+          { "label": "Pricing", "href": "/pricing" },
+          { "label": "Contact", "href": "/contact" }
+        ]
+      },
+      {
+        "heading": "Resources",
+        "links": [
+          { "label": "Docs", "href": "https://docs.agenta.ai", "external": true },
+          { "label": "Tutorial", "href": "/tutorial" },
+          { "label": "Changelog", "href": "/changelog" },
+          { "label": "Roadmap", "href": "/roadmap" },
+          { "label": "Blog", "href": "/blog" },
+          { "label": "Status", "href": "https://status.agenta.ai", "external": true }
+        ]
+      },
+      {
+        "heading": "Legal",
+        "links": [
+          { "label": "Imprint", "href": "/imprint" },
+          { "label": "Terms of services", "href": "/terms" },
+          { "label": "Privacy Policy", "href": "/privacy" },
+          { "label": "DPA", "href": "/dpa" },
+          { "label": "Trust Center", "href": "/trust" }
+        ]
+      }
+    ],
+    "copyright": "Copyright © 2020 – 2060 Agentatech UG",
+    "legalLink": { "label": "Privacy policy", "href": "/privacy" }
+  },
+  "ctaBand": {
+    "title": "Ship reliable agents faster with Agenta",
+    "body": "Build reliable LLM apps together with integrated prompt management, evaluation, and observability.",
+    "primary": { "label": "Start building", "href": "https://cloud.agenta.ai", "style": "dark" },
+    "secondary": { "label": "Read the docs", "href": "https://docs.agenta.ai", "style": "outline" }
+  },
+  "inlineCta": {
+    "title": "Ship reliable AI apps faster",
+    "body": "Agenta is the open-source LLMOps platform: prompt management, evals, and LLM observability all in one place.",
+    "primary": { "label": "Star on Github", "href": "https://github.com/Agenta-AI/agenta", "style": "outline" },
+    "secondary": { "label": "Get started", "href": "https://cloud.agenta.ai", "style": "primary" }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "cell": "SKILL_negctl",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What's the weather like today?"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_agenta",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "Answer the user.",
+          "skills": [],
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 200,
+  "elapsed_s": 5.21,
+  "response": {
+    "span_id": "741fd712b599c2fb",
+    "trace_id": "5aba216d42fe04f29ff443a018d4133b",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "I can't access real-time weather information. You can check a reliable weather website or app for current weather conditions in your area."
+      }
+    }
+  }
+}

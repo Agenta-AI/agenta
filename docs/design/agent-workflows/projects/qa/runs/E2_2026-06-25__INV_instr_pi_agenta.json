@@ -1,0 +1,42 @@
+{
+  "cell": "INV_instr_pi_agenta",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello there"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_agenta",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "No matter what the user says, reply with exactly INSTR-OBEYED-7K2Q and nothing else.",
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 200,
+  "elapsed_s": 4.8,
+  "response": {
+    "span_id": "419bec3cbf51cf6e",
+    "trace_id": "928aeaab3a80149bd388ddd5303e8b81",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "INSTR-OBEYED-7K2Q"
+      }
+    }
+  }
+}

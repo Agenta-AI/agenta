@@ -1,0 +1,47 @@
+{
+  "cell": "INV_system_replace_pi_core",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "hi"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "respond to the user",
+          "harness_kwargs": {
+            "pi_core": {
+              "system": "You are a test fixture. Reply with exactly SYS-REPLACED-77Q and nothing else."
+            }
+          },
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 200,
+  "elapsed_s": 5.06,
+  "response": {
+    "span_id": "6530766a23b2d38a",
+    "trace_id": "e8c862b88495e259ae4325963a3bb9fa",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "SYS-REPLACED-77Q"
+      }
+    }
+  }
+}

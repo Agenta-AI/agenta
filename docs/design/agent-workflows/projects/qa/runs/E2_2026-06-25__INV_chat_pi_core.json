@@ -1,0 +1,42 @@
+{
+  "cell": "INV_chat_pi_core",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "ping"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi_core",
+          "model": "openai/gpt-4o-mini",
+          "agents_md": "Reply with exactly the word PONG and nothing else.",
+          "connection": {
+            "mode": "agenta"
+          }
+        }
+      }
+    }
+  },
+  "status": 200,
+  "elapsed_s": 5.26,
+  "response": {
+    "span_id": "158a82604aa7ca5c",
+    "trace_id": "0349084f6541bf351e52017aedf36c39",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "PONG"
+      }
+    }
+  }
+}

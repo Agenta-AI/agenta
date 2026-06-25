@@ -44,4 +44,4 @@ Golden fixtures unchanged.
   Python-side bag). In the runner dir (sibling HTTP-MCP impl active there) so NOT touched here;
   rename to `harness_kwargs` in a runner-owned change.
 
-## State: LANDED (pending PR)
+## State: LANDED — PR #4840 (base feat/agent-model-picker), READY, not merged to big-agents.

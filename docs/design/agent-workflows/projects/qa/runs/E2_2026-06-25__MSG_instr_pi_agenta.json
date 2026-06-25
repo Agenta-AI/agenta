@@ -1,0 +1,8 @@
+{
+  "cell": "MSG_instr_pi_agenta",
+  "status": 200,
+  "n_chunks": 1,
+  "chunks": [
+    "{\"span_id\":\"26b42c3f9dd3f7cb\",\"trace_id\":\"7a8e61de7333e08a823586e07356f085\",\"version\":\"2025.07.14\",\"status\":{\"code\":200,\"message\":\"Success\"},\"session_id\":\"sess_1a21f158f8aa4b469d5e6ff5c16756ff\",\"data\":{\"outputs\":{\"role\":\"assistant\",\"content\":\"MSG-INSTR-5T8\"}}}"
+  ]
+}
