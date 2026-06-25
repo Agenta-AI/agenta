@@ -21,11 +21,13 @@ from .secrets import (
     resolve_named_secrets,
     resolve_provider_keys,
 )
+from .workflow import AgentaWorkflowToolResolver
 
 __all__ = [
     "PlatformConnection",
     "default_timeout",
     "AgentaGatewayToolResolver",
+    "AgentaWorkflowToolResolver",
     "AgentaNamedSecretProvider",
     "VaultConnectionResolver",
     "resolve_named_secrets",

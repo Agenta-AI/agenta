@@ -16,8 +16,9 @@ from .errors import (
     ToolResolutionError,
     UnsupportedToolProviderError,
 )
-from .interfaces import GatewayToolResolver, ToolSecretProvider
+from .interfaces import GatewayToolResolver, ToolSecretProvider, WorkflowToolResolver
 from .models import (
+    AG_REFERENCE_MARKER,
     BuiltinToolConfig,
     CallbackToolSpec,
     ClientToolConfig,
@@ -27,6 +28,7 @@ from .models import (
     GatewayToolConfig,
     GatewayToolResolution,
     MissingSecretPolicy,
+    ReferenceToolConfig,
     ResolvedToolSet,
     ToolCallback,
     ToolConfig,
@@ -43,6 +45,8 @@ __all__ = [
     "GatewayToolConfig",
     "CodeToolConfig",
     "ClientToolConfig",
+    "ReferenceToolConfig",
+    "AG_REFERENCE_MARKER",
     "ToolSpec",
     "CallbackToolSpec",
     "CodeToolSpec",
@@ -54,6 +58,7 @@ __all__ = [
     "ToolResolver",
     "ToolSecretProvider",
     "GatewayToolResolver",
+    "WorkflowToolResolver",
     "EnvironmentToolSecretProvider",
     "parse_tool_config",
     "coerce_tool_config",

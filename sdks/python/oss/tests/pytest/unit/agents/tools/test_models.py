@@ -7,7 +7,23 @@ from agenta.sdk.agents.tools import (
     CallbackToolSpec,
     CodeToolConfig,
     CodeToolSpec,
+    ReferenceToolConfig,
 )
+
+
+def test_reference_tool_call_ref_grammar():
+    # Slug-only -> workflow.{slug}; versioned -> workflow.{slug}.{version}. Distinct from the
+    # Composio 5-segment grammar so the server-side parser routes by the `workflow.` prefix.
+    assert ReferenceToolConfig(slug="wf").call_ref == "workflow.wf"
+    assert ReferenceToolConfig(slug="wf", version="2").call_ref == "workflow.wf.2"
+    # The model-visible name defaults to the slug when none is authored.
+    assert ReferenceToolConfig(slug="wf").tool_name == "wf"
+    assert ReferenceToolConfig(slug="wf", name="run").tool_name == "run"
+
+
+def test_reference_tool_discriminator_is_reference():
+    config = ReferenceToolConfig(slug="wf")
+    assert config.type == "reference"
 
 
 def test_canonical_config_forbids_unexpected_fields():

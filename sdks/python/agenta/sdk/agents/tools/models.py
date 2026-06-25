@@ -82,12 +82,55 @@ class ClientToolConfig(ToolConfigBase):
     input_schema: Dict[str, Any] = Field(default_factory=_empty_object_schema)
 
 
+# The top-level marker an author writes to KEEP (not inline) a workflow reference as a tool.
+# Sibling of ``@ag.embed`` (which inlines the referenced value). The generic resolver leaves an
+# ``@ag.reference`` node untouched; ``resolve_tools`` then maps it to a ``CallbackToolSpec`` so
+# the model's call runs the referenced workflow revision server-side, like a gateway tool.
+AG_REFERENCE_MARKER = "@ag.reference"
+
+
+class ReferenceToolConfig(ToolConfigBase):
+    """A kept ``@ag.reference`` workflow tool (the reference syntax).
+
+    ``type`` is the synthetic discriminator ``"reference"`` so this arm lives in the canonical
+    ``ToolConfig`` union; it is NOT a Composio-style declared variant (no provider/integration/
+    action). It carries the workflow identity (``slug`` + optional ``version``) plus the
+    model-facing surface (``name`` / ``description`` / ``input_schema``). ``resolve_tools`` turns
+    it into a ``CallbackToolSpec`` whose ``call_ref`` encodes the workflow identity; the runner
+    dispatches the call back through the existing ``callback`` executor and the Agenta service runs
+    the workflow revision. Connections/secrets the workflow needs stay server-side."""
+
+    type: Literal["reference"] = "reference"
+    slug: str = Field(min_length=1)
+    version: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1)
+    description: Optional[str] = None
+    input_schema: Dict[str, Any] = Field(default_factory=_empty_object_schema)
+
+    @property
+    def tool_name(self) -> str:
+        """The model-visible name; defaults to the workflow slug when none is authored."""
+        return self.name or self.slug
+
+    @property
+    def call_ref(self) -> str:
+        """The opaque ``workflow.{slug}`` / ``workflow.{slug}.{version}`` callback identity.
+
+        Distinct from the Composio 5-segment grammar (``tools.{provider}.{integration}.
+        {action}.{connection}``). The runner treats this as opaque; only the server-side
+        ``/tools/call`` parser must agree on the ``workflow.*`` prefix."""
+        if self.version:
+            return f"workflow.{self.slug}.{self.version}"
+        return f"workflow.{self.slug}"
+
+
 ToolConfig = Annotated[
     Union[
         BuiltinToolConfig,
         GatewayToolConfig,
         CodeToolConfig,
         ClientToolConfig,
+        ReferenceToolConfig,
     ],
     Field(discriminator="type"),
 ]

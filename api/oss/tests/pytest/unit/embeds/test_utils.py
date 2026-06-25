@@ -158,6 +158,73 @@ class TestFindObjectEmbeds:
         assert embeds[1].location == "items.1"
 
 
+class TestAgReferenceLeftInPlace:
+    """The generic resolver is tool-agnostic: it INLINES @ag.embed but LEAVES @ag.reference.
+
+    The reference-syntax "leave it" branch — a kept @ag.reference node (the embedref-tools
+    feature) is opaque to all three embed finders, so resolve_tools later builds the callback
+    spec from it. See ``api/oss/src/core/embeds/utils.py`` (``AG_REFERENCE_KEY``).
+    """
+
+    def test_object_finder_ignores_reference_node(self):
+        config = {
+            "tools": [
+                {
+                    "@ag.reference": {
+                        AG_REFERENCES_KEY: {"workflow": {"slug": "summarize"}},
+                    },
+                    "name": "summarize",
+                }
+            ]
+        }
+        assert find_object_embeds(config) == []
+
+    def test_object_finder_does_not_inline_nested_embed_in_reference(self):
+        # A @ag.embed nested INSIDE a kept @ag.reference must not be discovered/inlined: the whole
+        # reference node is opaque.
+        config = {
+            "tools": [
+                {
+                    "@ag.reference": {
+                        AG_REFERENCES_KEY: {"workflow": {"slug": "wf"}},
+                        "nested": {
+                            AG_EMBED_KEY: {
+                                AG_REFERENCES_KEY: {"workflow": {"slug": "inner"}}
+                            }
+                        },
+                    }
+                }
+            ]
+        }
+        assert find_object_embeds(config) == []
+
+    def test_string_and_snippet_finders_ignore_reference_node(self):
+        config = {
+            "@ag.reference": {
+                AG_REFERENCES_KEY: {"workflow": {"slug": "wf"}},
+                "note": "@ag.embed[@ag.references[workflow_revision.version=v1]]",
+                "snippet": "@{{workflow.slug=wf}}",
+            }
+        }
+        assert find_string_embeds(config) == []
+        assert find_snippet_embeds(config) == []
+
+    def test_sibling_embed_still_resolves_alongside_reference(self):
+        # A real @ag.embed sibling of a kept @ag.reference is still found and resolved; only the
+        # reference node is left.
+        config = {
+            "tools": [
+                {"@ag.reference": {AG_REFERENCES_KEY: {"workflow": {"slug": "wf"}}}},
+            ],
+            "skills": [
+                {AG_EMBED_KEY: {AG_REFERENCES_KEY: {"workflow": {"slug": "skill"}}}}
+            ],
+        }
+        embeds = find_object_embeds(config)
+        assert len(embeds) == 1
+        assert embeds[0].location == "skills.0"
+
+
 class TestFindStringEmbeds:
     """Tests for finding string embeds in configuration."""
 

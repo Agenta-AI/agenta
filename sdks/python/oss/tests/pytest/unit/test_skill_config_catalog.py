@@ -102,3 +102,54 @@ def test_inline_skill_entry_validates():
     ]
 
     jsonschema.validate(config, agent_config)
+
+
+# --- tools: @ag.embed (inline) + @ag.reference (kept) arms -------------------
+
+
+def test_agent_config_tools_accepts_embed_and_reference_arms():
+    """The tools field is a union: a concrete tool variant, an @ag.embed (inline a client tool),
+    or an @ag.reference (keep the reference; run the workflow server-side)."""
+    agent_config = CATALOG_TYPES["agent_config"]
+    tools_item = agent_config["properties"]["tools"]["items"]
+    variants = tools_item["anyOf"]
+
+    # The embed and reference arms are present alongside the concrete tool variants.
+    has_embed = any("@ag.embed" in v.get("properties", {}) for v in variants)
+    has_reference = any("@ag.reference" in v.get("properties", {}) for v in variants)
+    assert has_embed, "tools union must include an @ag.embed arm"
+    assert has_reference, "tools union must include an @ag.reference arm"
+
+
+def test_agent_config_with_reference_tool_validates():
+    agent_config = CATALOG_TYPES["agent_config"]
+
+    config = _base_agent_config()
+    config["tools"] = [
+        {
+            "@ag.reference": {
+                "@ag.references": {"workflow": {"slug": "summarize"}},
+            },
+            "name": "summarize",
+            "description": "Summarize text",
+            "input_schema": {"type": "object", "properties": {}},
+        }
+    ]
+
+    jsonschema.validate(config, agent_config)
+
+
+def test_agent_config_with_embed_tool_validates():
+    agent_config = CATALOG_TYPES["agent_config"]
+
+    config = _base_agent_config()
+    config["tools"] = [
+        {
+            "@ag.embed": {
+                "@ag.references": {"workflow": {"slug": "my-client-tool"}},
+                "@ag.selector": {"path": "parameters.tool"},
+            }
+        }
+    ]
+
+    jsonschema.validate(config, agent_config)

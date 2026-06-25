@@ -14,6 +14,7 @@ from agenta.sdk.agents.tools import (
     GatewayToolResolution,
     MissingSecretPolicy,
     MissingToolSecretError,
+    ReferenceToolConfig,
     ToolCallback,
     ToolResolver,
     UnsupportedToolProviderError,
@@ -48,6 +49,34 @@ class FakeGatewayResolver:
                 for tool in tools
             ],
             tool_callback=ToolCallback(endpoint="https://example/tools/call"),
+        )
+
+
+class FakeWorkflowResolver:
+    """Mirrors :class:`AgentaWorkflowToolResolver`: build a callback spec per reference config
+    + the single shared callback to the server-side execute endpoint."""
+
+    def __init__(self, endpoint: str = "https://example/tools/call"):
+        self.endpoint = endpoint
+
+    async def resolve(
+        self,
+        tools: Sequence[ReferenceToolConfig],
+    ) -> GatewayToolResolution:
+        return GatewayToolResolution(
+            tool_specs=[
+                CallbackToolSpec(
+                    name=tool.tool_name,
+                    description=tool.description or tool.tool_name,
+                    input_schema=tool.input_schema,
+                    call_ref=tool.call_ref,
+                    needs_approval=tool.needs_approval,
+                    render=tool.render,
+                    permission=tool.permission,
+                )
+                for tool in tools
+            ],
+            tool_callback=ToolCallback(endpoint=self.endpoint),
         )
 
 
@@ -162,3 +191,65 @@ async def test_resolved_spec_omits_permission_when_unset():
 async def test_duplicate_model_visible_names_are_rejected(configs):
     with pytest.raises(DuplicateToolNameError):
         await ToolResolver().resolve(configs)
+
+
+# --- @ag.reference workflow tool resolution ----------------------------------
+
+
+async def test_reference_tool_resolves_to_callback_spec():
+    # A kept @ag.reference workflow tool becomes a callback spec (server-side execute), the same
+    # executor a gateway tool uses, plus the shared ToolCallback to the execute endpoint.
+    resolved = await ToolResolver(workflow_resolver=FakeWorkflowResolver()).resolve(
+        [
+            ReferenceToolConfig(
+                slug="summarize",
+                name="summarize",
+                description="Summarize text",
+                input_schema={
+                    "type": "object",
+                    "properties": {"text": {"type": "string"}},
+                },
+            )
+        ]
+    )
+    assert len(resolved.tool_specs) == 1
+    spec = resolved.tool_specs[0]
+    assert isinstance(spec, CallbackToolSpec)
+    assert spec.kind == "callback"
+    assert spec.call_ref == "workflow.summarize"
+    assert spec.name == "summarize"
+    assert resolved.tool_callback.endpoint == "https://example/tools/call"
+    # On the wire it is a `callback` spec carrying the workflow callRef — no new runner kind.
+    wire = spec.to_wire()
+    assert wire["kind"] == "callback"
+    assert wire["callRef"] == "workflow.summarize"
+
+
+async def test_reference_tool_requires_injected_resolver():
+    with pytest.raises(UnsupportedToolProviderError):
+        await ToolResolver().resolve([ReferenceToolConfig(slug="wf")])
+
+
+async def test_reference_tool_axes_survive_resolution():
+    resolved = await ToolResolver(workflow_resolver=FakeWorkflowResolver()).resolve(
+        [ReferenceToolConfig(slug="wf", needs_approval=True, permission="ask")]
+    )
+    spec = resolved.tool_specs[0]
+    assert spec.needs_approval is True
+    assert spec.permission == "ask"
+
+
+async def test_reference_and_gateway_share_one_callback():
+    # Both resolve to the same {api}/tools/call endpoint; the single shared callback is kept once.
+    resolved = await ToolResolver(
+        gateway_resolver=FakeGatewayResolver(),
+        workflow_resolver=FakeWorkflowResolver(),
+    ).resolve(
+        [
+            ReferenceToolConfig(slug="wf"),
+            GatewayToolConfig(integration="github", action="GET_USER", connection="c1"),
+        ]
+    )
+    call_refs = {spec.call_ref for spec in resolved.tool_specs}
+    assert "workflow.wf" in call_refs
+    assert resolved.tool_callback is not None

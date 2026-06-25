@@ -21,7 +21,7 @@ The fields and the full schema follow.
 |---|---|---|---|
 | `agents_md` | string (textarea) | hello-world prompt | The agent's system prompt, its AGENTS.md. |
 | `model` | string (`grouped_choice`) | `"gpt-5.5"` | Model the agent runs on. A plain id (`"gpt-5.5"`) or a structured `{provider, connection}` ref. See [Model connection resolution](../in-service/model-connection-resolution.md). |
-| `tools` | `ToolConfig[]` | `[]` | Runnable tools: `builtin`, `gateway`, `code`, or `client`. See [Tool models and resolution](../in-service/tool-models-and-resolution.md). |
+| `tools` | `(ToolConfig \| EmbedRef \| ReferenceRef)[]` | `[]` | Runnable tools: `builtin`, `gateway`, `code`, or `client` — or a workflow pointed at via `@ag.embed` (inline a client tool value) or `@ag.reference` (keep the reference; run the workflow server-side as a callback tool). See [Tool models and resolution](../in-service/tool-models-and-resolution.md). |
 | `mcp_servers` | `MCPServerConfig[]` | `[]` | Declared MCP servers; secret env resolved from the vault at run time. See [MCP models and resolution](../in-service/mcp-models-and-resolution.md). |
 | `harness` | `"pi_core" \| "claude" \| "pi_agenta"` (see slug+name note) | `"pi_core"` | The coding agent to drive. `pi_core` and `pi_agenta` both drive the `pi` ACP agent; `pi_agenta` adds Agenta's forced skills, prompt, and policy. |
 | `sandbox` | `"local" \| "daytona"` | `"local"` | Where it runs. |
@@ -117,7 +117,7 @@ Either form is valid:
   "connection": { "mode": "agenta", "slug": "my-openai" } }   // structured ref
 ```
 
-### `tools[]` (one of four variants, discriminated by `type`)
+### `tools[]` (a concrete variant, or an `@ag.embed` / `@ag.reference` workflow)
 
 ```jsonc
 // builtin: a harness built-in by name
@@ -136,7 +136,24 @@ Either form is valid:
 // client: fulfilled by the browser; filtered out of the runner's MCP tools/list
 { "type": "client", "name": "pick_file", "description": "...", "input_schema": {},
   "needs_approval": false, "permission": null, "render": null }
+
+// @ag.reference: keep the reference; the service runs the referenced workflow revision
+// server-side when the model calls it (resolves to a callback tool, key stays server-side).
+// The model-facing surface (name/description/input_schema) and the tool axes ride as siblings.
+{ "@ag.reference": { "@ag.references": { "workflow": { "slug": "summarize" } } },
+  "name": "summarize", "description": "...", "input_schema": {},
+  "needs_approval": false, "permission": null, "render": null }
+
+// @ag.embed: inline the referenced value into a concrete `client` tool config before the
+// runner sees it (the backend's embed resolver does the inlining; rides the `client` path).
+{ "@ag.embed": { "@ag.references": { "workflow": { "slug": "my-client-tool" } },
+                 "@ag.selector": { "path": "parameters.tool" } } }
 ```
+
+The author's syntax decides the behavior: `@ag.reference` resolves to a server-side `callback`
+tool (`call_ref = workflow.{slug}[.{version}]`); `@ag.embed` inlines to a `client` tool. The
+generic resolver only inlines `@ag.embed` and leaves `@ag.reference`; `resolve_tools` owns the
+tool-specific mapping. See [Tool models and resolution](../in-service/tool-models-and-resolution.md).
 
 `permission` is `"allow" | "ask" | "deny"`. When unset, it is derived: explicit value wins,
 then `needs_approval` to `"ask"`, then `read_only` (`true` to `"allow"`, `false` to `"ask"`),
@@ -239,5 +256,9 @@ not `SKILL.md` itself.
 - **Nested shapes.** `tools`, `mcp_servers`, `skills`, and `sandbox_permission` each have
   their own page and their own wire fields. A change here usually means a change there and a
   golden fixture.
-- **Embed references.** Skills can arrive as `@ag.embed`. The schema must keep accepting that
-  form, or a valid default fails validation.
+- **Embed references.** Skills can arrive as `@ag.embed`, and tools as `@ag.embed` or
+  `@ag.reference`. The schema must keep accepting these forms (the `tools` field is a union of
+  the concrete `ToolConfig` variants plus an `@ag.embed` arm and an `@ag.reference` arm), or a
+  valid config fails validation. The `@ag.reference` marker must be recognized in BOTH the SDK
+  `ResolverMiddleware` and the API embed resolver, and both must LEAVE it (not inline it) — a
+  miss in either inlines a reference and breaks the callback path.

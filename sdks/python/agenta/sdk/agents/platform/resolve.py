@@ -38,12 +38,17 @@ from agenta.sdk.agents.tools import (
     ToolResolver,
     coerce_tool_configs,
 )
-from agenta.sdk.agents.tools.interfaces import GatewayToolResolver, ToolSecretProvider
+from agenta.sdk.agents.tools.interfaces import (
+    GatewayToolResolver,
+    ToolSecretProvider,
+    WorkflowToolResolver,
+)
 
 from .connections import VaultConnectionResolver
 from .gateway import AgentaGatewayToolResolver
 from .secrets import AgentaNamedSecretProvider
 from .secrets import resolve_provider_keys as resolve_secrets
+from .workflow import AgentaWorkflowToolResolver
 
 __all__ = ["resolve_tools", "resolve_mcp", "resolve_secrets", "resolve_connection"]
 
@@ -53,12 +58,17 @@ async def resolve_tools(
     *,
     secret_provider: Optional[ToolSecretProvider] = None,
     gateway_resolver: Optional[GatewayToolResolver] = None,
+    workflow_resolver: Optional[WorkflowToolResolver] = None,
     missing_secret_policy: MissingSecretPolicy = MissingSecretPolicy.ERROR,
 ) -> ResolvedToolSet:
-    """Resolve tool declarations into runnable specs. Defaults to the Agenta platform adapters."""
+    """Resolve tool declarations into runnable specs. Defaults to the Agenta platform adapters.
+
+    A kept ``@ag.reference`` workflow tool resolves through the ``workflow_resolver`` into a
+    ``callback`` spec (server-side workflow execute), the same executor a gateway tool uses."""
     return await ToolResolver(
         secret_provider=secret_provider or AgentaNamedSecretProvider(),
         gateway_resolver=gateway_resolver or AgentaGatewayToolResolver(),
+        workflow_resolver=workflow_resolver or AgentaWorkflowToolResolver(),
         missing_secret_policy=missing_secret_policy,
     ).resolve(coerce_tool_configs(tools).tool_configs)
 
