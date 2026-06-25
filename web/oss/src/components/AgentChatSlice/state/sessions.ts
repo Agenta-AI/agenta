@@ -1,3 +1,4 @@
+import {generateId} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 import {atom, type Getter} from "jotai"
 import {atomFamily, atomWithStorage, selectAtom} from "jotai/utils"
@@ -117,7 +118,7 @@ export const openSessionIdsAtom = atom((get) => new Set(get(openIdsAtom)))
 /** Create a session and make it the active open tab. Returns the new id. */
 export const addSessionAtom = atom(null, (get, set) => {
     const key = get(appKeyAtom)
-    const id = crypto.randomUUID()
+    const id = generateId()
     // Read open ids BEFORE mutating history, else the fallback would re-count the new id.
     const open = currentOpenIds(get, key)
     const all = get(sessionsByAppAtom)
