@@ -3,6 +3,10 @@
 The agent runtime uses the same hexagonal vocabulary as the rest of Agenta. The SDK owns
 the neutral ports and data contracts. The service and runner plug adapters into them.
 
+For the per-seam review lens (which boundary a diff touches and what it can break), see the
+[in-service interfaces](../interfaces/in-service/) inventory. This page owns the layering
+narrative.
+
 ## Runtime Package
 
 The SDK runtime lives under `sdks/python/agenta/sdk/agents/`.
@@ -29,7 +33,7 @@ sessions. It does not know how Pi or Claude wants tools shaped.
 Current backends:
 
 - `SandboxAgentBackend`: implemented, supports `pi`, `claude`, and `agenta`, local or Daytona.
-  This is the backend the deployed service always uses (`services/oss/src/agent/app.py:49`).
+  This is the backend the deployed service always uses (`services/oss/src/agent/app.py`).
 - `LocalBackend`: planned, public class exists, methods raise.
 
 The sidecar's in-process `pi` engine (`engines/pi.ts`) is still reachable with `backend: "pi"`,

@@ -119,6 +119,11 @@ create-session call.
 `sdks/python/agenta/sdk/agents/utils/wire.py`. The TypeScript side mirrors it in
 `services/agent/src/protocol.ts`.
 
+The review lens for this boundary, including the full request and result shapes and what can
+break when a field moves, is in the interface inventory's
+[Service to agent runner](../interfaces/cross-service/service-to-agent-runner.md). This page
+owns the field-by-field narrative.
+
 Request fields include:
 
 | Field | Meaning |
@@ -129,7 +134,7 @@ Request fields include:
 | `sessionId` | External conversation id. The runtime is cold and receives history in `messages`. |
 | `agentsMd` | Instructions that become `AGENTS.md`. |
 | `systemPrompt`, `appendSystemPrompt` | Pi prompt overrides. Delivered on both the in-process Pi path and the sandbox-agent Pi path (the sandbox-agent engine writes `SYSTEM.md` / `APPEND_SYSTEM.md` into the per-run Pi agent dir, local and Daytona). |
-| `skills` | Bundled skill directory names to force-load (the `agenta` harness, Pi only). |
+| `skills` | Resolved inline skill packages (full `SKILL.md` content, with `@ag.embed` references inlined server-side), declared in the agent config. All three harnesses wire them; the runner materializes each into a skill dir (Pi/Agenta through Pi's agent-dir scope, Claude under project-local `.claude/skills`). Omitted when none are declared. |
 | `model` | Requested model id. Not honored on the Pi-over-sandbox-agent path; pi-acp accepts only its default model (see Ground Truth). |
 | `messages` | Conversation history and current turn. |
 | `secrets` | Provider env vars resolved by the service. |
