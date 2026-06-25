@@ -1,5 +1,12 @@
 # Migrations with Alembic
 
+> [!IMPORTANT]
+> **This `tracing/` chain is PARKED (frozen legacy history).** Do **not** add new
+> revisions here — it ends at `park00000000` and never advances. Author new tracing
+> migrations in `tracing_oss/` (shared, runs in both editions) or `tracing_ee/` (EE-only).
+> See the parked `core/README.md` banner and
+> `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`.
+
 Generic single-database configuration with an async dbapi.
 
 ## Autogenerate Migrations
