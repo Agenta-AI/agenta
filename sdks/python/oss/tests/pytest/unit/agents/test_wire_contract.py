@@ -123,6 +123,7 @@ def _claude_payload():
         custom_tools=[dict(_CUSTOM_TOOL)],
         tool_callback=_CALLBACK,
         permission_policy="deny",
+        skills=[dict(_SKILL)],
         harness_kwargs={
             "claude": {
                 "permissions": {
@@ -219,6 +220,12 @@ def test_request_to_wire_claude_matches_golden(golden):
     assert payload["permissionPolicy"] == "deny"  # Claude gates tool use
     assert "systemPrompt" not in payload  # Claude exposes no prompt overrides
     assert "appendSystemPrompt" not in payload
+    # Claude carries resolved inline skills on the same `skills` seam Pi uses (the runner
+    # installs them into Claude's project-local `.claude/skills/<name>` tree). This regressed
+    # twice via merge-loss, so it is pinned in both the golden and the cross-language contract.
+    assert payload["skills"][0]["name"] == "release-notes"
+    assert payload["skills"][0]["files"][0]["path"] == "scripts/draft.py"
+    assert payload["skills"][0]["disableModelInvocation"] is True
     # No sandbox boundary declared on this config -> the key is absent (optional, default None).
     assert "sandboxPermission" not in payload
     # The claude adapter (Python) translated the author's permissions slice into a rendered
