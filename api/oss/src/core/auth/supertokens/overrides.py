@@ -73,8 +73,8 @@ identities_dao = IdentitiesDAO()
 
 # Organization providers DAO (EE only)
 if is_ee():
+    from oss.src.services.commoners import create_accounts
     from ee.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO
-    from ee.src.services.commoners import create_accounts
     from oss.src.core.secrets.services import VaultService
     from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 

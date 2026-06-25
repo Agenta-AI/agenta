@@ -18,9 +18,8 @@ from oss.src.core.accounts.errors import (
 )
 
 
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
 
 
 router = APIRouter()
@@ -151,18 +150,17 @@ async def delete_user_account(request: Request):
 
 @router.post("/reset-password", operation_id="reset_user_password")
 async def reset_user_password(request: Request, user_id: str):
-    if is_ee():
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.RESET_PASSWORD,
+    has_permission = await check_action_access(
+        user_uid=request.state.user_id,
+        project_id=request.state.project_id,
+        permission=Permission.RESET_PASSWORD,
+    )
+    if not has_permission:
+        error_msg = "You do not have access to perform this action. Please contact your organization admin."
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=403,
         )
-        if not has_permission:
-            error_msg = "You do not have access to perform this action. Please contact your organization admin."
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
-            )
 
     user_password = await user_service.generate_user_password_reset_link(
         user_id=user_id,

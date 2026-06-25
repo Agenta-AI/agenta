@@ -3,7 +3,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, status, HTTPException
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 
@@ -27,12 +26,9 @@ from oss.src.apis.fastapi.testcases.models import (
     TestcasesResponse,
 )
 
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import (
-        check_action_access,
-        FORBIDDEN_EXCEPTION,
-    )
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 
 log = get_module_logger(__name__)
@@ -104,13 +100,12 @@ class TestcasesRouter:
         testcase_id: Optional[List[UUID]] = Query(default=None),
         testcase_ids: Optional[str] = Query(default=None),
     ) -> TestcasesResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         ids: List[UUID] = list(testcase_id or [])
         if testcase_ids:
@@ -155,13 +150,12 @@ class TestcasesRouter:
         *,
         testcase_id: UUID,
     ) -> TestcaseResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testcases = await self.testcases_service.fetch_testcases(
             project_id=UUID(request.state.project_id),
@@ -197,13 +191,12 @@ class TestcasesRouter:
         *,
         testcases_query_request: TestcasesQueryRequest,
     ) -> TestcasesResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TESTSETS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TESTSETS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset_id = testcases_query_request.testset_id
         testcase_ids = testcases_query_request.testcase_ids

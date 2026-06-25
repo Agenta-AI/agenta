@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 from fastapi import APIRouter, Query, HTTPException
@@ -7,11 +7,15 @@ from fastapi.responses import JSONResponse
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.context import get_auth_context, get_auth_scope
-from oss.src.utils.common import is_ee, is_oss
+from oss.src.utils.common import is_ee
+from oss.src.utils.exceptions import intercept_exceptions
+
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.permissions.controls import SCOPES
+from oss.src.core.access.controls import get_roles
 
 if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import check_action_access
     from ee.src.core.access.entitlements.service import check_entitlements, Counter
 
 
@@ -67,6 +71,11 @@ async def _check_resource_access(
         allow_resource = True
 
     if resource_type == "local_secrets":
+        # EE meters local secret usage against the credits counter. OSS has no
+        # credits meter, so it just grants access to authorized callers.
+        if not is_ee():
+            return True
+
         check, meter, _ = await check_entitlements(  # type: ignore
             key=Counter.CREDITS_CONSUMED,  # type: ignore
             delta=1,
@@ -94,6 +103,21 @@ class AccessRouter:
             operation_id="check_permissions",
         )
 
+        self.router.add_api_route(
+            "/roles",
+            self.fetch_roles,
+            methods=["GET"],
+            operation_id="fetch_access_roles",
+        )
+
+    @intercept_exceptions()
+    async def fetch_roles(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Return the effective role catalog per scope (organization,
+        workspace, project). RBAC is an OSS feature, so this is served in both
+        editions; the frontend reads the `workspace` scope for the members UI.
+        """
+        return {scope: list(get_roles(scope)) for scope in SCOPES}
+
     async def check_permissions(
         self,
         action: Optional[str] = Query(None),
@@ -116,9 +140,6 @@ class AccessRouter:
         }
 
         try:
-            if is_oss():
-                return Allow(credentials_header)
-
             if not action or not resource_type:
                 log.warn("Missing required parameters: action, resource_type")
                 raise Deny()

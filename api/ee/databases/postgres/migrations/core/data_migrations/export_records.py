@@ -2,8 +2,8 @@ import traceback
 import click
 from sqlalchemy.future import select
 from sqlalchemy import Connection, insert, func
-from ee.src.models.db_models import OrganizationMemberDB  # type: ignore
-from ee.src.models.extended.deprecated_models import UserOrganizationDB  # type: ignore
+from oss.src.models.db_models import OrganizationMemberDB  # type: ignore
+from ee.databases.postgres.migrations.core.deprecated_models import UserOrganizationDB  # type: ignore
 
 BATCH_SIZE = 200
 
