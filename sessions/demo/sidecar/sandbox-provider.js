@@ -144,8 +144,12 @@ const dockerExec = async (sandboxId, cmd) => {
 // @e2b/code-interpreter (sandbox-agent 0.4.2 references a removed API). Our template
 // already bakes sandbox-agent + agents + geesefs, so we just create + start the server.
 function e2bBase({ template, agentPort = AGENT_PORT } = {}) {
-  const TIMEOUT = 600000;
-  const connect = async (id) => (await import("@e2b/code-interpreter")).Sandbox.connect(id, { timeoutMs: TIMEOUT });
+  // e2b sandbox keep-alive (lifetime), NOT a command/execution cap: the sandbox expires
+  // this long after create/connect, each connect resetting it. 5 min idle = auto-stop,
+  // matching the UI live-TTL and daytona's autoStopInterval. (Per-command execution time is
+  // the separate timeoutMs on commands.run below, which stays large.)
+  const LIFETIME = 5 * 60 * 1000;
+  const connect = async (id) => (await import("@e2b/code-interpreter")).Sandbox.connect(id, { timeoutMs: LIFETIME });
   return {
     name: "e2b",
     defaultCwd: "/root/work",
@@ -154,7 +158,7 @@ function e2bBase({ template, agentPort = AGENT_PORT } = {}) {
     // server to race with. ensureServer is a no-op for the same reason.
     async create() {
       const { Sandbox } = await import("@e2b/code-interpreter");
-      const sbx = await Sandbox.create(template, { timeoutMs: TIMEOUT });
+      const sbx = await Sandbox.create(template, { timeoutMs: LIFETIME });
       return sbx.sandboxId;
     },
     async reconnect(id) { await connect(id); },
@@ -177,7 +181,8 @@ function daytonaBase({ snapshot, agentPort = AGENT_PORT } = {}) {
     defaultCwd: CWD,
     async create() {
       const client = await newClient();
-      const sbx = await client.create({ snapshot, autoStopInterval: 0 });
+      // auto-stop after 5 min idle (matches the UI live-TTL); resume restarts it.
+      const sbx = await client.create({ snapshot, autoStopInterval: 5 });
       return sbx.id;
     },
     async reconnect(id) {

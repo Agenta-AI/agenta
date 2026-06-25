@@ -49,6 +49,17 @@ CREATE TABLE IF NOT EXISTS session_transcripts (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (session_id, seq)
 );
+
+-- The sandbox-agent SDK's per-session record (its SessionPersistDriver state): the
+-- local-id -> agentSessionId mapping, sessionInit, modes, etc. It is metadata that rides
+-- ALONGSIDE the transcript, not the transcript itself. Persisting it across the fresh
+-- SandboxAgent.connect() each /run does is what lets resumeOrCreateSession actually RESUME
+-- the prior agent session (and replay the transcript as context) instead of starting cold.
+CREATE TABLE IF NOT EXISTS session_state (
+  session_id UUID PRIMARY KEY REFERENCES sessions(id),
+  record     JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 """
 
 _pool: asyncpg.Pool | None = None
@@ -116,8 +127,33 @@ async def session_exists(sid: str) -> bool:
 
 async def delete_session(sid: str):
     async with (await pool()).acquire() as con:
+        await con.execute("DELETE FROM session_state WHERE session_id = $1", sid)
         await con.execute("DELETE FROM session_transcripts WHERE session_id = $1", sid)
         await con.execute("DELETE FROM sessions WHERE id = $1", sid)
+
+
+async def get_session_state(sid: str):
+    # The SDK SessionRecord (JSON), or None if the session has never been persisted.
+    async with (await pool()).acquire() as con:
+        row = await con.fetchrow(
+            "SELECT record FROM session_state WHERE session_id = $1", sid
+        )
+        if row is None:
+            return None
+        rec = row["record"]
+        return json.loads(rec) if isinstance(rec, str) else rec
+
+
+async def set_session_state(sid: str, record: dict):
+    async with (await pool()).acquire() as con:
+        await con.execute(
+            """INSERT INTO session_state (session_id, record, updated_at)
+               VALUES ($1, $2, now())
+               ON CONFLICT (session_id)
+               DO UPDATE SET record = EXCLUDED.record, updated_at = now()""",
+            sid,
+            json.dumps(record),
+        )
 
 
 async def append_event(sid: str, event_index, sender, session_update, payload: dict):
@@ -142,7 +178,18 @@ async def append_event(sid: str, event_index, sender, session_update, payload: d
         await con.execute("UPDATE sessions SET updated_at = now() WHERE id = $1", sid)
 
 
+# A remote sandbox is treated as "live" only for this window after the session's last
+# activity. Cloud sandboxes auto-stop/pause on their own (e2b auto-pause, daytona
+# autoStop), so a recorded sandbox_id past this TTL is almost certainly dead — we drop the
+# live badge / kill button rather than probe each one per refresh. Resume still works
+# regardless (it recreates + remounts the durable cwd).
+SANDBOX_LIVE_TTL_SECONDS = 5 * 60
+
+
 async def list_sessions():
+    import datetime
+
+    now = datetime.datetime.now(datetime.timezone.utc)
     async with (await pool()).acquire() as con:
         rows = await con.fetch(
             """SELECT s.id, s.sandbox, s.harness, s.runner, s.provider, s.model, s.reasoning,
@@ -151,24 +198,29 @@ async def list_sessions():
                FROM sessions s LEFT JOIN session_transcripts t ON t.session_id = s.id
                GROUP BY s.id ORDER BY s.updated_at DESC"""
         )
-        return [
-            {
-                "id": str(r["id"]),
-                "sandbox": r["sandbox"],
-                "harness": r["harness"],
-                "runner": r["runner"],
-                "provider": r["provider"],
-                "model": r["model"],
-                "reasoning": r["reasoning"],
-                "cwd": r["cwd"],
-                "bucket_prefix": r["bucket_prefix"],
-                "sandbox_id": r["sandbox_id"],
-                "status": r["status"],
-                "updated_at": r["updated_at"].isoformat(),
-                "events": r["events"],
-            }
-            for r in rows
-        ]
+        out = []
+        for r in rows:
+            fresh = (now - r["updated_at"]).total_seconds() < SANDBOX_LIVE_TTL_SECONDS
+            live = bool(r["sandbox_id"]) and fresh
+            out.append(
+                {
+                    "id": str(r["id"]),
+                    "sandbox": r["sandbox"],
+                    "harness": r["harness"],
+                    "runner": r["runner"],
+                    "provider": r["provider"],
+                    "model": r["model"],
+                    "reasoning": r["reasoning"],
+                    "cwd": r["cwd"],
+                    "bucket_prefix": r["bucket_prefix"],
+                    "sandbox_id": r["sandbox_id"],
+                    "live": live,  # sandbox_id recorded AND within the live TTL
+                    "status": r["status"],
+                    "updated_at": r["updated_at"].isoformat(),
+                    "events": r["events"],
+                }
+            )
+        return out
 
 
 async def get_transcript(sid: str):

@@ -6,6 +6,7 @@
 // Auth: MODAL_TOKEN_ID/MODAL_TOKEN_SECRET in env (passed through to the python process).
 import { spawn } from "node:child_process";
 import { SandboxAgent } from "sandbox-agent";
+import { makePersist } from "./session-persist.js";
 
 const NGROK_API = process.env.NGROK_API_URL || "http://ngrok:4040/api/tunnels";
 const S3_KEY = process.env.SEAWEEDFS_S3_ACCESS_KEY || "demo";
@@ -57,7 +58,7 @@ export async function modalSession({ sid, harness, sandboxId, mode, model, thoug
   if (agentEnv.OPENAI_API_KEY) argv.push("--openai", agentEnv.OPENAI_API_KEY);
 
   const { sandbox_id, base_url, cwd } = await runBridge(argv);
-  const sdk = await SandboxAgent.connect({ baseUrl: base_url });
+  const sdk = await SandboxAgent.connect({ baseUrl: base_url, persist: makePersist() });
   const init = { id: sid, agent: harness, cwd, mode };
   if (model) init.model = model;
   if (thoughtLevel) init.thoughtLevel = thoughtLevel;
@@ -65,6 +66,7 @@ export async function modalSession({ sid, harness, sandboxId, mode, model, thoug
 
   return {
     session,
+    client: sdk, // owns destroySession() — used by force-cancel to interrupt a live prompt
     sandboxId: sandbox_id,
     cwd,
     // geesefs --fsync-on-close already lands each write; nothing extra to flush host-side.

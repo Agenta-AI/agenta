@@ -13,6 +13,14 @@ services:
       timeout: 3s
       retries: 20
 
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
   seaweedfs:
     image: chrislusf/seaweedfs:latest
     command: >
@@ -103,8 +111,16 @@ services:
       # docker provider: local image baked from docker-image/ (docker build -t agenta-sandbox-agent:local docker-image/)
       SANDBOX_AGENT_IMAGE: agenta-sandbox-agent:local
       NGROK_API_URL: http://ngrok:4040/api/tunnels
+      # per-session run lock (force/steal concurrency control)
+      REDIS_URL: redis://redis:6379
+      # FastAPI base URL: the SDK persist driver round-trips session-state + transcript here
+      API_URL: http://fastapi:8000
+      # set to "1" to log each /events persist (boundary log for debugging the durable path)
+      PERSIST_DEBUG: "0"
     depends_on:
       sandbox:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   fastapi:
@@ -120,12 +136,15 @@ services:
       POSTGRES_URI: ${POSTGRES_URI}
       POSTGRES_DB: ${POSTGRES_DB}
       SIDECAR_URL: http://sidecar:8080
+      REDIS_URL: redis://redis:6379
       SEAWEEDFS_S3_URL: ${SEAWEEDFS_S3_URL}
       SEAWEEDFS_S3_ACCESS_KEY: ${SEAWEEDFS_S3_ACCESS_KEY}
       SEAWEEDFS_S3_SECRET_KEY: ${SEAWEEDFS_S3_SECRET_KEY}
       SEAWEEDFS_S3_BUCKET: ${SEAWEEDFS_S3_BUCKET}
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       sidecar:
         condition: service_started

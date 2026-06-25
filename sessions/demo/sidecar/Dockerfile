@@ -6,5 +6,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 python3
     && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json* ./
 RUN npm install --no-audit --no-fund
-COPY server.js sandbox-provider.js provider-modal.js daytona_snapshot.js modal_bridge.py ./
+COPY server.js sandbox-provider.js run-lock.js session-persist.js provider-modal.js daytona_snapshot.js modal_bridge.py ./
 CMD ["node", "server.js"]

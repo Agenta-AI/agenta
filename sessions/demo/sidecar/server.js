@@ -6,13 +6,90 @@
 //   - flush geesefs write-back before returning
 import express from "express";
 import { SandboxAgent } from "sandbox-agent";
+import { makePersist } from "./session-persist.js";
 
 const AGENT_URL = process.env.SANDBOX_AGENT_URL || "http://sandbox:2468";
+const API_URL = process.env.API_URL || "http://fastapi:8000";
 const S3_ENDPOINT = process.env.SEAWEEDFS_S3_URL || "http://seaweedfs:8333";
 const S3_KEY = process.env.SEAWEEDFS_S3_ACCESS_KEY || "demo";
 const S3_SECRET = process.env.SEAWEEDFS_S3_SECRET_KEY || "demosecret";
 const BUCKET = process.env.SEAWEEDFS_S3_BUCKET || "demo";
 const PORT = 8080;
+
+// Survive a single run's network failure. An ACP request (e.g. a sandbox-agent call) can reject
+// with a HeadersTimeout from deep inside the SDK's async machinery, where no try/catch of ours
+// can reach it. Without these guards that one rejection crashes the WHOLE sidecar process (and
+// `node --watch` then parks it until a file change), so every subsequent /invoke gets a
+// ConnectError. Log and keep serving instead — the failed run is already lost, the server isn't.
+process.on("unhandledRejection", (err) => {
+  console.error("[unhandledRejection]", String(err?.stack || err).slice(0, 300));
+});
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", String(err?.stack || err).slice(0, 300));
+});
+
+// PERSISTENCE PATH — producer-driven and 100% independent of any /invoke client. As rivet
+// produces each transcript event we POST it to FastAPI's /events ingest, so the transcript is
+// durable whether or not a browser is connected, attached, or watching. The NDJSON view stream
+// is a SEPARATE, disposable concern (see emit() in /run). Best-effort: a persist failure must
+// not break the run (the SDK's own replay store is a backstop).
+//
+// Events MUST persist in produced-order (the DB assigns a dense per-session seq at insert), so
+// we serialize per session through a promise chain instead of firing POSTs concurrently. The
+// caller does NOT await the chain — the run is never blocked on persistence — but the writes
+// themselves land in order.
+const PERSIST_DEBUG = process.env.PERSIST_DEBUG === "1";
+async function postEvent(sid, evt) {
+  // bounded retry: a transient ingest failure must not silently drop an event from the
+  // transcript (the durable record). Each event persists in produced-order via the chain.
+  let lastErr;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const r = await fetch(`${API_URL}/events`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ session_id: sid, ...evt }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (PERSIST_DEBUG) console.log(`[persist ${sid}] ok su=${evt.session_update} idx=${evt.event_index} try=${attempt}`);
+      return;
+    } catch (e) {
+      lastErr = e;
+      await new Promise((res) => setTimeout(res, 100 * attempt));
+    }
+  }
+  console.warn(`[persist ${sid}] DROPPED su=${evt.session_update} after retries: ${String(lastErr?.message).slice(0, 80)}`);
+}
+
+const persistChains = new Map(); // sid -> tail Promise
+function persistEvent(sid, evt) {
+  const tail = (persistChains.get(sid) || Promise.resolve()).then(() => postEvent(sid, evt));
+  persistChains.set(sid, tail);
+  return tail;
+}
+
+// Wait for all queued persists for a session to land. The run does NOT block on persistence
+// mid-stream (so it stays responsive), but it MUST NOT report _done — or tear down a sandbox —
+// until its own events are durable, or the last agent_message can be lost to the teardown race
+// (notably on a force-takeover, whose cancel/recreate skews the timing). Drains then prunes.
+async function drainPersist(sid) {
+  const tail = persistChains.get(sid);
+  if (!tail) return;
+  await tail;
+  if (persistChains.get(sid) === tail) persistChains.delete(sid);
+}
+
+// Persist the remote sandbox id (for resume) independently of the view stream, so a detached
+// run still records where it ran. null clears it (docker teardown). Best-effort.
+async function persistSandboxId(sid, sandboxId) {
+  try {
+    await fetch(`${API_URL}/sessions/${sid}/sandbox-id`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sandbox_id: sandboxId }),
+    });
+  } catch (e) { console.warn(`[persist-sbx ${sid}] ${e?.message?.slice(0, 80)}`); }
+}
 
 // --- raw sandbox-agent REST helpers (process API: run shell inside the sandbox) ---
 async function runInSandbox(script, env = {}) {
@@ -106,7 +183,15 @@ app.post("/kill", async (req, res) => {
     }
     res.json({ killed: sandbox_id });
   } catch (e) {
-    res.status(500).json({ error: String(e?.message || e) });
+    // idempotent: a sandbox that's already gone (cloud GC'd, container removed) IS the
+    // desired end state — report success so the caller clears the stale sandbox_id, instead
+    // of a 500 that leaves a dead-but-unkillable "live" badge in the UI.
+    const msg = String(e?.message || e);
+    if (/not\s*found|no such|does not exist|404|destroyed|terminated/i.test(msg)) {
+      console.warn(`[/kill ${sandbox}] sandbox already gone: ${msg.slice(0, 100)}`);
+      return res.json({ killed: sandbox_id, note: "already gone" });
+    }
+    res.status(500).json({ error: msg });
   }
 });
 
@@ -136,13 +221,37 @@ function autoApprove(session) {
   });
 }
 
+// On resume the SDK prepends the prior transcript to the live prompt as a synthetic text
+// block (prefix below) so the agent has context. That injected block flows back as a client
+// session/prompt event — if we persisted it, the NEXT resume would replay a transcript that
+// already contains a replay, nesting (and doubling) the context every turn. Strip the
+// injected block before storing so the transcript only ever holds the real user prompt.
+const REPLAY_PREFIX = "Previous session history is replayed below as JSON-RPC envelopes.";
+function stripReplay(payload) {
+  const prompt = payload?.params?.prompt;
+  if (payload?.method !== "session/prompt" || !Array.isArray(prompt)) return payload;
+  const cleaned = prompt.filter((p) => !(p?.type === "text" && p.text?.startsWith(REPLAY_PREFIX)));
+  if (cleaned.length === prompt.length) return payload;
+  return { ...payload, params: { ...payload.params, prompt: cleaned } };
+}
+
 // Stream a prompt's events to `write`, coalescing agent_message_chunks into agent_message.
-async function streamSession(session, prompt, write) {
+// If `lock` is given, register a cancel fn so a force-takeover can interrupt this live prompt.
+// The SDK forbids a manual "session/cancel" RPC; the supported interrupt is the owning
+// client's destroySession(id), which sends the cancel internally and makes the in-flight
+// prompt() resolve (stopReason "cancelled"). The stream then ends cleanly and the run's
+// finally releases the lock. (The session is recreated on the next resume anyway.)
+async function streamSession(session, prompt, emit, lock, client) {
   autoApprove(session);
+  lock?.setCancel(async () => {
+    try {
+      await client.destroySession(session.id);
+    } catch (e) { console.warn(`[cancel] ${e?.message?.slice(0, 80)}`); }
+  });
   let buf = null;
   const flushBuf = () => {
     if (!buf) return;
-    write({
+    emit({
       event_index: buf.evt.eventIndex, sender: buf.evt.sender, session_update: "agent_message",
       payload: { method: "session/update", params: {
         sessionId: buf.evt.payload?.params?.sessionId,
@@ -162,7 +271,11 @@ async function streamSession(session, prompt, write) {
       return;
     }
     flushBuf();
-    write({ event_index: evt.eventIndex, sender: evt.sender, session_update: su, payload: evt.payload });
+    // The SDK sometimes emits a standalone (non-chunk) agent_message with EMPTY text as a
+    // turn artifact — the real text already arrived via chunks (flushed just above). Persisting
+    // the empty one would shadow the good message in the transcript, so drop empties.
+    if (su === "agent_message" && !((upd?.content?.text ?? "").length)) return;
+    emit({ event_index: evt.eventIndex, sender: evt.sender, session_update: su, payload: stripReplay(evt.payload) });
   });
   const result = await session.prompt(
     Array.isArray(prompt) ? prompt : [{ type: "text", text: String(prompt) }]
@@ -176,15 +289,61 @@ async function streamSession(session, prompt, write) {
 // Streams NDJSON: one line per ACP event, then a final {"_done": true, stop_reason, sandbox_id?}.
 app.post("/run", async (req, res) => {
   const {
-    session_id: sid, prompt, sandbox = "local", harness = "claude",
+    session_id: sid, prompt, data, sandbox = "local", harness = "claude",
     provider = "anthropic", model = null, reasoning = "none", sandbox_id,
+    force = false,
   } = req.body;
-  if (!sid || !prompt) return res.status(400).json({ error: "session_id and prompt required" });
+  if (!sid) return res.status(400).json({ error: "session_id required" });
+
+  // CONTROL PLANE: data === null = no work, intent only. The only control intent that reaches
+  // the sidecar is CANCEL (data=null + force): cancel the alive holder, run nothing. (ATTACH is
+  // FastAPI-only — it just holds `attached` + polls the transcript, never calls the sidecar.)
+  if (data === null) {
+    const { cancel } = await import("./run-lock.js");
+    if (!force) return res.status(400).json({ error: "control invoke (data=null) requires force" });
+    const cancelled = await cancel(sid); // cancels the local holder; its /run unwinds + releases live
+    return res.json({ cancelled });
+  }
+
+  if (!prompt) return res.status(400).json({ error: "session_id and prompt required" });
   if (!["local", "daytona", "e2b", "modal", "docker"].includes(sandbox))
     return res.status(400).json({ error: `sandbox '${sandbox}' not supported yet` });
 
+  // ALIVE lock: one in-flight run per session. force=true cancels the current holder (graceful
+  // ACP cancel) and takes over; force=false replies 409 "in use" (no queue). Acquire BEFORE the
+  // NDJSON stream so 409 is a clean HTTP status, not a mid-stream frame.
+  const { acquire, status } = await import("./run-lock.js");
+  let lock;
+  try {
+    lock = await acquire(sid, { force: !!force });
+  } catch (e) {
+    if (e.code === "in_use") {
+      // Tell the caller WHICH kind of busy this is: a detached alive run is reattachable
+      // (the driving client left); an attached one is being watched -> force to take over.
+      const st = await status(sid); // { alive, attached }
+      return res.status(409).json({
+        code: "in_use",
+        alive: st.alive,
+        attached: st.attached,
+        reattachable: st.alive && !st.attached,
+      });
+    }
+    return res.status(500).json({ error: String(e?.message || e) });
+  }
+
   res.setHeader("content-type", "application/x-ndjson");
-  const write = (obj) => res.write(JSON.stringify(obj) + "\n");
+  // NOTE: the sidecar owns only the ALIVE lock. The ATTACHED lock (is a BROWSER watching?) is
+  // owned by FastAPI, which sits at the browser boundary — a client leaving must NOT cancel
+  // this run, and the sidecar can't observe the browser anyway. A dropped FastAPI<->sidecar
+  // socket here just stops the (no-op) view writes; the run keeps executing to completion.
+  //
+  // Two independent sinks:
+  //   view(obj)   — push to the live NDJSON response (best-effort; no-op once the socket closes)
+  //   emit(evt)   — a TRANSCRIPT event: PERSIST it (durable, client-independent) AND view it
+  // Control frames (_done / _sandbox_id) use view() only: FastAPI consumes them from the live
+  // stream. _sandbox_id is persisted separately (persistSandboxId) so resume survives a detach.
+  const view = (obj) => { try { res.write(JSON.stringify(obj) + "\n"); } catch {} };
+  const emit = (evt) => { persistEvent(sid, evt); view(evt); };
   const mode = HARNESS_MODE[harness];                 // undefined for pi (no modes)
   const thoughtLevel = thoughtLevelFor(harness, reasoning);
   // model is keyed by provider; null/empty -> let the harness use its default model.
@@ -197,11 +356,12 @@ app.post("/run", async (req, res) => {
       // local = the long-lived compose `sandbox` container; geesefs mounts to seaweedfs
       // directly (no tunnel), creds already in the container env. Just connect + run.
       await ensureMount(sid);
-      const sdk = await SandboxAgent.connect({ baseUrl: AGENT_URL });
+      const sdk = await SandboxAgent.connect({ baseUrl: AGENT_URL, persist: makePersist() });
       const session = await sdk.resumeOrCreateSession({ ...sessionInit, cwd: `/work/${sid}` });
-      const result = await streamSession(session, prompt, write);
+      const result = await streamSession(session, prompt, emit, lock, sdk);
       await flushMount(sid);
-      write({ _done: true, stop_reason: result?.stopReason ?? "end_turn" });
+      await drainPersist(sid); // all events durable before _done
+      view({ _done: true, stop_reason: result?.stopReason ?? "end_turn" });
     } else if (sandbox === "modal") {
       // modal stays on the dedicated Python-bridge provider (the Node modal SDK needs a
       // separately-baked Modal image; the bridge already bakes one and works e2e).
@@ -210,10 +370,11 @@ app.post("/run", async (req, res) => {
       if (process.env.OPENAI_API_KEY) agentEnv.OPENAI_API_KEY = process.env.OPENAI_API_KEY;
       const { modalSession } = await import("./provider-modal.js");
       const remote = await modalSession({ sid, harness, sandboxId: sandbox_id, mode, model, thoughtLevel, agentEnv });
-      write({ _sandbox_id: remote.sandboxId });
-      const result = await streamSession(remote.session, prompt, write);
+      persistSandboxId(sid, remote.sandboxId); view({ _sandbox_id: remote.sandboxId });
+      const result = await streamSession(remote.session, prompt, emit, lock, remote.client);
       await remote.flush();
-      write({ _done: true, stop_reason: result?.stopReason ?? "end_turn", sandbox_id: remote.sandboxId });
+      await drainPersist(sid);
+      view({ _done: true, stop_reason: result?.stopReason ?? "end_turn", sandbox_id: remote.sandboxId });
     } else {
       // daytona/e2b/docker: the SDK provider drives create/reconnect/getUrl/destroy; our
       // withGeesefs wrapper adds the durable cwd (mount demo:<sid> over the tunnel + seed
@@ -229,15 +390,16 @@ app.post("/run", async (req, res) => {
       // SeaweedFS is preserved. This is the whole point of the geesefs layer.
       let agent;
       try {
-        agent = await SandboxAgent.start({ sandbox: provider, sandboxId: sandbox_id || undefined });
+        agent = await SandboxAgent.start({ sandbox: provider, sandboxId: sandbox_id || undefined, persist: makePersist() });
       } catch (e) {
         if (!sandbox_id) throw e;
         console.warn(`[/run ${sandbox}] resume of ${sandbox_id} failed (${e?.message?.slice(0, 80)}); recreating`);
-        agent = await SandboxAgent.start({ sandbox: provider });
+        agent = await SandboxAgent.start({ sandbox: provider, persist: makePersist() });
       }
-      write({ _sandbox_id: agent.sandboxId }); // tell FastAPI to persist it for resume
+      persistSandboxId(sid, agent.sandboxId); view({ _sandbox_id: agent.sandboxId }); // for resume
       const session = await agent.resumeOrCreateSession({ ...sessionInit, cwd: CWD });
-      const result = await streamSession(session, prompt, write);
+      const result = await streamSession(session, prompt, emit, lock, agent);
+      await drainPersist(sid); // events durable BEFORE any teardown (docker kills the container)
       // docker is fresh-per-turn: the container runs `sleep infinity` so AutoRemove never
       // fires on its own. Tear it down after the turn (cwd is durable in SeaweedFS; resume
       // recreates + remounts). Cloud sandboxes are kept for fast resume. Sequence matters:
@@ -252,15 +414,17 @@ app.post("/run", async (req, res) => {
         try { await agent.dispose(); } catch {}
         try { await agent.killSandbox(); } catch (e) { console.warn(`[/run docker] teardown: ${e?.message?.slice(0, 80)}`); }
         finalSandboxId = null;
-        write({ _sandbox_id: null }); // FastAPI clears it
+        persistSandboxId(sid, null); view({ _sandbox_id: null }); // clear it
       }
-      write({ _done: true, stop_reason: result?.stopReason ?? "end_turn", sandbox_id: finalSandboxId });
+      view({ _done: true, stop_reason: result?.stopReason ?? "end_turn", sandbox_id: finalSandboxId });
     }
     res.end();
   } catch (err) {
     console.error("[/run] error", err);
-    write({ _done: true, error: String(err?.stack || err) });
+    view({ _done: true, error: String(err?.stack || err) });
     res.end();
+  } finally {
+    await lock.release(); // free the session for the next run (or the force-taker)
   }
 });
 
