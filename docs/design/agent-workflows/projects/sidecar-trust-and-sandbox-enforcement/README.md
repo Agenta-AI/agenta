@@ -26,8 +26,15 @@ not new wire fields). See [`status.md`](./status.md) for the landed summary.
 
 Composio, the tool gateway (gateway/callback tools), and named connections are referenced only
 as things that already exist; this work changes none of them. **The one exception is MCP:** the
-stdio MCP-server implementation in the sidecar is now disabled (parity with the removed code
-execution) until its security issues are fixed.
+**user-declared stdio** MCP-server implementation in the sidecar is now disabled (parity with the
+removed code execution) until its security issues are fixed.
+
+> Follow-up correction (gateway-tool-mcp project, 2026-06-25): this disable was originally wired
+> through a single shared constant that ALSO killed the runner's INTERNAL gateway-tool MCP channel
+> (the one that delivers Agenta gateway/callback tools to Claude), hard-failing Claude + gateway
+> tools. That collateral damage was reverted: the internal channel is restored over a loopback
+> HTTP MCP endpoint (no runner-host process), and the user-facing constant was renamed
+> `USER_MCP_UNSUPPORTED_MESSAGE`. Only **user stdio** MCP stays disabled.
 
 ## Files
 

@@ -205,6 +205,9 @@ export async function runSandboxAgent(
   let otel: ReturnType<typeof createSandboxAgentOtel> | undefined;
   // Daytona tool relay loop (started once the session exists, stopped after the prompt).
   let toolRelay: { stop: () => Promise<void> } | undefined;
+  // Internal gateway-tool MCP server closer (set when an internal channel is built for a non-Pi
+  // harness with executable tools; a no-op otherwise). Released in the `finally`.
+  let closeToolMcp: (() => Promise<void>) | undefined;
   let workspace: { cleanup: () => Promise<void> } | undefined = plan.isDaytona
     ? undefined
     : {
@@ -281,21 +284,22 @@ export async function runSandboxAgent(
       log: logger,
     });
 
-    const mcpServers = buildSessionMcpServers({
+    const sessionMcp = await buildSessionMcpServers({
       isPi: plan.isPi,
       capabilities,
       harness: plan.harness,
       toolSpecs: plan.toolSpecs,
       userMcpServers: request.mcpServers,
-      toolCallback: request.toolCallback as ToolCallbackContext | undefined,
       relayDir: plan.relayDir,
       log: logger,
     });
+    // Close the internal gateway-tool MCP server (if one started) when the run ends.
+    closeToolMcp = sessionMcp.close;
 
     const session = await sandbox.createSession({
       agent: plan.acpAgent,
       cwd: plan.cwd,
-      sessionInit: { cwd: plan.cwd, mcpServers },
+      sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
     });
     const sessionId = resolveRunSessionId(request, session.id);
 
@@ -412,7 +416,11 @@ export async function runSandboxAgent(
       if (piError) {
         return {
           ok: false,
-          error: conciseError(new Error(piError), plan.harness, request.provider),
+          error: conciseError(
+            new Error(piError),
+            plan.harness,
+            request.provider,
+          ),
         };
       }
     }
@@ -439,9 +447,13 @@ export async function runSandboxAgent(
   } catch (err) {
     otel?.finish();
     await otel?.flush().catch(() => {});
-    return { ok: false, error: conciseError(err, plan.harness, request.provider) };
+    return {
+      ok: false,
+      error: conciseError(err, plan.harness, request.provider),
+    };
   } finally {
     await toolRelay?.stop().catch(() => {});
+    await closeToolMcp?.().catch(() => {});
     await sandbox?.destroySandbox().catch(() => {});
     await sandbox?.dispose().catch(() => {});
     await workspace?.cleanup().catch(() => {});

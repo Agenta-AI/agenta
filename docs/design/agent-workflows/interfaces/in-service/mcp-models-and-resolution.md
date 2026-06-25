@@ -36,8 +36,10 @@ the runner (`toAcpMcpServers`) reads each resolved `env` entry and emits it as a
 header (so `secrets: {"Authorization": "vault-name"}` becomes an `Authorization` header on the
 remote call). Stdio (`transport: "stdio"` + `command`) servers are disabled in the sidecar — a
 stdio server runs an arbitrary process on the runner host, outside the sandbox boundary — so a
-run carrying one is refused (`MCP_UNSUPPORTED_MESSAGE`). The SDK models, resolver, and wire are
-transport-agnostic; the enable/disable split lives entirely in the runner.
+run carrying one is refused (`USER_MCP_UNSUPPORTED_MESSAGE`). This is the USER MCP capability and
+is distinct from the runner's internal gateway-tool MCP channel (delivered over loopback HTTP;
+see `runner-to-mcp-server.md`). The SDK models, resolver, and wire are transport-agnostic; the
+enable/disable split lives entirely in the runner.
 
 ## Owned by
 
