@@ -15,6 +15,7 @@ from agenta.sdk.agents import (
     ConnectionNotFoundError,
     ConnectionResolutionError,
     GatewayToolResolutionError,
+    MissingProviderError,
     ResolvedConnection,
     ResolvedToolSet,
 )
@@ -384,6 +385,27 @@ async def test_default_connection_resolution_failure_degrades(
     assert backend.created_secrets == [{}]
     assert built[0].secrets == {}
     assert built[0].resolved_connection.credential_mode == "runtime_provided"
+
+
+async def test_default_connection_missing_provider_fails_loud(
+    monkeypatch, fake_backend
+):
+    """F-017: a bare model id with no provider fails loud even on a default connection.
+
+    A bare ``model`` (no ``provider/`` prefix) that matches nothing in the vault is an
+    underspecified config, not a missing credential, so it must NOT degrade to no-credential
+    (which surfaced later as a misleading "add your key" auth error). ``MissingProviderError``
+    propagates with its actionable message.
+    """
+    backend = fake_backend(result=AgentResult(output="echo"))
+
+    async def _resolve(*, model, context):
+        raise MissingProviderError(model="gpt-4o-mini")
+
+    _patch_resolution(monkeypatch, backend, resolve=_resolve)
+
+    with pytest.raises(MissingProviderError):
+        await _invoke("pi_core", model="gpt-4o-mini")
 
 
 # ---------------------------------------------------------------------------

@@ -82,8 +82,14 @@ class ModelRef(BaseModel):
 ```
 
 `provider` is logically required for resolution. When it is absent (a bare-string `model`), the
-resolver infers it from the model id or from the matched connection, and errors if it cannot. The
-committed revision carries the whole `ModelRef`, including the connection.
+resolver infers it from the matched connection — a vault candidate whose model id matches the
+bare string. If nothing matches, there is no provider to look a credential up against, so it
+fails loud with `MissingProviderError` ("model needs a provider prefix, e.g. `openai/<model>`")
+rather than degrading to no-credential and surfacing later as a misleading "add your key" auth
+error (F-017). There is deliberately no model-id→provider table (a maintenance burden and a
+guess); a bare model id that matches no connection must carry a `provider/` prefix or a
+structured `{provider, model}`. The committed revision carries the whole `ModelRef`, including
+the connection.
 
 ```python
 class Connection(BaseModel):

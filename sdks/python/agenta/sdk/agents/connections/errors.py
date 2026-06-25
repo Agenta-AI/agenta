@@ -35,6 +35,25 @@ class ConnectionNotFoundError(ConnectionResolutionError):
         self.provider = provider
 
 
+class MissingProviderError(ConnectionResolutionError):
+    """Raised when a bare model id has no provider and none can be inferred from the vault.
+
+    A bare ``model`` string with no ``provider/`` prefix (``provider is None``) can only resolve
+    a credential if some vault connection matches it by model id. When nothing matches, there is
+    no provider to look a credential up against, so this fails loud with an actionable message
+    instead of degrading to no-credential and surfacing later as a misleading "add your key"
+    auth error (the key may already be in the vault). Unlike a missing provider *key*, this is
+    NOT a tolerated self-managed/OAuth fallback case: the config itself is underspecified.
+    """
+
+    def __init__(self, *, model: str) -> None:
+        super().__init__(
+            f"model '{model}' needs a provider prefix (e.g. 'openai/{model}') "
+            "or a structured {provider, model}; a bare model id can't resolve a credential"
+        )
+        self.model = model
+
+
 class AmbiguousConnectionError(ConnectionResolutionError):
     """Raised when more than one connection matches and resolution cannot pick one."""
 
