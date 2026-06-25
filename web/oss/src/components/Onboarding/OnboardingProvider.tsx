@@ -2,8 +2,9 @@
 
 import {useCallback, useEffect, useState} from "react"
 
-import {NextStep, NextStepProvider} from "@agentaai/nextstepjs"
+import {NextStepProvider} from "@agentaai/nextstepjs"
 import {useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 
 import {ANNOTATE_TRACES_TOUR_ID} from "@/oss/components/Onboarding/tours/annotateTracesTour"
 import {DEPLOY_PROMPT_TOUR_ID} from "@/oss/components/Onboarding/tours/deployPromptTour"
@@ -19,6 +20,15 @@ import {
 import type {InternalTour} from "@/oss/lib/onboarding/types"
 
 import OnboardingCard from "./OnboardingCard"
+
+// The NextStep tour renderer (NextStepReact + motion/spotlight, ~136 kB) was being
+// pulled into the synchronous _app chunk on every page even though tours only run
+// during onboarding. It locates its targets via document.querySelector and renders
+// the overlay through a portal, so it does NOT need to wrap the app tree — we render
+// it as a childless sibling and load it lazily, keeping it off the critical path.
+const NextStep = dynamic(() => import("./LazyNextStep"), {
+    ssr: false,
+})
 
 /**
  * Inner provider that wraps content with NextStep
@@ -95,16 +105,17 @@ const OnboardingInner = ({children}: {children: React.ReactNode}) => {
     )
 
     return (
-        <NextStep
-            steps={tours}
-            cardComponent={OnboardingCard}
-            onComplete={handleComplete}
-            onSkip={handleSkip}
-            cardTransition={{duration: 0.2}}
-            noInViewScroll
-        >
+        <>
             {children}
-        </NextStep>
+            <NextStep
+                steps={tours}
+                cardComponent={OnboardingCard}
+                onComplete={handleComplete}
+                onSkip={handleSkip}
+                cardTransition={{duration: 0.2}}
+                noInViewScroll
+            />
+        </>
     )
 }
 
