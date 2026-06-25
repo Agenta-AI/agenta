@@ -11,7 +11,23 @@ import json
 import os
 from typing import Any, AsyncIterator, Dict, Optional, Sequence
 
+from agenta.sdk.utils.logging import get_module_logger
+
 _DEFAULT_TIMEOUT = float(os.getenv("AGENTA_AGENT_RUNNER_TIMEOUT_SECONDS", "180"))
+
+log = get_module_logger(__name__)
+
+
+def _transport_error(user_message: str, *, detail: str) -> RuntimeError:
+    """A transport RuntimeError whose surfaced text is clean; the raw detail is logged only.
+
+    The HTTP body / process stderr / raw stdout that pinpoints a transport failure is internal:
+    log it for diagnosis but keep it out of the caller/UI-facing error, which gets only the
+    short ``user_message``. Mirrors ``wire.sanitize_runner_error`` for the result boundary.
+    """
+    if detail:
+        log.warning("agent: %s | detail: %s", user_message, detail)
+    return RuntimeError(user_message)
 
 
 async def deliver_http(
@@ -27,10 +43,12 @@ async def deliver_http(
     async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.post(url, json=payload)
     # Any non-2xx is a transport failure; 4xx left to fall through surfaces as an opaque
-    # JSON parse error instead of a clear runner failure.
+    # JSON parse error instead of a clear runner failure. The response body can carry internal
+    # detail, so it is logged, not surfaced.
     if response.status_code >= 400:
-        raise RuntimeError(
-            f"Agent runner HTTP {response.status_code}: {response.text[:1000]}"
+        raise _transport_error(
+            f"Agent runner HTTP {response.status_code}",
+            detail=response.text[:1000],
         )
     return response.json()
 
@@ -67,14 +85,16 @@ async def deliver_subprocess(
     out = stdout.decode("utf-8", "replace")
     err = stderr.decode("utf-8", "replace")
     if not out.strip():
-        raise RuntimeError(
-            f"Agent runner returned no output. exit={proc.returncode} stderr={err[-2000:]}"
+        raise _transport_error(
+            "Agent runner returned no output",
+            detail=f"exit={proc.returncode} stderr={err[-2000:]}",
         )
     try:
         return json.loads(out)
     except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            f"Agent runner returned invalid JSON. stdout={out[:500]} stderr={err[-1000:]}"
+        raise _transport_error(
+            "Agent runner returned invalid JSON",
+            detail=f"stdout={out[:500]} stderr={err[-1000:]}",
         ) from exc
 
 
@@ -110,8 +130,9 @@ async def deliver_http_stream(
         ) as response:
             if response.status_code >= 400:
                 body = await response.aread()
-                raise RuntimeError(
-                    f"Agent runner HTTP {response.status_code}: {body[:1000]!r}"
+                raise _transport_error(
+                    f"Agent runner HTTP {response.status_code}",
+                    detail=repr(body[:1000]),
                 )
             async for line in response.aiter_lines():
                 line = line.strip()
@@ -175,9 +196,10 @@ async def deliver_subprocess_stream(
             err = b""
             if proc.stderr is not None:
                 err = await proc.stderr.read()
-            raise RuntimeError(
-                "Agent runner stream ended without a terminal result record. "
-                f"exit={proc.returncode} stderr={err.decode('utf-8', 'replace')[-2000:]}"
+            raise _transport_error(
+                "Agent runner stream ended without a terminal result record",
+                detail=f"exit={proc.returncode} "
+                f"stderr={err.decode('utf-8', 'replace')[-2000:]}",
             )
     finally:
         if proc.returncode is None:
