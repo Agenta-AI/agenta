@@ -472,12 +472,14 @@ export function createAgentaOtel(
       agentSpan.setAttribute("openinference.span.kind", "AGENT");
       agentSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
       agentSpan.setAttribute("gen_ai.agent.name", "pi");
-      // F-029: record which skills loaded (author + forced `_agenta.*`) on Pi's own agent span,
-      // so a local-Pi trace shows the surfaced skills, not just the author config echoed
-      // elsewhere. The set is passed from the runner via AGENTA_SKILLS_LOADED.
+      // F-029/F-036: record which skills loaded on Pi's own agent span under the recognized
+      // `ag.meta.*` namespace, so a local-Pi trace shows the surfaced skills (not just the author
+      // config echoed elsewhere) AND Agenta's OTel ingest keeps them in a first-class `ag.*` bucket
+      // rather than relocating an unrecognized `ag.agent.*` key to `ag.unsupported.*`. The set is
+      // passed from the runner via AGENTA_SKILLS_LOADED.
       if (config.skills && config.skills.length > 0) {
-        agentSpan.setAttribute("ag.agent.skills.loaded", config.skills);
-        agentSpan.setAttribute("ag.agent.skills.count", config.skills.length);
+        agentSpan.setAttribute("ag.meta.skills.loaded", config.skills);
+        agentSpan.setAttribute("ag.meta.skills.count", config.skills.length);
       }
       if (config.sessionId) {
         agentSpan.setAttribute("session.id", config.sessionId);
@@ -1014,11 +1016,14 @@ export function createSandboxAgentOtel(
     agentSpan.setAttribute("openinference.span.kind", "AGENT");
     agentSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
     agentSpan.setAttribute("gen_ai.agent.name", init.harness ?? "agent");
-    // F-029: stamp the skills that actually materialized (author + forced `_agenta.*`) so a
-    // trace shows which skills loaded, not just the author config echoed on the workflow span.
+    // F-029/F-036: stamp the skills that actually materialized so a trace shows which skills
+    // loaded (not just the author config echoed on the workflow span), under the recognized
+    // `ag.meta.*` namespace. Agenta's OTel ingest strict-whitelists top-level `ag.*` keys and
+    // relocates unrecognized ones (an `ag.agent.*` key) to `ag.unsupported.*`; `ag.meta` is a
+    // free-form recognized bucket, the same place run/request metadata already lands.
     if (init.skills && init.skills.length > 0) {
-      agentSpan.setAttribute("ag.agent.skills.loaded", init.skills);
-      agentSpan.setAttribute("ag.agent.skills.count", init.skills.length);
+      agentSpan.setAttribute("ag.meta.skills.loaded", init.skills);
+      agentSpan.setAttribute("ag.meta.skills.count", init.skills.length);
     }
     const sessionId = input.sessionId ?? init.sessionId;
     if (sessionId) {
@@ -1171,10 +1176,13 @@ export function createSandboxAgentOtel(
   function recordError(message: string, errorProvider?: string): void {
     const text = message || "agent run failed";
     const stamp = (span: Span): void => {
-      span.setAttribute("ag.error.message", text);
+      // F-036: use the recognized `ag.exception.*` namespace (a free-form recognized bucket)
+      // rather than `ag.error.*`, which Agenta's OTel ingest relocates to `ag.unsupported.*`
+      // (unrecognized top-level `ag.*` key). `message` mirrors the OTel exception event below.
+      span.setAttribute("ag.exception.message", text);
       const failedProvider = errorProvider ?? provider;
       if (failedProvider)
-        span.setAttribute("ag.error.provider", failedProvider);
+        span.setAttribute("ag.exception.provider", failedProvider);
       span.recordException({ name: "AgentRunError", message: text });
       span.setStatus({ code: SpanStatusCode.ERROR, message: text });
     };

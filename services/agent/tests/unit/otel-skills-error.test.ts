@@ -1,14 +1,18 @@
 /**
  * Unit tests for the tracing additions in `tracing/otel.ts`:
  *
- *  - F-029: the loaded skills (author + forced `_agenta.*`) are stamped on the agent span via
- *    `ag.agent.skills.loaded` / `ag.agent.skills.count`, on BOTH the sandbox-agent ACP tracer
+ *  - F-029/F-036: the loaded skills (author + forced `_agenta.*`) are stamped on the agent span
+ *    via `ag.meta.skills.loaded` / `ag.meta.skills.count`, on BOTH the sandbox-agent ACP tracer
  *    (`createSandboxAgentOtel`, non-Pi / Daytona) and Pi's own extension tracer
- *    (`createAgentaOtel`, local Pi).
- *  - F-030: `recordError` stamps the user-facing error message + the provider that failed plus
- *    an exception event on the agent span, so an error run's trace carries the same diagnostic
- *    the HTTP response does. When the harness self-instruments (no owned span) it emits a
- *    standalone `agent_error` span so the failure still reaches the trace.
+ *    (`createAgentaOtel`, local Pi). The `ag.meta.*` namespace is a recognized `ag.*` bucket, so
+ *    Agenta's OTel ingest keeps the attributes there rather than relocating an unrecognized
+ *    `ag.agent.*` key into `ag.unsupported.*` (the F-036 namespace wrinkle).
+ *  - F-030/F-036: `recordError` stamps the user-facing error message + the provider that failed
+ *    plus an exception event on the agent span, so an error run's trace carries the same
+ *    diagnostic the HTTP response does. The attributes use the recognized `ag.exception.*`
+ *    namespace (not `ag.error.*`, which ingest would relocate to `ag.unsupported.*`). When the
+ *    harness self-instruments (no owned span) it emits a standalone `agent_error` span so the
+ *    failure still reaches the trace.
  *
  * Spans export over OTLP from a module-level provider, so we spy on the OTel API tracer and
  * capture the attributes/exceptions each span records, rather than wiring an in-memory exporter.
@@ -93,23 +97,53 @@ afterEach(() => {
 });
 
 describe("otel skills + error tracing", () => {
-  it("stamps loaded skills on the sandbox-agent agent span (F-029)", () => {
+  it("stamps loaded skills (author + builtins) on the sandbox-agent agent span (F-029/F-036)", () => {
     const spans = spyTracer();
     const otel = createSandboxAgentOtel({
       harness: "claude",
       model: "anthropic/claude-haiku",
       emitSpans: true,
+      // The runner stamps exactly the materialized list it is given: an author skill AND a
+      // forced `_agenta.*` platform skill both appear in `loaded` (F-036 builtins-in-loaded).
       skills: ["weather-oracle", "_agenta.agenta-getting-started"],
     });
     otel.start({ prompt: "hi" });
 
     const agentSpan = spans.find((s) => s.name === "invoke_agent");
     expect(agentSpan).toBeTruthy();
-    expect(agentSpan?.attributes["ag.agent.skills.loaded"]).toEqual([
+    expect(agentSpan?.attributes["ag.meta.skills.loaded"]).toEqual([
       "weather-oracle",
       "_agenta.agenta-getting-started",
     ]);
-    expect(agentSpan?.attributes["ag.agent.skills.count"]).toBe(2);
+    expect(agentSpan?.attributes["ag.meta.skills.count"]).toBe(2);
+  });
+
+  it("uses recognized ag.* namespaces, never ag.agent.* / ag.error.* (F-036)", () => {
+    // Agenta's OTel ingest strict-whitelists top-level `ag.*` keys against a known-attribute
+    // schema and relocates any unrecognized key (e.g. an `ag.agent.*` or `ag.error.*` key) into
+    // `ag.unsupported.*`. Pin that skills + error attributes use the recognized `ag.meta.*` and
+    // `ag.exception.*` buckets so they are never demoted to `ag.unsupported.*`.
+    const spans = spyTracer();
+    const otel = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: true,
+      skills: ["weather-oracle"],
+    });
+    otel.start({ prompt: "hi" });
+    otel.recordError("model authentication failed", "anthropic");
+
+    const agentSpan = spans.find((s) => s.name === "invoke_agent");
+    const keys = Object.keys(agentSpan?.attributes ?? {});
+    // No demoted-to-unsupported namespaces.
+    expect(keys.some((k) => k.startsWith("ag.agent."))).toBe(false);
+    expect(keys.some((k) => k.startsWith("ag.error."))).toBe(false);
+    expect(keys.some((k) => k.startsWith("ag.unsupported."))).toBe(false);
+    // The recognized homes are present.
+    expect(agentSpan?.attributes["ag.meta.skills.loaded"]).toEqual([
+      "weather-oracle",
+    ]);
+    expect(agentSpan?.attributes["ag.exception.message"]).toBeDefined();
   });
 
   it("omits the skills attributes when no skills loaded", () => {
@@ -121,8 +155,8 @@ describe("otel skills + error tracing", () => {
     });
     otel.start({ prompt: "hi" });
     const agentSpan = spans.find((s) => s.name === "invoke_agent");
-    expect(agentSpan?.attributes["ag.agent.skills.loaded"]).toBeUndefined();
-    expect(agentSpan?.attributes["ag.agent.skills.count"]).toBeUndefined();
+    expect(agentSpan?.attributes["ag.meta.skills.loaded"]).toBeUndefined();
+    expect(agentSpan?.attributes["ag.meta.skills.count"]).toBeUndefined();
   });
 
   it("stamps loaded skills on Pi's own agent span (F-029, local Pi)", () => {
@@ -142,11 +176,11 @@ describe("otel skills + error tracing", () => {
       await handlers["before_agent_start"]?.({ prompt: "hi" });
       await handlers["agent_start"]?.({});
       const agentSpan = spans.find((s) => s.name === "invoke_agent");
-      expect(agentSpan?.attributes["ag.agent.skills.loaded"]).toEqual([
+      expect(agentSpan?.attributes["ag.meta.skills.loaded"]).toEqual([
         "weather-oracle",
         "_agenta.agenta-getting-started",
       ]);
-      expect(agentSpan?.attributes["ag.agent.skills.count"]).toBe(2);
+      expect(agentSpan?.attributes["ag.meta.skills.count"]).toBe(2);
     })();
   });
 
@@ -164,10 +198,10 @@ describe("otel skills + error tracing", () => {
     );
 
     const agentSpan = spans.find((s) => s.name === "invoke_agent");
-    expect(agentSpan?.attributes["ag.error.message"]).toContain(
+    expect(agentSpan?.attributes["ag.exception.message"]).toContain(
       "model authentication failed",
     );
-    expect(agentSpan?.attributes["ag.error.provider"]).toBe("anthropic");
+    expect(agentSpan?.attributes["ag.exception.provider"]).toBe("anthropic");
     expect(agentSpan?.exceptions.length).toBe(1);
     expect(agentSpan?.exceptions[0].message).toContain(
       "model authentication failed",
@@ -196,10 +230,10 @@ describe("otel skills + error tracing", () => {
 
     const errSpan = spans.find((s) => s.name === "agent_error");
     expect(errSpan).toBeTruthy();
-    expect(errSpan?.attributes["ag.error.message"]).toContain(
+    expect(errSpan?.attributes["ag.exception.message"]).toContain(
       "model authentication failed",
     );
-    expect(errSpan?.attributes["ag.error.provider"]).toBe("anthropic");
+    expect(errSpan?.attributes["ag.exception.provider"]).toBe("anthropic");
     expect(errSpan?.exceptions.length).toBe(1);
     expect(errSpan?.ended).toBe(true);
   });
@@ -214,6 +248,6 @@ describe("otel skills + error tracing", () => {
     otel.start({ prompt: "hi" });
     otel.recordError("some failure");
     const agentSpan = spans.find((s) => s.name === "invoke_agent");
-    expect(agentSpan?.attributes["ag.error.provider"]).toBe("anthropic");
+    expect(agentSpan?.attributes["ag.exception.provider"]).toBe("anthropic");
   });
 });
