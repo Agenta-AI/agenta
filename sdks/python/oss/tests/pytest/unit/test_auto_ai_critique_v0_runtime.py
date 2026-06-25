@@ -11,7 +11,6 @@ Covers:
 - existing result normalization (numeric, boolean, dict, raw text) is unchanged.
 """
 
-from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -36,11 +35,6 @@ def _fake_completion_response(content: str) -> SimpleNamespace:
     message = SimpleNamespace(content=content)
     choice = SimpleNamespace(message=message)
     return SimpleNamespace(choices=[choice])
-
-
-@contextmanager
-def _noop_aws_credentials(_provider_settings):
-    yield
 
 
 @pytest.fixture
@@ -71,21 +65,13 @@ def mocked_llm_call(initialized_sdk):
         content = captured.get("response_content", '{"score": 0.9}')
         return _fake_completion_response(content)
 
-    with (
-        patch.object(
-            critique_handlers.mockllm,
-            "acompletion",
-            side_effect=_fake_acompletion,
-        ) as mock_acompletion,
-        patch.object(
-            critique_handlers.mockllm,
-            "user_aws_credentials_from",
-            side_effect=_noop_aws_credentials,
-        ) as mock_creds,
-    ):
+    with patch.object(
+        critique_handlers.mockllm,
+        "acompletion",
+        side_effect=_fake_acompletion,
+    ) as mock_acompletion:
         yield SimpleNamespace(
             acompletion=mock_acompletion,
-            user_aws_credentials_from=mock_creds,
             captured=captured,
         )
 
@@ -192,6 +178,70 @@ async def test_resolves_custom_provider_model_settings(mocked_secrets, mocked_ll
     assert kwargs["aws_access_key_id"] == "AKIA..."
     assert kwargs["aws_region_name"] == "us-east-1"
     assert "temperature" not in kwargs
+
+
+async def test_aws_credential_aliases_normalized_to_litellm_params(
+    mocked_secrets, mocked_llm_call
+):
+    """AWS credential aliases are folded into LiteLLM's canonical request params.
+
+    Secret extras may store credentials env-style (uppercase) or with ``aws_region``
+    instead of ``aws_region_name``. These must be forwarded under LiteLLM's canonical
+    ``aws_*`` kwargs, and the non-canonical aliases must not leak through as
+    unrecognized kwargs.
+    """
+
+    mocked_secrets.get_settings.return_value = {
+        "model": "bedrock/anthropic.claude-3-5-sonnet",
+        "AWS_ACCESS_KEY_ID": "AKIA...",
+        "AWS_SECRET_ACCESS_KEY": "secret",
+        "AWS_SESSION_TOKEN": "token",
+        "aws_region": "eu-west-1",
+    }
+
+    await _auto_ai_critique_v0(
+        parameters=_base_parameters(model="my-self-hosted-claude"),
+        inputs={"question": "q", "expected": "e"},
+        outputs="o",
+    )
+
+    kwargs = mocked_llm_call.captured["kwargs"]
+    assert kwargs["aws_access_key_id"] == "AKIA..."
+    assert kwargs["aws_secret_access_key"] == "secret"
+    assert kwargs["aws_session_token"] == "token"
+    assert kwargs["aws_region_name"] == "eu-west-1"
+    # Non-canonical aliases are not forwarded to LiteLLM.
+    assert "AWS_ACCESS_KEY_ID" not in kwargs
+    assert "AWS_SECRET_ACCESS_KEY" not in kwargs
+    assert "AWS_SESSION_TOKEN" not in kwargs
+    assert "aws_region" not in kwargs
+
+
+async def test_aws_credentials_do_not_mutate_environ(mocked_secrets, mocked_llm_call):
+    """Resolving AWS credentials must not touch process-global ``os.environ``.
+
+    Mutating ``os.environ`` around an awaited call can leak credentials between
+    concurrent requests in the same worker (#4244).
+    """
+
+    import os
+
+    mocked_secrets.get_settings.return_value = {
+        "model": "bedrock/anthropic.claude-3-5-sonnet",
+        "aws_access_key_id": "AKIA...",
+        "aws_secret_access_key": "secret",
+        "aws_region_name": "us-east-1",
+    }
+
+    before = dict(os.environ)
+
+    await _auto_ai_critique_v0(
+        parameters=_base_parameters(model="my-self-hosted-claude"),
+        inputs={"question": "q", "expected": "e"},
+        outputs="o",
+    )
+
+    assert dict(os.environ) == before
 
 
 async def test_missing_provider_settings_raises_invalid_secrets(
