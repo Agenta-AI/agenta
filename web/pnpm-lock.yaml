@@ -956,6 +956,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      fflate:
+        specifier: 0.4.8
+        version: 0.4.8
       immer:
         specifier: '>=10.0.0'
         version: 10.2.0

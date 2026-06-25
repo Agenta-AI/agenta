@@ -88,7 +88,7 @@ const Playground: FC = () => {
 
     return (
         <OSSPlaygroundShell providers={providers}>
-            <div className="flex flex-col w-full h-[calc(100dvh-75px)] overflow-hidden">
+            <div className="flex flex-col w-full h-[calc(100dvh-46px)] overflow-hidden">
                 <PlaygroundOnboarding />
                 <PlaygroundHeader key={`${uri}-header`} />
                 <PlaygroundMainView key={`${uri}-main`} />

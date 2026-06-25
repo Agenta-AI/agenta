@@ -33,6 +33,18 @@ export const getMessageTraceId = (message: UIMessage): string | undefined => {
     return tracePart.data.traceId || parseTraceIdFromUrl(tracePart.data.url)
 }
 
+/**
+ * A run failure stamped onto an assistant turn's metadata (FE-side, when the stream errors —
+ * see AgentChatPanel). The backend doesn't always record the error on the trace, but useChat
+ * surfaces it; persisting it here lets the failed turn render the real reason inline (a red
+ * error bubble) instead of a generic "no response", and survives a reload with the session.
+ */
+export const getMessageRunError = (message: UIMessage): string | undefined => {
+    const runError = (message.metadata as {runError?: {message?: string}} | undefined)?.runError
+    const msg = runError?.message
+    return typeof msg === "string" && msg.trim() ? msg : undefined
+}
+
 /** Token/cost fields in `ExecutionMetricsDisplay`'s shape. */
 export interface MessageUsageMetrics {
     promptTokens?: number

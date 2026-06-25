@@ -11,7 +11,7 @@
  */
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
-import {isPlainObject, safeStringify} from "@agenta/shared/utils"
+import {safeStringify} from "@agenta/shared/utils"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {MinusCircle} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"
@@ -33,10 +33,15 @@ export interface McpServerItemControlProps {
 function toServerObj(value: unknown): Record<string, unknown> {
     try {
         if (typeof value === "string") {
-            const parsed = value ? JSON.parse(value) : {}
-            return isPlainObject(parsed) ? parsed : {}
+            if (!value) return {}
+            const parsed = JSON.parse(value)
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                return parsed as Record<string, unknown>
+            }
+            return {}
         }
-        if (isPlainObject(value)) return value
+        if (value && typeof value === "object" && !Array.isArray(value))
+            return value as Record<string, unknown>
     } catch {
         // fall through to empty object
     }
@@ -73,9 +78,11 @@ export const McpServerItemControl = memo(function McpServerItemControl({
             setEditorText(text)
             try {
                 const parsed = text ? JSON.parse(text) : {}
-                if (!isPlainObject(parsed)) return
+                // Only a JSON object is a valid server config; ignore arrays/scalars so we
+                // don't propagate a value toServerObj() would silently collapse back to {}.
+                if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return
                 lastExternalRef.current = safeStringify(parsed)
-                onChange?.(parsed)
+                onChange?.(parsed as Record<string, unknown>)
             } catch {
                 // Keep the invalid text in the editor; don't propagate until it parses.
             }

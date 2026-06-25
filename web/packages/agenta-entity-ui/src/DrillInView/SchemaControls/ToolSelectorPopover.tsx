@@ -80,6 +80,9 @@ export interface ToolSelectorPopoverProps {
     existingToolCount?: number
     /** Optional gateway tools bridge (typically from DrillInUIContext) */
     gatewayTools?: GatewayToolsBridge
+    /** Custom trigger element. Defaults to an outlined "Tool" button (e.g. a compact icon button
+     * when hosted in a section header). */
+    trigger?: ReactNode
 }
 
 // ============================================================================
@@ -438,7 +441,7 @@ function BuiltinToolsPane({
                 />
             </div>
 
-            <div className="flex-1 overflow-y-auto p-1">
+            <div className="flex-1 min-h-0 overflow-y-auto p-1">
                 {filteredTools.map((tool) => {
                     const selected = isSelected(tool)
                     return (
@@ -629,7 +632,7 @@ function GatewayActionsPane({
                 <div className="mt-1 text-[10px] text-zinc-400">{total} actions</div>
             </div>
 
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-1">
+            <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-1">
                 {isLoading && actions.length === 0 ? (
                     <div className="flex items-center justify-center py-6">
                         <Spin size="small" />
@@ -723,6 +726,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     renderProviderIcon,
     existingToolCount = 0,
     gatewayTools: gatewayToolsProp,
+    trigger,
 }: ToolSelectorPopoverProps) {
     const {showMessage, gatewayTools: gatewayToolsFromContext} = useDrillInUI()
 
@@ -735,25 +739,6 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     const [leftSearch, setLeftSearch] = useState("")
     const [rightSearch, setRightSearch] = useState("")
     const [activePane, setActivePane] = useState<ActivePane>(null)
-    const [leftPanelHeight, setLeftPanelHeight] = useState<number | null>(null)
-    const leftPanelRef = useRef<HTMLDivElement>(null)
-
-    useEffect(() => {
-        const el = leftPanelRef.current
-        if (!el) return
-
-        const updateHeight = () => setLeftPanelHeight(el.offsetHeight)
-        updateHeight()
-
-        if (typeof ResizeObserver !== "undefined") {
-            const observer = new ResizeObserver(() => updateHeight())
-            observer.observe(el)
-            return () => observer.disconnect()
-        }
-
-        window.addEventListener("resize", updateHeight)
-        return () => window.removeEventListener("resize", updateHeight)
-    }, [open, leftSearch, gatewayTools?.enabled, gatewayTools?.connections.length])
 
     useEffect(() => {
         setRightSearch("")
@@ -822,12 +807,9 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     }, [gatewayTools, resetAndClose])
 
     const content = (
-        <div className="flex min-w-[460px] bg-[var(--ag-c-FFFFFF)] rounded-lg overflow-hidden border border-solid border-[var(--ag-rgba-051729-06)] shadow-sm">
-            <div
-                ref={leftPanelRef}
-                className="w-[232px] border-0 border-r border-solid border-[var(--ag-rgba-051729-06)]"
-            >
-                <div className="px-2 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
+        <div className="flex h-[360px] min-w-[460px] bg-[var(--ag-c-FFFFFF)] rounded-lg overflow-hidden border border-solid border-[var(--ag-rgba-051729-06)] shadow-sm">
+            <div className="flex w-[232px] flex-col min-h-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)]">
+                <div className="shrink-0 px-2 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
                     <Input
                         variant="borderless"
                         value={leftSearch}
@@ -838,7 +820,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                     />
                 </div>
 
-                <div className="max-h-[360px] overflow-y-auto p-1 flex flex-col gap-1">
+                <div className="flex-1 min-h-0 overflow-y-auto p-1 flex flex-col gap-1">
                     <div>
                         <SectionHeader icon={<Sparkle size={12} />} title="Built-in tools" />
                         <div className="flex flex-col gap-0.5">
@@ -972,10 +954,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                 </div>
             </div>
 
-            <div
-                className="w-[232px] bg-[var(--ag-c-FFFFFF)]"
-                style={leftPanelHeight ? {height: leftPanelHeight} : undefined}
-            >
+            <div className="w-[232px] h-full bg-[var(--ag-c-FFFFFF)]">
                 {activeBuiltinProvider ? (
                     <BuiltinToolsPane
                         provider={activeBuiltinProvider}
@@ -1025,15 +1004,17 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
             popupRender={() => content}
             classNames={{root: "[&_.ant-dropdown-menu]:hidden [&_.ant-dropdown]:p-0"}}
         >
-            <Button
-                variant="outlined"
-                color="default"
-                size="small"
-                icon={<Plus size={14} />}
-                disabled={disabled}
-            >
-                Tool
-            </Button>
+            {trigger ?? (
+                <Button
+                    variant="outlined"
+                    color="default"
+                    size="small"
+                    icon={<Plus size={14} />}
+                    disabled={disabled}
+                >
+                    Tool
+                </Button>
+            )}
         </Dropdown>
     )
 })

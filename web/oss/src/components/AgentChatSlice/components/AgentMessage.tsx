@@ -21,7 +21,12 @@ import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/st
 
 import {fileKind, filePartName} from "../assets/files"
 import Markdown from "../assets/markdown"
-import {getMessageTraceId, getMessageUsage, type MessageUsageMetrics} from "../assets/trace"
+import {
+    getMessageRunError,
+    getMessageTraceId,
+    getMessageUsage,
+    type MessageUsageMetrics,
+} from "../assets/trace"
 
 import ToolPart from "./ToolPart"
 
@@ -45,6 +50,9 @@ interface AgentMessageProps {
     isStreaming?: boolean
     onRewind: () => void
     onApprovalResponse: (args: {id: string; approved: boolean}) => void
+    /** The previous turn was also an empty (content-less) assistant turn. Used to collapse a
+     * run of "no response" bubbles down to the first one. */
+    precededByEmptyAssistant?: boolean
 }
 
 const isToolPart = (type: string) => type.startsWith("tool-") || type === "dynamic-tool"
@@ -99,6 +107,48 @@ const ReasoningPart = ({text, streaming}: {text: string; streaming: boolean}) =>
     )
 }
 
+/**
+ * Failed-run body: the icon + "The agent run failed" + the reason. The reason is clamped to a few
+ * lines by default so a long message (or a stacktrace that slipped past parsing) can't drown the
+ * chat; when it's long, a "Show more" toggle expands it into a scrollable, whitespace-preserving
+ * block so it stays readable.
+ */
+const RunErrorBody = ({text}: {text: string}) => {
+    const [expanded, setExpanded] = useState(false)
+    const isLong = text.length > 220 || text.includes("\n")
+
+    return (
+        <div className="flex items-start gap-2">
+            <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
+            <div className="flex min-w-0 flex-col items-start gap-0.5">
+                <Text className="!text-xs !font-medium !text-colorError">The agent run failed</Text>
+                {expanded ? (
+                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words rounded border border-solid border-colorErrorBorder bg-[var(--ant-color-error-bg)] p-2 font-mono text-[11px] !text-colorErrorText">
+                        {text}
+                    </pre>
+                ) : (
+                    <Text
+                        className="line-clamp-3 !text-xs break-words !text-colorErrorText"
+                        title={isLong ? text : undefined}
+                    >
+                        {text}
+                    </Text>
+                )}
+                {isLong && (
+                    <button
+                        type="button"
+                        onClick={() => setExpanded((e) => !e)}
+                        aria-expanded={expanded}
+                        className="-ml-1 cursor-pointer rounded border-0 bg-transparent px-1 py-0.5 text-[11px] font-medium text-colorError transition-colors hover:bg-[var(--ant-color-error-bg)]"
+                    >
+                        {expanded ? "Show less" : "Show more"}
+                    </button>
+                )}
+            </div>
+        </div>
+    )
+}
+
 const avatarFor = (isUser: boolean) => (
     <Avatar size="small" icon={isUser ? <User size={16} /> : <Robot size={16} />} />
 )
@@ -114,6 +164,7 @@ const AgentMessage = ({
     isStreaming = false,
     onRewind,
     onApprovalResponse,
+    precededByEmptyAssistant = false,
 }: AgentMessageProps) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const isUser = message.role === "user"
@@ -123,6 +174,14 @@ const AgentMessage = ({
     // A failed run (e.g. a quota error the runner swallowed into an empty turn) lands as an
     // error on the trace; read it so the bubble can render as a failure.
     const traceError = useAtomValue(traceDataSummaryAtomFamily(traceId ?? null)).error
+    // A failure can reach us two ways: recorded on the trace (backend), or stamped onto the turn
+    // FE-side from the useChat stream error (AgentChatPanel). Prefer whichever is present.
+    const runError = getMessageRunError(message)
+    const errorText = traceError || runError
+    // Surface a settled-turn error even when the model emitted partial output before the
+    // stream died — not only when the turn is answer-less. (`isError` stays answer-less-only
+    // so the *whole* bubble only turns red when there's nothing else to show.)
+    const showError = !isStreaming && !!errorText
     const fullText = message.parts
         .filter((p) => p.type === "text")
         .map((p) => (p as {text: string}).text)
@@ -154,7 +213,12 @@ const AgentMessage = ({
     const noResponse = !isUser && !isStreaming && !hasAnswer
     // A settled no-answer turn whose trace recorded an error → render the bubble itself as a
     // failure (red), with the message inline — not a nested alert box.
-    const isError = noResponse && !!traceError
+    const isError = noResponse && showError
+
+    // #3: collapse a run of empty "no response" turns to just the first. A turn with ANY content
+    // (answer or reasoning) and any error turn (isError, which shows the real failure) always
+    // render; only a truly-empty, non-error turn that follows another empty turn is hidden.
+    if (noResponse && !showError && !hasContent && precededByEmptyAssistant) return null
 
     // Only the message being generated shows the loading state, and only until it has content.
     if (!isUser && isStreaming && !hasContent) {
@@ -261,17 +325,22 @@ const AgentMessage = ({
     )
 
     // Failed run: the whole bubble reads as the error (red), message inline — no nested box.
-    const errorBody = (
-        <div className="flex items-start gap-2">
-            <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
-            <div className="flex min-w-0 flex-col gap-0.5">
-                <Text className="!text-xs !font-medium !text-colorError">The agent run failed</Text>
-                <Text className="!text-xs break-words !text-colorErrorText">{traceError}</Text>
-            </div>
-        </div>
-    )
+    // RunErrorBody truncates a long reason so it can't drown the chat (expand to read it all).
+    const errorBody = <RunErrorBody text={errorText || "The agent run failed."} />
 
-    const body = isError ? errorBody : defaultBody
+    // Partial output then failure: show the content AND the error. Answer-less failure: the
+    // whole bubble is the error. Otherwise: just the content.
+    const body =
+        showError && !isError ? (
+            <div className="flex min-w-0 max-w-full flex-col gap-2">
+                {defaultBody}
+                {errorBody}
+            </div>
+        ) : isError ? (
+            errorBody
+        ) : (
+            defaultBody
+        )
 
     // Control toolbar — an X `Actions` row that FLOATS over the bubble's bottom edge. It is
     // absolutely positioned (out of flow), so it adds no height: bubbles sit tight with no

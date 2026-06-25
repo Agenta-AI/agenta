@@ -10,13 +10,19 @@ import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
  * conversations as top-level dynamic tabs (no side rail); this holds the session history, which
  * tabs are open, the active tab, and each session's persisted messages.
  *
- * Two distinct concerns, both app-scoped (the playground is app-scoped, like
- * `selectedVariantsByAppAtom`):
- *   - HISTORY (`sessionsByAppAtom`): every session ever created for the app. A closed tab stays
+ * Everything is keyed by a **scope key** — a string that isolates one mount surface's sessions
+ * from another's. The main playground uses the app scope (`routerAppId`, or `__global__` off an
+ * app page); the create/edit drawer uses its own `drawer:<entityId>` scope so it never inherits
+ * or overwrites the playground's tabs/history (the drawer mounts OVER the playground, so both
+ * surfaces are live at once and a single global "current scope" would clobber). Consumers read
+ * their scope from `useChatScopeKey()` (see ./scope) and pass it to the families below.
+ *
+ * Two distinct concerns, both scope-keyed:
+ *   - HISTORY (`sessionsByAppAtom`): every session ever created for the scope. A closed tab stays
  *     here so it can be reopened from the history picker; only an explicit delete removes it.
  *   - OPEN TABS (`openIdsByAppAtom`): which history sessions are currently shown as tabs, in tab
  *     order. Closing a tab drops its id here but keeps the session (and its messages).
- * Messages are keyed by the globally-unique session id, so they need no app dimension.
+ * Messages are keyed by the globally-unique session id, so they need no scope dimension.
  *
  * Persistence: everything is `atomWithStorage`, so history, tabs, and conversations survive a
  * reload. NOTE: attachments are stored inline as `data:` URLs (see `assets/files.ts`); a
@@ -31,19 +37,24 @@ export interface AgentChatSession {
     createdAt?: number
 }
 
-const GLOBAL_APP_KEY = "__global__"
+export const GLOBAL_APP_KEY = "__global__"
 
-const appKeyAtom = atom((get) => get(routerAppIdAtom) || GLOBAL_APP_KEY)
+/**
+ * Default scope key when a surface provides no override: the current app (or `__global__` off an
+ * app page). Kept as the bare app id (no prefix) so sessions persisted before scoping was
+ * introduced still resolve under the same storage key.
+ */
+export const defaultScopeKeyAtom = atom((get) => get(routerAppIdAtom) || GLOBAL_APP_KEY)
 
-// One source of truth per concern, keyed by app id. Scoped accessors below derive the
-// current app's slice (mirrors the playground's `selectedVariantsByAppAtom` pattern).
+// One source of truth per concern, keyed by scope key. Scoped accessors below derive a single
+// scope's slice (mirrors the playground's `selectedVariantsByAppAtom` pattern).
 //
 // `getOnInit: true` — read localStorage synchronously on init. Without it the atom starts as
 // the empty default `{}` on every mount and only hydrates afterwards, so the "seed one tab"
 // effect sees an empty list in that window and creates a stray session on every reload/HMR.
 const STORAGE_OPTS = {getOnInit: true} as const
 
-/** Full per-app session history (open AND closed). */
+/** Full per-scope session history (open AND closed). */
 const sessionsByAppAtom = atomWithStorage<Record<string, AgentChatSession[]>>(
     "agenta:agent-chat:sessions",
     {},
@@ -52,9 +63,9 @@ const sessionsByAppAtom = atomWithStorage<Record<string, AgentChatSession[]>>(
 )
 
 /**
- * Which sessions are open as tabs, per app, in tab order.
+ * Which sessions are open as tabs, per scope, in tab order.
  *
- * Migration: before this atom is ever written for an app, the open set defaults to the whole
+ * Migration: before this atom is ever written for a scope, the open set defaults to the whole
  * history — every pre-upgrade session was an open tab (see `currentOpenIds`). Once any tab op
  * writes an explicit list, that list is authoritative.
  */
@@ -72,7 +83,8 @@ const activeByAppAtom = atomWithStorage<Record<string, string>>(
     STORAGE_OPTS,
 )
 
-/** Persisted messages per session id. Written when a conversation's stream settles. */
+/** Persisted messages per session id. Written when a conversation's stream settles. Session ids
+ * are globally unique, so this store has no scope dimension. */
 export const sessionMessagesAtom = atomWithStorage<Record<string, UIMessage[]>>(
     "agenta:agent-chat:messages",
     {},
@@ -80,7 +92,7 @@ export const sessionMessagesAtom = atomWithStorage<Record<string, UIMessage[]>>(
     STORAGE_OPTS,
 )
 
-/** Open tab ids for an app, with the pre-upgrade fallback (everything open). Pure read helper
+/** Open tab ids for a scope, with the pre-upgrade fallback (everything open). Pure read helper
  * for the writers below — never mutates. */
 const currentOpenIds = (get: Getter, key: string): string[] => {
     const explicit = get(openIdsByAppAtom)[key]
@@ -88,133 +100,143 @@ const currentOpenIds = (get: Getter, key: string): string[] => {
     return (get(sessionsByAppAtom)[key] ?? []).map((s) => s.id)
 }
 
-/** All sessions for the current app (history), newest first. Backs the history picker. */
-export const sessionHistoryAtom = atom((get) => {
-    const list = get(sessionsByAppAtom)[get(appKeyAtom)] ?? []
-    // Newest first; pre-upgrade sessions (no createdAt) sort last, preserving their order.
-    return [...list].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
-})
+/** All sessions for a scope (history), newest first. Backs the history picker. */
+export const sessionHistoryAtomFamily = atomFamily((key: string) =>
+    atom((get) => {
+        const list = get(sessionsByAppAtom)[key] ?? []
+        // Newest first; pre-upgrade sessions (no createdAt) sort last, preserving their order.
+        return [...list].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+    }),
+)
 
-/** Open tab ids for the current app, in tab order (with the migration fallback). */
-const openIdsAtom = atom((get) => currentOpenIds(get, get(appKeyAtom)))
+/** Sessions shown as tabs for a scope, in tab order. */
+export const sessionsListAtomFamily = atomFamily((key: string) =>
+    atom((get) => {
+        const byId = new Map((get(sessionsByAppAtom)[key] ?? []).map((s) => [s.id, s] as const))
+        return currentOpenIds(get, key)
+            .map((id) => byId.get(id))
+            .filter((s): s is AgentChatSession => Boolean(s))
+    }),
+)
 
-/** Sessions shown as tabs, in tab order. */
-export const sessionsListAtom = atom((get) => {
-    const byId = new Map(
-        (get(sessionsByAppAtom)[get(appKeyAtom)] ?? []).map((s) => [s.id, s] as const),
-    )
-    return get(openIdsAtom)
-        .map((id) => byId.get(id))
-        .filter((s): s is AgentChatSession => Boolean(s))
-})
+/** Active session id for a scope (may be stale if that tab was closed — the UI falls back to the
+ * first open tab when this id isn't in the open list). */
+export const activeSessionIdAtomFamily = atomFamily((key: string) =>
+    atom((get) => get(activeByAppAtom)[key] ?? ""),
+)
 
-/** Active session id for the current app (may be stale if that tab was closed — the UI
- * falls back to the first open tab when this id isn't in the open list). */
-export const activeSessionIdAtom = atom((get) => get(activeByAppAtom)[get(appKeyAtom)] ?? "")
-
-/** Set of currently-open session ids (used to label the history picker). */
-export const openSessionIdsAtom = atom((get) => new Set(get(openIdsAtom)))
+/** Set of currently-open session ids for a scope (used to label the history picker). */
+export const openSessionIdsAtomFamily = atomFamily((key: string) =>
+    atom((get) => new Set(currentOpenIds(get, key))),
+)
 
 /** Create a session and make it the active open tab. Returns the new id. */
-export const addSessionAtom = atom(null, (get, set) => {
-    const key = get(appKeyAtom)
-    const id = generateId()
-    // Read open ids BEFORE mutating history, else the fallback would re-count the new id.
-    const open = currentOpenIds(get, key)
-    const all = get(sessionsByAppAtom)
-    set(sessionsByAppAtom, {...all, [key]: [...(all[key] ?? []), {id, createdAt: Date.now()}]})
-    set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: [...open, id]})
-    set(activeByAppAtom, {...get(activeByAppAtom), [key]: id})
-    return id
-})
+export const addSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set) => {
+        const id = generateId()
+        // Read open ids BEFORE mutating history, else the fallback would re-count the new id.
+        const open = currentOpenIds(get, key)
+        const all = get(sessionsByAppAtom)
+        set(sessionsByAppAtom, {
+            ...all,
+            [key]: [...(all[key] ?? []), {id, createdAt: Date.now()}],
+        })
+        set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: [...open, id]})
+        set(activeByAppAtom, {...get(activeByAppAtom), [key]: id})
+        return id
+    }),
+)
 
 /** Close a tab: drop it from the open list (KEEP the session + messages so it can be reopened
  * from the history picker) and re-point the active tab to a neighbour if it was the one closed. */
-export const closeSessionAtom = atom(null, (get, set, id: string) => {
-    const key = get(appKeyAtom)
-    const open = currentOpenIds(get, key)
-    const nextOpen = open.filter((x) => x !== id)
-    set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: nextOpen})
+export const closeSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, id: string) => {
+        const open = currentOpenIds(get, key)
+        const nextOpen = open.filter((x) => x !== id)
+        set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: nextOpen})
 
-    const active = get(activeByAppAtom)
-    if (active[key] === id) {
-        const closedIdx = open.indexOf(id)
-        const neighbour = nextOpen[Math.min(closedIdx, nextOpen.length - 1)] ?? ""
-        set(activeByAppAtom, {...active, [key]: neighbour})
-    }
-})
+        const active = get(activeByAppAtom)
+        if (active[key] === id) {
+            const closedIdx = open.indexOf(id)
+            const neighbour = nextOpen[Math.min(closedIdx, nextOpen.length - 1)] ?? ""
+            set(activeByAppAtom, {...active, [key]: neighbour})
+        }
+    }),
+)
 
 /** Reopen a session as a tab (or just focus it if already open) and make it active. */
-export const openSessionAtom = atom(null, (get, set, id: string) => {
-    const key = get(appKeyAtom)
-    const open = currentOpenIds(get, key)
-    if (!open.includes(id)) {
-        set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: [...open, id]})
-    }
-    set(activeByAppAtom, {...get(activeByAppAtom), [key]: id})
-})
+export const openSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, id: string) => {
+        const open = currentOpenIds(get, key)
+        if (!open.includes(id)) {
+            set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: [...open, id]})
+        }
+        set(activeByAppAtom, {...get(activeByAppAtom), [key]: id})
+    }),
+)
 
 /**
  * Ensure a session with `id` exists in history, is open, and is active — used when opening a
  * session from a deep link / observability trace. Creates the history entry if it's unknown to
  * this browser (its messages come from `sessionMessagesAtom`, hydrated locally or server-side).
  */
-export const adoptSessionAtom = atom(
-    null,
-    (get, set, {id, title}: {id: string; title?: string}) => {
-        const key = get(appKeyAtom)
+export const adoptSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, {id, title}: {id: string; title?: string}) => {
         const all = get(sessionsByAppAtom)
         const list = all[key] ?? []
         if (!list.some((s) => s.id === id)) {
-            set(sessionsByAppAtom, {...all, [key]: [...list, {id, title, createdAt: Date.now()}]})
+            set(sessionsByAppAtom, {
+                ...all,
+                [key]: [...list, {id, title, createdAt: Date.now()}],
+            })
         }
         const open = currentOpenIds(get, key)
         if (!open.includes(id)) {
             set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: [...open, id]})
         }
         set(activeByAppAtom, {...get(activeByAppAtom), [key]: id})
-    },
+    }),
 )
 
 /** Permanently delete a session: drop it from history, the open tabs, and its messages. */
-export const deleteSessionAtom = atom(null, (get, set, id: string) => {
-    const key = get(appKeyAtom)
-    const all = get(sessionsByAppAtom)
-    set(sessionsByAppAtom, {...all, [key]: (all[key] ?? []).filter((s) => s.id !== id)})
+export const deleteSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, id: string) => {
+        const all = get(sessionsByAppAtom)
+        set(sessionsByAppAtom, {...all, [key]: (all[key] ?? []).filter((s) => s.id !== id)})
 
-    const open = currentOpenIds(get, key)
-    if (open.includes(id)) {
-        set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: open.filter((x) => x !== id)})
-    }
+        const open = currentOpenIds(get, key)
+        if (open.includes(id)) {
+            set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: open.filter((x) => x !== id)})
+        }
 
-    const active = get(activeByAppAtom)
-    if (active[key] === id) {
-        set(activeByAppAtom, {...active, [key]: open.filter((x) => x !== id)[0] ?? ""})
-    }
+        const active = get(activeByAppAtom)
+        if (active[key] === id) {
+            set(activeByAppAtom, {...active, [key]: open.filter((x) => x !== id)[0] ?? ""})
+        }
 
-    const messages = {...get(sessionMessagesAtom)}
-    if (id in messages) {
-        delete messages[id]
-        set(sessionMessagesAtom, messages)
-    }
-})
+        const messages = {...get(sessionMessagesAtom)}
+        if (id in messages) {
+            delete messages[id]
+            set(sessionMessagesAtom, messages)
+        }
+    }),
+)
 
-export const renameSessionAtom = atom(
-    null,
-    (get, set, {id, title}: {id: string; title: string}) => {
-        const key = get(appKeyAtom)
+export const renameSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, {id, title}: {id: string; title: string}) => {
         const all = get(sessionsByAppAtom)
         const list = (all[key] ?? []).map((s) =>
             s.id === id ? {...s, title: title.trim() || undefined} : s,
         )
         set(sessionsByAppAtom, {...all, [key]: list})
-    },
+    }),
 )
 
-export const setActiveSessionAtom = atom(null, (get, set, id: string) => {
-    const key = get(appKeyAtom)
-    set(activeByAppAtom, {...get(activeByAppAtom), [key]: id})
-})
+export const setActiveSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, id: string) => {
+        set(activeByAppAtom, {...get(activeByAppAtom), [key]: id})
+    }),
+)
 
 /** Write a session's messages to the persisted store (called when its stream settles). */
 export const persistSessionMessagesAtom = atom(

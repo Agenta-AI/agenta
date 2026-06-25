@@ -278,3 +278,7 @@ export type {
     SchemaPropertyRendererProps,
     FieldsDetectionContextValue,
 } from "./SchemaControls"
+
+// Agent config layout preference (read by the variant header menu's View selector).
+export {agentConfigLayoutAtom, AGENT_CONFIG_LAYOUTS} from "./SchemaControls"
+export type {AgentConfigLayout} from "./SchemaControls"

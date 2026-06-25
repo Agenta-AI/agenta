@@ -132,6 +132,52 @@ const isUsableSkill = (entry: unknown): boolean => {
     return filled(skill?.name) && filled(skill?.description) && filled(skill?.body)
 }
 
+/**
+ * Whether a function-tool name is a gateway slug (`tools.provider.integration.action.connection`,
+ * `__` or `.` separated). Mirrors the backend's `_parse_gateway_slug` so we leave gateway tools in
+ * the OpenAI `function` shape the backend already coerces, and only rewrite genuine custom tools.
+ */
+const isGatewaySlug = (name: unknown): boolean => {
+    if (typeof name !== "string") return false
+    const parts = name.replace(/__/g, ".").split(".")
+    return parts.length === 5 && parts[0] === "tools"
+}
+
+/**
+ * Normalize a custom in-line function tool to the agent contract's typed `client` config.
+ *
+ * The shared tool form (also used by the prompt playground) stores tools in the OpenAI shape
+ * `{type: "function", function: {name, description, parameters}}`. The agent backend's
+ * `coerce_tool_config` only accepts typed configs (`builtin`/`gateway`/`code`/`client`), so a
+ * custom function tool 500s the run ("Unsupported tool configuration shape"). A schema-only
+ * function tool IS a client tool (the model emits the call, the app executes it), so emit the
+ * `ClientToolConfig` shape: `{type: "client", name, description, input_schema, permission}`.
+ *
+ * Left untouched: already-typed tools (a `type` other than `function`), and gateway-slug function
+ * tools (the backend coerces those from `function.name` directly).
+ */
+const normalizeAgentToolShape = (tool: unknown): unknown => {
+    if (!tool || typeof tool !== "object" || Array.isArray(tool)) return tool
+    const t = tool as Record<string, unknown>
+    if (t.type !== "function") return tool
+    const fn =
+        t.function && typeof t.function === "object"
+            ? (t.function as Record<string, unknown>)
+            : null
+    if (!fn || typeof fn.name !== "string") return tool
+    if (isGatewaySlug(fn.name)) return tool
+
+    const client: Record<string, unknown> = {type: "client", name: fn.name}
+    if (typeof fn.description === "string" && fn.description) client.description = fn.description
+    client.input_schema =
+        fn.parameters && typeof fn.parameters === "object"
+            ? fn.parameters
+            : {type: "object", properties: {}}
+    if (t.permission !== undefined) client.permission = t.permission
+    if (t.needs_approval !== undefined) client.needs_approval = t.needs_approval
+    return client
+}
+
 const pruneBlankEntries = (value: unknown): unknown => {
     if (Array.isArray(value)) return value.map(pruneBlankEntries)
     if (value && typeof value === "object") {
@@ -141,6 +187,10 @@ const pruneBlankEntries = (value: unknown): unknown => {
                 out[key] = val.filter(hasUsableName).map(pruneBlankEntries)
             } else if (key === "skills" && Array.isArray(val)) {
                 out[key] = val.filter(isUsableSkill).map(pruneBlankEntries)
+            } else if (key === "tools" && Array.isArray(val)) {
+                // Rewrite custom function tools to the typed `client` shape the agent backend
+                // accepts; gateway/typed tools pass through unchanged.
+                out[key] = val.map((tool) => pruneBlankEntries(normalizeAgentToolShape(tool)))
             } else {
                 out[key] = pruneBlankEntries(val)
             }
@@ -262,6 +312,11 @@ export async function buildAgentRequest(
     // Accept), which `useChat` can't render — the run succeeds but nothing appears.
     const headers: Record<string, string> = {
         Accept: "text/event-stream",
+        // Declare the request body's message format so the agent `/messages` endpoint can pick
+        // the right adapter. Our payload is AI-SDK (Vercel) UIMessages, so the value matches the
+        // backend's `VERCEL_MESSAGE_PROTOCOL` ("vercel"), the same identity it stamps on the
+        // response (`x-ag-messages-format`). See sdk/agents/adapters/vercel/routing.py.
+        "x-ag-messages-format": "vercel",
         ...(headersFactory ? await headersFactory() : {}),
     }
 
