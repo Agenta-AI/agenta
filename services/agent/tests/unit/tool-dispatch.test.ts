@@ -1,16 +1,14 @@
 /**
  * Unit tests for the shared tool-dispatch module (tools/dispatch.ts) and its routing.
  *
- * The kind-dispatch ("branch on spec.kind to execute a resolved tool") used to be duplicated
- * across engines/pi.ts, extensions/agenta.ts, and tools/mcp-server.ts. It now lives once in
- * `runResolvedTool`. These tests cover both the routing into that function and the call-site
- * advertising behavior that stays per-site:
- *  - buildCustomTools (pi.ts) skips `client` specs, builds a tool per `code`/`callback` spec,
- *    and skips a `callback` spec with no callback endpoint.
+ * The kind-dispatch ("branch on spec.kind to execute a resolved tool") lives once in
+ * `runResolvedTool`, used by the Pi extension (extensions/agenta.ts) and the MCP server
+ * (tools/mcp-server.ts). These tests cover the routing into that function and the file relay:
  *  - runResolvedTool advertises code tools but fails their sidecar execution, and throws for `client`.
+ *  - relayToolCall reads back the relayed result from the Daytona file relay.
  *
  * No network and no harness: the `code` path now fails before any subprocess; the
- * `callback`/relay paths are not exercised here (they need a live /tools/call or a relay dir).
+ * `callback`/relay paths are exercised through the relay dir.
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/tool-dispatch.test.ts)
  */
@@ -20,12 +18,9 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { buildCustomTools } from "../../src/engines/pi.ts";
 import { relayToolCall, runResolvedTool } from "../../src/tools/dispatch.ts";
 import { RELAY_RES_SUFFIX, sanitizeRelayId } from "../../src/tools/relay.ts";
-import type { ResolvedToolSpec, ToolCallbackContext } from "../../src/protocol.ts";
-
-const callback: ToolCallbackContext = { endpoint: "https://agenta.test/tools/call" };
+import type { ResolvedToolSpec } from "../../src/protocol.ts";
 
 const clientSpec: ResolvedToolSpec = { name: "client_tool", kind: "client" };
 const codeSpec: ResolvedToolSpec = {
@@ -34,36 +29,6 @@ const codeSpec: ResolvedToolSpec = {
   runtime: "python",
   code: 'def main(**kw):\n    return {"echo": kw}\n',
 };
-const callbackSpec: ResolvedToolSpec = {
-  name: "callback_tool",
-  kind: "callback",
-  callRef: "composio.SOME_ACTION",
-};
-
-describe("buildCustomTools routing", () => {
-  it("skips client specs and builds one tool per code/callback spec", () => {
-    const tools = buildCustomTools([clientSpec, codeSpec, callbackSpec], callback);
-    const names = tools.map((t) => t.name);
-
-    // `client` is browser-fulfilled, so it is never registered in-process.
-    assert.ok(!names.includes("client_tool"), "client spec is skipped");
-    // `code` and `callback` each produce exactly one tool with the spec's name.
-    assert.ok(names.includes("code_tool"), "code spec produces a tool");
-    assert.ok(names.includes("callback_tool"), "callback spec produces a tool");
-    assert.equal(tools.length, 2, "only the two executable specs produce tools");
-  });
-
-  it("skips a callback spec with no endpoint but keeps a sibling code spec", () => {
-    const tools = buildCustomTools([codeSpec, callbackSpec], undefined);
-    const names = tools.map((t) => t.name);
-    assert.ok(names.includes("code_tool"), "code spec still registers without an endpoint");
-    assert.ok(
-      !names.includes("callback_tool"),
-      "callback spec is skipped when no callback endpoint",
-    );
-    assert.equal(tools.length, 1, "only the code spec registers without an endpoint");
-  });
-});
 
 describe("runResolvedTool", () => {
   it("fails code specs with a clear unsupported error", async () => {

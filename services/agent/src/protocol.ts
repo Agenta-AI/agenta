@@ -1,12 +1,11 @@
 /**
- * The `/run` wire contract, shared by both backends.
+ * The `/run` wire contract.
  *
  * The Python side mirrors these names in `sdks/python/agenta/sdk/agents/utils/wire.py`.
  * The contract is pinned by shared golden fixtures under
  * `sdks/python/oss/tests/pytest/unit/agents/golden/`; a change here that drifts from those
- * fixtures fails `test_wire_contract.py`. Keeping the request/result/event/capability types
- * here (rather than in one runner that the other imports from) is what lets `engines/pi.ts`
- * and `engines/sandbox_agent.ts` stay peers.
+ * fixtures fails `test_wire_contract.py`. The runner drives one engine (`sandbox_agent.ts`),
+ * which runs the harness selected by `harness` (Pi or Claude) over ACP.
  */
 
 /** One piece of a message. `text` is all the playground sends today; the rest is plumbed. */
@@ -146,8 +145,10 @@ export interface McpServerConfig {
  * The sandbox security boundary an agent runs inside (Layer 2). `network` is the outbound
  * egress policy (`on` = allow all, `off` = block all, `allowlist` = only `network.allowlist`
  * CIDR ranges); `filesystem` is declared but not enforced yet; `enforcement` is `strict`
- * (fail when the boundary cannot be applied) or `best_effort`. Plumbing only today: the runner
- * carries it onto the run plan but does NOT yet apply it on the sandbox provider.
+ * (fail when the boundary cannot be applied) or `best_effort`. The network policy IS enforced
+ * on Daytona (`provider.ts` `daytonaNetworkFields`); on the local sidecar it cannot be a hard
+ * guarantee, so a restricted-network run there is rejected under `strict` (`run-plan.ts`).
+ * `filesystem` is declared-only on every provider.
  */
 export interface SandboxPermission {
   network?: {
@@ -259,11 +260,13 @@ export interface AgentUsage {
 }
 
 export interface AgentRunRequest {
-  /** Engine: "sandbox-agent" (ACP) or "pi" (legacy in-process). Routed on by cli.ts/server.ts. */
-  backend?: string;
-  /** Harness id for the sandbox-agent backend ("pi" / "claude"). */
+  /**
+   * Harness id: "pi_core" | "pi_agenta" | "claude". `pi_core` and `pi_agenta` both drive the
+   * ACP agent "pi" (pi_agenta is Pi with Agenta's forced skills/prompt/policy); "claude" drives
+   * the ACP agent "claude". Selected by the request; there is no engine selector.
+   */
   harness?: string;
-  /** Sandbox for the sandbox-agent backend ("local" / "daytona"). */
+  /** Sandbox: "local" | "daytona". */
   sandbox?: string;
   /** External conversation id. The cold runtime still receives history in `messages`. */
   sessionId?: string;
@@ -340,8 +343,9 @@ export interface AgentRunRequest {
   /** How a permission-gating harness handles tool-use prompts: "auto" (default) | "deny". */
   permissionPolicy?: string;
   /**
-   * The declared sandbox security boundary (Layer 2). Omitted when unset. Plumbing only: the
-   * runner threads it onto the run plan but does NOT yet enforce it on the sandbox provider.
+   * The declared sandbox security boundary (Layer 2). Omitted when unset. The network policy is
+   * enforced on Daytona; on the local sidecar a restricted-network run is rejected under
+   * `strict` (it cannot be a hard guarantee there). `filesystem` is declared-only.
    */
   sandboxPermission?: SandboxPermission;
   /**

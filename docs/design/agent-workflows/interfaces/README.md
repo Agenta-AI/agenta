@@ -46,7 +46,7 @@ page. `Status` is read from each page's prose: **stable** (wired and unlikely to
 | [`/messages`](public-edge/agent-messages.md) | public | `adapters/vercel/{routing,messages,stream}.py`, `agentRequest.ts` | evolving (create-or-resume not observable until storage lands) | `utils/test_messages_endpoint.py`, `unit/agents/test_ui_messages.py` |
 | [Agent config schema](public-edge/agent-config-schema.md) | public | `agent/schemas.py`, `sdk/utils/types.py`, `agents/dtos.py` | stable | `unit/agents/test_dtos_agent_config.py` |
 | [`/run`](cross-service/service-to-agent-runner.md) | cross-service (the spine) | `protocol.ts`, `utils/wire.py`, `utils/ts_runner.py`, `server.ts`/`cli.ts` | stable (pinned by golden) | `unit/agents/test_wire_contract.py` + `golden/`, `services/agent/tests/unit/wire-contract.test.ts` |
-| [Runner to harness](cross-service/runner-to-harness.md) | cross-service (ACP) | `engines/sandbox_agent.ts` + `sandbox_agent/{run-plan,capabilities,permissions}.ts`, `engines/pi.ts` | evolving | `services/agent/tests/unit/sandbox-agent-*.test.ts` |
+| [Runner to harness](cross-service/runner-to-harness.md) | cross-service (ACP) | `engines/sandbox_agent.ts` + `sandbox_agent/{run-plan,capabilities,permissions}.ts` | evolving | `services/agent/tests/unit/sandbox-agent-*.test.ts` |
 | [Runner to MCP server](cross-service/runner-to-mcp-server.md) | cross-service | `agents/mcp/`, `engines/sandbox_agent/mcp.ts`, `tools/{mcp-bridge,mcp-server,relay}.ts` | evolving (stdio wired; remote deferred) | `services/agent/tests/unit/mcp-servers.test.ts` |
 | [Runner to tool callback](cross-service/runner-to-tool-callback.md) | cross-service | `tools/{callback,dispatch}.ts`, `apis/fastapi/tools/router.py`, `agent/tools/resolver.py` | stable | `services/agent/tests/unit/{code-tool,extension-tools}.test.ts` |
 | [Service and runner trace export](cross-service/service-and-runner-trace-export.md) | cross-service | `agent/tracing.py`, `tracing/otel.ts`, `extensions/agenta.ts` | stable | `services/agent/tests/unit/` |
@@ -60,13 +60,18 @@ page. `Status` is read from each page's prose: **stable** (wired and unlikely to
 | [Tool models and resolution](in-service/tool-models-and-resolution.md) | in-service | `agents/tools/models.py`, `platform/gateway.py`, `agent/tools/resolver.py` | stable | `unit/agents/tools/` |
 | [MCP models and resolution](in-service/mcp-models-and-resolution.md) | in-service | `agents/mcp/{models,resolver,wire}.py` | evolving (stdio wired; remote deferred; resolution feature-gated) | `unit/agents/mcp/` |
 | [Model connection resolution](in-service/model-connection-resolution.md) | in-service | `agent/app.py`, `agents/connections/`, `platform/{resolve,connections}.py`, `agents/capabilities.py` | stable | `unit/agents/connections/` |
-| [Runner engine internals](in-service/runner-engine-internals.md) | in-service (runner) | `server.ts`, `cli.ts`, `engines/{sandbox_agent,pi}.ts` | stable | `services/agent/tests/unit/{server,cli}.test.ts` |
+| [Runner engine internals](in-service/runner-engine-internals.md) | in-service (runner) | `server.ts`, `cli.ts`, `engines/sandbox_agent.ts` | stable | `services/agent/tests/unit/{server,cli}.test.ts` |
 | [Permission responder](in-service/permission-responder.md) | in-service (runner) | `responder.ts`, `engines/sandbox_agent/permissions.ts` | stable | `services/agent/tests/unit/{responder,sandbox-agent-permissions}.test.ts` |
 | [Sandbox permission](in-service/sandbox-permission.md) | in-service (runner) | `agents/dtos.py`, `protocol.ts`, `engines/sandbox_agent/{provider,run-plan}.ts` | evolving (network enforced on Daytona only; local rejected; filesystem nowhere) | `services/agent/tests/unit/{sandbox-agent-provider,sandbox-agent-run-plan}.test.ts` |
 
 Paths are relative to the owner package (`sdks/python/agenta/sdk/`, `services/agent/src/`,
 `services/oss/src/`, `api/oss/src/`); test paths are relative to each package's pytest root
 unless prefixed.
+
+## Follow-up design notes
+
+- [Agent workflow interface architecture follow-ups](architecture-followups.md) tracks
+  proposed fixes for interface-design risks found during review.
 
 ## Source of truth
 

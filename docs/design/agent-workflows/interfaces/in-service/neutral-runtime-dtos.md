@@ -21,7 +21,7 @@ All in `dtos.py`. The ones that carry the most weight:
   `tools`, `mcp_servers`, `skills`, `sandbox_permission`, and a `harness_options` bag keyed
   by harness name. Built by `from_params(...)`. The editable schema is
   [Agent config schema](../public-edge/agent-config-schema.md).
-- **`RunSelection`**: `harness` (default `pi`), `sandbox` (default `local`),
+- **`RunSelection`**: `harness` (default `pi_core`), `sandbox` (default `local`),
   `permission_policy` (`auto` | `deny`).
 - **`SessionConfig`**: everything one run needs, assembled by the handler: the agent config,
   secrets, resolved connection, permission policy, trace, session id, and the resolved tool

@@ -25,7 +25,7 @@ def test_claude_is_anthropic_only():
 
 
 def test_pi_and_agenta_reach_the_vault_providers_not_arbitrary_ones():
-    for harness in ("pi", "agenta"):
+    for harness in ("pi_core", "pi_agenta"):
         # Real list, not "*": the eight vault-mapped providers are reachable...
         for provider in PI_VAULT_PROVIDERS:
             assert harness_allows_provider(harness, provider) is True
@@ -45,11 +45,11 @@ def test_two_modes_supported_on_all_known_harnesses():
             assert harness_allows_mode(harness, mode) is True
         # The removed `default` mode is no longer supported.
         assert harness_allows_mode(harness, "default") is False
-    assert harness_allows_mode("pi", "bogus") is False
+    assert harness_allows_mode("pi_core", "bogus") is False
 
 
 def test_pi_only_consumes_direct_deployment_in_v1():
-    for harness in ("pi", "agenta"):
+    for harness in ("pi_core", "pi_agenta"):
         assert harness_allows_deployment(harness, "direct") is True
         for deployment in ("custom", "bedrock", "vertex_ai", "azure"):
             assert harness_allows_deployment(harness, deployment) is False
@@ -63,12 +63,12 @@ def test_claude_consumes_custom_gateway_bedrock_and_vertex():
 
 def test_capabilities_document_shape():
     doc = harness_capabilities_document()
-    assert set(doc) == {"pi", "agenta", "claude"}
+    assert set(doc) == {"pi_core", "pi_agenta", "claude"}
     assert doc["claude"]["providers"] == ["anthropic"]
     assert doc["claude"]["model_selection"] == "alias"
-    assert doc["pi"]["providers"] == list(PI_VAULT_PROVIDERS)
-    assert doc["pi"]["connection_modes"] == ["agenta", "self_managed"]
-    assert doc["pi"]["deployments"] == ["direct"]
+    assert doc["pi_core"]["providers"] == list(PI_VAULT_PROVIDERS)
+    assert doc["pi_core"]["connection_modes"] == ["agenta", "self_managed"]
+    assert doc["pi_core"]["deployments"] == ["direct"]
     assert doc["claude"]["deployments"] == [
         "direct",
         "custom",

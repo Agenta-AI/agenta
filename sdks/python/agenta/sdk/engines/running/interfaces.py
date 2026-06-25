@@ -1,4 +1,5 @@
 from agenta.sdk.models.workflows import WorkflowRevisionData
+from agenta.sdk.utils.types import build_agent_v0_default
 
 
 JSON_SCHEMA = "https://json-schema.org/draft/2020-12/schema"
@@ -536,19 +537,9 @@ agent_v0_interface = WorkflowRevisionData(
                     x_ag_type_ref="agent_config",
                     jtype="object",
                     description="The agent's instructions, model, tools, MCP servers, and runtime.",
-                    default={
-                        "agents_md": (
-                            "You are a friendly hello-world agent running on the "
-                            "Agenta agent service.\n\n- Greet the user warmly.\n- "
-                            "Answer the user's message in one or two short sentences."
-                        ),
-                        "model": "gpt-5.5",
-                        "tools": [],
-                        "mcp_servers": [],
-                        "harness": "pi",
-                        "sandbox": "local",
-                        "permission_policy": "auto",
-                    },
+                    # The minimal builtin default: no platform skill, no sandbox_permission. The
+                    # agent service adds both via the same builder (see schemas.py).
+                    default=build_agent_v0_default(),
                 ),
             },
             additional_properties=True,

@@ -60,7 +60,7 @@ def _base_agent_config() -> dict:
         "model": "gpt-4o",
         "tools": [],
         "mcp_servers": [],
-        "harness": "pi",
+        "harness": "pi_core",
         "sandbox": "local",
         "permission_policy": "auto",
         "sandbox_permission": {

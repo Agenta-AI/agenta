@@ -1,5 +1,5 @@
 /**
- * Skill materialization, shared by both engines.
+ * Skill materialization for the sandbox-agent engine.
  *
  * A skill rides the `/run` wire as a resolved inline package (`WireSkill`): the SKILL.md
  * frontmatter fields (`name`/`description`), a Markdown `body`, and optional bundled `files`.
@@ -7,10 +7,8 @@
  * the request reached us, so there is exactly one shape here and no name-against-a-bundled-root
  * resolution. For each skill we write a fresh directory under a per-run temp root, compose its
  * `SKILL.md`, and lay each bundled file at its (re-validated) relative path. The resulting
- * `{ name, dir }` pairs flow through the existing install paths:
+ * `{ name, dir }` pairs flow through the install path:
  *
- *  - the in-process Pi engine (`engines/pi.ts`) feeds the dirs to Pi's resource loader as
- *    `additionalSkillPaths`;
  *  - the sandbox-agent engine (`engines/sandbox_agent.ts`) lays the dirs into the Pi agent dir's
  *    `skills/` (user scope), where Pi auto-discovers them on every run.
  *

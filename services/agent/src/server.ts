@@ -25,17 +25,11 @@ import type {
   EmitEvent,
   StreamRecord,
 } from "./protocol.ts";
-import { runPi } from "./engines/pi.ts";
 import { runSandboxAgent } from "./engines/sandbox_agent.ts";
 import { runnerInfo } from "./version.ts";
 import { isEntrypoint } from "./entry.ts";
 
 const PORT = Number(process.env.PORT ?? 8765);
-
-// Select the engine. `sandbox-agent` drives a harness over ACP. The direct `pi` engine is
-// kept for local examples and tests. The request's explicit `backend` wins; AGENT_BACKEND is
-// a runner-internal override.
-const DEFAULT_BACKEND = (process.env.AGENT_BACKEND ?? "sandbox-agent").toLowerCase();
 
 /** Run one request through an engine. Tests inject a fake to avoid a live harness. */
 export type RunAgent = (
@@ -44,10 +38,10 @@ export type RunAgent = (
   signal?: AbortSignal,
 ) => Promise<AgentRunResult>;
 
-const runAgent: RunAgent = (request, emit, signal) => {
-  const backend = (request.backend ?? DEFAULT_BACKEND).toLowerCase();
-  return backend === "pi" ? runPi(request, emit) : runSandboxAgent(request, emit, signal);
-};
+// One engine: `sandbox-agent` drives a harness (Pi or Claude) over ACP. The harness is
+// selected by `request.harness`, not by an engine selector.
+const runAgent: RunAgent = (request, emit, signal) =>
+  runSandboxAgent(request, emit, signal);
 
 /**
  * Stream a run as NDJSON: one `{kind:"event"}` line per event the moment it is built, then

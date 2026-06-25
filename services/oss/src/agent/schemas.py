@@ -8,16 +8,9 @@ Kept in its own module so it composes into the workflow registration with a one-
 change and stays out of the handler logic.
 """
 
-_SCHEMA = "https://json-schema.org/draft/2020-12/schema"
+from agenta.sdk.utils.types import build_agent_v0_default
 
-# Default config the playground pre-fills and the agent falls back to. Kept in sync
-# with the catalog template and ``config.py`` (DEFAULT_MODEL / DEFAULT_AGENTS_MD).
-_DEFAULT_MODEL = "gpt-5.5"
-_DEFAULT_AGENTS_MD = (
-    "You are a friendly hello-world agent running on the Agenta agent service.\n\n"
-    "- Greet the user warmly.\n"
-    "- Answer the user's message in one or two short sentences."
-)
+_SCHEMA = "https://json-schema.org/draft/2020-12/schema"
 
 # Inputs: a chat-style message list. `x-ag-type-ref: messages` is what marks the
 # workflow as chat to the playground (same marker the builtin chat service uses).
@@ -50,34 +43,14 @@ AGENT_INPUTS_SCHEMA = {
 # AGENTA_FORCED_SKILLS and the old per-project skill seeder.
 _DEFAULT_SKILL_SLUG = "_agenta.agenta-getting-started"
 
-_DEFAULT_AGENT_CONFIG = {
-    "agents_md": _DEFAULT_AGENTS_MD,
-    "model": _DEFAULT_MODEL,
-    "tools": [],
-    "mcp_servers": [],
-    "harness": "pi",
-    "sandbox": "local",
-    "permission_policy": "auto",
-    # The declared sandbox boundary the playground pre-fills (Layer 2). Network egress on by
-    # default; the runner does not enforce it yet (plumbing-only slice).
-    "sandbox_permission": {
-        "network": {"mode": "on", "allowlist": []},
-        "enforcement": "strict",
-    },
-    "skills": [
-        {
-            "@ag.embed": {
-                # Reference the skill at the ARTIFACT level (resolves to its latest revision).
-                # A `workflow_revision` slug matches the revision's own hash slug, not the
-                # author-facing artifact slug, so a bare revision slug with no version 500s;
-                # `workflow.slug` is the correct "use the latest" shape. Pin a version with
-                # `{"workflow_revision": {"slug": <artifact-slug>, "version": "v3"}}`.
-                "@ag.references": {"workflow": {"slug": _DEFAULT_SKILL_SLUG}},
-                "@ag.selector": {"path": "parameters.skill"},
-            }
-        }
-    ],
-}
+# The service default = the shared builder (single source, in the SDK) plus the two service-only
+# choices: the platform default skill (inlined from the reserved slug) and the declared Layer-2
+# sandbox boundary the playground pre-fills. The SDK builtin interface uses the same builder
+# without these, so a new default field changes one place.
+_DEFAULT_AGENT_CONFIG = build_agent_v0_default(
+    skill_slug=_DEFAULT_SKILL_SLUG,
+    include_sandbox_permission=True,
+)
 
 AGENT_CONFIG_SCHEMA = {
     "type": "object",

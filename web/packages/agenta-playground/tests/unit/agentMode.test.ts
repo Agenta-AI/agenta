@@ -119,7 +119,7 @@ describe("isAgentModeAtomFamily", () => {
         // harness/sandbox live INSIDE the agent_config block — so the top-level
         // configuration heuristic misses. The schema marker is what saves it.
         setType(store, "ag", "custom")
-        setConfig(store, "ag", {agent_config: {harness: "pi", sandbox: "local"}})
+        setConfig(store, "ag", {agent_config: {harness: "pi_core", sandbox: "local"}})
         setSchema(store, "ag", {
             type: "object",
             properties: {
@@ -146,7 +146,7 @@ describe("isAgentModeAtomFamily", () => {
 
     it("heuristic: a config carrying harness/sandbox detects as agent", () => {
         setType(store, "h", "custom") // not yet flagged agent
-        setConfig(store, "h", {harness: "pi", sandbox: "local"})
+        setConfig(store, "h", {harness: "pi_core", sandbox: "local"})
         expect(store.get(isAgentModeAtomFamily("h"))).toBe(true)
     })
 

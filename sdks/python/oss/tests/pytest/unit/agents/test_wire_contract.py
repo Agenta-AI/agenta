@@ -8,6 +8,9 @@ asserts the Python side against them, and the TS side asserts the same files (a 
 If a field is added, renamed, or removed on the wire, a golden assertion here fails on
 purpose. Regenerate the golden deliberately, and update ``protocol.ts`` and ``KNOWN_REQUEST_KEYS``
 to match.
+
+There is no engine selector on the wire: the runner drives one engine (the sandbox-agent ACP
+path) and ``harness`` (``pi_core`` / ``pi_agenta`` / ``claude``) picks the agent.
 """
 
 from __future__ import annotations
@@ -35,7 +38,6 @@ from agenta.sdk.agents.utils.wire import request_to_wire, result_from_wire
 # interface must declare a superset of these. Adding a key here without adding it to
 # protocol.ts is exactly the drift this set exists to catch.
 KNOWN_REQUEST_KEYS = {
-    "backend",
     "harness",
     "sandbox",
     "sessionId",
@@ -99,7 +101,6 @@ def _pi_payload():
         append_system="Be terse.",
     )
     return request_to_wire(
-        engine="pi",
         harness=HarnessType.PI,
         sandbox="local",
         config=config,
@@ -133,7 +134,6 @@ def _claude_payload():
         },
     )
     return request_to_wire(
-        engine="sandbox-agent",
         harness=HarnessType.CLAUDE,
         sandbox="local",
         config=config,
@@ -155,7 +155,6 @@ def _agenta_payload():
         skills=[dict(_SKILL)],
     )
     return request_to_wire(
-        engine="pi",
         harness=HarnessType.AGENTA,
         sandbox="local",
         config=config,
@@ -185,7 +184,6 @@ def test_request_to_wire_skills_ride_their_own_seam_not_tools():
 def test_request_to_wire_omits_skills_when_none():
     # No declared skills -> no `skills` key (keeps a skill-free payload byte-identical).
     payload = request_to_wire(
-        engine="pi",
         harness=HarnessType.PI,
         sandbox="local",
         config=PiAgentConfig(),
@@ -196,7 +194,7 @@ def test_request_to_wire_omits_skills_when_none():
 
 def test_request_to_wire_pi_matches_golden(golden):
     payload = _pi_payload()
-    assert payload == golden("run_request.pi.json")
+    assert payload == golden("run_request.pi_core.json")
     # The Composio read-only hint rides the wire as camelCase `readOnly`.
     assert payload["customTools"][0]["readOnly"] is True
     # No explicit author permission + read_only=True -> derived `allow` rides the wire.
@@ -246,7 +244,6 @@ def test_request_to_wire_has_no_prompt_key():
     # The serializer emits `messages` only; the TS side derives the latest turn with
     # `resolvePromptText`. This asymmetry is intentional and easy to break, so lock it.
     payload = request_to_wire(
-        engine="pi",
         harness=HarnessType.PI,
         sandbox="local",
         config=PiAgentConfig(),
@@ -282,7 +279,6 @@ def test_request_to_wire_carries_resolved_connection_non_secret_descriptor():
         ),
     )
     payload = request_to_wire(
-        engine="pi",
         harness=HarnessType.PI,
         sandbox="local",
         config=config,
@@ -309,7 +305,6 @@ def test_request_to_wire_omits_resolved_connection_when_none():
     # byte-identical to before (the golden contract; the golden fixtures set none).
     config = PiAgentConfig(model="gpt-5.5")
     payload = request_to_wire(
-        engine="pi",
         harness=HarnessType.PI,
         sandbox="local",
         config=config,
@@ -326,7 +321,6 @@ def test_request_to_wire_omits_resolved_connection_when_none():
 def test_pi_permission_policy_is_always_auto():
     # Pi never gates tool use, regardless of any requested policy.
     payload = request_to_wire(
-        engine="pi",
         harness=HarnessType.PI,
         sandbox="local",
         config=PiAgentConfig(),
@@ -405,7 +399,6 @@ def test_request_to_wire_carries_code_client_and_mcp_specs():
         ],
     )
     payload = request_to_wire(
-        engine="pi",
         harness=HarnessType.PI,
         sandbox="local",
         config=config,
@@ -436,7 +429,6 @@ def test_request_to_wire_carries_code_client_and_mcp_specs():
 def test_request_to_wire_omits_mcp_servers_when_none():
     # No declared servers -> no `mcpServers` key (keeps a tool-free payload byte-identical).
     payload = request_to_wire(
-        engine="pi",
         harness=HarnessType.PI,
         sandbox="local",
         config=PiAgentConfig(),
@@ -449,7 +441,6 @@ def test_request_to_wire_omits_sandbox_permission_when_none():
     # No declared boundary -> no `sandboxPermission` key (keeps a boundary-free payload
     # byte-identical, so existing configs/fixtures are unaffected).
     payload = request_to_wire(
-        engine="pi",
         harness=HarnessType.PI,
         sandbox="local",
         config=PiAgentConfig(),
@@ -462,7 +453,6 @@ def test_request_to_wire_omits_harness_files_when_none():
     # No authored options on a Claude config -> the claude adapter renders nothing, so no
     # `harnessFiles` key (a Claude run without harness options is byte-identical to before).
     payload = request_to_wire(
-        engine="sandbox-agent",
         harness=HarnessType.CLAUDE,
         sandbox="local",
         config=ClaudeAgentConfig(),
@@ -482,7 +472,6 @@ def test_request_to_wire_pi_renders_no_harness_files_from_its_options():
         }
     )
     payload = request_to_wire(
-        engine="pi",
         harness=HarnessType.PI,
         sandbox="local",
         config=config,
@@ -511,7 +500,6 @@ def test_request_to_wire_claude_renders_settings_from_options_and_boundaries():
         ],
     )
     payload = request_to_wire(
-        engine="sandbox-agent",
         harness=HarnessType.CLAUDE,
         sandbox="local",
         config=config,
@@ -537,7 +525,6 @@ def test_request_to_wire_carries_sandbox_permission_allowlist():
         )
     )
     payload = request_to_wire(
-        engine="pi",
         harness=HarnessType.PI,
         sandbox="local",
         config=config,

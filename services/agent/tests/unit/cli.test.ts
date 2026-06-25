@@ -22,7 +22,7 @@ function collector() {
 describe("runCli", () => {
   it("one-shot: writes the result JSON and returns exit 0", async () => {
     const out = collector();
-    const code = await runCli(JSON.stringify({ backend: "pi" }), false, { run: okRun, write: out.write });
+    const code = await runCli(JSON.stringify({ harness: "pi_core" }), false, { run: okRun, write: out.write });
     assert.equal(code, 0);
     assert.deepEqual(JSON.parse(out.text()), { ok: true, output: "hi" });
   });

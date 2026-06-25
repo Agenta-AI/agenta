@@ -233,9 +233,10 @@ async def _agent(
         mcp_servers=resolved_mcp,
     )
 
-    # The harness validates that the chosen backend can drive it. Unsupported combinations
-    # such as `agenta` on sandbox-agent fail here instead of silently changing runtime behavior.
-    # setup/cleanup own the backend lifecycle; prompt/stream run one cold turn.
+    # The harness validates that the chosen backend can drive it. An unknown harness value fails
+    # here instead of silently changing runtime behavior. The sandbox-agent backend supports all
+    # three harnesses (pi_core, pi_agenta, claude). setup/cleanup own the backend lifecycle;
+    # prompt/stream run one cold turn.
     harness = make_harness(selection.harness, Environment(select_backend(selection)))
 
     # Both paths hand off to a helper that owns the environment lifecycle (setup/cleanup).

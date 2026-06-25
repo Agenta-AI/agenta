@@ -72,7 +72,7 @@ def patched(monkeypatch, fake_backend):
     return backend, recorded
 
 
-async def _invoke(harness="pi", **agent):
+async def _invoke(harness="pi_core", **agent):
     return await app._agent(
         messages=[{"role": "user", "content": "hi"}],
         parameters={"agent": {"harness": harness, **agent}},
@@ -80,18 +80,18 @@ async def _invoke(harness="pi", **agent):
 
 
 async def test_invoke_returns_assistant_message(patched):
-    assert await _invoke("pi") == {"role": "assistant", "content": "echo"}
+    assert await _invoke("pi_core") == {"role": "assistant", "content": "echo"}
 
 
 async def test_invoke_records_usage(patched):
     _, recorded = patched
-    await _invoke("pi")
+    await _invoke("pi_core")
     assert recorded["usage"] == {"total": 15}
 
 
 async def test_invoke_runs_backend_lifecycle(patched):
     backend, _ = patched
-    await _invoke("pi")
+    await _invoke("pi_core")
     assert backend.setup_calls == 1
     assert backend.shutdown_calls == 1  # cleanup() tears the backend down
 
@@ -101,7 +101,7 @@ async def test_messages_session_id_reaches_session_config(patched):
 
     await app._agent(
         messages=[{"role": "user", "content": "hi"}],
-        parameters={"agent": {"harness": "pi"}},
+        parameters={"agent": {"harness": "pi_core"}},
         session_id="sess_request",
     )
 
@@ -141,7 +141,7 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
     }
     bodies = [
         await _invoke(harness, permission_policy="deny", skills=[skill])
-        for harness in ("pi", "agenta", "claude")
+        for harness in ("pi_core", "pi_agenta", "claude")
     ]
     pi_body, agenta_body, claude_body = bodies
 
@@ -224,7 +224,7 @@ async def test_stream_tool_resolution_failure_is_raised_before_backend_setup(
     with pytest.raises(GatewayToolResolutionError, match="gateway unavailable"):
         await app._agent(
             messages=[{"role": "user", "content": "hi"}],
-            parameters={"agent": {"harness": "pi"}},
+            parameters={"agent": {"harness": "pi_core"}},
             stream=True,
         )
 
@@ -302,7 +302,7 @@ async def test_named_connection_env_reaches_session(monkeypatch, fake_backend):
 
     built = _patch_resolution(monkeypatch, backend, resolve=_resolve)
 
-    await _invoke("pi", model=_STRUCTURED_MODEL)
+    await _invoke("pi_core", model=_STRUCTURED_MODEL)
 
     # The ModelRef carried the config's named connection into the resolver.
     assert captured["model"].provider == "openai"
@@ -311,7 +311,7 @@ async def test_named_connection_env_reaches_session(monkeypatch, fake_backend):
     assert captured["model"].connection.slug == "openai-prod"
 
     # project_id comes from request state server-side, never the client context.
-    assert captured["context"].harness == "pi"
+    assert captured["context"].harness == "pi_core"
     assert captured["context"].project_id is None
 
     # The one resolved key reached the backend boundary as the session's secrets, and the
@@ -359,7 +359,7 @@ async def test_named_connection_resolution_failure_fails_loud(
     _patch_resolution(monkeypatch, backend, resolve=_resolve)
 
     with pytest.raises(ConnectionNotFoundError):
-        await _invoke("pi", model=_STRUCTURED_MODEL)
+        await _invoke("pi_core", model=_STRUCTURED_MODEL)
 
 
 async def test_default_connection_resolution_failure_degrades(
@@ -378,7 +378,7 @@ async def test_default_connection_resolution_failure_degrades(
 
     built = _patch_resolution(monkeypatch, backend, resolve=_resolve)
 
-    body = await _invoke("pi", model={"provider": "openai", "model": "gpt-5.5"})
+    body = await _invoke("pi_core", model={"provider": "openai", "model": "gpt-5.5"})
 
     assert body == {"role": "assistant", "content": "echo"}
     assert backend.created_secrets == [{}]
@@ -453,5 +453,5 @@ async def test_pi_bedrock_rejected_post_resolve(monkeypatch, fake_backend):
 
     with pytest.raises(UnsupportedDeploymentError):
         await _invoke(
-            "pi", model={"provider": "anthropic", "model": "anthropic.claude-x"}
+            "pi_core", model={"provider": "anthropic", "model": "anthropic.claude-x"}
         )

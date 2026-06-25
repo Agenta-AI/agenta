@@ -30,17 +30,17 @@ def _clean_env(monkeypatch, runner_wrapper: Path):
     monkeypatch.setenv("AGENTA_AGENT_RUNNER_DIR", str(runner_wrapper))
 
 
-def _sel(harness="pi", sandbox="local"):
+def _sel(harness="pi_core", sandbox="local"):
     return RunSelection(harness=harness, sandbox=sandbox)
 
 
-@pytest.mark.parametrize("harness", ["pi", "agenta", "claude"])
+@pytest.mark.parametrize("harness", ["pi_core", "pi_agenta", "claude"])
 def test_all_harnesses_use_sandbox_agent_backend(harness):
     assert isinstance(select_backend(_sel(harness, "local")), SandboxAgentBackend)
 
 
 def test_non_local_sandbox_is_threaded_through():
-    backend = select_backend(_sel("pi", "daytona"))
+    backend = select_backend(_sel("pi_core", "daytona"))
 
     assert isinstance(backend, SandboxAgentBackend)
     assert backend._sandbox == "daytona"
@@ -49,14 +49,14 @@ def test_non_local_sandbox_is_threaded_through():
 def test_runner_url_selects_http_transport(monkeypatch):
     monkeypatch.setenv("AGENTA_AGENT_RUNNER_URL", "http://sandbox-agent:8765")
 
-    backend = select_backend(_sel("pi", "local"))
+    backend = select_backend(_sel("pi_core", "local"))
 
     assert backend._url == "http://sandbox-agent:8765"
 
 
 def test_no_runner_url_uses_subprocess_transport():
     # Unset URL means the backend will spawn the runner CLI from a local checkout.
-    assert select_backend(_sel("pi", "local"))._url is None
+    assert select_backend(_sel("pi_core", "local"))._url is None
 
 
 def test_no_runner_url_requires_runner_assets(monkeypatch, tmp_path: Path):
@@ -65,4 +65,4 @@ def test_no_runner_url_requires_runner_assets(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("AGENTA_AGENT_RUNNER_DIR", str(missing_wrapper))
 
     with pytest.raises(AgentRunnerConfigurationError, match="src/cli.ts"):
-        select_backend(_sel("pi", "local"))
+        select_backend(_sel("pi_core", "local"))

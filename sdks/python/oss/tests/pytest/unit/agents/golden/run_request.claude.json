@@ -1,5 +1,4 @@
 {
-  "backend": "sandbox-agent",
   "harness": "claude",
   "sandbox": "local",
   "sessionId": null,

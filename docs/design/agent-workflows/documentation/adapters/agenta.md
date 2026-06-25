@@ -31,22 +31,21 @@ text. The contract between the two halves is the skill **name**: `AGENTA_FORCED_
 names, and each must match a committed directory under the runner's skills root.
 
 Because the Agenta harness IS Pi, its tools are delivered the Pi-native way (through the
-extension on the ACP path, through `buildCustomTools` in process), never over MCP. The forced
-`read` and `bash` tools are Pi built-ins, so they ride the wire as built-in names, not resolved
-specs.
+extension on the ACP path), never over MCP. The forced `read` and `bash` tools are Pi
+built-ins, so they ride the wire as built-in names, not resolved specs.
 
 ## How a skill reaches the model
 
-The flow below is for the in-process engine. The deployed path (sandbox-agent over ACP) reaches the
-same end state by a different mechanism, described in
-[On the sandbox-agent (ACP) path](#on-the-sandbox-agent-acp-path) below.
+The Agenta harness runs over the sandbox-agent ACP path, the one engine the runner has. The
+forced *skills* cannot ride the `/run` wire as text (a skill is a directory that may
+reference relative scripts and assets), so the wire carries only the skill **names** and the
+runner lays the bundled directories into the Pi agent dir.
 
 1. `AgentaHarness._to_harness_config` puts the forced skill names on the `skills` field of
    the `/run` request (`AgentaAgentConfig.wire_tools`).
-2. The in-process Pi engine (`engines/pi.ts`) resolves each name against its bundled
-   `skills/` root (override with `AGENTA_AGENT_SKILLS_DIR`) and passes the directories to Pi's
-   `DefaultResourceLoader` as `additionalSkillPaths`, with `noSkills: true` so only the
-   bundled skills load (the run stays hermetic, like `noContextFiles`).
+2. `runSandboxAgent` resolves each name against its bundled `skills/` root
+   (`engines/skills.ts`, override with `AGENTA_AGENT_SKILLS_DIR`) and writes the directories
+   into the Pi agent dir's `skills/` (user scope).
 3. Pi loads them, and because the forced `read` tool is enabled, surfaces them in the system
    prompt. The model reads a skill's `SKILL.md` on demand (progressive disclosure).
 
@@ -56,42 +55,38 @@ This follows Pi's own split (see `PiAgentConfig`): the **persona** ("who the age
 belongs in `append_system`, and **project conventions** belong in `AGENTS.md`. So the Agenta
 persona is a forced `append_system`, while the Agenta base preamble plus the author's
 instructions are the `AGENTS.md`. An author's own `system` / `append_system` (via
-`AgentConfig.harness_options["pi"]`) still apply, layered after the forced persona.
+`AgentConfig.harness_options["pi_core"]`) still apply, layered after the forced persona.
 
 ## Selecting it
 
-`agenta` is a harness option alongside `pi` and `claude` (the playground dropdown, the
+`pi_agenta` is a harness option alongside `pi_core` and `claude` (the playground dropdown, the
 `harness` field). The deployed service path routes it through `SandboxAgentBackend`, which
 drives Pi over ACP and layers the Agenta persona and tools on top.
 
 ## On the sandbox-agent (ACP) path
 
-`SandboxAgentBackend` also lists `HarnessType.AGENTA` as supported, so `agenta` runs over ACP through
-the sandbox-agent daemon as well. This is what lets it use the Daytona sandbox. The Agenta harness is
-Pi with an opinion, and the sandbox-agent daemon only knows real agents (`pi`, `claude`, …), so the
-runner maps `agenta` onto the `pi` ACP agent (`acpAgent` in `engines/sandbox_agent.ts`) and treats it
-as Pi for capabilities, model resolution, and tracing.
+`SandboxAgentBackend` lists `HarnessType.AGENTA` (`pi_agenta`) as supported, so it runs over
+ACP through the sandbox-agent daemon. This is what lets it use the Daytona sandbox. The Agenta
+harness is Pi with an opinion, and the sandbox-agent daemon only knows real agents (`pi`,
+`claude`, …), so the runner maps `pi_agenta` onto the `pi` ACP agent (`acpAgent` in
+`engines/sandbox_agent/run-plan.ts`, where `pi_core` and `pi_agenta` both resolve to `pi`) and
+treats it as Pi for capabilities, model resolution, and tracing.
 
-The forced *skills* cannot ride the `/run` wire as text (a skill is a directory that may
-reference relative scripts and assets), so the wire carries only the skill **names** and the
-runner lays the bundled directories into the Pi **agent dir**'s `skills/` (user scope).
-`runSandboxAgent` resolves the names against the bundled `skills/` root (`engines/skills.ts`, shared
-with the in-process engine). The agent dir is deliberate. Pi auto-discovers and enables
-user-scope skills (`<agentDir>/skills/`) on every run, whereas project skills
-(`<cwd>/.pi/skills/`) are trust-gated and would not load in this headless run.
+The agent dir matters. Pi auto-discovers and enables user-scope skills
+(`<agentDir>/skills/`) on every run, whereas project skills (`<cwd>/.pi/skills/`) are
+trust-gated and would not load in this headless run. Because the forced skills are user-scope,
+writing them into the *shared* agent dir would leak them into later plain `pi_core` runs on
+the same sidecar (and could pollute a developer's real `~/.pi/agent`). So each path gives the
+run its own agent dir: on **Daytona** the sandbox is already fresh per run
+(`uploadSkillsToSandbox`); on **local** an Agenta run gets a throwaway per-run agent dir
+seeded from the login (`auth.json` / `settings.json`), with the extension and skills installed
+into it and the daemon pointed at it via `PI_CODING_AGENT_DIR` (`prepareLocalAgentDir`),
+removed after the run. A plain `pi_core` run is unchanged (it installs only the extension into
+the shared agent dir).
 
-Because the forced skills are user-scope, writing them into the *shared* agent dir would leak
-them into later plain `pi` runs on the same sidecar (and could pollute a developer's real
-`~/.pi/agent`). So each path gives the run its own agent dir: on **Daytona** the sandbox is
-already fresh per run (`uploadSkillsToSandbox`); on **local** an Agenta run gets a throwaway
-per-run agent dir seeded from the login (`auth.json` / `settings.json`), with the extension and
-skills installed into it and the daemon pointed at it via `PI_CODING_AGENT_DIR`
-(`prepareLocalAgentDir`), removed after the run. A plain `pi` run is unchanged (it installs only
-the extension into the shared agent dir).
-
-The base AGENTS.md preamble still rides the wire as `agentsMd` (written into the session `cwd`),
-and the forced `read` / `bash` tools are Pi defaults under pi-acp. The one gap versus the
-in-process path is the persona `appendSystemPrompt`, which pi-acp gives no per-run hook to set;
-it is logged and skipped on the sandbox-agent Pi path (the same pre-existing limitation as plain Pi over
-ACP), so on sandbox-agent the Agenta persona is not yet applied. Daytona skill uploads are UTF-8 text
-only (`writeFsFile` takes a string body); binary skill assets are a follow-up.
+The base AGENTS.md preamble rides the wire as `agentsMd` (written into the session `cwd`), and
+the forced `read` / `bash` tools are Pi defaults under pi-acp. The persona rides the wire as
+`appendSystemPrompt` and the engine writes it into the per-run Pi agent dir as
+`APPEND_SYSTEM.md` (`engines/sandbox_agent/pi-assets.ts`), so Pi loads it on the run. Daytona
+skill uploads are UTF-8 text only (`writeFsFile` takes a string body); binary skill assets are
+a follow-up.

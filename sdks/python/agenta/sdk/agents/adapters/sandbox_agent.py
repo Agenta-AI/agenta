@@ -82,7 +82,6 @@ class SandboxAgentSession(Session):
     def _wire_payload(self, messages: Sequence[Message]) -> Dict[str, Any]:
         """The ``/run`` request JSON for this turn (shared by ``prompt`` and ``stream``)."""
         return request_to_wire(
-            engine=SandboxAgentBackend._ENGINE,
             harness=self._harness,
             sandbox=self._sandbox.sandbox_id,
             config=self._config,
@@ -121,7 +120,6 @@ class SandboxAgentBackend(Backend):
     supported_harnesses = frozenset(
         {HarnessType.PI, HarnessType.CLAUDE, HarnessType.AGENTA}
     )
-    _ENGINE = "sandbox-agent"  # hard-coded engine identity, not a constructor arg
 
     def __init__(
         self,
@@ -173,18 +171,16 @@ class SandboxAgentBackend(Backend):
     async def _deliver(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         if self._url:
             return await deliver_http(self._url, payload, timeout=self._timeout)
-        env = {**os.environ, "AGENT_BACKEND": self._ENGINE}
         return await deliver_subprocess(
-            self._command, payload, cwd=self._cwd, env=env, timeout=self._timeout
+            self._command, payload, cwd=self._cwd, timeout=self._timeout
         )
 
     def _deliver_stream(self, payload: Dict[str, Any]) -> AsyncIterator[Dict[str, Any]]:
         """The live counterpart of ``_deliver``: an NDJSON record stream from the runner."""
         if self._url:
             return deliver_http_stream(self._url, payload, timeout=self._timeout)
-        env = {**os.environ, "AGENT_BACKEND": self._ENGINE}
         return deliver_subprocess_stream(
-            self._command, payload, cwd=self._cwd, env=env, timeout=self._timeout
+            self._command, payload, cwd=self._cwd, timeout=self._timeout
         )
 
 

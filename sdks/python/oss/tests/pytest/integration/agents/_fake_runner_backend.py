@@ -1,10 +1,11 @@
-"""Test-only in-process backend: drive Pi in-process through the TS runner over a
-subprocess, no sandbox-agent daemon.
+"""Test-only backend: drive the real ``/run`` wire and subprocess transport against a fake
+runner program.
 
-This is NOT a deployment backend. The service always uses ``SandboxAgentBackend``. This
-class lives here, beside the transport round-trip test, only to exercise the real wire and
-subprocess transport against a fake runner. It used to ship in the SDK as a public
-"reference backend", which was misleading, so it now lives in the test tree.
+This is NOT a deployment backend. The service always uses ``SandboxAgentBackend``. This class
+lives here, beside the transport round-trip test, only to exercise the real wire
+(``request_to_wire`` / ``result_from_wire``) and the subprocess transport against a fake runner
+script, with no TS, no daemon, and no LLM. It mirrors ``SandboxAgentBackend``'s wire path so the
+serialization it covers is the one production uses.
 """
 
 from __future__ import annotations
@@ -33,9 +34,8 @@ from agenta.sdk.agents.utils import (
 from agenta.sdk.agents.adapters._runner_config import resolve_runner_command
 
 
-class InProcessSandbox(Sandbox):
-    """The local host. In-process Pi runs here directly; provisioning files are buffered
-    (AGENTS.md rides the wire today)."""
+class FakeRunnerSandbox(Sandbox):
+    """A local stand-in sandbox; provisioning files are buffered (AGENTS.md rides the wire)."""
 
     def __init__(self) -> None:
         self.files: Dict[str, bytes] = {}
@@ -44,12 +44,12 @@ class InProcessSandbox(Sandbox):
         self.files.update(files)
 
 
-class InProcessPiSession(Session):
-    """One turn-per-prompt Pi session driven in-process by the TS runner."""
+class FakeRunnerSession(Session):
+    """One turn-per-prompt session driven through the wire + transport by a fake runner."""
 
     def __init__(
         self,
-        backend: "InProcessPiBackend",
+        backend: "FakeRunnerBackend",
         config: HarnessAgentConfig,
         *,
         harness: HarnessType,
@@ -71,7 +71,6 @@ class InProcessPiSession(Session):
     def _wire_payload(self, messages: Sequence[Message]) -> Dict[str, Any]:
         """The ``/run`` request JSON for this turn (shared by ``prompt`` and ``stream``)."""
         return request_to_wire(
-            engine=InProcessPiBackend._ENGINE,
             harness=self._harness,
             sandbox="local",
             config=self._config,
@@ -109,13 +108,16 @@ class InProcessPiSession(Session):
         return AgentRun(records).on_result(self._absorb_result)
 
 
-class InProcessPiBackend(Backend):
-    """The in-process Pi engine: drives the Pi SDK directly in the TS runner. Pi only, local
-    only, no sandbox-agent daemon."""
+class FakeRunnerBackend(Backend):
+    """Drives the real wire + subprocess transport against a fake runner script. Test-only.
 
-    # Agenta is Pi with an opinion: same in-process engine, so this backend drives it too.
-    supported_harnesses = frozenset({HarnessType.PI, HarnessType.AGENTA})
-    _ENGINE = "pi"  # hard-coded engine identity
+    It mirrors ``SandboxAgentBackend``'s wire path (no engine selector on the wire; the runner
+    is one engine), so the serialization round-trip it covers is the one production uses.
+    """
+
+    supported_harnesses = frozenset(
+        {HarnessType.PI, HarnessType.CLAUDE, HarnessType.AGENTA}
+    )
 
     def __init__(
         self,
@@ -135,8 +137,8 @@ class InProcessPiBackend(Backend):
         self._cwd = cwd
         self._timeout = timeout
 
-    async def create_sandbox(self) -> InProcessSandbox:
-        return InProcessSandbox()
+    async def create_sandbox(self) -> FakeRunnerSandbox:
+        return FakeRunnerSandbox()
 
     async def create_session(
         self,
@@ -147,8 +149,8 @@ class InProcessPiBackend(Backend):
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
         session_id: Optional[str] = None,
-    ) -> InProcessPiSession:
-        return InProcessPiSession(
+    ) -> FakeRunnerSession:
+        return FakeRunnerSession(
             self,
             config,
             harness=harness,
@@ -160,16 +162,14 @@ class InProcessPiBackend(Backend):
     async def _deliver(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         if self._url:
             return await deliver_http(self._url, payload, timeout=self._timeout)
-        env = {**os.environ, "AGENT_BACKEND": self._ENGINE}
         return await deliver_subprocess(
-            self._command, payload, cwd=self._cwd, env=env, timeout=self._timeout
+            self._command, payload, cwd=self._cwd, timeout=self._timeout
         )
 
     def _deliver_stream(self, payload: Dict[str, Any]) -> AsyncIterator[Dict[str, Any]]:
         """The live counterpart of ``_deliver``: an NDJSON record stream from the runner."""
         if self._url:
             return deliver_http_stream(self._url, payload, timeout=self._timeout)
-        env = {**os.environ, "AGENT_BACKEND": self._ENGINE}
         return deliver_subprocess_stream(
-            self._command, payload, cwd=self._cwd, env=env, timeout=self._timeout
+            self._command, payload, cwd=self._cwd, timeout=self._timeout
         )

@@ -39,7 +39,7 @@ Request:
       "agent": {
         "agents_md": "...",
         "model": "gpt-5.5",
-        "harness": "pi",
+        "harness": "pi_core",
         "sandbox": "local"
       }
     }
@@ -101,18 +101,20 @@ break when a field moves, is in the interface inventory's
 [Service to agent runner](../interfaces/cross-service/service-to-agent-runner.md). This page
 owns the field-by-field narrative.
 
+The runner drives one engine, the sandbox-agent ACP path. The `harness` field selects the
+agent, so there is no engine selector on the wire.
+
 Request fields include:
 
 | Field | Meaning |
 | --- | --- |
-| `backend` | Runner engine: `sandbox-agent` (default) or `pi` (in-process). The deployed service always sends `sandbox-agent`. |
-| `harness` | Harness id: `pi`, `claude`, or `agenta`. On the sandbox-agent path `agenta` maps to the `pi` ACP agent plus forced skills and prompt extras. |
+| `harness` | Harness id: `pi_core`, `pi_agenta`, or `claude`. `pi_core` and `pi_agenta` both drive the `pi` ACP agent; `pi_agenta` is Pi with Agenta's forced skills, prompt, and policy. `claude` drives the `claude` ACP agent. |
 | `sandbox` | Sandbox id, usually `local` or `daytona`. |
 | `sessionId` | External conversation id. The runtime is cold and receives history in `messages`. |
 | `agentsMd` | Instructions that become `AGENTS.md`. |
-| `systemPrompt`, `appendSystemPrompt` | Pi prompt overrides. Delivered on both the in-process Pi path and the sandbox-agent Pi path (the sandbox-agent engine writes `SYSTEM.md` / `APPEND_SYSTEM.md` into the per-run Pi agent dir, local and Daytona). |
-| `skills` | Resolved inline skill packages (full `SKILL.md` content, with `@ag.embed` references inlined server-side), declared in the agent config. All three harnesses wire them; the runner materializes each into a skill dir (Pi/Agenta through Pi's agent-dir scope, Claude under project-local `.claude/skills`). Omitted when none are declared. |
-| `model` | Requested model id. Not honored on the Pi-over-sandbox-agent path; pi-acp accepts only its default model (see Ground Truth). |
+| `systemPrompt`, `appendSystemPrompt` | Pi prompt overrides. The sandbox-agent engine writes `SYSTEM.md` / `APPEND_SYSTEM.md` into the per-run Pi agent dir, local and Daytona. |
+| `skills` | Resolved inline skill packages (full `SKILL.md` content, with `@ag.embed` references inlined server-side), declared in the agent config. All three harnesses wire them; the runner materializes each into a skill dir (`pi_core`/`pi_agenta` through Pi's agent-dir scope, Claude under project-local `.claude/skills`). Omitted when none are declared. |
+| `model` | Requested model id. Not honored on the Pi ACP path; pi-acp accepts only its default model (see Ground Truth). |
 | `messages` | Conversation history and current turn. |
 | `secrets` | Provider env vars resolved by the service. |
 | `tools`, `customTools`, `toolCallback`, `mcpServers` | Resolved tool delivery. |

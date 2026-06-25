@@ -132,13 +132,12 @@ reports it can take tools over MCP gets them that way; a harness that cannot get
 natively. Today that splits cleanly into two paths.
 
 - **Pi takes native tools.** Pi has an extension API, so the runner registers each resolved
-  spec as a Pi tool directly. In-process this is `buildCustomTools` in
-  `services/agent/src/engines/pi.ts`; over ACP it is the bundled Pi extension
-  (`services/agent/src/extensions/agenta.ts`), which reads the public specs from
-  `AGENTA_TOOL_PUBLIC_SPECS` and does the same registration from inside Pi. Either way Pi runs
-  the tool body the runner gives it. Pi gets no MCP server at all here: `buildSessionMcpServers`
-  returns an empty list for Pi, so neither the synthetic `agenta-tools` server nor any user
-  MCP server is attached.
+  spec as a Pi tool directly. The bundled Pi extension
+  (`services/agent/src/extensions/agenta.ts`) reads the public specs from
+  `AGENTA_TOOL_PUBLIC_SPECS` and registers them from inside Pi, then Pi runs the tool body the
+  runner gives it. Pi gets no MCP server at all here: `buildSessionMcpServers` returns an empty
+  list for Pi, so neither the synthetic `agenta-tools` server nor any user MCP server is
+  attached.
 - **Claude and other ACP harnesses take MCP.** They cannot accept a native tool, so the runner
   exposes the same resolved specs as a small synthetic MCP server named `agenta-tools`
   (`services/agent/src/tools/mcp-bridge.ts` launches `services/agent/src/tools/mcp-server.ts`).
@@ -287,7 +286,7 @@ declarative UI spec (`RenderHint` in `protocol.ts`).
 | Callback transport | `services/agent/src/tools/callback.ts` |
 | Code execution | `services/agent/src/tools/code.ts` |
 | Daytona/non-Pi relay | `services/agent/src/tools/relay.ts` |
-| Pi native delivery | `services/agent/src/engines/pi.ts`, `services/agent/src/extensions/agenta.ts` |
+| Pi native delivery | `services/agent/src/extensions/agenta.ts` |
 | `agenta-tools` server for non-Pi harnesses | `services/agent/src/tools/mcp-bridge.ts`, `services/agent/src/tools/mcp-server.ts` |
 | Capability probe | `services/agent/src/engines/sandbox_agent/capabilities.ts` |
 | Permission policy | `services/agent/src/responder.ts` |

@@ -1,6 +1,5 @@
 {
-  "backend": "pi",
-  "harness": "pi",
+  "harness": "pi_core",
   "sandbox": "local",
   "sessionId": "sess-1",
   "agentsMd": "You are a helpful assistant.",

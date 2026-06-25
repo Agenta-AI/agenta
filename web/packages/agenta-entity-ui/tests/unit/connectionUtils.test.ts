@@ -177,16 +177,16 @@ describe("connectionUtils: composeModelValue", () => {
 })
 
 describe("connectionUtils: harness capability gating", () => {
-    it("pi and agenta reach the vault providers (real list, not a wildcard) and both modes", () => {
+    it("pi_core and pi_agenta reach the vault providers (real list, not a wildcard) and both modes", () => {
         // Real list, not "*": the eight vault-mapped providers (mirrors the SDK table).
-        expect(allowedProviders("pi")).toContain("openai")
-        expect(allowedProviders("pi")).toContain("together_ai")
-        expect(allowedProviders("pi")).not.toContain("*")
-        expect(allowedProviders("agenta")).toEqual(allowedProviders("pi"))
-        expect(allowedConnectionModes("pi")).toEqual(["agenta", "self_managed"])
-        expect(harnessAllowsProvider("pi", "openai")).toBe(true)
+        expect(allowedProviders("pi_core")).toContain("openai")
+        expect(allowedProviders("pi_core")).toContain("together_ai")
+        expect(allowedProviders("pi_core")).not.toContain("*")
+        expect(allowedProviders("pi_agenta")).toEqual(allowedProviders("pi_core"))
+        expect(allowedConnectionModes("pi_core")).toEqual(["agenta", "self_managed"])
+        expect(harnessAllowsProvider("pi_core", "openai")).toBe(true)
         // An unmapped provider is NOT reachable (the wildcard is gone).
-        expect(harnessAllowsProvider("pi", "anything")).toBe(false)
+        expect(harnessAllowsProvider("pi_core", "anything")).toBe(false)
     })
 
     it("claude is narrow: anthropic only", () => {

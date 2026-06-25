@@ -40,11 +40,15 @@ from .tools.models import coerce_tool_spec
 
 
 class HarnessType(str, Enum):
-    """The coding agent program a run drives. A backend declares which it supports."""
+    """The coding agent program a run drives. A backend declares which it supports.
 
-    PI = "pi"
+    ``pi_core`` is plain Pi; ``pi_agenta`` is Pi with Agenta's forced skills, prompt, and
+    policy. Both drive the same ``pi`` ACP agent in the runner; ``claude`` drives Claude Code.
+    """
+
+    PI = "pi_core"
     CLAUDE = "claude"
-    AGENTA = "agenta"
+    AGENTA = "pi_agenta"
 
     @classmethod
     def coerce(cls, value: "HarnessType | str") -> "HarnessType":
@@ -357,10 +361,11 @@ class AgentConfig(BaseModel):
     specs is the caller's job (the Agenta service does it server-side).
 
     ``harness_options`` is the neutral config's one escape hatch: a map keyed by harness
-    name (``"pi"``, ``"claude"``) whose value is a free-form bag of knobs only that harness
+    name (``"pi_core"``, ``"claude"``) whose value is a free-form bag of knobs only that harness
     understands, for example Pi's ``system`` / ``append_system`` prompt overrides. The
     config stays harness-agnostic because each Harness adapter reads only its own slice and
-    ignores the rest; a key for a harness that is not running is simply never looked at.
+    ignores the rest; a key for a harness that is not running is simply never looked at. Both
+    Pi-family harnesses (``pi_core`` and ``pi_agenta``) read the ``pi_core`` slice.
     """
 
     model_config = ConfigDict(populate_by_name=True)
@@ -432,7 +437,7 @@ class RunSelection(BaseModel):
     the permission policy. Read by the caller to pick a backend and harness class;
     deliberately not part of the neutral :class:`AgentConfig`."""
 
-    harness: str = "pi"
+    harness: str = "pi_core"
     sandbox: str = "local"
     permission_policy: PermissionPolicy = "auto"
 
@@ -441,7 +446,7 @@ class RunSelection(BaseModel):
         cls,
         params: Dict[str, Any],
         *,
-        default_harness: str = "pi",
+        default_harness: str = "pi_core",
         default_sandbox: str = "local",
     ) -> "RunSelection":
         agent = params.get("agent")

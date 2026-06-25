@@ -55,7 +55,6 @@ def _pi_wire(env: Environment, agent: AgentConfig) -> dict:
     harness = PiHarness(env)
     pi_config = harness._to_harness_config(SessionConfig(agent=agent))
     return request_to_wire(
-        engine="pi",
         harness=HarnessType.PI,
         sandbox="local",
         config=pi_config,

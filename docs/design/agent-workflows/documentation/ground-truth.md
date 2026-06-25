@@ -17,7 +17,7 @@ this page and the referenced code as the source of truth.
 | Harness adapters | `sdks/python/agenta/sdk/agents/adapters/harnesses.py` | Maps neutral session config into Pi, Claude, and Agenta harness-specific config. |
 | Runner wire | `sdks/python/agenta/sdk/agents/utils/wire.py`, `services/agent/src/protocol.ts` | Keeps the Python and TypeScript `/run` payloads in sync. |
 | Runner transports | `sdks/python/agenta/sdk/agents/utils/ts_runner.py`, `services/agent/src/server.ts`, `services/agent/src/cli.ts` | Send one-shot JSON or live NDJSON records to and from the runner. |
-| Runner engines | `services/agent/src/engines/pi.ts`, `services/agent/src/engines/sandbox_agent.ts` | Run Pi in process or run a harness over ACP through sandbox-agent. |
+| Runner engine | `services/agent/src/engines/sandbox_agent.ts` | The one engine: runs a harness over ACP through sandbox-agent. |
 | Tool execution | `sdks/python/agenta/sdk/agents/tools/`, `services/oss/src/agent/tools/`, `services/agent/src/tools/` | Parse tool config, resolve runnable specs, and execute callback, code, and MCP-delivered tools. |
 | Tracing | `services/oss/src/agent/tracing.py`, `services/agent/src/tracing/otel.ts`, `services/agent/src/extensions/agenta.ts` | Thread trace context into the run and emit agent spans plus usage. |
 | UI config controls | `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentConfigControl.tsx` | Edits the typed agent config shape in the playground. |
@@ -34,15 +34,16 @@ this page and the referenced code as the source of truth.
   events into Vercel UI Message Stream parts and appends `[DONE]`.
 - The deployed service always uses `SandboxAgentBackend` (`services/oss/src/agent/app.py:49`).
   It does not select a backend per harness.
-- `SandboxAgentBackend` supports `pi`, `claude`, and `agenta` on local or Daytona.
-- The sidecar's in-process `pi` engine (`engines/pi.ts`) is still reachable with
-  `backend: "pi"`, but the SDK no longer ships a backend adapter for it. A test-only helper
-  drives it in the transport round-trip test.
-- `PiHarness`, `ClaudeHarness`, and `AgentaHarness` exist and validate backend support.
-- Pi `systemPrompt` and `appendSystemPrompt` overrides are delivered on both the in-process Pi
-  path and the sandbox-agent Pi path. The sandbox-agent engine writes `SYSTEM.md` /
-  `APPEND_SYSTEM.md` into the per-run Pi agent dir, local and Daytona
-  (`services/agent/src/engines/sandbox_agent/pi-assets.ts`).
+- `SandboxAgentBackend` supports `pi_core`, `pi_agenta`, and `claude` on local or Daytona.
+- The runner drives one engine, the sandbox-agent ACP path (`engines/sandbox_agent.ts`). The
+  `harness` field selects the agent: `pi_core` and `pi_agenta` both drive the `pi` ACP agent,
+  `claude` drives `claude`. There is no engine selector on the wire.
+- `PiHarness`, `ClaudeHarness`, and `AgentaHarness` exist and validate backend support. The
+  Python class names are unchanged; only the harness string values changed (`HarnessType.PI`
+  is `"pi_core"`, `HarnessType.AGENTA` is `"pi_agenta"`, `HarnessType.CLAUDE` is `"claude"`).
+- Pi `systemPrompt` and `appendSystemPrompt` overrides are delivered on the sandbox-agent Pi
+  path. The engine writes `SYSTEM.md` / `APPEND_SYSTEM.md` into the per-run Pi agent dir,
+  local and Daytona (`services/agent/src/engines/sandbox_agent/pi-assets.ts`).
 - The tool resolver package exists in the SDK. The service composes SDK tool and MCP
   resolvers with service-owned gateway and vault adapters.
 - Code tools execute in a subprocess with a minimal allowlisted environment plus scoped
@@ -64,8 +65,8 @@ this page and the referenced code as the source of truth.
   sandbox-agent local and Daytona, verified by the QA matrix (`projects/qa/findings.md`, F-002).
 - The agent is not registered as a first-class built-in workflow type. The builtin interface
   exists in the SDK, but the handler is still bound directly (`services/oss/src/agent/app.py:138`).
-- Per-request model override is not honored on the Pi-over-sandbox-agent ACP path. pi-acp
-  accepts only its default model and silently falls back (`projects/qa/findings.md`, F-007).
+- Per-request model override is not honored on the Pi ACP path. pi-acp accepts only its
+  default model and silently falls back (`projects/qa/findings.md`, F-007).
 - Remote (`http`) MCP servers are skipped by the runner path. Local stdio MCP is the path
   represented by the bridge.
 - Trigger lifecycle, Compose.io trigger integration, and event-to-agent mapping are not

@@ -88,7 +88,7 @@ Its fields and defaults:
 | `model` | `str` | `"gpt-5.5"` | `x-parameter: grouped_choice`, plain string |
 | `tools` | `List[ToolConfig]` | empty list | typed discriminated union |
 | `mcp_servers` | `List[MCPServerConfig]` | empty list | typed |
-| `harness` | `Literal["pi","claude","agenta"]` | `"pi"` | enum |
+| `harness` | `Literal["pi_core","claude","pi_agenta"]` | `"pi_core"` | enum |
 | `sandbox` | `Literal["local","daytona"]` | `"local"` | enum |
 | `permission_policy` | `Literal["auto","deny"]` | `"auto"` | enum |
 
@@ -192,7 +192,7 @@ Legend: (a) catalog/schema, (b) SDK neutral config, (c) runtime.
 | agents_md | yes, `agents_md: str` | yes, as `instructions` | wired to `agentsMd` | The schema names it `agents_md`. The neutral config names it `instructions`. |
 | harness | yes, enum | no, on `RunSelection` | wired, picks the harness class | Enum-enforced. The runtime validates via `make_harness`. |
 | sandbox | yes, enum | no, on `RunSelection` | wired to the backend, absent from `SessionConfig` | Backend concern, not agent identity. |
-| permission_policy | yes, enum | no, on `RunSelection` | wired to `SessionConfig` | Only the Claude harness reads it. Pi ignores it, so it is decorative for pi and agenta. |
+| permission_policy | yes, enum | no, on `RunSelection` | wired to `SessionConfig` | Only the Claude harness reads it. Pi ignores it, so it is decorative for `pi_core` and `pi_agenta`. |
 
 ## Notable gaps and quirks
 
@@ -230,7 +230,7 @@ This is what the playground saves and the runtime reads:
       "args": ["-y", "@modelcontextprotocol/server-github"]
     }
   ],
-  "harness": "pi",
+  "harness": "pi_core",
   "sandbox": "local",
   "permission_policy": "auto"
 }

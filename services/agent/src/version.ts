@@ -11,8 +11,8 @@ import pkg from "../package.json";
 
 export const PROTOCOL_VERSION = 1;
 export const RUNNER_VERSION: string = pkg.version;
-export const ENGINES = ["pi", "sandbox-agent"] as const;
-export const HARNESSES = ["pi", "claude", "agenta"] as const;
+export const ENGINES = ["sandbox-agent"] as const;
+export const HARNESSES = ["pi_core", "claude", "pi_agenta"] as const;
 
 export interface RunnerInfo {
   status: "ok";

@@ -29,9 +29,8 @@ group by job:
 
 ```jsonc
 {
-  // engine + placement
-  "backend":  "sandbox-agent",          // or "pi" (legacy in-process); routed by server/cli
-  "harness":  "pi",                      // "pi" | "claude" | "agenta"
+  // agent + placement
+  "harness":  "pi_core",                 // "pi_core" | "pi_agenta" | "claude"; selects the ACP agent (no engine selector)
   "sandbox":  "local",                   // "local" | "daytona"
   "sessionId": "sess_ab12...",           // external id; cold runtime still gets full history
 

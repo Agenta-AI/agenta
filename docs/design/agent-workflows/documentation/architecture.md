@@ -12,8 +12,9 @@ tools, observes the results, and loops until it has an answer.
 The runtime keeps two run choices configurable
 (`sdks/python/agenta/sdk/agents/dtos.py:364`, `RunSelection`):
 
-- **Harness:** which agent runs. Supported values are `pi`, `claude`, and experimental
-  `agenta`. Default `pi`.
+- **Harness:** which agent runs. Supported values are `pi_core`, `claude`, and experimental
+  `pi_agenta`. Default `pi_core`. `pi_core` and `pi_agenta` both drive the `pi` ACP agent;
+  `pi_agenta` is Pi with Agenta's forced opinion.
 - **Sandbox:** where the run happens. Supported values are `local` and `daytona`. Default
   `local`.
 
@@ -42,10 +43,7 @@ agent runner sidecar (Node)
     HTTP server on :8765
     services/agent/src/server.ts
     |
-    +-- pi engine (in-process Pi)
-    |   services/agent/src/engines/pi.ts
-    |
-    +-- sandbox-agent engine (default)
+    +-- sandbox-agent engine (the one engine)
         services/agent/src/engines/sandbox_agent.ts
         |
         +-- sandbox-agent daemon
@@ -57,9 +55,9 @@ agent runner sidecar (Node)
 
 The services container owns Agenta concerns: workflow routing, config parsing, provider
 secret resolution, tool resolution, and trace context. The sidecar owns the agent run. It
-drives Pi in-process or drives a harness over ACP through the sandbox-agent daemon. In Docker
-Compose the sidecar is named `sandbox-agent`, and the service reaches it through
-`AGENTA_AGENT_RUNNER_URL` (`services/oss/src/agent/config.py:46`).
+drives a harness over ACP through the sandbox-agent daemon. In Docker Compose the sidecar is
+named `sandbox-agent`, and the service reaches it through `AGENTA_AGENT_RUNNER_URL`
+(`services/oss/src/agent/config.py:46`).
 
 The sidecar does not inherit the full stack environment. The service resolves provider keys
 and tool credentials and passes them only in the scoped `/run` payloads that need them.
@@ -68,22 +66,14 @@ and tool credentials and passes them only in the scoped `/run` payloads that nee
 
 The deployed handler always uses `SandboxAgentBackend`. `select_backend` in
 `services/oss/src/agent/app.py:49` constructs `SandboxAgentBackend` for every run, regardless
-of harness. So `pi`, `claude`, and `agenta` all run through the sandbox-agent daemon over ACP
-on the deployed path.
+of harness. So `pi_core`, `claude`, and `pi_agenta` all run through the sandbox-agent daemon
+over ACP.
 
-The sidecar still has an in-process `pi` engine (`services/agent/src/engines/pi.ts`): a
-`/run` request with `backend: "pi"` runs Pi in-process inside the sidecar without the daemon.
-The deployed Python service never sends that. The SDK used to ship an `InProcessPiBackend`
-adapter that drove this engine, presented as a "reference backend", but it was a confusing
-POC and was removed. A test-only helper
-(`sdks/python/oss/tests/pytest/integration/agents/_in_process_backend.py`) still drives the
-`pi` engine in the transport round-trip test.
-
-This split matters when reading the code. There are two `pi` paths:
-
-- The `pi` engine in the sidecar (`engines/pi.ts`), reached only with `backend: "pi"`.
-- The `pi` harness over the sandbox-agent daemon (`engines/sandbox_agent.ts` with `harness:
-  "pi"`), which is what the deployed service sends.
+The runner has one engine, the sandbox-agent ACP path (`engines/sandbox_agent.ts`). The
+`harness` field on the `/run` request selects the ACP agent: `pi_core` and `pi_agenta` both
+map to the `pi` ACP agent, `claude` maps to `claude`. There is no engine selector on the wire.
+A legacy in-process Pi engine and an `InProcessPiBackend` adapter existed during the POC; both
+were removed.
 
 ## Backends
 
@@ -92,29 +82,26 @@ The SDK runtime models engines as `Backend` adapters
 
 | Backend | Status | Harnesses | Sandbox support | Notes |
 | --- | --- | --- | --- | --- |
-| `SandboxAgentBackend` | Implemented | `pi`, `claude`, `agenta` | `local`, `daytona` | The deployed path. Drives `engines/sandbox_agent.ts`: starts the sandbox-agent daemon and an ACP adapter. `supported_harnesses` is `{pi, claude, agenta}` (`adapters/sandbox_agent.py:121`). |
-| `LocalBackend` | Not implemented | Intended: `pi`, `claude` | Local machine | Public class exists; `create_sandbox` and `create_session` raise `NotImplementedError` (`adapters/local.py:34`). |
-
-The sidecar's in-process `pi` engine (`engines/pi.ts`) is still reachable with
-`backend: "pi"`, but the SDK no longer ships a backend adapter for it. A test-only helper
-drives it in the transport round-trip test.
+| `SandboxAgentBackend` | Implemented | `pi_core`, `claude`, `pi_agenta` | `local`, `daytona` | The deployed path and the only engine. Drives `engines/sandbox_agent.ts`: starts the sandbox-agent daemon and an ACP adapter. `supported_harnesses` is `{pi_core, claude, pi_agenta}` (`adapters/sandbox_agent.py:121`). |
+| `LocalBackend` | Not implemented | Intended: `pi_core`, `claude` | Local machine | Public class exists; `create_sandbox` and `create_session` raise `NotImplementedError` (`adapters/local.py:34`). |
 
 ## Harnesses
 
 The SDK runtime models agent-specific behavior as `Harness` adapters
-(`sdks/python/agenta/sdk/agents/adapters/harnesses.py`).
+(`sdks/python/agenta/sdk/agents/adapters/harnesses.py`). The Python class names are unchanged;
+only the harness string values changed (`HarnessType.PI` is `"pi_core"`, `HarnessType.AGENTA`
+is `"pi_agenta"`, `HarnessType.CLAUDE` is `"claude"`).
 
-| Harness | Status | Where it runs | Notes |
+| Harness | Value | Status | Notes |
 | --- | --- | --- | --- |
-| `PiHarness` | Implemented | sandbox-agent (deployed) or in-process Pi | Native Pi tools, Pi prompt overrides, Pi tracing extension. |
-| `ClaudeHarness` | Implemented | sandbox-agent only | MCP-delivered tools, permission policy, runner-built tracing. No Pi built-in tools. |
-| `AgentaHarness` | Experimental | sandbox-agent (`local` and `daytona`) or in-process Pi | Pi with forced tools, forced skills, a base AGENTS.md preamble, and a persona. The harness maps to the `pi` ACP agent plus forced extras. Content is still placeholder. |
+| `PiHarness` | `pi_core` | Implemented | Native Pi tools, Pi prompt overrides, Pi tracing extension. Drives the `pi` ACP agent. |
+| `ClaudeHarness` | `claude` | Implemented | MCP-delivered tools, permission policy, runner-built tracing. No Pi built-in tools. Drives the `claude` ACP agent. |
+| `AgentaHarness` | `pi_agenta` | Experimental | Pi with forced tools, forced skills, a base AGENTS.md preamble, and a persona. Drives the `pi` ACP agent plus forced extras. Content is still placeholder. |
 
-The `agenta` harness runs on the sandbox-agent path. The runner treats it as the `pi` ACP
+The `pi_agenta` harness runs on the sandbox-agent path. The runner treats it as the `pi` ACP
 agent and layers the forced skills and prompt extras on top
-(`services/agent/src/engines/sandbox_agent/run-plan.ts:78`). The QA matrix verified it on
-sandbox-agent local and Daytona (`projects/qa/findings.md`, F-002). An earlier claim that
-`agenta` was in-process-only was stale.
+(`services/agent/src/engines/sandbox_agent/run-plan.ts`). The QA matrix verified it on
+sandbox-agent local and Daytona (`projects/qa/findings.md`, F-002).
 
 ## Request Flow
 
@@ -168,8 +155,8 @@ The sidecar serves one contract on two entrypoints (`services/agent/README.md`):
 - `src/cli.ts`: one JSON request on stdin, one result on stdout. The SDK adapters use this
   subprocess transport when `AGENTA_AGENT_RUNNER_URL` is unset (a source checkout).
 
-Both route to an engine by the request's `backend` field. The default is `sandbox-agent`
-(`services/agent/src/server.ts:38`).
+Both route to the one engine, the sandbox-agent ACP path. The `harness` field on the request
+selects the ACP agent (`services/agent/src/server.ts`).
 
 ### Licensing and images
 
@@ -220,7 +207,7 @@ rolls run usage back onto it.
 - The agent is registered as a custom workflow handler, not as a first-class builtin URI such
   as `agenta:builtin:agent:v0`. The builtin interface exists in the SDK, but the handler is
   still bound directly (`services/oss/src/agent/app.py:138`).
-- Per-request model override is not honored on the Pi-over-sandbox-agent ACP path; pi-acp
-  accepts only its default model (`projects/qa/findings.md`, F-007).
+- Per-request model override is not honored on the Pi ACP path; pi-acp accepts only its
+  default model (`projects/qa/findings.md`, F-007).
 - For the full reconciliation of what is wired and what is missing, see
   [Ground Truth](ground-truth.md).
