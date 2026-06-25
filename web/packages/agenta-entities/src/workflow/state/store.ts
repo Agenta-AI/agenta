@@ -56,6 +56,11 @@ import {
 // HELPERS
 // ============================================================================
 
+// The builtin agent workflow URI. The agent publishes its per-harness capabilities only in
+// the `/inspect` response `meta`, so the inspect atom must fetch for this URI even when the
+// stored revision already carries its schemas inline.
+const AGENT_BUILTIN_URI = "agenta:builtin:agent:v0"
+
 function getStore(options?: StoreOptions) {
     return options?.store ?? getDefaultStore()
 }
@@ -1053,12 +1058,23 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
         // Skip inspect when the revision already carries all schemas inline.
         // The merge step (workflowEntityAtomFamily) gives server schemas
         // precedence, so fetching inspect would be redundant.
+        // Exception: an agent publishes its per-harness capabilities ONLY in the inspect
+        // response `meta` (harness_capabilities), never in the stored schemas — so the agent
+        // playground's model picker needs inspect even when the schemas are inline. The
+        // `is_agent` flag is not reliably stored on the revision, so detect the agent by its
+        // builtin URI too.
         const serverSchemas = serverData?.data?.schemas
+        const isAgent = (serverData?.flags?.is_agent ?? false) || uri === AGENT_BUILTIN_URI
         const hasAllSchemas =
             !!serverSchemas?.inputs && !!serverSchemas?.outputs && !!serverSchemas?.parameters
 
         const isEnabled =
-            get(sessionAtom) && !!projectId && !!uri && !!serviceUrl && hasUrl && !hasAllSchemas
+            get(sessionAtom) &&
+            !!projectId &&
+            !!uri &&
+            !!serviceUrl &&
+            hasUrl &&
+            (isAgent || !hasAllSchemas)
 
         return {
             queryKey: ["workflows", "inspect", revisionId, uri, serviceUrl, projectId],

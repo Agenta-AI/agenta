@@ -323,6 +323,12 @@ CONFIGURATION_REGISTRY: dict = dict(
     ),
 )
 
+# Per-URI interface metadata (the `/inspect` response `meta`). `WorkflowRevisionData` has no
+# `meta` field, so the routed workflow's `meta=` (e.g. the agent's `harness_capabilities`) cannot
+# ride the interface registry; this registry carries it so the request-driven inspect path can
+# emit it. Process-local, like the others.
+META_REGISTRY: dict = dict()
+
 # Global registry for workflow handlers organized by URI structure.
 #
 # URI Format: provider:kind:key:version
@@ -533,6 +539,31 @@ def retrieve_configuration(uri: Optional[str] = None) -> Optional[dict]:
     provider, kind, key, version = parse_uri(uri)
 
     return _get_with_latest(CONFIGURATION_REGISTRY, provider, kind, key, version)
+
+
+def register_meta(meta: dict, uri: str) -> str:
+    """Register (or OVERRIDE) the interface ``meta`` for a URI in the meta registry.
+
+    Mirrors :func:`register_interface`: a service process binds the ``meta`` it wants ``/inspect``
+    to publish under a builtin URI (e.g. the agent service registers ``harness_capabilities``).
+    Process-local. The stored dict is copied so a later mutation of the caller's dict cannot leak
+    into the registry.
+    """
+    provider, kind, key, version = parse_uri(uri)
+    if not provider or not kind or not key or not version:
+        raise ValueError(f"Invalid URI: {uri}")
+    META_REGISTRY.setdefault(provider, {}).setdefault(kind, {}).setdefault(key, {})[
+        version
+    ] = dict(meta)
+    return uri
+
+
+def retrieve_meta(uri: Optional[str] = None) -> Optional[dict]:
+    if not uri:
+        return None
+    provider, kind, key, version = parse_uri(uri)
+
+    return _get_with_latest(META_REGISTRY, provider, kind, key, version)
 
 
 def is_user_custom_uri(uri: Optional[str] = None) -> bool:

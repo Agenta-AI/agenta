@@ -15,7 +15,16 @@ the binding, so the registries are populated by the time these tests run.
 
 from __future__ import annotations
 
-from agenta.sdk.engines.running.utils import retrieve_handler, retrieve_interface
+import pytest
+
+from agenta.sdk.decorators.routing import _to_inspect_response
+from agenta.sdk.decorators.running import inspect_workflow
+from agenta.sdk.engines.running.utils import (
+    retrieve_handler,
+    retrieve_interface,
+    retrieve_meta,
+)
+from agenta.sdk.models.workflows import WorkflowInspectRequest
 
 from oss.src.agent import app
 from oss.src.agent.schemas import AGENT_SCHEMAS
@@ -57,3 +66,31 @@ def test_rebuilding_the_app_keeps_the_binding_stable():
     assert retrieve_handler(_AGENT_URI) is not None
     interface = retrieve_interface(_AGENT_URI)
     assert interface is not None and interface.uri == _AGENT_URI
+
+
+def test_register_meta_publishes_harness_capabilities():
+    # The interface registry carries only schemas (`WorkflowRevisionData` has no `meta`), so the
+    # agent's `harness_capabilities` rides the meta registry instead.
+    meta = retrieve_meta(_AGENT_URI)
+    assert meta is not None
+    assert "harness_capabilities" in meta
+    assert set(meta["harness_capabilities"]) == {"pi_core", "pi_agenta", "claude"}
+
+
+@pytest.mark.asyncio
+async def test_request_driven_inspect_emits_harness_capabilities():
+    # The exact broken path: the playground posts `/inspect` with a `revision`, so the endpoint
+    # takes the request-driven `inspect_workflow` branch (NOT `wf.inspect()`). The request carries
+    # no `meta`, so without the meta registry the per-harness models would be dropped. Assert the
+    # normalized response carries them — and that each harness publishes its model map.
+    built = await inspect_workflow(
+        request=WorkflowInspectRequest(revision={"uri": _AGENT_URI})
+    )
+    response = _to_inspect_response(built)
+
+    assert response.meta is not None
+    caps = response.meta["harness_capabilities"]
+    assert set(caps) == {"pi_core", "pi_agenta", "claude"}
+    # Claude reaches anthropic only, with its alias set; Pi publishes per-provider model lists.
+    assert caps["claude"]["models"]["anthropic"]
+    assert caps["pi_core"]["models"]["openai"]
