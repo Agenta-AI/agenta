@@ -120,21 +120,29 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                     )
                     const isNavigableParent = Boolean(item.link)
                     const isOpen = openKeys.includes(item.key)
+                    const isInlineMode = mode === "inline"
                     const renderExpandToggle = ({isOpen: menuIsOpen}: {isOpen?: boolean}) => {
-                        const isExpanded = menuIsOpen ?? isOpen
+                        const isExpanded = isInlineMode ? (menuIsOpen ?? isOpen) : false
 
                         return (
                             <span
-                                role="button"
-                                tabIndex={0}
+                                role={isInlineMode ? "button" : undefined}
+                                tabIndex={isInlineMode ? 0 : -1}
                                 aria-label={`${isExpanded ? "Collapse" : "Expand"} ${item.title}`}
-                                className="flex self-stretch w-8 shrink-0 items-center justify-center rounded text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-white/10"
+                                className={clsx(
+                                    "flex self-stretch w-8 shrink-0 items-center justify-center rounded text-gray-400 transition-colors",
+                                    isInlineMode
+                                        ? "hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-white/10"
+                                        : "pointer-events-none",
+                                )}
                                 onClick={(event) => {
+                                    if (!isInlineMode) return
                                     event.preventDefault()
                                     event.stopPropagation()
                                     onToggleOpenKey?.(item.key)
                                 }}
                                 onKeyDown={(event) => {
+                                    if (!isInlineMode) return
                                     if (event.key !== "Enter" && event.key !== " ") return
 
                                     event.preventDefault()
