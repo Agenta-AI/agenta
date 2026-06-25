@@ -30,17 +30,12 @@ from oss.src.apis.fastapi.environments.models import (
     EnvironmentRevisionQueryRequest,
     EnvironmentRevisionRetrieveRequest,
 )
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 
 log = get_module_logger(__name__)
-
-
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import (
-        check_action_access,
-        FORBIDDEN_EXCEPTION,
-    )
 
 
 async def ensure_environment_deploy_allowed(

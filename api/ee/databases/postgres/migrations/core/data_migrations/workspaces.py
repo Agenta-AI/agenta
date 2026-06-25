@@ -4,7 +4,7 @@ import click
 from sqlalchemy.future import select
 from sqlalchemy import delete, Connection, insert, func
 
-from ee.src.models.extended.deprecated_models import (
+from ee.databases.postgres.migrations.core.deprecated_models import (
     DeprecatedWorkspaceDB as WorkspaceDB,
     DeprecatedProjectDB as ProjectDB,
     DeprecatedWorkspaceMemberDB as WorkspaceMemberDB,

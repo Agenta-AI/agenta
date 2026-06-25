@@ -71,7 +71,7 @@ const WorkspaceManage: FC = () => {
                             <span className="font-mono text-xs">{member.user?.email}</span>
                         ),
                     },
-                    isEE() && hasRBAC
+                    !isEE() || hasRBAC
                         ? {
                               dataIndex: "roles",
                               key: "role",

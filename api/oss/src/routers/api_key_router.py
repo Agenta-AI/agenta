@@ -2,13 +2,12 @@ from typing import List
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 
-from oss.src.utils.common import APIRouter, is_ee
+from oss.src.utils.common import APIRouter
 from oss.src.services import api_key_service
 from oss.src.models.api.api_models import ListAPIKeysResponse
 
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
 
 
 router = APIRouter()
@@ -31,19 +30,18 @@ async def list_api_keys(
         List[ListAPIKeysResponse]: A list of API Keys associated with the user.
     """
 
-    if is_ee():
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.VIEW_API_KEYS,
+    has_permission = await check_action_access(
+        user_uid=request.state.user_id,
+        project_id=request.state.project_id,
+        permission=Permission.VIEW_API_KEYS,
+    )
+    if not has_permission:
+        return JSONResponse(
+            {
+                "detail": "You do not have access to perform this action. Please contact your organization admin."
+            },
+            status_code=403,
         )
-        if not has_permission:
-            return JSONResponse(
-                {
-                    "detail": "You do not have access to perform this action. Please contact your organization admin."
-                },
-                status_code=403,
-            )
 
     api_keys = await api_key_service.list_api_keys(
         user_id=request.state.user_id,
@@ -79,19 +77,18 @@ async def create_api_key(
         str: The created API key.
     """
 
-    if is_ee():
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.EDIT_API_KEYS,
+    has_permission = await check_action_access(
+        user_uid=request.state.user_id,
+        project_id=request.state.project_id,
+        permission=Permission.EDIT_API_KEYS,
+    )
+    if not has_permission:
+        return JSONResponse(
+            {
+                "detail": "You do not have access to perform this action. Please contact your organization admin."
+            },
+            status_code=403,
         )
-        if not has_permission:
-            return JSONResponse(
-                {
-                    "detail": "You do not have access to perform this action. Please contact your organization admin."
-                },
-                status_code=403,
-            )
 
     api_key = await api_key_service.create_api_key(
         user_id=request.state.user_id,
@@ -124,19 +121,18 @@ async def delete_api_key(
         HTTPException: If the API key is not found or does not belong to the user.
     """
 
-    if is_ee():
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.EDIT_API_KEYS,
+    has_permission = await check_action_access(
+        user_uid=request.state.user_id,
+        project_id=request.state.project_id,
+        permission=Permission.EDIT_API_KEYS,
+    )
+    if not has_permission:
+        return JSONResponse(
+            {
+                "detail": "You do not have access to perform this action. Please contact your organization admin."
+            },
+            status_code=403,
         )
-        if not has_permission:
-            return JSONResponse(
-                {
-                    "detail": "You do not have access to perform this action. Please contact your organization admin."
-                },
-                status_code=403,
-            )
 
     try:
         await api_key_service.delete_api_key(

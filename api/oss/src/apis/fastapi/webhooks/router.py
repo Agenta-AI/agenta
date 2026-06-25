@@ -2,7 +2,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, status, HTTPException
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import (
     AGENTA_CACHE_TTL,
@@ -31,12 +30,9 @@ from oss.src.apis.fastapi.webhooks.models import (
     WebhookDeliveriesResponse,
 )
 
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import (
-        check_action_access,
-        FORBIDDEN_EXCEPTION,
-    )
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 
 class WebhooksRouter:
@@ -143,14 +139,13 @@ class WebhooksRouter:
         *,
         body: WebhookSubscriptionCreateRequest,
     ) -> WebhookSubscriptionResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.EDIT_WEBHOOKS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        has_permission = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.EDIT_WEBHOOKS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         try:
             subscription = await self.webhooks_service.create_subscription(
@@ -191,14 +186,13 @@ class WebhooksRouter:
         *,
         subscription_id: UUID,
     ) -> WebhookSubscriptionResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.VIEW_WEBHOOKS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        has_permission = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.VIEW_WEBHOOKS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         cached = await get_cache(
             namespace="webhooks",
@@ -255,14 +249,13 @@ class WebhooksRouter:
         subscription_id: UUID,
         body: WebhookSubscriptionEditRequest,
     ) -> WebhookSubscriptionResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.EDIT_WEBHOOKS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        has_permission = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.EDIT_WEBHOOKS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(subscription_id) != str(body.subscription.id):
             raise HTTPException(
@@ -312,14 +305,13 @@ class WebhooksRouter:
         *,
         subscription_id: UUID,
     ) -> None:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.EDIT_WEBHOOKS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        has_permission = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.EDIT_WEBHOOKS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         deleted = await self.webhooks_service.delete_subscription(
             project_id=UUID(request.state.project_id),
@@ -351,14 +343,13 @@ class WebhooksRouter:
         *,
         body: WebhookSubscriptionQueryRequest,
     ) -> WebhookSubscriptionsResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.VIEW_WEBHOOKS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        has_permission = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.VIEW_WEBHOOKS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         subscriptions = await self.webhooks_service.query_subscriptions(
             project_id=UUID(request.state.project_id),
@@ -382,14 +373,13 @@ class WebhooksRouter:
         *,
         body: WebhookDeliveryCreateRequest,
     ) -> WebhookDeliveryResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.EDIT_WEBHOOKS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        has_permission = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.EDIT_WEBHOOKS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         delivery = await self.webhooks_service.create_delivery(
             project_id=UUID(request.state.project_id),
@@ -410,14 +400,13 @@ class WebhooksRouter:
         *,
         delivery_id: UUID,
     ) -> WebhookDeliveryResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.VIEW_WEBHOOKS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        has_permission = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.VIEW_WEBHOOKS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         delivery = await self.webhooks_service.fetch_delivery(
             project_id=UUID(request.state.project_id),
@@ -442,14 +431,13 @@ class WebhooksRouter:
         *,
         body: WebhookDeliveryQueryRequest,
     ) -> WebhookDeliveriesResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.VIEW_WEBHOOKS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        has_permission = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.VIEW_WEBHOOKS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         deliveries = await self.webhooks_service.query_deliveries(
             project_id=UUID(request.state.project_id),
@@ -472,14 +460,13 @@ class WebhooksRouter:
         request: Request,
         body: WebhookSubscriptionTestRequest,
     ) -> WebhookDeliveryResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.EDIT_WEBHOOKS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        has_permission = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.EDIT_WEBHOOKS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if (body.subscription_id is None) == (body.subscription is None):
             raise HTTPException(

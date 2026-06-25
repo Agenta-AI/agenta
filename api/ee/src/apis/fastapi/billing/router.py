@@ -22,7 +22,10 @@ from oss.src.services.db_manager import (
     get_organization_by_id,
 )
 
-from ee.src.services import db_manager_ee
+from oss.src.services import db_manager
+from ee.src.core.organizations.service import (
+    update_organization as update_organization_ee,
+)
 from ee.src.core.access.permissions.service import check_action_access
 from ee.src.core.access.permissions.types import Permission
 from ee.src.core.access.entitlements.types import Tracker, Quota, Period, Scope
@@ -41,7 +44,7 @@ from ee.src.core.subscriptions.service import (
     SwitchException,
     EventException,
 )
-from ee.src.core.organizations.types import OrganizationUpdate
+from oss.src.models.api.organization_models import OrganizationUpdate
 
 
 log = get_module_logger(__name__)
@@ -213,7 +216,7 @@ class BillingRouter:
         )
 
     async def _reset_organization_flags(self, organization_id: str) -> None:
-        organization = await db_manager_ee.get_organization(organization_id)
+        organization = await db_manager.get_organization(organization_id)
         if not organization:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -230,7 +233,7 @@ class BillingRouter:
             "domains_only": False,
             "auto_join": False,
         }
-        await db_manager_ee.update_organization(
+        await update_organization_ee(
             organization_id,
             OrganizationUpdate(flags=default_flags),
         )

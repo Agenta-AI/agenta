@@ -9,9 +9,9 @@ from sqlalchemy.future import select
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
-from ee.src.models.db_models import WorkspaceMemberDB as WorkspaceMemberDBE
+from oss.src.models.db_models import WorkspaceMemberDB as WorkspaceMemberDBE
 from oss.src.models.db_models import ProjectDB as ProjectDBE
-from oss.src.models.deprecated_models import EvaluatorConfigDB
+from oss.databases.postgres.migrations.core.deprecated_models import EvaluatorConfigDB
 from oss.src.dbs.postgres.workflows.dbes import (
     WorkflowArtifactDBE,
     WorkflowVariantDBE,
@@ -27,7 +27,7 @@ from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorFlags,
 )
 from oss.src.core.evaluators.utils import build_evaluator_data
-from oss.src.models.deprecated_models import (
+from oss.databases.postgres.migrations.core.deprecated_models import (
     DeprecatedAutoEvaluatorConfigDBwProject as DeprecatedEvaluatorConfigDBwProject,
 )
 from oss.src.core.workflows.service import WorkflowsService
