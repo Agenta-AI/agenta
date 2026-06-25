@@ -237,7 +237,11 @@ export function buildRunPlan(
   // inside the sandbox, so they bypass the sandbox network boundary. Under `strict` + a
   // restricted network, refuse them; `best_effort` is the opt-out that accepts the boundary is
   // not a hard guarantee.
-  const strict = request.sandboxPermission?.enforcement === "strict";
+  // Default to strict when `enforcement` is omitted, matching the documented wire schema
+  // (`WireSandboxPermission.enforcement` defaults to "strict"). The Python service always fills
+  // "strict", so the live path is unchanged; this aligns a DIRECT runner caller (and the
+  // omit-when-default goldens) so only an explicit "best_effort" opts out of the hard guarantee.
+  const strict = request.sandboxPermission?.enforcement !== "best_effort";
   if (networkRestricted && isDaytona && strict) {
     const mode = network?.mode ?? "on";
     if (executableToolSpecsForRun.length > 0) {
