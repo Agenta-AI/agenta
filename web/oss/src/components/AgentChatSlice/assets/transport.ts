@@ -56,22 +56,30 @@ const stubConfig = () => ({
  * (`parameters.agent`); they are defaulted there but never override values the resolved
  * config already carries.
  */
+// Legacy pre-migration run-selection keys that now live inside `agent`. Stripped from the
+// top level when `agent` is present so we never emit both wire shapes for one config.
+const LEGACY_RUN_SELECTION_KEYS = ["harness", "sandbox", "permission_policy"] as const
+
 const configFor = (appId?: string | null) => {
     const resolved = resolveAppAgConfig(appId)
     if (!resolved) return stubConfig()
     const agConfig = resolved.ag_config as Record<string, unknown>
     const agent = agConfig.agent
-    const parameters =
-        agent && typeof agent === "object"
-            ? {
-                  ...agConfig,
-                  agent: {
-                      harness: "pi_core",
-                      sandbox: "local",
-                      ...(agent as Record<string, unknown>),
-                  },
-              }
-            : {harness: "pi_core", sandbox: "local", ...agConfig}
+    let parameters: Record<string, unknown>
+    if (agent && typeof agent === "object") {
+        const rest = {...agConfig}
+        for (const key of LEGACY_RUN_SELECTION_KEYS) delete rest[key]
+        parameters = {
+            ...rest,
+            agent: {
+                harness: "pi_core",
+                sandbox: "local",
+                ...(agent as Record<string, unknown>),
+            },
+        }
+    } else {
+        parameters = {harness: "pi_core", sandbox: "local", ...agConfig}
+    }
     return {parameters, references: resolved.references}
 }
 

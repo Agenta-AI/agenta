@@ -181,11 +181,17 @@ const hasAnswer = (message: unknown): boolean => {
  * always wins; the schema nests the config under `agent`, but a flat config (no `agent` key)
  * is still defaulted at the top level so a non-schema config keeps working.
  */
+// Legacy pre-migration run-selection keys that now live inside `agent`. Stripped from the
+// top level when `agent` is present so we never emit both wire shapes for one config.
+const LEGACY_RUN_SELECTION_KEYS = ["harness", "sandbox", "permission_policy"] as const
+
 const withAgentRunDefaults = (config: Record<string, unknown>): Record<string, unknown> => {
     const agent = config.agent
     if (agent && typeof agent === "object") {
+        const rest = {...config}
+        for (const key of LEGACY_RUN_SELECTION_KEYS) delete rest[key]
         return {
-            ...config,
+            ...rest,
             agent: {harness: "pi_core", sandbox: "local", ...(agent as Record<string, unknown>)},
         }
     }

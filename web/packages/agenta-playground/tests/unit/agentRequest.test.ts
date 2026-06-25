@@ -167,6 +167,25 @@ describe("buildAgentRequest", () => {
         expect((req!.requestBody.data as any).parameters.harness).toBeUndefined()
     })
 
+    it("STRIPS legacy top-level run-selection keys when a nested agent is present", async () => {
+        // A partially-migrated config carrying BOTH the nested `agent` and legacy top-level
+        // run-selection keys must emit only the nested shape, never both at once.
+        seed(store, "e", {
+            config: {
+                harness: "claude",
+                sandbox: "local",
+                permission_policy: "deny",
+                agent: {model: "gpt-5.5"},
+            },
+        })
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const parameters = (req!.requestBody.data as any).parameters
+        expect(parameters.harness).toBeUndefined()
+        expect(parameters.sandbox).toBeUndefined()
+        expect(parameters.permission_policy).toBeUndefined()
+        expect(parameters.agent).toMatchObject({model: "gpt-5.5", harness: "pi_core"})
+    })
+
     it("INCLUDES references built from the entity identity", async () => {
         seed(store, "e", {
             data: {

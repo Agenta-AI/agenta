@@ -921,11 +921,14 @@ def _parse_harness_kwargs(
     raw = source.get("harness_kwargs")
     if not isinstance(raw, dict):
         return dict(defaults.harness_kwargs)
+    # An explicit empty dict clears inherited per-harness options; only an
+    # *absent* key (caught above) falls back to defaults. Distinguishing the two
+    # lets a caller remove an inherited prompt/permission override by sending {}.
     options: Dict[str, Dict[str, Any]] = {}
     for name, opts in raw.items():
         if isinstance(opts, dict):
             options[str(name).lower()] = dict(opts)
-    return options or dict(defaults.harness_kwargs)
+    return options
 
 
 def _parse_run_selection(

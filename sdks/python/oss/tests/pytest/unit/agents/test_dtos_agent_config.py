@@ -171,6 +171,16 @@ def test_harness_kwargs_falls_back_to_defaults_when_absent():
     assert config.harness_kwargs == {"pi_core": {"system": "D"}}
 
 
+def test_harness_kwargs_explicit_empty_clears_defaults():
+    # An explicit empty dict clears inherited per-harness options; only an absent
+    # key falls back to defaults.
+    defaults = AgentConfig(harness_kwargs={"pi_core": {"system": "D"}})
+    config = AgentConfig.from_params(
+        {"agent": {"harness_kwargs": {}}}, defaults=defaults
+    )
+    assert config.harness_kwargs == {}
+
+
 # ---------------------------------------------------- run-selection fields
 
 
