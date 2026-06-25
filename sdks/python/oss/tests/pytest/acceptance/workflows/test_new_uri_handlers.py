@@ -24,10 +24,14 @@ import pytest
 
 from agenta.sdk.contexts.running import RunningContext, running_context_manager
 from agenta.sdk.models.workflows import WorkflowRevisionData
-from agenta.sdk.workflows.errors import FeedbackV0Error
+from agenta.sdk.workflows.errors import (
+    CustomHookHandlerNotDefinedV0Error,
+    FeedbackV0Error,
+)
 from agenta.sdk.workflows.handlers import (
     code_v0,
     hook_v0,
+    remote_forward_v0,
     llm_v0,
     match_v0,
     feedback_v0,
@@ -146,7 +150,7 @@ class TestHookV0Acceptance:
         url = f"http://127.0.0.1:{port}/eval"
 
         try:
-            _hook_v0 = hook_v0.__wrapped__
+            _hook_v0 = remote_forward_v0
             revision = WorkflowRevisionData(uri="agenta:custom:hook:v0", url=url)
             ctx = RunningContext(revision=revision.model_dump(mode="json"))
 
@@ -188,7 +192,7 @@ class TestHookV0Acceptance:
         url = f"http://127.0.0.1:{port}/eval"
 
         try:
-            _hook_v0 = hook_v0.__wrapped__
+            _hook_v0 = remote_forward_v0
             revision = WorkflowRevisionData(uri="agenta:custom:hook:v0", url=url)
             ctx = RunningContext(revision=revision.model_dump(mode="json"))
 
@@ -229,7 +233,7 @@ class TestHookV0Acceptance:
         url = f"http://127.0.0.1:{port}/eval"
 
         try:
-            _hook_v0 = hook_v0.__wrapped__
+            _hook_v0 = remote_forward_v0
             revision = WorkflowRevisionData(uri="agenta:custom:hook:v0", url=url)
             ctx = RunningContext(revision=revision.model_dump(mode="json"))
 
@@ -246,6 +250,11 @@ class TestHookV0Acceptance:
 
         assert "testcase" in received_payload
         assert received_payload["testcase"] == {"correct_answer": "4"}
+
+    def test_hook_v0_stub_raises(self):
+        """hook_v0 is a placeholder; reaching it is a misconfiguration."""
+        with pytest.raises(CustomHookHandlerNotDefinedV0Error):
+            run(hook_v0(inputs={"q": "x"}))
 
 
 # ---------------------------------------------------------------------------

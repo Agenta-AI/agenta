@@ -9,6 +9,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {getValueAtPath, generateId, parseMustache, walkMustache} from "@agenta/shared/utils"
 import {getDefaultStore} from "jotai/vanilla"
 
+import {describeUnreachableService, isHtmlBody} from "../shared/execution/invocationErrors"
 import {parseEvaluatorKeyFromUri} from "../workflow/core"
 
 import {groupTemplateVariables} from "./portHelpers"
@@ -1497,8 +1498,11 @@ export async function executeRunnable(
                     errorMessage = errorData.detail
                 }
             } catch {
-                // Response is not JSON, use raw text if available
-                if (errorText) {
+                // Response is not JSON. An HTML body means the service is
+                // unreachable or misconfigured; show that instead of the page.
+                if (isHtmlBody(errorText)) {
+                    errorMessage = describeUnreachableService(data.invocationUrl, response.status)
+                } else if (errorText) {
                     errorMessage = errorText
                 }
             }
@@ -1641,7 +1645,9 @@ async function executeEvaluator(
                     errorMessage = errorData.detail
                 }
             } catch {
-                if (errorText) {
+                if (isHtmlBody(errorText)) {
+                    errorMessage = describeUnreachableService(url, response.status)
+                } else if (errorText) {
                     errorMessage = errorText
                 }
             }

@@ -8,7 +8,7 @@ resolution-markers = [
 
 [[package]]
 name = "agenta"
-version = "0.104.0"
+version = "0.104.3"
 source = { editable = "../sdks/python" }
 dependencies = [
     { name = "agenta-client" },
@@ -27,6 +27,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-jsonpath" },
     { name = "pyyaml" },
+    { name = "restrictedpython" },
     { name = "structlog" },
 ]
 
@@ -48,6 +49,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2,<3" },
     { name = "python-jsonpath", specifier = ">=2,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
+    { name = "restrictedpython", specifier = ">=8,<9" },
     { name = "structlog", specifier = ">=26,<27" },
 ]
 
@@ -70,7 +72,7 @@ dev = [
 
 [[package]]
 name = "agenta-client"
-version = "0.104.0"
+version = "0.104.3"
 source = { editable = "../clients/python" }
 dependencies = [
     { name = "httpx" },
@@ -259,7 +261,7 @@ wheels = [
 
 [[package]]
 name = "api"
-version = "0.104.0"
+version = "0.104.3"
 source = { virtual = "." }
 dependencies = [
     { name = "agenta" },
@@ -2344,6 +2346,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/3c/f8/5dc70102e4d337063452c82e1f0d95e39abfe67aa222ed8a5ddeb9df8de8/requests_file-3.0.1.tar.gz", hash = "sha256:f14243d7796c588f3521bd423c5dea2ee4cc730e54a3cac9574d78aca1272576", size = 6967, upload-time = "2025-10-20T18:56:42.279Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e1/d5/de8f089119205a09da657ed4784c584ede8381a0ce6821212a6d4ca47054/requests_file-3.0.1-py2.py3-none-any.whl", hash = "sha256:d0f5eb94353986d998f80ac63c7f146a307728be051d4d1cd390dbdb59c10fa2", size = 4514, upload-time = "2025-10-20T18:56:41.184Z" },
+]
+
+[[package]]
+name = "restrictedpython"
+version = "8.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/01/dc/19d6b8541f638b90411408a5f755e04da79c9df1651601465fb66a82fe5d/restrictedpython-8.3.tar.gz", hash = "sha256:9f31663ff2b86d9112bd7af4cd0601f12ef619c4f6ad162a1c9f9f186341337a", size = 449827, upload-time = "2026-06-16T10:05:20.243Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fc/26/059538503370f82ffce8a4a1307c5c0a28134a7c27a6c88bdca83b743833/restrictedpython-8.3-py3-none-any.whl", hash = "sha256:de36a9b27ad4490a368984984751179e5fc28e2b49540dc348878e5c0e79d737", size = 27385, upload-time = "2026-06-16T10:05:18.508Z" },
 ]
 
 [[package]]

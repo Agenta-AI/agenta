@@ -54,6 +54,13 @@ export {
     extractInputValues,
 } from "./valueExtraction"
 
+// Invocation error reporting
+export {
+    MISSING_INVOCATION_URL_ERROR,
+    isHtmlBody,
+    describeUnreachableService,
+} from "./invocationErrors"
+
 // Request body builder
 export {
     transformToRequestBody,

@@ -167,7 +167,7 @@ export const workflowDataSchema = z.object({
     /** Script content for custom code workflows */
     script: z.string().nullable().optional(),
     /** Runtime identifier for code-backed evaluators */
-    runtime: z.string().nullable().optional(),
+    runtime: z.enum(["python", "typescript", "javascript"]).nullable().optional(),
 })
 
 export type WorkflowData = z.infer<typeof workflowDataSchema>
