@@ -1040,12 +1040,15 @@ async def auto_ai_critique_v0(
         ) from e
 
     try:
+        # _resolve_aws_role_arn may issue a blocking boto3 STS call; offload it to a
+        # thread so it never stalls the event loop on async request paths.
+        resolved_settings = await asyncio.to_thread(
+            _resolve_aws_role_arn, provider_settings
+        )
         response = await mockllm.acompletion(
             messages=formatted_prompt_template,
             response_format=response_format,
-            **_normalize_aws_provider_settings(
-                _resolve_aws_role_arn(provider_settings)
-            ),
+            **_normalize_aws_provider_settings(resolved_settings),
         )
 
         _outputs = response.choices[0].message.content.strip()  # type: ignore
@@ -1865,6 +1868,14 @@ def _resolve_aws_role_arn(provider_settings: Dict) -> Dict:
 
     role_arn = _first_alias_value(provider_settings, _AWS_ROLE_ARN_ALIASES)
     if not role_arn:
+        # An empty (e.g. blank UI field) or absent role ARN means there is nothing to
+        # assume, but a present-yet-empty alias must still be stripped so it is never
+        # forwarded to LiteLLM as an unknown kwarg.
+        if any(alias in provider_settings for alias in _AWS_ROLE_ARN_ALIASES):
+            settings = dict(provider_settings)
+            for alias in _AWS_ROLE_ARN_ALIASES:
+                settings.pop(alias, None)
+            return settings
         return provider_settings
 
     try:
@@ -2144,11 +2155,14 @@ async def _run_prompt_llm_config_with_retry(
             if messages is not None:
                 openai_kwargs["messages"] = [*openai_kwargs["messages"], *messages]
 
+            # Offload the (potentially blocking) STS role assumption to a thread so it
+            # never stalls the event loop on this async request path.
+            resolved_settings = await asyncio.to_thread(
+                _resolve_aws_role_arn, provider_settings
+            )
             return await mockllm.acompletion(
                 **{k: v for k, v in openai_kwargs.items() if k != "model"},
-                **_normalize_aws_provider_settings(
-                    _resolve_aws_role_arn(provider_settings)
-                ),
+                **_normalize_aws_provider_settings(resolved_settings),
             )
         except Exception as exc:
             last_error = exc

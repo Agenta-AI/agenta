@@ -49,6 +49,22 @@ def test_empty_settings_returns_same_object():
     assert _resolve_aws_role_arn(settings) is settings
 
 
+@pytest.mark.parametrize("role_key", ["aws_role_arn", "AWS_ROLE_ARN"])
+@pytest.mark.parametrize("blank", ["", None])
+def test_blank_role_arn_strips_alias_without_calling_sts(role_key, blank):
+    """A present-but-blank role ARN (e.g. an empty UI field) must not trigger STS, and
+    the empty alias must be stripped so it never leaks to LiteLLM as an unknown kwarg."""
+    settings = {role_key: blank, "aws_access_key_id": "AKID"}
+    with patch("boto3.client") as mock_client:
+        result = _resolve_aws_role_arn(settings)
+
+    mock_client.assert_not_called()
+    assert role_key not in result
+    assert result["aws_access_key_id"] == "AKID"
+    # The input dict is left untouched.
+    assert settings[role_key] is blank
+
+
 # --------------------------------------------------------------------- STS is called
 
 
