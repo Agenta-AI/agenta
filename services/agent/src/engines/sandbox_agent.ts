@@ -410,7 +410,10 @@ export async function runSandboxAgent(
     ) {
       const piError = findSwallowedPiError(plan.sourcePiAgentDir, plan.cwd);
       if (piError) {
-        return { ok: false, error: conciseError(new Error(piError), plan.harness) };
+        return {
+          ok: false,
+          error: conciseError(new Error(piError), plan.harness, request.provider),
+        };
       }
     }
 
@@ -436,7 +439,7 @@ export async function runSandboxAgent(
   } catch (err) {
     otel?.finish();
     await otel?.flush().catch(() => {});
-    return { ok: false, error: conciseError(err, plan.harness) };
+    return { ok: false, error: conciseError(err, plan.harness, request.provider) };
   } finally {
     await toolRelay?.stop().catch(() => {});
     await sandbox?.destroySandbox().catch(() => {});
