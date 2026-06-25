@@ -2,8 +2,8 @@
 
 Pi and Claude genuinely differ (Pi takes built-ins and never gates tool use; Claude has no
 built-ins, delivers tools over MCP, and gates on a permission policy). Agenta is Pi with a
-fixed opinion: a forced preamble, persona, and tools. Skills ride the neutral config as
-resolved inline packages (seeding platform default skills is a separate workstream). These
+fixed opinion: a forced preamble, persona, tools, and platform skills. The author's resolved
+inline skills ride the neutral config and the forced platform skill(s) are unioned in. These
 tests lock that the translation honors those differences and that ``make_harness`` validates
 support.
 """
@@ -30,8 +30,11 @@ from agenta.sdk.agents import (
 from agenta.sdk.agents.adapters import harnesses
 from agenta.sdk.agents.adapters.agenta_builtins import (
     AGENTA_FORCED_APPEND_SYSTEM,
+    AGENTA_FORCED_SKILLS,
     AGENTA_FORCED_TOOLS,
+    AGENTA_GETTING_STARTED_SKILL,
     AGENTA_PREAMBLE,
+    force_skills,
 )
 from agenta.sdk.agents.adapters.harnesses import _normalize_tool_specs, _opt_str
 
@@ -128,14 +131,60 @@ def test_agenta_forces_tools_preamble_and_persona_and_carries_skills(make_env):
         assert forced in result.builtin_tools
     assert "web_search" in result.builtin_tools
     assert "read" in result.builtin_tools
-    # The author's resolved inline skills ride the config and reach the wire on their own seam.
-    assert [s.name for s in result.skills] == ["release-notes"]
+    # The author's resolved inline skills ride the config, plus the forced platform skill(s) the
+    # harness always injects. The author's skill comes first; the platform skill is appended.
+    skill_names = [s.name for s in result.skills]
+    assert skill_names[0] == "release-notes"
+    assert AGENTA_GETTING_STARTED_SKILL.name in skill_names
     assert "skills" not in result.wire_tools()
     assert result.wire_skills()["skills"][0]["name"] == "release-notes"
     # The persona is forced onto append_system; custom tools and callback pass through.
     assert result.append_system.startswith(AGENTA_FORCED_APPEND_SYSTEM)
     assert result.custom_tools[0]["name"] == "t"
     assert result.tool_callback is _CALLBACK
+
+
+def test_agenta_forces_platform_skill_on_a_skill_less_config(make_env):
+    # The actually-forced behavior: a custom pi_agenta config with NO skills (the default
+    # template's `_agenta` embed dropped) still carries the platform skill on every run.
+    harness = AgentaHarness(make_env(supported=[HarnessType.AGENTA]))
+    config = _session_config(
+        agent=AgentConfig(instructions="My project rules.", model="m", skills=[])
+    )
+
+    result = harness._to_harness_config(config)
+
+    assert [s.name for s in result.skills] == [AGENTA_GETTING_STARTED_SKILL.name]
+
+
+def test_agenta_does_not_duplicate_an_already_present_platform_skill(make_env):
+    # A config that already carries the resolved platform skill (e.g. via the default template's
+    # embed) is not doubled: the author's copy wins on the name clash.
+    harness = AgentaHarness(make_env(supported=[HarnessType.AGENTA]))
+    existing = AGENTA_GETTING_STARTED_SKILL.model_dump(mode="json")
+    config = _session_config(
+        agent=AgentConfig(instructions="hi", model="m", skills=[existing])
+    )
+
+    result = harness._to_harness_config(config)
+
+    names = [s.name for s in result.skills]
+    assert names.count(AGENTA_GETTING_STARTED_SKILL.name) == 1
+
+
+def test_force_skills_unions_forced_after_author_skills():
+    from agenta.sdk.agents.skills import SkillConfig
+
+    author = SkillConfig(
+        name="release-notes", description="Draft notes.", body="Do it."
+    )
+
+    out = force_skills([author])
+
+    assert out[0] is author
+    assert {s.name for s in out} == {"release-notes"} | {
+        s.name for s in AGENTA_FORCED_SKILLS
+    }
 
 
 def test_agenta_forces_tools_without_duplicates(make_env):
