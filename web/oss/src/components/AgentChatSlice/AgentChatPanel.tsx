@@ -4,11 +4,12 @@ import {agentShouldResumeAfterApproval, buildAgentRequest} from "@agenta/playgro
 import {useChat} from "@ai-sdk/react"
 import {Attachments, Bubble, Sender} from "@ant-design/x"
 import {ArrowDown, Paperclip} from "@phosphor-icons/react"
-import {DefaultChatTransport, type UIMessage} from "ai"
+import {type UIMessage} from "ai"
 import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
+import {AgentChatTransport} from "./assets/AgentChatTransport"
 import {filesToParts} from "./assets/files"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import AgentMessage from "./components/AgentMessage"
@@ -119,7 +120,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // placeholder that `prepareSendMessagesRequest` overrides per request.
     const transport = useMemo(
         () =>
-            new DefaultChatTransport<UIMessage>({
+            new AgentChatTransport({
                 api: "",
                 prepareSendMessagesRequest: async ({messages, id}) => {
                     const req = await buildAgentRequest(entityId, messages, {

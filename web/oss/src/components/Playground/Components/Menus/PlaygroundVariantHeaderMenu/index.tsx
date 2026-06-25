@@ -2,7 +2,12 @@ import {useCallback, useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {agentConfigLayoutAtom, AGENT_CONFIG_LAYOUTS} from "@agenta/entity-ui/drill-in"
-import {playgroundController, isAgentModeAtomFamily} from "@agenta/playground"
+import {
+    playgroundController,
+    isAgentModeAtomFamily,
+    agentChannelModeAtom,
+    type AgentChannelMode,
+} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {MoreOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise, Check, Trash} from "@phosphor-icons/react"
@@ -12,6 +17,12 @@ import {useAtomValue, useSetAtom} from "jotai"
 import DeleteVariantButton from "../../Modals/DeleteVariantModal/assets/DeleteVariantButton"
 
 import {PlaygroundVariantHeaderMenuProps} from "./types"
+
+// Response channel the agent playground speaks to the backend (transport concern, not config).
+const CHANNEL_OPTIONS: {value: AgentChannelMode; label: string}[] = [
+    {value: "stream", label: "Stream"},
+    {value: "batch", label: "Batch"},
+]
 
 const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = ({
     variantId,
@@ -26,6 +37,9 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
     const isAgent = useAtomValue(isAgentModeAtomFamily(variantId || ""))
     const layout = useAtomValue(agentConfigLayoutAtom)
     const setLayout = useSetAtom(agentConfigLayoutAtom)
+    // Stream (token-by-token) vs batch (one-shot) response channel for the agent run lane.
+    const channelMode = useAtomValue(agentChannelModeAtom)
+    const setChannelMode = useSetAtom(agentChannelModeAtom)
 
     const closePanelDisabled = useMemo(() => {
         return selectedVariants.length === 1 && selectedVariants.includes(variantId)
@@ -71,6 +85,26 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                           })),
                       },
                       {type: "divider" as const},
+                      {
+                          key: "channel",
+                          type: "group" as const,
+                          label: "Response",
+                          children: CHANNEL_OPTIONS.map((option) => ({
+                              key: `channel-${option.value}`,
+                              label: option.label,
+                              icon:
+                                  channelMode === option.value ? (
+                                      <Check size={14} />
+                                  ) : (
+                                      <span className="inline-block w-[14px]" />
+                                  ),
+                              onClick: (e: {domEvent: {stopPropagation: () => void}}) => {
+                                  e.domEvent.stopPropagation()
+                                  setChannelMode(option.value)
+                              },
+                          })),
+                      },
+                      {type: "divider" as const},
                   ]
                 : []),
             {
@@ -110,6 +144,8 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
             isAgent,
             layout,
             setLayout,
+            channelMode,
+            setChannelMode,
         ],
     )
 

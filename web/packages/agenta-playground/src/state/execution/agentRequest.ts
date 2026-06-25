@@ -28,6 +28,7 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 
+import {agentChannelModeAtom} from "./channelMode"
 import {executionHeadersAtom} from "./webWorkerIntegration"
 
 export interface AgentRequest {
@@ -306,12 +307,15 @@ export async function buildAgentRequest(
     const references = buildAgentReferences(entity)
 
     const headersFactory = store.get(executionHeadersAtom)
-    // `Accept: text/event-stream` makes the agent `/messages` endpoint serve the v6
-    // SSE stream `useChat` consumes. Without it the endpoint negotiates down to a
-    // batch JSON response (Accept defaults to `*/*`; the AI-SDK transport sets no
-    // Accept), which `useChat` can't render — the run succeeds but nothing appears.
+    // The Accept header selects the response channel the backend content-negotiates:
+    //  - `text/event-stream` → the v6 SSE stream `useChat` renders token-by-token (default).
+    //  - `application/json` → a single `WorkflowBatchResponse`; `AgentChatTransport` replays it
+    //    as a one-shot UIMessage stream so the reply lands in one frame.
+    // (A bare `*/*` would negotiate down to batch JSON that plain `useChat` can't render, which
+    // is why we always send an explicit Accept.)
+    const channelMode = store.get(agentChannelModeAtom)
     const headers: Record<string, string> = {
-        Accept: "text/event-stream",
+        Accept: channelMode === "batch" ? "application/json" : "text/event-stream",
         // Declare the request body's message format so the agent `/messages` endpoint can pick
         // the right adapter. Our payload is AI-SDK (Vercel) UIMessages, so the value matches the
         // backend's `VERCEL_MESSAGE_PROTOCOL` ("vercel"), the same identity it stamps on the
