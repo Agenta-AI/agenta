@@ -87,6 +87,37 @@ function log(message: string): void {
 
 type Log = (message: string) => void;
 
+// In-flight sandbox handles, by run. The per-run `finally` deletes the sandbox on every normal /
+// error / client-disconnect path, but a process KILL (docker stop / SIGTERM / OOM mid-run) skips
+// the `finally` entirely — so a shutdown signal handler (see `server.ts`) drains this set to
+// best-effort delete any still-running sandbox before exit. Remote (Daytona) sandboxes also carry
+// the auto-stop backstop in `provider.ts` for the cases a signal can never reach (SIGKILL/OOM).
+const inFlightSandboxes = new Set<{
+  destroySandbox?: () => Promise<unknown>;
+}>();
+
+/**
+ * Best-effort delete every sandbox currently mid-run, bounded so it can never hang shutdown.
+ * Called from the process signal handler so `docker stop` reaps remote sandboxes instead of
+ * leaking them. Each delete is independent and its own failure is swallowed; the whole sweep is
+ * raced against `timeoutMs` so a slow Daytona API call cannot block the exit.
+ */
+export async function destroyInFlightSandboxes(
+  timeoutMs = 5000,
+): Promise<void> {
+  const pending = [...inFlightSandboxes];
+  if (pending.length === 0) return;
+  const sweep = Promise.allSettled(
+    pending.map((sandbox) =>
+      Promise.resolve(sandbox.destroySandbox?.()).catch(() => {}),
+    ),
+  );
+  await Promise.race([
+    sweep,
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+}
+
 const CLAUDE_STRICT_DEPLOYMENTS = new Set([
   "custom",
   "bedrock",
@@ -250,6 +281,10 @@ export async function runSandboxAgent(
         ? (deps.createCookieFetch ?? createCookieFetch)()
         : (deps.createAcpFetch ?? createAcpFetch)(),
     });
+    // Track the live handle so a shutdown signal handler can delete it if the `finally` below is
+    // skipped by a process KILL (docker stop / SIGTERM / OOM); removed in the `finally` on every
+    // normal exit so it is never double-deleted.
+    if (sandbox) inFlightSandboxes.add(sandbox);
 
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote
     // sandbox via the filesystem API (nothing secret is baked into the image). Locally
@@ -475,6 +510,7 @@ export async function runSandboxAgent(
       error,
     };
   } finally {
+    if (sandbox) inFlightSandboxes.delete(sandbox);
     await toolRelay?.stop().catch(() => {});
     await closeToolMcp?.().catch(() => {});
     await sandbox?.destroySandbox().catch(() => {});
