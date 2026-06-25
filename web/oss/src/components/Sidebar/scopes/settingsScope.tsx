@@ -60,59 +60,12 @@ const useSettingsAccess = () => {
     }
 }
 
-const resolveSettingsTab = (requestedTab: string, access: ReturnType<typeof useSettingsAccess>) => {
-    // Allowlist: unknown tabs and tabs the user can't see both fall back to "workspace".
-    switch (requestedTab) {
-        case "apiKeys":
-            return access.canViewApiKeys ? requestedTab : "workspace"
-        case "tools":
-            return access.canShowTools ? requestedTab : "workspace"
-        case "organization":
-            return access.isOwner && access.canShowOrganization ? requestedTab : "workspace"
-        case "auditLog":
-            return access.canShowAuditLog ? requestedTab : "workspace"
-        case "billing":
-            return access.canShowUsageBilling ? requestedTab : "workspace"
-        case "account":
-            return access.canShowAccount ? requestedTab : "workspace"
-        case "secrets":
-        case "automations":
-        case "workspace":
-            return requestedTab
-        default:
-            return "workspace"
-    }
-}
+const DEFAULT_SETTINGS_TAB = "workspace"
 
-const useSettingsSidebarSelection = (): SidebarSelection => {
-    const [tab, setTab] = useQueryParam("tab", undefined, "replace")
-    const [settingsTab, setSettingsTab] = useAtom(settingsTabAtom)
-    const access = useSettingsAccess()
-    const activeTab = useMemo(
-        () => resolveSettingsTab(tab ?? settingsTab ?? "workspace", access),
-        [access, settingsTab, tab],
-    )
-
-    useEffect(() => {
-        if (settingsTab !== activeTab) {
-            setSettingsTab(activeTab)
-        }
-        if (tab && tab !== activeTab) {
-            setTab(activeTab)
-        }
-    }, [activeTab, settingsTab, setSettingsTab, setTab, tab])
-
-    return {
-        mode: "controlled",
-        selectedKey: activeTab,
-        onSelect: (key) => {
-            setSettingsTab(key)
-            setTab(key)
-        },
-    }
-}
-
-const useSettingsSidebarSections = (): SidebarSection[] => {
+// Single source of truth for the settings tabs: key, label, and visibility. Both the
+// rendered menu and the selection guard read from here, so an item's `isHidden` flag is
+// the only place access rules live — rendering and selection can never drift.
+const useSettingsTabs = (): SidebarConfig[] => {
     const {
         billingEnabled,
         canShowAccount,
@@ -124,7 +77,7 @@ const useSettingsSidebarSections = (): SidebarSection[] => {
         isOwner,
     } = useSettingsAccess()
 
-    const items = useMemo<SidebarConfig[]>(
+    return useMemo<SidebarConfig[]>(
         () => [
             {
                 key: "apiKeys",
@@ -191,16 +144,44 @@ const useSettingsSidebarSections = (): SidebarSection[] => {
             isOwner,
         ],
     )
+}
 
-    return useMemo(
-        () => [
-            {
-                key: "settings",
-                items,
-            },
-        ],
-        [items],
+const useSettingsSidebarSelection = (): SidebarSelection => {
+    const [tab, setTab] = useQueryParam("tab", undefined, "replace")
+    const [settingsTab, setSettingsTab] = useAtom(settingsTabAtom)
+    const tabs = useSettingsTabs()
+
+    // Unknown tabs and tabs the user can't see both fall back to the default.
+    const visibleKeys = useMemo(
+        () => new Set(tabs.filter((item) => !item.isHidden).map((item) => item.key)),
+        [tabs],
     )
+    const requestedTab = tab ?? settingsTab ?? DEFAULT_SETTINGS_TAB
+    const activeTab = visibleKeys.has(requestedTab) ? requestedTab : DEFAULT_SETTINGS_TAB
+
+    useEffect(() => {
+        if (settingsTab !== activeTab) {
+            setSettingsTab(activeTab)
+        }
+        if (tab && tab !== activeTab) {
+            setTab(activeTab)
+        }
+    }, [activeTab, settingsTab, setSettingsTab, setTab, tab])
+
+    return {
+        mode: "controlled",
+        selectedKey: activeTab,
+        onSelect: (key) => {
+            setSettingsTab(key)
+            setTab(key)
+        },
+    }
+}
+
+const useSettingsSidebarSections = (): SidebarSection[] => {
+    const items = useSettingsTabs()
+
+    return useMemo(() => [{key: "settings", items}], [items])
 }
 
 const createSettingsHeader = (lastPath?: string) => {
