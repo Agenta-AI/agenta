@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {agentShouldResumeAfterApproval, buildAgentRequest} from "@agenta/playground"
+import {generateId} from "@agenta/shared/utils"
 import {useChat} from "@ai-sdk/react"
 import {Attachments, Bubble, Sender} from "@ant-design/x"
 import {ArrowDown, Paperclip} from "@phosphor-icons/react"
@@ -186,7 +187,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             return [
                 ...prev,
                 {
-                    id: `run-error-${crypto.randomUUID()}`,
+                    id: `run-error-${generateId()}`,
                     role: "assistant",
                     parts: [],
                     metadata: {runError: parsed},
