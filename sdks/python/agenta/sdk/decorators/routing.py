@@ -364,9 +364,16 @@ def _to_inspect_response(
     """
     nested = (request.data.revision or {}) if request.data else {}
     revision_data = nested.get("data") if isinstance(nested, dict) else None
+    # Carry the resolved config so the public boundary doesn't drop it: the FE reads
+    # ``configuration.parameters`` as a fallback when ``revision.parameters`` is absent.
+    parameters = (
+        revision_data.get("parameters") if isinstance(revision_data, dict) else None
+    )
+    configuration = {"parameters": parameters} if parameters is not None else None
     return WorkflowInspectResponse(
         version=request.version,
         revision=revision_data,
+        configuration=configuration,
         meta=request.meta,
     )
 
