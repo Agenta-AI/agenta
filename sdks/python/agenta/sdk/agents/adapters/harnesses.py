@@ -35,6 +35,7 @@ from ..tools.models import ToolSpec, coerce_tool_spec
 from .agenta_builtins import (
     compose_append_system,
     compose_instructions,
+    force_skills,
     force_tools,
 )
 
@@ -118,8 +119,9 @@ class AgentaHarness(Harness):
     forced Agenta extras (see :mod:`.agenta_builtins`): a base AGENTS.md preamble the author's
     instructions are appended to, a forced persona ``append_system``, and forced tools. The
     author's own Pi ``harness_kwargs`` (``system`` / ``append_system``) still apply, layered
-    after the forced bits. Skills come from the neutral config as resolved inline packages;
-    seeding platform default skills is a separate project-creation workstream."""
+    after the forced bits. The author's resolved inline skills ride the neutral config, and the
+    forced platform skill(s) are unioned in (de-duped by name) so a custom config that drops the
+    default template's ``_agenta`` embed still carries the platform skill."""
 
     harness_type = HarnessType.AGENTA
 
@@ -135,7 +137,9 @@ class AgentaHarness(Harness):
             tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
             mcp_servers=list(config.mcp_servers),
-            skills=list(config.agent.skills),
+            # Force the platform skill(s) into every run, de-duped by name. A custom config that
+            # drops the default template's `_agenta` embed still gets the platform skill.
+            skills=force_skills(list(config.agent.skills)),
             sandbox_permission=config.agent.sandbox_permission,
             harness_kwargs=config.agent.harness_kwargs,
             system=_opt_str(pi_options.get("system")),

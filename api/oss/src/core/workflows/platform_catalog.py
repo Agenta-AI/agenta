@@ -17,6 +17,10 @@ user cannot author or shadow it, and resolution never falls through to Postgres.
 from typing import Any, Dict, Optional, Tuple
 from uuid import UUID, uuid5
 
+from agenta.sdk.agents.adapters.agenta_builtins import (
+    AGENTA_GETTING_STARTED_SKILL,
+    AGENTA_GETTING_STARTED_SLUG,
+)
 from agenta.sdk.agents.skills.models import SkillConfig
 
 from oss.src.core.workflows.dtos import (
@@ -43,50 +47,19 @@ _PLATFORM_NAMESPACE_UUID = UUID("a6e6b3f2-2c4a-5f3a-9b6f-0a1b2c3d4e5f")
 
 
 # ---------------------------------------------------------------------------
-# Platform skill content (single source of the body text)
-# ---------------------------------------------------------------------------
-
-_GETTING_STARTED_BODY = (
-    "# Getting started with Agenta agents\n"
-    "\n"
-    "This skill orients an agent running on the Agenta platform.\n"
-    "\n"
-    "## When to use it\n"
-    "\n"
-    "Use it at the start of a task to recall how Agenta agents are expected to behave: be "
-    "concise, ask for missing inputs, and prefer the tools and skills the agent was given over "
-    "guessing.\n"
-    "\n"
-    "## Conventions\n"
-    "\n"
-    "- Greet the user once, then get to work.\n"
-    "- State assumptions briefly when a request is ambiguous.\n"
-    "- When a skill or tool references a relative path, resolve it against the skill directory "
-    "(the parent of SKILL.md) before running it.\n"
-    "- Keep answers short unless the user asks for depth.\n"
-)
-
-
-# ---------------------------------------------------------------------------
 # Catalogue definition
 # ---------------------------------------------------------------------------
 #
 # Each entry maps a reserved slug to a `current` version pointer and a map of immutable versions.
-# A version payload is a SkillConfig dict, validated at module import (see _validate_catalog).
+# A version payload is a SkillConfig dict, validated at module import (see _validate_catalog). The
+# skill content is canonical in the SDK (agenta_builtins.AGENTA_GETTING_STARTED_SKILL), imported
+# here so the embed path (this catalogue) and the forced path (AgentaHarness) stay one source.
 
 _PLATFORM_WORKFLOWS: Dict[str, Dict[str, Any]] = {
-    "_agenta.agenta-getting-started": {
+    AGENTA_GETTING_STARTED_SLUG: {
         "current": "v1",
         "versions": {
-            "v1": {
-                "name": "agenta-getting-started",
-                "description": (
-                    "Getting started on the Agenta platform: how an Agenta agent should behave, "
-                    "ask for missing inputs, and use its tools and skills. Use at the start of a "
-                    "task."
-                ),
-                "body": _GETTING_STARTED_BODY,
-            },
+            "v1": AGENTA_GETTING_STARTED_SKILL.model_dump(mode="json"),
         },
     },
 }
