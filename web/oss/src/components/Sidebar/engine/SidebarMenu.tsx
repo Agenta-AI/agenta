@@ -11,6 +11,9 @@ import {SidebarConfig, SidebarMenuProps} from "./types"
 
 type MenuItem = NonNullable<MenuProps["items"]>[number]
 
+const MENU_LINK_CLASS_NAME =
+    "w-full !text-inherit hover:!text-inherit focus:!text-inherit active:!text-inherit no-underline"
+
 const SidebarMenu: React.FC<SidebarMenuProps> = ({
     items,
     menuProps,
@@ -89,7 +92,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                     )
                     const labelNode = item.link ? (
                         <Link
-                            className="w-full"
+                            className={MENU_LINK_CLASS_NAME}
                             href={item.link}
                             onClick={(event) => {
                                 event.stopPropagation()
@@ -207,7 +210,10 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                         </span>
                     ) : item.link ? (
                         <Link
-                            className={labelClassName}
+                            className={clsx(
+                                MENU_LINK_CLASS_NAME,
+                                item.isPlaceholder && "text-gray-400",
+                            )}
                             href={item.link}
                             onClick={item.onClick}
                             target={item.link?.startsWith("http") ? "_blank" : undefined}

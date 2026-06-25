@@ -1,5 +1,6 @@
-import {useMemo, useRef} from "react"
+import {createElement, useMemo, useRef} from "react"
 
+import {ArrowRight} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {getEntityKindIcon} from "@/oss/components/References"
@@ -84,7 +85,7 @@ const resolveChildren = (
             key: `${entity.parentKey}-show-all`,
             title: SHOW_ALL_LABEL,
             link: entity.showAllLink(projectURL),
-            icon: icon(),
+            icon: createElement(ArrowRight, {size: 14}),
             isDynamic: true,
         })
     }

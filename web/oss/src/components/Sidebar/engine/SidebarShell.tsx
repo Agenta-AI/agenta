@@ -247,6 +247,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         if (!items.length) return null
 
         const isBottomSection = section.placement === "bottom"
+        const isInlineSection = (section.mode ?? "inline") === "inline"
 
         return (
             <React.Fragment key={section.key}>
@@ -256,8 +257,12 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     menuProps={{
                         className: isBottomSection ? "" : MENU_CLASS_NAME,
                         selectedKeys,
-                        openKeys,
-                        onOpenChange: (keys) => handleOpenChange(keys as string[]),
+                        ...(isInlineSection
+                            ? {
+                                  openKeys,
+                                  onOpenChange: (keys) => handleOpenChange(keys as string[]),
+                              }
+                            : {}),
                         onClick:
                             selection.mode === "controlled"
                                 ? ({domEvent, key}) => {
@@ -271,8 +276,8 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     items={items}
                     collapsed={collapsed}
                     mode={section.mode}
-                    openKeys={openKeys}
-                    onToggleOpenKey={handleToggleOpenKey}
+                    openKeys={isInlineSection ? openKeys : []}
+                    onToggleOpenKey={isInlineSection ? handleToggleOpenKey : undefined}
                     onPopupOpenChange={onPopupOpenChange}
                 />
             </React.Fragment>

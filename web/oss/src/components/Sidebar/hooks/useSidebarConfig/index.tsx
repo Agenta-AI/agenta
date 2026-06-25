@@ -101,18 +101,18 @@ export const useSidebarConfig = () => {
                 disabled: !hasProjectURL,
                 submenu: [
                     {
+                        key: "app-testsets-link",
+                        title: "Test sets",
+                        link: `${projectURL}/testsets`,
+                        icon: getEntityKindIcon("testset"),
+                        disabled: !hasProjectURL,
+                    },
+                    {
                         key: "project-evaluators-link",
                         title: "Evaluators",
                         link: `${projectURL}/evaluators`,
                         // isHidden: !isDemo(),
                         icon: <GavelIcon size={14} />,
-                        disabled: !hasProjectURL,
-                    },
-                    {
-                        key: "app-testsets-link",
-                        title: "Test sets",
-                        link: `${projectURL}/testsets`,
-                        icon: getEntityKindIcon("testset"),
                         disabled: !hasProjectURL,
                     },
                     {
