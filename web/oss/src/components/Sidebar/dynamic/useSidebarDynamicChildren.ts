@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useMemo, useRef} from "react"
 
 import {useAtomValue} from "jotai"
 
@@ -23,11 +23,14 @@ const resolveChildren = (
     entity: SidebarEntity,
     source: SidebarEntitySource | undefined,
     projectURL: string,
+    idleFallback?: SidebarConfig[],
 ): SidebarConfig[] => {
     const icon = () => getEntityKindIcon(entity.kind)
     const status = source?.status ?? "idle"
 
     if (status === "idle") {
+        if (idleFallback?.length) return idleFallback
+
         return [
             {
                 key: `${entity.parentKey}-idle`,
@@ -96,12 +99,29 @@ const resolveChildren = (
 export const useSidebarDynamicChildren = (): Record<string, SidebarConfig[]> => {
     const {projectURL} = useURL()
     const sources = useAtomValue(sidebarEntitySourcesAtom)
+    const cachedChildrenRef = useRef<
+        Record<string, {projectURL: string; children: SidebarConfig[]}>
+    >({})
 
     return useMemo(() => {
+        const resolvedProjectURL = projectURL ?? ""
+        const cachedChildren = cachedChildrenRef.current ?? {}
+        const sourcesByKey = sources ?? {}
         const childrenByKey: Record<string, SidebarConfig[]> = {}
         for (const [key, entity] of Object.entries(SIDEBAR_ENTITIES)) {
-            childrenByKey[key] = resolveChildren(entity, sources[key], projectURL ?? "")
+            const source = sourcesByKey[key]
+            const cached = cachedChildren[key]
+            const idleFallback =
+                cached?.projectURL === resolvedProjectURL ? cached.children : undefined
+            const children = resolveChildren(entity, source, resolvedProjectURL, idleFallback)
+
+            childrenByKey[key] = children
+
+            if (source?.status && source.status !== "idle") {
+                cachedChildren[key] = {projectURL: resolvedProjectURL, children}
+            }
         }
+        cachedChildrenRef.current = cachedChildren
         return childrenByKey
     }, [sources, projectURL])
 }
