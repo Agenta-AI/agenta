@@ -8,7 +8,7 @@ and that the `/inspect` default the playground pre-fills is the same value the r
 
 from __future__ import annotations
 
-from agenta.sdk.agents import AgentConfig, RunSelection
+from agenta.sdk.agents import AgentConfig
 from agenta.sdk.engines.running.interfaces import agent_v0_interface
 from agenta.sdk.utils.types import AgentConfigSchema, build_agent_v0_default
 
@@ -41,24 +41,23 @@ def test_service_default_is_the_builder_plus_service_only_choices():
 
 def test_inspect_default_parses_into_the_runtime_selection():
     # The default the playground pre-fills on `/inspect` must parse cleanly into the same runtime
-    # values `AgentConfig.from_params` / `RunSelection.from_params` produce, so what the user sees
-    # is what the agent runs. The `@ag.embed` skill resolves server-side before this parse, so the
-    # config-level round-trip is asserted on the non-skill fields plus the run selection.
+    # values `AgentConfig.from_params` produces, so what the user sees is what the agent runs. The
+    # `@ag.embed` skill resolves server-side before this parse, so the config-level round-trip is
+    # asserted on the non-skill fields plus the run-selection fields (now on `AgentConfig`).
     inspect_default = _inspect_agent_default()
     no_skill = {k: v for k, v in inspect_default.items() if k != "skills"}
     params = {"agent": no_skill}
 
     config = AgentConfig.from_params(params)
-    selection = RunSelection.from_params(params)
 
     assert config.model == inspect_default["model"]
     assert config.instructions == inspect_default["agents_md"]
     assert (
         config.sandbox_permission is not None
     )  # the service boundary survives the parse
-    assert selection.harness == "pi_core"
-    assert selection.sandbox == "local"
-    assert selection.permission_policy == "auto"
+    assert config.harness == "pi_core"
+    assert config.sandbox == "local"
+    assert config.permission_policy == "auto"
 
 
 def test_service_only_extras_present_in_inspect_absent_from_builtin():

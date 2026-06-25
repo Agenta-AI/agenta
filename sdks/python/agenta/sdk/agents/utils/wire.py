@@ -61,7 +61,7 @@ def request_to_wire(
     and ``wire_model_ref``'s ``provider`` (its ``env`` never reaches the wire; the secret rides
     ``secrets``).
     ``config.wire_harness_files()`` adds the generic ``harnessFiles`` array: files the active
-    harness's config rendered from its own ``harness_options`` slice, to materialize in the session
+    harness's config rendered from its own ``harness_kwargs`` slice, to materialize in the session
     cwd before the session starts (``path`` relative to cwd, ``content`` the file text). Omitted
     unless the config produced any files. This is where the per-harness translation happens in
     Python (e.g. the claude config renders ``.claude/settings.json``); the runner is a dumb writer

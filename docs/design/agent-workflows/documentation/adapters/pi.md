@@ -71,13 +71,13 @@ layer, and `SYSTEM` / `APPEND_SYSTEM` only change Pi's base persona. For almost 
 ### How to set them
 
 `SYSTEM` and `APPEND_SYSTEM` are Pi-specific, so they ride the neutral config's per-harness
-escape hatch, `AgentConfig.harness_options`. It is a bag keyed by harness name; each Harness
+escape hatch, `AgentConfig.harness_kwargs`. It is a bag keyed by harness name; each Harness
 adapter reads only its own slice:
 
 ```python
 AgentConfig(
     instructions="Project: a SQL analytics tool. Run `make lint` before finishing.",  # AGENTS.md
-    harness_options={
+    harness_kwargs={
         "pi_core": {
             "system": "You are a SQL expert. Only answer with queries.",  # replaces base prompt
             "append_system": "Always explain each query in one line.",     # adds to base prompt

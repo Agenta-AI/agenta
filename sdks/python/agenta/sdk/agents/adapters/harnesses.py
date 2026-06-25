@@ -60,10 +60,10 @@ class PiHarness(Harness):
     def _to_harness_config(self, config: SessionConfig) -> PiAgentConfig:
         # Pi delivers tools natively: built-in names plus resolved specs registered through
         # the Pi extension. Pi does not gate tool use, so the permission policy is dropped.
-        # Pi reads its own slice of the neutral harness_options bag (the `pi_core` key, shared
+        # Pi reads its own slice of the neutral harness_kwargs bag (the `pi_core` key, shared
         # by both Pi-family harnesses): `system` replaces Pi's base prompt, `append_system`
         # extends it (both leave AGENTS.md untouched).
-        pi_options = config.agent.harness_options.get(HarnessType.PI.value, {})
+        pi_options = config.agent.harness_kwargs.get(HarnessType.PI.value, {})
         return PiAgentConfig(
             agents_md=config.agent.instructions,
             model=config.agent.model,
@@ -74,7 +74,7 @@ class PiHarness(Harness):
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
-            harness_options=config.agent.harness_options,
+            harness_kwargs=config.agent.harness_kwargs,
             system=_opt_str(pi_options.get("system")),
             append_system=_opt_str(pi_options.get("append_system")),
         )
@@ -94,7 +94,7 @@ class ClaudeHarness(Harness):
             )
         # Skills stay on the harness config; the runner materializes them under `.claude/skills`
         # in the session cwd so Claude ACP can load the same resolved inline packages.
-        # The whole neutral harness_options bag (plus sandbox_permission + mcp_servers) is threaded
+        # The whole neutral harness_kwargs bag (plus sandbox_permission + mcp_servers) is threaded
         # onto the ClaudeAgentConfig; the config's `wire_harness_files` (the Python claude adapter)
         # parses the `claude.permissions` slice and renders `.claude/settings.json` as a generic
         # `harnessFiles` entry. No claude-specific parsing happens here; the runner just writes the
@@ -108,7 +108,7 @@ class ClaudeHarness(Harness):
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
-            harness_options=config.agent.harness_options,
+            harness_kwargs=config.agent.harness_kwargs,
             permission_policy=config.permission_policy,
         )
 
@@ -117,7 +117,7 @@ class AgentaHarness(Harness):
     """Pi with an Agenta opinion. Same engine as :class:`PiHarness`, but every run carries the
     forced Agenta extras (see :mod:`.agenta_builtins`): a base AGENTS.md preamble the author's
     instructions are appended to, a forced persona ``append_system``, and forced tools. The
-    author's own Pi ``harness_options`` (``system`` / ``append_system``) still apply, layered
+    author's own Pi ``harness_kwargs`` (``system`` / ``append_system``) still apply, layered
     after the forced bits. Skills come from the neutral config as resolved inline packages;
     seeding platform default skills is a separate project-creation workstream."""
 
@@ -126,7 +126,7 @@ class AgentaHarness(Harness):
     def _to_harness_config(self, config: SessionConfig) -> AgentaAgentConfig:
         # The author's Pi options still apply; the pi_agenta harness reads the same `pi_core`
         # slice as PiHarness (it drives Pi) and layers its forced extras on top.
-        pi_options = config.agent.harness_options.get(HarnessType.PI.value, {})
+        pi_options = config.agent.harness_kwargs.get(HarnessType.PI.value, {})
         return AgentaAgentConfig(
             agents_md=compose_instructions(config.agent.instructions),
             model=config.agent.model,
@@ -137,7 +137,7 @@ class AgentaHarness(Harness):
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
-            harness_options=config.agent.harness_options,
+            harness_kwargs=config.agent.harness_kwargs,
             system=_opt_str(pi_options.get("system")),
             append_system=compose_append_system(
                 _opt_str(pi_options.get("append_system"))

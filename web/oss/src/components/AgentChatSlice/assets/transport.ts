@@ -52,16 +52,35 @@ const stubConfig = () => ({
 /**
  * Real config from the app's latest revision when `appId` is set and loaded; else the stub.
  * Returns `{parameters, references}`: `parameters` is the agent config the backend reads as
- * `data.parameters`. `harness`/`sandbox` (agent-specific, not part of a stored workflow
- * config) are defaulted but never override values the resolved config already carries.
+ * `data.parameters`. `harness`/`sandbox` are run-selection fields on the AGENT CONFIG
+ * (`parameters.agent`); they are defaulted there but never override values the resolved
+ * config already carries.
  */
+// Legacy pre-migration run-selection keys that now live inside `agent`. Stripped from the
+// top level when `agent` is present so we never emit both wire shapes for one config.
+const LEGACY_RUN_SELECTION_KEYS = ["harness", "sandbox", "permission_policy"] as const
+
 const configFor = (appId?: string | null) => {
     const resolved = resolveAppAgConfig(appId)
     if (!resolved) return stubConfig()
-    return {
-        parameters: {harness: "pi_core", sandbox: "local", ...resolved.ag_config},
-        references: resolved.references,
+    const agConfig = resolved.ag_config as Record<string, unknown>
+    const agent = agConfig.agent
+    let parameters: Record<string, unknown>
+    if (agent && typeof agent === "object") {
+        const rest = {...agConfig}
+        for (const key of LEGACY_RUN_SELECTION_KEYS) delete rest[key]
+        parameters = {
+            ...rest,
+            agent: {
+                harness: "pi_core",
+                sandbox: "local",
+                ...(agent as Record<string, unknown>),
+            },
+        }
+    } else {
+        parameters = {harness: "pi_core", sandbox: "local", ...agConfig}
     }
+    return {parameters, references: resolved.references}
 }
 
 const withQuery = (url: string, params: Record<string, string | undefined>): string => {

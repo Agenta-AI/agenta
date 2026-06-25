@@ -55,7 +55,7 @@ This follows Pi's own split (see `PiAgentConfig`): the **persona** ("who the age
 belongs in `append_system`, and **project conventions** belong in `AGENTS.md`. So the Agenta
 persona is a forced `append_system`, while the Agenta base preamble plus the author's
 instructions are the `AGENTS.md`. An author's own `system` / `append_system` (via
-`AgentConfig.harness_options["pi_core"]`) still apply, layered after the forced persona.
+`AgentConfig.harness_kwargs["pi_core"]`) still apply, layered after the forced persona.
 
 ## Selecting it
 

@@ -3,14 +3,14 @@
  *
  * Layer 1 of the agent capability config, Claude-only: the Claude harness's own permission knobs.
  * These map 1:1 to Claude Code's `permissions` settings block and persist into the neutral
- * `harness_options.claude.permissions` bag on the agent config (the SDK's `ClaudePermissions`,
+ * `harness_kwargs.claude.permissions` bag on the agent config (the SDK's `ClaudePermissions`,
  * agenta.sdk.agents.dtos). The shape:
  *   { default_mode?: "default"|"acceptEdits"|"plan"|"bypassPermissions",
  *     allow: string[], deny: string[], ask: string[] }
  *
  * It is rendered as a collapsed "advanced" section by AgentConfigControl and is hidden when the
  * harness is not Claude (nothing here applies to Pi, which never gates tool use). Non-destructive:
- * an author who touches nothing leaves `harness_options` untouched.
+ * an author who touches nothing leaves `harness_kwargs` untouched.
  */
 import {memo, useCallback, useMemo} from "react"
 
@@ -28,7 +28,7 @@ interface ClaudePermissionsValue {
 }
 
 export interface ClaudePermissionsControlProps {
-    /** The `harness_options.claude.permissions` value (object or null/undefined). */
+    /** The `harness_kwargs.claude.permissions` value (object or null/undefined). */
     value?: Record<string, unknown> | null
     /** Called with the next permissions object. */
     onChange: (value: Record<string, unknown>) => void

@@ -12,8 +12,9 @@ All file:line citations were verified against the code on 2026-06-23.
 The playground renders a single composite `agent_config` control. The field list for that
 control is not hardcoded in the frontend. It is fetched from the backend catalog type
 `agent_config`, which the SDK defines once as `AgentConfigSchema`. The runtime then re-parses
-the same payload into a permissive `AgentConfig` plus a `RunSelection`, resolves tools and
-secrets server-side, and hands a final wire request to the Node runner.
+the same payload into one permissive `AgentConfig` (the run-selection fields `harness`,
+`sandbox`, and `permission_policy` live on it), resolves tools and secrets server-side, and
+hands a final wire request to the Node runner.
 
 ## Three objects share the name "AgentConfig"
 
@@ -32,7 +33,7 @@ Playground form
   → AgentConfigControl (FE)               reads schema.properties from the catalog type
   → GET /workflows/catalog/types/agent_config   resolves x-ag-type-ref to the full schema
   → AgentConfigSchema (SDK)               the strict schema, registered in CATALOG_TYPES
-  → AgentConfig.from_params + RunSelection (SDK runtime)   re-parse the saved payload
+  → AgentConfig.from_params (SDK runtime)   re-parse the saved payload (one config)
   → SessionConfig                         tools + secrets resolved server-side
   → AgentRunRequest (TS wire contract)    the final shape the Node runner receives
 ```
@@ -137,7 +138,11 @@ class AgentConfig(BaseModel):
     model: Optional[str] = None
     tools: List[ToolConfig] = Field(default_factory=list)
     mcp_servers: List[MCPServerConfig] = Field(default_factory=list)
-    harness_options: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    harness_kwargs: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    # the run-selection fields
+    harness: str = "pi_core"
+    sandbox: str = "local"
+    permission_policy: PermissionPolicy = "auto"
 ```
 
 One correction to a common belief. This model is not `extra="allow"`. Its looseness comes
@@ -152,10 +157,12 @@ The genuinely loose object is the file-default dataclass at
 `services/oss/src/agent/config.py:30`, which holds `tools: List[Any]`. That is the service's
 built-in default, not user input.
 
-Two fields the schema lists are not on this neutral config. `harness`, `sandbox`, and
-`permission_policy` live on a separate `RunSelection` object
-(`sdks/python/agenta/sdk/agents/dtos.py:364`). The SDK splits "what the agent is" from "where
-and how it runs." The composite schema flattens both into one control for the playground.
+The run-selection fields are on this neutral config too. `harness`, `sandbox`, and
+`permission_policy` are plain fields on `AgentConfig` (in
+`sdks/python/agenta/sdk/agents/dtos.py`). They used to live on a separate `RunSelection`
+object; that object is retired, because there is one agent definition, not an agent plus a
+sidecar selection. The composite schema and the neutral config now agree: both keep these
+fields next to the rest of the agent.
 
 Tool entries are strict even though the list is lenient. Each tool subclass is `extra="forbid"`
 (`sdks/python/agenta/sdk/agents/tools/models.py`). `MCPServerConfig` is also `extra="forbid"`
@@ -168,19 +175,20 @@ The rich model picker is built only for the UI by `_model_catalog_type()`
 ## Layer 4: what the runtime actually reads
 
 The Python `/invoke` handler is at `services/oss/src/agent/app.py`. It parses the request
-into two objects (around line 72):
+into one object:
 
 ```python
 agent_config = AgentConfig.from_params(params, defaults=_default_agent_config())
-selection    = RunSelection.from_params(params)
 ```
 
-It then resolves tools, MCP servers, and secrets server-side (`app.py`, lines 78 to 83),
-bundles everything into a `SessionConfig` (`dtos.py:554`), picks a backend from the selection
-(`select_backend`, `app.py:49`), and runs one turn through a harness.
+That single parse covers everything, including the run-selection fields. The handler then
+resolves tools, MCP servers, and secrets server-side, bundles everything into a
+`SessionConfig`, picks a backend from `agent_config.sandbox` (`select_backend`,
+`services/oss/src/agent/app.py`), and runs one turn through a harness chosen from
+`agent_config.harness`.
 
 `sandbox` is deliberately absent from `SessionConfig`. It is a backend concern. The handler
-passes it to `SandboxAgentBackend(sandbox=...)` instead (`app.py:56`).
+reads `agent_config.sandbox` and passes it to `SandboxAgentBackend(sandbox=...)` instead.
 
 The final wire shape the Node runner receives is `AgentRunRequest` in
 `services/agent/src/protocol.ts` (around line 185). That is the true wired surface:
@@ -199,9 +207,9 @@ Legend: (a) catalog/schema, (b) SDK neutral config, (c) runtime.
 | skills | no | no | wired but forced only | Not author-settable. Only the Agenta harness injects forced skills. See below. |
 | persona | no | no | wired but forced only | Not a config field. The Agenta harness hardcodes an append-system preamble. See below. |
 | agents_md | yes, `agents_md: str` | yes, as `instructions` | wired to `agentsMd` | The schema names it `agents_md`. The neutral config names it `instructions`. |
-| harness | yes, enum | no, on `RunSelection` | wired, picks the harness class | Enum-enforced. The runtime validates via `make_harness`. |
-| sandbox | yes, enum | no, on `RunSelection` | wired to the backend, absent from `SessionConfig` | Backend concern, not agent identity. |
-| permission_policy | yes, enum | no, on `RunSelection` | wired to `SessionConfig` | Only the Claude harness reads it. Pi ignores it, so it is decorative for `pi_core` and `pi_agenta`. |
+| harness | yes, enum | yes, on `AgentConfig` | wired, picks the harness class | Enum-enforced. The runtime validates via `make_harness`. |
+| sandbox | yes, enum | yes, on `AgentConfig` | wired to the backend, absent from `SessionConfig` | Backend concern, not agent identity. |
+| permission_policy | yes, enum | yes, on `AgentConfig` | wired to `SessionConfig` | Only the Claude harness reads it. Pi ignores it, so it is decorative for `pi_core` and `pi_agenta`. |
 
 ## Notable gaps and quirks
 
@@ -214,11 +222,10 @@ Claude harnesses get no forced skills or persona.
 Per-harness divergence is real. `permission_policy` is wired only for Claude. Builtin tool
 names are dropped for Claude with a warning, because builtins are Pi-only. Skills and persona
 are Agenta-only. Pi's `system` and `append_system` overrides come through the
-`harness_options` escape hatch on the neutral config, which is itself absent from the schema.
+`harness_kwargs` escape hatch on the neutral config, which is itself absent from the schema.
 
-The schema is the only place where harness, sandbox, and permission policy sit next to the
-agent definition. The SDK keeps them apart. The composite schema re-flattens them so the
-playground can show one control.
+Harness, sandbox, and permission policy sit next to the agent definition in both the schema
+and the neutral `AgentConfig`. The two agree on one control.
 
 ## A concrete example config
 
@@ -245,9 +252,9 @@ This is what the playground saves and the runtime reads:
 }
 ```
 
-With this config, the runtime reads `agents_md`, `model`, `tools`, and `mcp_servers` through
-the neutral `AgentConfig`, reads `harness`, `sandbox`, and `permission_policy` through
-`RunSelection`, resolves the tools and MCP servers server-side, and runs one turn on the Pi
+With this config, the runtime reads `agents_md`, `model`, `tools`, `mcp_servers`, and the
+run-selection fields `harness`, `sandbox`, and `permission_policy` through the one neutral
+`AgentConfig`, resolves the tools and MCP servers server-side, and runs one turn on the Pi
 harness in a local sandbox. The `permission_policy` value is ignored because the harness is
 Pi, not Claude.
 

@@ -64,11 +64,11 @@ def test_pi_keeps_builtins_and_native_tools(make_env):
     assert result.model == "m"
 
 
-def test_pi_reads_its_harness_options_slice(make_env):
+def test_pi_reads_its_harness_kwargs_slice(make_env):
     harness = PiHarness(make_env(supported=[HarnessType.PI]))
     agent = AgentConfig(
         instructions="hi",
-        harness_options={
+        harness_kwargs={
             "pi_core": {"system": "You are Pi.", "append_system": "Be terse."},
             "claude": {"system": "ignored for Pi"},
         },
@@ -86,11 +86,11 @@ def test_pi_reads_its_harness_options_slice(make_env):
     }
 
 
-def test_pi_drops_blank_harness_options(make_env):
+def test_pi_drops_blank_harness_kwargs(make_env):
     harness = PiHarness(make_env(supported=[HarnessType.PI]))
     agent = AgentConfig(
         instructions="hi",
-        harness_options={"pi_core": {"system": "   ", "append_system": ""}},
+        harness_kwargs={"pi_core": {"system": "   ", "append_system": ""}},
     )
 
     result = harness._to_harness_config(_session_config(agent=agent))
@@ -152,7 +152,7 @@ def test_agenta_passes_through_user_pi_options(make_env):
     harness = AgentaHarness(make_env(supported=[HarnessType.AGENTA]))
     agent = AgentConfig(
         instructions="hi",
-        harness_options={
+        harness_kwargs={
             "pi_core": {"system": "You are Pi.", "append_system": "Be terse."}
         },
     )
@@ -247,13 +247,13 @@ def test_claude_threads_options_and_renders_settings_file(make_env):
         },
         "pi_core": {"system": "ignored for Claude"},
     }
-    agent = AgentConfig(instructions="hi", model="m", harness_options=options)
+    agent = AgentConfig(instructions="hi", model="m", harness_kwargs=options)
 
     result = harness._to_harness_config(_session_config(agent=agent))
 
     # The whole map is threaded onto the config; the claude config's `wire_harness_files` (the
     # Python claude adapter) translates its own `claude.permissions` slice into a rendered file.
-    assert result.harness_options == options
+    assert result.harness_kwargs == options
     wire = result.wire_harness_files()
     assert wire["harnessFiles"][0]["path"] == ".claude/settings.json"
     assert json.loads(wire["harnessFiles"][0]["content"]) == {
@@ -265,12 +265,12 @@ def test_claude_threads_options_and_renders_settings_file(make_env):
     }
 
 
-def test_claude_without_harness_options_renders_no_files(make_env):
+def test_claude_without_harness_kwargs_renders_no_files(make_env):
     harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
 
     result = harness._to_harness_config(_session_config())
 
-    assert result.harness_options == {}
+    assert result.harness_kwargs == {}
     assert result.wire_harness_files() == {}
 
 

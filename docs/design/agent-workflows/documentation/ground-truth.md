@@ -11,7 +11,7 @@ this page and the referenced code as the source of truth.
 | Agent service handler | `services/oss/src/agent/app.py` | Parses agent config, resolves secrets and tools, builds `SandboxAgentBackend`, runs batch or streaming turns. |
 | Agent route wiring | `sdks/python/agenta/sdk/decorators/routing.py` | Registers `/invoke`, `/inspect`, and agent-only `/messages`. |
 | Browser protocol adapter | `sdks/python/agenta/sdk/agents/adapters/vercel/` | Converts Vercel `UIMessage` input and emits Vercel UI Message Stream parts. |
-| SDK runtime DTOs | `sdks/python/agenta/sdk/agents/dtos.py` | Defines `AgentConfig`, `RunSelection`, `SessionConfig`, messages, events, capabilities, and harness configs. |
+| SDK runtime DTOs | `sdks/python/agenta/sdk/agents/dtos.py` | Defines `AgentConfig` (incl. the run-selection fields), `SessionConfig`, messages, events, capabilities, and harness configs. |
 | SDK runtime ports | `sdks/python/agenta/sdk/agents/interfaces.py` | Defines `Backend`, `Environment`, `Sandbox`, `Session`, and `Harness`. |
 | Backend adapters | `sdks/python/agenta/sdk/agents/adapters/sandbox_agent.py`, `local.py` | Implement the sandbox-agent backend. `LocalBackend` is a stub. |
 | Harness adapters | `sdks/python/agenta/sdk/agents/adapters/harnesses.py` | Maps neutral session config into Pi, Claude, and Agenta harness-specific config. |

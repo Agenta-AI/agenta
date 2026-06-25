@@ -1102,12 +1102,12 @@ class AgentConfigSchema(AgSchemaMixin):
     This is the schema-generation counterpart to the runtime :class:`agenta.sdk.agents.AgentConfig`
     parser: it exists only to emit a rich JSON Schema for the ``agent_config`` control, so the
     field shapes live in Pydantic (single source of truth) instead of a hand-written literal.
-    It deliberately composes the editable fields the control surfaces — the neutral config
-    (``agents_md``/``model``/``tools``/``mcp_servers``) plus the run selection
-    (``harness``/``sandbox``/``permission_policy``) — and types ``tools``/``mcp_servers`` with the
-    real tool-def models so the playground gets typed editors. The runtime ``AgentConfig`` stays
-    permissive (``List[Any]``) because its job is to coerce the loose shapes the playground emits;
-    this model is strict because its job is to describe them.
+    It composes every editable field the control surfaces — the definition
+    (``agents_md``/``model``/``tools``/``mcp_servers``) and the run-selection fields
+    (``harness``/``sandbox``/``permission_policy``), all one config — and types
+    ``tools``/``mcp_servers`` with the real tool-def models so the playground gets typed editors.
+    The runtime ``AgentConfig`` stays permissive (``List[Any]``) because its job is to coerce the
+    loose shapes the playground emits; this model is strict because its job is to describe them.
     """
 
     __ag_type__ = "agent_config"

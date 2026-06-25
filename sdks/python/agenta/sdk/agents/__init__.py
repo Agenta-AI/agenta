@@ -67,7 +67,6 @@ from .dtos import (
     NetworkEgress,
     PermissionPolicy,
     PiAgentConfig,
-    RunSelection,
     SandboxPermission,
     SessionConfig,
     ToolCallback,
@@ -142,7 +141,6 @@ from .adapters.vercel import (
 __all__ = [
     # DTOs
     "AgentConfig",
-    "RunSelection",
     "SessionConfig",
     "HarnessAgentConfig",
     "PiAgentConfig",

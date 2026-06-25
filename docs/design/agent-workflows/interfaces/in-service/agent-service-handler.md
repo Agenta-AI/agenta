@@ -10,16 +10,16 @@ the order it runs in is itself a contract.
 
 The handler (`_agent` in `app.py`) takes the workflow envelope's pieces:
 
-- `parameters`: carries the agent config under `agent` and the run selection (`harness`,
-  `sandbox`, `permission_policy`) in the same object.
+- `parameters`: carries the agent config under `agent`. The run-selection fields (`harness`,
+  `sandbox`, `permission_policy`) live on that same `agent` object.
 - `messages` or `inputs.messages`: the turn history (it checks `messages` first).
 - `stream`: batch versus streaming.
 - `session_id`: the external conversation id.
 
 ## What it does, in order
 
-1. Parse config and selection: `AgentConfig.from_params(params, defaults=...)` and
-   `RunSelection.from_params(params)`.
+1. Parse the config: `AgentConfig.from_params(params, defaults=...)`. One parse covers
+   everything, including the run-selection fields (`harness`, `sandbox`, `permission_policy`).
 2. Convert the request messages to neutral `Message[]`.
 3. Resolve tools into builtin names, runnable specs, and a tool callback.
 4. Resolve MCP servers.
@@ -56,8 +56,8 @@ the instrumented handler and merges the registered interface (the passed `schema
 
 ## Watch for when changing
 
-- **Where config lives.** Agent config and run selection share `parameters`. Moving either
-  breaks the form and the playground request builder.
+- **Where config lives.** The agent config, including its run-selection fields, rides
+  `parameters.agent`. Moving it breaks the form and the playground request builder.
 - **Default application.** The handler merges request params over a default agent config.
   Changing the merge changes what an empty form runs.
 - **Resolution order.** Provider and mode gate before resolution; deployment gates after.
