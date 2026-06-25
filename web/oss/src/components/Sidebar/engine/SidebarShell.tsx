@@ -1,4 +1,4 @@
-import React, {memo, useEffect, useMemo, useState} from "react"
+import React, {memo, useCallback, useMemo} from "react"
 
 import {Divider, Layout} from "antd"
 import {useAtom} from "jotai"
@@ -43,11 +43,6 @@ const findSelectedRoute = (items: SidebarConfig[], currentPath = "") => {
 
     const visit = (nodes: SidebarConfig[], ancestors: string[]) => {
         nodes.forEach((item) => {
-            if (item.submenu?.length) {
-                visit(item.submenu, [...ancestors, item.key])
-                return
-            }
-
             if (
                 item.link &&
                 pathMatchesLink(currentPath, item.link) &&
@@ -57,12 +52,69 @@ const findSelectedRoute = (items: SidebarConfig[], currentPath = "") => {
                 matchedLength = item.link.length
                 openKeys = ancestors
             }
+
+            if (item.submenu?.length) {
+                visit(item.submenu, [...ancestors, item.key])
+            }
         })
     }
 
     visit(items, [])
     return {selectedKey: matched?.key, openKeys}
 }
+
+const findAncestorKeys = (items: SidebarConfig[], selectedKey?: string) => {
+    if (!selectedKey) return []
+
+    const visit = (nodes: SidebarConfig[], ancestors: string[]): string[] | undefined => {
+        for (const item of nodes) {
+            if (item.key === selectedKey) return ancestors
+
+            if (item.submenu?.length) {
+                const match = visit(item.submenu, [...ancestors, item.key])
+                if (match) return match
+            }
+        }
+
+        return undefined
+    }
+
+    return visit(items, []) ?? []
+}
+
+const findDefaultOpenKeys = (items: SidebarConfig[]) => {
+    const keys: string[] = []
+
+    const visit = (nodes: SidebarConfig[]) => {
+        nodes.forEach((item) => {
+            if (item.submenu?.length) {
+                if (item.defaultOpen) keys.push(item.key)
+                visit(item.submenu)
+            }
+        })
+    }
+
+    visit(items)
+    return keys
+}
+
+const findNavigableGroupKeys = (items: SidebarConfig[]) => {
+    const keys = new Set<string>()
+
+    const visit = (nodes: SidebarConfig[]) => {
+        nodes.forEach((item) => {
+            if (item.submenu?.length) {
+                if (item.link) keys.add(item.key)
+                visit(item.submenu)
+            }
+        })
+    }
+
+    visit(items)
+    return keys
+}
+
+const uniqueKeys = (keys: string[]) => Array.from(new Set(keys))
 
 const renderSlot = (
     Slot: SidebarSection["before"] | SidebarScope["header"] | SidebarScope["footer"],
@@ -72,11 +124,19 @@ const renderSlot = (
     return <Slot collapsed={collapsed} />
 }
 
-const SidebarShell: React.FC<SidebarShellProps> = ({collapsedAtom, currentPath, scope, theme}) => {
+const SidebarShell: React.FC<SidebarShellProps> = ({
+    collapsedAtom,
+    currentPath,
+    openGroupsAtomFamily,
+    scope,
+    theme,
+}) => {
     const [collapsed] = useAtom(collapsedAtom)
-    // Multi-open in-memory open-group state (Phase 2 swaps this for a persisted,
-    // per-(scope, project) atom). Holds every expanded group key at once.
-    const [openGroups, setOpenGroups] = useState<string[]>([])
+    const openGroupsAtom = useMemo(
+        () => openGroupsAtomFamily(scope.id),
+        [openGroupsAtomFamily, scope.id],
+    )
+    const [persistedOpenGroups, setPersistedOpenGroups] = useAtom(openGroupsAtom)
     const selection = scope.useSelection()
     const sections = scope.useSections()
 
@@ -99,22 +159,45 @@ const SidebarShell: React.FC<SidebarShellProps> = ({collapsedAtom, currentPath, 
         return {selectedKey: match.selectedKey, routeOpenKeys: match.openKeys}
     }, [allItems, currentPath, selection])
 
-    // Auto-open the active route's ancestor groups, unioned with whatever the user has
-    // manually expanded (never collapse a user-opened group just because the route changed).
-    useEffect(() => {
-        if (selection.mode !== "route" || routeOpenKeys.length === 0) return
-
-        setOpenGroups((prev) => {
-            const next = Array.from(new Set([...prev, ...routeOpenKeys]))
-            return next.length === prev.length ? prev : next
-        })
-    }, [routeOpenKeys, selection.mode])
-
     const selectedKeys = useMemo(() => (selectedKey ? [selectedKey] : []), [selectedKey])
-    const openKeys = useMemo(() => {
-        if (selection.mode === "controlled") return selectedKey ? [selectedKey] : []
-        return openGroups
-    }, [selection.mode, selectedKey, openGroups])
+    const defaultOpenKeys = useMemo(() => findDefaultOpenKeys(allItems), [allItems])
+    const activeAncestorKeys = useMemo(
+        () =>
+            selection.mode === "controlled"
+                ? findAncestorKeys(allItems, selectedKey)
+                : routeOpenKeys,
+        [allItems, routeOpenKeys, selectedKey, selection.mode],
+    )
+    const navigableGroupKeys = useMemo(() => findNavigableGroupKeys(allItems), [allItems])
+    const persistedOrDefaultOpenGroups = persistedOpenGroups ?? defaultOpenKeys
+    const openKeys = useMemo(
+        () => uniqueKeys([...persistedOrDefaultOpenGroups, ...activeAncestorKeys]),
+        [activeAncestorKeys, persistedOrDefaultOpenGroups],
+    )
+
+    const handleOpenChange = useCallback(
+        (keys: string[]) => {
+            const requestedKeys = new Set(keys)
+            const nextOpenKeys = uniqueKeys([
+                ...keys.filter((key) => !navigableGroupKeys.has(key)),
+                ...persistedOrDefaultOpenGroups.filter((key) => navigableGroupKeys.has(key)),
+            ]).filter((key) => requestedKeys.has(key) || navigableGroupKeys.has(key))
+
+            setPersistedOpenGroups(nextOpenKeys)
+        },
+        [navigableGroupKeys, persistedOrDefaultOpenGroups, setPersistedOpenGroups],
+    )
+
+    const handleToggleOpenKey = useCallback(
+        (key: string) => {
+            const nextOpenKeys = persistedOrDefaultOpenGroups.includes(key)
+                ? persistedOrDefaultOpenGroups.filter((openKey) => openKey !== key)
+                : [...persistedOrDefaultOpenGroups, key]
+
+            setPersistedOpenGroups(nextOpenKeys)
+        },
+        [persistedOrDefaultOpenGroups, setPersistedOpenGroups],
+    )
 
     const renderSection = (section: SidebarSection) => {
         const items = section.items.filter((item) => !item.isHidden)
@@ -131,7 +214,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({collapsedAtom, currentPath, 
                         className: isBottomSection ? "" : MENU_CLASS_NAME,
                         selectedKeys,
                         openKeys,
-                        onOpenChange: (keys) => setOpenGroups(keys as string[]),
+                        onOpenChange: (keys) => handleOpenChange(keys as string[]),
                         onClick:
                             selection.mode === "controlled"
                                 ? ({domEvent, key}) => {
@@ -145,6 +228,8 @@ const SidebarShell: React.FC<SidebarShellProps> = ({collapsedAtom, currentPath, 
                     items={items}
                     collapsed={collapsed}
                     mode={section.mode}
+                    openKeys={openKeys}
+                    onToggleOpenKey={handleToggleOpenKey}
                 />
             </React.Fragment>
         )

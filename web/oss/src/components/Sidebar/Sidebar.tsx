@@ -2,7 +2,7 @@ import {memo, useMemo} from "react"
 
 import {useRouter} from "next/router"
 
-import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
+import {sidebarCollapsedAtom, sidebarOpenGroupsAtomFamily} from "@/oss/lib/atoms/sidebar"
 
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
@@ -24,6 +24,7 @@ const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
             key={scope.id}
             collapsedAtom={sidebarCollapsedAtom}
             currentPath={router.asPath}
+            openGroupsAtomFamily={sidebarOpenGroupsAtomFamily}
             scope={scope}
             theme={appTheme}
         />

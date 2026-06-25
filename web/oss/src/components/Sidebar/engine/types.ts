@@ -1,7 +1,7 @@
 import type {ComponentType} from "react"
 
 import type {MenuProps} from "antd"
-import type {PrimitiveAtom} from "jotai"
+import type {PrimitiveAtom, WritableAtom} from "jotai"
 
 export interface SidebarConfig {
     key: string
@@ -11,7 +11,8 @@ export interface SidebarConfig {
     icon: React.JSX.Element
     isHidden?: boolean
     isBottom?: boolean
-    submenu?: Omit<SidebarConfig, "submenu">[]
+    submenu?: SidebarConfig[]
+    defaultOpen?: boolean
     onClick?: (e: React.MouseEvent) => void
     tag?: string
     isCloudFeature?: boolean
@@ -27,6 +28,8 @@ export interface SidebarMenuProps {
     collapsed: boolean
     menuProps?: MenuProps
     mode?: "horizontal" | "vertical" | "inline"
+    openKeys?: string[]
+    onToggleOpenKey?: (key: string) => void
 }
 
 export type SidebarSelection =
@@ -59,6 +62,7 @@ export interface SidebarScope {
 export interface SidebarShellProps {
     collapsedAtom: PrimitiveAtom<boolean>
     currentPath?: string
+    openGroupsAtomFamily: (scopeId: string) => WritableAtom<string[] | undefined, [string[]], void>
     scope: SidebarScope
     theme?: "light" | "dark"
 }
