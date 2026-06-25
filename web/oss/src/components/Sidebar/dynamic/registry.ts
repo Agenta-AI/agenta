@@ -1,4 +1,3 @@
-import {testsetsListAtom} from "@agenta/entities/testset"
 import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {atom} from "jotai"
 
@@ -16,7 +15,6 @@ const DEFAULT_SIDEBAR_ENTITY_LIMIT = 3
 // `useSidebarConfig` and the registry entry below must share the same key —
 // keep the constant the single source of truth.
 export const PROMPTS_SIDEBAR_KEY = "project-prompts-link"
-export const TESTSETS_SIDEBAR_KEY = "app-testsets-link"
 
 /**
  * Turns an author config into a resolved {@link SidebarEntity}: applies open-state
@@ -51,14 +49,6 @@ const ENTITIES: SidebarEntity[] = [
         childPath: (workflow) => `/apps/${workflow.id}/overview`,
         emptyLabel: "No prompts",
         showAllPath: "/prompts",
-    }),
-    defineSidebarEntity(TESTSETS_SIDEBAR_KEY, {
-        kind: "testset",
-        listAtom: testsetsListAtom,
-        getLabel: (testset) => testset.name || "Untitled test set",
-        childPath: (testset) => `/testsets/${testset.id}`,
-        emptyLabel: "No test sets",
-        showAllPath: "/testsets",
     }),
 ]
 
