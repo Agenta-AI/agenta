@@ -114,8 +114,10 @@ class ModelRef(BaseModel):
     - ``"gpt-5.5"``        -> ``ModelRef(provider=None, model="gpt-5.5")``
 
     ``provider`` is logically required for resolution; when it is absent (a bare-string
-    model), the resolver infers it from the model id or the matched connection, and errors if
-    it cannot. The committed revision carries the whole ``ModelRef``, including the connection.
+    model), the resolver infers it from a matched vault connection (a candidate whose model id
+    equals the bare string) and otherwise fails loud with ``MissingProviderError`` rather than
+    degrading to no credential. There is no model-id->provider table. The committed revision
+    carries the whole ``ModelRef``, including the connection.
     """
 
     provider: Optional[str] = None  # "openai" | "anthropic" | "google" | <custom-slug>

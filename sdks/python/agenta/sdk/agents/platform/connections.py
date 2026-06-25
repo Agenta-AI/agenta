@@ -23,6 +23,7 @@ from ..connections import (
     ConnectionNotFoundError,
     ConnectionResolutionError,
     Endpoint,
+    MissingProviderError,
     ModelRef,
     ProviderMismatchError,
     ResolvedConnection,
@@ -301,6 +302,11 @@ def _choose_default(
     candidates: Sequence[_ConnectionCandidate], model: ModelRef
 ) -> _ConnectionCandidate:
     pool = _candidate_pool(candidates, model)
+    if not pool and not model.provider:
+        # A bare model id (no provider prefix) matched nothing by model id, so there is no
+        # provider to look a credential up against. Fail loud with an actionable message rather
+        # than degrade to no-credential and surface later as a misleading "add your key" error.
+        raise MissingProviderError(model=model.model)
     if len(pool) == 1:
         return pool[0]
     default_named = [candidate for candidate in pool if candidate.slug == "default"]

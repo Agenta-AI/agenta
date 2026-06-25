@@ -35,9 +35,12 @@ each cell valid, not-applicable, or blocked. Do not test cells that cannot exist
   `sandbox-agent` in local mode. Runner logs show `[sandbox-agent]`.
 - `E3` service / sandbox-agent Daytona. `sandbox=daytona`. Same as E2 but the sandbox is a Daytona
   cloud workspace. Always sandbox-agent. Slower to start.
-- `E4` local SDK backend. No service. A standalone Python script pulls the agent config from
-  Agenta and runs it on the host through the SDK (`InProcessPiBackend` or `SandboxAgentBackend`).
-  This is the path a user takes when they run their agent outside the platform.
+- `E4` SDK-direct. No service. A standalone Python script pulls the agent config from
+  Agenta and runs it on the host through the SDK over `SandboxAgentBackend(cwd=services/agent)`,
+  which drives the TypeScript runner CLI as a subprocess. The in-process SDK backend
+  (`InProcessPiBackend`, renamed `LocalBackend`) is a stub today (`NotImplementedError`), so E4
+  is NOT in-process Pi — it exercises the same wire and runner as E2, just invoked from a host
+  script (F-018). This is the path a user takes when they run their agent outside the platform.
 
 **Harness**: `pi`, `agenta`, `claude`.
 
@@ -99,8 +102,8 @@ Write a `uv run` script (per repo convention, inline `# /// script` deps) that:
 
 1. Pulls the committed agent config from Agenta with the SDK or the config API.
 2. Builds a `SessionConfig` from it.
-3. Picks a backend (`InProcessPiBackend()` for Pi/Agenta, `SandboxAgentBackend(sandbox=...)` for
-   Claude or Daytona) and a harness with `make_harness`.
+3. Picks a backend — `SandboxAgentBackend(cwd=services/agent)` for every harness, since the
+   in-process `LocalBackend` is a stub (F-018) — and a harness with `make_harness`.
 4. Runs `harness.setup()` then `harness.prompt(config, messages)` then `harness.cleanup()`.
 5. Asserts the reply contains the scenario's expected token.
 
