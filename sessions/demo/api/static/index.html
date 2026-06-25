@@ -813,15 +813,16 @@ function reconcileRunButton() {
   if (iDrive !== running) setRunning(iDrive);
 }
 
-// STOP / CANCEL: end the live run (null-data force). Separate request — works whether we're the
-// driver or just attached. Then drop our watch connection.
+// STOP / CANCEL: end the live run (null-data, force=F). Cancel is a non-enforcement control (it
+// stops THIS session's run, doesn't override another tab), so it rides on force=F. Works whether
+// we're the driver or just attached. Then drop our watch connection.
 async function cancelRun() {
   const sid = liveSid || current;
   if (!sid) return;
   try {
     await fetch('/invoke', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(envelope({ sid, prompt: null, force: true })),
+      body: JSON.stringify(envelope({ sid, prompt: null, force: false })),
     });
   } catch (e) { showStatus('stop error: ' + e, true); }
   if (liveCtl) liveCtl.abort();  // stop watching too; the run is ending
@@ -830,7 +831,8 @@ async function cancelRun() {
 }
 
 // ATTACH (card icon, on a DETACHED live run): adopt the run — hold `attached` + watch the
-// transcript until it ends. Keep the AbortController so the Detach icon can drop it.
+// transcript until it ends. force=T because attach STEALS the watch from any prior tab (an
+// enforcement over another tab). Keep the AbortController so the Detach icon can drop it.
 async function attachRun(sid) {
   await select(sid);
   if (liveCtl) liveCtl.abort();   // drop any prior watch on this tab first (one watch per tab)
@@ -842,7 +844,7 @@ async function attachRun(sid) {
   try {
     const resp = await fetch('/invoke', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(envelope({ sid, prompt: null, force: false })),
+      body: JSON.stringify(envelope({ sid, prompt: null, force: true })),
       signal: ctl.signal,
     });
     const r = await resp.json();

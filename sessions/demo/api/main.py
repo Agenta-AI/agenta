@@ -50,12 +50,16 @@ class RequestData(BaseModel):
 
 class InvokeBody(BaseModel):
     # Control-plane envelope. `data` carries the work (a prompt + its parameters); `force`
-    # is the cross-cutting "do it anyway" knob. The DATA/FORCE matrix is the whole protocol:
-    #   data + msg, force=F  -> send          (409 if a run is alive)
-    #   data + msg, force=T  -> force takeover (cancel the holder, run the new prompt)
-    #   data=None,  force=T  -> CANCEL         (cancel the alive holder, run nothing)
-    #   data=None,  force=F  -> ATTACH         (watch a detached run; hold `attached`, no run)
+    # is the cross-cutting "ENFORCE over another tab" knob. The DATA/FORCE matrix is the whole
+    # protocol:
+    #   data + msg, force=F  -> SEND           (409 if a run is alive)
+    #   data + msg, force=T  -> STEER          (enforce: cancel the holder, run the new prompt)
+    #   data=None,  force=F  -> CANCEL         (cancel the alive holder, run nothing)
+    #   data=None,  force=T  -> ATTACH         (enforce: steal `attached`, watch a live run)
     #   (client closes conn) -> DETACH         (drop `attached`, run keeps going)
+    # The force=T row is the ENFORCEMENT pair (steer, attach). A caller that doesn't support force
+    # still gets send / cancel / detach — the meaningful, non-contentious actions. We'd rather lose
+    # attach than cancel, so cancel is the force=F control and attach the force=T one.
     # data=None means "no work, control only" — distinct from data with EMPTY inputs, which is
     # a real (different) payload and must NOT be hijacked as a control signal.
     session_id: uuid.UUID | None = None
@@ -232,12 +236,12 @@ async def _attach_poll(sid: str):
 @app.post("/invoke")
 async def invoke(body: InvokeBody, request: Request):
     prompt = _prompt_of(body)
-    control = body.data is None  # no work, control plane only (attach / cancel)
+    control = body.data is None  # no work, control plane only (cancel / attach)
     _sid = str(body.session_id)[:8] if body.session_id else "new"
     _kind = (
-        "cancel"
+        "attach"
         if (control and body.force)
-        else "attach"
+        else "cancel"
         if control
         else "steer"
         if body.force
@@ -255,9 +259,12 @@ async def invoke(body: InvokeBody, request: Request):
         if await db.get_session(sid) is None:
             raise HTTPException(404, "no such session")
         st = (await locks.status_many([sid])).get(sid, {})
-        if body.force:
-            # CANCEL: cancel the alive holder, run nothing. The sidecar /run force path cancels
-            # the holder; with data=null it returns without re-prompting.
+        if not body.force:
+            # CANCEL (force=F): cancel the alive holder, run nothing. Cancel is a non-enforcement
+            # control — it interrupts THIS session's own run, it doesn't override another tab — so
+            # it lives on the force=F side and survives for callers without force support. (The
+            # sidecar's own `force:True` below is its alive-lock "interrupt the holder" knob, a
+            # different layer from our client-facing flag.)
             if not st.get("alive"):
                 return _response(sid, status="no_live_run")
             async with httpx.AsyncClient(timeout=60) as client:
@@ -267,10 +274,10 @@ async def invoke(body: InvokeBody, request: Request):
                 )
             ok = r.status_code == 200
             return _response(sid, status="cancelled" if ok else "cancel_failed")
-        # ATTACH: adopt a live run's watch. `attached` is just "who is watching" (not a run gate),
-        # so attach STEALS it rather than 409-ing — the prior watcher merely loses the live view,
-        # which is harmless and avoids a stale-lock race (a tab that just detached may not have
-        # released yet, or the TTL may be lingering). The run itself is governed by `alive`.
+        # ATTACH (force=T): adopt a live run's watch. `attached` is just "who is watching" (not a run
+        # gate), so attach STEALS it — the prior watcher merely loses the live view. That steal is an
+        # ENFORCEMENT over another tab, which is why attach is the force=T control (and the first
+        # thing a no-force caller loses; cancel is kept instead).
         if not st.get("alive"):
             return _response(sid, status="no_live_run")
         # acquire (steal) `attached` up front, then watch — adopting the token so the loop refreshes

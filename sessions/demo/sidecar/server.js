@@ -296,11 +296,11 @@ app.post("/run", async (req, res) => {
   if (!sid) return res.status(400).json({ error: "session_id required" });
 
   // CONTROL PLANE: data === null = no work, intent only. The only control intent that reaches
-  // the sidecar is CANCEL (data=null + force): cancel the alive holder, run nothing. (ATTACH is
-  // FastAPI-only — it just holds `attached` + polls the transcript, never calls the sidecar.)
+  // the sidecar is CANCEL: cancel the alive holder, run nothing. (ATTACH is FastAPI-only — it just
+  // holds `attached` + polls the transcript, never calls the sidecar.) Cancel always means
+  // "interrupt the holder", so `force` is implied here — no flag check needed.
   if (data === null) {
     const { cancel } = await import("./run-lock.js");
-    if (!force) return res.status(400).json({ error: "control invoke (data=null) requires force" });
     const cancelled = await cancel(sid); // cancels the local holder; its /run unwinds + releases live
     return res.json({ cancelled });
   }
