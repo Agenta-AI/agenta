@@ -99,6 +99,14 @@ const PlaygroundMainView = dynamic(
     {ssr: false},
 )
 
+// Agent generation arm, same surface the full playground injects. Without this the app drawer
+// renders nothing for an agent entity (the generations panel does `AgentGenerationPanel ?? null`),
+// so a freshly-created agent can't be invoked from the create/edit drawer the way chat and
+// completion can. Lazy — pulls in the AI SDK only when an agent workflow is open.
+const AgentChatPanel = dynamic(() => import("@/oss/components/AgentChatSlice/AgentChatPanel"), {
+    ssr: false,
+})
+
 const TestsetDropdown = dynamic(
     () => import("@/oss/components/Playground/Components/TestsetDropdown"),
     {ssr: false},
@@ -175,6 +183,9 @@ const DrawerAppPlayground = memo(({entityId}: {entityId: string}) => {
                 SimpleSharedEditor,
                 SharedGenerationResultUtils,
                 TestcaseEditor: PlaygroundTestcaseEditor,
+                // Agent entities render the agent-chat surface here too, so the create/edit drawer
+                // can invoke an agent the same way it invokes chat/completion.
+                AgentGenerationPanel: AgentChatPanel,
             }) as unknown as PlaygroundUIProviders,
         [],
     )
