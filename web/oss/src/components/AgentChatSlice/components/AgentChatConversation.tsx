@@ -1,9 +1,10 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
+import {agentShouldResumeAfterApproval} from "@agenta/playground"
 import {useChat} from "@ai-sdk/react"
 import {Attachments, Bubble, Sender} from "@ant-design/x"
 import {Paperclip} from "@phosphor-icons/react"
-import {lastAssistantMessageIsCompleteWithApprovalResponses, type UIMessage} from "ai"
+import {type UIMessage} from "ai"
 import {Alert, Button, Modal, Tag, Tooltip, Typography, type UploadFile} from "antd"
 import {useSetAtom, useStore} from "jotai"
 
@@ -17,6 +18,11 @@ import {persistSessionMessagesAtom, sessionMessagesAtom} from "../state/sessions
 import AgentMessage from "./AgentMessage"
 
 const {Text} = Typography
+
+/** A stream error/abort is already surfaced via `useChat`'s `onError` + the in-chat `error`
+ * alert; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to the
+ * Next.js dev Runtime Error overlay (F-033). */
+const ignoreStreamRejection = () => {}
 
 /** Reactive badge: shows whether the real per-revision `ag_config` has loaded (and keeps
  * the latest-revision query warm so the transport can read it at send time). */
@@ -80,9 +86,13 @@ const AgentChatConversation = ({
         id: sessionId,
         messages: initialMessages,
         transport,
-        sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
+        // Approve AND deny both resume — a deny-only decision must re-send so the runner
+        // gets the denial round-trip and the model continues (no `approval-responded` limbo).
+        sendAutomaticallyWhen: agentShouldResumeAfterApproval,
         onError: (err) => {
-            console.error("[AgentChatSlice] useChat error:", err)
+            // Render the error in-chat (the `error` alert below); swallow it here so an
+            // aborted/errored stream doesn't bubble unhandled to the Next.js dev overlay (F-033).
+            console.warn("[AgentChatSlice] useChat error (rendered in-chat):", err)
         },
     })
 
@@ -105,13 +115,15 @@ const AgentChatConversation = ({
         // Read attachments into data: URL `file` parts; `sendMessage` adds them to the
         // outgoing user message alongside the text part.
         const fileParts = fileObjs.length ? await filesToParts(fileObjs) : undefined
+        // Swallow the rejection — a stream error/abort is already surfaced via `onError` and
+        // the in-chat `error` alert; without this it bubbles to the Next.js dev overlay (F-033).
         sendMessage(
             fileParts
                 ? trimmed
                     ? {text: trimmed, files: fileParts}
                     : {files: fileParts}
                 : {text: trimmed},
-        )
+        ).catch(ignoreStreamRejection)
         setInput("")
         setFiles([])
         setAttachmentsOpen(false)
@@ -139,7 +151,7 @@ const AgentChatConversation = ({
                 // Focus the composer so the user can edit the restored text immediately.
                 requestAnimationFrame(() => senderRef.current?.focus())
             } else {
-                regenerate({messageId: message.id})
+                regenerate({messageId: message.id}).catch(ignoreStreamRejection)
             }
         }
 

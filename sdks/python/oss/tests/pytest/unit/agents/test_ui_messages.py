@@ -155,6 +155,138 @@ class TestFromUIMessages:
         assert block.tool_call_id == "call_1"
         assert block.output == {"approved": True}
 
+    def test_approval_response_denied_becomes_tool_result_with_false(self):
+        # A standalone deny reply -> a tool_result whose `{approved: False}` envelope is
+        # what extractApprovalDecisions maps to deny -> reject -> tool-error -> continue.
+        msgs = vercel_ui_messages_to_messages(
+            [
+                {
+                    "id": "m3d",
+                    "role": "user",
+                    "parts": [
+                        {
+                            "type": "tool-approval-response",
+                            "toolCallId": "call_1",
+                            "approved": False,
+                        }
+                    ],
+                }
+            ]
+        )
+        block = msgs[0].content[0]
+        assert block.type == "tool_result"
+        assert block.tool_call_id == "call_1"
+        assert block.output == {"approved": False}
+
+    def test_inline_approval_responded_deny_emits_approved_envelope(self):
+        # The verbatim UIMessage path keeps the decision INLINE on the tool part
+        # (`state: approval-responded`, `approval.approved: false`). The ingress must
+        # emit the `{approved: False}` tool_result so the runner resolves the parked
+        # gate (deny -> reject), not just the tool_call (which dead-ended the turn).
+        msgs = vercel_ui_messages_to_messages(
+            [
+                {
+                    "id": "m5",
+                    "role": "assistant",
+                    "parts": [
+                        {
+                            "type": "tool-deleteFile",
+                            "toolCallId": "call_1",
+                            "state": "approval-responded",
+                            "input": {"path": "/x"},
+                            "approval": {"id": "perm_1", "approved": False},
+                        }
+                    ],
+                }
+            ]
+        )
+        wire = [b.to_wire() for b in msgs[0].content]
+        assert wire == [
+            {
+                "type": "tool_call",
+                "toolCallId": "call_1",
+                "toolName": "deleteFile",
+                "input": {"path": "/x"},
+            },
+            {
+                "type": "tool_result",
+                "toolCallId": "call_1",
+                "toolName": "deleteFile",
+                "output": {"approved": False},
+            },
+        ]
+
+    def test_inline_approval_responded_approve_emits_approved_envelope(self):
+        # The same inline path for an approve keeps resume working symmetrically.
+        msgs = vercel_ui_messages_to_messages(
+            [
+                {
+                    "id": "m6",
+                    "role": "assistant",
+                    "parts": [
+                        {
+                            "type": "tool-deleteFile",
+                            "toolCallId": "call_2",
+                            "state": "approval-responded",
+                            "input": {"path": "/y"},
+                            "approval": {"id": "perm_2", "approved": True},
+                        }
+                    ],
+                }
+            ]
+        )
+        result = msgs[0].content[1]
+        assert result.type == "tool_result"
+        assert result.tool_call_id == "call_2"
+        assert result.output == {"approved": True}
+
+    def test_inline_output_denied_state_emits_denied_envelope(self):
+        # The AI SDK terminal deny state has no `approval.approved` flag; `output-denied`
+        # itself means denied, so the ingress still emits `{approved: False}`.
+        msgs = vercel_ui_messages_to_messages(
+            [
+                {
+                    "id": "m7",
+                    "role": "assistant",
+                    "parts": [
+                        {
+                            "type": "tool-deleteFile",
+                            "toolCallId": "call_3",
+                            "state": "output-denied",
+                            "input": {"path": "/z"},
+                            "approval": {"id": "perm_3", "approved": False},
+                        }
+                    ],
+                }
+            ]
+        )
+        result = msgs[0].content[1]
+        assert result.type == "tool_result"
+        assert result.tool_call_id == "call_3"
+        assert result.output == {"approved": False}
+
+    def test_pending_approval_request_only_part_emits_no_decision(self):
+        # A tool part still awaiting a decision (`approval-requested`, no `approval.approved`)
+        # carries NO decision envelope — only the tool_call. We must not invent an approve.
+        msgs = vercel_ui_messages_to_messages(
+            [
+                {
+                    "id": "m8",
+                    "role": "assistant",
+                    "parts": [
+                        {
+                            "type": "tool-deleteFile",
+                            "toolCallId": "call_4",
+                            "state": "approval-requested",
+                            "input": {"path": "/q"},
+                            "approval": {"id": "perm_4"},
+                        }
+                    ],
+                }
+            ]
+        )
+        assert [b.type for b in msgs[0].content] == ["tool_call"]
+
     def test_approval_request_part_is_dropped_on_replay(self):
         # The server's own request, echoed back; regenerated on replay, not model input.
         msgs = vercel_ui_messages_to_messages(
