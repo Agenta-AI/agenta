@@ -299,6 +299,52 @@ describe("buildAgentRequest", () => {
         ])
     })
 
+    it("rewrites a custom function tool to the typed client shape; leaves gateway/typed alone", async () => {
+        const gateway = {
+            type: "function",
+            function: {name: "tools__composio__github__create_issue__default"},
+        }
+        const builtinTyped = {type: "builtin", name: "web_search"}
+        seed(store, "e", {
+            config: {
+                tools: [
+                    {
+                        type: "function",
+                        function: {
+                            name: "get_weather",
+                            description: "Get current weather",
+                            parameters: {
+                                type: "object",
+                                properties: {location: {type: "string"}},
+                                required: ["location"],
+                            },
+                        },
+                        permission: "ask",
+                    },
+                    gateway,
+                    builtinTyped,
+                ],
+            },
+        })
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const tools = (req!.requestBody.data as any).parameters.tools
+        // custom function tool → client config
+        expect(tools[0]).toEqual({
+            type: "client",
+            name: "get_weather",
+            description: "Get current weather",
+            input_schema: {
+                type: "object",
+                properties: {location: {type: "string"}},
+                required: ["location"],
+            },
+            permission: "ask",
+        })
+        // gateway-slug function tool + already-typed tool pass through unchanged
+        expect(tools[1]).toEqual(gateway)
+        expect(tools[2]).toEqual(builtinTyped)
+    })
+
     it("drops answer-less assistant turns from the sent history (keeps user + real answers)", async () => {
         seed(store, "e", {})
         const msgs = [
