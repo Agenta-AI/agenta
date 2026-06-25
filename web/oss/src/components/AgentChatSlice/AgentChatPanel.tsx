@@ -1,14 +1,10 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {buildAgentRequest} from "@agenta/playground"
+import {agentShouldResumeAfterApproval, buildAgentRequest} from "@agenta/playground"
 import {useChat} from "@ai-sdk/react"
 import {Attachments, Bubble, Sender} from "@ant-design/x"
 import {ArrowDown, Paperclip} from "@phosphor-icons/react"
-import {
-    DefaultChatTransport,
-    lastAssistantMessageIsCompleteWithApprovalResponses,
-    type UIMessage,
-} from "ai"
+import {DefaultChatTransport, type UIMessage} from "ai"
 import {Alert, Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
@@ -30,6 +26,11 @@ import {
     sessionsListAtom,
     setActiveSessionAtom,
 } from "./state/sessions"
+
+/** A stream error/abort is already surfaced via `useChat`'s `onError` + the in-chat `error`
+ * alert; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to the
+ * Next.js dev Runtime Error overlay (F-033). */
+const ignoreStreamRejection = () => {}
 
 /**
  * One agent conversation for a single session tab. A `useChat` whose transport is fed by the
@@ -96,9 +97,13 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         id: sessionId,
         messages: initialMessages,
         transport,
-        sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
+        // Approve AND deny both resume — a deny-only decision must re-send so the runner
+        // gets the denial round-trip and the model continues (no `approval-responded` limbo).
+        sendAutomaticallyWhen: agentShouldResumeAfterApproval,
         onError: (err) => {
-            console.error("[AgentChatPanel] useChat error:", err)
+            // Render the error in-chat (the `error` alert below); swallow it here so an
+            // aborted/errored stream doesn't bubble unhandled to the Next.js dev overlay (F-033).
+            console.warn("[AgentChatPanel] useChat error (rendered in-chat):", err)
         },
     })
 
@@ -165,13 +170,15 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         const fileParts = fileObjs.length ? await filesToParts(fileObjs) : undefined
         stickRef.current = true
         setShowJump(false)
+        // Swallow the rejection — a stream error/abort is already surfaced via `onError` and
+        // the in-chat `error` alert; without this it bubbles to the Next.js dev overlay (F-033).
         sendMessage(
             fileParts
                 ? trimmed
                     ? {text: trimmed, files: fileParts}
                     : {files: fileParts}
                 : {text: trimmed},
-        )
+        ).catch(ignoreStreamRejection)
         setInput("")
         setFiles([])
         setAttachmentsOpen(false)
@@ -190,7 +197,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 setInput(messageText(message))
                 requestAnimationFrame(() => senderRef.current?.focus())
             } else {
-                regenerate({messageId: message.id})
+                regenerate({messageId: message.id}).catch(ignoreStreamRejection)
             }
         }
 
@@ -250,7 +257,11 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                                             size="small"
                                             className="!px-0 !text-xs"
                                             disabled={busy}
-                                            onClick={() => regenerate({messageId: message.id})}
+                                            onClick={() =>
+                                                regenerate({messageId: message.id}).catch(
+                                                    ignoreStreamRejection,
+                                                )
+                                            }
                                         >
                                             Resend
                                         </Button>

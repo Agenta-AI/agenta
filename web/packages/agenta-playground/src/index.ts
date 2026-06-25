@@ -72,6 +72,8 @@ export {filterUnreferencedColumnsForSource} from "./state"
 // buffered-fetch execution (useChat streams the v6 conversation).
 export {isAgentModeAtomFamily, buildAgentRequest, buildAgentReferences} from "./state"
 export type {AgentRequest} from "./state"
+// HITL resume predicate for `useChat`'s `sendAutomaticallyWhen` (approve AND deny resume).
+export {agentShouldResumeAfterApproval} from "./state"
 
 // ============================================================================
 // ENTITY CONTEXT (Dependency Injection)
