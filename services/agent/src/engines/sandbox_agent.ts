@@ -59,6 +59,7 @@ import {
 import { conciseError } from "./sandbox_agent/errors.ts";
 import { buildSessionMcpServers } from "./sandbox_agent/mcp.ts";
 import { applyModel } from "./sandbox_agent/model.ts";
+import { findSwallowedPiError } from "./sandbox_agent/pi-error.ts";
 import {
   buildPiExtensionEnv,
   prepareLocalPiAssets,
@@ -392,6 +393,26 @@ export async function runSandboxAgent(
 
     const output = run.finish();
     await run.flush();
+
+    // Fail loud on a swallowed model error (A7 / "fail loud, not silent"). When Pi's provider
+    // call fails (out-of-quota, bad key, rate limit, unknown model, ...), Pi's pi-acp bridge
+    // reports the turn as a plain `end_turn` with NO content, so without this the run would
+    // return an `ok:true` empty turn and the user would see a silent "No response" instead of
+    // the real failure. On the LOCAL Pi path the error is recoverable from Pi's own session
+    // transcript; surface it as a run error. Only checked when the turn produced no output and
+    // ran no tools (a real tool-only turn legitimately has empty text), and never on Daytona
+    // (the transcript lives in the remote sandbox).
+    if (
+      plan.isPi &&
+      !plan.isDaytona &&
+      !output.trim() &&
+      !run.events().some((e) => e.type === "tool_call")
+    ) {
+      const piError = findSwallowedPiError(plan.sourcePiAgentDir, plan.cwd);
+      if (piError) {
+        return { ok: false, error: conciseError(new Error(piError), plan.harness) };
+      }
+    }
 
     return {
       ok: true,

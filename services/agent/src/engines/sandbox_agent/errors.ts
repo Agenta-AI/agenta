@@ -7,7 +7,7 @@ export function conciseError(err: unknown, harness: string): string {
   const msg = raw.split("\n")[0].trim();
   const keyHint =
     harness === "claude" ? "the project's Anthropic key" : "the project's OpenAI key";
-  if (/credit balance is too low/i.test(raw)) {
+  if (/credit balance is too low|exceeded your current quota|insufficient_quota/i.test(raw)) {
     return `${harness}: the model provider account has insufficient credit (check ${keyHint}).`;
   }
   if (/authentication required|invalid api key|401|unauthorized/i.test(raw)) {

@@ -16,6 +16,18 @@ describe("conciseError", () => {
     );
   });
 
+  it("formats OpenAI quota failures as insufficient credit", () => {
+    assert.equal(
+      conciseError(
+        new Error(
+          "You exceeded your current quota, please check your plan and billing details.",
+        ),
+        "pi",
+      ),
+      "pi: the model provider account has insufficient credit (check the project's OpenAI key).",
+    );
+  });
+
   it("formats auth failures with the right provider hint", () => {
     assert.equal(
       conciseError(new Error("Authentication required"), "pi"),
