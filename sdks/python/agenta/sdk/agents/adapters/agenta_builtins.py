@@ -47,9 +47,13 @@ AGENTA_FORCED_APPEND_SYSTEM = """\
 You are an Agenta agent. Be precise, cite what your tools and skills return, and do not
 fabricate results."""
 
-# Built-in tools every Agenta run forces on, unioned with the agent's resolved tools.
-# ``read`` is mandatory: Pi only renders the skills section into the system prompt when the
-# ``read`` tool is available. ``bash`` lets skills run their helper scripts.
+# Built-in tools the Agenta harness records as forced, unioned with the agent's resolved
+# tools. NOTE: this list is config-level metadata only today. The runner never reads
+# ``request.tools`` / ``builtin_names`` to grant builtins, and Pi already gets ``read`` (and
+# ``bash``) from its own DEFAULTS, so skills render regardless of this list. The intent is that
+# ``read`` is needed for Pi to render the skills section and ``bash`` lets skills run helper
+# scripts; wiring the forced set to actually deliver builtins over the wire is deferred (it
+# works via Pi defaults today).
 AGENTA_FORCED_TOOLS: List[str] = ["read", "bash"]
 
 
