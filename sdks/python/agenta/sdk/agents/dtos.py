@@ -58,6 +58,53 @@ class HarnessType(str, Enum):
         return cls(str(value).lower())
 
 
+# ---------------------------------------------------------------------------
+# Harness identity in the interface: a versioned slug + a display name
+# ---------------------------------------------------------------------------
+
+# The harness contract's versioned identity, in the repo's slug grammar
+# (``agenta:<namespace>:<name>:v<N>``, mirroring ``agenta:builtin:agent:v0`` in
+# ``engines/running/interfaces.py``). The namespace is ``harness`` and the trailing ``v0`` is
+# bumped only when the harness contract shape breaks. This is purely the INTERFACE identity the
+# agent_config schema advertises; the stored/wire harness VALUE stays the bare enum string
+# (``pi_core`` / ``pi_agenta`` / ``claude``), which the runner reads as the runtime selector.
+
+
+class HarnessIdentity(BaseModel):
+    """One harness's interface identity: its bare value, versioned slug, and display name.
+
+    ``value`` is the wire/runtime selector (the ``HarnessType`` value); ``slug`` is the
+    versioned contract identity in the repo's slug grammar; ``name`` is the human-facing label
+    the playground dropdown shows. This is the single source the agent_config schema builds the
+    harness ``oneOf`` from, so the slug, name, and value never drift across the SDK, the service
+    schema, and the frontend control."""
+
+    value: str
+    slug: str
+    name: str
+
+
+# One entry per ``HarnessType``. The slug version is ``v0`` for every harness today (the
+# contract has not broken). ``HARNESS_IDENTITIES`` is the single source of truth.
+HARNESS_IDENTITIES: List[HarnessIdentity] = [
+    HarnessIdentity(
+        value=HarnessType.PI.value,
+        slug=f"agenta:harness:{HarnessType.PI.value}:v0",
+        name="Pi",
+    ),
+    HarnessIdentity(
+        value=HarnessType.AGENTA.value,
+        slug=f"agenta:harness:{HarnessType.AGENTA.value}:v0",
+        name="Pi (Agenta)",
+    ),
+    HarnessIdentity(
+        value=HarnessType.CLAUDE.value,
+        slug=f"agenta:harness:{HarnessType.CLAUDE.value}:v0",
+        name="Claude Code",
+    ),
+]
+
+
 # Permission policy for harness tool use in a headless run. ``auto`` approves (tools are
 # backend-resolved and trusted, no human to prompt); ``deny`` rejects.
 PermissionPolicy = Literal["auto", "deny"]

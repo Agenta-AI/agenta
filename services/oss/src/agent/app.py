@@ -46,6 +46,10 @@ from agenta.sdk.agents.connections import (
 
 from agenta.sdk.agents.platform import resolve_connection
 
+from agenta.sdk.decorators.tracing import auto_instrument
+from agenta.sdk.engines.running.utils import register_handler, register_interface
+from agenta.sdk.models.workflows import WorkflowRevisionData
+
 from agenta.sdk.utils.logging import get_module_logger
 
 from oss.src.agent.config import load_config, runner_dir, runner_url
@@ -279,22 +283,37 @@ async def _agent_vercel_stream(harness, session_config, msgs):
         await harness.cleanup()
 
 
+AGENT_URI = "agenta:builtin:agent:v0"
+
+
 def create_agent_app():
     app = ag.create_app()
-    # The builtin agent workflow interface (`agenta:builtin:agent:v0`, `agent_v0_interface`
-    # in the SDK) now exists, but this service still registers the handler directly, so it
-    # gets an auto URI (`user:custom:...`) and runs locally. Binding the handler to the
-    # builtin URI is the remaining step.
+    # Bind the live `_agent` handler to the builtin URI `agenta:builtin:agent:v0` (issue 2: one
+    # canonical identity for the agent workflow). The SDK seeds the registries for this URI with a
+    # minimal default interface; the service is the authoritative live owner in its own process, so:
+    #
+    # 1. Instrument `_agent`, then register THAT under the builtin URI. Order matters: `ag.workflow`
+    #    only instruments inside `_register_handler`, which it skips once a handler exists in the
+    #    registry. Registering the raw `_agent` would lose tracing instrumentation; registering the
+    #    instrumented one keeps it (mirrors chat.py, whose registry handler is pre-instrumented).
+    # 2. OVERRIDE the interface registry with the service interface (AGENT_SCHEMAS + the inspect
+    #    `meta`), so `retrieve_interface(AGENT_URI)` returns the SAME data `/inspect` advertises.
+    #    `register_interface` replaces (not setdefault), unlike the SDK's minimal seed.
+    # 3. Build the workflow against the URI. `ag.workflow.__init__` then resolves the (instrumented)
+    #    handler and merges the registered interface; the passed `schemas`/`meta` still win.
     #
     # The per-harness connection capability rides the inspect response `meta`, NOT a fourth
-    # `AGENT_SCHEMAS` schema key (`JsonSchemas` allows only inputs/parameters/outputs). The
-    # frontend reads `meta.harness_capabilities` and intersects it with the existing `/secrets/`
-    # payload projected as connections; the agent service imports the
-    # SAME SDK table (above) for its server-side reject, never calling its own `/inspect`.
-    routed = ag.workflow(
-        schemas=AGENT_SCHEMAS,
-        meta={"harness_capabilities": harness_capabilities_document()},
-    )(_agent)
+    # `AGENT_SCHEMAS` schema key (`JsonSchemas` allows only inputs/parameters/outputs). The frontend
+    # reads `meta.harness_capabilities` and intersects it with the existing `/secrets/` payload
+    # projected as connections; the agent service imports the SAME SDK table (above) for its
+    # server-side reject, never calling its own `/inspect`.
+    meta = {"harness_capabilities": harness_capabilities_document()}
+    register_handler(auto_instrument(_agent), uri=AGENT_URI)
+    register_interface(
+        WorkflowRevisionData(uri=AGENT_URI, schemas=AGENT_SCHEMAS),
+        uri=AGENT_URI,
+    )
+    routed = ag.workflow(uri=AGENT_URI, schemas=AGENT_SCHEMAS, meta=meta)(_agent)
     # is_agent gates the agent-only `/messages` route (next to /invoke).
     ag.route("/", app=app, flags={"is_chat": True, "is_agent": True})(routed)
     return app

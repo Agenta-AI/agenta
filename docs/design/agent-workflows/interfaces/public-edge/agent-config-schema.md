@@ -23,7 +23,7 @@ The fields and the full schema follow.
 | `model` | string (`grouped_choice`) | `"gpt-5.5"` | Model the agent runs on. A plain id (`"gpt-5.5"`) or a structured `{provider, connection}` ref. See [Model connection resolution](../in-service/model-connection-resolution.md). |
 | `tools` | `ToolConfig[]` | `[]` | Runnable tools: `builtin`, `gateway`, `code`, or `client`. See [Tool models and resolution](../in-service/tool-models-and-resolution.md). |
 | `mcp_servers` | `MCPServerConfig[]` | `[]` | Declared MCP servers; secret env resolved from the vault at run time. See [MCP models and resolution](../in-service/mcp-models-and-resolution.md). |
-| `harness` | `"pi_core" \| "claude" \| "pi_agenta"` | `"pi_core"` | The coding agent to drive. `pi_core` and `pi_agenta` both drive the `pi` ACP agent; `pi_agenta` adds Agenta's forced skills, prompt, and policy. |
+| `harness` | `"pi_core" \| "claude" \| "pi_agenta"` (see slug+name note) | `"pi_core"` | The coding agent to drive. `pi_core` and `pi_agenta` both drive the `pi` ACP agent; `pi_agenta` adds Agenta's forced skills, prompt, and policy. |
 | `sandbox` | `"local" \| "daytona"` | `"local"` | Where it runs. |
 | `permission_policy` | `"auto" \| "deny"` | `"auto"` | How a gating harness (Claude Code) handles tool-use prompts in a headless run. |
 | `sandbox_permission` | `SandboxPermission \| null` | `null` (form pre-fills one) | The declared network and filesystem boundary. See [Sandbox permission](../in-service/sandbox-permission.md). |
@@ -32,6 +32,35 @@ The fields and the full schema follow.
 Note that `harness`, `sandbox`, and `permission_policy` are the run selection. The handler
 reads them from the same `parameters` object via `RunSelection.from_params(...)`, not just
 from `AgentConfig`.
+
+### Harness as a slug + display name
+
+The `harness` field's JSON Schema carries both a flat `enum` of the bare values (back-compat
+for any consumer that reads `schema.enum`) AND a `oneOf` of per-option entries, each a versioned
+**slug** identity plus a **display name**, built from one SDK source
+(`HARNESS_IDENTITIES` in `sdks/python/agenta/sdk/agents/dtos.py`). The slug follows the repo's
+`agenta:<namespace>:<name>:v<N>` grammar (mirroring `agenta:builtin:agent:v0`), namespace
+`harness`:
+
+```jsonc
+"harness": {
+  "type": "string",
+  "default": "pi_core",
+  "enum": ["pi_core", "pi_agenta", "claude"],
+  "oneOf": [
+    { "const": "pi_core",   "title": "Pi",           "x-ag-harness-slug": "agenta:harness:pi_core:v0" },
+    { "const": "pi_agenta", "title": "Pi (Agenta)",   "x-ag-harness-slug": "agenta:harness:pi_agenta:v0" },
+    { "const": "claude",    "title": "Claude Code",   "x-ag-harness-slug": "agenta:harness:claude:v0" }
+  ]
+}
+```
+
+The **stored/wire value stays the bare string** (`const`): the runner reads it as the runtime
+selector and the frontend keys connection gating off it, so the `/run` wire is unchanged. The
+playground `EnumSelectControl` reads the `oneOf` `title` for the dropdown label and writes the
+bare `const` back. The slug is the harness contract's versioned identity in the interface only;
+versioning the contract (`/run` `version`, the `/health` skew read) is deferred (see the
+[contract-versioning project](../../projects/contract-versioning/README.md)).
 
 ## The default config
 

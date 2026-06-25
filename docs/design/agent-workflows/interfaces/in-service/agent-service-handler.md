@@ -33,6 +33,23 @@ The handler (`_agent` in `app.py`) takes the workflow envelope's pieces:
    `{"role": "assistant", "content": result.output}`.
 9. Record usage.
 
+## App build: binding the builtin URI
+
+`create_agent_app()` binds the handler to the canonical builtin URI `agenta:builtin:agent:v0`
+instead of letting it fall to an auto `user:custom:...` URI, so the handler and the interface
+`/inspect` advertises share one identity. The order avoids two traps:
+
+1. **Instrument before registering.** `register_handler(auto_instrument(_agent), uri=...)` — not the
+   raw `_agent`. `ag.workflow` only instruments inside its own `_register_handler`, which it skips
+   once a handler already exists in the registry, so the service registers the instrumented one.
+2. **Override the interface.** `register_interface(...)` REPLACES the SDK's minimal seed for the
+   URI with the service interface (`AGENT_SCHEMAS`), so `retrieve_interface(uri)` returns what
+   `/inspect` advertises. This is process-local to the agent service; the API catalog still builds
+   from the SDK defaults in its own process.
+
+Then `ag.workflow(uri="agenta:builtin:agent:v0", schemas=AGENT_SCHEMAS, meta=...)(_agent)` resolves
+the instrumented handler and merges the registered interface (the passed `schemas`/`meta` win).
+
 ## Owned by
 
 - `services/oss/src/agent/app.py`

@@ -22,7 +22,12 @@ All in `dtos.py`. The ones that carry the most weight:
   by harness name. Built by `from_params(...)`. The editable schema is
   [Agent config schema](../public-edge/agent-config-schema.md).
 - **`RunSelection`**: `harness` (default `pi_core`), `sandbox` (default `local`),
-  `permission_policy` (`auto` | `deny`).
+  `permission_policy` (`auto` | `deny`). The `harness` value is the bare `HarnessType` string.
+- **`HarnessType` and `HARNESS_IDENTITIES`**: the closed harness enum plus the single source for
+  each harness's interface identity — a versioned slug (`agenta:harness:<value>:v0`, the repo's
+  slug grammar) and a display name. The agent_config schema builds its harness `oneOf` from
+  `HARNESS_IDENTITIES`; the stored/wire value stays the bare enum string, so only the interface
+  gains the slug + name. See [Agent config schema](../public-edge/agent-config-schema.md).
 - **`SessionConfig`**: everything one run needs, assembled by the handler: the agent config,
   secrets, resolved connection, permission policy, trace, session id, and the resolved tool
   and MCP inputs.

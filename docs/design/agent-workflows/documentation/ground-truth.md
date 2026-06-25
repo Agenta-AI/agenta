@@ -63,8 +63,12 @@ this page and the referenced code as the source of truth.
 - Warm daemon sessions, ACP `session/load`, and session fork are not wired.
 - `AgentaHarness` ships placeholder Agenta preamble, persona, and skill set. It does run on
   sandbox-agent local and Daytona, verified by the QA matrix (`projects/qa/findings.md`, F-002).
-- The agent is not registered as a first-class built-in workflow type. The builtin interface
-  exists in the SDK, but the handler is still bound directly (`services/oss/src/agent/app.py:138`).
+- The live agent handler is bound to the builtin URI `agenta:builtin:agent:v0`:
+  `create_agent_app()` (`services/oss/src/agent/app.py`) registers the instrumented `_agent` and the
+  service interface under that URI, so `retrieve_handler` / `retrieve_interface` return the live
+  handler and the same schemas `/inspect` advertises (the interface override is process-local to the
+  agent service). The harness in the agent_config interface carries a versioned slug + display name
+  per option (`HARNESS_IDENTITIES`); the stored/wire harness value stays the bare string.
 - Per-request model override is not honored on the Pi ACP path. pi-acp accepts only its
   default model and silently falls back (`projects/qa/findings.md`, F-007).
 - Remote (`http`) MCP servers are skipped by the runner path. Local stdio MCP is the path
