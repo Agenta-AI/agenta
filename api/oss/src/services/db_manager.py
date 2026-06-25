@@ -2672,29 +2672,6 @@ async def create_default_project(
     return project_db
 
 
-async def get_default_workspace_id_from_organization(
-    organization_id: str,
-) -> str:
-    """Get the default (first) workspace ID belonging to an organization."""
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        workspace_query = await session.execute(
-            select(WorkspaceDB)
-            .where(
-                WorkspaceDB.organization_id == uuid.UUID(organization_id),
-            )
-            .options(load_only(WorkspaceDB.id))
-        )
-        workspace = workspace_query.scalars().first()
-        if workspace is None:
-            raise NoResultFound(
-                f"No default workspace for the provided organization_id {organization_id} found"
-            )
-        return str(workspace.id)
-
-
 async def create_project_member(
     user_id: str, project_id: str, role: str, session: AsyncSession
 ) -> None:
@@ -2853,30 +2830,6 @@ async def update_workspace(payload, workspace: WorkspaceDB):
         return await get_workspace_in_format(workspace)
 
 
-async def mark_invitation_as_used(
-    project_id: str, user_id: str, invitation: InvitationDB
-) -> bool:
-    """Mark an invitation as used."""
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(InvitationDB).filter_by(
-                project_id=uuid.UUID(project_id), token=invitation.token
-            )
-        )
-        organization_invitation = result.scalars().first()
-        if not organization_invitation:
-            return False
-
-        organization_invitation.used = True
-        organization_invitation.user_id = uuid.UUID(user_id)
-
-        await session.commit()
-        return True
-
-
 async def get_org_details(organization) -> dict:
     """Retrieve details of an organization (with default workspace + members)."""
 
@@ -2926,87 +2879,6 @@ async def get_project_invitations_filtered(project_id: str, **kwargs):
         result = await session.execute(stmt)
         invitations = result.scalars().all()
         return invitations
-
-
-async def get_all_pending_invitations(email: str):
-    """Get all pending invitations for a given email."""
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(InvitationDB).filter(
-                InvitationDB.email == email,
-                InvitationDB.used == False,  # noqa: E712
-            )
-        )
-        invitations = result.scalars().all()
-        return invitations
-
-
-async def get_project_invitation(
-    project_id: str, token: str, email: str
-) -> InvitationDB:
-    """Get project invitation by project ID, token and email."""
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(InvitationDB).filter_by(
-                project_id=uuid.UUID(project_id), token=token, email=email
-            )
-        )
-        invitation = result.scalars().first()
-        return invitation
-
-
-async def create_org_workspace_invitation(
-    workspace_role: str,
-    token: str,
-    email: str,
-    project_id: str,
-    expiration_date,
-) -> InvitationDB:
-    """Create an organization/workspace invitation."""
-
-    user = await get_user_with_email(email=email)
-
-    user_id = None
-    if user:
-        user_id = user.id
-
-    project = await fetch_project_by_id(project_id=project_id)
-
-    if not project:
-        raise Exception(f"No project found with ID {project_id}")
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        invitation = InvitationDB(
-            token=token,
-            email=email,
-            project_id=uuid.UUID(project_id),
-            expiration_date=expiration_date,
-            role=workspace_role,
-            used=False,
-        )
-
-        session.add(invitation)
-
-        log.info(
-            "[scopes] invitation created",
-            organization_id=project.organization_id,
-            workspace_id=project.workspace_id,
-            project_id=project_id,
-            user_id=user_id,
-            invitation_id=invitation.id,
-        )
-
-        await session.commit()
-
-        return invitation
 
 
 async def get_all_workspace_roles() -> List[dict]:
