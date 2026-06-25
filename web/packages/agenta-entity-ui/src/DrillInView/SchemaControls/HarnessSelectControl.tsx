@@ -1,12 +1,14 @@
 /**
  * HarnessSelectControl
  *
- * Harness picker for the agent config. The agent_config catalog schema ships `harness` as a
- * plain enum (today: pi / claude / agenta) with no per-value metadata, so this control
- * supplies the display identity — an avatar (brand colour + initials) and a label — FE-side,
- * keyed by harness id, and falls back to a derived label/avatar for any harness the backend
- * adds later. The goal (per the agent playground design) is to make the harness choice
- * discoverable rather than a bare dropdown of slugs.
+ * Harness picker for the agent config. The agent_config catalog schema ships `harness` as an
+ * enum (`pi_core` / `pi_agenta` / `claude`) PLUS a `oneOf` of `{const, title,
+ * x-ag-harness-slug}` whose `title`s are the canonical display names (`Pi` / `Pi (Agenta)` /
+ * `Claude Code`, from the backend's `HARNESS_IDENTITIES`). This control prefers that schema
+ * `title` for each value's label, and supplies the avatar (brand colour + monogram) FE-side
+ * keyed by harness id. Both fall back to a derived label/avatar for any harness the backend
+ * adds before the FE map catches up. The goal (per the agent playground design) is to make
+ * the harness choice discoverable rather than a bare dropdown of slugs.
  *
  * Per-harness *capabilities* (which would drive availability-gating of the MCP/tools
  * sections) are probed by the backend at run time and are not yet exposed on the schema, so
@@ -28,11 +30,33 @@ interface HarnessMeta {
     color: string
 }
 
-/** Display identity for the harnesses the backend currently ships. */
+/**
+ * Avatar identity (brand colour + monogram) per harness id. Labels come from the schema
+ * `oneOf` title when present (see `titlesFromSchema`); these defaults only supply the avatar
+ * and a label fallback. Keyed by the real enum values `pi_core` / `pi_agenta` / `claude`.
+ */
 const HARNESS_META: Record<string, HarnessMeta> = {
-    pi: {label: "Pi", short: "Pi", color: "#6b5bd6"},
+    pi_core: {label: "Pi", short: "Pi", color: "#6b5bd6"},
+    pi_agenta: {label: "Pi (Agenta)", short: "Ag", color: "#1c2c3d"},
     claude: {label: "Claude Code", short: "CC", color: "#d97757"},
-    agenta: {label: "Agenta", short: "Ag", color: "#1c2c3d"},
+}
+
+/**
+ * Read the canonical display name per harness value from the schema's `oneOf` of
+ * `{const, title}` entries (the backend ships these from `HARNESS_IDENTITIES`). Returns an
+ * empty map when the schema has no `oneOf`, in which case `HARNESS_META`/derived labels apply.
+ */
+function titlesFromSchema(schema?: SchemaProperty | null): Record<string, string> {
+    const oneOf = (schema as {oneOf?: unknown} | null | undefined)?.oneOf
+    if (!Array.isArray(oneOf)) return {}
+    const titles: Record<string, string> = {}
+    for (const entry of oneOf) {
+        const e = entry as {const?: unknown; title?: unknown}
+        if (e?.const != null && typeof e.title === "string" && e.title) {
+            titles[String(e.const)] = e.title
+        }
+    }
+    return titles
 }
 
 /** Resolve display identity, deriving a sensible fallback for unknown harness ids. */
@@ -97,13 +121,19 @@ export const HarnessSelectControl = memo(function HarnessSelectControl({
     disabled = false,
     className,
 }: HarnessSelectControlProps) {
+    // Canonical labels from the schema `oneOf` titles (`Pi` / `Pi (Agenta)` / `Claude Code`);
+    // the avatar (and any label the schema omits) still comes from `metaFor`.
+    const titles = useMemo(() => titlesFromSchema(schema), [schema])
+    const labelFor = (id: string) => titles[id] ?? metaFor(id).label
+    const metaWithLabel = (id: string): HarnessMeta => ({...metaFor(id), label: labelFor(id)})
+
     const options = useMemo(() => {
         const values = Array.isArray(schema?.enum) ? (schema?.enum as unknown[]) : []
         return values.map((v) => {
             const id = String(v)
-            return {value: id, label: metaFor(id).label}
+            return {value: id, label: titles[id] ?? metaFor(id).label}
         })
-    }, [schema])
+    }, [schema, titles])
 
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
@@ -127,7 +157,7 @@ export const HarnessSelectControl = memo(function HarnessSelectControl({
                     (option?.label?.toString() ?? "").toLowerCase().includes(input.toLowerCase())
                 }
                 labelRender={(cur) => {
-                    const meta = metaFor(String(cur.value))
+                    const meta = metaWithLabel(String(cur.value))
                     return (
                         <span className="flex items-center gap-2">
                             <HarnessAvatar meta={meta} size={18} />
@@ -136,7 +166,7 @@ export const HarnessSelectControl = memo(function HarnessSelectControl({
                     )
                 }}
                 optionRender={(opt) => {
-                    const meta = metaFor(String(opt.value))
+                    const meta = metaWithLabel(String(opt.value))
                     return (
                         <span className="flex items-center gap-2 py-0.5">
                             <HarnessAvatar meta={meta} size={22} />
