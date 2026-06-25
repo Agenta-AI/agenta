@@ -70,6 +70,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import {AgentChatScopeProvider, drawerScopeKey} from "@/oss/components/AgentChatSlice/state/scope"
 import OSSdrillInUIProvider from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import {
@@ -106,6 +107,16 @@ const PlaygroundMainView = dynamic(
 const AgentChatPanel = dynamic(() => import("@/oss/components/AgentChatSlice/AgentChatPanel"), {
     ssr: false,
 })
+
+// Drawer agent chat runs in its OWN session scope so it never inherits or overwrites the main
+// playground's tabs/history. The drawer mounts over the playground, so both AgentChatPanels are
+// live at once; a shared (app) scope would have them share conversations. See
+// AgentChatSlice/state/scope.
+const ScopedDrawerAgentChat = (props: {entityId: string}) => (
+    <AgentChatScopeProvider scopeKey={drawerScopeKey(props.entityId)}>
+        <AgentChatPanel {...props} />
+    </AgentChatScopeProvider>
+)
 
 const TestsetDropdown = dynamic(
     () => import("@/oss/components/Playground/Components/TestsetDropdown"),
@@ -185,7 +196,7 @@ const DrawerAppPlayground = memo(({entityId}: {entityId: string}) => {
                 TestcaseEditor: PlaygroundTestcaseEditor,
                 // Agent entities render the agent-chat surface here too, so the create/edit drawer
                 // can invoke an agent the same way it invokes chat/completion.
-                AgentGenerationPanel: AgentChatPanel,
+                AgentGenerationPanel: ScopedDrawerAgentChat,
             }) as unknown as PlaygroundUIProviders,
         [],
     )

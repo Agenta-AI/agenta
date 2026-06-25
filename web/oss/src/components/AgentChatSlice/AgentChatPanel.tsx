@@ -18,17 +18,18 @@ import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import AgentMessage from "./components/AgentMessage"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import SessionTabLabel from "./components/SessionTabLabel"
+import {useChatScopeKey} from "./state/scope"
 import {
     type AgentChatSession,
-    activeSessionIdAtom,
-    addSessionAtom,
-    closeSessionAtom,
+    activeSessionIdAtomFamily,
+    addSessionAtomFamily,
+    closeSessionAtomFamily,
     persistSessionMessagesAtom,
-    renameSessionAtom,
+    renameSessionAtomFamily,
     sessionFirstUserTextAtomFamily,
     sessionMessagesAtom,
-    sessionsListAtom,
-    setActiveSessionAtom,
+    sessionsListAtomFamily,
+    setActiveSessionAtomFamily,
 } from "./state/sessions"
 
 /**
@@ -462,12 +463,13 @@ const TabLabel = ({
 }
 
 const AgentChatPanel = ({entityId}: {entityId: string}) => {
-    const sessions = useAtomValue(sessionsListAtom)
-    const rawActiveId = useAtomValue(activeSessionIdAtom)
-    const addSession = useSetAtom(addSessionAtom)
-    const closeSession = useSetAtom(closeSessionAtom)
-    const renameSession = useSetAtom(renameSessionAtom)
-    const setActiveSession = useSetAtom(setActiveSessionAtom)
+    const scope = useChatScopeKey()
+    const sessions = useAtomValue(sessionsListAtomFamily(scope))
+    const rawActiveId = useAtomValue(activeSessionIdAtomFamily(scope))
+    const addSession = useSetAtom(addSessionAtomFamily(scope))
+    const closeSession = useSetAtom(closeSessionAtomFamily(scope))
+    const renameSession = useSetAtom(renameSessionAtomFamily(scope))
+    const setActiveSession = useSetAtom(setActiveSessionAtomFamily(scope))
 
     // Always keep at least one tab. Re-arms when the list drains without double-firing
     // under StrictMode.

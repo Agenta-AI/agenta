@@ -4,12 +4,13 @@ import {ClockCounterClockwise, Trash} from "@phosphor-icons/react"
 import {Button, Empty, Popover, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {useChatScopeKey} from "../state/scope"
 import {
-    deleteSessionAtom,
+    deleteSessionAtomFamily,
     firstUserText,
-    openSessionAtom,
-    openSessionIdsAtom,
-    sessionHistoryAtom,
+    openSessionAtomFamily,
+    openSessionIdsAtomFamily,
+    sessionHistoryAtomFamily,
     sessionMessagesAtom,
 } from "../state/sessions"
 
@@ -34,11 +35,12 @@ const timeAgo = (ts?: number): string => {
  * permanently (tab + history + messages).
  */
 const SessionHistoryList = ({onPicked}: {onPicked: () => void}) => {
-    const history = useAtomValue(sessionHistoryAtom)
-    const openIds = useAtomValue(openSessionIdsAtom)
+    const scope = useChatScopeKey()
+    const history = useAtomValue(sessionHistoryAtomFamily(scope))
+    const openIds = useAtomValue(openSessionIdsAtomFamily(scope))
     const allMessages = useAtomValue(sessionMessagesAtom)
-    const openSession = useSetAtom(openSessionAtom)
-    const deleteSession = useSetAtom(deleteSessionAtom)
+    const openSession = useSetAtom(openSessionAtomFamily(scope))
+    const deleteSession = useSetAtom(deleteSessionAtomFamily(scope))
 
     if (history.length === 0) {
         return (

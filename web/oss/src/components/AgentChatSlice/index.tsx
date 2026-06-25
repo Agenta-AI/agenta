@@ -11,16 +11,17 @@ import {loadSessionMessages} from "./assets/loadSession"
 import AgentChatConversation from "./components/AgentChatConversation"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import SessionTabLabel from "./components/SessionTabLabel"
+import {useChatScopeKey} from "./state/scope"
 import {
-    activeSessionIdAtom,
-    addSessionAtom,
-    adoptSessionAtom,
-    closeSessionAtom,
-    renameSessionAtom,
+    activeSessionIdAtomFamily,
+    addSessionAtomFamily,
+    adoptSessionAtomFamily,
+    closeSessionAtomFamily,
+    renameSessionAtomFamily,
     sessionLabel,
     sessionMessagesAtom,
-    sessionsListAtom,
-    setActiveSessionAtom,
+    sessionsListAtomFamily,
+    setActiveSessionAtomFamily,
 } from "./state/sessions"
 
 const {Text, Title} = Typography
@@ -49,14 +50,15 @@ const AgentChatSlice = () => {
     const store = useStore()
     const router = useRouter()
 
-    const sessions = useAtomValue(sessionsListAtom)
-    const rawActiveId = useAtomValue(activeSessionIdAtom)
+    const scope = useChatScopeKey()
+    const sessions = useAtomValue(sessionsListAtomFamily(scope))
+    const rawActiveId = useAtomValue(activeSessionIdAtomFamily(scope))
     const allMessages = useAtomValue(sessionMessagesAtom)
-    const addSession = useSetAtom(addSessionAtom)
-    const adoptSession = useSetAtom(adoptSessionAtom)
-    const closeSession = useSetAtom(closeSessionAtom)
-    const renameSession = useSetAtom(renameSessionAtom)
-    const setActiveSession = useSetAtom(setActiveSessionAtom)
+    const addSession = useSetAtom(addSessionAtomFamily(scope))
+    const adoptSession = useSetAtom(adoptSessionAtomFamily(scope))
+    const closeSession = useSetAtom(closeSessionAtomFamily(scope))
+    const renameSession = useSetAtom(renameSessionAtomFamily(scope))
+    const setActiveSession = useSetAtom(setActiveSessionAtomFamily(scope))
 
     // Open-from-observability: a `?session=<id>` deep link (from a trace / session drawer)
     // opens that session as a tab. Hydrate its messages first — from localStorage if this
