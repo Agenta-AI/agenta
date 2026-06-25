@@ -4,7 +4,7 @@ from fastapi import HTTPException
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import APIRouter
-from ee.src.services import workspace_manager
+from oss.src.services import organization_service
 
 from ee.src.core.access.permissions.types import Permission
 
@@ -32,7 +32,9 @@ async def get_all_workspace_permissions() -> List[Permission]:
 
     """
     try:
-        workspace_permissions = await workspace_manager.get_all_workspace_permissions()
+        workspace_permissions = (
+            await organization_service.get_all_workspace_permissions()
+        )
         return sorted(workspace_permissions)
     except Exception:
         log.error(

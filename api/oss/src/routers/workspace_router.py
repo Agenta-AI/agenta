@@ -20,8 +20,6 @@ from oss.src.services.db_manager import (
 )
 
 if is_ee():
-    from ee.src.services import workspace_manager
-
     from ee.src.core.access.entitlements.service import (
         check_entitlements,
         scope_from,
@@ -224,44 +222,23 @@ async def remove_user_from_workspace(
         )
 
     if is_ee():
-        # Load the owner of the *target* workspace's org (not the caller's
-        # ambient org) so the agenta.ai skip-meter exemption and the meter
-        # decrement below agree on which organization is being acted on.
+        # Decrement the user gauge in the *target* workspace's owning org
+        # (loaded via the path-param `{workspace_id}`), not the caller's
+        # ambient org. The agenta.ai skip-meter exemption and the decrement
+        # must agree on which organization is being acted on.
         owner = await db_manager.get_organization_owner(str(project.organization_id))
         owner_domain = owner.email.split("@")[-1].lower() if owner else ""
         user_domain = email.split("@")[-1].lower()
         skip_meter = owner_domain != "agenta.ai" and user_domain == "agenta.ai"
 
         if not skip_meter:
-            # Decrement the user gauge in the *target* workspace's owning
-            # org (loaded via the path-param `{workspace_id}`), not the
-            # caller's ambient org — cross-org admin actions otherwise
-            # land the `-1` in the wrong meter.
             await check_entitlements(  # type: ignore
                 key=Gauge.USERS,  # type: ignore
                 delta=-1,
                 scope=scope_from(organization_id=project.organization_id),  # type: ignore
             )
 
-        try:
-            delete_user_from_workspace = (
-                await workspace_manager.remove_user_from_workspace(workspace_id, email)
-            )
-        except Exception:
-            log.error(
-                "Failed to remove user from EE workspace",
-                workspace_id=workspace_id,
-                project_id=str(project.id),
-                organization_id=str(project.organization_id),
-                email=email,
-                exc_info=True,
-            )
-            raise
-
-    else:
-        delete_user_from_workspace = await db_manager.remove_user_from_workspace(
-            workspace_id=workspace_id,
-            email=email,
-        )
-
-    return delete_user_from_workspace
+    return await db_manager.remove_user_from_workspace(
+        workspace_id=workspace_id,
+        email=email,
+    )

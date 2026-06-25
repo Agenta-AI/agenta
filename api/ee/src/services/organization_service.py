@@ -121,6 +121,40 @@ async def send_invitation_email(
     return True
 
 
+async def assert_invite_domain_allowed(organization_id: str, email: str) -> None:
+    """EE-only: enforce verified-domain restriction on invites when an org has
+    `domains_only` enabled. Raises HTTPException(400) when the invite is blocked.
+
+    Called from the OSS invite orchestrator via the `is_ee()` seam.
+    """
+
+    organization = await db_manager_ee.get_organization(organization_id)
+    if not (organization.flags or {}).get("domains_only", False):
+        return
+
+    org_domains = await OrganizationDomainsDAO().list_by_organization(
+        organization_id=organization_id
+    )
+    verified_domain_slugs = {
+        d.slug.lower()
+        for d in org_domains
+        if d.flags and d.flags.get("is_verified", False)
+    }
+
+    if not verified_domain_slugs:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot send invitations: domains_only is enabled but no verified domains exist",
+        )
+
+    email_domain = email.split("@")[-1].lower()
+    if email_domain not in verified_domain_slugs:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot invite {email}: domain '{email_domain}' is not a verified domain for this organization",
+        )
+
+
 async def notify_org_admin_invitation(workspace: WorkspaceDB, user: UserDB) -> bool:
     """
     Sends an email notification to the owner of an organization when a new member joins.

@@ -20,10 +20,8 @@ from ee.src.core.access.entitlements.service import (
     NOT_ENTITLED_RESPONSE,
 )
 
-from ee.src.services import (
-    db_manager_ee,
-    workspace_manager,
-)
+from ee.src.services import db_manager_ee
+from oss.src.services import organization_service
 from ee.src.services.db_manager_ee import get_user_org_and_workspace_id
 from ee.src.core.access.permissions.types import Permission
 
@@ -254,7 +252,7 @@ async def create_workspace(
                 {"detail": "Please provide a name to create a workspace"},
                 status_code=400,
             )
-        workspace = await workspace_manager.create_new_workspace(
+        workspace = await organization_service.create_new_workspace(
             payload, organization_id, user_org_workspace_data["uid"]
         )
         return workspace
@@ -302,7 +300,7 @@ async def update_workspace(
                 {"detail": "Please provide a name or description to update"},
                 status_code=400,
             )
-        workspace = await workspace_manager.update_workspace(payload, workspace_id)
+        workspace = await organization_service.update_workspace(payload, workspace_id)
         return workspace
 
     except Exception:

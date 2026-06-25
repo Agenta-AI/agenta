@@ -32,6 +32,7 @@ from oss.src.services.db_manager import (  # noqa: F401 — moved OSS-ward, re-e
     get_user_org_and_workspace_id,
     get_project_by_workspace,
     update_user_roles,
+    check_user_in_workspace_with_email,
 )
 from ee.src.core.workspaces.types import (
     UpdateWorkspace,
@@ -472,33 +473,6 @@ async def update_workspace(
         await session.refresh(workspace)
 
         return await get_workspace_in_format(workspace)
-
-
-async def check_user_in_workspace_with_email(email: str, workspace_id: str) -> bool:
-    """
-    Check if a user belongs to a workspace.
-
-    Args:
-        email (str): The email of the user to check.
-        workspace_id (str): The workspace to check.
-
-    Raises:
-        Exception: If there is an error checking if the user belongs to the workspace.
-    """
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(WorkspaceMemberDB)
-            .join(UserDB, UserDB.id == WorkspaceMemberDB.user_id)
-            .where(
-                UserDB.email == email,
-                WorkspaceMemberDB.workspace_id == uuid.UUID(workspace_id),
-            )
-        )
-        workspace_member = result.scalars().first()
-        return False if workspace_member is None else True
 
 
 async def update_organization(

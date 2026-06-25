@@ -1501,6 +1501,23 @@ async def create_workspace_project(
         return project_db
 
 
+async def check_user_in_workspace_with_email(email: str, workspace_id: str) -> bool:
+    """Check whether a user (by email) is a member of the given workspace."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(WorkspaceMemberDB)
+            .join(UserDB, UserDB.id == WorkspaceMemberDB.user_id)
+            .where(
+                UserDB.email == email,
+                WorkspaceMemberDB.workspace_id == uuid.UUID(workspace_id),
+            )
+        )
+        return result.scalars().first() is not None
+
+
 async def sync_workspace_members_to_project(
     project_id: str,
     session: Optional[AsyncSession] = None,

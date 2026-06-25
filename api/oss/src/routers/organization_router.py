@@ -2,7 +2,7 @@ from typing import List
 from uuid import UUID
 
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, Request, BackgroundTasks
+from fastapi import HTTPException, Request
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager
@@ -41,8 +41,7 @@ def _role_description(role: str) -> str:
 
 
 if is_ee():
-    from ee.src.services import db_manager_ee, workspace_manager
-    from ee.src.services.organization_service import notify_org_admin_invitation
+    from ee.src.services import db_manager_ee
 
     from ee.src.core.access.entitlements.service import (
         check_entitlements,
@@ -292,15 +291,6 @@ async def invite_user_to_organization(
                 if not check:
                     return NOT_ENTITLED_RESPONSE(Tracker.GAUGES)
 
-            invite_user = await workspace_manager.invite_user_to_workspace(
-                payload=payload,
-                organization_id=organization_id,
-                project_id=str(project.id),
-                workspace_id=workspace_id,
-                user_uid=request.state.user_id,
-            )
-            return invite_user
-
         invitation_response = await organization_service.invite_user_to_organization(
             payload=payload[0],
             project_id=str(project.id),
@@ -360,16 +350,6 @@ async def resend_user_invitation_to_organization(
             },
         )
 
-    if is_ee():
-        invite_user = await workspace_manager.resend_user_workspace_invite(
-            payload=payload,
-            project_id=request.state.project_id,
-            organization_id=organization_id,
-            workspace_id=workspace_id,
-            user_uid=request.state.user_id,
-        )
-        return invite_user
-
     invite_user = await organization_service.resend_user_organization_invite(
         payload,
         project_id=str(project.id),
@@ -389,7 +369,6 @@ async def accept_organization_invitation(
     project_id: str,
     payload: InviteToken,
     request: Request,
-    background_tasks: BackgroundTasks,
 ):
     """Accept an invitation to an organization.
 
@@ -403,29 +382,12 @@ async def accept_organization_invitation(
     """
 
     try:
-        if is_ee():
-            workspace = await workspace_manager.get_workspace(workspace_id)
-            organization = await db_manager_ee.get_organization(organization_id)
-            user = await db_manager.get_user(request.state.user_id)
-
-            accept_invitation = await workspace_manager.accept_workspace_invitation(
-                token=payload.token,
-                project_id=project_id,
-                organization=organization,
-                workspace=workspace,
-                user=user,
-            )
-
-            if accept_invitation:
-                background_tasks.add_task(notify_org_admin_invitation, workspace, user)
-
-        else:
-            await organization_service.accept_organization_invitation(
-                token=payload.token,
-                organization_id=organization_id,
-                email=payload.email,
-                session_email=request.state.user_email,
-            )
+        await organization_service.accept_organization_invitation(
+            token=payload.token,
+            organization_id=organization_id,
+            email=payload.email,
+            session_email=request.state.user_email,
+        )
     except InviteNotFoundError as e:
         raise HTTPException(
             status_code=400,
