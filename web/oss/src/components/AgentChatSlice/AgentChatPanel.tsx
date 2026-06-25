@@ -237,7 +237,6 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         <div key={message.id} className="flex flex-col gap-1">
                             <AgentMessage
                                 message={message}
-                                busy={busy}
                                 isStreaming={busy && index === messages.length - 1}
                                 onRewind={() => handleRewind(message)}
                                 onApprovalResponse={addToolApprovalResponse}
