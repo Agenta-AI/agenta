@@ -125,6 +125,15 @@ const findNavigableGroupKeys = (items: SidebarConfig[]) => {
     return keys
 }
 
+// Drop hidden entries at every level, not just the section root, so nested hidden items
+// never render, auto-open, or become selected.
+const filterVisibleItems = (items: SidebarConfig[]): SidebarConfig[] =>
+    items.flatMap((item) =>
+        item.isHidden
+            ? []
+            : [{...item, submenu: item.submenu ? filterVisibleItems(item.submenu) : undefined}],
+    )
+
 const uniqueKeys = (keys: string[]) => Array.from(new Set(keys))
 
 const haveSameKeys = (left: string[], right: string[]) =>
@@ -162,7 +171,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     )
 
     const allItems = useMemo(
-        () => visibleSections.flatMap((section) => section.items.filter((item) => !item.isHidden)),
+        () => visibleSections.flatMap((section) => filterVisibleItems(section.items)),
         [visibleSections],
     )
 
@@ -234,7 +243,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     )
 
     const renderSection = (section: SidebarSection) => {
-        const items = section.items.filter((item) => !item.isHidden)
+        const items = filterVisibleItems(section.items)
         if (!items.length) return null
 
         const isBottomSection = section.placement === "bottom"

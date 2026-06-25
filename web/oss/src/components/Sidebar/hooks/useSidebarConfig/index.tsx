@@ -1,3 +1,5 @@
+import {useCallback, useMemo} from "react"
+
 import {GithubFilled} from "@ant-design/icons"
 import {
     ChartLineUpIcon,
@@ -52,207 +54,239 @@ export const useSidebarConfig = () => {
     const hasAppContext =
         routeLayer === "app" && Boolean(routedAppId || appURL || recentlyVisitedAppURL)
 
-    const sidebarConfig: SidebarConfig[] = [
-        {
-            key: "app-management-link",
-            title: "Home",
-            link: baseAppURL,
-            icon: <HouseIcon size={14} />,
-            disabled: !hasProjectURL,
+    const handleOpenWidget = useCallback(
+        (e: React.MouseEvent) => {
+            e.preventDefault()
+            openWidget()
         },
-        {
-            key: "project-playground-link",
-            title: "Playground",
-            link: `${projectURL}/playground`,
-            icon: <RocketIcon size={14} />,
-            isHidden: true,
-            disabled: !hasProjectURL,
-        },
-        {
-            key: PROMPTS_SIDEBAR_KEY,
-            title: "Prompts",
-            link: `${projectURL}/prompts`,
-            icon: getEntityKindIcon("app"),
-            disabled: !hasProjectURL,
-        },
-        {
-            key: "evaluation-group",
-            title: "Evaluation",
-            icon: <FlaskIcon size={14} />,
-            disabled: !hasProjectURL,
-            submenu: [
-                {
-                    key: "project-evaluators-link",
-                    title: "Evaluators",
-                    link: `${projectURL}/evaluators`,
-                    // isHidden: !isDemo(),
-                    icon: <GavelIcon size={14} />,
-                    disabled: !hasProjectURL,
-                },
-                {
-                    key: "app-testsets-link",
-                    title: "Test sets",
-                    link: `${projectURL}/testsets`,
-                    icon: getEntityKindIcon("testset"),
-                    disabled: !hasProjectURL,
-                },
-                {
-                    key: "project-evaluations-link",
-                    title: "Evaluations",
-                    link: `${projectURL}/evaluations`,
-                    icon: <FlaskIcon size={14} />,
-                    disabled: !hasProjectURL,
-                },
-                {
-                    key: "project-annotation-queues-link",
-                    title: "Annotation Queues",
-                    link: `${projectURL}/annotations`,
-                    icon: <ListChecksIcon size={14} />,
-                    disabled: !hasProjectURL,
-                },
-            ],
-        },
-        {
-            key: "app-observability-link",
-            title: "Observability",
-            link: `${projectURL}/observability`,
-            icon: <ChartLineUpIcon size={14} />,
-            disabled: !hasProjectURL,
-        },
-        {
-            key: "overview-link",
-            title: "Overview",
-            link: `${appURL || recentlyVisitedAppURL}/overview`,
-            icon: <DesktopIcon size={14} />,
-            isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
-            isAppSection: true,
-            // Enabled for evaluators too — Overview surfaces the workflow's
-            // details, variants, and the evaluation runs that evaluated it
-            // (scoped by the workflow id as the `application` reference).
-            disabled: !hasProjectURL,
-        },
-        {
-            key: "app-playground-link",
-            title: "Playground",
-            link: `${appURL || recentlyVisitedAppURL}/playground`,
-            icon: <RocketIcon size={14} />,
-            isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
-            isAppSection: true,
-            disabled: !hasProjectURL,
-        },
-        {
-            key: "app-variants-link",
-            title: "Registry",
-            link: `${appURL || recentlyVisitedAppURL}/variants`,
-            isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
-            isAppSection: true,
-            icon: <LightningIcon size={14} />,
-            disabled: !hasProjectURL,
-            dataTour: "registry-nav",
-        },
-        {
-            key: "app-evaluations-link",
-            title: "Evaluations",
-            link: `${appURL || recentlyVisitedAppURL}/evaluations`,
-            isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
-            isAppSection: true,
-            icon: <FlaskIcon size={14} />,
-            // Enabled for evaluators too — shows the evaluation runs that
-            // evaluated this evaluator (scoped by its id as the `application`
-            // reference, same machinery as the app-scoped evaluations page).
-            disabled: !hasProjectURL,
-            dataTour: "evaluations-nav",
-        },
-        {
-            key: "app-traces-link",
-            title: "Observability",
-            icon: <TreeViewIcon size={14} />,
-            isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
-            isAppSection: true,
-            link: `${appURL || recentlyVisitedAppURL}/traces`,
-            disabled: !hasProjectURL,
-        },
-        {
-            key: "settings-link",
-            title: "Settings",
-            link: `${projectURL}/settings`,
-            icon: <GearIcon size={14} />,
-            isBottom: true,
-            tooltip: "Settings",
-            disabled: !hasProjectURL,
-        },
-        {
-            key: "invite-teammate-link",
-            title: "Invite Teammate",
-            link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
-            icon: <PaperPlaneIcon size={14} />,
-            isBottom: true,
-            tooltip: "Invite Teammate",
-            isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
-            disabled: !hasProjectURL,
-        },
-        {
-            key: "get-started-guide-link",
-            title: "Get Started Guide",
-            icon: (
-                <span id="sidebar-get-started-guide">
-                    <RocketLaunchIcon size={16} />
-                </span>
-            ),
-            isBottom: true,
-            tooltip: "Open the onboarding guide",
-            isHidden: !doesSessionExist,
-            onClick: (e) => {
-                e.preventDefault()
-                openWidget()
-            },
-        },
-        {
-            key: "support-chat-link",
-            title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
-            icon: <ChatCircleIcon size={14} />,
-            isBottom: true,
-            isHidden: !isDemo() || !isCrispEnabled,
-            onClick: (e) => {
-                e.preventDefault()
-                toggle()
-            },
-        },
-        {
-            key: "help-docs-link",
-            title: "Help & Docs",
-            icon: <QuestionIcon size={14} />,
-            isBottom: true,
-            submenu: [
-                {
-                    key: "docs",
-                    title: "Documentation",
-                    link: "https://agenta.ai/docs/",
-                    icon: <ScrollIcon size={14} />,
-                    divider: true,
-                },
-                {
-                    key: "github-support",
-                    title: "GitHub Support",
-                    link: "https://github.com/Agenta-AI/agenta/issues",
-                    icon: <GithubFilled style={{fontSize: 14}} />,
-                },
-                {
-                    key: "slack-connect",
-                    title: "Slack Support",
-                    link: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw",
-                    icon: <SlackLogoIcon size={14} />,
-                    divider: true,
-                },
-                {
-                    key: "book-call",
-                    title: "Book a call",
-                    link: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
-                    icon: <PhoneIcon size={14} />,
-                },
-            ],
-        },
-    ]
+        [openWidget],
+    )
 
-    return injectDynamicChildren(sidebarConfig, dynamicChildren)
+    const handleToggleSupport = useCallback(
+        (e: React.MouseEvent) => {
+            e.preventDefault()
+            toggle()
+        },
+        [toggle],
+    )
+
+    const sidebarConfig = useMemo<SidebarConfig[]>(
+        () => [
+            {
+                key: "app-management-link",
+                title: "Home",
+                link: baseAppURL,
+                icon: <HouseIcon size={14} />,
+                disabled: !hasProjectURL,
+            },
+            {
+                key: "project-playground-link",
+                title: "Playground",
+                link: `${projectURL}/playground`,
+                icon: <RocketIcon size={14} />,
+                isHidden: true,
+                disabled: !hasProjectURL,
+            },
+            {
+                key: PROMPTS_SIDEBAR_KEY,
+                title: "Prompts",
+                link: `${projectURL}/prompts`,
+                icon: getEntityKindIcon("app"),
+                disabled: !hasProjectURL,
+            },
+            {
+                key: "evaluation-group",
+                title: "Evaluation",
+                icon: <FlaskIcon size={14} />,
+                disabled: !hasProjectURL,
+                submenu: [
+                    {
+                        key: "project-evaluators-link",
+                        title: "Evaluators",
+                        link: `${projectURL}/evaluators`,
+                        // isHidden: !isDemo(),
+                        icon: <GavelIcon size={14} />,
+                        disabled: !hasProjectURL,
+                    },
+                    {
+                        key: "app-testsets-link",
+                        title: "Test sets",
+                        link: `${projectURL}/testsets`,
+                        icon: getEntityKindIcon("testset"),
+                        disabled: !hasProjectURL,
+                    },
+                    {
+                        key: "project-evaluations-link",
+                        title: "Evaluations",
+                        link: `${projectURL}/evaluations`,
+                        icon: <FlaskIcon size={14} />,
+                        disabled: !hasProjectURL,
+                    },
+                    {
+                        key: "project-annotation-queues-link",
+                        title: "Annotation Queues",
+                        link: `${projectURL}/annotations`,
+                        icon: <ListChecksIcon size={14} />,
+                        disabled: !hasProjectURL,
+                    },
+                ],
+            },
+            {
+                key: "app-observability-link",
+                title: "Observability",
+                link: `${projectURL}/observability`,
+                icon: <ChartLineUpIcon size={14} />,
+                disabled: !hasProjectURL,
+            },
+            {
+                key: "overview-link",
+                title: "Overview",
+                link: `${appURL || recentlyVisitedAppURL}/overview`,
+                icon: <DesktopIcon size={14} />,
+                isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
+                isAppSection: true,
+                // Enabled for evaluators too — Overview surfaces the workflow's
+                // details, variants, and the evaluation runs that evaluated it
+                // (scoped by the workflow id as the `application` reference).
+                disabled: !hasProjectURL,
+            },
+            {
+                key: "app-playground-link",
+                title: "Playground",
+                link: `${appURL || recentlyVisitedAppURL}/playground`,
+                icon: <RocketIcon size={14} />,
+                isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
+                isAppSection: true,
+                disabled: !hasProjectURL,
+            },
+            {
+                key: "app-variants-link",
+                title: "Registry",
+                link: `${appURL || recentlyVisitedAppURL}/variants`,
+                isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
+                isAppSection: true,
+                icon: <LightningIcon size={14} />,
+                disabled: !hasProjectURL,
+                dataTour: "registry-nav",
+            },
+            {
+                key: "app-evaluations-link",
+                title: "Evaluations",
+                link: `${appURL || recentlyVisitedAppURL}/evaluations`,
+                isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
+                isAppSection: true,
+                icon: <FlaskIcon size={14} />,
+                // Enabled for evaluators too — shows the evaluation runs that
+                // evaluated this evaluator (scoped by its id as the `application`
+                // reference, same machinery as the app-scoped evaluations page).
+                disabled: !hasProjectURL,
+                dataTour: "evaluations-nav",
+            },
+            {
+                key: "app-traces-link",
+                title: "Observability",
+                icon: <TreeViewIcon size={14} />,
+                isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
+                isAppSection: true,
+                link: `${appURL || recentlyVisitedAppURL}/traces`,
+                disabled: !hasProjectURL,
+            },
+            {
+                key: "settings-link",
+                title: "Settings",
+                link: `${projectURL}/settings`,
+                icon: <GearIcon size={14} />,
+                isBottom: true,
+                tooltip: "Settings",
+                disabled: !hasProjectURL,
+            },
+            {
+                key: "invite-teammate-link",
+                title: "Invite Teammate",
+                link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
+                icon: <PaperPlaneIcon size={14} />,
+                isBottom: true,
+                tooltip: "Invite Teammate",
+                isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
+                disabled: !hasProjectURL,
+            },
+            {
+                key: "get-started-guide-link",
+                title: "Get Started Guide",
+                icon: (
+                    <span id="sidebar-get-started-guide">
+                        <RocketLaunchIcon size={16} />
+                    </span>
+                ),
+                isBottom: true,
+                tooltip: "Open the onboarding guide",
+                isHidden: !doesSessionExist,
+                onClick: handleOpenWidget,
+            },
+            {
+                key: "support-chat-link",
+                title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
+                icon: <ChatCircleIcon size={14} />,
+                isBottom: true,
+                isHidden: !isDemo() || !isCrispEnabled,
+                onClick: handleToggleSupport,
+            },
+            {
+                key: "help-docs-link",
+                title: "Help & Docs",
+                icon: <QuestionIcon size={14} />,
+                isBottom: true,
+                submenu: [
+                    {
+                        key: "docs",
+                        title: "Documentation",
+                        link: "https://agenta.ai/docs/",
+                        icon: <ScrollIcon size={14} />,
+                        divider: true,
+                    },
+                    {
+                        key: "github-support",
+                        title: "GitHub Support",
+                        link: "https://github.com/Agenta-AI/agenta/issues",
+                        icon: <GithubFilled style={{fontSize: 14}} />,
+                    },
+                    {
+                        key: "slack-connect",
+                        title: "Slack Support",
+                        link: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw",
+                        icon: <SlackLogoIcon size={14} />,
+                        divider: true,
+                    },
+                    {
+                        key: "book-call",
+                        title: "Book a call",
+                        link: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
+                        icon: <PhoneIcon size={14} />,
+                    },
+                ],
+            },
+        ],
+        [
+            appURL,
+            baseAppURL,
+            canInviteMembers,
+            currentApp,
+            doesSessionExist,
+            handleOpenWidget,
+            handleToggleSupport,
+            hasAppContext,
+            hasProjectURL,
+            isCrispEnabled,
+            isVisible,
+            projectURL,
+            recentlyVisitedAppId,
+            recentlyVisitedAppURL,
+            selectedOrg,
+        ],
+    )
+
+    return useMemo(
+        () => injectDynamicChildren(sidebarConfig, dynamicChildren),
+        [sidebarConfig, dynamicChildren],
+    )
 }

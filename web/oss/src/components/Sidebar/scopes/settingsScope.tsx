@@ -61,18 +61,27 @@ const useSettingsAccess = () => {
 }
 
 const resolveSettingsTab = (requestedTab: string, access: ReturnType<typeof useSettingsAccess>) => {
-    if (
-        (requestedTab === "organization" && !access.canShowOrganization) ||
-        (requestedTab === "billing" && !access.canShowUsageBilling) ||
-        (requestedTab === "tools" && !access.canShowTools) ||
-        (requestedTab === "apiKeys" && !access.canViewApiKeys) ||
-        (requestedTab === "auditLog" && !access.canShowAuditLog) ||
-        (requestedTab === "account" && !access.canShowAccount)
-    ) {
-        return "workspace"
+    // Allowlist: unknown tabs and tabs the user can't see both fall back to "workspace".
+    switch (requestedTab) {
+        case "apiKeys":
+            return access.canViewApiKeys ? requestedTab : "workspace"
+        case "tools":
+            return access.canShowTools ? requestedTab : "workspace"
+        case "organization":
+            return access.isOwner && access.canShowOrganization ? requestedTab : "workspace"
+        case "auditLog":
+            return access.canShowAuditLog ? requestedTab : "workspace"
+        case "billing":
+            return access.canShowUsageBilling ? requestedTab : "workspace"
+        case "account":
+            return access.canShowAccount ? requestedTab : "workspace"
+        case "secrets":
+        case "automations":
+        case "workspace":
+            return requestedTab
+        default:
+            return "workspace"
     }
-
-    return requestedTab
 }
 
 const useSettingsSidebarSelection = (): SidebarSelection => {
@@ -85,10 +94,13 @@ const useSettingsSidebarSelection = (): SidebarSelection => {
     )
 
     useEffect(() => {
-        if (tab && tab !== settingsTab) {
-            setSettingsTab(tab)
+        if (settingsTab !== activeTab) {
+            setSettingsTab(activeTab)
         }
-    }, [tab, settingsTab, setSettingsTab])
+        if (tab && tab !== activeTab) {
+            setTab(activeTab)
+        }
+    }, [activeTab, settingsTab, setSettingsTab, setTab, tab])
 
     return {
         mode: "controlled",
@@ -204,6 +216,7 @@ const createSettingsHeader = (lastPath?: string) => {
                     ].join(" ")}
                 >
                     <Button
+                        aria-label="Back"
                         className="gap-2 flex items-center justify-center"
                         type="text"
                         icon={<ArrowLeft size={14} />}

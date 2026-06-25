@@ -42,7 +42,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
             if (!item.link) return
 
             if (item.link.startsWith("http")) {
-                window.open(item.link, "_blank")
+                window.open(item.link, "_blank", "noopener,noreferrer")
             } else {
                 router.push(item.link)
             }
@@ -96,6 +96,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                                 item.onClick?.(event)
                             }}
                             target={item.link?.startsWith("http") ? "_blank" : undefined}
+                            rel={item.link?.startsWith("http") ? "noopener noreferrer" : undefined}
                         >
                             {titleNode}
                         </Link>
@@ -210,6 +211,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                             href={item.link}
                             onClick={item.onClick}
                             target={item.link?.startsWith("http") ? "_blank" : undefined}
+                            rel={item.link?.startsWith("http") ? "noopener noreferrer" : undefined}
                         >
                             {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
                         </Link>
@@ -232,7 +234,11 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                         key: item.key,
                         disabled: item.disabled,
                         label: collapsed ? (
-                            <Tooltip title={item.tooltip} placement="right" mouseEnterDelay={0.8}>
+                            <Tooltip
+                                title={item.tooltip || item.title}
+                                placement="right"
+                                mouseEnterDelay={0.8}
+                            >
                                 <div className="flex items-center justify-center w-full">
                                     {labelNode}
                                 </div>
