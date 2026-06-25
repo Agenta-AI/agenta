@@ -1571,7 +1571,10 @@ async def sync_workspace_members_to_project(
                 )
             )
 
-        await db_session.commit()
+        # Flush (not commit) so a caller-provided session keeps a single
+        # transaction: the caller owns the commit and can roll the sync back
+        # together with its own writes on failure.
+        await db_session.flush()
 
     if session is not None:
         await _sync(session)
@@ -1579,6 +1582,7 @@ async def sync_workspace_members_to_project(
 
     engine = get_transactions_engine()
     async with engine.session() as new_session:
+        # Standalone use: the engine.session() context manager commits on exit.
         await _sync(new_session)
 
 
@@ -1600,6 +1604,9 @@ async def update_user_roles(
     """
 
     user = await get_user_with_email(payload.email)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+
     projects = await fetch_projects_by_workspace(workspace_id)
     if not projects:
         raise NoResultFound(

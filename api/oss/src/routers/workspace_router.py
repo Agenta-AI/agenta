@@ -196,6 +196,11 @@ async def unassign_role_from_user(
                 },
             )
 
+        if not role or get_role("workspace", role) is None:
+            return JSONResponse(
+                status_code=400, content={"detail": "Workspace role is invalid."}
+            )
+
         payload = UserRole(
             email=email,
             organization_id=organization_id,
