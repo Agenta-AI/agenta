@@ -31,7 +31,7 @@ import {useAppsData} from "@/oss/state/app"
 import {useAppState} from "@/oss/state/appState"
 import {useOrgData} from "@/oss/state/org"
 
-import {SidebarConfig} from "../../types"
+import {SidebarConfig} from "../../engine/types"
 
 export const useSidebarConfig = () => {
     const {doesSessionExist} = useSession()

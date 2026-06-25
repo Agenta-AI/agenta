@@ -5,7 +5,7 @@ import clsx from "clsx"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
-import {SidebarConfig, SidebarMenuProps} from "../types"
+import {SidebarConfig, SidebarMenuProps} from "./types"
 
 const SidebarMenu: React.FC<SidebarMenuProps> = ({
     items,
