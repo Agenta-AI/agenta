@@ -76,6 +76,47 @@ describe("attachPermissionResponder", () => {
     assert.deepEqual(replies, [{ id: "perm-1", reply: "always" }]);
   });
 
+  it("parks: emits the interaction_request but sends NO harness reply (F-024 regression)", async () => {
+    // The park outcome must never reach the harness as a reply: a `reject` would make Claude
+    // emit a failed tool call ("User refused permission") whose tool_result{isError} clobbers
+    // the approval prompt on the same tool-call id. So on park the approval-request event is
+    // emitted and respondPermission is NOT called — the turn ends with the tool pending.
+    let handler: ((req: any) => void) | undefined;
+    const replies: Array<{ id: string; reply: string }> = [];
+    const session = {
+      onPermissionRequest(cb: (req: any) => void) {
+        handler = cb;
+      },
+      async respondPermission(id: string, reply: string) {
+        replies.push({ id, reply });
+      },
+    };
+    const events: AgentEvent[] = [];
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: (event) => events.push(event) },
+      responder: {
+        async onPermission() {
+          return "park";
+        },
+      },
+    });
+    handler?.({
+      id: "perm-park",
+      availableReplies: ["once", "always", "reject"],
+      toolCall: { toolCallId: "tool-9", name: "edit" },
+    });
+    await flushPromises();
+
+    // The approval-request event IS emitted (the FE needs it to prompt) ...
+    assert.equal(events.length, 1);
+    assert.equal(events[0].type, "interaction_request");
+    assert.equal((events[0] as any).id, "perm-park");
+    // ... but the harness gets NO reply (no reject to clobber the prompt with).
+    assert.deepEqual(replies, []);
+  });
+
   it("does not respond when the ACP request has no id", async () => {
     let handler: ((req: any) => void) | undefined;
     const replies: Array<{ id: string; reply: string }> = [];
@@ -91,7 +132,11 @@ describe("attachPermissionResponder", () => {
     attachPermissionResponder({
       session,
       run: { emitEvent: () => {} },
-      responder: { async onPermission() { return "deny"; } },
+      responder: {
+        async onPermission() {
+          return "deny";
+        },
+      },
     });
     handler?.({ availableReplies: ["reject"] });
     await flushPromises();

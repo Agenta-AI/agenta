@@ -128,6 +128,9 @@ export function AgentConfigControl({
     // (the picker only ever produces one); a legacy bare string is read for display. The picker is
     // harness-filtered: selecting a model sets BOTH the model id and its provider.
     const harness = typeof config.harness === "string" ? config.harness : null
+    // Pi (`pi_core`/`pi_agenta`) never gates tool use (`permissions: false`); a permission
+    // policy is meaningless for it, so the field is hidden for Pi. Only Claude honors it.
+    const isPiHarness = harness === "pi_core" || harness === "pi_agenta"
     const modelId = useMemo(() => modelIdFromConfig(config.model), [config.model])
     const connection = useMemo(() => connectionFromConfig(config.model), [config.model])
     const modeOptions = useMemo(
@@ -678,14 +681,18 @@ export function AgentConfigControl({
                 disabled={disabled}
             />
 
-            <EnumSelectControl
-                schema={props.permission_policy}
-                label="Permission policy"
-                value={(config.permission_policy as string | null) ?? null}
-                onChange={(v) => setField("permission_policy", v)}
-                withTooltip={withTooltip}
-                disabled={disabled}
-            />
+            {/* Permission policy is Claude-only: Pi runs tools without prompting (no gate),
+             * so the field is hidden for Pi rather than offering a setting nothing honors. */}
+            {!isPiHarness && (
+                <EnumSelectControl
+                    schema={props.permission_policy}
+                    label="Permission policy"
+                    value={(config.permission_policy as string | null) ?? null}
+                    onChange={(v) => setField("permission_policy", v)}
+                    withTooltip={withTooltip}
+                    disabled={disabled}
+                />
+            )}
 
             {/* Sandbox permissions (Layer 2): the sandbox security boundary, for every harness. */}
             <SandboxPermissionControl

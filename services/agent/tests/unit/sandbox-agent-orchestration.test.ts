@@ -636,7 +636,7 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     ]);
   });
 
-  it("human surface (/messages: sessionId set) with no decision parks the tool (reject)", async () => {
+  it("human surface (/messages: sessionId set) with no decision PARKS the tool, no harness reply (F-024)", async () => {
     const { calls, deps } = depsWithDefaultResponder();
 
     const result = await runSandboxAgent(
@@ -652,11 +652,20 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     await flushPromises();
 
     assert.equal(result.ok, true);
-    // Park: decline the unapproved tool this turn (the interaction_request already prompted
-    // the browser); the next turn carrying the decision resolves it.
-    assert.deepEqual(calls.permissionReplies, [
-      { id: "perm-1", reply: "reject" },
-    ]);
+    // Park: the interaction_request IS emitted (the FE prompts the browser) ...
+    assert.deepEqual(
+      result.events
+        ?.filter((e) => e.type === "interaction_request")
+        .map((e) => ({
+          type: e.type,
+          id: (e as any).id,
+        })),
+      [{ type: "interaction_request", id: "perm-1" }],
+    );
+    // ... but the harness gets NO reply: a `reject` here would make Claude emit a failed tool
+    // call that clobbers the approval prompt on the same tool-call id (F-024). The turn ends
+    // with the tool pending; the next turn carrying the decision resolves it.
+    assert.deepEqual(calls.permissionReplies, []);
   });
 
   it("human surface with a stored approval resumes the tool (always)", async () => {

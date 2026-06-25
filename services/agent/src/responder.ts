@@ -23,7 +23,26 @@ import type { AgentRunRequest, ContentBlock } from "./protocol.ts";
 
 export type PermissionPolicy = "auto" | "deny";
 
+/**
+ * What the responder decides for one permission gate.
+ *
+ *  - `allow` / `deny` are terminal: the adapter maps them onto an ACP reply via
+ *    `decisionToReply` and the harness runs or refuses the tool this turn.
+ *  - `park` is NOT a harness reply. It means "a human must decide; end the turn with this
+ *    tool PENDING". On park the adapter sends NO `respondPermission`, so the harness never
+ *    produces a refused/failed tool call, and the `interaction_request` already emitted stays
+ *    the last word on the tool call. The next turn carries the stored decision and resolves it
+ *    via `allow`/`deny`. This is the cross-turn HITL "park" — see `HITLResponder`.
+ *
+ * `decisionToReply` only ever sees `allow`/`deny`; `park` is handled before it (it has no ACP
+ * reply). Do NOT "simplify" park back to `deny`: for Claude, replying `reject` produces a
+ * failed tool call ("User refused permission") whose `tool_result {isError}` overwrites the
+ * approval prompt on the same tool-call id (the F-024 clobber bug).
+ */
 export type PermissionDecision = "allow" | "deny";
+
+/** The full set of responder outcomes, including the runner-internal `park`. */
+export type ResponderOutcome = PermissionDecision | "park";
 
 /** A permission gate raised by the harness, normalized from the ACP request. */
 export interface PermissionRequest {
@@ -41,14 +60,14 @@ export interface PermissionRequest {
  * alongside the cross-turn responder.
  */
 export interface Responder {
-  onPermission(request: PermissionRequest): Promise<PermissionDecision>;
+  onPermission(request: PermissionRequest): Promise<ResponderOutcome>;
 }
 
-/** Headless responder: a fixed policy, no human in the loop. */
+/** Headless responder: a fixed policy, no human in the loop. Never parks (no human surface). */
 export class PolicyResponder implements Responder {
   constructor(private readonly policy: PermissionPolicy) {}
 
-  async onPermission(_request: PermissionRequest): Promise<PermissionDecision> {
+  async onPermission(_request: PermissionRequest): Promise<ResponderOutcome> {
     return this.policy === "deny" ? "deny" : "allow";
   }
 }
@@ -68,12 +87,14 @@ export type ApprovalDecisions = ReadonlyMap<string, PermissionDecision>;
  * It answers a permission gate three ways, in order:
  *   1. The user already decided (a stored `decisions` entry for this tool-call id or tool
  *      name) -> apply it. THIS IS THE RESUME PATH: turn N parks, turn N+1 carries the reply.
- *   2. No stored decision and there is a human surface (`hasHumanSurface`) -> `deny` to PARK.
- *      The `interaction_request` was already emitted upstream (the FE prompts), so denying
- *      here just declines to run the unapproved tool this turn; the turn ends safely and a
- *      later turn carrying the decision resolves it via branch 1.
+ *   2. No stored decision and there is a human surface (`hasHumanSurface`) -> `park`. The
+ *      `interaction_request` was already emitted upstream (the FE prompts), so the turn ends
+ *      with this tool PENDING and NO harness reply (the adapter skips `respondPermission`).
+ *      A later turn carrying the decision resolves it via branch 1. Parking by `deny` instead
+ *      would make Claude emit a failed tool call that clobbers the approval prompt (F-024).
  *   3. No stored decision and no human surface (headless `/invoke`) -> the `basePolicy`
- *      decision. This branch is byte-identical to `PolicyResponder`, so `/invoke` is unchanged.
+ *      decision. This branch is byte-identical to `PolicyResponder`, so `/invoke` is unchanged
+ *      (it never parks; there is no human to resolve a parked turn).
  *
  * Pure: every input (decisions, base policy, surface flag) is injected; no I/O.
  */
@@ -84,10 +105,10 @@ export class HITLResponder implements Responder {
     private readonly hasHumanSurface: boolean,
   ) {}
 
-  async onPermission(request: PermissionRequest): Promise<PermissionDecision> {
+  async onPermission(request: PermissionRequest): Promise<ResponderOutcome> {
     const stored = this.lookup(request);
     if (stored) return stored;
-    if (this.hasHumanSurface) return "deny"; // park: do not run the unapproved tool this turn
+    if (this.hasHumanSurface) return "park"; // human must decide; end the turn, tool pending
     return this.basePolicy === "deny" ? "deny" : "allow"; // headless: PolicyResponder parity
   }
 
