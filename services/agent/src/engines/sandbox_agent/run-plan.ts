@@ -12,7 +12,10 @@ import {
 } from "../../protocol.ts";
 import { executableToolSpecs } from "../../tools/public-spec.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "../../tools/code.ts";
-import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../tools/mcp-bridge.ts";
+import {
+  PI_USER_MCP_UNSUPPORTED_MESSAGE,
+  USER_MCP_UNSUPPORTED_MESSAGE,
+} from "../../tools/mcp-bridge.ts";
 import {
   type MaterializedSkill,
   resolveSkillDirs as defaultResolveSkillDirs,
@@ -210,6 +213,16 @@ export function buildRunPlan(
   // Keep the wire shape; the delivery is not supported.
   if (hasCodeTool(toolSpecs)) {
     return { ok: false, error: CODE_TOOL_UNSUPPORTED_MESSAGE };
+  }
+
+  // Pi delivers tools through its bundled extension, not over ACP MCP, so a user MCP server on
+  // a Pi run is DROPPED by `buildSessionMcpServers` (it returns [] for Pi). Dropping it silently
+  // (no log, HTTP 200) is the F-032 silent-drop bug. Refuse ANY user MCP server (stdio AND http)
+  // on Pi up front with a Pi-specific message, the way the stdio-MCP and code-tool gates fail
+  // loud. This MUST precede the harness-agnostic stdio gate so Pi gets the clearer reason for
+  // both transports (http MCP is otherwise a Claude-only capability, #4834).
+  if (isPi && (request.mcpServers?.length ?? 0) > 0) {
+    return { ok: false, error: PI_USER_MCP_UNSUPPORTED_MESSAGE };
   }
 
   // stdio MCP servers run as arbitrary processes on the RUNNER HOST, outside the sandbox

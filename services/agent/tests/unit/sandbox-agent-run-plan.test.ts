@@ -252,7 +252,26 @@ describe("buildRunPlan", () => {
     assert.match(result.error, /MCP servers are not supported by the sidecar/);
   });
 
-  it("errors on a stdio MCP server on the local sandbox too", () => {
+  it("errors on a stdio MCP server on the local sandbox too (non-Pi harness)", () => {
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        sandbox: "local",
+        prompt: "hello",
+        mcpServers: [{ name: "fs", transport: "stdio", command: "mcp-fs" }],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /MCP servers are not supported by the sidecar/);
+  });
+
+  it("errors LOUD on a Pi run carrying a user STDIO MCP server (F-032, Pi-specific)", () => {
+    // Pi delivers tools through its bundled extension, not MCP, so a user MCP server would be
+    // dropped silently (the F-032 bug). The Pi gate refuses it up front with a Pi-specific
+    // message (precedes the harness-agnostic stdio gate).
     const result = buildRunPlan(
       {
         harness: "pi_core",
@@ -265,7 +284,63 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.match(result.error, /MCP servers are not supported by the sidecar/);
+    assert.match(result.error, /not supported on the Pi harness/);
+  });
+
+  it("errors LOUD on a Pi run carrying a user HTTP MCP server (F-032 silent-drop fix)", () => {
+    // The core of F-032: an http user MCP on Pi previously passed the stdio gate, then
+    // buildSessionMcpServers returned [] for Pi -> the server was dropped with NO log and an
+    // HTTP 200. It must now fail loud, not silently succeed. Fails before any cwd is created.
+    let created = false;
+    const result = buildRunPlan(
+      {
+        harness: "pi_agenta",
+        sandbox: "daytona",
+        prompt: "hello",
+        mcpServers: [
+          {
+            name: "linear",
+            transport: "http",
+            url: "https://mcp.linear.app/sse",
+          },
+        ],
+      } as AgentRunRequest,
+      {
+        createDaytonaCwd: () => {
+          created = true;
+          return "/home/sandbox/agenta-fixed";
+        },
+      },
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /not supported on the Pi harness/);
+    assert.equal(
+      created,
+      false,
+      "fails before any cwd is created (up-front gate)",
+    );
+  });
+
+  it("allows a non-Pi (claude) run with a user HTTP MCP server (Pi gate is Pi-only)", () => {
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        sandbox: "local",
+        prompt: "hello",
+        mcpServers: [
+          {
+            name: "linear",
+            transport: "http",
+            url: "https://mcp.linear.app/sse",
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
   });
 
   it("errors on any run carrying a code tool (code execution removed, fail loud)", () => {
