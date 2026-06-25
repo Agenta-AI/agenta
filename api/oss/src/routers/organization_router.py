@@ -514,6 +514,7 @@ async def transfer_organization_ownership(
         )
         return JSONResponse(
             {"detail": "Invalid organization or new owner for ownership transfer"},
+            status_code=400,
         )
     except Exception:
         log.error(
