@@ -61,11 +61,13 @@ export {
     SectionLabel,
     ConfigBlock,
     SectionSkeleton,
+    ConfigAccordionSection,
     type SectionCardProps,
     type SectionHeaderRowProps,
     type SectionLabelProps,
     type ConfigBlockProps,
     type SectionSkeletonProps,
+    type ConfigAccordionSectionProps,
 } from "./section"
 
 // ============================================================================

@@ -80,6 +80,9 @@ export interface ToolSelectorPopoverProps {
     existingToolCount?: number
     /** Optional gateway tools bridge (typically from DrillInUIContext) */
     gatewayTools?: GatewayToolsBridge
+    /** Custom trigger element. Defaults to an outlined "Tool" button (e.g. a compact icon button
+     * when hosted in a section header). */
+    trigger?: ReactNode
 }
 
 // ============================================================================
@@ -723,6 +726,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     renderProviderIcon,
     existingToolCount = 0,
     gatewayTools: gatewayToolsProp,
+    trigger,
 }: ToolSelectorPopoverProps) {
     const {showMessage, gatewayTools: gatewayToolsFromContext} = useDrillInUI()
 
@@ -1025,15 +1029,17 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
             popupRender={() => content}
             classNames={{root: "[&_.ant-dropdown-menu]:hidden [&_.ant-dropdown]:p-0"}}
         >
-            <Button
-                variant="outlined"
-                color="default"
-                size="small"
-                icon={<Plus size={14} />}
-                disabled={disabled}
-            >
-                Tool
-            </Button>
+            {trigger ?? (
+                <Button
+                    variant="outlined"
+                    color="default"
+                    size="small"
+                    icon={<Plus size={14} />}
+                    disabled={disabled}
+                >
+                    Tool
+                </Button>
+            )}
         </Dropdown>
     )
 })

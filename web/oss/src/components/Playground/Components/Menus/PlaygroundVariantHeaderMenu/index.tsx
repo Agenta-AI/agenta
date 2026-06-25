@@ -1,10 +1,11 @@
 import {useCallback, useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {playgroundController} from "@agenta/playground"
+import {agentConfigLayoutAtom, AGENT_CONFIG_LAYOUTS} from "@agenta/entity-ui/drill-in"
+import {playgroundController, isAgentModeAtomFamily} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {MoreOutlined} from "@ant-design/icons"
-import {ArrowCounterClockwise, Trash} from "@phosphor-icons/react"
+import {ArrowCounterClockwise, Check, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, MenuProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -19,6 +20,12 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
     const selectedVariants = useAtomValue(playgroundController.selectors.entityIds())
     const removeVariantFromSelection = useSetAtom(playgroundController.actions.removeEntity)
     const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
+    // Agent config panels get a layout selector (accordion/tabs/cards) in this menu; the panel
+    // reads the same persisted atom. Detect agent mode by the agent_config schema marker (the same
+    // robust signal the left panel uses), not the backend is_agent flag. Non-agent variants hide it.
+    const isAgent = useAtomValue(isAgentModeAtomFamily(variantId || ""))
+    const layout = useAtomValue(agentConfigLayoutAtom)
+    const setLayout = useSetAtom(agentConfigLayoutAtom)
 
     const closePanelDisabled = useMemo(() => {
         return selectedVariants.length === 1 && selectedVariants.includes(variantId)
@@ -42,6 +49,30 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
 
     const items: MenuProps["items"] = useMemo(
         () => [
+            ...(isAgent
+                ? [
+                      {
+                          key: "view",
+                          type: "group" as const,
+                          label: "View",
+                          children: AGENT_CONFIG_LAYOUTS.map((option) => ({
+                              key: `view-${option.value}`,
+                              label: option.label,
+                              icon:
+                                  layout === option.value ? (
+                                      <Check size={14} />
+                                  ) : (
+                                      <span className="inline-block w-[14px]" />
+                                  ),
+                              onClick: (e: {domEvent: {stopPropagation: () => void}}) => {
+                                  e.domEvent.stopPropagation()
+                                  setLayout(option.value)
+                              },
+                          })),
+                      },
+                      {type: "divider" as const},
+                  ]
+                : []),
             {
                 key: "revert",
                 label: "Revert Changes",
@@ -70,7 +101,16 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                 },
             },
         ],
-        [handleClosePanel, closePanelDisabled, variantId, handleDiscardDraft, isDirty],
+        [
+            handleClosePanel,
+            closePanelDisabled,
+            variantId,
+            handleDiscardDraft,
+            isDirty,
+            isAgent,
+            layout,
+            setLayout,
+        ],
     )
 
     return (
