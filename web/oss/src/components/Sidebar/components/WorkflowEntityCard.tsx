@@ -157,21 +157,8 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     }, [ctx.workflow, evaluators, apps, recentEvaluatorId, recentAppId])
 
     const workflow = ctx.workflow ?? fallbackWorkflow
-    const isEvaluator = ctx.workflow
-        ? ctx.workflowKind === "evaluator"
-        : !!fallbackWorkflow?.flags?.is_evaluator
-    const workflowId = workflow?.id ?? null
 
-    // Latest revision query — used to derive the evaluator key (URI parsing)
-    // and to read the resolved app type when the latest-revision derived atom
-    // hasn't run yet. Cached + batched so calling it here is cheap.
-    const latestRevision = useAtomValue(workflowLatestRevisionQueryAtomFamily(workflowId ?? ""))
-    const appType = useAtomValue(workflowAppTypeAtomFamily(workflowId ?? "")) as WorkflowType | null
-    const evaluatorKey = useMemo(() => {
-        if (!isEvaluator) return null
-        const uri = (latestRevision.data?.data as {uri?: string} | undefined)?.uri
-        return parseWorkflowKeyFromUri(uri ?? null)
-    }, [isEvaluator, latestRevision.data])
+    const workflowId = workflow?.id ?? null
 
     const displayName = workflow?.name ?? workflow?.slug ?? workflowId ?? "Select workflow"
 
@@ -253,13 +240,13 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     return (
         <div
             className={clsx(
-                "rounded-md border border-solid border-gray-200 bg-[var(--ag-c-FFFFFF)] px-2.5 py-2",
+                "rounded-lg border border-solid border-gray-200 bg-[var(--ag-c-FFFFFF)] px-2.5 py-1.5",
                 "flex flex-col gap-1.5",
             )}
         >
             <div className="flex items-center gap-1 min-w-0">
                 <span
-                    className="truncate text-xs font-medium text-gray-900 flex-1 min-w-0"
+                    className="truncate font-medium text-colorTextSecondary flex-1 min-w-0"
                     title={displayName}
                 >
                     {displayName}
@@ -283,7 +270,7 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
                             type="text"
                             size="small"
                             className="!px-1 !h-6 text-gray-500 hover:text-gray-900"
-                            icon={<ArrowsLeftRight size={14} />}
+                            icon={<ArrowsLeftRight size={12} />}
                             aria-label="Switch workflow"
                         />
                     </Dropdown>
@@ -293,19 +280,11 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
                         type="text"
                         size="small"
                         className="!px-1 !h-6 text-gray-500 hover:text-gray-900"
-                        icon={<X size={14} />}
+                        icon={<X size={12} />}
                         onClick={handleClose}
                         aria-label="Close workflow"
                     />
                 </Tooltip>
-            </div>
-            <div>
-                <WorkflowTypeTag
-                    isEvaluator={isEvaluator}
-                    workflowKey={evaluatorKey}
-                    evaluatorTypeKey={appType}
-                    workflowType={appType}
-                />
             </div>
         </div>
     )

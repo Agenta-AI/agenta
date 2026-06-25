@@ -1,8 +1,13 @@
-import {memo, useMemo} from "react"
+import {memo, useCallback, useMemo} from "react"
 
+import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {sidebarCollapsedAtom, sidebarOpenGroupsAtomFamily} from "@/oss/lib/atoms/sidebar"
+import {
+    setSidebarPopupGroupOpenAtom,
+    sidebarCollapsedAtom,
+    sidebarOpenGroupsAtomFamily,
+} from "@/oss/lib/atoms/sidebar"
 
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
@@ -16,14 +21,22 @@ const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
 }) => {
     const {appTheme} = useAppTheme()
     const router = useRouter()
+    const setSidebarPopupGroupOpen = useSetAtom(setSidebarPopupGroupOpenAtom)
     const settingsScope = useMemo(() => createSettingsSidebarScope({lastPath}), [lastPath])
     const scope = showSettingsView ? settingsScope : mainSidebarScope
+    const handlePopupOpenChange = useCallback(
+        (key: string, open: boolean) => {
+            setSidebarPopupGroupOpen({key, open})
+        },
+        [setSidebarPopupGroupOpen],
+    )
 
     return (
         <SidebarShell
             key={scope.id}
             collapsedAtom={sidebarCollapsedAtom}
             currentPath={router.asPath}
+            onPopupOpenChange={handlePopupOpenChange}
             openGroupsAtomFamily={sidebarOpenGroupsAtomFamily}
             scope={scope}
             theme={appTheme}

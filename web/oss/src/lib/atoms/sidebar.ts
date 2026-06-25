@@ -6,6 +6,19 @@ const SIDEBAR_OPEN_GROUPS_STORAGE_KEY = "agenta:sidebar:open-groups"
 const NO_PROJECT_SCOPE = "__global__"
 
 export const sidebarCollapsedAtom = atomWithStorage<boolean>("sidebarCollapsed", false)
+export const sidebarPopupGroupsAtom = atom<string[]>([])
+
+export const setSidebarPopupGroupOpenAtom = atom(
+    null,
+    (get, set, {key, open}: {key: string; open: boolean}) => {
+        const currentKeys = get(sidebarPopupGroupsAtom)
+        const nextKeys = open
+            ? Array.from(new Set([...currentKeys, key]))
+            : currentKeys.filter((currentKey) => currentKey !== key)
+
+        set(sidebarPopupGroupsAtom, nextKeys)
+    },
+)
 
 const sidebarOpenGroupsStorageAtom = atomWithStorage<Record<string, string[]>>(
     SIDEBAR_OPEN_GROUPS_STORAGE_KEY,

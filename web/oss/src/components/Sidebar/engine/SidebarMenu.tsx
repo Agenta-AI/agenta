@@ -1,7 +1,7 @@
-import {memo, useCallback, useMemo} from "react"
+import {memo, useCallback, useMemo, useRef} from "react"
 
 import {CaretRight} from "@phosphor-icons/react"
-import {Menu, Tag, Tooltip} from "antd"
+import {Menu, Skeleton, Tag, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import clsx from "clsx"
 import Link from "next/link"
@@ -18,8 +18,10 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
     mode = "inline",
     openKeys = [],
     onToggleOpenKey,
+    onPopupOpenChange,
 }) => {
     const router = useRouter()
+    const reportedOpenKeysRef = useRef<string[]>(openKeys)
 
     const linkMap = useMemo(() => {
         const map: Record<string, SidebarConfig> = {}
@@ -48,6 +50,34 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
         [router],
     )
 
+    const reportOpenKeyChanges = useCallback(
+        (nextOpenKeys: string[]) => {
+            if (!onPopupOpenChange) return
+
+            const previousKeys = new Set(reportedOpenKeysRef.current)
+            const nextKeys = new Set(nextOpenKeys)
+
+            nextOpenKeys.forEach((key) => {
+                if (!previousKeys.has(key)) onPopupOpenChange(key, true)
+            })
+
+            reportedOpenKeysRef.current.forEach((key) => {
+                if (!nextKeys.has(key)) onPopupOpenChange(key, false)
+            })
+
+            reportedOpenKeysRef.current = nextOpenKeys
+        },
+        [onPopupOpenChange],
+    )
+
+    const handleOpenChange = useCallback(
+        (nextOpenKeys: string[]) => {
+            reportOpenKeyChanges(nextOpenKeys)
+            menuProps?.onOpenChange?.(nextOpenKeys)
+        },
+        [menuProps, reportOpenKeyChanges],
+    )
+
     const transformItems = useCallback(
         (items: SidebarConfig[]): MenuItem[] => {
             return items.flatMap((item): MenuItem[] => {
@@ -61,7 +91,10 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                         <Link
                             className="w-full"
                             href={item.link}
-                            onClick={item.onClick}
+                            onClick={(event) => {
+                                event.stopPropagation()
+                                item.onClick?.(event)
+                            }}
                             target={item.link?.startsWith("http") ? "_blank" : undefined}
                         >
                             {titleNode}
@@ -75,13 +108,50 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                             placement="right"
                             mouseEnterDelay={0.8}
                         >
-                            <span className="w-full">{labelNode}</span>
+                            <span
+                                className="w-full"
+                                onMouseEnter={() => onPopupOpenChange?.(item.key, true)}
+                            >
+                                {labelNode}
+                            </span>
                         </Tooltip>
                     ) : (
                         labelNode
                     )
                     const isNavigableParent = Boolean(item.link)
                     const isOpen = openKeys.includes(item.key)
+                    const renderExpandToggle = ({isOpen: menuIsOpen}: {isOpen?: boolean}) => {
+                        const isExpanded = menuIsOpen ?? isOpen
+
+                        return (
+                            <span
+                                role="button"
+                                tabIndex={0}
+                                aria-label={`${isExpanded ? "Collapse" : "Expand"} ${item.title}`}
+                                className="flex self-stretch w-8 shrink-0 items-center justify-center rounded text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-white/10"
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                    onToggleOpenKey?.(item.key)
+                                }}
+                                onKeyDown={(event) => {
+                                    if (event.key !== "Enter" && event.key !== " ") return
+
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                    onToggleOpenKey?.(item.key)
+                                }}
+                            >
+                                <CaretRight
+                                    size={12}
+                                    className={clsx(
+                                        "transition-transform duration-200 ease-in-out",
+                                        isExpanded && "rotate-90",
+                                    )}
+                                />
+                            </span>
+                        )
+                    }
 
                     return [
                         {
@@ -90,7 +160,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                             label: submenuLabel,
                             children: transformItems(item.submenu),
                             popupClassName:
-                                "max-h-[min(70vh,560px)] overflow-y-auto [&_.ant-menu-sub_>_.ant-menu-item]:flex [&_.ant-menu-sub_>_.ant-menu-item]:items-center",
+                                "max-h-[min(70vh,560px)] max-w-[min(50vw,220px)] relative !overflow-visible !shadow-none before:pointer-events-none before:absolute before:left-[-6px] before:top-6 before:z-10 before:block before:size-3 before:rotate-45 before:border-b before:border-l before:border-solid before:border-[var(--ant-color-border-secondary)] before:bg-[var(--ant-color-bg-elevated)] before:content-[''] [&_.ant-menu]:max-h-[min(70vh,560px)] [&_.ant-menu]:overflow-y-auto [&_.ant-menu]:!shadow-[8px_8px_24px_rgba(15,23,42,0.10),0_2px_8px_rgba(15,23,42,0.06)] [&_.ant-menu-sub_>_.ant-menu-item]:flex [&_.ant-menu-sub_>_.ant-menu-item]:items-center",
                             className: clsx("ag-sidebar-submenu", {
                                 "ag-sidebar-submenu-inline": mode === "inline",
                                 "ag-sidebar-submenu-open": mode === "inline" && isOpen,
@@ -104,7 +174,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                                     | React.MouseEvent<HTMLElement>
                                     | React.KeyboardEvent<HTMLElement>
                             }) => {
-                                if (collapsed && isNavigableParent) {
+                                if (isNavigableParent) {
                                     navigateToItem(item, domEvent)
                                     return
                                 }
@@ -112,44 +182,23 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                                 item.onClick?.(domEvent as React.MouseEvent)
                             },
                             title: item.title,
-                            expandIcon:
-                                isNavigableParent && !collapsed
-                                    ? ({isOpen: menuIsOpen}: {isOpen?: boolean}) => (
-                                          <span
-                                              role="button"
-                                              tabIndex={0}
-                                              aria-label={`${isOpen ? "Collapse" : "Expand"} ${item.title}`}
-                                              className="flex h-full items-center justify-center px-1 text-gray-400 hover:text-gray-700"
-                                              onClick={(event) => {
-                                                  event.preventDefault()
-                                                  event.stopPropagation()
-                                                  onToggleOpenKey?.(item.key)
-                                              }}
-                                              onKeyDown={(event) => {
-                                                  if (event.key !== "Enter" && event.key !== " ")
-                                                      return
-
-                                                  event.preventDefault()
-                                                  event.stopPropagation()
-                                                  onToggleOpenKey?.(item.key)
-                                              }}
-                                          >
-                                              <CaretRight
-                                                  size={12}
-                                                  className={clsx(
-                                                      "transition-transform",
-                                                      (menuIsOpen ?? isOpen) && "rotate-90",
-                                                  )}
-                                              />
-                                          </span>
-                                      )
-                                    : undefined,
+                            expandIcon: !collapsed ? renderExpandToggle : undefined,
                         },
                     ]
                 } else {
-                    const node = item.link ? (
+                    const labelClassName = clsx("w-full", item.isPlaceholder && "text-gray-400")
+                    const node = item.isLoading ? (
+                        <span className={labelClassName}>
+                            <Skeleton.Button
+                                active
+                                size="small"
+                                block
+                                className="!h-4 !min-w-[72px]"
+                            />
+                        </span>
+                    ) : item.link ? (
                         <Link
-                            className="w-full"
+                            className={labelClassName}
                             href={item.link}
                             onClick={item.onClick}
                             target={item.link?.startsWith("http") ? "_blank" : undefined}
@@ -157,7 +206,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                             {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
                         </Link>
                     ) : (
-                        <span className="w-full" onClick={item.onClick}>
+                        <span className={labelClassName} onClick={item.onClick}>
                             {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
                         </span>
                     )
@@ -191,7 +240,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                 }
             })
         },
-        [collapsed, navigateToItem, onToggleOpenKey, openKeys],
+        [collapsed, navigateToItem, onPopupOpenChange, onToggleOpenKey, openKeys],
     )
 
     return (
@@ -200,6 +249,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
             items={transformItems(items)}
             {...(mode === "inline" ? {inlineCollapsed: collapsed} : {})}
             {...menuProps}
+            onOpenChange={(keys) => handleOpenChange(keys as string[])}
             onClick={(info) => {
                 menuProps?.onClick?.(info)
                 if (collapsed) {
@@ -212,7 +262,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                 }
             }}
             className={clsx([
-                "!overflow-x-hidden",
+                "!overflow-x-hidden select-none [&_*]:select-none",
                 // The menu shouldn't paint its own surface — let it inherit the
                 // sidebar background so it doesn't read as a lighter band in dark
                 // mode (no-op in light, where the sidebar is already white).
@@ -222,11 +272,11 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                 "[&_.ant-menu-item-icon]:!shrink-0",
                 "!border-0 [&_.ant-menu-item-divider]:!w-full [&_.ant-menu-item-divider]:!my-2",
                 {
-                    "[&_.ant-menu-item]:!w-[94%] [&_.ant-menu-item]:!mx-2 [&_.ant-menu-item]:!pl-3 [&_.ant-menu-submenu-title]:!pl-3 [&_.ant-menu-submenu-title]:!w-[94%] [&_.ant-menu-submenu-title]:!mx-2":
+                    "[&_.ant-menu-item]:!w-[94%] [&_.ant-menu-item]:!mx-2 [&_.ant-menu-item]:!pl-3 [&_.ant-menu-submenu-title]:!pl-3 [&_.ant-menu-submenu-title]:!pr-0 [&_.ant-menu-submenu-title]:!w-[94%] [&_.ant-menu-submenu-title]:!mx-2":
                         !collapsed,
                     "[&_.ag-sidebar-submenu-inline>.ant-menu-sub.ant-menu-inline]:!ml-2 [&_.ag-sidebar-submenu-inline>.ant-menu-sub.ant-menu-inline]:!pl-2":
                         !collapsed,
-                    "[&_.ag-sidebar-submenu-open]:relative [&_.ag-sidebar-submenu-open]:before:pointer-events-none [&_.ag-sidebar-submenu-open]:before:absolute [&_.ag-sidebar-submenu-open]:before:left-[22px] [&_.ag-sidebar-submenu-open]:before:top-[40px] [&_.ag-sidebar-submenu-open]:before:bottom-2 [&_.ag-sidebar-submenu-open]:before:w-px [&_.ag-sidebar-submenu-open]:before:bg-gray-200 [&_.ag-sidebar-submenu-open]:before:content-['']":
+                    "[&_.ag-sidebar-submenu-open]:relative [&_.ag-sidebar-submenu-open]:before:pointer-events-none [&_.ag-sidebar-submenu-open]:before:absolute [&_.ag-sidebar-submenu-open]:before:left-[22px] [&_.ag-sidebar-submenu-open]:before:top-[35px] [&_.ag-sidebar-submenu-open]:before:bottom-2 [&_.ag-sidebar-submenu-open]:before:w-px [&_.ag-sidebar-submenu-open]:before:bg-gray-200 [&_.ag-sidebar-submenu-open]:before:content-['']":
                         !collapsed,
                 },
                 {

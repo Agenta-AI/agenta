@@ -21,6 +21,9 @@ export interface SidebarConfig {
     isAppSection?: boolean
     disabled?: boolean
     dataTour?: string
+    isDynamic?: boolean
+    isLoading?: boolean
+    isPlaceholder?: boolean
 }
 
 export interface SidebarMenuProps {
@@ -30,6 +33,7 @@ export interface SidebarMenuProps {
     mode?: "horizontal" | "vertical" | "inline"
     openKeys?: string[]
     onToggleOpenKey?: (key: string) => void
+    onPopupOpenChange?: (key: string, open: boolean) => void
 }
 
 export type SidebarSelection =
@@ -62,6 +66,7 @@ export interface SidebarScope {
 export interface SidebarShellProps {
     collapsedAtom: PrimitiveAtom<boolean>
     currentPath?: string
+    onPopupOpenChange?: (key: string, open: boolean) => void
     openGroupsAtomFamily: (scopeId: string) => WritableAtom<string[] | undefined, [string[]], void>
     scope: SidebarScope
     theme?: "light" | "dark"

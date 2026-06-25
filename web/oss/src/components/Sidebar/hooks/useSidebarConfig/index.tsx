@@ -1,7 +1,6 @@
-import {AppstoreOutlined, GithubFilled} from "@ant-design/icons"
+import {GithubFilled} from "@ant-design/icons"
 import {
     ChartLineUpIcon,
-    DatabaseIcon,
     DesktopIcon,
     FlaskIcon,
     PaperPlaneIcon,
@@ -21,6 +20,7 @@ import {
 } from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
+import {getEntityKindIcon} from "@/oss/components/References"
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
 import useURL from "@/oss/hooks/useURL"
@@ -31,6 +31,11 @@ import {useAppsData} from "@/oss/state/app"
 import {useAppState} from "@/oss/state/appState"
 import {useOrgData} from "@/oss/state/org"
 
+import {PROMPTS_SIDEBAR_KEY, TESTSETS_SIDEBAR_KEY} from "../../dynamic/registry"
+import {
+    injectDynamicChildren,
+    useSidebarDynamicChildren,
+} from "../../dynamic/useSidebarDynamicChildren"
 import {SidebarConfig} from "../../engine/types"
 
 export const useSidebarConfig = () => {
@@ -42,6 +47,7 @@ export const useSidebarConfig = () => {
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
     const openWidget = useSetAtom(openWidgetAtom)
+    const dynamicChildren = useSidebarDynamicChildren()
     const hasProjectURL = Boolean(projectURL)
     const hasAppContext =
         routeLayer === "app" && Boolean(routedAppId || appURL || recentlyVisitedAppURL)
@@ -63,10 +69,10 @@ export const useSidebarConfig = () => {
             disabled: !hasProjectURL,
         },
         {
-            key: "project-prompts-link",
+            key: PROMPTS_SIDEBAR_KEY,
             title: "Prompts",
             link: `${projectURL}/prompts`,
-            icon: <AppstoreOutlined style={{fontSize: 14}} />,
+            icon: getEntityKindIcon("app"),
             disabled: !hasProjectURL,
         },
         {
@@ -84,10 +90,10 @@ export const useSidebarConfig = () => {
                     disabled: !hasProjectURL,
                 },
                 {
-                    key: "app-testsets-link",
+                    key: TESTSETS_SIDEBAR_KEY,
                     title: "Test sets",
                     link: `${projectURL}/testsets`,
-                    icon: <DatabaseIcon size={14} />,
+                    icon: getEntityKindIcon("testset"),
                     disabled: !hasProjectURL,
                 },
                 {
@@ -248,5 +254,5 @@ export const useSidebarConfig = () => {
         },
     ]
 
-    return sidebarConfig
+    return injectDynamicChildren(sidebarConfig, dynamicChildren)
 }

@@ -1,4 +1,4 @@
-import React, {memo, useCallback, useMemo} from "react"
+import React, {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
 import {Divider, Layout} from "antd"
 import {useAtom} from "jotai"
@@ -37,20 +37,31 @@ const pathMatchesLink = (currentPath: string, link: string) => {
 const findSelectedRoute = (items: SidebarConfig[], currentPath = "") => {
     let matched: SidebarConfig | undefined
     let matchedLength = -1
+    let matchedIsExact = false
     // Full ancestor key chain of the matched item, so every enclosing group auto-opens
     // (supports arbitrary nesting, not just the immediate parent).
     let openKeys: string[] = []
 
     const visit = (nodes: SidebarConfig[], ancestors: string[]) => {
         nodes.forEach((item) => {
-            if (
-                item.link &&
-                pathMatchesLink(currentPath, item.link) &&
-                item.link.length > matchedLength
-            ) {
-                matched = item
-                matchedLength = item.link.length
-                openKeys = ancestors
+            if (item.link && pathMatchesLink(currentPath, item.link)) {
+                const isExact = currentPath === item.link
+                const isSameLength = item.link.length === matchedLength
+                const isBetterMatch =
+                    !matched ||
+                    (isExact && !matchedIsExact) ||
+                    (isExact === matchedIsExact && item.link.length > matchedLength) ||
+                    (isExact === matchedIsExact &&
+                        isSameLength &&
+                        matched.isDynamic &&
+                        !item.isDynamic)
+
+                if (isBetterMatch) {
+                    matched = item
+                    matchedLength = item.link.length
+                    matchedIsExact = isExact
+                    openKeys = ancestors
+                }
             }
 
             if (item.submenu?.length) {
@@ -116,6 +127,9 @@ const findNavigableGroupKeys = (items: SidebarConfig[]) => {
 
 const uniqueKeys = (keys: string[]) => Array.from(new Set(keys))
 
+const haveSameKeys = (left: string[], right: string[]) =>
+    left.length === right.length && left.every((key) => right.includes(key))
+
 const renderSlot = (
     Slot: SidebarSection["before"] | SidebarScope["header"] | SidebarScope["footer"],
     collapsed: boolean,
@@ -127,6 +141,7 @@ const renderSlot = (
 const SidebarShell: React.FC<SidebarShellProps> = ({
     collapsedAtom,
     currentPath,
+    onPopupOpenChange,
     openGroupsAtomFamily,
     scope,
     theme,
@@ -137,6 +152,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         [openGroupsAtomFamily, scope.id],
     )
     const [persistedOpenGroups, setPersistedOpenGroups] = useAtom(openGroupsAtom)
+    const lastSelectedKeyRef = useRef<string | undefined>(undefined)
     const selection = scope.useSelection()
     const sections = scope.useSections()
 
@@ -171,9 +187,27 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     const navigableGroupKeys = useMemo(() => findNavigableGroupKeys(allItems), [allItems])
     const persistedOrDefaultOpenGroups = persistedOpenGroups ?? defaultOpenKeys
     const openKeys = useMemo(
-        () => uniqueKeys([...persistedOrDefaultOpenGroups, ...activeAncestorKeys]),
-        [activeAncestorKeys, persistedOrDefaultOpenGroups],
+        () => uniqueKeys(persistedOrDefaultOpenGroups),
+        [persistedOrDefaultOpenGroups],
     )
+
+    useEffect(() => {
+        if (selectedKey === lastSelectedKeyRef.current && persistedOpenGroups !== undefined) return
+        lastSelectedKeyRef.current = selectedKey
+
+        if (!activeAncestorKeys.length) return
+
+        const nextOpenKeys = uniqueKeys([...persistedOrDefaultOpenGroups, ...activeAncestorKeys])
+        if (haveSameKeys(nextOpenKeys, persistedOrDefaultOpenGroups)) return
+
+        setPersistedOpenGroups(nextOpenKeys)
+    }, [
+        activeAncestorKeys,
+        persistedOpenGroups,
+        persistedOrDefaultOpenGroups,
+        selectedKey,
+        setPersistedOpenGroups,
+    ])
 
     const handleOpenChange = useCallback(
         (keys: string[]) => {
@@ -230,6 +264,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     mode={section.mode}
                     openKeys={openKeys}
                     onToggleOpenKey={handleToggleOpenKey}
+                    onPopupOpenChange={onPopupOpenChange}
                 />
             </React.Fragment>
         )
