@@ -39,6 +39,7 @@ import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {Tag} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
+import {AlertCircle} from "lucide-react"
 
 import {isTerminalStatus} from "../../atoms/compare"
 import {scenarioRowHeightAtom, type ScenarioRowHeight} from "../../state/rowHeight"
@@ -250,6 +251,27 @@ const EtlResolvedCell = ({
 
     const hasValue = !!resolved && resolved.source !== "missing"
 
+    // Extract step error from the results cache when the step that this
+    // column maps to has a failure status and an error payload (e.g.
+    // missing API key, LLM invocation failure). Without this check cells
+    // for failed steps render "—" which is indistinguishable from a step
+    // that just produced no value.
+    const stepError = useMemo<{message: string} | null>(() => {
+        if (!resolved || !resultsFetched) return null
+        const results = (resultsQ.data ??
+            evaluationResultMolecule.get.byScenario({projectId, runId, scenarioId}) ??
+            []) as HydratedScenarioRow["results"]
+        for (const r of results) {
+            if (r.step_key === resolved.stepKey && r.status === "failure" && r.error) {
+                return {
+                    message:
+                        typeof r.error.message === "string" ? r.error.message : String(r.error),
+                }
+            }
+        }
+        return null
+    }, [resolved, resultsFetched, projectId, runId, scenarioId, hydrationVersion, resultsQ.data])
+
     // Is a slice this cell needs still in flight? Distinguishes
     // "slice-not-hydrated" (skeleton) from "genuinely missing" ("—") for
     // a terminal scenario. A slice that the materializer marked failed is
@@ -318,7 +340,19 @@ const EtlResolvedCell = ({
     const isTerminal = isTerminalStatus(scenarioStatus)
 
     let content: React.ReactNode
-    if (hasValue) {
+    if (stepError && isTerminal) {
+        content = (
+            <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1.5 text-red-500">
+                    <AlertCircle size={14} className="flex-shrink-0" />
+                    <span className="text-xs font-medium">Error</span>
+                </div>
+                <span className="scenario-table-text whitespace-pre-wrap text-red-600 text-xs">
+                    {stepError.message}
+                </span>
+            </div>
+        )
+    } else if (hasValue) {
         content = (
             <div
                 className="scenario-table-text w-full"
