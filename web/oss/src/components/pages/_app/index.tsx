@@ -1,4 +1,4 @@
-import {getAgentaSdkClient} from "@agenta/sdk"
+import {configureAgentaSdk} from "@agenta/sdk/config"
 import {default as AppContextComponent} from "@agenta/ui/app-message"
 import {QueryClientProvider} from "@tanstack/react-query"
 import {App as AppComponent} from "antd"
@@ -24,12 +24,13 @@ import AppGlobalWrappers from "../../AppGlobalWrappers"
 
 enableMapSet()
 
-// Pin the workspace Fern-client singleton to the host this deployment
-// actually talks to. Without this the SDK defaults to `https://cloud.agenta.ai`
-// (its built-in fallback) because `AGENTA_HOST` is only set server-side —
-// staging/preview deployments would otherwise issue tools/secrets requests
-// against the production origin.
-getAgentaSdkClient({host: getAgentaApiUrl()})
+// Pin the workspace Fern clients to the host this deployment actually talks to.
+// Without this the SDK defaults to `https://cloud.agenta.ai` (its built-in
+// fallback) because `AGENTA_HOST` is only set server-side — staging/preview
+// deployments would otherwise issue tools/secrets requests against the
+// production origin. Uses the config-only entry so `_app` does not pull the
+// monolithic AgentaApiClient (all 27 resource clients) into the shared bundle.
+configureAgentaSdk({host: getAgentaApiUrl()})
 
 const NoMobilePageWrapper = dynamic(
     () => import("@/oss/components/Placeholders/NoMobilePageWrapper/NoMobilePageWrapper"),
