@@ -47,7 +47,11 @@ from agenta.sdk.agents.connections import (
 from agenta.sdk.agents.platform import resolve_connection
 
 from agenta.sdk.decorators.tracing import auto_instrument
-from agenta.sdk.engines.running.utils import register_handler, register_interface
+from agenta.sdk.engines.running.utils import (
+    register_handler,
+    register_interface,
+    register_meta,
+)
 from agenta.sdk.models.workflows import WorkflowRevisionData
 
 from agenta.sdk.utils.logging import get_module_logger
@@ -296,10 +300,15 @@ def create_agent_app():
     #    only instruments inside `_register_handler`, which it skips once a handler exists in the
     #    registry. Registering the raw `_agent` would lose tracing instrumentation; registering the
     #    instrumented one keeps it (mirrors chat.py, whose registry handler is pre-instrumented).
-    # 2. OVERRIDE the interface registry with the service interface (AGENT_SCHEMAS + the inspect
-    #    `meta`), so `retrieve_interface(AGENT_URI)` returns the SAME data `/inspect` advertises.
-    #    `register_interface` replaces (not setdefault), unlike the SDK's minimal seed.
-    # 3. Build the workflow against the URI. `ag.workflow.__init__` then resolves the (instrumented)
+    # 2. OVERRIDE the interface registry with the service interface (AGENT_SCHEMAS), so
+    #    `retrieve_interface(AGENT_URI)` returns the SAME schemas `/inspect` advertises.
+    #    `register_interface` replaces (not setdefault), unlike the SDK's minimal seed. It carries
+    #    only `WorkflowRevisionData` (schemas), which has no `meta` field — so the inspect `meta`
+    #    goes through `register_meta` (step 3), not here.
+    # 3. Register the inspect `meta` for the URI. The request-driven `/inspect` path builds a fresh
+    #    workflow from the request (which has no `meta`), so the routed instance's `meta=` below
+    #    would not survive; the meta registry is what `workflow.inspect()` reads to emit it.
+    # 4. Build the workflow against the URI. `ag.workflow.__init__` resolves the (instrumented)
     #    handler and merges the registered interface; the passed `schemas`/`meta` still win.
     #
     # The per-harness connection capability rides the inspect response `meta`, NOT a fourth
@@ -313,6 +322,7 @@ def create_agent_app():
         WorkflowRevisionData(uri=AGENT_URI, schemas=AGENT_SCHEMAS),
         uri=AGENT_URI,
     )
+    register_meta(meta, uri=AGENT_URI)
     routed = ag.workflow(uri=AGENT_URI, schemas=AGENT_SCHEMAS, meta=meta)(_agent)
     # is_agent gates the agent-only `/messages` route (next to /invoke).
     ag.route("/", app=app, flags={"is_chat": True, "is_agent": True})(routed)
