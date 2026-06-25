@@ -288,8 +288,9 @@ describe("runSandboxAgent orchestration", () => {
         },
       ],
     );
+    // allow -> once (per-call grant), never always: a turn-wide grant would skip re-gating.
     assert.deepEqual(calls.permissionReplies, [
-      { id: "perm-1", reply: "always" },
+      { id: "perm-1", reply: "once" },
     ]);
   });
 
@@ -630,9 +631,10 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     await flushPromises();
 
     assert.equal(result.ok, true);
-    // Old PolicyResponder("auto") would have replied "always"; the default must match.
+    // Headless auto-allow gates each call individually, so once (this call) is equivalent to
+    // the old always and strictly safer — no turn-wide grant that skips re-gating.
     assert.deepEqual(calls.permissionReplies, [
-      { id: "perm-1", reply: "always" },
+      { id: "perm-1", reply: "once" },
     ]);
   });
 
@@ -668,7 +670,7 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     assert.deepEqual(calls.permissionReplies, []);
   });
 
-  it("human surface with a stored approval resumes the tool (always)", async () => {
+  it("human surface with a stored approval resumes the tool (once)", async () => {
     const { calls, deps } = depsWithDefaultResponder();
 
     const result = await runSandboxAgent(
@@ -678,8 +680,8 @@ describe("runSandboxAgent default HITL responder wiring", () => {
         messages: [
           { role: "user", content: "edit the file" },
           {
-            // The cross-turn approval reply, keyed by the gated tool's name (cold replay
-            // mints a fresh tool-call id "tool-1" each turn, so the name is the anchor).
+            // The cross-turn approval reply. Cold replay mints a fresh tool-call id "tool-1"
+            // each turn, so the anchor is the tool's name + args (here a no-arg edit -> {}).
             role: "tool",
             content: [
               {
@@ -700,8 +702,9 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     await flushPromises();
 
     assert.equal(result.ok, true);
+    // Resumes via the name+args anchor, then grants ONCE (per call), not always.
     assert.deepEqual(calls.permissionReplies, [
-      { id: "perm-1", reply: "always" },
+      { id: "perm-1", reply: "once" },
     ]);
   });
 });

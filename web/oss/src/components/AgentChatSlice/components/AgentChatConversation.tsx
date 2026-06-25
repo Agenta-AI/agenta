@@ -203,7 +203,6 @@ const AgentChatConversation = ({
                     <AgentMessage
                         key={message.id}
                         message={message}
-                        busy={busy}
                         isStreaming={busy && index === messages.length - 1}
                         onRewind={() => handleRewind(message)}
                         onApprovalResponse={addToolApprovalResponse}

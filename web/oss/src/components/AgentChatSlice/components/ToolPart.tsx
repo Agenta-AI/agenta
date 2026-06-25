@@ -65,7 +65,6 @@ interface ToolPartProps {
     part: ToolUIPart
     /** Resolve a pending approval. `id` is the approvalId. */
     onApprovalResponse: (args: {id: string; approved: boolean}) => void
-    disabled?: boolean
 }
 
 /**
@@ -73,13 +72,28 @@ interface ToolPartProps {
  * human-in-the-loop approval round-trip. The FE renders tool calls; it never executes
  * them. Approve/Deny call `addToolApprovalResponse`; the auto-resume (configured on
  * `useChat`) re-sends the conversation and the service streams the tool output.
+ *
+ * Approve/Deny are clickable AS SOON AS the prompt renders — they are NOT gated on the
+ * conversation being idle (F-026). An approval request can only appear while the stream is
+ * still in flight (that's how the event arrives), so gating on `busy` left the buttons
+ * disabled for the whole turn (~70-140s), reading as a hang. `addToolApprovalResponse`
+ * records the decision immediately and the SDK defers the resume until the stream settles
+ * (it re-sends only when status is not streaming/submitted), so clicking mid-stream is safe.
  */
-const ToolPart = ({part, onApprovalResponse, disabled}: ToolPartProps) => {
+const ToolPart = ({part, onApprovalResponse}: ToolPartProps) => {
     const toolName = part.type.replace(/^tool-/, "")
     const state = part.state as string
     const meta = STATE_META[state] ?? {label: state, color: "default"}
     const approval = (part as {approval?: {id: string; approved?: boolean; reason?: string}})
         .approval
+    // Guard against a double-submit between the click and the SDK flipping the part to
+    // `approval-responded` (which removes the buttons). Not tied to the conversation `busy`.
+    const [responding, setResponding] = useState(false)
+    const respond = (approved: boolean) => {
+        if (responding || !approval?.id) return
+        setResponding(true)
+        onApprovalResponse({id: approval.id, approved})
+    }
 
     // Collapsible body. A pending approval is force-expanded so the buttons stay reachable.
     const [open, setOpen] = useState(true)
@@ -156,19 +170,15 @@ const ToolPart = ({part, onApprovalResponse, disabled}: ToolPartProps) => {
                             <Button
                                 size="small"
                                 type="primary"
-                                disabled={disabled}
-                                onClick={() =>
-                                    onApprovalResponse({id: approval.id, approved: true})
-                                }
+                                loading={responding}
+                                onClick={() => respond(true)}
                             >
                                 Approve
                             </Button>
                             <Button
                                 size="small"
-                                disabled={disabled}
-                                onClick={() =>
-                                    onApprovalResponse({id: approval.id, approved: false})
-                                }
+                                disabled={responding}
+                                onClick={() => respond(false)}
                             >
                                 Deny
                             </Button>
