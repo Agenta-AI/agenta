@@ -16,6 +16,7 @@ import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
 import {
   HITLResponder,
   PolicyResponder,
+  approvalKey,
   decisionToReply,
   extractApprovalDecisions,
   policyFromRequest,
@@ -43,11 +44,14 @@ describe("policyFromRequest", () => {
   });
 });
 
-describe("decisionToReply (parity with the old inline mapping)", () => {
-  it("maps allow/deny onto the available replies", () => {
+describe("decisionToReply", () => {
+  it("maps allow to ONCE (never always) so an approval grants only this call", () => {
+    // SECURITY: `always` would let the harness allow the tool broadly for the rest of the
+    // turn without re-gating, re-opening the over-authorization hole. allow -> once, always.
     assert.equal(
       decisionToReply("allow", ["always", "once", "reject"]),
-      "always",
+      "once",
+      "allow must NOT map to always even when always is offered",
     );
     assert.equal(decisionToReply("allow", ["once", "reject"]), "once");
     assert.equal(
@@ -55,6 +59,14 @@ describe("decisionToReply (parity with the old inline mapping)", () => {
       "once",
       "allow falls back to once",
     );
+    assert.equal(
+      decisionToReply("allow", ["always"]),
+      "once",
+      "with only always offered, still fall back to once (never broaden)",
+    );
+  });
+
+  it("maps deny onto reject", () => {
     assert.equal(
       decisionToReply("deny", ["always", "once", "reject"]),
       "reject",
@@ -64,6 +76,56 @@ describe("decisionToReply (parity with the old inline mapping)", () => {
       "reject",
       "deny falls back to reject",
     );
+  });
+});
+
+describe("approvalKey", () => {
+  it("binds name + args, order-independently", () => {
+    assert.equal(
+      approvalKey("edit", { a: 1, b: 2 }),
+      approvalKey("edit", { b: 2, a: 1 }),
+      "key order does not change the key",
+    );
+    assert.notEqual(
+      approvalKey("edit", { path: "a" }),
+      approvalKey("edit", { path: "b" }),
+      "different args -> different key",
+    );
+    assert.notEqual(
+      approvalKey("edit", { path: "a" }),
+      approvalKey("bash", { path: "a" }),
+      "different name -> different key",
+    );
+  });
+
+  it("normalizes absent args to {} so a no-arg tool resumes", () => {
+    // A no-arg tool has nothing to vary; absent/null/empty all key to the same `name#{}`.
+    assert.ok(approvalKey("edit", {}), "empty-object args -> a real key");
+    assert.equal(approvalKey("edit", undefined), approvalKey("edit", {}));
+    assert.equal(approvalKey("edit", null), approvalKey("edit", {}));
+    // But a WITH-args call never collapses to the no-arg key.
+    assert.notEqual(
+      approvalKey("edit", { path: "a" }),
+      approvalKey("edit", {}),
+      "args present -> a different key than no-args",
+    );
+  });
+
+  it("returns no key (fails closed) for no name or non-JSON args", () => {
+    assert.equal(
+      approvalKey(undefined, { a: 1 }),
+      undefined,
+      "no name -> no key",
+    );
+    // Non-JSON args fail closed (no key) rather than throwing or colliding.
+    assert.equal(
+      approvalKey("edit", 10n as unknown),
+      undefined,
+      "bigint -> no key",
+    );
+    assert.equal(approvalKey("edit", new Date()), undefined, "Date -> no key");
+    assert.equal(approvalKey("edit", { x: NaN }), undefined, "NaN -> no key");
+    assert.equal(approvalKey("edit", new Map()), undefined, "Map -> no key");
   });
 });
 
@@ -78,12 +140,18 @@ describe("PolicyResponder", () => {
 });
 
 // A permission request as the harness adapter shapes it: `raw.toolCall` carries the gated
-// tool's id + name, which is what the responder keys a stored decision by.
-function permReq(toolCallId?: string, name?: string): PermissionRequest {
+// tool's id, name, and args (`rawInput`), which is what the responder keys a stored decision
+// by. `name` is optional so a test can simulate the live ACP wire (which carries `title`/
+// `kind`, not `name`).
+function permReq(
+  toolCallId?: string,
+  name?: string,
+  rawInput?: unknown,
+): PermissionRequest {
   return {
     id: "perm-1",
     availableReplies: ["once", "always", "reject"],
-    raw: { id: "perm-1", toolCall: { toolCallId, name } },
+    raw: { id: "perm-1", toolCall: { toolCallId, name, rawInput } },
   };
 }
 
@@ -98,13 +166,61 @@ describe("HITLResponder", () => {
     assert.equal(await deny.onPermission(permReq("tc-2", "edit")), "deny");
   });
 
-  it("matches a stored decision by tool name when the id was not preserved", async () => {
+  it("matches a stored decision by tool name + args when the id was not preserved (cold replay)", async () => {
+    // The parked turn approved edit({path:'a.txt'}); a cold replay mints a FRESH tool-call id
+    // for the SAME call, so the id no longer matches — but the name + args anchor does.
+    const decisions = new Map<string, PermissionDecision>([
+      [approvalKey("edit", { path: "a.txt" })!, "allow"],
+    ]);
+    const responder = new HITLResponder(decisions, "auto", true);
+    assert.equal(
+      await responder.onPermission(
+        permReq("fresh-id", "edit", { path: "a.txt" }),
+      ),
+      "allow",
+    );
+  });
+
+  it("SECURITY: approving call A does NOT auto-approve a later call B to the same tool with different args", async () => {
+    // The HITL bypass this guards against: a stored `allow` for edit({path:'a.txt'}) must NOT
+    // leak to a NEW edit call with DIFFERENT args (e.g. a sensitive path). B must re-prompt.
+    const decisions = new Map<string, PermissionDecision>([
+      [approvalKey("edit", { path: "a.txt" })!, "allow"],
+    ]);
+    const responder = new HITLResponder(decisions, "auto", true);
+    // Same tool name, different args, brand-new id -> no stored match -> park (re-prompt).
+    assert.equal(
+      await responder.onPermission(
+        permReq("call-b", "edit", { path: "/etc/shadow" }),
+      ),
+      "park",
+      "a different-args call to the same tool must re-prompt, not auto-approve",
+    );
+    // And argument-order does not let B slip through under A's key.
+    const orderDecisions = new Map<string, PermissionDecision>([
+      [approvalKey("edit", { a: 1, b: 2 })!, "allow"],
+    ]);
+    const orderResponder = new HITLResponder(orderDecisions, "auto", true);
+    assert.equal(
+      await orderResponder.onPermission(
+        permReq("call-c", "edit", { b: 2, a: 1 }),
+      ),
+      "allow",
+      "the same args in a different key order is the same call (resumes)",
+    );
+  });
+
+  it("SECURITY: bare tool NAME is not a key — a stored bare-name entry never auto-approves", async () => {
+    // Defense in depth: even if a bare tool name somehow lands in the map, the responder must
+    // not honor it (it only consults the id key and the name+args key).
     const decisions = new Map<string, PermissionDecision>([["edit", "allow"]]);
     const responder = new HITLResponder(decisions, "auto", true);
-    // Fresh tool-call id this turn, but the name still matches the recorded decision.
     assert.equal(
-      await responder.onPermission(permReq("fresh-id", "edit")),
-      "allow",
+      await responder.onPermission(
+        permReq("fresh-id", "edit", { path: "a.txt" }),
+      ),
+      "park",
+      "a bare-name entry must not auto-approve a real call",
     );
   });
 
@@ -141,7 +257,7 @@ describe("HITLResponder", () => {
 });
 
 describe("extractApprovalDecisions", () => {
-  it("builds the lookup from approval tool_result blocks, keyed by id and name", () => {
+  it("builds the lookup from approval tool_result blocks, keyed by id and by name+args (not bare name)", () => {
     const request: AgentRunRequest = {
       sessionId: "s-1",
       messages: [
@@ -153,7 +269,7 @@ describe("extractApprovalDecisions", () => {
               type: "tool_call",
               toolCallId: "tc-1",
               toolName: "edit",
-              input: {},
+              input: { path: "a.txt" },
             },
           ],
         },
@@ -171,6 +287,7 @@ describe("extractApprovalDecisions", () => {
               type: "tool_result",
               toolCallId: "tc-2",
               toolName: "bash",
+              input: { cmd: "ls" },
               output: { approved: false },
             },
           ],
@@ -179,10 +296,19 @@ describe("extractApprovalDecisions", () => {
     };
 
     const decisions = extractApprovalDecisions(request);
-    assert.equal(decisions.get("tc-1"), "allow");
-    assert.equal(decisions.get("edit"), "allow");
-    assert.equal(decisions.get("tc-2"), "deny");
-    assert.equal(decisions.get("bash"), "deny");
+    // ONLY the name+args anchor is keyed (recovered from the correlated tool_call block).
+    assert.equal(
+      decisions.get(approvalKey("edit", { path: "a.txt" })!),
+      "allow",
+    );
+    assert.equal(decisions.get(approvalKey("bash", { cmd: "ls" })!), "deny");
+    // The bare tool NAME must NOT be a key (that was the HITL-bypass).
+    assert.equal(decisions.has("edit"), false, "no bare-name key");
+    assert.equal(decisions.has("bash"), false, "no bare-name key");
+    // The historical replayed tool-call id must NOT be a key (cold replay mints fresh ids;
+    // a stored historical id could only ever match a fresh one by collision -> args-blind).
+    assert.equal(decisions.has("tc-1"), false, "no replayed-id key");
+    assert.equal(decisions.has("tc-2"), false, "no replayed-id key");
   });
 
   it("ignores ordinary tool results that are not approval envelopes", () => {
@@ -211,11 +337,13 @@ describe("extractApprovalDecisions", () => {
   });
 
   it("returns an empty lookup when there are no structured messages (headless /invoke)", () => {
-    const request: AgentRunRequest = { prompt: "just a single turn" };
+    const request: AgentRunRequest = {
+      messages: [{ role: "user", content: "just a single turn" }],
+    };
     assert.equal(extractApprovalDecisions(request).size, 0);
   });
 
-  it("end-to-end: an extracted decision resumes a parked permission", async () => {
+  it("end-to-end: an extracted decision resumes via name+args when the approval block names the tool", async () => {
     const request: AgentRunRequest = {
       sessionId: "s-2",
       messages: [
@@ -226,6 +354,7 @@ describe("extractApprovalDecisions", () => {
               type: "tool_result",
               toolCallId: "tc-1",
               toolName: "edit",
+              input: { path: "a.txt" },
               output: { approved: true },
             },
           ],
@@ -237,9 +366,64 @@ describe("extractApprovalDecisions", () => {
       "auto",
       true, // human surface present, but the stored decision wins over the park
     );
+    // Resolves on the name+args anchor (the replayed id is NOT a key).
     assert.equal(
-      await responder.onPermission(permReq("tc-1", "edit")),
+      await responder.onPermission(permReq("tc-1", "edit", { path: "a.txt" })),
       "allow",
+    );
+  });
+
+  it("end-to-end: a cold replay (FRESH id) resumes the parked call by name+args", async () => {
+    // The parked call: edit({path:'a.txt'}) approved. A cold replay rebuilds the session and
+    // mints a fresh tool-call id; the id no longer matches, but the name + args anchor does.
+    const request: AgentRunRequest = {
+      sessionId: "s-3",
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: "tc-1",
+              toolName: "edit",
+              input: { path: "a.txt" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            // The approval reply may carry only the id + the {approved} envelope; the name +
+            // args are recovered from the correlated tool_call block above.
+            {
+              type: "tool_result",
+              toolCallId: "tc-1",
+              output: { approved: true },
+            },
+          ],
+        },
+      ],
+    };
+    const responder = new HITLResponder(
+      extractApprovalDecisions(request),
+      "auto",
+      true,
+    );
+    // Fresh id this turn, but same name + args -> resolves (resume works).
+    assert.equal(
+      await responder.onPermission(
+        permReq("fresh-id", "edit", { path: "a.txt" }),
+      ),
+      "allow",
+      "the parked call resumes under a fresh id via the name+args anchor",
+    );
+    // SECURITY end-to-end: a different-args call to the same tool re-prompts (no leak).
+    assert.equal(
+      await responder.onPermission(
+        permReq("other-id", "edit", { path: "/etc/passwd" }),
+      ),
+      "park",
+      "a different-args call must NOT inherit the earlier approval",
     );
   });
 });

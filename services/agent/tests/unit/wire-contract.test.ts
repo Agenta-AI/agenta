@@ -137,6 +137,15 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(settings.permissions.defaultMode, "acceptEdits");
     assert.deepEqual(settings.permissions.allow, ["Read", "Bash(npm run:*)"]);
     assert.deepEqual(settings.permissions.deny, ["WebFetch"]);
+    // Claude carries resolved inline skills on the same `skills` seam Pi uses; the runner
+    // installs them into Claude's project-local `.claude/skills/<name>` tree. This regressed
+    // twice via merge-loss, so the cross-language golden pins it for Claude, not just Pi.
+    const skill = req.skills![0];
+    assert.equal(skill.name, "release-notes");
+    assert.equal(skill.body, "Read the changelog, then write release notes.");
+    assert.equal(skill.disableModelInvocation, true);
+    assert.equal(skill.files![0].path, "scripts/draft.py");
+    assert.equal(skill.files![0].executable, true);
     // sessionId is null on the wire, so the runner falls back to its ephemeral id.
     assert.equal(
       resolveRunSessionId(req, "runner-ephemeral"),

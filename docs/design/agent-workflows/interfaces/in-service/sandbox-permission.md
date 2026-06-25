@@ -16,14 +16,18 @@ a run from passing to failing, so the matrix is the contract.
     "allowlist": []                // CIDR ranges; honored when mode is "allowlist"
   },
   "filesystem": null,              // "on" | "readonly" | "off"; declared, enforced nowhere
-  "enforcement": "strict"          // "strict" (fail if it cannot be applied) | "best_effort"
+  "enforcement": "strict"          // "strict" (fail if it cannot be applied) | "best_effort"; omitted defaults to "strict"
 }
 ```
 
 It is optional on `AgentConfig`. An unset value never reaches the wire, so existing configs
 are unaffected. The default config the form pre-fills sets `network.mode: "on"` and
 `enforcement: "strict"`. The wire form is the nested camelCase `sandboxPermission` object on
-the `/run` payload.
+the `/run` payload. The Python schema (`WireSandboxPermission.enforcement`) defaults
+`enforcement` to `"strict"`, and the runner now matches: `buildRunPlan` treats an omitted
+`enforcement` as strict (`enforcement !== "best_effort"`), so only an explicit `"best_effort"`
+opts out of the hard-guarantee check (Codex LOW-6). The live service always fills `"strict"`;
+this only aligns a direct runner caller.
 
 The field-by-field narrative of these shapes lives in
 [Agent config schema](../public-edge/agent-config-schema.md#sandbox_permission). This page

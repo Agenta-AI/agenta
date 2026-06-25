@@ -183,6 +183,11 @@ hardening](#later--deferred-hardening) subsection below — it is NOT part of th
    exposure. **IMPLEMENTED:** when `AGENTA_AGENT_RUNNER_TOKEN` is set, `server.ts` requires it
    on `/run` (`Authorization: Bearer <token>` or `X-Agenta-Runner-Token: <token>`,
    constant-time compare) and returns 401 otherwise; `/health` stays open for liveness probes.
+   **Both sides now read the same env var** (Codex LOW-5): the SDK transport
+   (`sdks/.../utils/ts_runner.py` `_runner_auth_headers`) reads `AGENTA_AGENT_RUNNER_TOKEN`
+   and presents `Authorization: Bearer <token>` on the HTTP `/run` POST + NDJSON stream when
+   set, so turning the gate on no longer locks the Python service out; unset = no header
+   (loopback default unchanged).
 
 Rationale: steps 1–2 are config-only, make the implicit assumption real and auditable, and
 need no wire-contract change or cert/key machinery. They are the whole near-term ask.

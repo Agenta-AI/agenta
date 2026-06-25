@@ -133,7 +133,40 @@ def _tool_part_blocks(part: Dict[str, Any], ptype: str) -> List[ContentBlock]:
                 is_error=False,
             )
         )
+    else:
+        # HITL cross-turn resume: the AI SDK keeps the approval decision INLINE on the
+        # tool part — `state: "approval-responded"` (approve OR deny) or the terminal
+        # `state: "output-denied"` — with `approval.approved`. The verbatim UIMessage
+        # path posts this part as-is, so without emitting the `{approved}` envelope here
+        # the runner never learns the decision and re-parks the gate (a deny then
+        # dead-ends). Translate it into the same `tool_result` envelope the dedicated
+        # `tool-approval-response` part produces, keyed by toolCallId, so
+        # `extractApprovalDecisions` resolves the parked gate.
+        approved = _approval_decision(part, state)
+        if approved is not None:
+            blocks.append(
+                ContentBlock(
+                    type="tool_result",
+                    tool_call_id=tool_call_id,
+                    tool_name=tool_name,
+                    output={"approved": approved},
+                )
+            )
     return blocks
+
+
+def _approval_decision(part: Dict[str, Any], state: Optional[str]) -> Optional[bool]:
+    """The inline HITL decision on a tool part, or ``None`` if it carries none.
+
+    Reads `approval.approved` (the AI SDK shape) and falls back to `output-denied`
+    (the terminal deny state has no `approval.approved` flag) meaning denied.
+    """
+    approval = part.get("approval")
+    if isinstance(approval, dict) and isinstance(approval.get("approved"), bool):
+        return approval["approved"]
+    if state == "output-denied":
+        return False
+    return None
 
 
 def _approval_response_blocks(part: Dict[str, Any]) -> List[ContentBlock]:

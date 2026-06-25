@@ -35,6 +35,20 @@ export type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
 export const USER_MCP_UNSUPPORTED_MESSAGE =
   "MCP servers are not supported by the sidecar.";
 
+/**
+ * Pi-family refusal for ANY user-declared MCP server (stdio AND http). The Pi runtime delivers
+ * tools through the bundled Agenta extension, not over ACP MCP (`buildSessionMcpServers` returns
+ * `[]` for Pi), so a user MCP server attached to a Pi run would be DROPPED — silently, with no
+ * log and an HTTP 200. That is exactly the silent-drop F-032 forbids. The `run-plan.ts` gate
+ * refuses it up front (the way the stdio-MCP and code-tool gates do) so the failure is loud
+ * instead of a "successful" empty run. Http MCP is a Claude-only capability (#4834); pick a
+ * non-Pi harness to use one.
+ */
+export const PI_USER_MCP_UNSUPPORTED_MESSAGE =
+  "User MCP servers are not supported on the Pi harness (Pi delivers tools through its bundled " +
+  "extension, not MCP). Use a non-Pi harness (e.g. claude) for a user MCP server, or remove " +
+  "mcpServers.";
+
 /** ACP McpServerStdio entry: env is a list of {name, value}. Kept for the disabled user path. */
 interface EnvVariable {
   name: string;

@@ -198,7 +198,8 @@ function orderParentFirst(spans: ReadableSpan[]): ReadableSpan[] {
   const ordered: ReadableSpan[] = [];
   const visit = (s: ReadableSpan) => {
     ordered.push(s);
-    for (const child of childrenOf.get(s.spanContext().spanId) ?? []) visit(child);
+    for (const child of childrenOf.get(s.spanContext().spanId) ?? [])
+      visit(child);
   };
   roots.forEach(visit);
   // Any spans not reached (defensive) get appended so nothing is dropped.
@@ -221,7 +222,8 @@ function parentContext(traceparent?: string): Context | undefined {
     traceId,
     spanId,
     // Honor the incoming sampled bit; default to sampled so child spans record.
-    traceFlags: (parseInt(flags, 16) & 1) === 1 ? TraceFlags.SAMPLED : TraceFlags.NONE,
+    traceFlags:
+      (parseInt(flags, 16) & 1) === 1 ? TraceFlags.SAMPLED : TraceFlags.NONE,
     isRemote: true,
   };
   return trace.setSpanContext(ROOT_CONTEXT, spanContext);
@@ -249,6 +251,12 @@ export interface RunConfig {
   provider?: string;
   /** Resolved model id, set after the model is picked. */
   requestModel?: string;
+  /**
+   * Skill names materialized for this run (author + forced `_agenta.*`), stamped on the agent
+   * span so a trace shows which skills loaded (F-029). Set on the local-Pi path, where Pi's own
+   * extension owns the agent span (the runner's sandbox-agent otel is span-less there).
+   */
+  skills?: string[];
   /** Filled by the extension on agent_start so the runner can flush/return it. */
   traceId?: string;
 }
@@ -354,7 +362,9 @@ function applyAssistant(span: Span, msg: any, capture: boolean): void {
     span.setAttribute("gen_ai.response.model", msg.responseModel ?? msg.model);
   if (msg.responseId) span.setAttribute("gen_ai.response.id", msg.responseId);
   if (msg.stopReason)
-    span.setAttribute("gen_ai.response.finish_reasons", [String(msg.stopReason)]);
+    span.setAttribute("gen_ai.response.finish_reasons", [
+      String(msg.stopReason),
+    ]);
 
   const u = msg.usage;
   if (u) {
@@ -372,8 +382,12 @@ function applyAssistant(span: Span, msg: any, capture: boolean): void {
     if (u.cacheRead)
       span.setAttribute("gen_ai.usage.cache_read_input_tokens", u.cacheRead);
     if (u.cacheWrite)
-      span.setAttribute("gen_ai.usage.cache_creation_input_tokens", u.cacheWrite);
-    if (u.cost?.total != null) span.setAttribute("gen_ai.usage.cost", u.cost.total);
+      span.setAttribute(
+        "gen_ai.usage.cache_creation_input_tokens",
+        u.cacheWrite,
+      );
+    if (u.cost?.total != null)
+      span.setAttribute("gen_ai.usage.cost", u.cost.total);
   }
 
   emitMessages(span, "llm.output_messages", [msg], capture);
@@ -415,6 +429,7 @@ export function createAgentaOtel(
     sessionId: init.sessionId,
     provider: init.provider,
     requestModel: init.requestModel,
+    skills: init.skills,
   };
 
   const tracer = trace.getTracer("agenta-pi-otel", "0.1.0");
@@ -457,11 +472,24 @@ export function createAgentaOtel(
       agentSpan.setAttribute("openinference.span.kind", "AGENT");
       agentSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
       agentSpan.setAttribute("gen_ai.agent.name", "pi");
+      // F-029/F-036: record which skills loaded on Pi's own agent span under the recognized
+      // `ag.meta.*` namespace, so a local-Pi trace shows the surfaced skills (not just the author
+      // config echoed elsewhere) AND Agenta's OTel ingest keeps them in a first-class `ag.*` bucket
+      // rather than relocating an unrecognized `ag.agent.*` key to `ag.unsupported.*`. The set is
+      // passed from the runner via AGENTA_SKILLS_LOADED.
+      if (config.skills && config.skills.length > 0) {
+        agentSpan.setAttribute("ag.meta.skills.loaded", config.skills);
+        agentSpan.setAttribute("ag.meta.skills.count", config.skills.length);
+      }
       if (config.sessionId) {
         agentSpan.setAttribute("session.id", config.sessionId);
         agentSpan.setAttribute("gen_ai.conversation.id", config.sessionId);
       }
-      setInputs(agentSpan, { prompt: pendingPrompt ?? "" }, config.captureContent);
+      setInputs(
+        agentSpan,
+        { prompt: pendingPrompt ?? "" },
+        config.captureContent,
+      );
 
       const traceId = agentSpan.spanContext().traceId;
       config.traceId = traceId;
@@ -479,24 +507,39 @@ export function createAgentaOtel(
 
     pi.on("turn_start", async (event: any) => {
       const parent = agentCtx ?? context.active();
-      const name = event?.turnIndex != null ? `turn ${event.turnIndex}` : "turn";
+      const name =
+        event?.turnIndex != null ? `turn ${event.turnIndex}` : "turn";
       const span = tracer.startSpan(name, undefined, parent);
       span.setAttribute("openinference.span.kind", "CHAIN");
-      if (event?.turnIndex != null) span.setAttribute("pi.turn.index", event.turnIndex);
-      currentTurn = { span, ctx: trace.setSpan(parent, span), index: event?.turnIndex };
+      if (event?.turnIndex != null)
+        span.setAttribute("pi.turn.index", event.turnIndex);
+      currentTurn = {
+        span,
+        ctx: trace.setSpan(parent, span),
+        index: event?.turnIndex,
+      };
     });
 
     pi.on("before_provider_request", async (_event: any, ctx: any) => {
       const parent = currentTurn?.ctx ?? agentCtx ?? context.active();
       const modelId = config.requestModel ?? ctx?.model?.id;
       const providerName = config.provider ?? ctx?.model?.provider;
-      llmSpan = tracer.startSpan(modelId ? `chat ${modelId}` : "chat", undefined, parent);
+      llmSpan = tracer.startSpan(
+        modelId ? `chat ${modelId}` : "chat",
+        undefined,
+        parent,
+      );
       llmSpan.setAttribute("openinference.span.kind", "LLM");
       llmSpan.setAttribute("gen_ai.operation.name", "chat");
       if (providerName) llmSpan.setAttribute("gen_ai.system", providerName);
       if (modelId) llmSpan.setAttribute("gen_ai.request.model", modelId);
       if (lastContextMessages)
-        emitMessages(llmSpan, "llm.input_messages", lastContextMessages, config.captureContent);
+        emitMessages(
+          llmSpan,
+          "llm.input_messages",
+          lastContextMessages,
+          config.captureContent,
+        );
     });
 
     pi.on("message_end", async (event: any) => {
@@ -510,18 +553,28 @@ export function createAgentaOtel(
 
     pi.on("tool_execution_start", async (event: any) => {
       const parent = currentTurn?.ctx ?? agentCtx ?? context.active();
-      const name = event?.toolName ? `execute_tool ${event.toolName}` : "execute_tool";
+      const name = event?.toolName
+        ? `execute_tool ${event.toolName}`
+        : "execute_tool";
       const span = tracer.startSpan(name, undefined, parent);
       span.setAttribute("openinference.span.kind", "TOOL");
       span.setAttribute("gen_ai.operation.name", "execute_tool");
-      if (event?.toolName) span.setAttribute("gen_ai.tool.name", event.toolName);
-      if (event?.toolCallId) span.setAttribute("gen_ai.tool.call.id", event.toolCallId);
-      setInputs(span, (event?.args as Record<string, unknown>) ?? {}, config.captureContent);
+      if (event?.toolName)
+        span.setAttribute("gen_ai.tool.name", event.toolName);
+      if (event?.toolCallId)
+        span.setAttribute("gen_ai.tool.call.id", event.toolCallId);
+      setInputs(
+        span,
+        (event?.args as Record<string, unknown>) ?? {},
+        config.captureContent,
+      );
       if (event?.toolCallId) toolSpans.set(event.toolCallId, span);
     });
 
     pi.on("tool_execution_end", async (event: any) => {
-      const span = event?.toolCallId ? toolSpans.get(event.toolCallId) : undefined;
+      const span = event?.toolCallId
+        ? toolSpans.get(event.toolCallId)
+        : undefined;
       if (!span) return;
       setOutput(span, toolResultText(event?.result), config.captureContent);
       if (event?.isError) span.setStatus({ code: SpanStatusCode.ERROR });
@@ -546,16 +599,24 @@ export function createAgentaOtel(
 
     pi.on("agent_end", async (event: any) => {
       if (!agentSpan) return;
-      setOutput(agentSpan, lastAssistantText(event?.messages), config.captureContent);
+      setOutput(
+        agentSpan,
+        lastAssistantText(event?.messages),
+        config.captureContent,
+      );
       // Stamp the run total on the agent span so it shows the agent's tokens/cost even
       // though Agenta cannot roll the per-turn LLM spans up across batches.
       if (runUsage.total > 0) {
         agentSpan.setAttribute("gen_ai.usage.input_tokens", runUsage.input);
         agentSpan.setAttribute("gen_ai.usage.output_tokens", runUsage.output);
         agentSpan.setAttribute("gen_ai.usage.prompt_tokens", runUsage.input);
-        agentSpan.setAttribute("gen_ai.usage.completion_tokens", runUsage.output);
+        agentSpan.setAttribute(
+          "gen_ai.usage.completion_tokens",
+          runUsage.output,
+        );
         agentSpan.setAttribute("gen_ai.usage.total_tokens", runUsage.total);
-        if (runUsage.cost > 0) agentSpan.setAttribute("gen_ai.usage.cost", runUsage.cost);
+        if (runUsage.cost > 0)
+          agentSpan.setAttribute("gen_ai.usage.cost", runUsage.cost);
       }
       agentSpan.end();
       agentSpan = undefined;
@@ -593,7 +654,8 @@ export function createAgentaOtel(
 function acpBlockText(block: any): string {
   if (!block) return "";
   if (typeof block === "string") return block;
-  if (block.type === "text" && typeof block.text === "string") return block.text;
+  if (block.type === "text" && typeof block.text === "string")
+    return block.text;
   return "";
 }
 
@@ -727,6 +789,12 @@ export interface SandboxAgentOtelInit extends Partial<RunConfig> {
   /** Resolved model id ("openai-codex/gpt-5.5"); set on the LLM span. */
   model?: string;
   /**
+   * Skill names actually materialized for this run — BOTH the author-supplied skills and the
+   * forced Agenta platform `_agenta.*` skills the server injected. Stamped on the agent span so
+   * a trace shows which skills loaded (F-029), not just the author config echoed elsewhere.
+   */
+  skills?: string[];
+  /**
    * Emit the span tree from the ACP event stream. Default true. Set false when the
    * harness instruments itself (e.g. Pi via the agenta extension propagates the trace
    * context and emits its own real turn/chat/tool spans) — then this only accumulates
@@ -756,6 +824,12 @@ export interface SandboxAgentOtel {
   emitEvent(event: AgentEvent): void;
   /** End all open spans. Returns the accumulated assistant text. */
   finish(): string;
+  /**
+   * Record a run-level error on the agent span: the user-facing message (F-030) plus the
+   * provider that failed, and an OTel exception event, so a trace carries the same diagnostic
+   * the HTTP response does (it previously showed only an error COUNT). Call before finish/flush.
+   */
+  recordError(message: string, provider?: string): void;
   /** Set final run usage before finish/flush so events and exported spans carry final totals. */
   setUsage(usage: AgentUsage | undefined): void;
   /** Flush this run's trace to Agenta (invoke_agent has a remote parent). */
@@ -774,7 +848,9 @@ export interface SandboxAgentOtel {
  * Build an ACP-event-driven tracer scoped to a single sandbox-agent run. Call `start` once,
  * `handleUpdate` for every ACP session update, then `finish` + `await flush`.
  */
-export function createSandboxAgentOtel(init: SandboxAgentOtelInit): SandboxAgentOtel {
+export function createSandboxAgentOtel(
+  init: SandboxAgentOtelInit,
+): SandboxAgentOtel {
   ensureProvider();
 
   const capture = init.captureContent !== false;
@@ -918,10 +994,16 @@ export function createSandboxAgentOtel(init: SandboxAgentOtelInit): SandboxAgent
       record({ type: "reasoning_start", id: reasoningBlockId });
     }
     record({ type: "reasoning_delta", id: reasoningBlockId, delta });
-    reasoningEmitted = target.startsWith(reasoningEmitted) ? target : reasoningEmitted + delta;
+    reasoningEmitted = target.startsWith(reasoningEmitted)
+      ? target
+      : reasoningEmitted + delta;
   }
 
-  function start(input: { prompt?: string; messages?: any[]; sessionId?: string }): void {
+  function start(input: {
+    prompt?: string;
+    messages?: any[];
+    sessionId?: string;
+  }): void {
     // Span-less mode (harness self-instruments): only track the trace id so the run can
     // report it; the harness emits the spans under the propagated parent.
     if (!emitSpans) {
@@ -934,6 +1016,15 @@ export function createSandboxAgentOtel(init: SandboxAgentOtelInit): SandboxAgent
     agentSpan.setAttribute("openinference.span.kind", "AGENT");
     agentSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
     agentSpan.setAttribute("gen_ai.agent.name", init.harness ?? "agent");
+    // F-029/F-036: stamp the skills that actually materialized so a trace shows which skills
+    // loaded (not just the author config echoed on the workflow span), under the recognized
+    // `ag.meta.*` namespace. Agenta's OTel ingest strict-whitelists top-level `ag.*` keys and
+    // relocates unrecognized ones (an `ag.agent.*` key) to `ag.unsupported.*`; `ag.meta` is a
+    // free-form recognized bucket, the same place run/request metadata already lands.
+    if (init.skills && init.skills.length > 0) {
+      agentSpan.setAttribute("ag.meta.skills.loaded", init.skills);
+      agentSpan.setAttribute("ag.meta.skills.count", init.skills.length);
+    }
     const sessionId = input.sessionId ?? init.sessionId;
     if (sessionId) {
       agentSpan.setAttribute("session.id", sessionId);
@@ -950,7 +1041,11 @@ export function createSandboxAgentOtel(init: SandboxAgentOtelInit): SandboxAgent
     turnSpan.setAttribute("pi.turn.index", 0);
     turnCtx = trace.setSpan(agentCtx, turnSpan);
 
-    llmSpan = tracer.startSpan(modelId ? `chat ${modelId}` : "chat", undefined, turnCtx);
+    llmSpan = tracer.startSpan(
+      modelId ? `chat ${modelId}` : "chat",
+      undefined,
+      turnCtx,
+    );
     llmSpan.setAttribute("openinference.span.kind", "LLM");
     llmSpan.setAttribute("gen_ai.operation.name", "chat");
     if (provider) llmSpan.setAttribute("gen_ai.system", provider);
@@ -1009,7 +1104,12 @@ export function createSandboxAgentOtel(init: SandboxAgentOtelInit): SandboxAgent
           setInputs(span, update.rawInput as Record<string, unknown>, capture);
       }
       toolSpans.set(id, { span, name: String(name) });
-      record({ type: "tool_call", id: String(id), name: String(name), input: update.rawInput });
+      record({
+        type: "tool_call",
+        id: String(id),
+        name: String(name),
+        input: update.rawInput,
+      });
       // A tool_call can arrive already completed (status set up front).
       maybeCloseTool(id, update);
       return;
@@ -1029,8 +1129,8 @@ export function createSandboxAgentOtel(init: SandboxAgentOtelInit): SandboxAgent
       usage = {
         input: usage?.input ?? 0,
         output: usage?.output ?? 0,
-        total: typeof total === "number" ? total : usage?.total ?? 0,
-        cost: typeof cost === "number" ? cost : usage?.cost ?? 0,
+        total: typeof total === "number" ? total : (usage?.total ?? 0),
+        cost: typeof cost === "number" ? cost : (usage?.cost ?? 0),
       };
       record({ type: "usage", ...usage });
     }
@@ -1043,14 +1143,71 @@ export function createSandboxAgentOtel(init: SandboxAgentOtelInit): SandboxAgent
     if (!entry) return;
     const status = update?.status;
     if (status !== "completed" && status !== "failed") return;
-    const out = acpToolContentText(update.content) || acpToolContentText(update.rawOutput);
+    const out =
+      acpToolContentText(update.content) ||
+      acpToolContentText(update.rawOutput);
     if (entry.span) {
       setOutput(entry.span, out, capture);
-      if (status === "failed") entry.span.setStatus({ code: SpanStatusCode.ERROR });
+      if (status === "failed")
+        entry.span.setStatus({ code: SpanStatusCode.ERROR });
       entry.span.end();
     }
     toolSpans.delete(id);
-    record({ type: "tool_result", id, output: out, isError: status === "failed" });
+    record({
+      type: "tool_result",
+      id,
+      output: out,
+      isError: status === "failed",
+    });
+  }
+
+  /**
+   * Stamp a run-level error (the user-facing message + the provider that failed) and an OTel
+   * exception event so a trace carries the same diagnostic the HTTP response does (F-030).
+   *
+   * Two cases:
+   *  - This tracer owns the agent span (emitSpans=true: Claude / gateway / Daytona) — stamp it
+   *    directly, before finish() ends it.
+   *  - The harness self-instruments (emitSpans=false: local Pi emits its own spans in another
+   *    process, which never carry the error and are already flushed) — emit a standalone error
+   *    span as a child of the caller's traceparent, so the error still reaches the /invoke trace.
+   * Idempotent and best-effort: a second call or a tracing failure must never break the run.
+   */
+  function recordError(message: string, errorProvider?: string): void {
+    const text = message || "agent run failed";
+    const stamp = (span: Span): void => {
+      // F-036: use the recognized `ag.exception.*` namespace (a free-form recognized bucket)
+      // rather than `ag.error.*`, which Agenta's OTel ingest relocates to `ag.unsupported.*`
+      // (unrecognized top-level `ag.*` key). `message` mirrors the OTel exception event below.
+      span.setAttribute("ag.exception.message", text);
+      const failedProvider = errorProvider ?? provider;
+      if (failedProvider)
+        span.setAttribute("ag.exception.provider", failedProvider);
+      span.recordException({ name: "AgentRunError", message: text });
+      span.setStatus({ code: SpanStatusCode.ERROR, message: text });
+    };
+    try {
+      if (agentSpan) {
+        stamp(agentSpan);
+        return;
+      }
+      // No owned span (harness self-instruments). Emit a standalone error span under the
+      // caller's traceparent so the failure is visible in the /invoke trace.
+      const parent = parentContext(init.traceparent);
+      const errSpan = tracer.startSpan("agent_error", undefined, parent);
+      errSpan.setAttribute("openinference.span.kind", "AGENT");
+      errSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
+      errSpan.setAttribute("gen_ai.agent.name", init.harness ?? "agent");
+      stamp(errSpan);
+      errSpan.end();
+      // The standalone span shares the caller's trace id; make sure the run reports it so the
+      // engine flushes this trace (a self-instrumenting run otherwise only tracked it from the
+      // traceparent, which is the same id — but set it defensively if it was never resolved).
+      runTraceId = runTraceId ?? errSpan.spanContext().traceId;
+      traceTargets.set(runTraceId, { endpoint, authorization });
+    } catch {
+      // tracing must never break the run
+    }
   }
 
   function finish(): string {
@@ -1110,6 +1267,7 @@ export function createSandboxAgentOtel(init: SandboxAgentOtelInit): SandboxAgent
     handleUpdate,
     emitEvent: record,
     finish,
+    recordError,
     setUsage,
     flush: () => flushTrace(runTraceId),
     traceId: () => runTraceId,

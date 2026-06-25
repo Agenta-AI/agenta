@@ -26,7 +26,10 @@ import type {
   EmitEvent,
   StreamRecord,
 } from "./protocol.ts";
-import { runSandboxAgent } from "./engines/sandbox_agent.ts";
+import {
+  destroyInFlightSandboxes,
+  runSandboxAgent,
+} from "./engines/sandbox_agent.ts";
 import { runnerInfo } from "./version.ts";
 import { isEntrypoint } from "./entry.ts";
 
@@ -202,6 +205,43 @@ export function createAgentServer(run: RunAgent = runAgent): Server {
   return createServer(createRequestListener(run));
 }
 
+/**
+ * Register a shutdown handler that best-effort deletes any in-flight sandbox(es) before exit.
+ *
+ * Without this, `docker stop` (SIGTERM) kills the process while the per-run `finally` in
+ * `runSandboxAgent` is still waiting on the harness — so the sandbox it created is never deleted
+ * and leaks (a Daytona credit-burner). The handler drains the in-flight registry, then exits.
+ *
+ * It is timeout-bounded so it can NEVER hang shutdown: `destroyInFlightSandboxes` races the
+ * deletes against its own timeout, and if the SIGTERM grace period elapses the orchestrator's
+ * SIGKILL ends the process anyway (the Daytona auto-stop backstop in `provider.ts` covers that
+ * unreachable case). The handler installs once and is idempotent against a repeated signal.
+ *
+ * Injectable (`onCleanup` / `exit`) so a test can drive it without killing the test process.
+ */
+export function registerShutdownHandler({
+  onCleanup = destroyInFlightSandboxes,
+  exit = (code: number) => process.exit(code),
+  signals = ["SIGTERM", "SIGINT"] as const,
+}: {
+  onCleanup?: (timeoutMs?: number) => Promise<void>;
+  exit?: (code: number) => void;
+  signals?: readonly NodeJS.Signals[];
+} = {}): void {
+  let shuttingDown = false;
+  const handle = (signal: NodeJS.Signals): void => {
+    if (shuttingDown) return; // a second signal must not race a second cleanup
+    shuttingDown = true;
+    process.stderr.write(
+      `[sandbox-agent] received ${signal}, cleaning up in-flight sandboxes\n`,
+    );
+    void onCleanup()
+      .catch(() => {})
+      .finally(() => exit(0));
+  };
+  for (const signal of signals) process.on(signal, handle);
+}
+
 // Only run as a server when this file is the process entry (`tsx src/server.ts`); importing
 // it (e.g. from a test) is inert.
 if (isEntrypoint(import.meta.url)) {
@@ -220,6 +260,11 @@ if (isEntrypoint(import.meta.url)) {
       `[sandbox-agent] uncaughtException: ${err.stack ?? err.message}\n`,
     );
   });
+
+  // On `docker stop` (SIGTERM) / Ctrl-C (SIGINT), delete any sandbox a run created before the
+  // process exits, so a kill mid-run does not leak the sandbox (the per-run `finally` never
+  // runs when the process is killed).
+  registerShutdownHandler();
 
   createAgentServer().listen(PORT, HOST, () => {
     process.stderr.write(

@@ -45,7 +45,6 @@ const TraceMetrics = ({traceId, usage}: {traceId: string; usage?: MessageUsageMe
 
 interface AgentMessageProps {
     message: UIMessage
-    busy: boolean
     /** This is the last message AND the conversation is streaming — i.e. the one being
      * generated right now. Only it shows the loading state; settled turns never do. */
     isStreaming?: boolean
@@ -162,7 +161,6 @@ const avatarFor = (isUser: boolean) => (
  */
 const AgentMessage = ({
     message,
-    busy,
     isStreaming = false,
     onRewind,
     onApprovalResponse,
@@ -265,7 +263,6 @@ const AgentMessage = ({
                             key={partKey}
                             part={part as ToolUIPart}
                             onApprovalResponse={onApprovalResponse}
-                            disabled={busy}
                         />
                     )
                 }

@@ -354,3 +354,5 @@ export {
 export {buildAgentRequest, buildAgentReferences, type AgentRequest} from "./agentRequest"
 // Stream vs batch response channel for the agent lane (read by buildAgentRequest's Accept header).
 export {agentChannelModeAtom, type AgentChannelMode} from "./channelMode"
+// Agent-lane HITL resume predicate (approve AND deny both resume the conversation).
+export {agentShouldResumeAfterApproval} from "./agentApprovalResume"
