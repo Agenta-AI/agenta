@@ -9,7 +9,7 @@
  *   server's `env` map (the SDK resolver merges named secrets into `env` regardless of transport,
  *   and the wire has no separate `headers` field), so each `env` entry becomes an HTTP header.
  * - STDIO is DISABLED: a stdio server runs an arbitrary process on the RUNNER HOST, outside the
- *   sandbox boundary, so it throws `MCP_UNSUPPORTED_MESSAGE` (parity with the removed code
+ *   sandbox boundary, so it throws `USER_MCP_UNSUPPORTED_MESSAGE` (parity with the removed code
  *   execution) until its security is fixed.
  * - A command-less stdio server or a url-less http server was never deliverable and is skipped.
  *
@@ -20,7 +20,7 @@ import assert from "node:assert/strict";
 
 import { toAcpMcpServers } from "../../src/engines/sandbox_agent.ts";
 import type { McpServerHttp } from "../../src/engines/sandbox_agent/mcp.ts";
-import { MCP_UNSUPPORTED_MESSAGE } from "../../src/tools/mcp-bridge.ts";
+import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../src/tools/mcp-bridge.ts";
 import type { McpServerConfig } from "../../src/protocol.ts";
 
 describe("toAcpMcpServers (http enabled, stdio disabled)", () => {
@@ -41,7 +41,7 @@ describe("toAcpMcpServers (http enabled, stdio disabled)", () => {
     ];
     assert.throws(
       () => toAcpMcpServers(servers),
-      new RegExp(MCP_UNSUPPORTED_MESSAGE),
+      new RegExp(USER_MCP_UNSUPPORTED_MESSAGE),
     );
   });
 

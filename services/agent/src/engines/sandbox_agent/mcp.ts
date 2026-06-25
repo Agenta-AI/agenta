@@ -2,11 +2,10 @@ import type {
   HarnessCapabilities,
   McpServerConfig,
   ResolvedToolSpec,
-  ToolCallbackContext,
 } from "../../protocol.ts";
 import {
   buildToolMcpServers,
-  MCP_UNSUPPORTED_MESSAGE,
+  USER_MCP_UNSUPPORTED_MESSAGE,
   type McpServerStdio,
 } from "../../tools/mcp-bridge.ts";
 
@@ -31,7 +30,8 @@ export interface McpServerHttp {
 export type McpServerEntry = McpServerStdio | McpServerHttp;
 
 /**
- * Convert user-declared MCP servers into ACP entries.
+ * Convert USER-declared MCP servers into ACP entries. (This is the USER MCP capability layer —
+ * distinct from the INTERNAL gateway-tool channel below; see `buildSessionMcpServers`.)
  *
  * - HTTP (`transport: "http"` + `url`) is ENABLED. A remote server has no child process on the
  *   runner host: the harness connects to the URL and the named secret rides in a request header,
@@ -42,9 +42,9 @@ export type McpServerEntry = McpServerStdio | McpServerHttp;
  *   the header via the secret-map key, exactly as a stdio server names its env var.
  * - STDIO (`transport: "stdio"` + `command`) is DISABLED. A stdio MCP server launches an
  *   arbitrary process on the runner host, outside the sandbox boundary, so the implementation is
- *   disabled (parity with the removed code execution; see `tools/mcp-bridge.ts`) until its
- *   security is fixed. The wire shape (`McpServerConfig`) is kept, but a stdio server throws
- *   `MCP_UNSUPPORTED_MESSAGE` rather than being delivered.
+ *   disabled (parity with the removed code execution) until its security is fixed. The wire shape
+ *   (`McpServerConfig`) is kept, but a stdio server throws `USER_MCP_UNSUPPORTED_MESSAGE` rather
+ *   than being delivered.
  * - A server that is neither a valid http (no `url`) nor a valid stdio (no `command`) is skipped
  *   with a log — it was never deliverable.
  */
@@ -79,7 +79,7 @@ export function toAcpMcpServers(
       log(`skipping stdio MCP server '${s?.name ?? "?"}' (no command)`);
       continue;
     }
-    throw new Error(MCP_UNSUPPORTED_MESSAGE);
+    throw new Error(USER_MCP_UNSUPPORTED_MESSAGE);
   }
   return out;
 }
@@ -90,22 +90,40 @@ export interface BuildSessionMcpServersInput {
   harness: string;
   toolSpecs: ResolvedToolSpec[];
   userMcpServers?: McpServerConfig[];
-  toolCallback?: ToolCallbackContext;
   relayDir: string;
   log?: Log;
 }
 
-/** Build the ACP MCP server list for this session, gated by harness capabilities. */
-export function buildSessionMcpServers({
+/** The session MCP list plus a closer for any internal server started for it. */
+export interface SessionMcpServers {
+  servers: McpServerEntry[];
+  /** Stop the internal gateway-tool server (no-op when none started). Run in the engine `finally`. */
+  close: () => Promise<void>;
+}
+
+/**
+ * Build the ACP MCP server list for this session, gated by harness capabilities.
+ *
+ * TWO INDEPENDENT LAYERS — do not merge their gates (the #4831 regression this fixed conflated
+ * them into one switch; project gateway-tool-mcp):
+ *  1. INTERNAL gateway-tool channel (`buildToolMcpServers`): the runner-synthesized loopback HTTP
+ *     MCP server that delivers the run's resolved gateway/callback tools to the harness. Carries
+ *     only public metadata; execution relays server-side. RESTORED.
+ *  2. USER MCP capability (`toAcpMcpServers`): the user's own declared servers — stdio DISABLED,
+ *     http delivered (#4834). UNCHANGED.
+ *
+ * Returns a `close()` the caller MUST run when the session ends, to release the internal server's
+ * loopback port.
+ */
+export async function buildSessionMcpServers({
   isPi,
   capabilities,
   harness,
   toolSpecs,
   userMcpServers,
-  toolCallback,
   relayDir,
   log = () => {},
-}: BuildSessionMcpServersInput): McpServerEntry[] {
+}: BuildSessionMcpServersInput): Promise<SessionMcpServers> {
   const userMcpCount = userMcpServers?.length ?? 0;
   if (isPi || !capabilities.mcpTools) {
     if (!isPi && (toolSpecs.length > 0 || userMcpCount > 0)) {
@@ -114,11 +132,16 @@ export function buildSessionMcpServers({
           `${userMcpCount} user MCP server(s) not delivered`,
       );
     }
-    return [];
+    return { servers: [], close: async () => {} };
   }
 
-  return [
-    ...buildToolMcpServers(toolSpecs, toolCallback, relayDir),
-    ...toAcpMcpServers(userMcpServers, log),
-  ];
+  // Layer 1: INTERNAL gateway-tool channel (do not merge with the user gate below).
+  const internal = await buildToolMcpServers(toolSpecs, relayDir, log);
+  // Layer 2: USER MCP capability (stdio disabled, http delivered; do not merge with Layer 1).
+  const user = toAcpMcpServers(userMcpServers, log);
+
+  return {
+    servers: [...internal.servers, ...user],
+    close: internal.close,
+  };
 }

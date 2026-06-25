@@ -1,11 +1,20 @@
 # Runner To MCP Server
 
-Pi takes its tools natively. Every other harness gets tools over MCP. The runner-owned stdio
-tool bridge (which exposed backend-resolved tools to non-Pi harnesses) is currently DISABLED —
-it launched a child process on the runner host, outside the sandbox boundary. User-declared
-MCP servers ride the same `/run` payload after the Python side resolves their secrets; of
-those, HTTP (remote) servers are delivered and stdio servers are disabled for the same reason.
-This page covers both: the runner-owned bridge and the user servers.
+Pi takes its tools natively. Every other harness gets tools over MCP. There are TWO independent
+MCP layers, and they toggle separately (do not merge their gates):
+
+1. **The internal gateway-tool channel** — the runner synthesizes it from the run's resolved
+   `customTools` so a non-Pi harness (Claude) can receive Agenta gateway/callback tools. It is
+   DELIVERED, over an internal loopback HTTP MCP endpoint the runner serves (no runner-host child
+   process).
+2. **User-declared MCP servers** — the user's own servers on the `/run` payload after the Python
+   side resolves their secrets. HTTP (remote) servers are delivered; stdio servers are DISABLED
+   (they launch an arbitrary process on the runner host, outside the sandbox boundary).
+
+PR #4831 once conflated these into a single `MCP_UNSUPPORTED_MESSAGE` switch, which disabled the
+internal channel as collateral with the (correct) user-stdio disable; the gateway-tool-mcp
+project split them again. The user-facing constant is now `USER_MCP_UNSUPPORTED_MESSAGE` and means
+ONLY "user MCP servers are unsupported"; the internal channel never borrows it.
 
 ## The contract
 
@@ -13,14 +22,21 @@ This page covers both: the runner-owned bridge and the user servers.
 probe reports `mcpTools: true`. Pi always returns an empty MCP set because it gets tools the
 native way.
 
-**The stdio bridge (disabled).** The runner-owned server spoke JSON-RPC 2.0 over stdio and
-answered three methods. It is disabled today (`MCP_UNSUPPORTED_MESSAGE`); the shape below is
-retained for when its runner-host execution is made sandbox-safe:
+**The internal gateway-tool channel (delivered, HTTP on loopback).** For a non-Pi harness with
+executable tool specs, `buildToolMcpServers` starts a tiny MCP server on `127.0.0.1:<ephemeral>`
+and returns one ACP `type: "http"` entry (`{name: "agenta-tools", url, headers: []}`). The
+server speaks JSON-RPC 2.0 over Streamable-HTTP (stateless JSON mode) and answers three methods:
 
 - `initialize`: returns protocol version and `capabilities.tools`.
 - `tools/list`: returns the resolved tool specs as MCP tools. Client-kind tools are filtered
   out here, because the browser fulfills those.
-- `tools/call`: runs the named tool with its arguments and returns `content`, or an error.
+- `tools/call`: runs the named tool through `runResolvedTool(..., { relayDir })` (the same relay
+  the Pi path uses) and returns `content`, or an error.
+
+It carries NO credential: the entry has empty `headers`, the server holds only public metadata +
+the relay dir, and it is bound to loopback. It launches no child process — it is served by the
+already-running runner — so it does not reintroduce the runner-host execution hole that #4831
+closed for user stdio MCP. The run end closes it (releases the port).
 
 **The file relay.** A resolved tool may need to run privately rather than inside the harness
 process. The relay moves the call across that boundary: the child writes a `<id>.req.json`
@@ -43,15 +59,17 @@ allowlist, and permission. Two transports, opposite states:
 - **Stdio (`transport: "stdio"` + `command`) is disabled.** A stdio server launches an
   arbitrary process on the runner host, outside the sandbox boundary, so the implementation is
   disabled (parity with the removed code execution) until its security is fixed. `run-plan.ts`
-  refuses any run carrying one (`MCP_UNSUPPORTED_MESSAGE`); `toAcpMcpServers` throws the same as
-  a defense-in-depth backstop. The wire shape is kept; only delivery is off.
+  refuses any run carrying one (`USER_MCP_UNSUPPORTED_MESSAGE`); `toAcpMcpServers` throws the same
+  as a defense-in-depth backstop. The wire shape is kept; only delivery is off.
 
 ## Owned by
 
 - `sdks/python/agenta/sdk/agents/mcp/`: the Python models and resolver.
-- `services/agent/src/engines/sandbox_agent/mcp.ts`: builds the session's MCP servers.
-- `services/agent/src/tools/mcp-bridge.ts`: the bridge.
-- `services/agent/src/tools/mcp-server.ts`: the stdio JSON-RPC server.
+- `services/agent/src/engines/sandbox_agent/mcp.ts`: builds the session's MCP servers (the two
+  layers; `USER_MCP_UNSUPPORTED_MESSAGE`).
+- `services/agent/src/tools/mcp-bridge.ts`: the internal gateway-tool channel builder.
+- `services/agent/src/tools/tool-mcp-http.ts`: the internal loopback HTTP MCP server.
+- `services/agent/src/tools/mcp-server.ts`: the removed stdio JSON-RPC server (refusing stub).
 - `services/agent/src/tools/relay.ts`: the file relay loop and hosts.
 
 ## Watch for when changing
@@ -59,7 +77,9 @@ allowlist, and permission. Two transports, opposite states:
 - **The gate.** MCP delivery depends on harness type and the `mcpTools` capability, not on a
   single env flag. Changing either changes which tools reach the harness.
 - **The MCP server config shape.** It is part of the `/run` contract and the wire serializer.
-- **The stdio methods.** `initialize`, `tools/list`, `tools/call`, and the client-tool filter.
+- **The internal channel's MCP methods.** `initialize`, `tools/list`, `tools/call`, and the
+  client-tool filter, served over loopback HTTP. The framing (stateless JSON Streamable-HTTP) is
+  pinned to the MCP client the installed Claude harness uses; re-verify it if that version moves.
 - **The relay.** Polling interval, timeout, and the local-versus-Daytona host. A slow tool
   must fail cleanly.
 - **HTTP MCP delivery.** `toAcpMcpServers` routes the resolved secret from `env` into a

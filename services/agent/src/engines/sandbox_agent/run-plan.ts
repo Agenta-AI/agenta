@@ -11,7 +11,7 @@ import {
   resolvePromptText,
 } from "../../protocol.ts";
 import { executableToolSpecs } from "../../tools/public-spec.ts";
-import { MCP_UNSUPPORTED_MESSAGE } from "../../tools/mcp-bridge.ts";
+import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../tools/mcp-bridge.ts";
 import {
   type MaterializedSkill,
   resolveSkillDirs as defaultResolveSkillDirs,
@@ -197,7 +197,7 @@ export function buildRunPlan(
   // code execution) until its security is fixed. Refuse any run carrying one, the way code
   // tools are gated — keep the wire shape, but the delivery is not supported.
   if (hasStdioMcpServer(request.mcpServers)) {
-    return { ok: false, error: MCP_UNSUPPORTED_MESSAGE };
+    return { ok: false, error: USER_MCP_UNSUPPORTED_MESSAGE };
   }
 
   // Layer 2: even on Daytona, code/gateway tools run on the RUNNER HOST via the relay, not

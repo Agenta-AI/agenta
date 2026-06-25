@@ -176,8 +176,9 @@ network. So the call is relayed through files instead: the in-sandbox tool write
 file to a relay directory, the runner (which can reach Agenta) reads it, performs the same
 `/tools/call` POST, and writes the answer back (`relayToolCall` in `dispatch.ts`,
 `startToolRelay` in `tools/relay.ts`). Same callback, same envelope, different delivery. The
-non-Pi MCP bridge uses this same relay even on local runs, because the bridge runs in a
-separate process that the runner keeps blind to the private spec.
+non-Pi internal MCP channel (a loopback HTTP MCP server the runner serves) uses this same relay
+even on local runs, because the harness calling it is kept blind to the private spec — only
+public metadata crosses the channel, and execution relays back to the runner.
 
 ### Code tools: the runner runs them locally
 
@@ -304,7 +305,7 @@ declarative UI spec (`RenderHint` in `protocol.ts`).
 - The `render` hint is plumbed end to end on the runner side, but full frontend projection of
   every render kind is still in progress.
 - Gateway calls on Daytona depend on the file relay, because the sandbox cannot reach Agenta
-  directly. The relay is also used by the non-Pi MCP bridge on local runs.
+  directly. The relay is also used by the non-Pi internal MCP channel on local runs.
 - **Code tools are standard-library-only.** The image ships `python3` and `node`, but the
   child env has no package install and no module path to the runner's dependencies, so a tool
   cannot import third-party packages.

@@ -327,18 +327,64 @@ describe("runSandboxAgent orchestration", () => {
     );
   });
 
-  it("fails a non-Pi run carrying custom tools because the MCP bridge is disabled", async () => {
-    // Claude takes tools only over MCP, and the sidecar's stdio MCP bridge is disabled until
-    // its security is fixed (parity with the removed code execution). So a Claude run with a
-    // custom tool now surfaces the not-supported error instead of silently dropping or
-    // unconfined-executing the tool.
-    const { deps } = fakeHarness();
+  it("delivers a non-Pi run's gateway tools over the internal HTTP MCP channel", async () => {
+    // Claude takes tools only over MCP. The INTERNAL gateway-tool channel (distinct from the
+    // disabled USER stdio MCP path) is restored over a loopback HTTP MCP server the runner
+    // serves, so a Claude run with a gateway tool now SUCCEEDS and the tool is advertised to the
+    // harness. This is the #4831 regression fix (project gateway-tool-mcp): the run no longer
+    // hard-fails with the user-facing MCP-unsupported error.
+    const { calls, deps } = fakeHarness();
 
     const result = await runSandboxAgent(
       {
         harness: "claude",
         prompt: "use the tool",
         customTools: [{ name: "server_tool", kind: "callback" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(
+      result.ok,
+      true,
+      "the run succeeds; gateway tools reach Claude",
+    );
+    const mcpServers =
+      calls.createSessionOptions?.sessionInit?.mcpServers ?? [];
+    assert.equal(
+      mcpServers.length,
+      1,
+      "one internal MCP server delivered to the session",
+    );
+    assert.equal(mcpServers[0].name, "agenta-tools");
+    assert.equal(
+      mcpServers[0].type,
+      "http",
+      "delivered over http, not a stdio child process",
+    );
+    assert.match(
+      mcpServers[0].url,
+      /^http:\/\/127\.0\.0\.1:\d+\/mcp$/,
+      "loopback url",
+    );
+    assert.deepEqual(mcpServers[0].headers, [], "no credential on the channel");
+    // The internal server is opened then released, so its port does not leak past the run.
+    assert.equal(calls.sandboxDestroyed, 1, "sandbox disposed in finally");
+  });
+
+  it("still refuses a run carrying a USER stdio MCP server (user gate untouched)", async () => {
+    // The user-facing stdio MCP path stays disabled (parity with removed code execution); only
+    // the internal gateway-tool channel was restored. A user-declared stdio MCP server is still
+    // rejected up front with the user-facing message.
+    const { deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        prompt: "go",
+        mcpServers: [{ name: "github", transport: "stdio", command: "npx" }],
       } as AgentRunRequest,
       undefined,
       undefined,
