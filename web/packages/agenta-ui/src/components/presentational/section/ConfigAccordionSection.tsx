@@ -148,7 +148,15 @@ export function ConfigAccordionSection({
                             {summary}
                         </Text>
                     ) : null}
-                    {extra ? <span onClick={(e) => e.stopPropagation()}>{extra}</span> : null}
+                    {extra ? (
+                        <span
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            onKeyUp={(e) => e.stopPropagation()}
+                        >
+                            {extra}
+                        </span>
+                    ) : null}
                     {locked ? (
                         <Tooltip title={lockedReason}>
                             <Lock size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />

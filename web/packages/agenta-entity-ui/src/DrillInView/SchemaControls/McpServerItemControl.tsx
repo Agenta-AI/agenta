@@ -32,8 +32,14 @@ export interface McpServerItemControlProps {
 
 function toServerObj(value: unknown): Record<string, unknown> {
     try {
-        if (typeof value === "string")
-            return value ? (JSON.parse(value) as Record<string, unknown>) : {}
+        if (typeof value === "string") {
+            if (!value) return {}
+            const parsed = JSON.parse(value)
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                return parsed as Record<string, unknown>
+            }
+            return {}
+        }
         if (value && typeof value === "object" && !Array.isArray(value))
             return value as Record<string, unknown>
     } catch {
@@ -71,9 +77,12 @@ export const McpServerItemControl = memo(function McpServerItemControl({
             if (disabled) return
             setEditorText(text)
             try {
-                const parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {}
+                const parsed = text ? JSON.parse(text) : {}
+                // Only a JSON object is a valid server config; ignore arrays/scalars so we
+                // don't propagate a value toServerObj() would silently collapse back to {}.
+                if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return
                 lastExternalRef.current = safeStringify(parsed)
-                onChange?.(parsed)
+                onChange?.(parsed as Record<string, unknown>)
             } catch {
                 // Keep the invalid text in the editor; don't propagate until it parses.
             }

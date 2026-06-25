@@ -167,8 +167,11 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
         const next = {...skill}
         if (parsed.name) next.name = parsed.name
         if (parsed.description) next.description = parsed.description
-        if (parsed.body) next.body = parsed.body
+        // body/files are always present on a parsed upload; assign unconditionally so a
+        // replacement with an empty body or no bundled files clears the previous draft.
+        next.body = parsed.body
         if (parsed.files.length) next.files = parsed.files
+        else delete next.files
         onChange(next)
         setSelected("skill")
     }

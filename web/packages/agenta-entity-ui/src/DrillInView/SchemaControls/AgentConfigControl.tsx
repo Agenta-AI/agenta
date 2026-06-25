@@ -536,10 +536,21 @@ export function AgentConfigControl({
     useEffect(() => {
         if (!harnessValue || !modelId) return
         if (!harnessAllowsModel(capabilities, harnessValue, modelId)) {
-            writeModel({modelId: null, provider: null})
+            // Drop the stale named connection too, not just the model id/provider.
+            writeModel({modelId: null, provider: null, slug: null})
         }
         // Only react to harness/capabilities changes, not every model edit.
     }, [harnessValue, capabilities])
+
+    // Also reset a connection mode the new harness no longer allows. Guarded on a non-empty
+    // option set so a harness that publishes no modes stays permissive (and we never loop).
+    // Slug validity is intentionally NOT normalized here: connectionOptions is vault-secret
+    // async, so an empty set during load would wrongly clear a valid slug.
+    useEffect(() => {
+        if (modeOptions.length > 0 && !modeOptions.includes(connection.mode)) {
+            writeModel({mode: modeOptions[0], slug: null})
+        }
+    }, [connection.mode, modeOptions, writeModel])
 
     // Named connections selectable for the chosen provider under this harness (Agenta-managed).
     const connectionOptions = useMemo(
@@ -741,9 +752,27 @@ export function AgentConfigControl({
 
     // Block Save until the draft has the minimum it needs to be a valid item (a name). `@ag.embed`
     // skill references carry no name and are always valid (they round-trip as-is).
+    // JSON-view parse validity from the open drawer's JsonObjectEditor; blocks Save while the
+    // raw JSON is invalid. The editor keeps invalid text local and stops emitting onChange, so
+    // without this Save would silently commit the last valid draft.
+    const [jsonInvalid, setJsonInvalid] = useState(false)
+    // Reset when the open item changes — each editor is keyed/remounts and starts valid.
+    useEffect(() => {
+        setJsonInvalid(false)
+    }, [editing])
+
     const draftInvalid = useMemo(() => {
         if (!editing) return true
-        if (editing.kind === "mcp") return !String(draft.name ?? "").trim()
+        if (editing.kind === "mcp") {
+            // A server needs a launch target too, not just a name: stdio → command, http → url.
+            const name = String(draft.name ?? "").trim()
+            const transport = draft.transport === "http" ? "http" : "stdio"
+            const target =
+                transport === "http"
+                    ? String(draft.url ?? "").trim()
+                    : String(draft.command ?? "").trim()
+            return !name || !target
+        }
         if (editing.kind === "skill")
             return !isEmbedRefSkill(draft) && !String(draft.name ?? "").trim()
         const fn = draft.function as Record<string, unknown> | undefined
@@ -1266,7 +1295,7 @@ export function AgentConfigControl({
                     onViewChange={setDrawerView}
                     onCancel={closeEditor}
                     onSave={commitDraft}
-                    saveDisabled={draftInvalid}
+                    saveDisabled={draftInvalid || (drawerView === "json" && jsonInvalid)}
                     jsonOnly={!isFunctionTool(draft)}
                     disabled={disabled}
                     form={
@@ -1282,6 +1311,7 @@ export function AgentConfigControl({
                             key={`tool-json-${editing.mode}-${editing.index}`}
                             value={draft}
                             onChange={(v) => setDraft(v as Record<string, unknown>)}
+                            onValidityChange={(valid) => setJsonInvalid(!valid)}
                             disabled={disabled}
                         />
                     }
@@ -1304,7 +1334,7 @@ export function AgentConfigControl({
                     onViewChange={setDrawerView}
                     onCancel={closeEditor}
                     onSave={commitDraft}
-                    saveDisabled={draftInvalid}
+                    saveDisabled={draftInvalid || (drawerView === "json" && jsonInvalid)}
                     disabled={disabled}
                     form={
                         <McpServerFormView
@@ -1319,6 +1349,7 @@ export function AgentConfigControl({
                             key={`mcp-json-${editing.mode}-${editing.index}`}
                             value={draft}
                             onChange={(v) => setDraft(v as Record<string, unknown>)}
+                            onValidityChange={(valid) => setJsonInvalid(!valid)}
                             disabled={disabled}
                         />
                     }
@@ -1347,7 +1378,7 @@ export function AgentConfigControl({
                     onViewChange={setDrawerView}
                     onCancel={closeEditor}
                     onSave={commitDraft}
-                    saveDisabled={draftInvalid}
+                    saveDisabled={draftInvalid || (drawerView === "json" && jsonInvalid)}
                     jsonOnly={isEmbedRefSkill(draft)}
                     // Platform skills (`_agenta.*`) are read-only — view their JSON but can't edit.
                     disabled={disabled || isPlatformSkill(draft)}
@@ -1364,6 +1395,7 @@ export function AgentConfigControl({
                             key={`skill-json-${editing.mode}-${editing.index}`}
                             value={draft}
                             onChange={(v) => setDraft(v as Record<string, unknown>)}
+                            onValidityChange={(valid) => setJsonInvalid(!valid)}
                             disabled={disabled || isPlatformSkill(draft)}
                         />
                     }

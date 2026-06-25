@@ -73,6 +73,15 @@ export function ToolFormView({value, onChange, disabled}: ToolFormViewProps) {
     const permissionDefault = defaultPermissionFromReadOnly(metadata)
     const setPermission = (next: ToolPermission | null) => {
         const nextTool = {...tool}
+        // Also drop the legacy `agenta_metadata.permission_mode`; otherwise clearing the
+        // top-level field resolves straight back to the legacy value and "inherit policy"
+        // is unreachable for older tools.
+        const nextMetadata = {
+            ...((nextTool.agenta_metadata as Record<string, unknown> | undefined) ?? {}),
+        }
+        delete nextMetadata.permission_mode
+        if (Object.keys(nextMetadata).length > 0) nextTool.agenta_metadata = nextMetadata
+        else delete nextTool.agenta_metadata
         if (next) nextTool.permission = next
         else delete nextTool.permission
         onChange(nextTool)

@@ -180,6 +180,10 @@ const AgentMessage = ({
     // FE-side from the useChat stream error (AgentChatPanel). Prefer whichever is present.
     const runError = getMessageRunError(message)
     const errorText = traceError || runError
+    // Surface a settled-turn error even when the model emitted partial output before the
+    // stream died — not only when the turn is answer-less. (`isError` stays answer-less-only
+    // so the *whole* bubble only turns red when there's nothing else to show.)
+    const showError = !isStreaming && !!errorText
     const fullText = message.parts
         .filter((p) => p.type === "text")
         .map((p) => (p as {text: string}).text)
@@ -211,12 +215,12 @@ const AgentMessage = ({
     const noResponse = !isUser && !isStreaming && !hasAnswer
     // A settled no-answer turn whose trace recorded an error → render the bubble itself as a
     // failure (red), with the message inline — not a nested alert box.
-    const isError = noResponse && !!errorText
+    const isError = noResponse && showError
 
     // #3: collapse a run of empty "no response" turns to just the first. A turn with ANY content
     // (answer or reasoning) and any error turn (isError, which shows the real failure) always
     // render; only a truly-empty, non-error turn that follows another empty turn is hidden.
-    if (noResponse && !isError && !hasContent && precededByEmptyAssistant) return null
+    if (noResponse && !showError && !hasContent && precededByEmptyAssistant) return null
 
     // Only the message being generated shows the loading state, and only until it has content.
     if (!isUser && isStreaming && !hasContent) {
@@ -327,7 +331,19 @@ const AgentMessage = ({
     // RunErrorBody truncates a long reason so it can't drown the chat (expand to read it all).
     const errorBody = <RunErrorBody text={errorText || "The agent run failed."} />
 
-    const body = isError ? errorBody : defaultBody
+    // Partial output then failure: show the content AND the error. Answer-less failure: the
+    // whole bubble is the error. Otherwise: just the content.
+    const body =
+        showError && !isError ? (
+            <div className="flex min-w-0 max-w-full flex-col gap-2">
+                {defaultBody}
+                {errorBody}
+            </div>
+        ) : isError ? (
+            errorBody
+        ) : (
+            defaultBody
+        )
 
     // Control toolbar — an X `Actions` row that FLOATS over the bubble's bottom edge. It is
     // absolutely positioned (out of flow), so it adds no height: bubbles sit tight with no

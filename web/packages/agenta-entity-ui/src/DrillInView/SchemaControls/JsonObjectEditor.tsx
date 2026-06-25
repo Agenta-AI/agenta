@@ -16,11 +16,18 @@ export interface JsonObjectEditorProps {
     value: unknown
     /** Called with the parsed object on each valid edit. */
     onChange: (next: Record<string, unknown>) => void
+    /** Called whenever the editor's parse validity changes, so the host can gate Save. */
+    onValidityChange?: (valid: boolean) => void
     /** Disable editing. */
     disabled?: boolean
 }
 
-export function JsonObjectEditor({value, onChange, disabled}: JsonObjectEditorProps) {
+export function JsonObjectEditor({
+    value,
+    onChange,
+    onValidityChange,
+    disabled,
+}: JsonObjectEditorProps) {
     const [text, setText] = useState(() => JSON.stringify(value ?? {}, null, 2))
     const [error, setError] = useState<string | null>(null)
 
@@ -30,12 +37,15 @@ export function JsonObjectEditor({value, onChange, disabled}: JsonObjectEditorPr
             const parsed = JSON.parse(next)
             if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
                 setError(null)
+                onValidityChange?.(true)
                 onChange(parsed as Record<string, unknown>)
             } else {
                 setError("Expected a JSON object")
+                onValidityChange?.(false)
             }
         } catch {
             setError("Invalid JSON")
+            onValidityChange?.(false)
         }
     }
 
