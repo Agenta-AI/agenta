@@ -82,18 +82,18 @@ describe("decisionToReply", () => {
 describe("approvalKey", () => {
   it("binds name + args, order-independently", () => {
     assert.equal(
-      approvalKey("edit", {a: 1, b: 2}),
-      approvalKey("edit", {b: 2, a: 1}),
+      approvalKey("edit", { a: 1, b: 2 }),
+      approvalKey("edit", { b: 2, a: 1 }),
       "key order does not change the key",
     );
     assert.notEqual(
-      approvalKey("edit", {path: "a"}),
-      approvalKey("edit", {path: "b"}),
+      approvalKey("edit", { path: "a" }),
+      approvalKey("edit", { path: "b" }),
       "different args -> different key",
     );
     assert.notEqual(
-      approvalKey("edit", {path: "a"}),
-      approvalKey("bash", {path: "a"}),
+      approvalKey("edit", { path: "a" }),
+      approvalKey("bash", { path: "a" }),
       "different name -> different key",
     );
   });
@@ -105,18 +105,26 @@ describe("approvalKey", () => {
     assert.equal(approvalKey("edit", null), approvalKey("edit", {}));
     // But a WITH-args call never collapses to the no-arg key.
     assert.notEqual(
-      approvalKey("edit", {path: "a"}),
+      approvalKey("edit", { path: "a" }),
       approvalKey("edit", {}),
       "args present -> a different key than no-args",
     );
   });
 
   it("returns no key (fails closed) for no name or non-JSON args", () => {
-    assert.equal(approvalKey(undefined, {a: 1}), undefined, "no name -> no key");
+    assert.equal(
+      approvalKey(undefined, { a: 1 }),
+      undefined,
+      "no name -> no key",
+    );
     // Non-JSON args fail closed (no key) rather than throwing or colliding.
-    assert.equal(approvalKey("edit", 10n as unknown), undefined, "bigint -> no key");
+    assert.equal(
+      approvalKey("edit", 10n as unknown),
+      undefined,
+      "bigint -> no key",
+    );
     assert.equal(approvalKey("edit", new Date()), undefined, "Date -> no key");
-    assert.equal(approvalKey("edit", {x: NaN}), undefined, "NaN -> no key");
+    assert.equal(approvalKey("edit", { x: NaN }), undefined, "NaN -> no key");
     assert.equal(approvalKey("edit", new Map()), undefined, "Map -> no key");
   });
 });
@@ -166,7 +174,9 @@ describe("HITLResponder", () => {
     ]);
     const responder = new HITLResponder(decisions, "auto", true);
     assert.equal(
-      await responder.onPermission(permReq("fresh-id", "edit", { path: "a.txt" })),
+      await responder.onPermission(
+        permReq("fresh-id", "edit", { path: "a.txt" }),
+      ),
       "allow",
     );
   });
@@ -192,7 +202,9 @@ describe("HITLResponder", () => {
     ]);
     const orderResponder = new HITLResponder(orderDecisions, "auto", true);
     assert.equal(
-      await orderResponder.onPermission(permReq("call-c", "edit", { b: 2, a: 1 })),
+      await orderResponder.onPermission(
+        permReq("call-c", "edit", { b: 2, a: 1 }),
+      ),
       "allow",
       "the same args in a different key order is the same call (resumes)",
     );
@@ -204,7 +216,9 @@ describe("HITLResponder", () => {
     const decisions = new Map<string, PermissionDecision>([["edit", "allow"]]);
     const responder = new HITLResponder(decisions, "auto", true);
     assert.equal(
-      await responder.onPermission(permReq("fresh-id", "edit", { path: "a.txt" })),
+      await responder.onPermission(
+        permReq("fresh-id", "edit", { path: "a.txt" }),
+      ),
       "park",
       "a bare-name entry must not auto-approve a real call",
     );
@@ -283,7 +297,10 @@ describe("extractApprovalDecisions", () => {
 
     const decisions = extractApprovalDecisions(request);
     // ONLY the name+args anchor is keyed (recovered from the correlated tool_call block).
-    assert.equal(decisions.get(approvalKey("edit", { path: "a.txt" })!), "allow");
+    assert.equal(
+      decisions.get(approvalKey("edit", { path: "a.txt" })!),
+      "allow",
+    );
     assert.equal(decisions.get(approvalKey("bash", { cmd: "ls" })!), "deny");
     // The bare tool NAME must NOT be a key (that was the HITL-bypass).
     assert.equal(decisions.has("edit"), false, "no bare-name key");
@@ -320,7 +337,9 @@ describe("extractApprovalDecisions", () => {
   });
 
   it("returns an empty lookup when there are no structured messages (headless /invoke)", () => {
-    const request: AgentRunRequest = { prompt: "just a single turn" };
+    const request: AgentRunRequest = {
+      messages: [{ role: "user", content: "just a single turn" }],
+    };
     assert.equal(extractApprovalDecisions(request).size, 0);
   });
 
@@ -392,7 +411,9 @@ describe("extractApprovalDecisions", () => {
     );
     // Fresh id this turn, but same name + args -> resolves (resume works).
     assert.equal(
-      await responder.onPermission(permReq("fresh-id", "edit", { path: "a.txt" })),
+      await responder.onPermission(
+        permReq("fresh-id", "edit", { path: "a.txt" }),
+      ),
       "allow",
       "the parked call resumes under a fresh id via the name+args anchor",
     );

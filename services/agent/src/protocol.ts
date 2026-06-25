@@ -158,6 +158,7 @@ export interface SandboxPermission {
   };
   /** Declared, NOT enforced today. */
   filesystem?: "on" | "readonly" | "off";
+  /** Omitted defaults to `strict` (matches the wire schema); only `best_effort` opts out. */
   enforcement?: "strict" | "best_effort";
 }
 
@@ -321,8 +322,6 @@ export interface AgentRunRequest {
    * connection; see the provider-model-auth design (Concern 3).
    */
   credentialMode?: string;
-  /** Explicit latest turn. Falls back to the last user message in `messages`. */
-  prompt?: string;
   /** The conversation so far; the runner picks the latest turn and replays the rest. */
   messages?: ChatMessage[];
   /** Built-in tools to enable. */
@@ -407,9 +406,8 @@ export function messageText(
     .join("");
 }
 
-/** The latest user turn: explicit prompt, else last user message content. */
+/** The latest user turn: the last user message's text (the wire carries no standalone prompt). */
 export function resolvePromptText(request: AgentRunRequest): string {
-  if (request.prompt && request.prompt.trim()) return request.prompt;
   const messages = request.messages ?? [];
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === "user") {

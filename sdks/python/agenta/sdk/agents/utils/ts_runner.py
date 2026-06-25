@@ -18,6 +18,20 @@ _DEFAULT_TIMEOUT = float(os.getenv("AGENTA_AGENT_RUNNER_TIMEOUT_SECONDS", "180")
 log = get_module_logger(__name__)
 
 
+def _runner_auth_headers() -> Dict[str, str]:
+    """The ``Authorization`` header for the runner's optional shared-token gate, if configured.
+
+    The runner enables a ``/run`` token check only when ``AGENTA_AGENT_RUNNER_TOKEN`` is set on
+    its side (default OFF; see ``server.ts``). When the gate is on, an un-tokened POST is rejected
+    with 401, which would lock the co-located Python service out. Set the SAME env var here and we
+    present it as ``Authorization: Bearer <token>`` (the runner also accepts this header). Unset =
+    no header, matching the runner's default-off behavior, so loopback deployments are unaffected.
+    Read per-call (not cached) so a test or runtime env change takes effect without a re-import.
+    """
+    token = os.getenv("AGENTA_AGENT_RUNNER_TOKEN")
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
 def _transport_error(user_message: str, *, detail: str) -> RuntimeError:
     """A transport RuntimeError whose surfaced text is clean; the raw detail is logged only.
 
@@ -41,7 +55,7 @@ async def deliver_http(
 
     url = base_url.rstrip("/") + "/run"
     async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.post(url, json=payload)
+        response = await client.post(url, json=payload, headers=_runner_auth_headers())
     # Any non-2xx is a transport failure; 4xx left to fall through surfaces as an opaque
     # JSON parse error instead of a clear runner failure. The response body can carry internal
     # detail, so it is logged, not surfaced.
@@ -122,7 +136,7 @@ async def deliver_http_stream(
     import httpx  # local import: only the HTTP transport needs it
 
     url = base_url.rstrip("/") + "/run"
-    headers = {"Accept": "application/x-ndjson"}
+    headers = {"Accept": "application/x-ndjson", **_runner_auth_headers()}
     saw_result = False
     async with httpx.AsyncClient(timeout=timeout) as client:
         async with client.stream(

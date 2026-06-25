@@ -211,7 +211,11 @@ describe("runSandboxAgent orchestration", () => {
     const { calls, deps } = fakeHarness();
 
     const result = await runSandboxAgent(
-      { harness: "claude", prompt: "hello", model: "requested-model" },
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        model: "requested-model",
+      },
       undefined,
       undefined,
       deps,
@@ -253,7 +257,7 @@ describe("runSandboxAgent orchestration", () => {
     const streamed: AgentEvent[] = [];
 
     const result = await runSandboxAgent(
-      { harness: "claude", prompt: "hello" },
+      { harness: "claude", messages: [{ role: "user", content: "hello" }] },
       (event) => streamed.push(event),
       undefined,
       deps,
@@ -270,7 +274,10 @@ describe("runSandboxAgent orchestration", () => {
     const { calls, deps } = fakeHarness({ emitPermission: true });
 
     const result = await runSandboxAgent(
-      { harness: "claude", prompt: "edit the file" },
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "edit the file" }],
+      },
       undefined,
       undefined,
       deps,
@@ -310,7 +317,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "pi_core",
-        prompt: "use the tool",
+        messages: [{ role: "user", content: "use the tool" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
       } as AgentRunRequest,
       undefined,
@@ -346,7 +353,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "claude",
-        prompt: "use the tool",
+        messages: [{ role: "user", content: "use the tool" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
       } as AgentRunRequest,
       undefined,
@@ -391,7 +398,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "claude",
-        prompt: "go",
+        messages: [{ role: "user", content: "go" }],
         mcpServers: [{ name: "github", transport: "stdio", command: "npx" }],
       } as AgentRunRequest,
       undefined,
@@ -415,7 +422,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "claude",
-        prompt: "use the tool",
+        messages: [{ role: "user", content: "use the tool" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
       } as AgentRunRequest,
       undefined,
@@ -441,7 +448,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "pi_core",
-        prompt: "use the tool",
+        messages: [{ role: "user", content: "use the tool" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
       } as AgentRunRequest,
       undefined,
@@ -457,7 +464,7 @@ describe("runSandboxAgent orchestration", () => {
     const { calls, deps } = fakeHarness({ promptError: new Error("boom") });
 
     const result = await runSandboxAgent(
-      { harness: "claude", prompt: "explode" },
+      { harness: "claude", messages: [{ role: "user", content: "explode" }] },
       undefined,
       undefined,
       deps,
@@ -482,7 +489,7 @@ describe("runSandboxAgent orchestration", () => {
       {
         harness: "claude",
         sandbox: "daytona",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         sandboxPermission,
       },
       undefined,
@@ -500,7 +507,7 @@ describe("runSandboxAgent orchestration", () => {
     const controller = new AbortController();
 
     const result = await runSandboxAgent(
-      { harness: "claude", prompt: "hello" },
+      { harness: "claude", messages: [{ role: "user", content: "hello" }] },
       undefined,
       controller.signal,
       deps,
@@ -516,7 +523,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "claude",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         credentialMode: "env",
         secrets: { ANTHROPIC_API_KEY: "resolved" },
         endpoint: { baseUrl: "https://claude-gw.example/v1" },
@@ -542,7 +549,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "claude",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         model: "anthropic.claude-x",
         deployment: "bedrock",
         credentialMode: "env",
@@ -573,7 +580,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "claude",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         model: "claude-sonnet-4",
         deployment: "vertex_ai",
         credentialMode: "env",
@@ -600,7 +607,7 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "claude",
-        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
         credentialMode: "runtime_provided",
       } as AgentRunRequest,
       undefined,
@@ -630,7 +637,10 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     const { calls, deps } = depsWithDefaultResponder();
 
     const result = await runSandboxAgent(
-      { harness: "claude", prompt: "edit the file" },
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "edit the file" }],
+      },
       undefined,
       undefined,
       deps,
