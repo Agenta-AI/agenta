@@ -307,6 +307,37 @@ class WorkflowInspectRequest(Metadata):
 WorkflowServiceInspectRequest = WorkflowInspectRequest
 
 
+class WorkflowInspectResponse(Metadata):
+    """The canonical ``/inspect`` response: the resolved interface, flat and self-describing.
+
+    ``/inspect`` is a public edge — it tells the browser which form to render and which inputs,
+    parameters, and outputs a workflow has. The response used to be a ``WorkflowInvokeRequest``
+    (a REQUEST model carrying response semantics), which nested the schemas under
+    ``data.revision.data.schemas`` and made every client guess the envelope. This model is the
+    explicit response contract instead:
+
+    - ``revision`` is a :class:`WorkflowRevisionData` directly (it already owns ``uri`` / ``url``
+      / ``headers`` / ``schemas`` / ``parameters``), so the schemas live at the obvious
+      ``response.revision.schemas`` — no ``data.revision.data`` nesting.
+    - ``configuration`` and ``meta`` carry the resolved config and any interface metadata (the
+      agent workflow rides its per-harness connection capability in ``meta``).
+
+    Typed outputs (POC, no back-compat field): ``revision.schemas.outputs`` may be keyed per
+    output type (for example ``{"messages": {...}, "invoke": {...}}``) so a workflow with more
+    than one output surface describes each one. A single-output workflow still uses a plain
+    output schema. Consumers read the keyed shape when present and fall back to the plain one.
+    """
+
+    version: Optional[str] = "2025.07.14"
+
+    revision: Optional[WorkflowRevisionData] = None
+    configuration: Optional[Dict[str, Any]] = None
+
+
+# back-compat alias
+WorkflowServiceInspectResponse = WorkflowInspectResponse
+
+
 class WorkflowBaseResponse(TraceID, SpanID):
     version: Optional[str] = "2025.07.14"
 

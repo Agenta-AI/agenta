@@ -11,6 +11,7 @@ from pydantic import Field, model_validator, AliasChoices
 from agenta.sdk.agents.dtos import HARNESS_IDENTITIES, SandboxPermission
 from agenta.sdk.agents.mcp import MCPServerConfig
 from agenta.sdk.agents.tools import ToolConfig
+from agenta.sdk.agents.wire_models import run_contract_schemas
 from agenta.sdk.utils.assets import supported_llm_models, model_metadata
 from agenta.sdk.utils.helpers import _PLACEHOLDER_RE
 from agenta.sdk.utils.rendering import (
@@ -1360,4 +1361,9 @@ CATALOG_TYPES = {
     SkillConfigSchema.ag_type(): _dereference_schema(
         SkillConfigSchema.model_json_schema()
     ),
+    # The `/run` wire contract (request + result), exported from the dedicated Pydantic wire
+    # models in `agenta.sdk.agents.wire_models`. This puts the service<->runner wire interface in
+    # the SDK the same way the other catalog types are exposed; a freshness test asserts these
+    # entries match a fresh export so the schema cannot drift from the models.
+    **run_contract_schemas(),
 }
