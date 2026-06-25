@@ -292,9 +292,12 @@ describe("runSandboxAgent orchestration", () => {
   it("starts and stops the tool relay only when executable tools are present", async () => {
     const { calls, deps } = fakeHarness();
 
+    // Pi delivers tools through its native extension (not the MCP bridge), so the relay path
+    // is exercised on a Pi run. The MCP bridge is disabled in the sidecar (see the dedicated
+    // test below), so a non-Pi harness can no longer take custom tools at all.
     const result = await runSandboxAgent(
       {
-        harness: "claude",
+        harness: "pi_core",
         prompt: "use the tool",
         customTools: [{ name: "server_tool", kind: "callback" }],
       } as AgentRunRequest,
@@ -318,6 +321,30 @@ describe("runSandboxAgent orchestration", () => {
       2,
       "stopped after prompt and again in finally",
     );
+  });
+
+  it("fails a non-Pi run carrying custom tools because the MCP bridge is disabled", async () => {
+    // Claude takes tools only over MCP, and the sidecar's stdio MCP bridge is disabled until
+    // its security is fixed (parity with the removed code execution). So a Claude run with a
+    // custom tool now surfaces the not-supported error instead of silently dropping or
+    // unconfined-executing the tool.
+    const { deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        prompt: "use the tool",
+        customTools: [{ name: "server_tool", kind: "callback" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.deepEqual(result, {
+      ok: false,
+      error: "MCP servers are not supported by the sidecar.",
+    });
   });
 
   it("flushes a partial trace and cleans up on prompt errors", async () => {
@@ -444,7 +471,10 @@ describe("runSandboxAgent orchestration", () => {
         model: "claude-sonnet-4",
         deployment: "vertex_ai",
         credentialMode: "env",
-        secrets: { GOOGLE_CLOUD_PROJECT: "proj", GOOGLE_CLOUD_LOCATION: "us-central1" },
+        secrets: {
+          GOOGLE_CLOUD_PROJECT: "proj",
+          GOOGLE_CLOUD_LOCATION: "us-central1",
+        },
       } as AgentRunRequest,
       undefined,
       undefined,

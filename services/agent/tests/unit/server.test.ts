@@ -7,13 +7,23 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/server.test.ts)
  */
-import { describe, it } from "vitest";
+import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
 
 import { createAgentServer, type RunAgent } from "../../src/server.ts";
 
-async function listen(run: RunAgent): Promise<{ url: string; close: () => Promise<void> }> {
+const TOKEN_ENV = "AGENTA_AGENT_RUNNER_TOKEN";
+const previousToken = process.env[TOKEN_ENV];
+
+afterEach(() => {
+  if (previousToken === undefined) delete process.env[TOKEN_ENV];
+  else process.env[TOKEN_ENV] = previousToken;
+});
+
+async function listen(
+  run: RunAgent,
+): Promise<{ url: string; close: () => Promise<void> }> {
   const server = createAgentServer(run);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
@@ -36,7 +46,8 @@ describe("createAgentServer", () => {
       assert.equal(typeof body.runner, "string");
       assert.equal(typeof body.protocol, "number");
       assert.ok(
-        Array.isArray(body.engines) && (body.engines as unknown[]).includes("sandbox-agent"),
+        Array.isArray(body.engines) &&
+          (body.engines as unknown[]).includes("sandbox-agent"),
       );
       assert.ok(Array.isArray(body.harnesses));
     } finally {
@@ -47,7 +58,10 @@ describe("createAgentServer", () => {
   it("POST /run returns the engine result (200)", async () => {
     const s = await listen(okRun);
     try {
-      const res = await fetch(`${s.url}/run`, { method: "POST", body: JSON.stringify({ harness: "pi_core" }) });
+      const res = await fetch(`${s.url}/run`, {
+        method: "POST",
+        body: JSON.stringify({ harness: "pi_core" }),
+      });
       assert.equal(res.status, 200);
       const body = (await res.json()) as { ok: boolean; output: string };
       assert.equal(body.ok, true);
@@ -60,7 +74,10 @@ describe("createAgentServer", () => {
   it("POST /run with invalid JSON returns 400", async () => {
     const s = await listen(okRun);
     try {
-      const res = await fetch(`${s.url}/run`, { method: "POST", body: "{not json" });
+      const res = await fetch(`${s.url}/run`, {
+        method: "POST",
+        body: "{not json",
+      });
       assert.equal(res.status, 400);
       const body = (await res.json()) as { ok: boolean; error: string };
       assert.equal(body.ok, false);
@@ -84,11 +101,97 @@ describe("createAgentServer", () => {
     }
   });
 
+  it("POST /run is accepted with no token configured (default-off, network isolation only)", async () => {
+    delete process.env[TOKEN_ENV];
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
+      assert.equal(res.status, 200);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /run without the token returns 401 when a token is configured", async () => {
+    process.env[TOKEN_ENV] = "s3cret";
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
+      assert.equal(res.status, 401);
+      const body = (await res.json()) as { ok: boolean; error: string };
+      assert.equal(body.ok, false);
+      assert.match(body.error, /Unauthorized/);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /run with a wrong token returns 401", async () => {
+    process.env[TOKEN_ENV] = "s3cret";
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: { authorization: "Bearer nope" },
+        body: "{}",
+      });
+      assert.equal(res.status, 401);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /run accepts the matching token via Authorization: Bearer", async () => {
+    process.env[TOKEN_ENV] = "s3cret";
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: { authorization: "Bearer s3cret" },
+        body: "{}",
+      });
+      assert.equal(res.status, 200);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /run accepts the matching token via X-Agenta-Runner-Token", async () => {
+    process.env[TOKEN_ENV] = "s3cret";
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: { "x-agenta-runner-token": "s3cret" },
+        body: "{}",
+      });
+      assert.equal(res.status, 200);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("GET /health is reachable without the token even when one is configured", async () => {
+    // Health is for liveness probes and carries no secrets, so the token gate is on /run only.
+    process.env[TOKEN_ENV] = "s3cret";
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/health`);
+      assert.equal(res.status, 200);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("NDJSON stream: events first, then exactly one terminal result with no echoed events", async () => {
     const streamRun: RunAgent = async (_req, emit) => {
       emit?.({ type: "message", text: "a" });
       emit?.({ type: "message", text: "b" });
-      return { ok: true, output: "ab", events: [{ type: "message", text: "a" }] };
+      return {
+        ok: true,
+        output: "ab",
+        events: [{ type: "message", text: "a" }],
+      };
     };
     const s = await listen(streamRun);
     try {
@@ -101,9 +204,22 @@ describe("createAgentServer", () => {
       const records = (await res.text())
         .trim()
         .split("\n")
-        .map((line) => JSON.parse(line) as { kind: string; result?: { events: unknown[] } });
-      assert.deepEqual(records.map((r) => r.kind), ["event", "event", "result"]);
-      assert.deepEqual(records[2].result!.events, [], "terminal result does not echo events");
+        .map(
+          (line) =>
+            JSON.parse(line) as {
+              kind: string;
+              result?: { events: unknown[] };
+            },
+        );
+      assert.deepEqual(
+        records.map((r) => r.kind),
+        ["event", "event", "result"],
+      );
+      assert.deepEqual(
+        records[2].result!.events,
+        [],
+        "terminal result does not echo events",
+      );
     } finally {
       await s.close();
     }

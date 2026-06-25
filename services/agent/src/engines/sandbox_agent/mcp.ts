@@ -4,35 +4,38 @@ import type {
   ResolvedToolSpec,
   ToolCallbackContext,
 } from "../../protocol.ts";
-import { buildToolMcpServers, type McpServerStdio } from "../../tools/mcp-bridge.ts";
+import {
+  buildToolMcpServers,
+  MCP_UNSUPPORTED_MESSAGE,
+  type McpServerStdio,
+} from "../../tools/mcp-bridge.ts";
 
 type Log = (message: string) => void;
 
 /**
- * Convert user-declared MCP servers (already resolved server-side, secrets injected into
- * `env`) into ACP stdio entries. Only `stdio` is delivered over ACP today.
+ * Convert user-declared MCP servers into ACP stdio entries — DISABLED in the sidecar.
+ *
+ * A stdio MCP server launches an arbitrary process on the runner host, outside the sandbox
+ * boundary, so the implementation is disabled until its security is fixed (parity with the
+ * removed code execution; see `tools/mcp-bridge.ts`). The wire shape (`McpServerConfig`) is
+ * kept, but any stdio server throws `MCP_UNSUPPORTED_MESSAGE` rather than being delivered.
+ * Remote (`http`) servers were never delivered over ACP and are still skipped (logged), so a
+ * request carrying only remote servers stays a no-op.
  */
 export function toAcpMcpServers(
   servers: McpServerConfig[] | undefined,
   log: Log = () => {},
 ): McpServerStdio[] {
-  const out: McpServerStdio[] = [];
   for (const s of servers ?? []) {
     if ((s.transport ?? "stdio") !== "stdio" || !s.command) {
-      log(`skipping non-stdio MCP server '${s?.name ?? "?"}' (remote transport deferred)`);
+      log(
+        `skipping non-stdio MCP server '${s?.name ?? "?"}' (remote transport deferred)`,
+      );
       continue;
     }
-    if (s.tools && s.tools.length > 0) {
-      log(`MCP server '${s.name}': per-server tool allowlist not enforced over ACP (v1)`);
-    }
-    out.push({
-      name: s.name,
-      command: s.command,
-      args: s.args ?? [],
-      env: Object.entries(s.env ?? {}).map(([name, value]) => ({ name, value: String(value) })),
-    });
+    throw new Error(MCP_UNSUPPORTED_MESSAGE);
   }
-  return out;
+  return [];
 }
 
 export interface BuildSessionMcpServersInput {

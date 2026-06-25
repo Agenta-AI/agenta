@@ -2,8 +2,8 @@
 
 The Node side of the agent workflow service. It runs the actual agent loop and serves one
 contract: a JSON request in, a structured result out. The Python service
-(`services/oss/src/agent/`) decides *what* to run (config, tools, secrets, trace) and calls
-in here; this package *runs* it. It lives in Node because the harnesses (Pi, Claude Code,
+(`services/oss/src/agent/`) decides _what_ to run (config, tools, secrets, trace) and calls
+in here; this package _runs_ it. It lives in Node because the harnesses (Pi, Claude Code,
 and the `sandbox-agent` package) are Node libraries with no Python SDK.
 
 ## How it is invoked
@@ -36,8 +36,8 @@ src/
     callback.ts       the one /tools/call HTTP client
     code.ts           execute resolved code tools in a scoped subprocess
     dispatch.ts       dispatch resolved tools by executor kind
-    mcp-bridge.ts     build the MCP server config that exposes tools to a harness
-    mcp-server.ts     the stdio MCP server itself (launched per session by the daemon)
+    mcp-bridge.ts     stdio MCP bridge — DISABLED (throws MCP_UNSUPPORTED_MESSAGE)
+    mcp-server.ts     the stdio MCP server — REMOVED (refuses to serve; no longer launched)
   extensions/
     agenta.ts         the Pi extension (tracing + tools), bundled into dist/ for Pi to load
 ```
@@ -85,10 +85,15 @@ live workflow span.
 ## Tools
 
 Tools are resolved in the Python backend and arrive on the request as `customTools` plus a
-`toolCallback`. Delivery is capability-routed: the Pi extension registers them natively;
-other harnesses get them over MCP through `tools/mcp-bridge.ts` + `tools/mcp-server.ts`.
-Either way each call POSTs back to Agenta's `/tools/call` (`tools/callback.ts`), so the
-provider key and connection auth stay server-side.
+`toolCallback`. The Pi extension registers them natively, and each call POSTs back to Agenta's
+`/tools/call` (`tools/callback.ts`) so the provider key and connection auth stay server-side.
+
+The stdio MCP delivery path that exposed tools to non-Pi harnesses (`tools/mcp-bridge.ts` +
+`tools/mcp-server.ts`) is **disabled** in the sidecar — it launched an unconfined child process
+on the runner host, the same execution bypass that had code tools removed. Until the security is
+fixed, delivering a tool over MCP throws `MCP_UNSUPPORTED_MESSAGE`, so a non-Pi harness (e.g.
+Claude) cannot take custom tools, and the run plan refuses any request carrying a stdio MCP
+server. See `docs/design/agent-workflows/projects/sidecar-trust-and-sandbox-enforcement/`.
 
 ## The extension bundle
 
