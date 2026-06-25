@@ -15,7 +15,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/mcp-servers.test.ts)
  */
-import { describe, it } from "vitest";
+import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import { toAcpMcpServers } from "../../src/engines/sandbox_agent.ts";
@@ -92,5 +92,83 @@ describe("toAcpMcpServers (http enabled, stdio disabled)", () => {
 
     assert.equal(out.length, 1, "only the valid http server is delivered");
     assert.equal((out[0] as McpServerHttp).name, "remote");
+  });
+});
+
+describe("toAcpMcpServers SSRF guard (http url scheme/host)", () => {
+  const previousAllowlist = process.env.AGENTA_AGENT_MCP_HOST_ALLOWLIST;
+  afterEach(() => {
+    if (previousAllowlist === undefined)
+      delete process.env.AGENTA_AGENT_MCP_HOST_ALLOWLIST;
+    else process.env.AGENTA_AGENT_MCP_HOST_ALLOWLIST = previousAllowlist;
+  });
+
+  const http = (url: string): McpServerConfig[] => [
+    {
+      name: "s",
+      transport: "http",
+      url,
+      env: { Authorization: "Bearer secret" },
+    },
+  ];
+
+  it("rejects a non-https url (the secret would ride in clear text)", () => {
+    assert.throws(
+      () => toAcpMcpServers(http("http://mcp.example.com/sse")),
+      /must use https/,
+    );
+  });
+
+  it("rejects the cloud metadata host (169.254.169.254)", () => {
+    assert.throws(
+      () => toAcpMcpServers(http("https://169.254.169.254/latest/meta-data/")),
+      /internal\/metadata host/,
+    );
+  });
+
+  it("rejects localhost and loopback / private literals", () => {
+    for (const url of [
+      "https://localhost/mcp",
+      "https://127.0.0.1/mcp",
+      "https://10.0.0.5/mcp",
+      "https://192.168.1.10/mcp",
+      "https://172.16.4.4/mcp",
+      "https://[::1]/mcp",
+    ]) {
+      assert.throws(
+        () => toAcpMcpServers(http(url)),
+        /internal\/metadata host/,
+        `should reject ${url}`,
+      );
+    }
+  });
+
+  it("rejects a malformed url", () => {
+    assert.throws(() => toAcpMcpServers(http("not a url")), /not a valid URL/);
+  });
+
+  it("allows a public https url unchanged", () => {
+    const out = toAcpMcpServers(http("https://mcp.linear.app/sse"));
+    assert.equal(out.length, 1);
+    assert.equal((out[0] as McpServerHttp).url, "https://mcp.linear.app/sse");
+  });
+
+  it("allowlist opts a host out of the https + internal-host checks", () => {
+    process.env.AGENTA_AGENT_MCP_HOST_ALLOWLIST = "localhost,10.0.0.5";
+    // http://localhost is normally rejected twice over (non-https + internal); allowlisted -> ok.
+    const out = toAcpMcpServers(http("http://localhost:9000/mcp"));
+    assert.equal(out.length, 1, "allowlisted host is delivered");
+    assert.equal((out[0] as McpServerHttp).url, "http://localhost:9000/mcp");
+    // A private IP literal in the allowlist is also permitted.
+    assert.equal(
+      toAcpMcpServers(http("https://10.0.0.5/mcp")).length,
+      1,
+      "allowlisted private literal delivered",
+    );
+    // A host NOT in the allowlist is still rejected.
+    assert.throws(
+      () => toAcpMcpServers(http("https://127.0.0.1/mcp")),
+      /internal\/metadata host/,
+    );
   });
 });
