@@ -18,7 +18,7 @@
  * Sections are schema-driven: each renders only when its field exists in the resolved
  * schema, so the panel tracks the backend contract instead of hard-coding fields.
  */
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
@@ -69,6 +69,7 @@ import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {McpServerFormView} from "./McpServerFormView"
 import {SandboxPermissionControl} from "./SandboxPermissionControl"
+import {SectionDrawer} from "./SectionDrawer"
 import {SkillFormView} from "./SkillFormView"
 import {ToolFormView} from "./ToolFormView"
 import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover"
@@ -550,6 +551,24 @@ export function AgentConfigControl({
         setEditingInstruction({filename})
     }, [])
 
+    // Section drawers (Model & harness, Advanced): the accordion header opens these instead of
+    // expanding inline. Edits apply live through the existing handlers; a full-config snapshot taken
+    // on open is restored on Cancel, giving the same draft-then-save feel as the item drawers.
+    const [openSection, setOpenSection] = useState<null | "model-harness" | "advanced">(null)
+    const sectionSnapshot = useRef<Record<string, unknown> | null>(null)
+    const openSectionDrawer = useCallback(
+        (key: "model-harness" | "advanced") => {
+            sectionSnapshot.current = value ?? {}
+            setOpenSection(key)
+        },
+        [value],
+    )
+    const cancelSection = useCallback(() => {
+        if (sectionSnapshot.current) onChange(sectionSnapshot.current)
+        setOpenSection(null)
+    }, [onChange])
+    const saveSection = useCallback(() => setOpenSection(null), [])
+
     // How the config sections are laid out: stacked accordion (default), tabs, or cards.
     // Layout is a global, persisted preference set from the variant header menu (see
     // agentConfigLayout); the panel only reads it.
@@ -934,6 +953,206 @@ export function AgentConfigControl({
         </Tooltip>
     )
 
+    // The Model picker (inspect-filtered when available, else the schema catalog).
+    const modelPicker = props.model ? (
+        hasInspectModels ? (
+            <LabeledField
+                label="Model"
+                description="Filtered to the models this harness can reach. Selecting a model also sets its provider."
+                withTooltip={withTooltip}
+            >
+                <SelectLLMProviderBase
+                    showGroup
+                    options={modelGroups}
+                    value={modelId ?? undefined}
+                    onChange={(v) => writeModel({modelId: (v as string) ?? null})}
+                    disabled={disabled}
+                    placeholder="Select a model…"
+                    className="w-full"
+                />
+            </LabeledField>
+        ) : (
+            <GroupedChoiceControl
+                schema={props.model}
+                label="Model"
+                value={modelId}
+                onChange={(v) => writeModel({modelId: v})}
+                withTooltip={withTooltip}
+                disabled={disabled}
+            />
+        )
+    ) : null
+
+    // Model & harness drawer body (harness picker + model picker). Authentication lives in Advanced.
+    const modelHarnessDrawerBody = (
+        <div className="flex flex-col gap-3">
+            {props.harness && (
+                <HarnessSelectControl
+                    schema={props.harness}
+                    label="Harness"
+                    value={(config.harness as string | null) ?? null}
+                    onChange={(v) => setField("harness", v)}
+                    withTooltip={withTooltip}
+                    disabled={disabled}
+                />
+            )}
+            {modelPicker}
+        </div>
+    )
+
+    // Authentication (credential source) — moved out of Model & harness into Advanced.
+    const authBlock = props.model ? (
+        <div className="flex flex-col gap-2 rounded-lg border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] p-3">
+            <Typography.Text className="text-[11px] font-medium uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
+                Authentication
+            </Typography.Text>
+            {modeOptions.map((m) => {
+                const selected = connection.mode === m
+                const title = m === "agenta" ? "Agenta-managed" : "Self-managed"
+                const desc =
+                    m === "agenta"
+                        ? "Agenta supplies the credential from this project's vault — the default provider key, or a named connection you pick below."
+                        : "The harness signs in itself (an environment variable or a prior OAuth login). Agenta injects no credential."
+                return (
+                    <button
+                        key={m}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        disabled={disabled}
+                        onClick={() => writeModel({mode: m})}
+                        className={cn(
+                            "flex w-full items-start gap-2.5 rounded-lg border border-solid p-2.5 text-left transition-colors",
+                            disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+                            selected
+                                ? "border-[var(--ant-color-primary)] bg-[var(--ant-color-fill-secondary)]"
+                                : "border-[var(--ant-color-border)] bg-[var(--ant-color-fill-quaternary)] hover:border-[var(--ant-color-text-quaternary)] hover:bg-[var(--ant-color-fill-tertiary)]",
+                        )}
+                    >
+                        <span
+                            className={cn(
+                                "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-solid",
+                                selected
+                                    ? "border-[var(--ant-color-primary)]"
+                                    : "border-[var(--ant-color-text-tertiary)]",
+                            )}
+                        >
+                            {selected && (
+                                <span className="h-2 w-2 rounded-full bg-[var(--ant-color-primary)]" />
+                            )}
+                        </span>
+                        <span className="flex flex-col gap-0.5">
+                            <Typography.Text
+                                className={cn(
+                                    "text-xs font-medium leading-none",
+                                    selected && "!text-[var(--ant-color-primary-text)]",
+                                )}
+                            >
+                                {title}
+                            </Typography.Text>
+                            <Typography.Text type="secondary" className="text-[11px] leading-snug">
+                                {desc}
+                            </Typography.Text>
+                        </span>
+                    </button>
+                )
+            })}
+            {connection.mode === "agenta" && (
+                <LabeledField
+                    label="Connection"
+                    description="Which stored connection supplies the credential. Project default uses the project's provider key."
+                    withTooltip
+                >
+                    <Select<string>
+                        value={connection.slug ?? "__default__"}
+                        onChange={(v) =>
+                            writeModel({slug: v === "__default__" ? null : (v ?? null)})
+                        }
+                        options={[
+                            {value: "__default__", label: "Project default"},
+                            ...connectionOptions.map((o) => ({value: o.value, label: o.label})),
+                        ]}
+                        disabled={disabled}
+                        className="w-full"
+                        showSearch
+                        optionFilterProp="label"
+                    />
+                </LabeledField>
+            )}
+            <div className="flex items-center gap-2">
+                <Switch
+                    checked={showModelJson}
+                    onChange={handleToggleModelJson}
+                    disabled={disabled}
+                />
+                <Typography.Text className="text-xs">Edit as JSON</Typography.Text>
+            </div>
+            {showModelJson && (
+                <CodeEditor
+                    value={modelJsonText}
+                    onChange={handleModelJsonChange}
+                    language="json"
+                    disabled={disabled}
+                />
+            )}
+        </div>
+    ) : null
+
+    // Advanced header summary: auth mode + sandbox, so the collapsed header still conveys state.
+    const advancedSummary =
+        [
+            props.model ? (connection.mode === "agenta" ? "Agenta-managed" : "Self-managed") : null,
+            config.sandbox ? `Sandbox: ${String(config.sandbox)}` : null,
+        ]
+            .filter(Boolean)
+            .join(" · ") || undefined
+
+    // Advanced drawer body: Authentication (moved here) + sandbox / permissions / Claude perms.
+    const advancedDrawerBody = (
+        <div className="flex flex-col gap-3">
+            {authBlock}
+            {props.sandbox && (
+                <EnumSelectControl
+                    schema={props.sandbox}
+                    label="Sandbox"
+                    value={(config.sandbox as string | null) ?? null}
+                    onChange={(v) => setField("sandbox", v)}
+                    withTooltip={withTooltip}
+                    disabled={disabled}
+                />
+            )}
+            {props.permission_policy && !isPiHarness && (
+                <EnumSelectControl
+                    schema={props.permission_policy}
+                    label="Permission policy"
+                    value={(config.permission_policy as string | null) ?? null}
+                    onChange={(v) => setField("permission_policy", v)}
+                    withTooltip={withTooltip}
+                    disabled={disabled}
+                />
+            )}
+            {props.sandbox_permission ? (
+                <SandboxPermissionControl
+                    value={(config.sandbox_permission as Record<string, unknown> | null) ?? null}
+                    onChange={(v) => setField("sandbox_permission", v)}
+                    disabled={disabled}
+                />
+            ) : null}
+            {hasClaudePermissions ? (
+                <div className="flex flex-col gap-2 border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pt-3">
+                    <Typography.Text className="text-xs font-medium">
+                        Claude permissions
+                    </Typography.Text>
+                    <ClaudePermissionsControl
+                        value={claudePermissions}
+                        onChange={setClaudePermissions}
+                        disabled={disabled}
+                    />
+                </div>
+            ) : null}
+        </div>
+    )
+
     // Each config section as a descriptor, so it can be rendered in any layout (accordion /
     // tabs / cards) without duplicating the content. Schema-gated, like before.
     const sections = [
@@ -943,176 +1162,8 @@ export function AgentConfigControl({
             title: "Model & harness",
             summary: modelSummary,
             defaultOpen: true,
-            content: (
-                <>
-                    {props.harness && (
-                        <HarnessSelectControl
-                            schema={props.harness}
-                            label="Harness"
-                            value={(config.harness as string | null) ?? null}
-                            onChange={(v) => setField("harness", v)}
-                            withTooltip={withTooltip}
-                            disabled={disabled}
-                        />
-                    )}
-                    {props.model && (
-                        <>
-                            {/* Unified provider + model picker. When the agent's `/inspect`
-                                publishes a harness-filtered model list we render from it (selecting
-                                a model sets both the model id and its provider). Otherwise we fall
-                                back to the schema's full catalog picker. */}
-                            {hasInspectModels ? (
-                                <LabeledField
-                                    label="Model"
-                                    description="Filtered to the models this harness can reach. Selecting a model also sets its provider."
-                                    withTooltip={withTooltip}
-                                >
-                                    <SelectLLMProviderBase
-                                        showGroup
-                                        options={modelGroups}
-                                        value={modelId ?? undefined}
-                                        onChange={(v) =>
-                                            writeModel({modelId: (v as string) ?? null})
-                                        }
-                                        disabled={disabled}
-                                        placeholder="Select a model…"
-                                        className="w-full"
-                                    />
-                                </LabeledField>
-                            ) : (
-                                <GroupedChoiceControl
-                                    schema={props.model}
-                                    label="Model"
-                                    value={modelId}
-                                    onChange={(v) => writeModel({modelId: v})}
-                                    withTooltip={withTooltip}
-                                    disabled={disabled}
-                                />
-                            )}
-
-                            {/* Authentication (credential source) + the chosen connection, grouped
-                                as an inset card so the credential fields read as a sub-section, not
-                                peers of Harness/Model. Agenta-managed uses a stored vault
-                                connection; self-managed means the harness brings its own login. */}
-                            <div className="mt-1 flex flex-col gap-2 rounded-lg border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] p-3">
-                                <Typography.Text className="text-[11px] font-medium uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                    Authentication
-                                </Typography.Text>
-
-                                {/* Credential source as selectable radio cards (not a segmented
-                                    tab): each option carries an explainer so the choice is
-                                    self-describing. The selected card is marked by the brand-primary
-                                    border + filled radio dot + primary title — token-based so it
-                                    reads in light and dark. */}
-                                {modeOptions.map((m) => {
-                                    const selected = connection.mode === m
-                                    const title = m === "agenta" ? "Agenta-managed" : "Self-managed"
-                                    const desc =
-                                        m === "agenta"
-                                            ? "Agenta supplies the credential from this project's vault — the default provider key, or a named connection you pick below."
-                                            : "The harness signs in itself (an environment variable or a prior OAuth login). Agenta injects no credential."
-                                    return (
-                                        <button
-                                            key={m}
-                                            type="button"
-                                            role="radio"
-                                            aria-checked={selected}
-                                            disabled={disabled}
-                                            onClick={() => writeModel({mode: m})}
-                                            className={cn(
-                                                "flex w-full items-start gap-2.5 rounded-lg border border-solid p-2.5 text-left transition-colors",
-                                                disabled
-                                                    ? "cursor-not-allowed opacity-60"
-                                                    : "cursor-pointer",
-                                                selected
-                                                    ? "border-[var(--ant-color-primary)] bg-[var(--ant-color-fill-secondary)]"
-                                                    : "border-[var(--ant-color-border)] bg-[var(--ant-color-fill-quaternary)] hover:border-[var(--ant-color-text-quaternary)] hover:bg-[var(--ant-color-fill-tertiary)]",
-                                            )}
-                                        >
-                                            <span
-                                                className={cn(
-                                                    "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-solid",
-                                                    selected
-                                                        ? "border-[var(--ant-color-primary)]"
-                                                        : "border-[var(--ant-color-text-tertiary)]",
-                                                )}
-                                            >
-                                                {selected && (
-                                                    <span className="h-2 w-2 rounded-full bg-[var(--ant-color-primary)]" />
-                                                )}
-                                            </span>
-                                            <span className="flex flex-col gap-0.5">
-                                                <Typography.Text
-                                                    className={cn(
-                                                        "text-xs font-medium leading-none",
-                                                        selected &&
-                                                            "!text-[var(--ant-color-primary-text)]",
-                                                    )}
-                                                >
-                                                    {title}
-                                                </Typography.Text>
-                                                <Typography.Text
-                                                    type="secondary"
-                                                    className="text-[11px] leading-snug"
-                                                >
-                                                    {desc}
-                                                </Typography.Text>
-                                            </span>
-                                        </button>
-                                    )
-                                })}
-
-                                {connection.mode === "agenta" && (
-                                    <LabeledField
-                                        label="Connection"
-                                        description="Which stored connection supplies the credential. Project default uses the project's provider key."
-                                        withTooltip
-                                    >
-                                        <Select<string>
-                                            value={connection.slug ?? "__default__"}
-                                            onChange={(v) =>
-                                                writeModel({
-                                                    slug: v === "__default__" ? null : (v ?? null),
-                                                })
-                                            }
-                                            options={[
-                                                {value: "__default__", label: "Project default"},
-                                                ...connectionOptions.map((o) => ({
-                                                    value: o.value,
-                                                    label: o.label,
-                                                })),
-                                            ]}
-                                            disabled={disabled}
-                                            className="w-full"
-                                            showSearch
-                                            optionFilterProp="label"
-                                        />
-                                    </LabeledField>
-                                )}
-
-                                <div className="flex items-center gap-2">
-                                    <Switch
-                                        checked={showModelJson}
-                                        onChange={handleToggleModelJson}
-                                        disabled={disabled}
-                                    />
-                                    <Typography.Text className="text-xs">
-                                        Edit as JSON
-                                    </Typography.Text>
-                                </div>
-                                {showModelJson && (
-                                    <CodeEditor
-                                        value={modelJsonText}
-                                        onChange={handleModelJsonChange}
-                                        language="json"
-                                        disabled={disabled}
-                                    />
-                                )}
-                            </div>
-                        </>
-                    )}
-                </>
-            ),
+            onOpen: () => openSectionDrawer("model-harness"),
+            content: modelHarnessDrawerBody,
         },
         hasInstructions && {
             key: "instructions",
@@ -1282,52 +1333,9 @@ export function AgentConfigControl({
             icon: <SlidersHorizontal size={16} />,
             title: "Advanced",
             defaultOpen: false,
-            content: (
-                <>
-                    {props.sandbox && (
-                        <EnumSelectControl
-                            schema={props.sandbox}
-                            label="Sandbox"
-                            value={(config.sandbox as string | null) ?? null}
-                            onChange={(v) => setField("sandbox", v)}
-                            withTooltip={withTooltip}
-                            disabled={disabled}
-                        />
-                    )}
-                    {props.permission_policy && !isPiHarness && (
-                        <EnumSelectControl
-                            schema={props.permission_policy}
-                            label="Permission policy"
-                            value={(config.permission_policy as string | null) ?? null}
-                            onChange={(v) => setField("permission_policy", v)}
-                            withTooltip={withTooltip}
-                            disabled={disabled}
-                        />
-                    )}
-                    {props.sandbox_permission ? (
-                        <SandboxPermissionControl
-                            value={
-                                (config.sandbox_permission as Record<string, unknown> | null) ??
-                                null
-                            }
-                            onChange={(v) => setField("sandbox_permission", v)}
-                            disabled={disabled}
-                        />
-                    ) : null}
-                    {hasClaudePermissions ? (
-                        <div className="flex flex-col gap-2 border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pt-3">
-                            <Typography.Text className="text-xs font-medium">
-                                Claude permissions
-                            </Typography.Text>
-                            <ClaudePermissionsControl
-                                value={claudePermissions}
-                                onChange={setClaudePermissions}
-                                disabled={disabled}
-                            />
-                        </div>
-                    ) : null}
-                </>
-            ),
+            summary: advancedSummary,
+            onOpen: () => openSectionDrawer("advanced"),
+            content: advancedDrawerBody,
         },
     ].filter(Boolean) as {
         key: string
@@ -1336,6 +1344,7 @@ export function AgentConfigControl({
         summary?: React.ReactNode
         extra?: React.ReactNode
         defaultOpen?: boolean
+        onOpen?: () => void
         content: React.ReactNode
     }[]
 
@@ -1367,6 +1376,7 @@ export function AgentConfigControl({
                             title={s.title}
                             summary={s.summary}
                             extra={s.extra}
+                            onOpen={s.onOpen}
                             collapsible={false}
                             noDivider
                             className="rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3"
@@ -1383,6 +1393,7 @@ export function AgentConfigControl({
                         title={s.title}
                         summary={s.summary}
                         extra={s.extra}
+                        onOpen={s.onOpen}
                         defaultOpen={s.defaultOpen}
                         noDivider={index === sections.length - 1}
                     >
@@ -1532,6 +1543,28 @@ export function AgentConfigControl({
                     disabled={disabled}
                 />
             )}
+
+            <SectionDrawer
+                open={openSection === "model-harness"}
+                title="Model & harness"
+                icon={<Cpu size={16} />}
+                onCancel={cancelSection}
+                onSave={saveSection}
+                disabled={disabled}
+            >
+                {modelHarnessDrawerBody}
+            </SectionDrawer>
+
+            <SectionDrawer
+                open={openSection === "advanced"}
+                title="Advanced"
+                icon={<SlidersHorizontal size={16} />}
+                onCancel={cancelSection}
+                onSave={saveSection}
+                disabled={disabled}
+            >
+                {advancedDrawerBody}
+            </SectionDrawer>
         </div>
     )
 }
