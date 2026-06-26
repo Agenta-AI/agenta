@@ -13,24 +13,24 @@ export const useWorkspacePermissions = () => {
     const {hasRBAC} = useEntitlements()
     const {hasPermission, isOrgOwner} = useProjectPermissions()
 
+    // OSS always enforces; EE only when RBAC-entitled.
+    const rbacActive = !isEE() || hasRBAC
+
     /**
      * Check if the current user can invite members to the workspace.
      */
     const canInviteMembers = useMemo(() => {
-        if (!isEE()) return true // OSS mode - allow all
-        if (!hasRBAC) return true // No RBAC - allow all
-
+        if (!rbacActive) return true
         return hasPermission("add_new_user_to_workspace")
-    }, [hasPermission, hasRBAC])
+    }, [hasPermission, rbacActive])
 
     /**
      * Check if the current user can modify roles of other workspace members.
      */
     const canModifyRoles = useMemo(() => {
-        if (!isEE()) return false
-        if (!hasRBAC) return false
+        if (!rbacActive) return false
         return hasPermission("modify_user_roles")
-    }, [hasPermission, hasRBAC])
+    }, [hasPermission, rbacActive])
 
     /**
      * Check if the current user is the organization owner.

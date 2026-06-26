@@ -12,7 +12,6 @@ from fastapi.responses import JSONResponse
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
-from oss.src.utils.common import is_ee
 
 from oss.src.apis.fastapi.triggers.models import (
     TriggerCatalogEventResponse,
@@ -51,12 +50,9 @@ from oss.src.core.triggers.exceptions import (
 from oss.src.core.triggers.service import TriggersService
 
 
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import (
-        check_action_access,
-        FORBIDDEN_EXCEPTION,
-    )
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 log = get_module_logger(__name__)
 
@@ -456,14 +452,13 @@ class TriggersRouter:
         provider_key: Optional[str] = Query(default=None),
         integration_key: Optional[str] = Query(default=None),
     ) -> TriggerConnectionsResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TRIGGERS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TRIGGERS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         connections = await self.triggers_service.query_connections(
             project_id=UUID(request.state.project_id),
@@ -482,14 +477,13 @@ class TriggersRouter:
         *,
         body: TriggerConnectionCreateRequest,
     ) -> TriggerConnectionResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TRIGGERS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TRIGGERS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         slug = body.connection.slug
         if "." in slug or "__" in slug:
@@ -529,14 +523,13 @@ class TriggersRouter:
         request: Request,
         connection_id: UUID,
     ) -> TriggerConnectionResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TRIGGERS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TRIGGERS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         connection = await self.triggers_service.get_connection(
             project_id=UUID(request.state.project_id),
@@ -559,14 +552,13 @@ class TriggersRouter:
         request: Request,
         connection_id: UUID,
     ) -> None:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TRIGGERS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TRIGGERS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         await self.triggers_service.delete_connection(
             project_id=UUID(request.state.project_id),
@@ -581,14 +573,13 @@ class TriggersRouter:
         *,
         force: bool = Query(default=False),
     ) -> TriggerConnectionResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TRIGGERS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TRIGGERS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         connection = await self.triggers_service.refresh_connection(
             project_id=UUID(request.state.project_id),
@@ -607,14 +598,13 @@ class TriggersRouter:
         request: Request,
         connection_id: UUID,
     ) -> TriggerConnectionResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_TRIGGERS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TRIGGERS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         connection = await self.triggers_service.revoke_connection(
             project_id=UUID(request.state.project_id),
@@ -636,14 +626,13 @@ class TriggersRouter:
         self,
         request: Request,
     ) -> TriggerCatalogProvidersResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                project_id=request.state.project_id,
-                user_uid=request.state.user_id,
-                permission=Permission.VIEW_TRIGGERS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            project_id=request.state.project_id,
+            user_uid=request.state.user_id,
+            permission=Permission.VIEW_TRIGGERS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         cached = await get_cache(
             project_id=None,  # catalog is global; not per-project
@@ -679,14 +668,13 @@ class TriggersRouter:
         request: Request,
         provider_key: str,
     ) -> TriggerCatalogProviderResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TRIGGERS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TRIGGERS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         cache_key = {"provider_key": provider_key}
         cached = await get_cache(
@@ -734,14 +722,13 @@ class TriggersRouter:
         limit: Optional[int] = Query(default=None),
         cursor: Optional[str] = Query(default=None),
     ) -> TriggerCatalogIntegrationsResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TRIGGERS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TRIGGERS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         cache_key = {
             "provider_key": provider_key,
@@ -793,14 +780,13 @@ class TriggersRouter:
         provider_key: str,
         integration_key: str,
     ) -> TriggerCatalogIntegrationResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TRIGGERS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TRIGGERS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         cache_key = {
             "provider_key": provider_key,
@@ -852,14 +838,13 @@ class TriggersRouter:
         limit: Optional[int] = Query(default=None),
         cursor: Optional[str] = Query(default=None),
     ) -> TriggerCatalogEventsResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TRIGGERS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TRIGGERS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         cache_key = {
             "provider_key": provider_key,
@@ -912,14 +897,13 @@ class TriggersRouter:
         integration_key: str,
         event_key: str,
     ) -> TriggerCatalogEventResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TRIGGERS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TRIGGERS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
         cache_key = {
             "provider_key": provider_key,
@@ -966,14 +950,13 @@ class TriggersRouter:
     # -----------------------------------------------------------------------
 
     async def _check(self, request: Request, permission) -> None:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=permission,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION
+        has_permission = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=permission,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
 
     @intercept_exceptions()
     @handle_adapter_exceptions()
@@ -983,7 +966,7 @@ class TriggersRouter:
         *,
         body: TriggerSubscriptionCreateRequest,
     ) -> TriggerSubscriptionResponse:
-        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.EDIT_TRIGGERS)
 
         try:
             subscription = await self.triggers_service.create_subscription(
@@ -1008,7 +991,7 @@ class TriggersRouter:
         *,
         body: TriggerSubscriptionCreateRequest,
     ) -> TriggerDeliveryResponse:
-        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.EDIT_TRIGGERS)
 
         try:
             delivery = await self.triggers_service.test_subscription(
@@ -1030,7 +1013,7 @@ class TriggersRouter:
         self,
         request: Request,
     ) -> TriggerSubscriptionsResponse:
-        await self._check(request, Permission.VIEW_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.VIEW_TRIGGERS)
 
         subscriptions = await self.triggers_service.query_subscriptions(
             project_id=UUID(request.state.project_id),
@@ -1048,7 +1031,7 @@ class TriggersRouter:
         *,
         body: TriggerSubscriptionQueryRequest,
     ) -> TriggerSubscriptionsResponse:
-        await self._check(request, Permission.VIEW_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.VIEW_TRIGGERS)
 
         subscriptions = await self.triggers_service.query_subscriptions(
             project_id=UUID(request.state.project_id),
@@ -1070,7 +1053,7 @@ class TriggersRouter:
         *,
         subscription_id: UUID,
     ) -> TriggerSubscriptionResponse:
-        await self._check(request, Permission.VIEW_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.VIEW_TRIGGERS)
 
         subscription = await self.triggers_service.fetch_subscription(
             project_id=UUID(request.state.project_id),
@@ -1097,7 +1080,7 @@ class TriggersRouter:
         subscription_id: UUID,
         body: TriggerSubscriptionEditRequest,
     ) -> TriggerSubscriptionResponse:
-        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.EDIT_TRIGGERS)
 
         if str(subscription_id) != str(body.subscription.id):
             raise HTTPException(
@@ -1130,7 +1113,7 @@ class TriggersRouter:
         *,
         subscription_id: UUID,
     ) -> None:
-        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.EDIT_TRIGGERS)
 
         deleted = await self.triggers_service.delete_subscription(
             project_id=UUID(request.state.project_id),
@@ -1151,7 +1134,7 @@ class TriggersRouter:
         *,
         subscription_id: UUID,
     ) -> TriggerSubscriptionResponse:
-        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.EDIT_TRIGGERS)
 
         try:
             subscription = await self.triggers_service.refresh_subscription(
@@ -1176,7 +1159,7 @@ class TriggersRouter:
         *,
         subscription_id: UUID,
     ) -> TriggerSubscriptionResponse:
-        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.EDIT_TRIGGERS)
 
         try:
             subscription = await self.triggers_service.revoke_subscription(
@@ -1226,7 +1209,7 @@ class TriggersRouter:
         subscription_id: UUID,
         is_active: bool,
     ) -> TriggerSubscriptionResponse:
-        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.EDIT_TRIGGERS)
 
         try:
             subscription = await self.triggers_service.set_subscription_active(
@@ -1255,7 +1238,7 @@ class TriggersRouter:
         *,
         body: TriggerScheduleCreateRequest,
     ) -> TriggerScheduleResponse:
-        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.EDIT_TRIGGERS)
 
         try:
             schedule = await self.triggers_service.create_schedule(
@@ -1279,7 +1262,7 @@ class TriggersRouter:
         self,
         request: Request,
     ) -> TriggerSchedulesResponse:
-        await self._check(request, Permission.VIEW_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.VIEW_TRIGGERS)
 
         schedules = await self.triggers_service.query_schedules(
             project_id=UUID(request.state.project_id),
@@ -1297,7 +1280,7 @@ class TriggersRouter:
         *,
         body: TriggerScheduleQueryRequest,
     ) -> TriggerSchedulesResponse:
-        await self._check(request, Permission.VIEW_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.VIEW_TRIGGERS)
 
         schedules = await self.triggers_service.query_schedules(
             project_id=UUID(request.state.project_id),
@@ -1319,7 +1302,7 @@ class TriggersRouter:
         *,
         schedule_id: UUID,
     ) -> TriggerScheduleResponse:
-        await self._check(request, Permission.VIEW_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.VIEW_TRIGGERS)
 
         schedule = await self.triggers_service.fetch_schedule(
             project_id=UUID(request.state.project_id),
@@ -1345,7 +1328,7 @@ class TriggersRouter:
         schedule_id: UUID,
         body: TriggerScheduleEditRequest,
     ) -> TriggerScheduleResponse:
-        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.EDIT_TRIGGERS)
 
         if str(schedule_id) != str(body.schedule.id):
             raise HTTPException(
@@ -1383,7 +1366,7 @@ class TriggersRouter:
         *,
         schedule_id: UUID,
     ) -> None:
-        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.EDIT_TRIGGERS)
 
         deleted = await self.triggers_service.delete_schedule(
             project_id=UUID(request.state.project_id),
@@ -1429,7 +1412,7 @@ class TriggersRouter:
         schedule_id: UUID,
         is_active: bool,
     ) -> TriggerScheduleResponse:
-        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.EDIT_TRIGGERS)
 
         try:
             schedule = await self.triggers_service.set_schedule_active(
@@ -1483,7 +1466,7 @@ class TriggersRouter:
         self,
         request: Request,
     ) -> TriggerDeliveriesResponse:
-        await self._check(request, Permission.VIEW_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.VIEW_TRIGGERS)
 
         deliveries = await self.triggers_service.query_deliveries(
             project_id=UUID(request.state.project_id),
@@ -1501,7 +1484,7 @@ class TriggersRouter:
         *,
         body: TriggerDeliveryQueryRequest,
     ) -> TriggerDeliveriesResponse:
-        await self._check(request, Permission.VIEW_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.VIEW_TRIGGERS)
 
         deliveries = await self.triggers_service.query_deliveries(
             project_id=UUID(request.state.project_id),
@@ -1523,7 +1506,7 @@ class TriggersRouter:
         *,
         delivery_id: UUID,
     ) -> TriggerDeliveryResponse:
-        await self._check(request, Permission.VIEW_TRIGGERS if is_ee() else None)
+        await self._check(request, Permission.VIEW_TRIGGERS)
 
         delivery = await self.triggers_service.fetch_delivery(
             project_id=UUID(request.state.project_id),

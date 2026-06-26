@@ -4,7 +4,7 @@ from typing import List
 from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Request, status, HTTPException
 
-from oss.src.utils.common import is_ee
+from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
@@ -15,9 +15,11 @@ from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
 )
 
-if is_ee():
-    from ee.src.core.access.permissions.types import Permission
-    from ee.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
+
+
+log = get_module_logger(__name__)
 
 
 class VaultRouter:
@@ -71,19 +73,18 @@ class VaultRouter:
 
     @intercept_exceptions()
     async def create_secret(self, request: Request, body: CreateSecretDTO):
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.EDIT_SECRET,
-            )
+        has_permission = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.EDIT_SECRET,
+        )
 
-            if not has_permission:
-                error_msg = "You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
+        if not has_permission:
+            error_msg = "You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
 
         vault_secret = await self.service.create_secret(
             project_id=UUID(request.state.project_id),
@@ -96,19 +97,18 @@ class VaultRouter:
 
     @intercept_exceptions()
     async def list_secrets(self, request: Request):
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.VIEW_SECRET,
-            )
+        has_permission = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.VIEW_SECRET,
+        )
 
-            if not has_permission:
-                error_msg = "You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
+        if not has_permission:
+            error_msg = "You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
 
         cache_key = {}
 
@@ -138,19 +138,18 @@ class VaultRouter:
 
     @intercept_exceptions()
     async def read_secret(self, request: Request, secret_id: str):
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.VIEW_SECRET,
-            )
+        has_permission = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.VIEW_SECRET,
+        )
 
-            if not has_permission:
-                error_msg = "You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
+        if not has_permission:
+            error_msg = "You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
 
         secrets_dto = await self.service.get_secret(
             project_id=UUID(request.state.project_id),
@@ -166,19 +165,18 @@ class VaultRouter:
     async def update_secret(
         self, request: Request, secret_id: str, body: UpdateSecretDTO
     ):
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.EDIT_SECRET,
-            )
+        has_permission = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.EDIT_SECRET,
+        )
 
-            if not has_permission:
-                error_msg = "You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
+        if not has_permission:
+            error_msg = "You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
 
         secrets_dto = await self.service.update_secret(
             project_id=UUID(request.state.project_id),
@@ -197,19 +195,18 @@ class VaultRouter:
 
     @intercept_exceptions()
     async def delete_secret(self, request: Request, secret_id: str):
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.EDIT_SECRET,
-            )
+        has_permission = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.EDIT_SECRET,
+        )
 
-            if not has_permission:
-                error_msg = "You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
+        if not has_permission:
+            error_msg = "You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
 
         await self.service.delete_secret(
             project_id=UUID(request.state.project_id),

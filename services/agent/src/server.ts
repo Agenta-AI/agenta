@@ -63,9 +63,13 @@ function presentedToken(req: IncomingMessage): string {
   const header = req.headers["x-agenta-runner-token"];
   if (typeof header === "string" && header) return header;
   const auth = req.headers["authorization"];
-  if (typeof auth === "string" && auth) {
-    const match = /^Bearer\s+(.+)$/i.exec(auth);
-    if (match) return match[1];
+  // Linear scan, not a regex: `/^Bearer\s+(.+)$/` is polynomial-ReDoS (js/polynomial-redos) —
+  // `\s+` and `.+` both match spaces, so a long all-space header backtracks in O(n^2) and stalls
+  // the single-threaded runner. The fixed `^Bearer\s` prefix has no ambiguous quantifier (O(n));
+  // `slice(6).trim()` then yields the same token `\s+(.+)` did.
+  if (typeof auth === "string" && /^Bearer\s/i.test(auth)) {
+    const token = auth.slice(6).trim();
+    if (token) return token;
   }
   return "";
 }

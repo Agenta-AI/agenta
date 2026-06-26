@@ -129,59 +129,54 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                     </>
                 )}
             </Form.List>
-            {isEE() && hasRBAC ? (
-                <>
-                    <Form.Item
-                        name="role"
-                        rules={[{required: true, message: "Please select a role"}]}
-                        initialValue="viewer"
-                        className="mb-1"
-                    >
-                        <Select
-                            allowClear
-                            className="w-full"
-                            placeholder="Select role"
-                            options={filteredRoles.map((role) => ({
-                                label: snakeToTitle(role.role_name || ""),
-                                value: role.role_name,
-                                desc: role.role_description,
-                            }))}
-                            disabled={!hasRBAC}
-                            optionRender={(option) => (
-                                <Space orientation="vertical" size="small">
-                                    <Typography.Text>{option.label}</Typography.Text>
-                                    <Typography.Text className="text-wrap" type="secondary">
-                                        {option.data.desc}
-                                    </Typography.Text>
-                                </Space>
-                            )}
-                            optionLabelProp="label"
-                        />
-                    </Form.Item>
-                    {!hasRBAC ? (
-                        <Alert
-                            message={
-                                <div className="flex flex-col">
-                                    <Typography.Text>
-                                        Role selection is only available for Business and Enterprise
-                                        plans.
-                                    </Typography.Text>
+            {!isEE() || hasRBAC ? (
+                <Form.Item
+                    name="role"
+                    rules={[{required: true, message: "Please select a role"}]}
+                    initialValue="viewer"
+                    className="mb-1"
+                >
+                    <Select
+                        allowClear
+                        className="w-full"
+                        placeholder="Select role"
+                        options={filteredRoles.map((role) => ({
+                            label: snakeToTitle(role.role_name || ""),
+                            value: role.role_name,
+                            desc: role.role_description,
+                        }))}
+                        optionRender={(option) => (
+                            <Space orientation="vertical" size="small">
+                                <Typography.Text>{option.label}</Typography.Text>
+                                <Typography.Text className="text-wrap" type="secondary">
+                                    {option.data.desc}
+                                </Typography.Text>
+                            </Space>
+                        )}
+                        optionLabelProp="label"
+                    />
+                </Form.Item>
+            ) : (
+                <Alert
+                    message={
+                        <div className="flex flex-col">
+                            <Typography.Text>
+                                Role selection is only available for Business and Enterprise plans.
+                            </Typography.Text>
 
-                                    <Link
-                                        href={"https://agenta.ai/pricing"}
-                                        target="_blank"
-                                        className="font-medium"
-                                    >
-                                        Click here to learn more
-                                    </Link>
-                                </div>
-                            }
-                            type="warning"
-                            showIcon
-                        />
-                    ) : null}
-                </>
-            ) : null}
+                            <Link
+                                href={"https://agenta.ai/pricing"}
+                                target="_blank"
+                                className="font-medium"
+                            >
+                                Click here to learn more
+                            </Link>
+                        </div>
+                    }
+                    type="warning"
+                    showIcon
+                />
+            )}
         </Form>
     )
 }
@@ -218,8 +213,8 @@ const InviteUsersModal: FC<InviteUsersModalProps> = ({
         >
             <Typography.Paragraph type="secondary">
                 Invite members to your team by entering their emails.{" "}
-                {!isEE() || !hasRBAC
-                    ? "Role-based access control is available in Cloud/EE."
+                {isEE() && !hasRBAC
+                    ? "Role-based access control is available on Business and Enterprise plans."
                     : "You can specify the roles to control the access level of the invited members on Agenta."}
             </Typography.Paragraph>
             <InviteForm
