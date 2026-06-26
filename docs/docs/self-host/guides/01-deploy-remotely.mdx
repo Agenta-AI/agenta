@@ -35,7 +35,7 @@ Clone the Agenta repository to your server:
 ```bash
 git clone --depth 1 --filter=blob:none --sparse https://github.com/Agenta-AI/agenta
 cd agenta
-git sparse-checkout set hosting/docker-compose
+git sparse-checkout set hosting/docker-compose api/oss/databases/postgres api/ee/databases/postgres
 ```
 
 ## Step 2: Configure Your Deployment
