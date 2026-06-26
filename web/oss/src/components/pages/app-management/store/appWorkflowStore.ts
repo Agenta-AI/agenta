@@ -11,6 +11,7 @@ import {createPaginatedEntityStore} from "@agenta/entities/shared"
 import type {InfiniteTableFetchResult} from "@agenta/entities/shared"
 import {
     deriveWorkflowTypeFromRevision,
+    isAgentWorkflow,
     fetchWorkflowsBatch,
     parseWorkflowKeyFromUri,
     queryWorkflows,
@@ -132,6 +133,7 @@ interface InvokableEntry {
  * subject. Fetches latest revisions in bulk and filters out:
  * - human evaluators (`is_feedback=true`)
  * - workflows without a runnable URL (`has_url=false` or unset)
+ * - agent workflows (not supported as legacy-evaluation subjects)
  *
  * Also pairs each surviving workflow with its derived `WorkflowType` so the
  * caller can apply subcategory filters without re-reading revisions.
@@ -151,6 +153,7 @@ const filterInvokableWorkflows = async (
         if (!revision) continue
         if (isHumanEvaluator(revision)) continue
         if (!revision.flags?.has_url) continue
+        if (isAgentWorkflow(workflow) || isAgentWorkflow(revision)) continue
         entries.push({
             workflow,
             revision,

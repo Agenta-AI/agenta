@@ -44,7 +44,7 @@ import "./snapshotAdapter"
 
 export {workflowMolecule, type WorkflowMolecule, type WorkflowType} from "./state/molecule"
 
-export {deriveWorkflowTypeFromRevision} from "./state/helpers"
+export {deriveWorkflowTypeFromRevision, isAgentWorkflow} from "./state/helpers"
 
 // Per-harness capability map from the `/inspect` response `meta` (agent playground picker).
 export {

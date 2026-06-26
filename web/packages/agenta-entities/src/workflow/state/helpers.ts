@@ -171,6 +171,26 @@ export function resolveBuiltinAppServiceUrl(entity: Workflow): string | null {
 // APP TYPE DERIVATION FROM LATEST REVISION
 // ============================================================================
 
+/** Builtin URI that identifies an agent workflow. */
+const AGENT_BUILTIN_URI = "agenta:builtin:agent:v0"
+
+/**
+ * True when a workflow artifact (or revision) represents an agent workflow.
+ *
+ * Detected by the role flag or the builtin agent URI, mirroring the detection in
+ * the workflow store (`is_agent` isn't reliably stored on every revision, so the
+ * URI is the robust fallback). Pure predicate — safe to use as a list filter.
+ */
+export function isAgentWorkflow(entity: unknown): boolean {
+    if (!entity || typeof entity !== "object") return false
+    const {flags, data} = entity as {
+        flags?: {is_agent?: boolean} | null
+        data?: {uri?: string | null} | null
+    }
+    if (flags?.is_agent) return true
+    return data?.uri === AGENT_BUILTIN_URI
+}
+
 /**
  * Derive the app type from a workflow revision.
  *

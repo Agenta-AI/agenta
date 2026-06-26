@@ -12,6 +12,7 @@
 
 import {useCallback, useMemo} from "react"
 
+import {isAgentWorkflow} from "@agenta/entities/workflow"
 import {
     createWorkflowRevisionAdapter,
     type WorkflowRevisionSelectionResult,
@@ -48,6 +49,8 @@ export function useEvaluatorRunControls() {
                 skipVariantLevel: true,
                 excludeRevisionZero: true,
                 flags: {is_evaluator: false, is_feedback: false},
+                // Agent workflows aren't runnable evaluation subjects here.
+                filterWorkflows: (w) => !isAgentWorkflow(w),
                 parentLabel: "Application",
             }),
         [],

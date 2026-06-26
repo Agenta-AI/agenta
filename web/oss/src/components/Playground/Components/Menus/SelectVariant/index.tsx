@@ -17,6 +17,7 @@ import {
     workflowLatestRevisionIdAtomFamily,
     createLocalDraftFromWorkflowRevision,
     workflowVariantsListDataAtomFamily,
+    isAgentWorkflow,
 } from "@agenta/entities/workflow"
 import {
     createWorkflowRevisionAdapter,
@@ -163,11 +164,13 @@ const SelectVariant = ({
         [appId],
     )
 
-    // Browse adapter: 3-level (Workflow → Variant → Revision), all workflows
+    // Browse adapter: 3-level (Workflow → Variant → Revision), all workflows.
+    // Agent workflows have their own playground and aren't connectable here.
     const defaultBrowseAdapter = useMemo(
         () =>
             createWorkflowRevisionAdapter({
                 excludeRevisionZero: true,
+                filterWorkflows: (w) => !isAgentWorkflow(w),
             }),
         [],
     )
