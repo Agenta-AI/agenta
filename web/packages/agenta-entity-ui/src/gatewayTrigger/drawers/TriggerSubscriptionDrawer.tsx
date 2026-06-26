@@ -13,6 +13,7 @@ import {
     useTriggerConnectionsQuery,
     useTriggerEvent,
     useTriggerSubscription,
+    useTriggerSubscriptions,
     type TriggerConnection,
     type TriggerDelivery,
     type TriggerSubscriptionCreate,
@@ -32,6 +33,7 @@ import {
     Select,
     Spin,
     Switch,
+    Tooltip,
     Typography,
     message,
 } from "antd"
@@ -128,6 +130,22 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
     const [appSlug, setAppSlug] = useState<string | null>(null)
     const envQuery = useAtomValue(environmentsListQueryAtomFamily(false))
     const environments = envQuery.data?.environments ?? []
+
+    // FE guard for a backend limitation: Composio upserts one trigger instance per
+    // (connection, event), and `trigger_id` is unique — so testing/creating a second
+    // subscription for an event that already has one 500s. Detect it and disable Test.
+    const {subscriptions} = useTriggerSubscriptions()
+    const alreadySubscribed = useMemo(
+        () =>
+            Boolean(connectionId && eventKey) &&
+            subscriptions.some(
+                (s) =>
+                    s.id !== subscriptionId &&
+                    s.connection_id === connectionId &&
+                    s.data?.event_key === eventKey,
+            ),
+        [subscriptions, connectionId, eventKey, subscriptionId],
+    )
 
     // Test = fire-and-inspect: create a transient is_test subscription, wait for
     // the first captured event, show it. Independent of Save (separate row, torn
@@ -539,9 +557,16 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                         Cancel
                     </Button>
                 ) : (
-                    <Button disabled={isMutating} onClick={handleTest}>
-                        Test
-                    </Button>
+                    <Tooltip
+                        title={alreadySubscribed ? "Already subscribed — revoke it to test" : ""}
+                    >
+                        {/* span wrapper so the tooltip still shows over a disabled button */}
+                        <span>
+                            <Button disabled={isMutating || alreadySubscribed} onClick={handleTest}>
+                                Test
+                            </Button>
+                        </span>
+                    </Tooltip>
                 )}
                 <Button
                     type="primary"
