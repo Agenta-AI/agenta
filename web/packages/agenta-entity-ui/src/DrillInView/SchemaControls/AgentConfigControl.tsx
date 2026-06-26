@@ -23,7 +23,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import {vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
-import {MarkdownPreview} from "@agenta/ui"
+import {HeightCollapse, MarkdownPreview} from "@agenta/ui"
 import {ConfigAccordionSection, LabeledField} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
@@ -466,13 +466,14 @@ function InstructionsFileRow({
             <div className="min-w-0 flex-1">
                 <div className="truncate font-mono text-xs font-medium">{filename}</div>
                 {hasContent ? (
-                    // Rendered Markdown preview: clamped to a few lines until expanded.
-                    <div className={expanded ? "mt-1" : "mt-1 max-h-[58px] overflow-hidden"}>
+                    // Rendered Markdown preview: clamped to a few lines, animating to its full
+                    // height on expand (CSS interpolate-size, via the shared HeightCollapse).
+                    <HeightCollapse open={expanded} collapsedHeight={58} className="mt-1">
                         <MarkdownPreview
                             content={content}
                             className="text-[var(--ag-c-97A4B0,#97a4b0)]"
                         />
-                    </div>
+                    </HeightCollapse>
                 ) : (
                     <Typography.Text type="secondary" className="text-xs">
                         Empty file
