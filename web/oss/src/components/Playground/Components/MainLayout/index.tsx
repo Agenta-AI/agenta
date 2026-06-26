@@ -4,6 +4,7 @@ import type {ConfigViewMode} from "@agenta/entity-ui"
 import {
     executionController,
     executionItemController,
+    isAgentModeAtomFamily,
     playgroundController,
 } from "@agenta/playground"
 import {EmptyState, ExecutionHeader, useEntitySelector} from "@agenta/playground-ui/components"
@@ -126,6 +127,18 @@ const PlaygroundMainView = ({
     // Which entity IDs to render config panels for
     const configEntityIds = configEntityIdsOverride ?? layoutEntityIds
 
+    // The agent config panel is a compact read-only summary (editing happens in section drawers), so
+    // it defaults to a third of the width (capped at 450px) instead of the prompt config's 50/50.
+    // Only applies to a single agent variant. `isAgentConfig` resolves once the revision loads, so it
+    // is folded into the Splitter `key` below — antd reads `defaultSize` only at mount, and without a
+    // key change the panel would keep the initial (pre-resolution) 50% split on reload.
+    const primaryConfigId =
+        !isComparisonView && configEntityIds.length > 0 ? configEntityIds[0]! : ""
+    const isAgentConfig = useAtomValue(isAgentModeAtomFamily(primaryConfigId))
+    const configDefaultSize = isAgentConfig ? "33%" : "50%"
+    const configMaxSize = isAgentConfig ? 450 : "70%"
+    const splitterKey = `${isComparisonView ? "comparison" : "single"}-${isAgentConfig ? "agent" : "std"}`
+
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
     const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
         enabled: isComparisonView,
@@ -205,17 +218,17 @@ const PlaygroundMainView = ({
         >
             <div className="w-full max-h-full h-full grow relative overflow-hidden">
                 <Splitter
-                    key={`${isComparisonView ? "comparison" : "single"}-splitter`}
+                    key={`${splitterKey}-splitter`}
                     className="h-full playground-splitter"
                     orientation={isComparisonView ? "vertical" : "horizontal"}
                 >
                     <SplitterPanel
-                        defaultSize="50%"
+                        defaultSize={configDefaultSize}
                         min="20%"
-                        max="70%"
+                        max={configMaxSize}
                         className="!h-full"
                         collapsible
-                        key={`${isComparisonView ? "comparison" : "single"}-splitter-panel-config`}
+                        key={`${splitterKey}-splitter-panel-config`}
                     >
                         <section
                             ref={setConfigPanelRef}

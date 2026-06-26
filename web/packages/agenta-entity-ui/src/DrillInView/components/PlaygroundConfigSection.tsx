@@ -1557,6 +1557,17 @@ function PlaygroundConfigSection({
                 ? (schema.properties as Record<string, Record<string, unknown>>)[fieldKey]
                 : null
             const schemaTitle = fieldSchema?.title as string | undefined
+
+            // Agent workflows render the whole agent_config block as the panel body (its own sections
+            // each have headers and drawers), so the redundant top-level "Agent" collapse header is
+            // suppressed. Detected via the same `agent_config` schema marker AgentConfigControl uses.
+            if (
+                fieldSchema?.["x-ag-type-ref"] === "agent_config" ||
+                fieldSchema?.["x-ag-type"] === "agent_config"
+            ) {
+                return null
+            }
+
             const displayLabel = schemaTitle
                 ? schemaTitle.includes(" ")
                     ? schemaTitle
@@ -1758,6 +1769,18 @@ function PlaygroundConfigSection({
                 return <div className="px-4 py-1.5">{props.defaultRender()}</div>
             }
 
+            // The agent_config body is always expanded (its header is suppressed above), so it renders
+            // without the HeightCollapse toggle.
+            const fieldSchema = schema?.properties
+                ? (schema.properties as Record<string, Record<string, unknown>>)[fieldKey]
+                : null
+            if (
+                fieldSchema?.["x-ag-type-ref"] === "agent_config" ||
+                fieldSchema?.["x-ag-type"] === "agent_config"
+            ) {
+                return <div className="px-4 py-3">{props.defaultRender()}</div>
+            }
+
             return (
                 <HeightCollapse open={!isCollapsed}>
                     <div className="px-4 py-3">{props.defaultRender()}</div>
@@ -1767,6 +1790,7 @@ function PlaygroundConfigSection({
         [
             collapsedSections,
             parameters,
+            schema,
             siblingGroups,
             isPresentSiblingGroup,
             disabled,

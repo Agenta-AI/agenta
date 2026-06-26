@@ -8,10 +8,10 @@ import {
     useEnrichedEvaluatorOnlyAdapter,
 } from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
-import {playgroundController} from "@agenta/playground"
+import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
-import {Trash} from "@phosphor-icons/react"
+import {Sparkle, Trash} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -89,6 +89,10 @@ const PlaygroundVariantConfigHeader = ({
     const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId || ""))
     const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
 
+    // Agent workflows dropped the top-level "Agent" section header, so the config bar carries the
+    // only "this is an agent" signal — a small badge next to the variant details.
+    const isAgent = useAtomValue(isAgentModeAtomFamily(variantId || ""))
+
     // Deployment info: look up which environments this revision is deployed to
     // Local drafts have no deployments
     const deploymentEntityId = (runnableData?.id as string) || ""
@@ -160,7 +164,13 @@ const PlaygroundVariantConfigHeader = ({
 
     return (
         <section
-            className={`h-[48px] flex items-center justify-between overflow-hidden ${embedded ? "grow" : `sticky top-0 z-[10] w-full`} border-b border-colorBorderSecondary py-2 px-4 bg-[var(--ag-c-FFFFFF)] ${className ?? ""}`}
+            className={`h-[48px] flex items-center justify-between overflow-hidden ${embedded ? "grow" : `sticky top-0 z-[10] w-full`} border-b border-colorBorderSecondary py-2 px-4 ${
+                // Agent config below is a borderless summary, so the bar needs to read as a header.
+                // Give it a subtly tinted surface (vs the plain content) instead of the same FFFFFF.
+                isAgent && !embedded
+                    ? "bg-[var(--ant-color-fill-tertiary)]"
+                    : "bg-[var(--ag-c-FFFFFF)]"
+            } ${className ?? ""}`}
             {...divProps}
         >
             <div className="flex items-center gap-2 grow min-w-0 overflow-hidden">
@@ -217,6 +227,12 @@ const PlaygroundVariantConfigHeader = ({
                 {evaluatorLabel && !embedded && (
                     <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-600 flex-shrink-0">
                         {evaluatorLabel}
+                    </span>
+                )}
+                {isAgent && !embedded && (
+                    <span className="flex items-center gap-1 flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-md text-[var(--ag-c-13C2C2)] bg-[var(--ant-color-fill-quaternary)] border border-solid border-[var(--ant-color-border)]">
+                        <Sparkle size={12} weight="fill" />
+                        Agent
                     </span>
                 )}
             </div>
