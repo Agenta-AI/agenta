@@ -6,6 +6,7 @@ import {
     triggerEventsDrawerAtom,
     triggerEventsSearchAtom,
     triggerIntegrationsSearchAtom,
+    triggerSubscriptionDrawerAtom,
     useTriggerCatalogEvents,
     useTriggerCatalogIntegrations,
     useTriggerIntegrationConnections,
@@ -29,6 +30,7 @@ import {
     Spin,
     Tag,
     Typography,
+    message,
 } from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
@@ -63,9 +65,15 @@ function ExpandableText({text}: {text: string}) {
 
 interface Props {
     onConnectionCreated?: () => void
+    /**
+     * Pre-bind any subscription created from this catalog (by picking an event)
+     * to a workflow — e.g. the current agent when opened from its config panel.
+     * Keyed like `data.references` (`application`/`application_variant`).
+     */
+    defaultReferences?: Record<string, {id: string}>
 }
 
-export default function TriggerCatalogDrawer({onConnectionCreated}: Props) {
+export default function TriggerCatalogDrawer({onConnectionCreated, defaultReferences}: Props) {
     const [open, setOpen] = useAtom(triggerCatalogDrawerOpenAtom)
     const [selectedIntegration, setSelectedIntegration] =
         useState<TriggerCatalogIntegration | null>(null)
@@ -75,6 +83,7 @@ export default function TriggerCatalogDrawer({onConnectionCreated}: Props) {
 
     const setIntegrationsSearch = useSetAtom(triggerIntegrationsSearchAtom)
     const setEventsSearch = useSetAtom(triggerEventsSearchAtom)
+    const openSubscription = useSetAtom(triggerSubscriptionDrawerAtom)
 
     const handleClose = useCallback(() => {
         setOpen(false)
@@ -98,6 +107,23 @@ export default function TriggerCatalogDrawer({onConnectionCreated}: Props) {
         onConnectionCreated?.()
     }, [handleClose, onConnectionCreated])
 
+    // Picking an event leaves the catalog and opens the subscription config drawer,
+    // prefilled with the chosen connection + event and pre-bound via defaultReferences.
+    const handleCreateFromEvent = useCallback(
+        (connectionId: string, eventKey: string) => {
+            const integration = selectedIntegration
+            handleClose()
+            openSubscription({
+                connectionId,
+                integrationKey: integration?.key,
+                integrationName: integration?.name,
+                eventKey,
+                defaultReferences,
+            })
+        },
+        [selectedIntegration, handleClose, openSubscription, defaultReferences],
+    )
+
     return (
         <>
             <Drawer
@@ -120,6 +146,7 @@ export default function TriggerCatalogDrawer({onConnectionCreated}: Props) {
                         integration={selectedIntegration}
                         onBack={handleBack}
                         onConnect={() => handleConnect(selectedIntegration)}
+                        onCreateFromEvent={handleCreateFromEvent}
                     />
                 ) : (
                     <IntegrationsView onSelect={setSelectedIntegration} />
@@ -286,16 +313,32 @@ function EventsView({
     integration,
     onBack,
     onConnect,
+    onCreateFromEvent,
 }: {
     integration: TriggerCatalogIntegration
     onBack: () => void
     onConnect: () => void
+    onCreateFromEvent: (connectionId: string, eventKey: string) => void
 }) {
     const setAtom = useSetAtom(triggerEventsSearchAtom)
     const search = useDebouncedAtomSearch(setAtom)
     const scrollRef = useRef<HTMLDivElement>(null)
     const setEventsDrawer = useSetAtom(triggerEventsDrawerAtom)
     const {connections} = useTriggerIntegrationConnections(integration.key)
+
+    // Picking an event needs a connection to bind. Prefer an active one; fall back
+    // to the first connection. With none, the user must Connect first.
+    const handlePickEvent = useCallback(
+        (event: TriggerCatalogEvent) => {
+            const connection = connections.find((c) => isConnectionActive(c)) ?? connections[0]
+            if (!connection?.id) {
+                message.info("Connect this integration first to create a trigger")
+                return
+            }
+            onCreateFromEvent(connection.id, event.key)
+        },
+        [connections, onCreateFromEvent],
+    )
 
     const handleOpenConnectionEvents = useCallback(
         (conn: TriggerConnection) => {
@@ -423,7 +466,12 @@ function EventsView({
                                         isFetching={isFetchingNextPage}
                                     />
                                 )}
-                                <Card hoverable className="cursor-pointer" size="small">
+                                <Card
+                                    hoverable
+                                    className="cursor-pointer"
+                                    size="small"
+                                    onClick={() => handlePickEvent(event)}
+                                >
                                     <div className="flex flex-col gap-0.5">
                                         <div className="flex items-center gap-2">
                                             <Typography.Text strong className="truncate">

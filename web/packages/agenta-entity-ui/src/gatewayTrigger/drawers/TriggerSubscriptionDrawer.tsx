@@ -96,7 +96,7 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
 
     const [name, setName] = useState("")
     const [connectionId, setConnectionId] = useState<string | undefined>(state?.connectionId)
-    const [eventKey, setEventKey] = useState("")
+    const [eventKey, setEventKey] = useState(state?.eventKey ?? "")
     const [enabled, setEnabled] = useState(true)
     const [workflowRevId, setWorkflowRevId] = useState<string | null>(null)
     const [workflowSelection, setWorkflowSelection] =

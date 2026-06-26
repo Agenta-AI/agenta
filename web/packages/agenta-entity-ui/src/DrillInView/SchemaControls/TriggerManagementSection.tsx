@@ -209,7 +209,8 @@ function TriggerRow({
 }
 
 export function TriggerManagementSection({entityId, disabled}: TriggerManagementSectionProps) {
-    const {scopedSubscriptions, scopedSchedules, count} = useAgentTriggers(entityId)
+    const {scopedSubscriptions, scopedSchedules, count, defaultReferences} =
+        useAgentTriggers(entityId)
 
     const {connections} = useTriggerConnectionsQuery()
     const {
@@ -430,7 +431,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 visibility (and the catalog renders its own connect flow internally).
                 When a subscription/schedule is created from here it default-binds to
                 this agent. */}
-            <TriggerCatalogDrawer />
+            <TriggerCatalogDrawer defaultReferences={defaultReferences} />
             <TriggerSubscriptionDrawer />
             <TriggerScheduleDrawer />
             <TriggerDeliveriesDrawer />

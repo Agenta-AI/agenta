@@ -33,6 +33,9 @@ export interface SubscriptionDrawerState {
     connectionId?: string
     integrationKey?: string
     integrationName?: string
+    // Optional create-mode prefill of the event (e.g. opened from the catalog
+    // after picking an integration event). Ignored in edit mode.
+    eventKey?: string
     // Optional create-mode prefill that pre-binds the new subscription to a
     // workflow (e.g. opened from an agent's config panel). Keyed like
     // `data.references` (`application`/`application_variant`); each value is a
