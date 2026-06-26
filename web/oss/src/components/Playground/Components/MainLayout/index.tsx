@@ -128,15 +128,17 @@ const PlaygroundMainView = ({
     const configEntityIds = configEntityIdsOverride ?? layoutEntityIds
 
     // The agent config panel is a compact read-only summary (editing happens in section drawers), so
-    // it defaults to a third of the width (capped at 450px) instead of the prompt config's 50/50.
+    // it stays narrow (550px) instead of the prompt config's 50/50 split. The default is a fixed px
+    // width rather than a percentage on purpose: antd applies `defaultSize` verbatim at mount and only
+    // clamps to `min`/`max` while dragging, so a percentage default would blow past the px cap on load.
     // Only applies to a single agent variant. `isAgentConfig` resolves once the revision loads, so it
     // is folded into the Splitter `key` below — antd reads `defaultSize` only at mount, and without a
     // key change the panel would keep the initial (pre-resolution) 50% split on reload.
     const primaryConfigId =
         !isComparisonView && configEntityIds.length > 0 ? configEntityIds[0]! : ""
     const isAgentConfig = useAtomValue(isAgentModeAtomFamily(primaryConfigId))
-    const configDefaultSize = isAgentConfig ? "33%" : "50%"
-    const configMaxSize = isAgentConfig ? 450 : "70%"
+    const configDefaultSize = isAgentConfig ? 550 : "50%"
+    const configMaxSize = isAgentConfig ? 550 : "70%"
     const splitterKey = `${isComparisonView ? "comparison" : "single"}-${isAgentConfig ? "agent" : "std"}`
 
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
