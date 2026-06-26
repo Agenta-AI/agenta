@@ -21,7 +21,7 @@ Looking to deploy on Kubernetes instead? See the [Deploy on Kubernetes](/self-ho
 ```bash
 git clone --depth 1 --filter=blob:none --sparse https://github.com/Agenta-AI/agenta
 cd agenta
-git sparse-checkout set hosting/docker-compose
+git sparse-checkout set hosting/docker-compose api/oss/databases/postgres api/ee/databases/postgres
 ```
 
 2. Copy configuration and, optionally, edit it:
