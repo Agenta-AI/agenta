@@ -34,11 +34,15 @@ import {
     CaretUp,
     Check,
     Cpu,
+    Cube,
+    EyeSlash,
     FileText,
     GraduationCap,
+    Key,
     Lightbulb,
     Plugs,
     Plus,
+    ShieldCheck,
     SlidersHorizontal,
     Trash,
     Warning,
@@ -929,6 +933,7 @@ export function AgentConfigControl({
     const hasSkills = Boolean(props.skills)
     const hasClaudePermissions = harnessValue === "claude"
     const hasAdvanced = Boolean(
+        props.model || // Authentication lives in Advanced now
         props.sandbox ||
         props.permission_policy ||
         props.sandbox_permission ||
@@ -985,6 +990,31 @@ export function AgentConfigControl({
             />
         )
     ) : null
+
+    // Shared version-history placeholder for the section drawers (real revision diffs are deferred).
+    const versionHistorySkeleton = (
+        <div>
+            <div className="mb-2 flex items-center gap-1.5">
+                <span className="text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
+                    Version history
+                </span>
+                <span className="rounded-full border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-1.5 text-[10px] text-[var(--ag-c-97A4B0,#97a4b0)]">
+                    soon
+                </span>
+            </div>
+            <div className="flex flex-col gap-2.5 opacity-50">
+                {[42, 32, 38].map((w, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-c-EAEFF5,#eaeff5)]" />
+                        <span
+                            className="h-2 rounded bg-[var(--ag-c-EAEFF5,#eaeff5)]"
+                            style={{width: `${w}%`}}
+                        />
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
 
     // Harness list + per-harness detail come from the inspect capabilities map. Compatibility is
     // real (provider/model reachability + connection mode), all derived from that same data.
@@ -1172,27 +1202,7 @@ export function AgentConfigControl({
                     </div>
                 ) : null}
 
-                <div>
-                    <div className="mb-2 flex items-center gap-1.5">
-                        <span className="text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
-                            Version history
-                        </span>
-                        <span className="rounded-full border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-1.5 text-[10px] text-[var(--ag-c-97A4B0,#97a4b0)]">
-                            soon
-                        </span>
-                    </div>
-                    <div className="flex flex-col gap-2.5 opacity-50">
-                        {[42, 32, 38].map((w, i) => (
-                            <div key={i} className="flex items-center gap-2">
-                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-c-EAEFF5,#eaeff5)]" />
-                                <span
-                                    className="h-2 rounded bg-[var(--ag-c-EAEFF5,#eaeff5)]"
-                                    style={{width: `${w}%`}}
-                                />
-                            </div>
-                        ))}
-                    </div>
-                </div>
+                {versionHistorySkeleton}
             </div>
         ) : null
 
@@ -1238,11 +1248,8 @@ export function AgentConfigControl({
     )
 
     // Authentication (credential source) — moved out of Model & harness into Advanced.
-    const authBlock = props.model ? (
-        <div className="flex flex-col gap-2 rounded-lg border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] p-3">
-            <Typography.Text className="text-[11px] font-medium uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
-                Authentication
-            </Typography.Text>
+    const authControls = props.model ? (
+        <div className="flex flex-col gap-2">
             {modeOptions.map((m) => {
                 const selected = connection.mode === m
                 const title = m === "agenta" ? "Agenta-managed" : "Self-managed"
@@ -1344,49 +1351,112 @@ export function AgentConfigControl({
             .filter(Boolean)
             .join(" · ") || undefined
 
-    // Advanced drawer body: Authentication (moved here) + sandbox / permissions / Claude perms.
+    // Advanced drawer body — two panels (consistent with Model & harness): grouped, explained
+    // settings on the left; version history on the right. Authentication moved here.
+    const hasExecutionGroup = Boolean(props.sandbox || props.sandbox_permission)
+    const hasPermissionsGroup = Boolean(props.permission_policy || hasClaudePermissions)
     const advancedDrawerBody = (
-        <div className="flex flex-col gap-3">
-            {authBlock}
-            {props.sandbox && (
-                <EnumSelectControl
-                    schema={props.sandbox}
-                    label="Sandbox"
-                    value={(config.sandbox as string | null) ?? null}
-                    onChange={(v) => setField("sandbox", v)}
-                    withTooltip={withTooltip}
-                    disabled={disabled}
-                />
-            )}
-            {props.permission_policy && !isPiHarness && (
-                <EnumSelectControl
-                    schema={props.permission_policy}
-                    label="Permission policy"
-                    value={(config.permission_policy as string | null) ?? null}
-                    onChange={(v) => setField("permission_policy", v)}
-                    withTooltip={withTooltip}
-                    disabled={disabled}
-                />
-            )}
-            {props.sandbox_permission ? (
-                <SandboxPermissionControl
-                    value={(config.sandbox_permission as Record<string, unknown> | null) ?? null}
-                    onChange={(v) => setField("sandbox_permission", v)}
-                    disabled={disabled}
-                />
-            ) : null}
-            {hasClaudePermissions ? (
-                <div className="flex flex-col gap-2 border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pt-3">
-                    <Typography.Text className="text-xs font-medium">
-                        Claude permissions
-                    </Typography.Text>
-                    <ClaudePermissionsControl
-                        value={claudePermissions}
-                        onChange={setClaudePermissions}
-                        disabled={disabled}
-                    />
-                </div>
-            ) : null}
+        <div className="flex gap-6">
+            <div className="flex min-w-0 flex-1 flex-col gap-4">
+                {authControls ? (
+                    <div>
+                        <div className="mb-0.5 flex items-center gap-1.5">
+                            <Key size={15} className="text-[var(--ag-c-586673,#586673)]" />
+                            <span className="text-[13px] font-medium">Authentication</span>
+                        </div>
+                        <p className="mb-2.5 ml-[22px] text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
+                            Where the model credential comes from when this agent runs.
+                        </p>
+                        <div className="ml-[22px]">{authControls}</div>
+                    </div>
+                ) : null}
+
+                {hasExecutionGroup ? (
+                    <div className="border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pt-4">
+                        <div className="mb-0.5 flex items-center gap-1.5">
+                            <Cube size={15} className="text-[var(--ag-c-586673,#586673)]" />
+                            <span className="text-[13px] font-medium">Execution environment</span>
+                        </div>
+                        <p className="mb-2.5 ml-[22px] text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
+                            Where the agent&apos;s tools and code run, and what that sandbox may
+                            touch.
+                        </p>
+                        <div className="ml-[22px] flex flex-col gap-2.5">
+                            {props.sandbox && (
+                                <EnumSelectControl
+                                    schema={props.sandbox}
+                                    label="Sandbox"
+                                    value={(config.sandbox as string | null) ?? null}
+                                    onChange={(v) => setField("sandbox", v)}
+                                    withTooltip={withTooltip}
+                                    disabled={disabled}
+                                />
+                            )}
+                            {props.sandbox_permission ? (
+                                <SandboxPermissionControl
+                                    value={
+                                        (config.sandbox_permission as Record<
+                                            string,
+                                            unknown
+                                        > | null) ?? null
+                                    }
+                                    onChange={(v) => setField("sandbox_permission", v)}
+                                    disabled={disabled}
+                                />
+                            ) : null}
+                        </div>
+                    </div>
+                ) : null}
+
+                {hasPermissionsGroup ? (
+                    <div className="border-0 border-t border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pt-4">
+                        <div className="mb-0.5 flex items-center gap-1.5">
+                            <ShieldCheck size={15} className="text-[var(--ag-c-586673,#586673)]" />
+                            <span className="text-[13px] font-medium">Permissions</span>
+                        </div>
+                        <p className="mb-2.5 ml-[22px] text-[11.5px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
+                            What the agent may do on its own before it must ask.
+                        </p>
+                        <div className="ml-[22px] flex flex-col gap-2.5">
+                            {props.permission_policy ? (
+                                isPiHarness ? (
+                                    <div className="flex items-center gap-1.5 text-[11px] text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                        <EyeSlash size={13} />
+                                        Permission policy isn&apos;t used by the Pi harness.
+                                    </div>
+                                ) : (
+                                    <EnumSelectControl
+                                        schema={props.permission_policy}
+                                        label="Permission policy"
+                                        value={(config.permission_policy as string | null) ?? null}
+                                        onChange={(v) => setField("permission_policy", v)}
+                                        withTooltip={withTooltip}
+                                        disabled={disabled}
+                                    />
+                                )
+                            ) : null}
+                            {hasClaudePermissions ? (
+                                <div className="flex flex-col gap-1.5">
+                                    <div className="flex items-center gap-1.5">
+                                        <Typography.Text className="text-xs font-medium">
+                                            Claude permissions
+                                        </Typography.Text>
+                                        <span className="rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
+                                            Claude harness
+                                        </span>
+                                    </div>
+                                    <ClaudePermissionsControl
+                                        value={claudePermissions}
+                                        onChange={setClaudePermissions}
+                                        disabled={disabled}
+                                    />
+                                </div>
+                            ) : null}
+                        </div>
+                    </div>
+                ) : null}
+            </div>
+            <div className="w-[240px] shrink-0">{versionHistorySkeleton}</div>
         </div>
     )
 
@@ -1800,6 +1870,7 @@ export function AgentConfigControl({
                 onCancel={cancelSection}
                 onSave={saveSection}
                 disabled={disabled}
+                width={880}
             >
                 {advancedDrawerBody}
             </SectionDrawer>
