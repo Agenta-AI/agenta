@@ -140,13 +140,11 @@ export function MarkdownEditor({
         </button>
     ) : null
 
-    // The toolbar lives in the editor's own header slot (inside its single border), so there is no
-    // second wrapper border to flash on hover/focus. The negative margins bleed it to the border
-    // edges with a divider beneath.
-    const toolbarHeader = (
-        <div className="-mx-[11px] -mt-[11px] mb-2 flex items-center gap-1 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-1.5">
+    // Toolbar row pinned above a scroll area this component owns, so it never moves with content.
+    // `justify-between` puts formatting on the left and the source/rich toggle hard-right.
+    const toolbar = (
+        <div className="flex shrink-0 items-center justify-between gap-1 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-1.5">
             <MarkdownToolbar disabled={editorDisabled || markdownView} />
-            <span className="ml-auto" />
             {viewToggle}
         </div>
     )
@@ -167,6 +165,34 @@ export function MarkdownEditor({
         </div>
     )
 
+    // `fill` bounds the box height on this component's own wrapper (reliable, unlike the editor's
+    // internal height var) so the content scrolls instead of growing past the viewport.
+    const fillStyle: CSSProperties | undefined = fill
+        ? {maxHeight: "calc(100vh - 240px)"}
+        : undefined
+
+    const editorEl = (
+        <SharedEditor
+            id={editorId}
+            noProvider
+            editorType={showToolbar || !bordered ? "borderless" : "border"}
+            // Suppress the borderless hover/focus border so it doesn't flash inside the toolbar box.
+            className={
+                showToolbar
+                    ? "!border-transparent hover:!border-transparent focus:!border-transparent"
+                    : undefined
+            }
+            initialValue={text}
+            value={text}
+            handleChange={handleChange}
+            disabled={editorDisabled}
+            placeholder={placeholder}
+            editorProps={{codeOnly: false, enableTokens: false, noProvider: true}}
+            syncWithInitialValueChanges
+            header={showToolbar ? undefined : plainHeader}
+        />
+    )
+
     return (
         <EditorProvider
             id={editorId}
@@ -175,23 +201,21 @@ export function MarkdownEditor({
             showToolbar={false}
             disabled={editorDisabled}
         >
-            <SharedEditor
-                id={editorId}
-                noProvider
-                editorType={bordered ? "border" : "borderless"}
-                initialValue={text}
-                value={text}
-                handleChange={handleChange}
-                disabled={editorDisabled}
-                placeholder={placeholder}
-                editorProps={{codeOnly: false, enableTokens: false, noProvider: true}}
-                syncWithInitialValueChanges
-                // Bounded height (not min-height) so the toolbar header stays pinned and the content
-                // area scrolls inside the box instead of growing and pushing the toolbar away.
-                style={fill ? ({"--editor-h": "calc(100vh - 240px)"} as CSSProperties) : undefined}
-                editorClassName={fill ? "flex-1 min-h-0 overflow-y-auto" : undefined}
-                header={showToolbar ? toolbarHeader : plainHeader}
-            />
+            {showToolbar ? (
+                <div
+                    className="flex flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-c-BDC7D1,#bdc7d1)]"
+                    style={fillStyle}
+                >
+                    {toolbar}
+                    <div className="min-h-0 flex-1 overflow-y-auto">{editorEl}</div>
+                </div>
+            ) : fill ? (
+                <div className="overflow-y-auto" style={fillStyle}>
+                    {editorEl}
+                </div>
+            ) : (
+                editorEl
+            )}
             <MarkdownViewSync enabled={markdownView} />
         </EditorProvider>
     )
