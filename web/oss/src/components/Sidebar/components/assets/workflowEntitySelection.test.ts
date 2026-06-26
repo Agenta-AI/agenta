@@ -33,6 +33,19 @@ describe("resolveWorkflowEntitySelection", () => {
         ).toBe(evaluator)
     })
 
+    it("falls back to recents when the current route workflow id is stale", () => {
+        expect(
+            resolveWorkflowEntitySelection({
+                currentWorkflow: null,
+                currentWorkflowId: "missing-workflow",
+                apps: [app],
+                evaluators: [evaluator],
+                recentAppId: app.id,
+                recentEvaluatorId: evaluator.id,
+            }),
+        ).toBe(app)
+    })
+
     it("prefers the recent app on project-level routes", () => {
         expect(
             resolveWorkflowEntitySelection({

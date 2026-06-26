@@ -27,11 +27,9 @@ export const resolveWorkflowEntitySelection = <TWorkflow extends WorkflowRef>({
     if (currentWorkflow) return currentWorkflow
 
     if (currentWorkflowId) {
-        return (
-            findWorkflow(apps, currentWorkflowId) ??
-            findWorkflow(evaluators, currentWorkflowId) ??
-            null
-        )
+        const routeWorkflow =
+            findWorkflow(apps, currentWorkflowId) ?? findWorkflow(evaluators, currentWorkflowId)
+        if (routeWorkflow) return routeWorkflow
     }
 
     return findWorkflow(apps, recentAppId) ?? findWorkflow(evaluators, recentEvaluatorId) ?? null
