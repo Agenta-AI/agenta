@@ -1125,7 +1125,7 @@ class ToolsRouter:
             )
         slug = slug_parts[0]
         version = slug_parts[1] if len(slug_parts) == 2 else None
-        if not _SLUG_SEGMENT_RE.match(slug):
+        if not _SLUG_SEGMENT_RE.fullmatch(slug):
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid characters in workflow slug: {slug!r}",
