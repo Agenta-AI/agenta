@@ -26,6 +26,8 @@ class TracingContext(BaseModel):
     type: Optional[str] = None
     #
     link: Optional[dict] = None
+    #
+    session_id: Optional[str] = None
 
     @classmethod
     def get(cls) -> "TracingContext":

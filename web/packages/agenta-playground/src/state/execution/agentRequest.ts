@@ -15,8 +15,8 @@
  * Returned shape feeds `useChat`'s `prepareSendMessagesRequest`:
  *   { invocationUrl, requestBody, headers } | null   (null → not runnable)
  *
- * Envelope (agreed with backend 2026-06-19):
- *   { session_id, references, data: { messages, parameters } }
+ * Envelope (canonical `/invoke`):
+ *   { session_id, references, data: { inputs: { messages }, parameters } }
  *  - `parameters` is the DRAFT-AWARE config (`workflowMolecule.selectors.configuration`,
  *    merged draft + server) so unsaved left-panel edits apply to the agent run.
  *  - `harness`/`sandbox` live on the agent config (`parameters.agent`), defaulted but
@@ -263,7 +263,7 @@ const withQuery = (url: string, params: Record<string, string | undefined>): str
  * Returns `null` when the entity has no invocation URL (not runnable).
  *
  * @param entityId  revision id of the agent workflow
- * @param messages  `useChat`'s `UIMessage[]` (sent verbatim under `data.messages`)
+ * @param messages  `useChat`'s `UIMessage[]` (sent under `data.inputs.messages`)
  * @param opts.sessionId  the conversation's session id (envelope `session_id`)
  * @param opts.store      optional store override (tests inject a seeded store)
  */
@@ -280,12 +280,10 @@ export async function buildAgentRequest(
         | undefined
     if (!invocationUrl) return null
 
-    // The agent lane talks to the v6 UI Message Stream endpoint (`/messages`), NOT
-    // the batch `/invoke`. `/messages` ingests AI-SDK UIMessages (parts-aware, via
-    // the SDK's vercel adapter) and streams the v6 response `useChat` consumes;
-    // `/invoke` is content-based and one-shot, so it drops the UIMessage `parts`
-    // (every turn arrives empty → "No user message to send"). Same query/auth.
-    const messagesUrl = invocationUrl.replace(/\/invoke(?=$|\?)/, "/messages")
+    // The agent lane talks to `/invoke` with `x-ag-messages-format: vercel`: the SDK
+    // ingests AI-SDK UIMessages (parts-aware, via the vercel adapter) and projects the
+    // v6 UI Message Stream `useChat` consumes. `Accept: text/event-stream` selects the
+    // stream; the vercel format header selects the UI-message projection over plain SSE.
 
     // Draft-aware config — unsaved left-panel prompt edits apply to the run.
     const config = store.get(workflowMolecule.selectors.configuration(entityId)) as
@@ -307,26 +305,25 @@ export async function buildAgentRequest(
     const references = buildAgentReferences(entity)
 
     const headersFactory = store.get(executionHeadersAtom)
-    // The Accept header selects the response channel the backend content-negotiates:
+    // Negotiation 1 (transport): the Accept header picks the response channel `/invoke`
+    // content-negotiates, driven by the playground's channel toggle:
     //  - `text/event-stream` → the v6 SSE stream `useChat` renders token-by-token (default).
     //  - `application/json` → a single `WorkflowBatchResponse`; `AgentChatTransport` replays it
     //    as a one-shot UIMessage stream so the reply lands in one frame.
-    // (A bare `*/*` would negotiate down to batch JSON that plain `useChat` can't render, which
-    // is why we always send an explicit Accept.)
+    // (A bare `*/*` negotiates down to batch JSON plain `useChat` can't render, so always
+    // send an explicit Accept.)
+    // Negotiation 2 (format): `x-ag-messages-format: vercel` selects the vercel adapter for
+    // the UIMessage request body (`data.inputs.messages`) and the response projection.
     const channelMode = store.get(agentChannelModeAtom)
     const headers: Record<string, string> = {
         Accept: channelMode === "batch" ? "application/json" : "text/event-stream",
-        // Declare the request body's message format so the agent `/messages` endpoint can pick
-        // the right adapter. Our payload is AI-SDK (Vercel) UIMessages, so the value matches the
-        // backend's `VERCEL_MESSAGE_PROTOCOL` ("vercel"), the same identity it stamps on the
-        // response (`x-ag-messages-format`). See sdk/agents/adapters/vercel/routing.py.
         "x-ag-messages-format": "vercel",
         ...(headersFactory ? await headersFactory() : {}),
     }
 
     const projectId = store.get(projectIdAtom) || undefined
     const appId = references?.application?.id
-    const url = withQuery(messagesUrl, {
+    const url = withQuery(invocationUrl, {
         application_id: appId,
         // Mirror executionItems.ts: project_id only travels alongside auth.
         project_id: headers.Authorization ? projectId : undefined,
@@ -341,7 +338,7 @@ export async function buildAgentRequest(
         requestBody: {
             session_id: opts.sessionId,
             references,
-            data: {messages: history, parameters},
+            data: {inputs: {messages: history}, parameters},
         },
     }
 }

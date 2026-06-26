@@ -52,7 +52,11 @@ from agenta.sdk.engines.running.utils import (
     register_interface,
     register_meta,
 )
-from agenta.sdk.models.workflows import WorkflowRevisionData
+from agenta.sdk.models.workflows import (
+    WorkflowRequestFlags,
+    WorkflowRevisionData,
+    WorkflowServiceRequest,
+)
 
 from agenta.sdk.utils.logging import get_module_logger
 
@@ -205,12 +209,16 @@ def select_backend(agent_config: AgentConfig) -> Backend:
 
 
 async def _agent(
+    request: WorkflowServiceRequest,
     inputs: Optional[Dict[str, Any]] = None,
     messages: Optional[List[Any]] = None,
     parameters: Optional[Dict] = None,
-    stream: Optional[bool] = None,
-    session_id: Optional[str] = None,
 ):
+    # The stream decision is a flag, negotiated from Accept at the HTTP edge.
+    stream = WorkflowRequestFlags(**(request.flags or {})).stream
+    # session_id is resolved (echoed/minted) by the normalizer onto the request.
+    session_id = request.session_id
+
     params = parameters or {}
 
     agent_config = AgentConfig.from_params(params, defaults=_default_agent_config())
@@ -257,9 +265,9 @@ async def _agent(
     )
 
     # Both paths hand off to a helper that owns the environment lifecycle (setup/cleanup).
-    # They differ only in shape, as they must: the `/messages` SSE path (`stream` set) returns
-    # the Vercel UI Message Stream as an async generator the normalizer turns into a streaming
-    # response; `/invoke` and the `/messages` JSON path return the batch assistant message.
+    # They differ only in shape: the stream path (flags.stream) returns the Vercel UI Message
+    # Stream as an async generator the normalizer turns into a streaming response; the batch
+    # path returns the assistant message as a single WorkflowBatchResponse.
     if stream:
         return _agent_vercel_stream(harness, session_config, msgs)
     return await _agent_batch(harness, session_config, msgs)
@@ -333,8 +341,7 @@ def create_agent_app():
     )
     register_meta(meta, uri=AGENT_URI)
     routed = ag.workflow(uri=AGENT_URI, schemas=AGENT_SCHEMAS, meta=meta)(_agent)
-    # is_agent gates the agent-only `/messages` route (next to /invoke).
-    ag.route("/", app=app, flags={"is_chat": True, "is_agent": True})(routed)
+    ag.route("/", app=app, flags={"is_chat": True})(routed)
     return app
 
 

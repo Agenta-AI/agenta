@@ -318,6 +318,7 @@ function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?
                 >
                     <Select
                         placeholder={field.label}
+                        allowClear={!field.required}
                         options={(field.enumValues ?? []).map((v) => ({value: v, label: v}))}
                     />
                 </Form.Item>

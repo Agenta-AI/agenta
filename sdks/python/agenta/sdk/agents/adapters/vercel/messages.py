@@ -16,8 +16,8 @@ TOOL_APPROVAL_RESPONSE = "tool-approval-response"
 TOOL_OUTPUT_AVAILABLE = "tool-output-available"
 
 
-def vercel_ui_messages_to_messages(raw: Optional[List[Any]]) -> List[Message]:
-    """Coerce inbound Vercel ``UIMessage`` objects into neutral messages."""
+def vercel_messages_to_agenta_messages(raw: Optional[List[Any]]) -> List[Message]:
+    """Coerce inbound Vercel ``UIMessage`` objects into neutral agenta messages."""
     messages: List[Message] = []
     for item in raw or []:
         message = _ui_message_to_message(item)
@@ -186,7 +186,7 @@ def message_to_vercel_ui_message(
     *,
     message_id: str = "msg-1",
 ) -> Dict[str, Any]:
-    """Render an ``AgentResult`` or neutral ``Message`` as one Vercel ``UIMessage``."""
+    """Render one ``AgentResult`` or neutral ``Message`` as one Vercel ``UIMessage``."""
     if isinstance(source, AgentResult):
         return {
             "id": message_id,
@@ -203,6 +203,16 @@ def message_to_vercel_ui_message(
         "message_to_vercel_ui_message expects an AgentResult or Message, "
         f"got {type(source).__name__!r}"
     )
+
+
+def agenta_messages_to_vercel_messages(
+    sources: Optional[List[Any]],
+) -> List[Dict[str, Any]]:
+    """Render neutral agenta messages as a list of Vercel ``UIMessage`` objects."""
+    return [
+        message_to_vercel_ui_message(source, message_id=f"msg-{i + 1}")
+        for i, source in enumerate(sources or [])
+    ]
 
 
 def _content_to_parts(content: Any) -> List[Dict[str, Any]]:
@@ -248,5 +258,6 @@ def _block_to_parts(block: ContentBlock) -> List[Dict[str, Any]]:
 
 
 # Back-compat aliases for the former flat module API.
-from_ui_messages = vercel_ui_messages_to_messages
+vercel_ui_messages_to_messages = vercel_messages_to_agenta_messages
+from_ui_messages = vercel_messages_to_agenta_messages
 to_ui_message = message_to_vercel_ui_message

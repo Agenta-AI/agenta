@@ -10,7 +10,7 @@
  */
 import process from "node:process";
 
-const SECRET = "MCP-RECORD-X9F2";
+const SECRET = "MCP-RECORD-1234";
 
 let buf = "";
 process.stdin.setEncoding("utf8");

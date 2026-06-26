@@ -114,3 +114,12 @@ agentRunner:
   port: 8765
   provider: "local"
   enableMcp: false
+  # daytona — only used when provider is "daytona". All optional.
+  # daytona:
+  #   apiKey: ""
+  #   apiUrl: ""
+  #   target: ""
+  #   snapshot: ""
+  #   image: ""
+  #   installPi: true
+  #   autostopDelay: 15  # idle minutes before a leaked sandbox self-reaps (DAYTONA_AUTOSTOP)

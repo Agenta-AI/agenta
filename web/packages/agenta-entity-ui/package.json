@@ -18,6 +18,7 @@
         "./adapters": "./src/adapters/index.ts",
         "./drill-in": "./src/DrillInView/index.ts",
         "./gatewayTool": "./src/gatewayTool/index.ts",
+        "./gatewayTrigger": "./src/gatewayTrigger/index.ts",
         "./modals": "./src/modals/index.ts",
         "./selection": "./src/selection/index.ts",
         "./template-format": "./src/template-format/index.ts",

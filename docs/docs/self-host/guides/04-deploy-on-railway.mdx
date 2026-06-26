@@ -86,7 +86,7 @@ Set the image tags you want to deploy. Use `latest` for the most recent stable r
 export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:latest"
 export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:latest"
 export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:latest"
-export AGENTA_SANDBOX_AGENT_IMAGE="ghcr.io/agenta-ai/agenta-sandbox-agent:latest"
+export AGENTA_AGENT_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-agent-runner:latest"
 ```
 
 Then run the deploy script:
@@ -103,7 +103,7 @@ You can also pin to a specific version instead of `latest`:
 export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:v0.30.0"
 export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:v0.30.0"
 export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:v0.30.0"
-export AGENTA_SANDBOX_AGENT_IMAGE="ghcr.io/agenta-ai/agenta-sandbox-agent:v0.30.0"
+export AGENTA_AGENT_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-agent-runner:v0.30.0"
 ```
 
 ## Step 5: Verify
@@ -129,7 +129,7 @@ export RAILWAY_ENVIRONMENT_NAME="production"
 export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:latest"
 export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:latest"
 export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:latest"
-export AGENTA_SANDBOX_AGENT_IMAGE="ghcr.io/agenta-ai/agenta-sandbox-agent:latest"
+export AGENTA_AGENT_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-agent-runner:latest"
 
 ./hosting/railway/oss/scripts/deploy-from-images.sh
 ```
@@ -191,9 +191,9 @@ These environment variables control the deployment scripts. All have sensible de
 
 | Variable | Default | Description |
 |---|---|---|
-| `AGENTA_SANDBOX_AGENT_IMAGE` | `ghcr.io/agenta-ai/agenta-sandbox-agent:latest` | Image used by the `sandbox-agent` runner service |
+| `AGENTA_AGENT_RUNNER_IMAGE` | `ghcr.io/agenta-ai/agenta-agent-runner:latest` | Image used by the `sandbox-agent` runner service |
 | `SANDBOX_AGENT_PROVIDER` | `local` | Default sandbox provider for agent runs |
-| `SANDBOX_AGENT_DAYTONA_API_KEY` | (none) | Daytona key for agent-runner sandboxes |
+| `DAYTONA_API_KEY` | (none) | Daytona key for agent-runner sandboxes |
 
 ### Smoke Test Tuning
 

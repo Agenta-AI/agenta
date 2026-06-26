@@ -42,6 +42,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 
+import {agentChannelModeAtom} from "../../src/state/execution/channelMode"
 import {buildAgentRequest, buildAgentReferences} from "../../src/state/execution/agentRequest"
 import {executionHeadersAtom} from "../../src/state/execution/webWorkerIntegration"
 
@@ -141,13 +142,13 @@ describe("buildAgentRequest", () => {
         expect(await buildAgentRequest("e", [], {sessionId: "s1", store})).toBeNull()
     })
 
-    it("nests messages + draft-aware parameters under data, with session_id", async () => {
+    it("nests messages under data.inputs + draft-aware parameters under data, with session_id", async () => {
         seed(store, "e", {config: {temperature: 0.9, prompt: {x: 1}}})
         const req = await buildAgentRequest("e", [{role: "user"}], {sessionId: "s1", store})
         expect(req).not.toBeNull()
         expect(req!.requestBody.session_id).toBe("s1")
         const data = req!.requestBody.data as any
-        expect(data.messages).toEqual([{role: "user"}])
+        expect(data.inputs.messages).toEqual([{role: "user"}])
         // draft-aware config flows through; a flat config (no `agent` key) is defaulted at top level
         expect(data.parameters).toMatchObject({
             temperature: 0.9,
@@ -228,6 +229,16 @@ describe("buildAgentRequest", () => {
         seed(store, "e", {})
         const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
         expect(req!.headers.Accept).toBe("text/event-stream")
+    })
+
+    it("requests batch JSON via Accept when the channel toggle is `batch`", async () => {
+        // Negotiation 1 (transport): the channel toggle drives Accept. `batch` asks /invoke
+        // for a single WorkflowBatchResponse, which AgentChatTransport replays as one frame.
+        store.set(agentChannelModeAtom, "batch")
+        seed(store, "e", {})
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        expect(req!.headers.Accept).toBe("application/json")
+        store.set(agentChannelModeAtom, "stream")
     })
 
     it("declares the Vercel message format via x-ag-messages-format", async () => {
@@ -358,19 +369,18 @@ describe("buildAgentRequest", () => {
             {role: "assistant", parts: [{type: "text", text: "ok!"}]},
         ]
         const req = await buildAgentRequest("e", msgs, {sessionId: "s1", store})
-        const sent = (req!.requestBody.data as any).messages as any[]
+        const sent = (req!.requestBody.data as any).inputs.messages as any[]
         expect(sent).toHaveLength(3)
         expect(sent.map((m) => m.role)).toEqual(["user", "user", "assistant"])
         expect(sent[2].parts[0].text).toBe("ok!")
     })
 
-    it("targets the v6 stream `/messages` endpoint, not the batch `/invoke`", async () => {
-        // The agent panel's useChat needs the v6 UI Message Stream; `/invoke` is the
-        // batch path and drops UIMessage `parts` (every turn → empty). Rewrite to
-        // `/messages`, preserving the query string.
+    it("targets `/invoke` directly (vercel projection comes from the format header, not the path)", async () => {
+        // `/invoke` now serves the v6 UI Message Stream when asked via
+        // `Accept: text/event-stream` + `x-ag-messages-format: vercel`; no path rewrite.
         seed(store, "e", {url: "https://api.test/services/agent/v0/invoke"})
         const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
-        expect(req!.invocationUrl).toContain("/services/agent/v0/messages")
-        expect(req!.invocationUrl).not.toContain("/invoke")
+        expect(req!.invocationUrl).toContain("/services/agent/v0/invoke")
+        expect(req!.invocationUrl).not.toContain("/messages")
     })
 })

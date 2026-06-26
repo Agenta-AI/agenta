@@ -76,10 +76,10 @@ class WorkflowFlags(BaseModel):
     is_code: bool = False
     is_match: bool = False
     is_feedback: bool = False
+    is_agent: bool = False
     # interface-derived
     ## schema
     is_chat: bool = False
-    is_agent: bool = False
     ## hook
     has_url: bool = False
     ## code
@@ -108,10 +108,10 @@ class WorkflowQueryFlags(BaseModel):
     is_code: Optional[bool] = None
     is_match: Optional[bool] = None
     is_feedback: Optional[bool] = None
+    is_agent: Optional[bool] = None
     # interface-derived
     ## schema
     is_chat: Optional[bool] = None
-    is_agent: Optional[bool] = None
     ## hook
     has_url: Optional[bool] = None
     ## code
@@ -124,6 +124,26 @@ class WorkflowQueryFlags(BaseModel):
     is_snippet: Optional[bool] = None
     is_skill: Optional[bool] = None
     is_platform: Optional[bool] = None
+
+
+class WorkflowRequestFlags(BaseModel):
+    """Per-call command directives on an invoke request.
+
+    Distinct from ``WorkflowFlags`` (which describes what a workflow *is*):
+    these say what *this call* should do. All boolean; ``None`` means unset
+    (read as ``False``, but kept tri-state so "unset" stays distinguishable).
+
+    - ``stream``  — stream the output (generator); else aggregate to a batch.
+    - ``history`` — batch output holds the full message list; else just the last.
+    - ``control`` — take over / attach to an existing run (vs run a turn).
+    - ``resolve`` — resolve embeds/parameters server-side (defaults on); a
+      pre-existing request directive, kept here so all per-call flags are typed.
+    """
+
+    stream: Optional[bool] = None
+    history: Optional[bool] = None
+    control: Optional[bool] = None
+    resolve: Optional[bool] = None
 
 
 class WorkflowRevisionData(BaseModel):
@@ -217,21 +237,12 @@ class WorkflowRequestData(BaseModel):
     #
     testcase: Optional[dict] = None
     inputs: Optional[dict] = None
-    # The agent ``/messages`` egress lifts the conversation out of ``inputs`` to this
-    # first-class member, in the Vercel ``UIMessage`` shape; ``/invoke`` ignores it.
-    messages: Optional[list] = None
-    # Transport mode for the agent ``/messages`` route: the endpoint sets this from the Accept
-    # negotiation so the shared agent handler streams (returns an async generator) instead of
-    # returning a batch dict. A sibling of ``messages`` / ``inputs`` / ``parameters`` on purpose
-    # — it must not live in ``parameters``, where it would leak into agent config / revision
-    # state / trace inputs. ``/invoke`` leaves it unset (batch).
-    stream: Optional[bool] = None
     #
     trace: Optional[dict] = None
     outputs: Optional[Any] = None
 
 
-# back-compat alias
+# alias
 WorkflowServiceRequestData = WorkflowRequestData
 
 
@@ -241,6 +252,12 @@ class WorkflowServiceResponseData(BaseModel):
 
 class WorkflowBaseRequest(Metadata):
     version: Optional[str] = "2025.07.14"
+
+    # ``flags`` stays the loose dict from ``Metadata`` (the request boundary is
+    # intentionally dict-ish, forgiving). Per-call COMMAND directives carried in it
+    # — ``stream`` / ``history`` / ``control`` / ``resolve`` — are described and
+    # parsed by ``WorkflowRequestFlags`` in the running layer; it is the typed
+    # accessor, not the wire type.
 
     references: Optional[Dict[str, Union[Reference, Dict[str, Any]]]] = None
     links: Optional[Dict[str, Union[Link, Dict[str, Any]]]] = None

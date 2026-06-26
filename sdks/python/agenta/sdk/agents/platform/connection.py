@@ -30,36 +30,21 @@ from agenta.sdk.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 # Budget for one backend round-trip (the tool catalog/connection check, the vault fetch).
-DEFAULT_TOOLS_TIMEOUT = 30.0
+DEFAULT_TOOLS_TIMEOUT = 5.0
 
 
 def default_timeout() -> float:
-    """The configured backend round-trip budget, guarded against a malformed env value."""
-    raw = os.getenv("AGENTA_AGENT_TOOLS_TIMEOUT")
-    if raw is None:
-        return DEFAULT_TOOLS_TIMEOUT
-    try:
-        return float(raw)
-    except ValueError:
-        log.warning(
-            "agent: invalid AGENTA_AGENT_TOOLS_TIMEOUT %r; using %s",
-            raw,
-            DEFAULT_TOOLS_TIMEOUT,
-        )
-        return DEFAULT_TOOLS_TIMEOUT
+    """The backend round-trip budget."""
+    return DEFAULT_TOOLS_TIMEOUT
 
 
 def _derive_base_url() -> Optional[str]:
     """Resolve the Agenta backend base URL (``.../api``).
 
-    Prefers an explicit override, then derives it from the OTLP endpoint the SDK is
-    configured with (``{host}/api/otlp/v1/traces``), then falls back to env. Returns ``None``
+    Derives it from the OTLP endpoint the SDK is configured with
+    (``{host}/api/otlp/v1/traces``), then falls back to ``AGENTA_API_URL``. Returns ``None``
     when nothing is configured; callers only need this when tools or secrets apply.
     """
-    override = os.getenv("AGENTA_AGENT_TOOLS_API_URL")
-    if override:
-        return override.rstrip("/")
-
     try:
         import agenta as ag
 

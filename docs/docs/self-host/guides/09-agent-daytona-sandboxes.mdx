@@ -11,9 +11,9 @@ The agent runner can create Daytona sandboxes for agent runs. Configure Daytona 
 
 ```bash
 SANDBOX_AGENT_PROVIDER=daytona
-SANDBOX_AGENT_DAYTONA_API_KEY=<daytona-api-key>
-SANDBOX_AGENT_DAYTONA_API_URL=https://app.daytona.io/api
-SANDBOX_AGENT_DAYTONA_TARGET=eu
+DAYTONA_API_KEY=<daytona-api-key>
+DAYTONA_API_URL=https://app.daytona.io/api
+DAYTONA_TARGET=eu
 ```
 
 For Helm:
@@ -40,8 +40,8 @@ uv run build_snapshot.py --force
 Then configure the snapshot name:
 
 ```bash
-SANDBOX_AGENT_DAYTONA_SNAPSHOT=agenta-sandbox-pi
-SANDBOX_AGENT_DAYTONA_INSTALL_PI=false
+DAYTONA_SNAPSHOT=agenta-sandbox-pi
+AGENTA_AGENT_SANDBOX_PI_INSTALLED=false
 ```
 
 For Helm:

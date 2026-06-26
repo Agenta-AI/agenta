@@ -13,15 +13,15 @@ type Log = (message: string) => void;
 
 /** In-sandbox Pi agent dir on common Daytona images (daemon runs as user `sandbox`). */
 export const DAYTONA_PI_DIR =
-  process.env.SANDBOX_AGENT_DAYTONA_PI_DIR ?? "/home/sandbox/.pi/agent";
+  process.env.AGENTA_AGENT_SANDBOX_PI_DIR ?? "/home/sandbox/.pi/agent";
 
 // Some Daytona images ship the pi-acp adapter but not the `pi` CLI, so by default we install
 // it into the sandbox at session time and point pi-acp at it. A custom snapshot that
-// pre-installs `pi` can set SANDBOX_AGENT_DAYTONA_INSTALL_PI=false.
+// pre-installs `pi` can set AGENTA_AGENT_SANDBOX_PI_INSTALLED=false.
 export const DAYTONA_PI_INSTALL_DIR = "/home/sandbox/.agenta-pi";
 export const DAYTONA_PI_INSTALL =
-  process.env.SANDBOX_AGENT_DAYTONA_INSTALL_PI !== "false";
-export const DAYTONA_PI_VERSION = process.env.SANDBOX_AGENT_PI_VERSION ?? "0.79.4";
+  process.env.AGENTA_AGENT_SANDBOX_PI_INSTALLED !== "false";
+export const DAYTONA_PI_VERSION = process.env.AGENTA_AGENT_SANDBOX_PI_VERSION ?? "0.79.4";
 
 /**
  * In-sandbox env for the Daytona daemon: where Pi reads its login, any provider keys,
@@ -45,18 +45,6 @@ export function daytonaEnvVars(
   return env;
 }
 
-/**
- * Daytona's client SDK reads these conventional process env names; keep the runner's
- * SANDBOX_AGENT_* config names at the edge and normalize right before creating the provider.
- */
-export function applyDaytonaClientEnv(): void {
-  const apiKey = process.env.SANDBOX_AGENT_DAYTONA_API_KEY;
-  const apiUrl = process.env.SANDBOX_AGENT_DAYTONA_API_URL;
-  const target = process.env.SANDBOX_AGENT_DAYTONA_TARGET;
-  if (apiKey) process.env.DAYTONA_API_KEY = apiKey;
-  if (apiUrl) process.env.DAYTONA_API_URL = apiUrl;
-  if (target) process.env.DAYTONA_TARGET = target;
-}
 
 /** Install the `pi` CLI into a Daytona sandbox (the sandbox-agent image lacks it). Best-effort. */
 export async function installPiInSandbox(sandbox: any, log: Log = () => {}): Promise<void> {

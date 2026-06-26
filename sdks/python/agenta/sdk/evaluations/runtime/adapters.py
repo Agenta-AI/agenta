@@ -10,7 +10,7 @@ from agenta.sdk.models.evaluations import EvaluationStatus
 from agenta.sdk.models.workflows import (
     ApplicationServiceRequest,
     EvaluatorServiceRequest,
-    WorkflowServiceRequestData,
+    WorkflowRequestData,
 )
 
 
@@ -30,7 +30,7 @@ class SDKWorkflowRunner:
         *,
         request: WorkflowExecutionRequest,
     ) -> WorkflowExecutionResult:
-        data = WorkflowServiceRequestData(
+        data = WorkflowRequestData(
             revision=request.revision,
             parameters=request.parameters,
             testcase=request.source.testcase,

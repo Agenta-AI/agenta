@@ -17,8 +17,6 @@ import pytest
 from agenta.sdk.agents.platform import PlatformConnection
 
 _ENV_VARS = (
-    "AGENTA_AGENT_TOOLS_TIMEOUT",
-    "AGENTA_AGENT_TOOLS_API_URL",
     "AGENTA_API_URL",
     "AGENTA_API_KEY",
 )

@@ -28,7 +28,7 @@
  *       execute_tool <name> (TOOL)  — each tool the turn ran
  *
  * Config (read lazily from the environment for the fallback target):
- *   AGENTA_HOST, AGENTA_API_KEY  — fallback exporter endpoint + auth
+ *   AGENTA_API_URL, AGENTA_API_KEY  — fallback exporter endpoint + auth
  *   OTEL_SERVICE_NAME            — resource service.name (default "pi-agent")
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -92,13 +92,12 @@ function getExporter(target: ExportTarget): OTLPTraceExporter {
 
 /** Fallback target from env, used when a trace was started without an explicit one. */
 function defaultTarget(): ExportTarget {
-  const host = (process.env.AGENTA_HOST || "https://cloud.agenta.ai").replace(
-    /\/+$/,
-    "",
-  );
+  // AGENTA_API_URL is the `.../api` base the rest of the platform uses.
+  const base =
+    process.env.AGENTA_API_URL?.replace(/\/+$/, "") || "https://cloud.agenta.ai/api";
   const apiKey = process.env.AGENTA_API_KEY || "";
   return {
-    endpoint: `${host}/api/otlp/v1/traces`,
+    endpoint: `${base}/otlp/v1/traces`,
     authorization: apiKey ? `ApiKey ${apiKey}` : undefined,
   };
 }
@@ -476,7 +475,7 @@ export function createAgentaOtel(
       // `ag.meta.*` namespace, so a local-Pi trace shows the surfaced skills (not just the author
       // config echoed elsewhere) AND Agenta's OTel ingest keeps them in a first-class `ag.*` bucket
       // rather than relocating an unrecognized `ag.agent.*` key to `ag.unsupported.*`. The set is
-      // passed from the runner via AGENTA_SKILLS_LOADED.
+      // passed from the runner via AGENTA_AGENT_SKILLS_LOADED.
       if (config.skills && config.skills.length > 0) {
         agentSpan.setAttribute("ag.meta.skills.loaded", config.skills);
         agentSpan.setAttribute("ag.meta.skills.count", config.skills.length);

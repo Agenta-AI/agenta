@@ -19,6 +19,7 @@ NO_CACHE=false  # Default to using cache
 PULL_ENABLED=  # Stage-dependent default applied after parsing: gh→true, dev→false
 NUKE=false  # Default to not nuking volumes
 DOWN=false  # Default to up; --down only stops containers
+WITH_TUNNEL=true  # Composio trigger-event tunnel; disable with --no-tunnel
 
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
@@ -57,6 +58,10 @@ show_usage() {
     echo "Network:"
     echo "  --ssl                   Use SSL proxy stage (requires --image gh)"
     echo "  --nginx                 Use nginx proxy (default: traefik)"
+    echo ""
+    echo "Triggers:"
+    echo "  --no-tunnel             Disable the Composio trigger-event tunnel"
+    echo "                          (use when the host has a public ingress URL)"
     echo ""
     echo "Miscellaneous:"
     echo "  --help                  Show this help message and exit"
@@ -228,6 +233,9 @@ while [[ "$#" -gt 0 ]]; do
         --nuke)
             NUKE=true
             ;;
+        --no-tunnel)
+            WITH_TUNNEL=false
+            ;;
         --down)
             DOWN=true
             ;;
@@ -342,6 +350,10 @@ else
     COMPOSE_CMD+=" --profile with-traefik"
 fi
 
+if $WITH_TUNNEL; then
+    COMPOSE_CMD+=" --profile with-tunnel"
+fi
+
 if $NO_CACHE; then
     echo "Building containers with no cache..."
     $COMPOSE_CMD build --parallel --no-cache || error_exit "Build failed"
@@ -358,7 +370,7 @@ fi
 echo "Stopping existing Docker containers..."
 
 # Include all profiles to ensure clean shutdown
-SHUTDOWN_CMD="$COMPOSE_CMD --profile with-web --profile with-nginx --profile with-traefik down"
+SHUTDOWN_CMD="$COMPOSE_CMD --profile with-web --profile with-nginx --profile with-traefik --profile with-tunnel down"
 
 if $NUKE; then
     SHUTDOWN_CMD+=" --volumes"

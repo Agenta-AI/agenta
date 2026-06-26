@@ -24,8 +24,12 @@ import type { PermissionPolicy } from "../responder.ts";
 
 export const RELAY_REQ_SUFFIX = ".req.json";
 export const RELAY_RES_SUFFIX = ".res.json";
-export const RELAY_POLL_MS = Number(process.env.AGENTA_TOOL_RELAY_POLL_MS ?? 300);
-export const RELAY_TIMEOUT_MS = Number(process.env.AGENTA_TOOL_RELAY_TIMEOUT_MS ?? 60000);
+export const RELAY_POLL_MS = Number(
+  process.env.AGENTA_AGENT_TOOLS_RELAY_POLLING ?? 300,
+);
+export const RELAY_TIMEOUT_MS = Number(
+  process.env.AGENTA_AGENT_TOOLS_RELAY_TIMEOUT ?? 60000,
+);
 
 export interface RelayRequest {
   toolName: string;

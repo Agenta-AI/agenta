@@ -277,6 +277,51 @@ services:
             retries: 3
             start_period: 20s
 
+    worker-triggers:
+        # === IMAGE ================================================ #
+        image: agenta-ee-dev-api:latest
+        # === EXECUTION ============================================ #
+        command: >
+            watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
+            --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
+            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
+            python -m entrypoints.worker_triggers
+        # === STORAGE ============================================== #
+        volumes:
+            - ../../../api/ee:/app/ee
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_triggers' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
+
     worker-events:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-api:latest
@@ -331,6 +376,7 @@ services:
         # === STORAGE ============================================== #
         volumes:
             - ../../../api/oss/src/crons/queries.sh:/queries.sh
+            - ../../../api/oss/src/crons/triggers.sh:/triggers.sh
             - ../../../api/ee/src/crons/meters.sh:/meters.sh
             - ../../../api/ee/src/crons/spans.sh:/spans.sh
             - ../../../api/ee/src/crons/events.sh:/events.sh
@@ -419,7 +465,7 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             AGENTA_AGENT_RUNNER_URL: ${AGENTA_AGENT_RUNNER_URL:-http://sandbox-agent:8765}
-            AGENTA_AGENT_ENABLE_MCP: ${AGENTA_AGENT_ENABLE_MCP:-false}
+            AGENTA_AGENT_MCP_SERVERS_ENABLED: ${AGENTA_AGENT_MCP_SERVERS_ENABLED:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -463,7 +509,7 @@ services:
         # login (mounted below), the OTLP export fallback, and the Daytona credentials
         # the runner reads for the `daytona` sandbox provider.
         environment:
-            PORT: "8765"
+            AGENTA_AGENT_RUNNER_PORT: "8765"
             # Bind on all interfaces: the co-located Python `services` container reaches the
             # sidecar over the compose network at `sandbox-agent:8765`, so the trust-model
             # default of `127.0.0.1` (same-host only) is unreachable cross-container.
@@ -471,15 +517,15 @@ services:
             PI_CODING_AGENT_DIR: /pi-agent
             # Tracing export fallback (used when a request carries no usable OTLP
             # credential). Must be reachable from this container.
-            AGENTA_HOST: ${AGENTA_HOST:-http://144.76.237.122:8280}
+            AGENTA_API_URL: ${AGENTA_API_URL:-}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
-            SANDBOX_AGENT_DAYTONA_API_KEY: ${SANDBOX_AGENT_DAYTONA_API_KEY:-}
-            SANDBOX_AGENT_DAYTONA_API_URL: ${SANDBOX_AGENT_DAYTONA_API_URL:-}
-            SANDBOX_AGENT_DAYTONA_TARGET: ${SANDBOX_AGENT_DAYTONA_TARGET:-}
-            SANDBOX_AGENT_DAYTONA_SNAPSHOT: ${SANDBOX_AGENT_DAYTONA_SNAPSHOT:-agenta-sandbox-pi}
-            SANDBOX_AGENT_DAYTONA_IMAGE: ${SANDBOX_AGENT_DAYTONA_IMAGE:-}
-            SANDBOX_AGENT_DAYTONA_INSTALL_PI: ${SANDBOX_AGENT_DAYTONA_INSTALL_PI:-false}
+            DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
+            DAYTONA_API_URL: ${DAYTONA_API_URL:-}
+            DAYTONA_TARGET: ${DAYTONA_TARGET:-}
+            DAYTONA_SNAPSHOT: ${DAYTONA_SNAPSHOT:-agenta-sandbox-pi}
+            DAYTONA_IMAGE: ${DAYTONA_IMAGE:-}
+            AGENTA_AGENT_SANDBOX_PI_INSTALLED: ${AGENTA_AGENT_SANDBOX_PI_INSTALLED:-false}
         # === STORAGE ============================================== #
         volumes:
             - ../../../services/agent/src:/app/src
@@ -657,6 +703,37 @@ services:
         # === NETWORK ============================================== #
         networks:
             - agenta-network
+        # === LIFECYCLE ============================================ #
+        restart: always
+
+    # Dev tunnel for Composio trigger events (disable: run.sh --no-tunnel).
+    composio:
+        # === ACTIVATION =========================================== #
+        profiles:
+            - with-tunnel
+        # === IMAGE ================================================ #
+        image: python:3.13-slim-trixie
+        # === EXECUTION ============================================ #
+        command:
+            - bash
+            - -c
+            - "pip install --quiet --root-user-action=ignore composio httpx && python /app/dispatcher_composio.py"
+        # === STORAGE ============================================== #
+        volumes:
+            - ../../../api/entrypoints/dispatcher_composio.py:/app/dispatcher_composio.py:ro
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            AGENTA_INGRESS_URL: http://api:8000/triggers/composio/events/
+            PYTHONUNBUFFERED: "1"
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            api:
+                condition: service_started
         # === LIFECYCLE ============================================ #
         restart: always
 

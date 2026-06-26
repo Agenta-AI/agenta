@@ -46,14 +46,14 @@ if [ -z "${AGENTA_SERVICES_IMAGE:-}" ] && [ -n "$IMAGE_TAG" ]; then
     export AGENTA_SERVICES_IMAGE="ghcr.io/${GHCR_NAMESPACE}/agenta-services:${IMAGE_TAG}"
 fi
 
-if [ -z "${AGENTA_SANDBOX_AGENT_IMAGE:-}" ] && [ -n "$IMAGE_TAG" ]; then
-    export AGENTA_SANDBOX_AGENT_IMAGE="ghcr.io/${GHCR_NAMESPACE}/agenta-sandbox-agent:${IMAGE_TAG}"
+if [ -z "${AGENTA_AGENT_RUNNER_IMAGE:-}" ] && [ -n "$IMAGE_TAG" ]; then
+    export AGENTA_AGENT_RUNNER_IMAGE="ghcr.io/${GHCR_NAMESPACE}/agenta-agent-runner:${IMAGE_TAG}"
 fi
 
 export AGENTA_API_IMAGE="${AGENTA_API_IMAGE:-ghcr.io/${GHCR_NAMESPACE}/agenta-api:latest}"
 export AGENTA_WEB_IMAGE="${AGENTA_WEB_IMAGE:-ghcr.io/${GHCR_NAMESPACE}/agenta-web:latest}"
 export AGENTA_SERVICES_IMAGE="${AGENTA_SERVICES_IMAGE:-ghcr.io/${GHCR_NAMESPACE}/agenta-services:latest}"
-export AGENTA_SANDBOX_AGENT_IMAGE="${AGENTA_SANDBOX_AGENT_IMAGE:-ghcr.io/${GHCR_NAMESPACE}/agenta-sandbox-agent:latest}"
+export AGENTA_AGENT_RUNNER_IMAGE="${AGENTA_AGENT_RUNNER_IMAGE:-ghcr.io/${GHCR_NAMESPACE}/agenta-agent-runner:latest}"
 
 export RAILWAY_PROJECT_NAME="$PROJECT_NAME"
 export RAILWAY_ENVIRONMENT_NAME="$ENV_NAME"
@@ -65,5 +65,5 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     printf "AGENTA_API_IMAGE=%s\n" "$AGENTA_API_IMAGE"
     printf "AGENTA_WEB_IMAGE=%s\n" "$AGENTA_WEB_IMAGE"
     printf "AGENTA_SERVICES_IMAGE=%s\n" "$AGENTA_SERVICES_IMAGE"
-    printf "AGENTA_SANDBOX_AGENT_IMAGE=%s\n" "$AGENTA_SANDBOX_AGENT_IMAGE"
+    printf "AGENTA_AGENT_RUNNER_IMAGE=%s\n" "$AGENTA_AGENT_RUNNER_IMAGE"
 fi

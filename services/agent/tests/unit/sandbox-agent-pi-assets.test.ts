@@ -72,14 +72,17 @@ describe("buildPiExtensionEnv", () => {
       usageOutPath: "/tmp/usage.json",
     });
 
-    assert.equal(env.AGENTA_TRACEPARENT, request.trace?.traceparent);
-    assert.equal(env.AGENTA_OTLP_ENDPOINT, request.trace?.endpoint);
-    assert.equal(env.AGENTA_OTLP_AUTHORIZATION, request.trace?.authorization);
-    assert.equal(env.AGENTA_CAPTURE_CONTENT, "false");
-    assert.equal(env.AGENTA_TOOL_RELAY_DIR, "/tmp/relay");
-    assert.equal(env.AGENTA_USAGE_OUT, "/tmp/usage.json");
+    assert.equal(env.TRACEPARENT, request.trace?.traceparent);
+    assert.equal(env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, request.trace?.endpoint);
+    assert.equal(
+      env.OTEL_EXPORTER_OTLP_HEADERS,
+      `Authorization=${request.trace?.authorization}`,
+    );
+    assert.equal(env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED, "false");
+    assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, "/tmp/relay");
+    assert.equal(env.AGENTA_AGENT_USAGE_CAPTURE_PATH, "/tmp/usage.json");
 
-    const specs = JSON.parse(env.AGENTA_TOOL_PUBLIC_SPECS ?? "[]");
+    const specs = JSON.parse(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ?? "[]");
     assert.deepEqual(specs, [
       {
         name: "safe_tool",
@@ -103,9 +106,9 @@ describe("buildPiExtensionEnv", () => {
       false,
     );
 
-    assert.equal(env.AGENTA_TRACEPARENT, undefined);
-    assert.equal(env.AGENTA_TOOL_PUBLIC_SPECS, undefined);
-    assert.equal(env.AGENTA_TOOL_RELAY_DIR, undefined);
+    assert.equal(env.TRACEPARENT, undefined);
+    assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
+    assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
   });
 
   it("carries the loaded skill names under tracing (F-029)", () => {
@@ -119,7 +122,7 @@ describe("buildPiExtensionEnv", () => {
       skills: ["weather-oracle", "_agenta.agenta-getting-started"],
     });
 
-    assert.deepEqual(JSON.parse(env.AGENTA_SKILLS_LOADED ?? "[]"), [
+    assert.deepEqual(JSON.parse(env.AGENTA_AGENT_SKILLS_LOADED ?? "[]"), [
       "weather-oracle",
       "_agenta.agenta-getting-started",
     ]);
@@ -133,12 +136,12 @@ describe("buildPiExtensionEnv", () => {
     } as AgentRunRequest;
 
     assert.equal(
-      buildPiExtensionEnv(request, true, { skills: [] }).AGENTA_SKILLS_LOADED,
+      buildPiExtensionEnv(request, true, { skills: [] }).AGENTA_AGENT_SKILLS_LOADED,
       undefined,
     );
     assert.equal(
       buildPiExtensionEnv(request, false, { skills: ["x"] })
-        .AGENTA_SKILLS_LOADED,
+        .AGENTA_AGENT_SKILLS_LOADED,
       undefined,
     );
   });

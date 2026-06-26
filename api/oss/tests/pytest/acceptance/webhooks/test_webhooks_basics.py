@@ -176,6 +176,42 @@ class TestWebhooksSubscriptionsBasics:
 
 
 # ---------------------------------------------------------------------------
+# TestWebhooksSubscriptionsActive — play/pause via /start and /stop
+# ---------------------------------------------------------------------------
+
+
+class TestWebhooksSubscriptionsActive:
+    def test_new_subscription_is_active_by_default(self, authed_api):
+        create = authed_api(
+            "POST", "/webhooks/subscriptions/", json=_subscription_payload()
+        )
+        assert create.status_code == 200
+        assert create.json()["subscription"]["flags"]["is_active"] is True
+
+    def test_stop_then_start_round_trips_is_active(self, authed_api):
+        create = authed_api(
+            "POST", "/webhooks/subscriptions/", json=_subscription_payload()
+        )
+        assert create.status_code == 200
+        subscription_id = create.json()["subscription"]["id"]
+
+        stop = authed_api("POST", f"/webhooks/subscriptions/{subscription_id}/stop")
+        assert stop.status_code == 200, stop.text
+        assert stop.json()["subscription"]["flags"]["is_active"] is False
+
+        fetched = authed_api("GET", f"/webhooks/subscriptions/{subscription_id}").json()
+        assert fetched["subscription"]["flags"]["is_active"] is False
+
+        start = authed_api("POST", f"/webhooks/subscriptions/{subscription_id}/start")
+        assert start.status_code == 200, start.text
+        assert start.json()["subscription"]["flags"]["is_active"] is True
+
+    def test_start_unknown_subscription_returns_404(self, authed_api):
+        response = authed_api("POST", f"/webhooks/subscriptions/{uuid4()}/start")
+        assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
 # TestWebhooksSubscriptionsAuthMode
 # ---------------------------------------------------------------------------
 
