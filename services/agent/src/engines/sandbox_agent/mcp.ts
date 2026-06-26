@@ -8,6 +8,7 @@ import {
   USER_MCP_UNSUPPORTED_MESSAGE,
   type McpServerStdio,
 } from "../../tools/mcp-bridge.ts";
+import { publicToolSpecs } from "../../tools/public-spec.ts";
 
 type Log = (message: string) => void;
 
@@ -171,6 +172,13 @@ export interface BuildSessionMcpServersInput {
   toolSpecs: ResolvedToolSpec[];
   userMcpServers?: McpServerConfig[];
   relayDir: string;
+  /**
+   * The in-sandbox path to the uploaded stdio MCP relay shim (`relay-mcp-stdio.js`), set ONLY on
+   * the Daytona + non-Pi path so the internal gateway-tool channel is advertised as a stdio MCP
+   * server the in-sandbox harness launches (F-042). `undefined` everywhere else: local uses the
+   * loopback HTTP channel and Pi uses its bundled extension, neither of which needs this.
+   */
+  relayShimPath?: string;
   log?: Log;
 }
 
@@ -201,6 +209,37 @@ export interface SessionMcpServers {
  * Returns a `close()` the caller MUST run when the session ends, to release the internal server's
  * loopback port (a no-op on Daytona, where no internal server starts).
  */
+/**
+ * Build the INTERNAL gateway-tool channel as an ACP stdio MCP server (F-042): the Daytona-side
+ * equivalent of the loopback HTTP channel, for a non-Pi harness that runs in the sandbox. The
+ * entry advertises the run's executable tools via the uploaded `relay-mcp-stdio.js` shim, which
+ * the in-sandbox harness launches (`node relay-mcp-stdio.js`); on a call the shim writes a relay
+ * request file the runner-side relay loop executes. Carries ONLY public metadata + the relay dir
+ * in `env` — no secret crosses the boundary (the shim never sees callRef/code/auth). An empty /
+ * all-`client` spec list is a no-op (no channel).
+ */
+function buildStdioToolMcpServer(
+  toolSpecs: ResolvedToolSpec[],
+  relayShimPath: string,
+  relayDir: string,
+): McpServerStdio[] {
+  const specs = publicToolSpecs(toolSpecs);
+  if (specs.length === 0) return [];
+  return [
+    {
+      // The harness keys MCP servers by name; "agenta-tools" matches the loopback HTTP channel.
+      name: "agenta-tools",
+      command: "node",
+      args: [relayShimPath],
+      // The shim reads only these two from env: public specs + the relay dir. No credential.
+      env: [
+        { name: "AGENTA_TOOL_PUBLIC_SPECS", value: JSON.stringify(specs) },
+        { name: "AGENTA_TOOL_RELAY_DIR", value: relayDir },
+      ],
+    },
+  ];
+}
+
 export async function buildSessionMcpServers({
   isPi,
   capabilities,
@@ -209,6 +248,7 @@ export async function buildSessionMcpServers({
   toolSpecs,
   userMcpServers,
   relayDir,
+  relayShimPath,
   log = () => {},
 }: BuildSessionMcpServersInput): Promise<SessionMcpServers> {
   const userMcpCount = userMcpServers?.length ?? 0;
@@ -222,18 +262,33 @@ export async function buildSessionMcpServers({
     return { servers: [], close: async () => {} };
   }
 
-  // Layer 1: INTERNAL gateway-tool channel (do not merge with the user gate below). LOCAL ONLY:
-  // its advertised URL is a runner loopback (`127.0.0.1`), unreachable from a remote Daytona
-  // sandbox where the harness runs. On Daytona, skip the loopback HTTP advertisement and let the
-  // file relay deliver the tools (the relay loop polls the sandbox filesystem; see the Daytona
-  // tool relay in `engines/sandbox_agent.ts`).
-  const internal = isDaytona
-    ? { servers: [], close: async () => {} }
-    : await buildToolMcpServers(toolSpecs, relayDir, log);
+  // Layer 1: INTERNAL gateway-tool channel (do not merge with the user gate below). Transport
+  // depends on where the harness runs:
+  //  - LOCAL: a runner loopback (`127.0.0.1`) HTTP MCP server the harness dials from the host.
+  //  - DAYTONA: the loopback is unreachable from the in-sandbox harness (its `127.0.0.1` is the
+  //    sandbox's), so advertise a STDIO MCP server instead — the uploaded `relay-mcp-stdio.js`
+  //    shim the in-sandbox harness launches (F-042). On a call the shim writes a relay request
+  //    the runner-side relay loop executes (the loop already polls the sandbox FS; see the Daytona
+  //    tool relay in `engines/sandbox_agent.ts`). This is the in-sandbox advertiser a non-Pi
+  //    harness lacked on Daytona; with no uploaded shim path it falls back to no channel.
+  let internal: SessionMcpServers;
+  if (!isDaytona) {
+    internal = await buildToolMcpServers(toolSpecs, relayDir, log);
+  } else if (relayShimPath) {
+    internal = {
+      servers: buildStdioToolMcpServer(toolSpecs, relayShimPath, relayDir),
+      close: async () => {},
+    };
+  } else {
+    internal = { servers: [], close: async () => {} };
+  }
   if (isDaytona && toolSpecs.length > 0) {
     log(
-      `daytona: ${toolSpecs.length} gateway tool(s) delivered via the file relay, not a ` +
-        `loopback MCP URL (unreachable from the sandbox)`,
+      relayShimPath
+        ? `daytona: ${toolSpecs.length} gateway tool(s) advertised via the in-sandbox stdio ` +
+            `MCP relay shim (the loopback MCP URL is unreachable from the sandbox)`
+        : `daytona: ${toolSpecs.length} gateway tool(s) NOT advertised (no in-sandbox relay ` +
+            `shim path; non-Pi harness tools will not surface)`,
     );
   }
   // Layer 2: USER MCP capability (stdio disabled, http delivered; do not merge with Layer 1).

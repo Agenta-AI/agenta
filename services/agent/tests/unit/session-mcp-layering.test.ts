@@ -211,6 +211,99 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     );
   });
 
+  it("(Daytona, non-Pi, relayShimPath) gateway tools -> stdio MCP relay shim, no loopback (F-042)", async () => {
+    // The F-042 fix: a non-Pi harness on Daytona gets the internal channel as a STDIO MCP server
+    // (the uploaded relay-mcp-stdio.js shim), since the loopback HTTP URL is unreachable in the
+    // sandbox. The entry carries the public specs + relay dir in env, NO credential, NO loopback.
+    const shimPath =
+      "/home/sandbox/agenta-abc/.agenta-tools/relay-mcp-stdio.js";
+    const { servers } = await build({
+      isPi: false,
+      isDaytona: true,
+      capabilities: mcpCapable,
+      harness: "claude",
+      toolSpecs: [gatewayTool],
+      relayDir,
+      relayShimPath: shimPath,
+    });
+    const internal = servers.find((s) => s.name === "agenta-tools");
+    assert.ok(internal, "the internal channel is advertised as a stdio server");
+    assert.ok(
+      !("type" in internal),
+      "a stdio MCP entry has no `type` field (so Claude's ACP adapter maps it to a stdio server)",
+    );
+    const stdio = internal as {
+      command: string;
+      args: string[];
+      env: Array<{ name: string; value: string }>;
+    };
+    assert.equal(stdio.command, "node");
+    assert.deepEqual(stdio.args, [shimPath]);
+    const envNames = stdio.env.map((e) => e.name).sort();
+    assert.deepEqual(envNames, [
+      "AGENTA_TOOL_PUBLIC_SPECS",
+      "AGENTA_TOOL_RELAY_DIR",
+    ]);
+    assert.ok(
+      !JSON.stringify(internal).includes("composio.search"),
+      "the private callRef never reaches the stdio advertisement",
+    );
+    assert.ok(
+      !JSON.stringify(servers).includes("127.0.0.1"),
+      "no unreachable loopback url on the Daytona session",
+    );
+  });
+
+  it("(Daytona, non-Pi, NO relayShimPath) gateway tools -> no channel (shim upload failed)", async () => {
+    // Without an uploaded shim path the channel cannot be advertised (fall back to no channel,
+    // the pre-F-042 behavior). The capability gate + fail-loud in the engine still apply upstream.
+    const { servers } = await build({
+      isPi: false,
+      isDaytona: true,
+      capabilities: mcpCapable,
+      harness: "claude",
+      toolSpecs: [gatewayTool],
+      relayDir,
+      relayShimPath: undefined,
+    });
+    assert.deepEqual(servers, [], "no internal channel without a shim path");
+  });
+
+  it("(Daytona, Pi, relayShimPath) still gets [] (Pi delivers via its extension, never the shim)", async () => {
+    const { servers } = await build({
+      isPi: true,
+      isDaytona: true,
+      capabilities: mcpCapable,
+      harness: "pi_agenta",
+      toolSpecs: [gatewayTool],
+      relayDir,
+      relayShimPath: "/home/sandbox/x/relay-mcp-stdio.js",
+    });
+    assert.deepEqual(servers, [], "Pi never uses the stdio shim");
+  });
+
+  it("(Daytona, non-Pi, relayShimPath, only client tools) -> no channel (nothing executable)", async () => {
+    const clientTool: ResolvedToolSpec = {
+      name: "pick_date",
+      kind: "client",
+      description: "browser-fulfilled",
+    };
+    const { servers } = await build({
+      isPi: false,
+      isDaytona: true,
+      capabilities: mcpCapable,
+      harness: "claude",
+      toolSpecs: [clientTool],
+      relayDir,
+      relayShimPath: "/home/sandbox/x/relay-mcp-stdio.js",
+    });
+    assert.deepEqual(
+      servers,
+      [],
+      "a client-only spec list advertises no stdio channel",
+    );
+  });
+
   it("(Daytona) a user http MCP is STILL delivered (remote url, not a runner loopback)", async () => {
     // The Daytona guard is scoped to the INTERNAL loopback channel only. A user http MCP is a
     // remote url the harness dials directly, so it stays reachable from the sandbox and must be
