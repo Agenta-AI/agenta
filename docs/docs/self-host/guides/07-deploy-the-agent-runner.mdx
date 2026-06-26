@@ -1,0 +1,64 @@
+---
+title: Deploy the Agent Runner
+sidebar_label: Deploy Agent Runner
+description: Configure the sandbox-agent runner service for self-hosted agent workflows
+---
+
+Agenta agent workflows run through a separate `sandbox-agent` runner service. The Services
+API sends agent runs to this service through `AGENTA_AGENT_RUNNER_URL`.
+
+The runner owns the harness process, the sandbox-agent daemon lifecycle, and runner-scoped
+sandbox provider settings. It should not inherit the full stack environment file.
+
+## Docker Compose
+
+The bundled Compose files include `sandbox-agent` by default. The Services API points to it
+inside the Compose network:
+
+```bash
+AGENTA_AGENT_RUNNER_URL=http://sandbox-agent:8765
+```
+
+Use these variables when you need to override the image or default sandbox provider:
+
+```bash
+AGENTA_AGENT_RUNNER_IMAGE_NAME=agenta-agent-runner
+AGENTA_AGENT_RUNNER_IMAGE_TAG=latest
+SANDBOX_AGENT_PROVIDER=local
+```
+
+## Helm
+
+The Helm chart enables the runner by default:
+
+```yaml
+agentRunner:
+  enabled: true
+  port: 8765
+  provider: local
+```
+
+When `agentRunner.enabled=true`, the chart creates a `sandbox-agent` Deployment and Service
+and injects the in-cluster URL into the Services pod as `AGENTA_AGENT_RUNNER_URL`.
+
+To use an external runner instead:
+
+```yaml
+agentRunner:
+  enabled: false
+  externalUrl: https://runner.example.com
+```
+
+## Railway
+
+The Railway scripts create a `sandbox-agent` service and configure the Services API with the
+runner's private Railway URL. For image-based deploys, provide the runner image with the
+other Agenta images:
+
+```bash
+export AGENTA_AGENT_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-agent-runner:latest"
+```
+
+## Related
+
+- [Agent Daytona sandboxes](/self-host/guides/agent-daytona-sandboxes)

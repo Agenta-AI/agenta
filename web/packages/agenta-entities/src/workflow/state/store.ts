@@ -56,6 +56,11 @@ import {
 // HELPERS
 // ============================================================================
 
+// The builtin agent workflow URI. The agent publishes its per-harness capabilities only in
+// the `/inspect` response `meta`, so the inspect atom must fetch for this URI even when the
+// stored revision already carries its schemas inline.
+const AGENT_BUILTIN_URI = "agenta:builtin:agent:v0"
+
 function getStore(options?: StoreOptions) {
     return options?.store ?? getDefaultStore()
 }
@@ -1039,26 +1044,54 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
         const revisionQuery = get(workflowQueryAtomFamily(revisionId))
         const serverData = revisionQuery.data ?? null
 
+        // A builtin-agent DRAFT (not yet committed, so it has no server data) still needs inspect.
+        // The agent service publishes `harness_capabilities` (the provider + model catalog) per
+        // SERVICE, not per committed revision — `inspectWorkflow` keys on uri + serviceUrl, never a
+        // revision id. `invocationUrl` already derives the draft's builtin uri/url from the LOCAL
+        // entity (which is why a draft agent can be invoked before creation); mirror that here so the
+        // model picker resolves from inspect pre-creation instead of showing an empty catalog.
+        // Scoped to agents: a non-agent draft keeps its server-only behavior unchanged.
+        const localEntity = serverData ? null : get(workflowBaseEntityAtomFamily(revisionId))
+        const localIsAgent =
+            localEntity?.data?.uri === AGENT_BUILTIN_URI || (localEntity?.flags?.is_agent ?? false)
+        const localData = localIsAgent ? localEntity : null
+
         // Use stored URI, or derive one from builtin service URL pattern
-        const storedUri = serverData?.data?.uri ?? null
-        const storedUrl = serverData?.data?.url ?? null
+        const storedUri = serverData?.data?.uri ?? localData?.data?.uri ?? null
+        const storedUrl = serverData?.data?.url ?? localData?.data?.url ?? null
         const derivedServiceType = storedUri ? null : resolveServiceTypeFromUrl(storedUrl)
         const uri = storedUri ?? (derivedServiceType ? buildWorkflowUri(derivedServiceType) : null)
         // Service URL: prefer stored url, fall back to building from URI
         const serviceUrl = storedUrl ?? buildServiceUrlFromUri(uri)
 
-        // Skip inspect when the revision has no service endpoint (has_url: false)
-        const hasUrl = serverData?.flags?.has_url ?? true
+        // Skip inspect when the revision has no service endpoint (has_url: false). A builtin-agent
+        // DRAFT reports has_url: false (nothing is deployed yet), but its service URL is always
+        // derivable from the builtin uri (same URL `invocationUrl` invokes), so the capability
+        // catalog is still reachable — don't let the deploy-state flag gate it.
+        const hasUrl =
+            serverData?.flags?.has_url ??
+            (localIsAgent ? true : (localData?.flags?.has_url ?? true))
 
         // Skip inspect when the revision already carries all schemas inline.
         // The merge step (workflowEntityAtomFamily) gives server schemas
         // precedence, so fetching inspect would be redundant.
+        // Exception: an agent publishes its per-harness capabilities ONLY in the inspect
+        // response `meta` (harness_capabilities), never in the stored schemas — so the agent
+        // playground's model picker needs inspect even when the schemas are inline. The
+        // `is_agent` flag is not reliably stored on the revision, so detect the agent by its
+        // builtin URI too.
         const serverSchemas = serverData?.data?.schemas
+        const isAgent = (serverData?.flags?.is_agent ?? false) || uri === AGENT_BUILTIN_URI
         const hasAllSchemas =
             !!serverSchemas?.inputs && !!serverSchemas?.outputs && !!serverSchemas?.parameters
 
         const isEnabled =
-            get(sessionAtom) && !!projectId && !!uri && !!serviceUrl && hasUrl && !hasAllSchemas
+            get(sessionAtom) &&
+            !!projectId &&
+            !!uri &&
+            !!serviceUrl &&
+            hasUrl &&
+            (isAgent || !hasAllSchemas)
 
         return {
             queryKey: ["workflows", "inspect", revisionId, uri, serviceUrl, projectId],
@@ -1535,11 +1568,13 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
         let resolvedParams: Record<string, unknown> | null | undefined = null
 
         // (a) Inspect — primary source for any workflow with a URI.
-        // Returns interface.schemas.{inputs, parameters, outputs} directly.
+        // The canonical `WorkflowInspectResponse` puts the resolved interface at
+        // `revision.schemas.{inputs, parameters, outputs}` (revision IS the WorkflowRevisionData),
+        // so we read it directly. `outputs` may be typed per output surface ({invoke, messages}).
         const inspectQuery = get(workflowInspectAtomFamily(workflowId))
         const inspectData = inspectQuery.data ?? null
         if (inspectData) {
-            const inspectSchemas = inspectData.revision?.schemas ?? inspectData.interface?.schemas
+            const inspectSchemas = inspectData.revision?.schemas
             if (inspectSchemas) {
                 resolvedInputs = inspectSchemas.inputs
                 resolvedOutputs = inspectSchemas.outputs
@@ -1740,8 +1775,7 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
             }
         }
 
-        // Get the effective current parameters (base entity = server/clone + draft overlay,
-        // without schema resolution — isDirty only compares parameters, never schemas)
+        // Compare the full `data` object (parameters + sibling fields), normalizing params/schemas to avoid false positives.
         const entityData = get(workflowBaseEntityAtomFamily(workflowId))
 
         // Get the comparison baseline — for local drafts this redirects to the
@@ -1788,13 +1822,6 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
             serverParams = syncPromptInputKeysInParameters(serverParams) as typeof serverParams
         }
 
-        // No parameters on entity side — check for other data changes
-        if (!entityParams) {
-            if (!entityData.data) return false
-            const dataKeys = Object.keys(entityData.data as Record<string, unknown>)
-            return dataKeys.length > 0
-        }
-
         // Recursively sort object keys for consistent comparison
         // This handles json_schema property order differences
         const sortObjectKeys = (obj: unknown): unknown => {
@@ -1833,9 +1860,41 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
             return sortObjectKeys(normalized)
         }
 
-        // Deep compare normalized parameters using fast-deep-equal
-        const normalizedEntity = normalizeForComparison(entityParams)
-        const normalizedServer = normalizeForComparison(serverParams)
+        // Server schemas.parameters stays flat for evaluators while the entity
+        // side is nested (nestEvaluatorSchema in workflowBaseEntityAtomFamily).
+        // Nest the server schema too so the whole-data diff is like-for-like.
+        const rawServerSchemaParams = serverData.data?.schemas?.parameters as
+            | Record<string, unknown>
+            | undefined
+        const serverSchemas =
+            rawServerSchemaParams && serverData.flags?.is_evaluator
+                ? {
+                      ...serverData.data?.schemas,
+                      parameters: nestEvaluatorSchema(rawServerSchemaParams),
+                  }
+                : serverData.data?.schemas
+
+        // Compare the whole data object (so code/hook fields register as dirty),
+        // keeping parameters and schemas normalized to avoid false positives.
+        const normalizeData = (
+            data: Record<string, unknown> | null | undefined,
+            normalizedParams: unknown,
+            normalizedSchemas: unknown,
+        ): unknown => {
+            const base = (data ?? {}) as Record<string, unknown>
+            return sortObjectKeys({
+                ...base,
+                parameters: normalizeForComparison(normalizedParams),
+                ...(normalizedSchemas !== undefined ? {schemas: normalizedSchemas} : {}),
+            })
+        }
+
+        const normalizedEntity = normalizeData(
+            entityData.data,
+            entityParams,
+            entityData.data?.schemas,
+        )
+        const normalizedServer = normalizeData(serverData.data, serverParams, serverSchemas)
         const isDirty = !isEqual(normalizedEntity, normalizedServer)
 
         return isDirty
@@ -2176,6 +2235,7 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
             is_match: false,
             is_feedback: false,
             is_chat: isChat,
+            is_agent: false,
             has_url: false,
             has_script: false,
             has_handler: false,

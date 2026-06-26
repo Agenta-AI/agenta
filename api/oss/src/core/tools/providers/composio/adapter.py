@@ -14,7 +14,10 @@ from oss.src.core.tools.dtos import (
 )
 from oss.src.core.tools.interfaces import ToolsGatewayInterface
 from oss.src.core.tools.exceptions import AdapterError
-from oss.src.core.tools.providers.composio.catalog import ComposioCatalogClient
+from oss.src.core.tools.providers.composio.catalog import (
+    ComposioCatalogClient,
+    _derive_read_only,
+)
 from oss.src.core.gateway.providers.composio.errors import composio_error_detail
 from oss.src.utils.env import env
 
@@ -151,6 +154,7 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
             if input_params or output_params
             else None,
             scopes=item.get("scopes") or None,
+            read_only=_derive_read_only(item.get("tags")),
         )
 
     # -----------------------------------------------------------------------
@@ -167,10 +171,10 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
             action_key=request.action_key,
         )
 
-        payload: Dict[str, Any] = {
-            "arguments": request.arguments,
-            "connected_account_id": request.provider_connection_id,
-        }
+        payload: Dict[str, Any] = {"arguments": request.arguments}
+        # No-auth toolkits run without a connected account; only send the id when set.
+        if request.provider_connection_id:
+            payload["connected_account_id"] = request.provider_connection_id
         if request.user_id:
             payload["user_id"] = request.user_id
 

@@ -1,0 +1,47 @@
+{
+  "harness": "claude",
+  "sandbox": "local",
+  "sessionId": null,
+  "agentsMd": "You are a helpful assistant.",
+  "model": "claude-sonnet-4-6",
+  "messages": [
+    {"role": "user", "content": "hi"}
+  ],
+  "secrets": {"ANTHROPIC_API_KEY": "sk-ant"},
+  "trace": null,
+  "tools": [],
+  "customTools": [
+    {
+      "name": "get_user",
+      "description": "Get a user",
+      "inputSchema": {"type": "object", "properties": {}},
+      "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
+      "kind": "callback",
+      "readOnly": true,
+      "permission": "allow"
+    }
+  ],
+  "toolCallback": {
+    "endpoint": "https://api.example/tools/call",
+    "authorization": "Access tok-123"
+  },
+  "permissionPolicy": "deny",
+  "harnessFiles": [
+    {
+      "path": ".claude/settings.json",
+      "content": "{\n  \"permissions\": {\n    \"defaultMode\": \"acceptEdits\",\n    \"allow\": [\n      \"Read\",\n      \"Bash(npm run:*)\"\n    ],\n    \"deny\": [\n      \"WebFetch\"\n    ]\n  }\n}"
+    }
+  ],
+  "skills": [
+    {
+      "name": "release-notes",
+      "description": "Draft release notes from a changelog.",
+      "body": "Read the changelog, then write release notes.",
+      "files": [
+        {"path": "scripts/draft.py", "content": "print('draft')", "executable": true}
+      ],
+      "disableModelInvocation": true,
+      "allowExecutableFiles": true
+    }
+  ]
+}

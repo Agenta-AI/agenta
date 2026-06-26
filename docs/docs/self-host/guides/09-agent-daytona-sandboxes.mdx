@@ -1,0 +1,58 @@
+---
+title: Agent Daytona Sandboxes
+sidebar_label: Agent Daytona Sandboxes
+description: Configure Daytona as the sandbox provider for self-hosted agent workflows
+---
+
+The agent runner can create Daytona sandboxes for agent runs. Configure Daytona on the
+`sandbox-agent` runner service, not on every Agenta container.
+
+## Configure the runner
+
+```bash
+SANDBOX_AGENT_PROVIDER=daytona
+DAYTONA_API_KEY=<daytona-api-key>
+DAYTONA_API_URL=https://app.daytona.io/api
+DAYTONA_TARGET=eu
+```
+
+For Helm:
+
+```yaml
+agentRunner:
+  provider: daytona
+  daytona:
+    apiKey: <daytona-api-key>
+    apiUrl: https://app.daytona.io/api
+    target: eu
+```
+
+## Optional snapshot
+
+Daytona runs start faster from a prepared snapshot. Agenta ships the recipe, not a
+prebuilt snapshot:
+
+```bash
+cd services/agent/sandbox-images/daytona
+uv run build_snapshot.py --force
+```
+
+Then configure the snapshot name:
+
+```bash
+DAYTONA_SNAPSHOT=agenta-sandbox-pi
+AGENTA_AGENT_SANDBOX_PI_INSTALLED=false
+```
+
+For Helm:
+
+```yaml
+agentRunner:
+  daytona:
+    snapshot: agenta-sandbox-pi
+    installPi: false
+```
+
+## Related
+
+- [Deploy the agent runner](/self-host/guides/deploy-the-agent-runner)

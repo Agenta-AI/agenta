@@ -1,0 +1,281 @@
+import {generateId} from "@agenta/shared/utils"
+import type {UIMessage} from "ai"
+import {atom, type Getter} from "jotai"
+import {atomFamily, atomWithStorage, selectAtom} from "jotai/utils"
+
+import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
+
+/**
+ * Multi-session model for the agent chat slice. The playground hosts several parallel agent
+ * conversations as top-level dynamic tabs (no side rail); this holds the session history, which
+ * tabs are open, the active tab, and each session's persisted messages.
+ *
+ * Everything is keyed by a **scope key** — a string that isolates one mount surface's sessions
+ * from another's. The main playground uses the app scope (`routerAppId`, or `__global__` off an
+ * app page); the create/edit drawer uses its own `drawer:<entityId>` scope so it never inherits
+ * or overwrites the playground's tabs/history (the drawer mounts OVER the playground, so both
+ * surfaces are live at once and a single global "current scope" would clobber). Consumers read
+ * their scope from `useChatScopeKey()` (see ./scope) and pass it to the families below.
+ *
+ * Two distinct concerns, both scope-keyed:
+ *   - HISTORY (`sessionsByAppAtom`): every session ever created for the scope. A closed tab stays
+ *     here so it can be reopened from the history picker; only an explicit delete removes it.
+ *   - OPEN TABS (`openIdsByAppAtom`): which history sessions are currently shown as tabs, in tab
+ *     order. Closing a tab drops its id here but keeps the session (and its messages).
+ * Messages are keyed by the globally-unique session id, so they need no scope dimension.
+ *
+ * Persistence: everything is `atomWithStorage`, so history, tabs, and conversations survive a
+ * reload. NOTE: attachments are stored inline as `data:` URLs (see `assets/files.ts`); a
+ * conversation with large files can approach the localStorage quota — acceptable for v1.
+ */
+
+export interface AgentChatSession {
+    id: string
+    /** User-set title. When empty, the UI falls back to the first user message / "Chat N". */
+    title?: string
+    /** Creation time (ms epoch). Orders the history picker; absent on pre-upgrade sessions. */
+    createdAt?: number
+}
+
+export const GLOBAL_APP_KEY = "__global__"
+
+/**
+ * Default scope key when a surface provides no override: the current app (or `__global__` off an
+ * app page). Kept as the bare app id (no prefix) so sessions persisted before scoping was
+ * introduced still resolve under the same storage key.
+ */
+export const defaultScopeKeyAtom = atom((get) => get(routerAppIdAtom) || GLOBAL_APP_KEY)
+
+// One source of truth per concern, keyed by scope key. Scoped accessors below derive a single
+// scope's slice (mirrors the playground's `selectedVariantsByAppAtom` pattern).
+//
+// `getOnInit: true` — read localStorage synchronously on init. Without it the atom starts as
+// the empty default `{}` on every mount and only hydrates afterwards, so the "seed one tab"
+// effect sees an empty list in that window and creates a stray session on every reload/HMR.
+const STORAGE_OPTS = {getOnInit: true} as const
+
+/** Full per-scope session history (open AND closed). */
+const sessionsByAppAtom = atomWithStorage<Record<string, AgentChatSession[]>>(
+    "agenta:agent-chat:sessions",
+    {},
+    undefined,
+    STORAGE_OPTS,
+)
+
+/**
+ * Which sessions are open as tabs, per scope, in tab order.
+ *
+ * Migration: before this atom is ever written for a scope, the open set defaults to the whole
+ * history — every pre-upgrade session was an open tab (see `currentOpenIds`). Once any tab op
+ * writes an explicit list, that list is authoritative.
+ */
+const openIdsByAppAtom = atomWithStorage<Record<string, string[]>>(
+    "agenta:agent-chat:open-sessions",
+    {},
+    undefined,
+    STORAGE_OPTS,
+)
+
+const activeByAppAtom = atomWithStorage<Record<string, string>>(
+    "agenta:agent-chat:active-session",
+    {},
+    undefined,
+    STORAGE_OPTS,
+)
+
+/** Persisted messages per session id. Written when a conversation's stream settles. Session ids
+ * are globally unique, so this store has no scope dimension. */
+export const sessionMessagesAtom = atomWithStorage<Record<string, UIMessage[]>>(
+    "agenta:agent-chat:messages",
+    {},
+    undefined,
+    STORAGE_OPTS,
+)
+
+/** Open tab ids for a scope, with the pre-upgrade fallback (everything open). Pure read helper
+ * for the writers below — never mutates. */
+const currentOpenIds = (get: Getter, key: string): string[] => {
+    const explicit = get(openIdsByAppAtom)[key]
+    if (explicit) return explicit
+    return (get(sessionsByAppAtom)[key] ?? []).map((s) => s.id)
+}
+
+/** All sessions for a scope (history), newest first. Backs the history picker. */
+export const sessionHistoryAtomFamily = atomFamily((key: string) =>
+    atom((get) => {
+        const list = get(sessionsByAppAtom)[key] ?? []
+        // Newest first; pre-upgrade sessions (no createdAt) sort last, preserving their order.
+        return [...list].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+    }),
+)
+
+/** Sessions shown as tabs for a scope, in tab order. */
+export const sessionsListAtomFamily = atomFamily((key: string) =>
+    atom((get) => {
+        const byId = new Map((get(sessionsByAppAtom)[key] ?? []).map((s) => [s.id, s] as const))
+        return currentOpenIds(get, key)
+            .map((id) => byId.get(id))
+            .filter((s): s is AgentChatSession => Boolean(s))
+    }),
+)
+
+/** Active session id for a scope (may be stale if that tab was closed — the UI falls back to the
+ * first open tab when this id isn't in the open list). */
+export const activeSessionIdAtomFamily = atomFamily((key: string) =>
+    atom((get) => get(activeByAppAtom)[key] ?? ""),
+)
+
+/** Set of currently-open session ids for a scope (used to label the history picker). */
+export const openSessionIdsAtomFamily = atomFamily((key: string) =>
+    atom((get) => new Set(currentOpenIds(get, key))),
+)
+
+/** Create a session and make it the active open tab. Returns the new id. */
+export const addSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set) => {
+        const id = generateId()
+        // Read open ids BEFORE mutating history, else the fallback would re-count the new id.
+        const open = currentOpenIds(get, key)
+        const all = get(sessionsByAppAtom)
+        set(sessionsByAppAtom, {
+            ...all,
+            [key]: [...(all[key] ?? []), {id, createdAt: Date.now()}],
+        })
+        set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: [...open, id]})
+        set(activeByAppAtom, {...get(activeByAppAtom), [key]: id})
+        return id
+    }),
+)
+
+/** Close a tab: drop it from the open list (KEEP the session + messages so it can be reopened
+ * from the history picker) and re-point the active tab to a neighbour if it was the one closed. */
+export const closeSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, id: string) => {
+        const open = currentOpenIds(get, key)
+        const nextOpen = open.filter((x) => x !== id)
+        set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: nextOpen})
+
+        const active = get(activeByAppAtom)
+        if (active[key] === id) {
+            const closedIdx = open.indexOf(id)
+            const neighbour = nextOpen[Math.min(closedIdx, nextOpen.length - 1)] ?? ""
+            set(activeByAppAtom, {...active, [key]: neighbour})
+        }
+    }),
+)
+
+/** Reopen a session as a tab (or just focus it if already open) and make it active. */
+export const openSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, id: string) => {
+        const open = currentOpenIds(get, key)
+        if (!open.includes(id)) {
+            set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: [...open, id]})
+        }
+        set(activeByAppAtom, {...get(activeByAppAtom), [key]: id})
+    }),
+)
+
+/**
+ * Ensure a session with `id` exists in history, is open, and is active — used when opening a
+ * session from a deep link / observability trace. Creates the history entry if it's unknown to
+ * this browser (its messages come from `sessionMessagesAtom`, hydrated locally or server-side).
+ */
+export const adoptSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, {id, title}: {id: string; title?: string}) => {
+        const all = get(sessionsByAppAtom)
+        const list = all[key] ?? []
+        if (!list.some((s) => s.id === id)) {
+            set(sessionsByAppAtom, {
+                ...all,
+                [key]: [...list, {id, title, createdAt: Date.now()}],
+            })
+        }
+        const open = currentOpenIds(get, key)
+        if (!open.includes(id)) {
+            set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: [...open, id]})
+        }
+        set(activeByAppAtom, {...get(activeByAppAtom), [key]: id})
+    }),
+)
+
+/** Permanently delete a session: drop it from history, the open tabs, and its messages. */
+export const deleteSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, id: string) => {
+        const all = get(sessionsByAppAtom)
+        set(sessionsByAppAtom, {...all, [key]: (all[key] ?? []).filter((s) => s.id !== id)})
+
+        const open = currentOpenIds(get, key)
+        if (open.includes(id)) {
+            set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: open.filter((x) => x !== id)})
+        }
+
+        const active = get(activeByAppAtom)
+        if (active[key] === id) {
+            set(activeByAppAtom, {...active, [key]: open.filter((x) => x !== id)[0] ?? ""})
+        }
+
+        const messages = {...get(sessionMessagesAtom)}
+        if (id in messages) {
+            delete messages[id]
+            set(sessionMessagesAtom, messages)
+        }
+    }),
+)
+
+export const renameSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, {id, title}: {id: string; title: string}) => {
+        const all = get(sessionsByAppAtom)
+        const list = (all[key] ?? []).map((s) =>
+            s.id === id ? {...s, title: title.trim() || undefined} : s,
+        )
+        set(sessionsByAppAtom, {...all, [key]: list})
+    }),
+)
+
+export const setActiveSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, id: string) => {
+        set(activeByAppAtom, {...get(activeByAppAtom), [key]: id})
+    }),
+)
+
+/** Write a session's messages to the persisted store (called when its stream settles). */
+export const persistSessionMessagesAtom = atom(
+    null,
+    (get, set, {id, messages}: {id: string; messages: UIMessage[]}) => {
+        set(sessionMessagesAtom, {...get(sessionMessagesAtom), [id]: messages})
+    },
+)
+
+/** First user message text, used as the tab/history label when the session is untitled. */
+export const firstUserText = (messages: UIMessage[] | undefined): string => {
+    const first = messages?.find((m) => m.role === "user")
+    if (!first) return ""
+    return first.parts
+        .filter((p) => p.type === "text")
+        .map((p) => (p as {text: string}).text)
+        .join(" ")
+        .trim()
+}
+
+/** Tab label: explicit title → first user message (truncated) → positional "Chat N". */
+export const sessionLabel = (
+    session: AgentChatSession,
+    messages: UIMessage[] | undefined,
+    index: number,
+): string => {
+    if (session.title) return session.title
+    const text = firstUserText(messages)
+    if (text) return text.length > 24 ? `${text.slice(0, 24)}…` : text
+    return `Chat ${index + 1}`
+}
+
+/**
+ * Per-session first-user-text, as a focused selector. Subscribers re-render only when this
+ * STRING changes (stable once the first message is sent) — not on every streamed token — so a
+ * tab label doesn't churn while its conversation streams. Used instead of subscribing the tab
+ * bar to the whole `sessionMessagesAtom` (which changes on every message and would re-render
+ * the bar + all mounted panes mid-stream).
+ */
+export const sessionFirstUserTextAtomFamily = atomFamily((id: string) =>
+    selectAtom(sessionMessagesAtom, (all) => firstUserText(all[id])),
+)

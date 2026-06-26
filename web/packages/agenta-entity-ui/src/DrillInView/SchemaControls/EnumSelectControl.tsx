@@ -41,11 +41,38 @@ export interface EnumSelectControlProps {
 }
 
 /**
- * Extract options from schema enum
+ * Extract options from a schema's enum or a `oneOf` of `{const, title}` entries.
+ *
+ * Two shapes are supported. A flat `enum` (the common case) maps each value through
+ * `formatEnumLabel`. A `oneOf` of `{const, title}` entries (used by the agent harness field,
+ * where each option carries a display name and a versioned slug identity alongside its bare
+ * value) keeps the bare `const` as the value and shows the `title` as the label, so the option
+ * value the control writes back is unchanged while the dropdown reads clearly.
  */
-function getEnumOptions(
+export function getEnumOptions(
     schema: SchemaProperty | null | undefined,
 ): {value: string; label: string}[] {
+    const oneOf = (schema as {oneOf?: unknown})?.oneOf
+    if (Array.isArray(oneOf)) {
+        const options = oneOf
+            .filter(
+                (entry): entry is {const: unknown; title?: unknown} =>
+                    !!entry &&
+                    typeof entry === "object" &&
+                    "const" in (entry as Record<string, unknown>),
+            )
+            .map((entry) => ({
+                value: String(entry.const),
+                label:
+                    typeof entry.title === "string" && entry.title
+                        ? entry.title
+                        : formatEnumLabel(entry.const),
+            }))
+        if (options.length > 0) {
+            return options
+        }
+    }
+
     if (!schema?.enum || !Array.isArray(schema.enum)) {
         return []
     }

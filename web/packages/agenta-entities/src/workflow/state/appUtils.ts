@@ -64,7 +64,7 @@ export const appTemplatesDataAtom = atom<WorkflowCatalogTemplate[]>((get) => {
  * App types supported by the drawer flow. "custom" routes through the
  * existing CustomWorkflowModal and does NOT use this factory.
  */
-export type AppType = "chat" | "completion"
+export type AppType = "chat" | "completion" | "agent"
 
 export interface CreateEphemeralAppFromTemplateParams {
     type: AppType
@@ -206,7 +206,10 @@ export async function createEphemeralAppFromTemplate({
             is_code: false,
             is_match: false,
             is_feedback: false,
-            is_chat: type === "chat",
+            // Agent takes messages-in / returns a final message, so it runs in
+            // chat mode like `chat` (backend infers is_chat from messages-in too).
+            is_chat: type === "chat" || type === "agent",
+            is_agent: type === "agent",
             has_url: false,
             has_script: false,
             has_handler: false,

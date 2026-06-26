@@ -947,14 +947,7 @@ async function maybeCreateEphemeralProject(page: Page, baseURL: string): Promise
     const ephemeralEnabled =
         String(process.env.AGENTA_TEST_EPHEMERAL_PROJECT ?? "true").toLowerCase() !== "false"
 
-    if (!ephemeralEnabled) {
-        console.log(
-            "[global-setup] Ephemeral project disabled (AGENTA_TEST_EPHEMERAL_PROJECT=false)",
-        )
-        return
-    }
-
-    console.log("[global-setup] Creating ephemeral project for test isolation...")
+    console.log("[global-setup] Setting up test project metadata...")
 
     try {
         const apiURL = getApiURL(baseURL)
@@ -982,11 +975,12 @@ async function maybeCreateEphemeralProject(page: Page, baseURL: string): Promise
         }
 
         const projectsResponse = await page.request.get(`${apiURL}/projects/`)
+        let defaultProject: any = null
         let originalDefaultProjectId: string | null = null
 
         if (projectsResponse.ok()) {
             const projects = await projectsResponse.json()
-            const defaultProject = projects.find((project: any) => project.is_default_project)
+            defaultProject = projects.find((project: any) => project.is_default_project)
             if (defaultProject) {
                 originalDefaultProjectId = defaultProject.project_id
                 console.log(
@@ -994,6 +988,16 @@ async function maybeCreateEphemeralProject(page: Page, baseURL: string): Promise
                 )
             }
         }
+
+        if (!ephemeralEnabled) {
+            console.log(
+                "[global-setup] Ephemeral project disabled (AGENTA_TEST_EPHEMERAL_PROJECT=false)",
+            )
+            writeProjectMetadata(projectMetadataPath, defaultProject, page, null)
+            return
+        }
+
+        console.log("[global-setup] Creating ephemeral project for test isolation...")
 
         const projectName = `e2e-${Date.now()}`
         const response = await page.request.post(`${apiURL}/projects/`, {
@@ -1005,6 +1009,7 @@ async function maybeCreateEphemeralProject(page: Page, baseURL: string): Promise
             console.warn(
                 `[global-setup] Failed to create ephemeral project (${response.status()}): ${text}`,
             )
+            writeProjectMetadata(projectMetadataPath, defaultProject, page, null)
             return
         }
 
@@ -1013,24 +1018,62 @@ async function maybeCreateEphemeralProject(page: Page, baseURL: string): Promise
             `[global-setup] Created ephemeral project: ${projectName} (${project.project_id})`,
         )
 
-        mkdirSync(dirname(projectMetadataPath), {recursive: true})
-        writeFileSync(
-            projectMetadataPath,
-            JSON.stringify(
-                {
-                    project_id: project.project_id,
-                    project_name: project.project_name,
-                    workspace_id: project.workspace_id,
-                    original_default_project_id: originalDefaultProjectId,
-                    created_at: new Date().toISOString(),
-                },
-                null,
-                2,
-            ),
-        )
+        writeProjectMetadata(projectMetadataPath, project, page, originalDefaultProjectId)
     } catch (error) {
         console.warn("[global-setup] Failed to create ephemeral project, using default:", error)
+        try {
+            const projectMetadataPath = getProjectMetadataPath()
+            writeProjectMetadata(projectMetadataPath, null, page, null)
+        } catch (writeError) {
+            console.warn("[global-setup] Could not write fallback project metadata:", writeError)
+        }
     }
+}
+
+function writeProjectMetadata(
+    projectMetadataPath: string,
+    project: any,
+    page: Page,
+    originalDefaultProjectId: string | null,
+): void {
+    let metadata: Record<string, unknown> | null = null
+
+    if (project?.project_id && project?.workspace_id) {
+        metadata = {
+            project_id: project.project_id,
+            project_name: project.project_name ?? null,
+            workspace_id: project.workspace_id,
+            ...(originalDefaultProjectId !== null
+                ? {original_default_project_id: originalDefaultProjectId}
+                : {}),
+            created_at: new Date().toISOString(),
+        }
+    } else {
+        // Last resort: extract workspace_id and project_id from the current page URL
+        const pageUrl = page.url()
+        if (pageUrl && pageUrl !== "about:blank") {
+            const match = new URL(pageUrl).pathname.match(/\/w\/([^/]+)\/p\/([^/]+)/)
+            if (match) {
+                metadata = {
+                    workspace_id: match[1],
+                    project_id: match[2],
+                    created_at: new Date().toISOString(),
+                }
+                console.log("[global-setup] Derived project metadata from page URL")
+            }
+        }
+    }
+
+    if (!metadata) {
+        console.warn("[global-setup] No project metadata available to write; skipping")
+        return
+    }
+
+    mkdirSync(dirname(projectMetadataPath), {recursive: true})
+    writeFileSync(projectMetadataPath, JSON.stringify(metadata, null, 2))
+    console.log(
+        `[global-setup] Wrote project metadata: workspace=${metadata.workspace_id} project=${metadata.project_id}`,
+    )
 }
 
 export default globalSetup

@@ -17,7 +17,7 @@ fi
 railway link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/null
 
 # Bring stateful infra up first so credentials/volumes are applied.
-railway service "$POSTGRES_SERVICE" >/dev/null && railway redeploy --yes
+railway service "$POSTGRES_SERVICE" >/dev/null && railway redeploy --service "$POSTGRES_SERVICE" --environment "$ENV_NAME" --yes
 if railway service "$REDIS_SERVICE" >/dev/null 2>&1; then
     railway up hosting/railway/oss/redis --path-as-root --service "$REDIS_SERVICE" --detach
 fi
@@ -30,6 +30,7 @@ railway up hosting/railway/oss/worker-tracing --path-as-root --service worker-tr
 railway up hosting/railway/oss/worker-evaluations --path-as-root --service worker-evaluations --detach
 railway up hosting/railway/oss/worker-webhooks --path-as-root --service worker-webhooks --detach
 railway up hosting/railway/oss/worker-events --path-as-root --service worker-events --detach
+railway up hosting/railway/oss/sandbox-agent --path-as-root --service sandbox-agent --detach
 railway up hosting/railway/oss/services --path-as-root --service services --detach
 railway up hosting/railway/oss/cron --path-as-root --service cron --detach
 railway up hosting/railway/oss/web --path-as-root --service web --detach

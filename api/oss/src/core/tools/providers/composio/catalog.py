@@ -361,6 +361,22 @@ def _parse_integration_detail(item: Dict[str, Any]) -> ToolCatalogIntegration:
     )
 
 
+def _derive_read_only(raw_tags: Any) -> Optional[bool]:
+    """Distil the MCP behavioral hint tags into a single read-only signal.
+
+    ``readOnlyHint`` with no mutating hint -> read-only; ``destructiveHint`` or
+    ``updateHint`` -> mutating. No hint present -> unknown (``None``); never guessed.
+    """
+    if not isinstance(raw_tags, list):
+        return None
+    tags = {t for t in raw_tags if isinstance(t, str)}
+    if "destructiveHint" in tags or "updateHint" in tags:
+        return False
+    if "readOnlyHint" in tags:
+        return True
+    return None
+
+
 def _parse_action(item: Dict[str, Any], integration_key: str) -> ToolCatalogAction:
     raw_tags = item.get("tags")
     # Tags mix MCP hint flags with semantic categories — strip the known hints
@@ -383,4 +399,5 @@ def _parse_action(item: Dict[str, Any], integration_key: str) -> ToolCatalogActi
         name=item.get("name", ""),
         description=item.get("description"),
         categories=categories,
+        read_only=_derive_read_only(raw_tags),
     )

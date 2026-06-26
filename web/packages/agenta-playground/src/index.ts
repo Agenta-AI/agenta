@@ -67,6 +67,19 @@ export {loadTestsetNormalizedMutationAtom} from "./state"
 
 export {filterUnreferencedColumnsForSource} from "./state"
 
+// Agent generation lane (consumed by OSS AgentChatPanel): per-entity mode flag
+// + the request builder that reuses the playground pipeline but bypasses
+// buffered-fetch execution (useChat streams the v6 conversation).
+export {
+    isAgentModeAtomFamily,
+    buildAgentRequest,
+    buildAgentReferences,
+    agentChannelModeAtom,
+} from "./state"
+export type {AgentRequest, AgentChannelMode} from "./state"
+// HITL resume predicate for `useChat`'s `sendAutomaticallyWhen` (approve AND deny resume).
+export {agentShouldResumeAfterApproval} from "./state"
+
 // ============================================================================
 // ENTITY CONTEXT (Dependency Injection)
 // ============================================================================

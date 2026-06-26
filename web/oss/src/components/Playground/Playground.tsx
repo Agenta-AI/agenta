@@ -8,6 +8,7 @@ import {GatewayToolAssistantActions, type PlaygroundUIProviders} from "@agenta/p
 import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
 import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
 import {useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
@@ -17,6 +18,12 @@ import PlaygroundMainView from "./Components/MainLayout"
 import PlaygroundHeader from "./Components/PlaygroundHeader"
 import {OSSPlaygroundShell} from "./OSSPlaygroundShell"
 import PlaygroundOnboarding from "./PlaygroundOnboarding"
+
+// Agent-chat surface (third generation arm). Lazy — only loads the AI SDK when an
+// agent workflow is opened in the playground.
+const AgentChatPanel = dynamic(() => import("@/oss/components/AgentChatSlice/AgentChatPanel"), {
+    ssr: false,
+})
 
 /**
  * Sync state tag slot — renders the sync state badge in each row header.
@@ -73,12 +80,15 @@ const Playground: FC = () => {
         ChatTurnAssistantActions: (props) => (
             <GatewayToolAssistantActions {...props} onExecuteToolCall={executeToolCall} />
         ),
+        // Third generation arm: agent-type entities render the agent-chat surface.
+        // Lazy — pulls in the AI SDK only when an agent workflow is open.
+        AgentGenerationPanel: AgentChatPanel,
         renderSyncStateTag: PlaygroundSyncStateTag,
     } as unknown as PlaygroundUIProviders
 
     return (
         <OSSPlaygroundShell providers={providers}>
-            <div className="flex flex-col w-full h-[calc(100dvh-75px)] overflow-hidden">
+            <div className="flex flex-col w-full h-[calc(100dvh-46px)] overflow-hidden">
                 <PlaygroundOnboarding />
                 <PlaygroundHeader key={`${uri}-header`} />
                 <PlaygroundMainView key={`${uri}-main`} />

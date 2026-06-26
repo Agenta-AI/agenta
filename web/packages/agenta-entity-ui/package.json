@@ -33,6 +33,7 @@
         "@agenta/ui": "workspace:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10",
         "clsx": "^2.1.1",
+        "fflate": "0.4.8",
         "js-yaml": "^4.1.1",
         "lodash": "^4.17.23",
         "lucide-react": "^0.479.0",

@@ -1,8 +1,9 @@
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
+from agenta.sdk.agents.tools import BuiltinToolConfig, GatewayToolConfig
 from agenta.sdk.models.workflows import JsonSchemas
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from oss.src.core.gateway.catalog.dtos import (
     CatalogIntegration,
@@ -51,6 +52,9 @@ class ToolCatalogAction(BaseModel):
     #
     categories: List[str] = []
     logo: Optional[str] = None
+    #
+    # From the MCP behavioral hints: True (read-only), False (mutating), None (unknown).
+    read_only: Optional[bool] = None
 
 
 class ToolCatalogActionDetails(ToolCatalogAction):
@@ -168,7 +172,7 @@ class ToolExecutionRequest(BaseModel):
 
     integration_key: str
     action_key: str
-    provider_connection_id: str
+    provider_connection_id: Optional[str] = None  # absent for no-auth toolkits
     user_id: Optional[str] = None
     arguments: Dict[str, Any] = {}
 
@@ -179,3 +183,43 @@ class ToolExecutionResponse(BaseModel):
     data: Optional[Json] = None
     error: Optional[str] = None
     successful: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Tool references + resolution
+# ---------------------------------------------------------------------------
+
+# A provider-agnostic list of tool references lives under an agent revision's
+# ``parameters["tools"]``. Each entry is a discriminated union on ``type``: config
+# holds references and display metadata only, never secrets. The backend resolves
+# them into model-ready specs at invoke time (see ToolsService.resolve_tools).
+
+
+BuiltinTool = BuiltinToolConfig
+ComposioTool = GatewayToolConfig
+ToolReference = Union[BuiltinToolConfig, GatewayToolConfig]
+
+
+class ResolvedTool(BaseModel):
+    """A runnable reference resolved into a model-ready tool spec.
+
+    ``call_ref`` is the ``tools.{provider}.{integration}.{action}.{connection}`` slug
+    the execution bridge sends back to ``POST /tools/call``.
+    """
+
+    name: str
+    description: Optional[str] = None
+    input_schema: Optional[Dict[str, Any]] = None
+    call_ref: str
+    read_only: Optional[bool] = None
+
+
+class ToolsResolution(BaseModel):
+    """Outcome of resolving a ``tools`` list.
+
+    ``builtins`` pass straight into Pi's ``tools: string[]``; ``custom`` become Pi
+    ``customTools`` whose ``execute`` routes through ``/tools/call``.
+    """
+
+    builtins: List[str] = Field(default_factory=list)
+    custom: List[ResolvedTool] = Field(default_factory=list)

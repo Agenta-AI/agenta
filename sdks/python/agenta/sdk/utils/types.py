@@ -8,6 +8,10 @@ from pydantic import ConfigDict, BaseModel, HttpUrl, RootModel
 from pydantic import Field, model_validator, AliasChoices
 
 
+from agenta.sdk.agents.dtos import HARNESS_IDENTITIES, SandboxPermission
+from agenta.sdk.agents.mcp import MCPServerConfig
+from agenta.sdk.agents.tools import ToolConfig
+from agenta.sdk.agents.wire_models import run_contract_schemas
 from agenta.sdk.utils.assets import supported_llm_models, model_metadata
 from agenta.sdk.utils.helpers import _PLACEHOLDER_RE
 from agenta.sdk.utils.rendering import (
@@ -1052,6 +1056,292 @@ def _model_catalog_type() -> dict:
     }
 
 
+_DEFAULT_AGENT_MODEL = "gpt-5.5"
+_DEFAULT_AGENTS_MD = (
+    "You are a friendly hello-world agent running on the Agenta agent service.\n\n"
+    "- Greet the user warmly.\n"
+    "- Answer the user's message in one or two short sentences."
+)
+
+# The single source of the run-selection defaults. The SDK builtin interface
+# (`agenta:builtin:agent:v0`) and the agent service (`AGENT_SCHEMAS` / the value
+# `AgentConfig.from_params` falls back to) both consume these via `build_agent_v0_default`, so a new
+# default changes one place. The harness default also seeds `AgentConfigSchema.harness`.
+_DEFAULT_HARNESS = "pi_core"
+_DEFAULT_SANDBOX = "local"
+_DEFAULT_PERMISSION_POLICY = "auto"
+
+# The schema key carrying each harness option's versioned slug identity (the contract identity in
+# the repo's `agenta:...:v0` grammar). Specific to the harness rather than a generic `x-ag-slug`.
+_HARNESS_SLUG_KEY = "x-ag-harness-slug"
+
+
+def _harness_field_schema_extra() -> Dict[str, Any]:
+    """Build the harness field's JSON-Schema extras from the single ``HARNESS_IDENTITIES`` source.
+
+    Carries BOTH a flat ``enum`` of the bare values (so every existing consumer that reads
+    ``schema.enum`` keeps working) and a ``oneOf`` of ``{const, title, x-ag-harness-slug}`` (so the
+    playground shows the display name and the harness's versioned slug identity rides alongside its
+    bare value). The stored/wire harness value is still the bare ``const`` string."""
+    return {
+        "enum": [identity.value for identity in HARNESS_IDENTITIES],
+        "oneOf": [
+            {
+                "const": identity.value,
+                "title": identity.name,
+                _HARNESS_SLUG_KEY: identity.slug,
+            }
+            for identity in HARNESS_IDENTITIES
+        ],
+    }
+
+
+class AgentConfigSchema(AgSchemaMixin):
+    """The playground's editable agent config (the ``agent`` element), as one semantic type.
+
+    This is the schema-generation counterpart to the runtime :class:`agenta.sdk.agents.AgentConfig`
+    parser: it exists only to emit a rich JSON Schema for the ``agent_config`` control, so the
+    field shapes live in Pydantic (single source of truth) instead of a hand-written literal.
+    It composes every editable field the control surfaces — the definition
+    (``agents_md``/``model``/``tools``/``mcp_servers``) and the run-selection fields
+    (``harness``/``sandbox``/``permission_policy``), all one config — and types
+    ``tools``/``mcp_servers`` with the real tool-def models so the playground gets typed editors.
+    The runtime ``AgentConfig`` stays permissive (``List[Any]``) because its job is to coerce the
+    loose shapes the playground emits; this model is strict because its job is to describe them.
+    """
+
+    __ag_type__ = "agent_config"
+
+    agents_md: str = Field(
+        default=_DEFAULT_AGENTS_MD,
+        title="Instructions",
+        description="The agent's system prompt (its AGENTS.md).",
+        json_schema_extra={"x-ag-type": "textarea"},
+    )
+    model: str = Field(
+        default=_DEFAULT_AGENT_MODEL,
+        title="Model",
+        description="Model the agent runs on.",
+        json_schema_extra={"x-parameter": "grouped_choice"},
+    )
+    tools: List[ToolConfig] = Field(
+        default_factory=list,
+        title="Tools",
+        description=(
+            "Runnable tools the agent can call: harness built-ins, server-side gateway "
+            "actions (e.g. Composio), sandboxed code, or client-fulfilled tools."
+        ),
+    )
+    mcp_servers: List[MCPServerConfig] = Field(
+        default_factory=list,
+        title="MCP servers",
+        description=(
+            "Declared MCP servers exposed to the agent. The backend resolves each server's "
+            "secret env from the vault at run time; tokens never live in the config."
+        ),
+    )
+    # The harness is a plain string field whose JSON Schema carries a versioned slug + display name
+    # per option (see `_harness_field_schema_extra`). The stored value is the bare harness string
+    # (`pi_core` / `pi_agenta` / `claude`) — the runtime/wire selector — so this stays a `str`, not a
+    # `Literal` (a Literal would emit its own `enum` that collides with the curated extras).
+    harness: str = Field(
+        default=_DEFAULT_HARNESS,
+        title="Harness",
+        description=(
+            "Coding agent to drive: pi_core (plain Pi), claude, or pi_agenta (Pi with "
+            "Agenta's forced skills, tools, and base instructions)."
+        ),
+        json_schema_extra=_harness_field_schema_extra(),
+    )
+    sandbox: Literal["local", "daytona"] = Field(
+        default="local",
+        title="Sandbox",
+        description="Where the agent runs: local daemon or a Daytona sandbox.",
+    )
+    permission_policy: Literal["auto", "deny"] = Field(
+        default="auto",
+        title="Permission policy",
+        description=(
+            "How a permission-gating harness (e.g. Claude Code) handles tool-use prompts "
+            "in this headless run: auto-approve or deny."
+        ),
+    )
+    sandbox_permission: Optional[SandboxPermission] = Field(
+        default=None,
+        title="Sandbox permission",
+        description=(
+            "The sandbox security boundary the agent runs inside: outbound network egress "
+            "(on / off / allowlist of CIDR ranges), filesystem access (declared), and "
+            "enforcement (strict or best-effort). Optional; unset means no declared boundary."
+        ),
+    )
+    skills: List[Union["SkillConfigSchema", "_SkillEmbedRefSchema"]] = Field(
+        default_factory=list,
+        title="Skills",
+        description=(
+            "Skills the agent ships: each is an inline SKILL.md package (name, description, "
+            "body, optional bundled files) or an @ag.embed reference to a stored skill the "
+            "backend inlines into that same shape before the runner sees it."
+        ),
+    )
+
+
+def build_agent_v0_default(
+    *,
+    skill_slug: Optional[str] = None,
+    include_sandbox_permission: bool = False,
+) -> Dict[str, Any]:
+    """The default `agent_config` value, shared by the builtin interface and the service.
+
+    Base shape (always): instructions, model, empty tools/MCP, the run selection
+    (harness/sandbox/permission policy). ``include_sandbox_permission`` adds the declared
+    Layer-2 boundary the playground pre-fills (network egress on, strict). ``skill_slug`` adds
+    one ``@ag.embed`` reference to a stored skill the backend inlines before the runner sees it
+    (the service passes the reserved platform default skill; the SDK builtin passes none)."""
+    config: Dict[str, Any] = {
+        "agents_md": _DEFAULT_AGENTS_MD,
+        "model": _DEFAULT_AGENT_MODEL,
+        "tools": [],
+        "mcp_servers": [],
+        "harness": _DEFAULT_HARNESS,
+        "sandbox": _DEFAULT_SANDBOX,
+        "permission_policy": _DEFAULT_PERMISSION_POLICY,
+    }
+    if include_sandbox_permission:
+        config["sandbox_permission"] = {
+            "network": {"mode": "on", "allowlist": []},
+            "enforcement": "strict",
+        }
+    if skill_slug is not None:
+        config["skills"] = [
+            {
+                "@ag.embed": {
+                    # Reference the skill at the ARTIFACT level (its latest revision). A
+                    # `workflow_revision` slug matches the revision's own hash slug, not the
+                    # author-facing artifact slug, so a bare revision slug with no version 500s;
+                    # `workflow.slug` is the correct "use the latest" shape.
+                    "@ag.references": {"workflow": {"slug": skill_slug}},
+                    "@ag.selector": {"path": "parameters.skill"},
+                }
+            }
+        ]
+    return config
+
+
+class _SkillFileSchema(BaseModel):
+    """Strict twin of :class:`agenta.sdk.agents.skills.SkillFile` for schema generation.
+
+    Re-declared (not imported) so the catalog editor describes one bundled file without
+    pulling the runtime model's validators into the playground's JSON Schema.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    path: str = Field(
+        min_length=1,
+        max_length=255,
+        # Mirror the runtime SkillFile safe-path rules (skills/models.py): a relative POSIX path
+        # only. Reject a leading '/' (absolute), any backslash (Windows separator), and a '..'
+        # segment (dir escape), so the catalog/editor cannot accept a path the runtime rejects.
+        # Built from '/'-joined segments where each segment excludes '/' and '\' and is never
+        # exactly '..' (look-around free, since pydantic_core's regex engine rejects look-ahead).
+        pattern=(
+            r"^(?:[^/\\]|[^./\\][^/\\]*|\.[^./\\][^/\\]*|\.\.[^/\\]+)"
+            r"(?:/(?:[^/\\]|[^./\\][^/\\]*|\.[^./\\][^/\\]*|\.\.[^/\\]+))*$"
+        ),
+        title="Path",
+        description=(
+            "Relative path beside SKILL.md, e.g. 'scripts/foo.py'. Must be relative: no leading "
+            "'/', no backslashes, no '..' segment, and not SKILL.md (reserved for the frontmatter)."
+        ),
+    )
+    content: str = Field(
+        max_length=200_000,
+        title="Content",
+        description="Inline UTF-8 file content.",
+        json_schema_extra={"x-ag-type": "textarea"},
+    )
+    executable: bool = Field(
+        default=False,
+        title="Executable",
+        description="Mark +x; only honored when the sandbox policy allows executable files.",
+    )
+
+
+class SkillConfigSchema(AgSchemaMixin):
+    """The playground's editable inline-skill package (one ``skills`` entry), as one semantic type.
+
+    Schema-generation counterpart to the runtime :class:`agenta.sdk.agents.SkillConfig`: it emits
+    a rich JSON Schema for the ``skill_config`` control. The runtime model coerces the loose shapes
+    the playground emits; this strict twin describes them. A skill that lives elsewhere is authored
+    as an ``@ag.embed`` reference instead, which the backend inlines into this same shape.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    __ag_type__ = "skill_config"
+
+    name: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z0-9]+(-[a-z0-9]+)*$",
+        title="Name",
+        description="Skill name (lowercase, digits, single hyphens, <=64 chars).",
+    )
+    description: str = Field(
+        min_length=1,
+        max_length=1024,
+        title="Description",
+        description="The trigger the model matches; read by every harness.",
+    )
+    body: str = Field(
+        min_length=1,
+        max_length=50_000,
+        title="Body",
+        description="The SKILL.md Markdown body written after the composed frontmatter.",
+        json_schema_extra={"x-ag-type": "textarea"},
+    )
+    files: List[_SkillFileSchema] = Field(
+        default_factory=list,
+        title="Files",
+        description="Bundled scripts / references laid beside SKILL.md by relative path.",
+    )
+    disable_model_invocation: bool = Field(
+        default=False,
+        title="Disable model invocation",
+        description="Hide from the prompt; invoke only via /skill:name (Pi/Claude).",
+    )
+    allow_executable_files: bool = Field(
+        default=False,
+        title="Allow executable files",
+        description="Default deny; the sandbox policy must also allow execution.",
+    )
+
+
+class _SkillEmbedRefSchema(BaseModel):
+    """An ``@ag.embed`` reference standing in for one ``skills`` entry.
+
+    The seeded default config and the playground both keep skills the user references (rather than
+    writes inline) as a bare ``{"@ag.embed": {...}}`` object; the backend's embed resolver inlines
+    it into a :class:`SkillConfigSchema` shape before the runner sees it. So the raw/advanced
+    schema must accept this reference form alongside the inline package, or a valid default would
+    fail validation. The embed body is intentionally permissive (``Dict[str, Any]``) — its inner
+    ``@ag.references`` / ``@ag.selector`` keys are the embed resolver's contract, not this schema's.
+    """
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    embed: Dict[str, Any] = Field(
+        alias="@ag.embed",
+        title="Embed reference",
+        description="An @ag.embed reference resolved server-side into an inline skill package.",
+    )
+
+
+# Resolve the forward references on AgentConfigSchema.skills (inline + embed-ref variants).
+AgentConfigSchema.model_rebuild()
+
+
 CATALOG_TYPES = {
     Message.ag_type(): _dereference_schema(Message.model_json_schema()),
     Messages.ag_type(): _dereference_schema(Messages.model_json_schema()),
@@ -1065,4 +1355,15 @@ CATALOG_TYPES = {
     AgPermissions.ag_type(): _dereference_schema(AgPermissions.model_json_schema()),
     AgResponse.ag_type(): _dereference_schema(AgResponse.model_json_schema()),
     PromptTemplate.ag_type(): _dereference_schema(PromptTemplate.model_json_schema()),
+    AgentConfigSchema.ag_type(): _dereference_schema(
+        AgentConfigSchema.model_json_schema()
+    ),
+    SkillConfigSchema.ag_type(): _dereference_schema(
+        SkillConfigSchema.model_json_schema()
+    ),
+    # The `/run` wire contract (request + result), exported from the dedicated Pydantic wire
+    # models in `agenta.sdk.agents.wire_models`. This puts the service<->runner wire interface in
+    # the SDK the same way the other catalog types are exposed; a freshness test asserts these
+    # entries match a fresh export so the schema cannot drift from the models.
+    **run_contract_schemas(),
 }

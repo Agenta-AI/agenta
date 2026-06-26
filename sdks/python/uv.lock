@@ -4,7 +4,7 @@ requires-python = ">=3.11, <3.14"
 
 [[package]]
 name = "agenta"
-version = "0.104.1"
+version = "0.104.2"
 source = { editable = "." }
 dependencies = [
     { name = "agenta-client" },
@@ -23,6 +23,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-jsonpath" },
     { name = "pyyaml" },
+    { name = "restrictedpython" },
     { name = "structlog" },
 ]
 
@@ -61,6 +62,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2,<3" },
     { name = "python-jsonpath", specifier = ">=2,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
+    { name = "restrictedpython", specifier = ">=8,<9" },
     { name = "structlog", specifier = ">=26,<27" },
 ]
 
@@ -83,7 +85,7 @@ dev = [
 
 [[package]]
 name = "agenta-client"
-version = "0.104.1"
+version = "0.104.2"
 source = { editable = "../../clients/python" }
 dependencies = [
     { name = "httpx" },
@@ -1864,6 +1866,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ac/c3/e2a2b89f2d3e2179abd6d00ebd70bff6273f37fb3e0cc209f48b39d00cbf/requests-2.34.2.tar.gz", hash = "sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed", size = 142856, upload-time = "2026-05-14T19:25:27.735Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0", size = 73075, upload-time = "2026-05-14T19:25:26.443Z" },
+]
+
+[[package]]
+name = "restrictedpython"
+version = "8.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/97/04/7314639eab9edd57b5c8f6e158a558f5a5a65453c37a51fb8f9ecc1d112e/restrictedpython-8.2.tar.gz", hash = "sha256:b835c2ff87d71b76f6d8b129096cc5a1e893bf01839ab802ba47a4129f1bdfe4", size = 449323, upload-time = "2026-05-29T06:27:57.285Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/35/59/b2778bfafcc37fdfd87c02702bbfc5753c58c28c7eb82999b7b49ec6e0e7/restrictedpython-8.2-py3-none-any.whl", hash = "sha256:6ff69e2fe06674bfe88943f17f2ce8353a9bc743ee37ea7bec38ff8b4851afd1", size = 27176, upload-time = "2026-05-29T06:27:55.651Z" },
 ]
 
 [[package]]

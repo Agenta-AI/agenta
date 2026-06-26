@@ -59,11 +59,42 @@ async def test_create_workflow_persists_only_artifact_flags():
 
     artifact_create = workflows_dao.create_artifact.await_args.kwargs["artifact_create"]
     assert artifact_create.flags is not None
+    # is_platform is server-owned and scrubbed from every DB write, so it never appears here.
     assert artifact_create.flags == {
         "is_application": True,
         "is_evaluator": False,
         "is_snippet": False,
+        "is_skill": False,
     }
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_persists_is_skill_artifact_flag():
+    workflows_dao = AsyncMock()
+    service = WorkflowsService(workflows_dao=workflows_dao)
+
+    workflow_id = uuid4()
+    workflows_dao.create_artifact.return_value = Workflow(
+        id=workflow_id,
+        slug="skill-wf",
+        flags=WorkflowArtifactFlags(is_skill=True),
+    )
+
+    await service.create_workflow(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        workflow_create=WorkflowCreate(
+            slug="skill-wf",
+            flags=WorkflowFlags(is_skill=True, is_evaluator=False, is_custom=True),
+        ),
+    )
+
+    artifact_create = workflows_dao.create_artifact.await_args.kwargs["artifact_create"]
+    assert artifact_create.flags is not None
+    assert artifact_create.flags["is_skill"] is True
+    assert artifact_create.flags["is_evaluator"] is False
+    # is_custom is a revision-level (uri-derived) flag and must not land on the artifact.
+    assert "is_custom" not in artifact_create.flags
 
 
 @pytest.mark.asyncio
@@ -276,6 +307,12 @@ async def test_edit_workflow_revision_persists_only_revision_flags():
         slug="rev",
         flags=WorkflowRevisionFlags(is_chat=True),
     )
+    workflows_dao.fetch_revision.return_value = WorkflowRevision(
+        id=revision_id,
+        workflow_id=artifact_id,
+        workflow_variant_id=variant_id,
+        slug="rev",
+    )
     workflows_dao.fetch_artifact.return_value = Workflow(
         id=artifact_id,
         slug="wf",
@@ -445,6 +482,11 @@ async def test_edit_workflow_refreshes_artifact_cache(monkeypatch):
     project_id = uuid4()
     workflow_id = uuid4()
     workflows_dao.edit_artifact.return_value = Workflow(
+        id=workflow_id,
+        slug="wf",
+        flags=WorkflowArtifactFlags(is_application=True),
+    )
+    workflows_dao.fetch_artifact.return_value = Workflow(
         id=workflow_id,
         slug="wf",
         flags=WorkflowArtifactFlags(is_application=True),

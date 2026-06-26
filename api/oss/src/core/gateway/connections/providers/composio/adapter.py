@@ -19,6 +19,18 @@ from oss.src.utils.env import env
 log = get_module_logger(__name__)
 
 
+def _is_no_auth_toolkit(toolkit: Dict[str, Any]) -> bool:
+    """A toolkit needs no auth when every auth_config_details entry is NO_AUTH.
+
+    Composio's GET /toolkits/{slug} reports a single ``{"mode": "NO_AUTH"}`` entry
+    for toolkits like ``codeinterpreter`` and the ``composio`` meta-toolkit.
+    """
+    details = toolkit.get("auth_config_details") or []
+    if not details:
+        return False
+    return all((detail.get("mode") or "").upper() == "NO_AUTH" for detail in details)
+
+
 class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
     """Composio V3 connection auth adapter — uses httpx directly (no SDK).
 
@@ -136,6 +148,16 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
             integration_key,
             auth_scheme,
         )
+
+        # No-auth toolkits (e.g. codeinterpreter) reject auth-config creation with a
+        # 400. They need neither an auth config nor a connected account — their tools
+        # execute directly. Return a marked connection the service persists as valid.
+        if _is_no_auth_toolkit(toolkit):
+            return ConnectionResponse(
+                provider_connection_id="",
+                redirect_url=None,
+                connection_data={"no_auth": True},
+            )
 
         if auth_scheme == "api_key":
             # Derive Composio authScheme from toolkit's auth_config_details.

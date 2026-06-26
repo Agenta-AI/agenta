@@ -43,12 +43,26 @@ from agenta.sdk.engines.running.utils import (
     retrieve_handler,
     retrieve_interface,
     retrieve_configuration,
+    retrieve_meta,
+    parse_uri,
 )
+from agenta.sdk.engines.running.handlers import remote_forward_v0
 
 import agenta as ag
 
 
 log = get_module_logger(__name__)
+
+
+def _is_custom_hook(uri: Optional[str]) -> bool:
+    """True for a custom hook URI (any provider/version), e.g. agenta:custom:hook:v0."""
+    if not uri:
+        return False
+    try:
+        _provider, kind, key, _version = parse_uri(uri)
+    except Exception:
+        return False
+    return kind == "custom" and key == "hook"
 
 
 class InvokeFn(Protocol):
@@ -133,6 +147,8 @@ class workflow:
         #
         revision: Optional[dict] = None,
         # -------------------------------------------------------------------- #
+        remote: bool = False,
+        # -------------------------------------------------------------------- #
         **kwargs,
     ):
         # -------------------------------------------------------------------- #
@@ -194,6 +210,8 @@ class workflow:
 
         self.handler = None
 
+        self.remote = remote
+
         self.middlewares = [
             VaultMiddleware(),
             ResolverMiddleware(),
@@ -205,22 +223,25 @@ class workflow:
         self.uri = _data.uri
 
         if self.uri is not None:
-            self._retrieve_handler(self.uri)
+            # A user custom hook must run its own installed handler (local) or
+            # forward to its url (remote); the URI must not resolve to a managed
+            # handler that would shadow the function attached by the decorator.
+            if not _is_custom_hook(self.uri):
+                self._retrieve_handler(self.uri)
 
-            if self.handler:
-                registered = retrieve_interface(self.uri)
-                if registered:
-                    # merge registered interface into revision data, keeping caller overrides
-                    merged = registered.model_dump(exclude_none=True)
-                    merged.update(self.revision.data.model_dump(exclude_none=True))
-                    self.revision.data = WorkflowRevisionData(**merged)
-                    self.uri = self.revision.data.uri
+            registered = retrieve_interface(self.uri)
+            if registered:
+                # merge registered interface into revision data, keeping caller overrides
+                merged = registered.model_dump(exclude_none=True)
+                merged.update(self.revision.data.model_dump(exclude_none=True))
+                self.revision.data = WorkflowRevisionData(**merged)
+                self.uri = self.revision.data.uri
 
-                registered_config = retrieve_configuration(self.uri)
-                if registered_config and not self.revision.data.parameters:
-                    self.revision.data.parameters = registered_config.parameters
+            registered_config = retrieve_configuration(self.uri)
+            if registered_config and not self.revision.data.parameters:
+                self.revision.data.parameters = registered_config.parameters
 
-                self.parameters = self.revision.data.parameters
+            self.parameters = self.revision.data.parameters
 
     def __call__(self, handler: Optional[Callable[..., Any]] = None) -> Workflow:
         if self.handler is None and handler is not None:
@@ -373,6 +394,21 @@ class workflow:
                 )
                 running_ctx.parameters = self.parameters
 
+                # remote=True forwards to the workflow url; otherwise run the
+                # installed handler. Seeding it here lets the resolver keep the
+                # decorator's handler instead of re-resolving by URI.
+                running_ctx.handler = remote_forward_v0 if self.remote else self.handler
+                log.info(
+                    "workflow handler bound",
+                    uri=self.uri,
+                    remote=self.remote,
+                    handler=getattr(
+                        running_ctx.handler,
+                        "__name__",
+                        type(running_ctx.handler).__name__,
+                    ),
+                )
+
                 async def terminal(req: WorkflowInvokeRequest):
                     return None
 
@@ -420,6 +456,16 @@ class workflow:
                 running_ctx.parameters = self.parameters
 
                 if self.default_request is None:
+                    # The request-driven inspect path builds a fresh workflow from the request
+                    # (no `meta`), so the routed instance's `meta` (e.g. the agent's
+                    # `harness_capabilities`) is unreachable. Fall back to the URI's registered
+                    # interface meta, with the request/decorator meta winning per key.
+                    registered_meta = retrieve_meta(self.uri)
+                    inspect_meta = (
+                        {**registered_meta, **(self.meta or {})}
+                        if registered_meta
+                        else self.meta
+                    )
                     self.default_request = WorkflowInvokeRequest(
                         #
                         references=self.references,
@@ -429,7 +475,7 @@ class workflow:
                         #
                         flags=self.flags,
                         tags=self.tags,
-                        meta=self.meta,
+                        meta=inspect_meta,
                         #
                         data=WorkflowRequestData(
                             revision=WorkflowRevision(

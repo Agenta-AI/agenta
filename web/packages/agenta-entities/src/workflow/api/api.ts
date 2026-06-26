@@ -39,7 +39,7 @@ import {
     type WorkflowFlags,
     type WorkflowQueryFlags,
 } from "../core"
-import type {WorkflowDetailParams, WorkflowListParams} from "../core"
+import type {WorkflowDetailParams, WorkflowListParams, WorkflowData} from "../core"
 
 const toUnixMs = (value: string | null | undefined): number => {
     if (!value) return 0
@@ -415,12 +415,19 @@ export async function fetchWorkflowRevisionById(
 // ============================================================================
 
 /**
- * Response shape from the inspect endpoint.
- * Returns a WorkflowServiceRequest with resolved interface.
+ * Response shape from the `/inspect` endpoint.
+ *
+ * The canonical backend model is `WorkflowInspectResponse`
+ * (sdks/python/agenta/sdk/models/workflows.py): a flat response whose `revision` IS the
+ * resolved `WorkflowRevisionData`, so schemas live at `revision.schemas`. The endpoint no
+ * longer returns the old `WorkflowInvokeRequest` envelope that nested them under
+ * `data.revision.data.schemas`.
+ *
+ * `outputs` is typed per output surface (POC): `{invoke, messages}` for the agent workflow,
+ * or a single schema for a one-output workflow. The store reads either shape.
  */
 export interface InspectWorkflowResponse {
     version?: string
-    /** New shape (feat/extend-runnables): revision contains the resolved data */
     revision?: {
         uri?: string
         url?: string
@@ -432,7 +439,14 @@ export interface InspectWorkflowResponse {
         }
         parameters?: Record<string, unknown>
     }
-    /** @deprecated Old shape — kept for backward compat during migration */
+    configuration?: Record<string, unknown>
+    meta?: Record<string, unknown>
+    /**
+     * @deprecated Migration bridge for the old `WorkflowInvokeRequest` inspect envelope. The
+     * canonical response puts schemas at `revision.schemas`; read that first. Remove this once
+     * every reader (appUtils / evaluatorUtils) no longer needs the `?? interface?.schemas`
+     * fallback — i.e. once no deployed service returns the old envelope.
+     */
     interface?: {
         version?: string
         uri?: string
@@ -443,10 +457,6 @@ export interface InspectWorkflowResponse {
             inputs?: Record<string, unknown>
             outputs?: Record<string, unknown>
         }
-    }
-    configuration?: {
-        script?: Record<string, unknown>
-        parameters?: Record<string, unknown>
     }
 }
 
@@ -683,18 +693,7 @@ export interface CreateWorkflowPayload {
     meta?: Record<string, unknown> | null
     /** Commit message for the initial revision */
     message?: string | null
-    data?: {
-        uri?: string | null
-        url?: string | null
-        headers?: Record<string, unknown> | null
-        schemas?: {
-            parameters?: Record<string, unknown> | null
-            inputs?: Record<string, unknown> | null
-            outputs?: Record<string, unknown> | null
-        } | null
-        script?: Record<string, unknown> | null
-        parameters?: Record<string, unknown> | null
-    } | null
+    data?: WorkflowData | null
 }
 
 /**
@@ -910,18 +909,7 @@ export interface UpdateWorkflowPayload {
     meta?: Record<string, unknown> | null
     /** Commit message for the new revision */
     message?: string | null
-    data?: {
-        uri?: string | null
-        url?: string | null
-        headers?: Record<string, unknown> | null
-        schemas?: {
-            parameters?: Record<string, unknown> | null
-            inputs?: Record<string, unknown> | null
-            outputs?: Record<string, unknown> | null
-        } | null
-        script?: Record<string, unknown> | null
-        parameters?: Record<string, unknown> | null
-    } | null
+    data?: WorkflowData | null
 }
 
 /**

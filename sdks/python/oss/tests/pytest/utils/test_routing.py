@@ -7,6 +7,8 @@ Covers:
 3. router= param   — issues DeprecationWarning, falls back to prefixed registration
 """
 
+import asyncio
+import json
 import warnings
 
 import pytest
@@ -15,10 +17,13 @@ from starlette.routing import Mount
 
 from agenta.sdk.decorators.routing import (
     _RESERVED_PATHS,
+    _make_stream_response,
     _validate_path,
     create_app,
     route,
 )
+from agenta.sdk.agents.adapters.vercel.sse import vercel_sse_stream
+from agenta.sdk.models.workflows import WorkflowStreamingResponse
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +133,26 @@ class TestRouteIsolation:
 
 
 # ---------------------------------------------------------------------------
+# 2b. /messages was removed — /invoke is the single agent-capable endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestNoMessagesEndpoint:
+    def test_route_never_registers_messages(self):
+        # /messages and the is_agent gate are gone; an agent-flagged route exposes
+        # only /invoke + /inspect, and the agent serves its UI Message Stream there.
+        app = create_app()
+
+        @route("/", app=app, flags={"is_chat": True})
+        async def agent():
+            return {"role": "assistant", "content": "hi"}
+
+        schema = app.openapi()
+        assert "/messages" not in schema["paths"]
+        assert "/invoke" in schema["paths"]
+
+
+# ---------------------------------------------------------------------------
 # 3. router= deprecation warning
 # ---------------------------------------------------------------------------
 
@@ -179,3 +204,76 @@ class TestRouterDeprecation:
         mounts_after = set(_mount_paths(default_app))
         # No new mounts should have appeared on default_app
         assert mounts_after == mounts_before
+
+
+# ---------------------------------------------------------------------------
+# 4. Reserved agent paths (/messages)
+# ---------------------------------------------------------------------------
+
+
+class TestReservedAgentPaths:
+    def test_agent_endpoint_names_are_reserved(self):
+        assert {"messages"} <= _RESERVED_PATHS
+
+    @pytest.mark.parametrize("reserved", ["messages"])
+    def test_route_rejects_reserved_agent_path(self, reserved):
+        with pytest.raises(ValueError, match=reserved):
+            route(f"/{reserved}")
+
+
+# ---------------------------------------------------------------------------
+# 5. Vercel UI Message Stream framing
+# ---------------------------------------------------------------------------
+
+
+async def _collect(aiter):
+    return [chunk async for chunk in aiter]
+
+
+def _sse_payload(chunk: str) -> str:
+    """The JSON body of one `data: <json>\\n\\n` SSE event."""
+    assert chunk.startswith("data: ") and chunk.endswith("\n\n")
+    return chunk[len("data: ") : -2]
+
+
+class TestVercelUIMessageStream:
+    def test_framing_wraps_each_part_and_appends_done(self):
+        async def parts():
+            yield {"type": "start", "messageMetadata": {"sessionId": "sess_1"}}
+            yield {"type": "text-delta", "id": "t1", "delta": "hi"}
+            yield {"type": "finish"}
+
+        chunks = asyncio.run(_collect(vercel_sse_stream(parts())))
+
+        # one SSE event per part, plus the terminal [DONE]
+        assert len(chunks) == 4
+        assert json.loads(_sse_payload(chunks[0])) == {
+            "type": "start",
+            "messageMetadata": {"sessionId": "sess_1"},
+        }
+        assert json.loads(_sse_payload(chunks[1])) == {
+            "type": "text-delta",
+            "id": "t1",
+            "delta": "hi",
+        }
+        assert chunks[-1] == "data: [DONE]\n\n"
+
+    def test_done_is_emitted_for_an_empty_stream(self):
+        async def parts():
+            return
+            yield  # pragma: no cover — makes this an async generator
+
+        chunks = asyncio.run(_collect(vercel_sse_stream(parts())))
+        assert chunks == ["data: [DONE]\n\n"]
+
+    def test_make_stream_response_vercel_sets_headers_and_media_type(self):
+        async def parts():
+            yield {"type": "start"}
+
+        response = WorkflowStreamingResponse(generator=lambda: parts())
+        res = _make_stream_response(response, "vercel")
+
+        assert res.media_type == "text/event-stream"
+        assert res.headers["x-vercel-ai-ui-message-stream"] == "v1"
+        assert res.headers["cache-control"] == "no-cache"
+        assert res.headers["x-accel-buffering"] == "no"

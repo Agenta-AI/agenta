@@ -228,7 +228,12 @@ class Tracing(metaclass=Singleton):
                 span = self.get_current_span()
 
             if session_id:
-                span.set_attribute("id", session_id, namespace="session")
+                # CustomSpan takes a namespace; a raw OTel span (e.g. a
+                # NonRecordingSpan in the agent flow) does not — flatten for it.
+                try:
+                    span.set_attribute("id", session_id, namespace="session")
+                except TypeError:
+                    span.set_attribute("session.id", session_id)
 
     def store_user(
         self,

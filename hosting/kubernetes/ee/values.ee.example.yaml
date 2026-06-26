@@ -113,7 +113,7 @@ global:
 # === agenta.services ===
 # Consumed by the agenta SDK running inside services pods:
 #   - hook.allowInsecure   → AGENTA_SERVICES_HOOK_ALLOW_INSECURE
-#   - code.sandboxRunner   → AGENTA_SERVICES_CODE_SANDBOX_RUNNER (local|daytona)
+#   - code.sandboxRunner   → AGENTA_SERVICES_CODE_SANDBOX_RUNNER (restricted|local|daytona; default restricted. local = no sandbox, trusted only)
 #   - middleware.authEnabled    → AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED
 #   - middleware.cachingEnabled → AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED
 # ================================================================== #
@@ -122,7 +122,7 @@ global:
 #     hook:
 #       allowInsecure: false
 #     code:
-#       sandboxRunner: local
+#       sandboxRunner: restricted
 #     middleware:
 #       authEnabled: true
 #       cachingEnabled: true
@@ -185,6 +185,24 @@ global:
 #   apiUrl: https://app.daytona.io/api
 #   snapshot: daytona-small
 #   target: eu
+
+# ================================================================== #
+# === agentRunner ===
+# sandbox-agent runner used by agent workflows. The services pod gets
+# AGENTA_AGENT_RUNNER_URL from this component.
+# ================================================================== #
+# agentRunner:
+#   enabled: true
+#   port: 8765
+#   provider: local
+#   enableMcp: false
+#   daytona:
+#     apiKey:
+#     apiUrl: https://app.daytona.io/api
+#     target: eu
+#     snapshot:
+#     image:
+#     installPi: false
 
 # ================================================================== #
 # docker (compose-only — no-op on Kubernetes, kept commented so this

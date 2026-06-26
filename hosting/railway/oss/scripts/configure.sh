@@ -205,6 +205,10 @@ main() {
     pg_host_ref="\${{${POSTGRES_REF_NS}.RAILWAY_PRIVATE_DOMAIN}}"
     local pg_port_ref
     pg_port_ref="\${{${POSTGRES_REF_NS}.PGPORT}}"
+    local agent_runner_host_ref
+    agent_runner_host_ref='${{sandbox-agent.RAILWAY_PRIVATE_DOMAIN}}'
+    local agent_runner_url
+    agent_runner_url="http://${agent_runner_host_ref}:8765"
 
     local pg_async_core
     pg_async_core="postgresql+asyncpg://${pg_user_ref}:${pg_password_ref}@${pg_host_ref}:${pg_port_ref}/agenta_oss_core"
@@ -247,12 +251,30 @@ main() {
         AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY" \
         POSTGRES_URI_CORE="$pg_async_core" \
         POSTGRES_URI_TRACING="$pg_async_tracing" \
-        POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens"
+        POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens" \
+        AGENTA_AGENT_RUNNER_URL="$agent_runner_url" \
+        AGENTA_AGENT_MCP_SERVERS_ENABLED="${AGENTA_AGENT_MCP_SERVERS_ENABLED:-false}"
 
     unset_vars services AGENTA_LICENSE PORT SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_INTERNAL_URL
 
     set_optional_vars services \
         "DAYTONA_API_KEY=${DAYTONA_API_KEY:-}"
+
+    set_vars sandbox-agent \
+        AGENTA_AGENT_RUNNER_PORT=8765 \
+        SANDBOX_AGENT_PROVIDER="${SANDBOX_AGENT_PROVIDER:-local}"
+
+    set_optional_vars sandbox-agent \
+        "AGENTA_API_URL=${AGENTA_API_URL:-}" \
+        "AGENTA_API_KEY=${AGENTA_API_KEY:-}" \
+        "DAYTONA_API_KEY=${DAYTONA_API_KEY:-}" \
+        "DAYTONA_API_URL=${DAYTONA_API_URL:-}" \
+        "DAYTONA_TARGET=${DAYTONA_TARGET:-}" \
+        "DAYTONA_SNAPSHOT=${DAYTONA_SNAPSHOT:-}" \
+        "DAYTONA_IMAGE=${DAYTONA_IMAGE:-}" \
+        "AGENTA_AGENT_SANDBOX_PI_INSTALLED=${AGENTA_AGENT_SANDBOX_PI_INSTALLED:-}"
+
+    unset_vars sandbox-agent AGENTA_LICENSE SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI POSTGRES_URI_CORE POSTGRES_URI_TRACING POSTGRES_URI_SUPERTOKENS DAYTONA_API_KEY DAYTONA_API_URL DAYTONA_SNAPSHOT DAYTONA_TARGET
 
     set_vars worker-evaluations \
         AGENTA_WEB_URL="https://${public_domain_ref}" \
@@ -351,6 +373,7 @@ main() {
     set_healthcheck gateway "/"
     set_healthcheck api "/health"
     set_healthcheck services "/health"
+    set_healthcheck sandbox-agent "/health"
 
     printf "Configuration completed for project '%s' environment '%s'\n" "$PROJECT_NAME" "$ENV_NAME"
 }

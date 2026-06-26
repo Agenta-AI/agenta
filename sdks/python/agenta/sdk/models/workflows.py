@@ -76,6 +76,7 @@ class WorkflowFlags(BaseModel):
     is_code: bool = False
     is_match: bool = False
     is_feedback: bool = False
+    is_agent: bool = False
     # interface-derived
     ## schema
     is_chat: bool = False
@@ -89,6 +90,10 @@ class WorkflowFlags(BaseModel):
     is_application: bool = False
     is_evaluator: bool = False
     is_snippet: bool = False
+    is_skill: bool = False
+    # platform-owned (read-only): served from the PlatformWorkflowCatalog under the reserved
+    # `_agenta.*` slug namespace, never the database. A client must not edit or delete it.
+    is_platform: bool = False
 
 
 class WorkflowQueryFlags(BaseModel):
@@ -103,6 +108,7 @@ class WorkflowQueryFlags(BaseModel):
     is_code: Optional[bool] = None
     is_match: Optional[bool] = None
     is_feedback: Optional[bool] = None
+    is_agent: Optional[bool] = None
     # interface-derived
     ## schema
     is_chat: Optional[bool] = None
@@ -116,6 +122,28 @@ class WorkflowQueryFlags(BaseModel):
     is_application: Optional[bool] = None
     is_evaluator: Optional[bool] = None
     is_snippet: Optional[bool] = None
+    is_skill: Optional[bool] = None
+    is_platform: Optional[bool] = None
+
+
+class WorkflowRequestFlags(BaseModel):
+    """Per-call command directives on an invoke request.
+
+    Distinct from ``WorkflowFlags`` (which describes what a workflow *is*):
+    these say what *this call* should do. All boolean; ``None`` means unset
+    (read as ``False``, but kept tri-state so "unset" stays distinguishable).
+
+    - ``stream``  — stream the output (generator); else aggregate to a batch.
+    - ``history`` — batch output holds the full message list; else just the last.
+    - ``control`` — take over / attach to an existing run (vs run a turn).
+    - ``resolve`` — resolve embeds/parameters server-side (defaults on); a
+      pre-existing request directive, kept here so all per-call flags are typed.
+    """
+
+    stream: Optional[bool] = None
+    history: Optional[bool] = None
+    control: Optional[bool] = None
+    resolve: Optional[bool] = None
 
 
 class WorkflowRevisionData(BaseModel):
@@ -214,7 +242,7 @@ class WorkflowRequestData(BaseModel):
     outputs: Optional[Any] = None
 
 
-# back-compat alias
+# alias
 WorkflowServiceRequestData = WorkflowRequestData
 
 
@@ -225,6 +253,12 @@ class WorkflowServiceResponseData(BaseModel):
 class WorkflowBaseRequest(Metadata):
     version: Optional[str] = "2025.07.14"
 
+    # ``flags`` stays the loose dict from ``Metadata`` (the request boundary is
+    # intentionally dict-ish, forgiving). Per-call COMMAND directives carried in it
+    # — ``stream`` / ``history`` / ``control`` / ``resolve`` — are described and
+    # parsed by ``WorkflowRequestFlags`` in the running layer; it is the typed
+    # accessor, not the wire type.
+
     references: Optional[Dict[str, Union[Reference, Dict[str, Any]]]] = None
     links: Optional[Dict[str, Union[Link, Dict[str, Any]]]] = None
 
@@ -232,6 +266,10 @@ class WorkflowBaseRequest(Metadata):
 
     secrets: Optional[Dict[str, Any]] = None
     credentials: Optional[str] = None
+
+    # The agent ``/messages`` session this turn belongs to (opaque, project-scoped). Optional;
+    # absent on ``/invoke`` and on the first turn of a server-minted session.
+    session_id: Optional[str] = None
 
     @model_validator(mode="before")
     def _coerce_nested_models(cls, values: Dict[str, Any]) -> Dict[str, Any]:
@@ -286,10 +324,45 @@ class WorkflowInspectRequest(Metadata):
 WorkflowServiceInspectRequest = WorkflowInspectRequest
 
 
+class WorkflowInspectResponse(Metadata):
+    """The canonical ``/inspect`` response: the resolved interface, flat and self-describing.
+
+    ``/inspect`` is a public edge — it tells the browser which form to render and which inputs,
+    parameters, and outputs a workflow has. The response used to be a ``WorkflowInvokeRequest``
+    (a REQUEST model carrying response semantics), which nested the schemas under
+    ``data.revision.data.schemas`` and made every client guess the envelope. This model is the
+    explicit response contract instead:
+
+    - ``revision`` is a :class:`WorkflowRevisionData` directly (it already owns ``uri`` / ``url``
+      / ``headers`` / ``schemas`` / ``parameters``), so the schemas live at the obvious
+      ``response.revision.schemas`` — no ``data.revision.data`` nesting.
+    - ``configuration`` and ``meta`` carry the resolved config and any interface metadata (the
+      agent workflow rides its per-harness connection capability in ``meta``).
+
+    Typed outputs (POC, no back-compat field): ``revision.schemas.outputs`` may be keyed per
+    output type (for example ``{"messages": {...}, "invoke": {...}}``) so a workflow with more
+    than one output surface describes each one. A single-output workflow still uses a plain
+    output schema. Consumers read the keyed shape when present and fall back to the plain one.
+    """
+
+    version: Optional[str] = "2025.07.14"
+
+    revision: Optional[WorkflowRevisionData] = None
+    configuration: Optional[Dict[str, Any]] = None
+
+
+# back-compat alias
+WorkflowServiceInspectResponse = WorkflowInspectResponse
+
+
 class WorkflowBaseResponse(TraceID, SpanID):
     version: Optional[str] = "2025.07.14"
 
     status: Optional[WorkflowServiceStatus] = WorkflowServiceStatus()
+
+    # The resolved agent session id (minted or echoed) on the ``/messages`` response, alongside
+    # ``trace_id`` / ``span_id``. ``None`` for plain ``/invoke`` responses.
+    session_id: Optional[str] = None
 
 
 # back-compat alias

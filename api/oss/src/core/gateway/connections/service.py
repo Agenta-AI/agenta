@@ -184,6 +184,16 @@ class ConnectionsService:
         data["project_id"] = str(project_id)
         connection_create.data = data
 
+        # Validity is server-owned, never client-supplied. An auth-backed connection is
+        # not valid until its OAuth callback flips is_valid; a no-auth toolkit has no
+        # flow, so the server marks it valid up front (only after the adapter confirmed
+        # no-auth via connection_data). Drop client flags so a caller can't mark a
+        # pending OAuth connection valid.
+        connection_create.flags = {
+            "is_active": True,
+            "is_valid": bool(data.get("no_auth")),
+        }
+
         # Persist locally
         return await self.connections_dao.create_connection(
             project_id=project_id,
@@ -276,6 +286,11 @@ class ConnectionsService:
             raise ConnectionNotFoundError(
                 connection_id=str(connection_id),
             )
+
+        # A no-auth connection has no provider-side authorization to re-link, so refresh
+        # is a no-op. Return it unchanged rather than reporting it missing.
+        if not conn.has_auth:
+            return conn
 
         if not conn.provider_connection_id:
             raise ConnectionNotFoundError(

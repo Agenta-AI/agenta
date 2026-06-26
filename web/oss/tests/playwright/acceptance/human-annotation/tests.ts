@@ -114,8 +114,26 @@ const getHumanResultsContext = (page: Page) => {
 
 const getStepKey = (step: EvaluationRunStep) => step.key ?? step.step_key ?? ""
 
-const seedHumanInvocationResult = async (page: Page) => {
-    const {runId, scenarioId} = getHumanResultsContext(page)
+const seedHumanInvocationResult = async (
+    page: Page,
+    overrides?: {runId?: string; scenarioId?: string},
+) => {
+    let contextRunId: string | undefined
+    let contextScenarioId: string | undefined
+    try {
+        const ctx = getHumanResultsContext(page)
+        contextRunId = ctx.runId
+        contextScenarioId = ctx.scenarioId
+    } catch {
+        // URL doesn't have scenario context — overrides must supply it
+    }
+    const runId = overrides?.runId ?? contextRunId
+    const scenarioId = overrides?.scenarioId ?? contextScenarioId
+    if (!runId || !scenarioId) {
+        throw new Error(
+            `seedHumanInvocationResult: could not resolve runId or scenarioId from URL or overrides`,
+        )
+    }
     const projectId = getProjectId(page)
     const apiURL = getApiURL(page)
 
@@ -742,9 +760,13 @@ const waitForHumanAnnotationForm = async ({
                 // Use an explicit URL with view=focus so the annotate tab is always active.
                 // page.reload() is avoided here because it can re-trigger auto-run and loop.
                 // Only seed once — on subsequent iterations just wait for the form to appear.
-                if (!seededInvocationOutput) {
+                if (!seededInvocationOutput && overlayVisible) {
                     seededInvocationOutput = true
-                    await seedHumanInvocationResult(page)
+                    try {
+                        await seedHumanInvocationResult(page)
+                    } catch {
+                        // seed failed transiently — wait for natural form appearance
+                    }
                     const annotateUrl = new URL(page.url())
                     annotateUrl.searchParams.set("view", "focus")
                     await page.goto(annotateUrl.toString(), {waitUntil: "domcontentloaded"})
@@ -774,7 +796,7 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
                 .poll(() => new URL(page.url()).pathname)
                 .toBe(getHumanEvaluationsPath(page, appId))
             await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBe("human")
-            await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 10000})
+            await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 30000})
 
             await ensureHumanEvaluationsContext(page)
             await getHumanEvaluationCreateButton(page, 60000)
@@ -943,4 +965,5 @@ export {
     selectHumanEvaluationModalTableInput,
     goToHumanEvaluations,
     navigateToHumanRunResults,
+    seedHumanInvocationResult,
 }

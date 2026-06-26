@@ -11,6 +11,16 @@
 export {workflowMolecule, type WorkflowMolecule} from "./molecule"
 
 // ============================================================================
+// INSPECT META (per-harness capability map from `/inspect` meta)
+// ============================================================================
+
+export {
+    harnessCapabilitiesAtomFamily,
+    type HarnessCapabilities,
+    type HarnessCapabilitiesMap,
+} from "./inspectMeta"
+
+// ============================================================================
 // HELPERS
 // ============================================================================
 

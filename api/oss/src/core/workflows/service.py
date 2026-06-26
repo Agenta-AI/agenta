@@ -91,6 +91,11 @@ from oss.src.core.git.types import (
     needs_default_variant_resolution,
     validate_retrieve_refs_consistent,
 )
+from oss.src.core.workflows.interfaces import PlatformWorkflowProvider
+from oss.src.core.workflows.types import (
+    ReservedWorkflowSlug,
+    is_reserved_workflow_slug,
+)
 
 # Resolution is now handled by EmbedsService
 from oss.src.core.embeds.dtos import (
@@ -123,8 +128,13 @@ class WorkflowsService:
             "is_application",
             "is_evaluator",
             "is_snippet",
+            "is_skill",
+            "is_platform",
         }
     )
+    # Platform-owned flags a user may never persist. Only the synthetic catalogue revision sets
+    # is_platform=True, and it never touches the DB; any user-supplied value is scrubbed on write.
+    SERVER_OWNED_FLAG_KEYS = frozenset({"is_platform"})
 
     def __init__(
         self,
@@ -133,14 +143,58 @@ class WorkflowsService:
         #
         environments_service: Optional["EnvironmentsService"] = None,  # type: ignore
         embeds_service: Optional["EmbedsService"] = None,  # type: ignore
+        platform_catalog: Optional[PlatformWorkflowProvider] = None,
     ):
         self.workflows_dao = workflows_dao
         self.environments_service = environments_service
         self.embeds_service = embeds_service
+        self.platform_catalog = platform_catalog
 
     @staticmethod
     def _artifact_cache_key(artifact_id: UUID) -> str:
         return str(artifact_id)
+
+    def _reject_reserved_slug(self, slug: Optional[str]) -> None:
+        """Reject a user-supplied slug in the reserved platform namespace.
+
+        Platform workflows are served from code by the catalogue; a user must not be able to
+        author or shadow one. The check is a pure function independent of the catalogue, so it
+        holds even when no catalogue is injected (evaluators, migrations, the worker). Resolution
+        of a reserved slug never falls through to the DB, so this guard plus that short-circuit
+        close both directions.
+        """
+        if is_reserved_workflow_slug(slug):
+            raise ReservedWorkflowSlug(slug)
+
+    @classmethod
+    def _scrub_server_owned_flags(cls, flags: dict) -> dict:
+        """Strip server-owned flags from a user-supplied stored-flags dict before persistence.
+
+        ``is_platform`` is owned by the platform catalogue (the synthetic revision is the only
+        thing that may set it true, and it never touches the DB). A user-supplied value is silently
+        coerced to false by dropping the key so a forged ``is_platform=true`` can never round-trip
+        through the database.
+        """
+        return {
+            key: value
+            for key, value in flags.items()
+            if key not in cls.SERVER_OWNED_FLAG_KEYS
+        }
+
+    @classmethod
+    def _drop_default_server_owned_query_flags(cls, flags: dict) -> dict:
+        """For query filters: drop a server-owned flag only when it is False (its default).
+
+        A caller re-posting a workflow's serialized flags carries ``is_platform=False``;
+        filtering on it would match nothing, since the key is scrubbed on write and is never
+        stored. An explicit ``is_platform=True`` is a deliberate platform-catalogue filter and
+        is preserved.
+        """
+        return {
+            key: value
+            for key, value in flags.items()
+            if not (key in cls.SERVER_OWNED_FLAG_KEYS and value is False)
+        }
 
     async def _get_cached_workflow(
         self,
@@ -212,15 +266,17 @@ class WorkflowsService:
             return {}
 
         if hasattr(flags, "model_dump"):
-            return flags.model_dump(
+            dumped = flags.model_dump(
                 mode="json",
                 exclude_none=True,
             )
+        elif isinstance(flags, dict):
+            dumped = {key: value for key, value in flags.items() if value is not None}
+        else:
+            return {}
 
-        if isinstance(flags, dict):
-            return {key: value for key, value in flags.items() if value is not None}
-
-        return {}
+        # is_platform is server-owned; never persist a user-supplied value.
+        return cls._scrub_server_owned_flags(dumped)
 
     @classmethod
     def _dump_stored_revision_flags(cls, flags: Optional[object]) -> dict:
@@ -624,6 +680,8 @@ class WorkflowsService:
         #
         workflow_id: Optional[UUID] = None,
     ) -> Optional[Workflow]:
+        self._reject_reserved_slug(workflow_create.slug)
+
         artifact_flags = self._artifact_flags_from_any(workflow_create.flags)
         artifact_create = ArtifactCreate(
             **workflow_create.model_dump(
@@ -751,8 +809,10 @@ class WorkflowsService:
                     exclude_none=True,
                     exclude={"flags"},
                 ),
-                flags=self._dump_flags(
-                    self._artifact_query_flags_from_any(workflow_query.flags)
+                flags=self._drop_default_server_owned_query_flags(
+                    self._dump_flags(
+                        self._artifact_query_flags_from_any(workflow_query.flags)
+                    )
                 )
                 or None,
             )
@@ -859,6 +919,8 @@ class WorkflowsService:
         #
         workflow_variant_create: WorkflowVariantCreate,
     ) -> Optional[WorkflowVariant]:
+        self._reject_reserved_slug(workflow_variant_create.slug)
+
         _variant_create = VariantCreate(
             **workflow_variant_create.model_dump(
                 mode="json",
@@ -1024,6 +1086,8 @@ class WorkflowsService:
         workflow_variant_ref: Reference,
         workflow_revision_ref: Optional[Reference] = None,
     ) -> Optional[WorkflowVariant]:
+        self._reject_reserved_slug(workflow_variant_fork.slug)
+
         source_variant = await self.fetch_workflow_variant(
             project_id=project_id,
             workflow_variant_ref=workflow_variant_ref,
@@ -1132,6 +1196,8 @@ class WorkflowsService:
         #
         workflow_revision_create: WorkflowRevisionCreate,
     ) -> Optional[WorkflowRevision]:
+        self._reject_reserved_slug(workflow_revision_create.slug)
+
         _revision_create = RevisionCreate(
             **workflow_revision_create.model_dump(
                 mode="json",
@@ -1162,6 +1228,134 @@ class WorkflowsService:
             revision=_workflow_revision,
         )
 
+    @staticmethod
+    def _ref_is_reserved(ref: Optional[Reference]) -> bool:
+        return ref is not None and is_reserved_workflow_slug(ref.slug)
+
+    def _ref_has_reserved_id(self, ref: Optional[Reference]) -> bool:
+        return (
+            ref is not None
+            and self.platform_catalog is not None
+            and self.platform_catalog.is_reserved_id(ref.id)
+        )
+
+    def _resolve_platform_revision(
+        self,
+        *,
+        workflow_ref: Optional[Reference],
+        workflow_variant_ref: Optional[Reference],
+        workflow_revision_ref: Optional[Reference],
+    ) -> tuple[bool, Optional[WorkflowRevision]]:
+        """Resolve a reserved-namespace reference to a synthetic catalogue revision.
+
+        Returns ``(is_reserved, revision)``. When ``is_reserved`` is True the reference is in the
+        platform namespace (by reserved ``_agenta.*`` slug, or by a synthetic catalogue id) and the
+        caller must NOT fall through to the DB — even when ``revision`` is None (an unknown version,
+        a non-matching paired ref, or no catalogue injected), so a user can never shadow platform
+        content. The reserved-slug detection is a pure function independent of the catalogue, so a
+        reserved slug short-circuits even when no catalogue is wired (``revision`` is then None).
+        A revision-level reference resolves to its ``version``; an artifact / variant reference
+        resolves to ``current`` (or to a pinned ``version``). A non-reserved reference returns
+        ``(False, None)`` so the caller continues to the DB path unchanged.
+        """
+        reserved = (
+            self._ref_is_reserved(workflow_revision_ref)
+            or self._ref_is_reserved(workflow_ref)
+            or self._ref_is_reserved(workflow_variant_ref)
+            or self._ref_has_reserved_id(workflow_revision_ref)
+            or self._ref_has_reserved_id(workflow_ref)
+            or self._ref_has_reserved_id(workflow_variant_ref)
+        )
+
+        if not reserved:
+            return (False, None)
+
+        # Reserved: never fall through to the DB. Without a catalogue we still short-circuit, but
+        # there is no synthetic content to serve, so return None.
+        if not self.platform_catalog:
+            return (True, None)
+
+        # A reserved reference must not silently ignore a paired ref that points elsewhere. Resolve
+        # the platform revision, then reject (return None) when any sibling ref is non-matching.
+        revision = self._lookup_platform_revision(
+            workflow_ref=workflow_ref,
+            workflow_variant_ref=workflow_variant_ref,
+            workflow_revision_ref=workflow_revision_ref,
+        )
+
+        if revision is not None and not self._platform_refs_consistent(
+            revision=revision,
+            workflow_ref=workflow_ref,
+            workflow_variant_ref=workflow_variant_ref,
+            workflow_revision_ref=workflow_revision_ref,
+        ):
+            return (True, None)
+
+        return (True, revision)
+
+    def _lookup_platform_revision(
+        self,
+        *,
+        workflow_ref: Optional[Reference],
+        workflow_variant_ref: Optional[Reference],
+        workflow_revision_ref: Optional[Reference],
+    ) -> Optional[WorkflowRevision]:
+        # Slug refs first (the revision ref pins a version), then id-only refs via the reverse
+        # index. A revision-level slug resolves to its version; artifact / variant to current.
+        if self._ref_is_reserved(workflow_revision_ref):
+            return self.platform_catalog.get_revision(
+                slug=workflow_revision_ref.slug,
+                version=workflow_revision_ref.version,
+            )
+        if self._ref_is_reserved(workflow_ref):
+            return self.platform_catalog.get_revision(
+                slug=workflow_ref.slug,
+                version=workflow_ref.version,
+            )
+        if self._ref_is_reserved(workflow_variant_ref):
+            return self.platform_catalog.get_revision(
+                slug=workflow_variant_ref.slug,
+                version=workflow_variant_ref.version,
+            )
+
+        for ref in (workflow_revision_ref, workflow_ref, workflow_variant_ref):
+            if self._ref_has_reserved_id(ref):
+                return self.platform_catalog.get_revision_by_id(entity_id=ref.id)
+
+        return None
+
+    @staticmethod
+    def _platform_refs_consistent(
+        *,
+        revision: WorkflowRevision,
+        workflow_ref: Optional[Reference],
+        workflow_variant_ref: Optional[Reference],
+        workflow_revision_ref: Optional[Reference],
+    ) -> bool:
+        """Whether every supplied ref agrees with the resolved platform revision.
+
+        A platform reference that carries a non-matching sibling (e.g. an unrelated variant id) must
+        not be served as if the extra ref did not exist.
+        """
+        # The reserved namespace uses one slug across all three levels, so every level's slug ref
+        # is expected to equal the revision's reserved slug.
+        reserved_slug = revision.workflow_slug
+        checks = (
+            (workflow_ref, revision.workflow_id, reserved_slug),
+            (workflow_variant_ref, revision.workflow_variant_id, reserved_slug),
+            (workflow_revision_ref, revision.id, reserved_slug),
+        )
+        for ref, resolved_id, resolved_slug in checks:
+            if ref is None:
+                continue
+            if ref.id is not None and ref.id != resolved_id:
+                return False
+            if ref.slug is not None and ref.slug != resolved_slug:
+                return False
+            if ref.version is not None and ref.version != revision.version:
+                return False
+        return True
+
     async def fetch_workflow_revision(
         self,
         *,
@@ -1175,6 +1369,19 @@ class WorkflowsService:
     ) -> Optional[WorkflowRevision]:
         if not workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
             return None
+
+        # Platform workflows live under the reserved `_agenta.*` slug namespace (or a synthetic
+        # catalogue id) and are served from code, never from Postgres. Resolve them before any DB
+        # lookup so a user can never shadow platform content. A reserved reference never falls
+        # through to the DB, even when its version is unknown, a paired ref is non-matching, or no
+        # catalogue is injected; a non-reserved reference falls through unchanged.
+        is_reserved, platform_revision = self._resolve_platform_revision(
+            workflow_ref=workflow_ref,
+            workflow_variant_ref=workflow_variant_ref,
+            workflow_revision_ref=workflow_revision_ref,
+        )
+        if is_reserved:
+            return platform_revision
 
         validate_variant_refs_sufficient(
             variant_ref=workflow_variant_ref,
@@ -1439,9 +1646,11 @@ class WorkflowsService:
                     exclude_none=True,
                     exclude={"flags"},
                 ),
-                flags=self._dump_flags(
-                    self._revision_query_flags_from_any(
-                        workflow_revision_query.flags,
+                flags=self._drop_default_server_owned_query_flags(
+                    self._dump_flags(
+                        self._revision_query_flags_from_any(
+                            workflow_revision_query.flags,
+                        )
                     )
                 )
                 or None,
@@ -1497,6 +1706,8 @@ class WorkflowsService:
         #
         emit: bool = True,
     ) -> Optional[WorkflowRevision]:
+        self._reject_reserved_slug(workflow_revision_commit.slug)
+
         data = workflow_revision_commit.data
         if data and data.uri and not data.url:
             _, kind, _, _ = parse_uri(data.uri)

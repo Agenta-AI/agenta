@@ -99,6 +99,7 @@ import {
     fullResultByRowEntityAtomFamily,
     runStatusByRowEntityAtom,
     isChatModeAtom,
+    isAgentModeAtomFamily,
     appTypeAtom,
     canRunAllChatComparisonAtom,
     repetitionCountAtom,
@@ -203,6 +204,9 @@ export const executionController = {
 
         /** Whether app is chat mode (from primary entity) */
         isChatMode: isChatModeAtom,
+
+        /** Per-entity: whether THIS entity is an agent workflow (call with entityId) */
+        isAgentMode: isAgentModeAtomFamily,
 
         /** App type ("chat" | "completion" | undefined while loading) */
         appType: appTypeAtom,

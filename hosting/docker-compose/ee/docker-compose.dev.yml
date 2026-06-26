@@ -31,6 +31,15 @@ services:
         # === EXECUTION ============================================ #
         command: ["true"]
 
+    .sandbox-agent:
+        # === IMAGE ================================================ #
+        image: agenta-ee-dev-sandbox-agent:latest
+        build:
+            context: ../../../services/agent
+            dockerfile: docker/Dockerfile.dev
+        # === EXECUTION ============================================ #
+        command: ["true"]
+
     web:
         # === ACTIVATION =========================================== #
         profiles:
@@ -455,11 +464,17 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+            AGENTA_AGENT_RUNNER_URL: ${AGENTA_AGENT_RUNNER_URL:-http://sandbox-agent:8765}
+            AGENTA_AGENT_MCP_SERVERS_ENABLED: ${AGENTA_AGENT_MCP_SERVERS_ENABLED:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            sandbox-agent:
+                condition: service_healthy
         # === LABELS =============================================== #
         labels:
             - "traefik.http.routers.services.rule=PathPrefix(`/services/`)"
@@ -471,6 +486,65 @@ services:
             - "traefik.http.routers.services.service=services"
         # === LIFECYCLE ============================================ #
         restart: always
+
+    sandbox-agent:
+        # === IMAGE ================================================ #
+        image: agenta-ee-dev-sandbox-agent:latest
+        # === EXECUTION ============================================ #
+        # No file watcher (the box's inotify limit is shared across stacks). Copy the
+        # read-only mounted Pi login into a writable path so OAuth refresh stays
+        # in-container. This command replaces the image CMD, so the Pi extension rebuild
+        # has to live here too: dist/ is not bind-mounted and src/extensions/agenta.ts is,
+        # so without this a restart keeps a stale bundle and custom tools silently stop
+        # being delivered on the sandbox-agent path. Rebuild from the mounted
+        # src on start; fail loud if it cannot build rather than run a stale bundle.
+        command: >
+            sh -c "mkdir -p /pi-agent && cp -a /pi-agent-ro/. /pi-agent/ 2>/dev/null || true;
+            node scripts/build-extension.mjs &&
+            exec node_modules/.bin/tsx src/server.ts"
+        # === CONFIGURATION ======================================== #
+        # Deliberately no env_file: the harness sandbox must not inherit the stack's
+        # secrets (COMPOSIO_API_KEY, STRIPE/POSTHOG/GOOGLE keys, ...). Tools run
+        # server-side via /tools/call, so the sandbox only needs its own port, the Pi
+        # login (mounted below), the OTLP export fallback, and the Daytona credentials
+        # the runner reads for the `daytona` sandbox provider.
+        environment:
+            AGENTA_AGENT_RUNNER_PORT: "8765"
+            # Bind on all interfaces: the co-located Python `services` container reaches the
+            # sidecar over the compose network at `sandbox-agent:8765`, so the trust-model
+            # default of `127.0.0.1` (same-host only) is unreachable cross-container.
+            AGENTA_AGENT_RUNNER_HOST: ${AGENTA_AGENT_RUNNER_HOST:-0.0.0.0}
+            PI_CODING_AGENT_DIR: /pi-agent
+            # Tracing export fallback (used when a request carries no usable OTLP
+            # credential). Must be reachable from this container.
+            AGENTA_API_URL: ${AGENTA_API_URL:-}
+            AGENTA_API_KEY: ${AGENTA_API_KEY:-}
+            SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
+            DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
+            DAYTONA_API_URL: ${DAYTONA_API_URL:-}
+            DAYTONA_TARGET: ${DAYTONA_TARGET:-}
+            DAYTONA_SNAPSHOT: ${DAYTONA_SNAPSHOT:-agenta-sandbox-pi}
+            DAYTONA_IMAGE: ${DAYTONA_IMAGE:-}
+            AGENTA_AGENT_SANDBOX_PI_INSTALLED: ${AGENTA_AGENT_SANDBOX_PI_INSTALLED:-false}
+        # === STORAGE ============================================== #
+        volumes:
+            - ../../../services/agent/src:/app/src
+            # The Agenta harness's forced skills are real files the runner lays into the
+            # sandbox per run (resolved from /app/skills). Bind-mounted like src so edits are
+            # live; the prod image bakes them with `COPY skills ./skills`.
+            - ../../../services/agent/skills:/app/skills
+            - ${HOME}/.pi/agent:/pi-agent-ro:ro
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8765/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 20s
 
     postgres:
         # === IMAGE ================================================ #

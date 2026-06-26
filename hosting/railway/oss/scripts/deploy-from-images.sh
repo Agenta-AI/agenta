@@ -28,9 +28,10 @@ REDIS_IMAGE="${REDIS_IMAGE:-$(require_compose_redis_image "$SOURCE_COMPOSE_FILE"
 AGENTA_API_IMAGE="${AGENTA_API_IMAGE:-}"
 AGENTA_WEB_IMAGE="${AGENTA_WEB_IMAGE:-}"
 AGENTA_SERVICES_IMAGE="${AGENTA_SERVICES_IMAGE:-}"
+AGENTA_AGENT_RUNNER_IMAGE="${AGENTA_AGENT_RUNNER_IMAGE:-}"
 
-if [ -z "$AGENTA_API_IMAGE" ] || [ -z "$AGENTA_WEB_IMAGE" ] || [ -z "$AGENTA_SERVICES_IMAGE" ]; then
-    printf "AGENTA_API_IMAGE, AGENTA_WEB_IMAGE, and AGENTA_SERVICES_IMAGE are required\n" >&2
+if [ -z "$AGENTA_API_IMAGE" ] || [ -z "$AGENTA_WEB_IMAGE" ] || [ -z "$AGENTA_SERVICES_IMAGE" ] || [ -z "$AGENTA_AGENT_RUNNER_IMAGE" ]; then
+    printf "AGENTA_API_IMAGE, AGENTA_WEB_IMAGE, AGENTA_SERVICES_IMAGE, and AGENTA_AGENT_RUNNER_IMAGE are required\n" >&2
     exit 1
 fi
 
@@ -43,9 +44,27 @@ fi
 
 redeploy_service_if_exists() {
     local service="$1"
+    local exit_code=0
+    local err
 
-    if railway_call service "$service" >/dev/null 2>&1; then
-        railway_call redeploy --yes >/dev/null
+    if ! railway_call service "$service" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    # Redeploy so the service picks up freshly configured credentials. On a
+    # brand-new preview environment the managed service (e.g. Postgres) has no
+    # prior deployment record yet; Railway will start it via the template in
+    # that case, so "No deployment found" is non-fatal — skip and continue.
+    err="$(railway_call redeploy --service "$service" --environment "$ENV_NAME" --yes 2>&1 >/dev/null)" \
+        || exit_code=$?
+
+    if [ "$exit_code" -ne 0 ]; then
+        if printf '%s' "$err" | grep -qiE "no deployment found"; then
+            printf "No prior deployment for '%s'; skipping redeploy (fresh env).\n" "$service" >&2
+            return 0
+        fi
+        printf '%s\n' "$err" >&2
+        return "$exit_code"
     fi
 }
 
@@ -126,6 +145,18 @@ CMD ["gunicorn", "entrypoints.main:app", "--bind", "0.0.0.0:8080", "--worker-cla
 EOF
 }
 
+render_sandbox_agent_wrapper() {
+    local dir="$TMP_DIR/sandbox-agent"
+    mkdir -p "$dir"
+    cat > "$dir/Dockerfile" <<EOF
+FROM ${AGENTA_AGENT_RUNNER_IMAGE}
+
+ENV PORT=8765
+
+CMD ["node_modules/.bin/tsx", "src/server.ts"]
+EOF
+}
+
 render_web_wrapper() {
     local dir="$TMP_DIR/web"
     mkdir -p "$dir"
@@ -174,6 +205,7 @@ EOF
 
 render_api_wrapper
 render_services_wrapper
+render_sandbox_agent_wrapper
 render_web_wrapper
 render_alembic_wrapper
 render_redis_wrapper
@@ -208,6 +240,7 @@ railway_call up "$TMP_DIR/worker-tracing" --path-as-root --service worker-tracin
 railway_call up "$TMP_DIR/worker-evaluations" --path-as-root --service worker-evaluations --detach
 railway_call up "$TMP_DIR/worker-webhooks" --path-as-root --service worker-webhooks --detach
 railway_call up "$TMP_DIR/worker-events" --path-as-root --service worker-events --detach
+railway_call up "$TMP_DIR/sandbox-agent" --path-as-root --service sandbox-agent --detach
 railway_call up "$TMP_DIR/services" --path-as-root --service services --detach
 railway_call up "$TMP_DIR/cron" --path-as-root --service cron --detach
 railway_call up "$TMP_DIR/web" --path-as-root --service web --detach

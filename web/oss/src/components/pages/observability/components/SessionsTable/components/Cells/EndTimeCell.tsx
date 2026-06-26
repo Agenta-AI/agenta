@@ -1,5 +1,4 @@
 import {Skeleton} from "antd"
-import {useAtomValue} from "jotai"
 
 import {
     sessionTimeRangeAtomFamily,
@@ -7,10 +6,11 @@ import {
 } from "@/oss/state/newObservability/atoms/queries"
 
 import TimestampCell from "../../../TimestampCell"
+import {useSessionAtomValue} from "../../assets/sessionCellStore"
 
 export const EndTimeCell = ({sessionId}: {sessionId: string}) => {
-    const isLoading = useAtomValue(sessionsLoadingAtom)
-    const {endTime} = useAtomValue(sessionTimeRangeAtomFamily(sessionId))
+    const isLoading = useSessionAtomValue(sessionsLoadingAtom)
+    const {endTime} = useSessionAtomValue(sessionTimeRangeAtomFamily(sessionId))
 
     if (isLoading) return <Skeleton active paragraph={{rows: 0}} />
     if (!endTime) return <>-</>

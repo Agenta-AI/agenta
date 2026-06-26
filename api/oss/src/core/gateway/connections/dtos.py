@@ -80,6 +80,13 @@ class Connection(
             return self.flags.get("is_valid", False)
         return False
 
+    @property
+    def has_auth(self) -> bool:
+        """False for a no-auth toolkit connection (no Composio auth config/account)."""
+        return not (
+            self.data and isinstance(self.data, dict) and self.data.get("no_auth")
+        )
+
 
 class ConnectionCreate(
     Slug,

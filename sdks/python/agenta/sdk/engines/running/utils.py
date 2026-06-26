@@ -6,6 +6,7 @@ from agenta.sdk.models.workflows import (
     WorkflowFlags,
     WorkflowRevisionData,
 )
+from agenta.sdk.utils.types import build_agent_v0_default
 
 from agenta.sdk.engines.running.handlers import (
     # --- NEW URI
@@ -51,6 +52,7 @@ from agenta.sdk.engines.running.interfaces import (
     # --- OLD URI
     chat_v0_interface,
     completion_v0_interface,
+    agent_v0_interface,
     echo_v0_interface,
     auto_exact_match_v0_interface,
     auto_regex_test_v0_interface,
@@ -88,6 +90,7 @@ INTERFACE_REGISTRY: dict = dict(
             # --- OLD URI
             chat=dict(v0=chat_v0_interface),
             completion=dict(v0=completion_v0_interface),
+            agent=dict(v0=agent_v0_interface),
             echo=dict(v0=echo_v0_interface),
             auto_exact_match=dict(v0=auto_exact_match_v0_interface),
             auto_regex_test=dict(v0=auto_regex_test_v0_interface),
@@ -243,6 +246,15 @@ CATALOG_REGISTRY: dict = dict(
                     presets=[],
                 )
             ),
+            agent=dict(
+                v0=dict(
+                    name="agent",
+                    description="Agent that runs tools over multiple turns on the Pi harness.",
+                    categories=None,
+                    flags=None,
+                    presets=[],
+                )
+            ),
             #
             echo=dict(v0=_catalog_entry()),
             auto_exact_match=dict(v0=_catalog_entry()),
@@ -282,6 +294,13 @@ CONFIGURATION_REGISTRY: dict = dict(
             # --- OLD URI
             chat=dict(v0=WorkflowRevisionData()),
             completion=dict(v0=WorkflowRevisionData()),
+            # The agent builtin's default parameters use the canonical `{"agent": ...}` shape from
+            # the shared `build_agent_v0_default` builder (one owner; see utils/types.py), so a run
+            # that binds `agenta:builtin:agent:v0` with no parameters gets the same default the
+            # interface advertises instead of a stale flat `{model, agents_md}`.
+            agent=dict(
+                v0=WorkflowRevisionData(parameters={"agent": build_agent_v0_default()})
+            ),
             echo=dict(v0=WorkflowRevisionData()),
             auto_exact_match=dict(v0=WorkflowRevisionData()),
             auto_regex_test=dict(v0=WorkflowRevisionData()),
@@ -303,6 +322,12 @@ CONFIGURATION_REGISTRY: dict = dict(
         ),
     ),
 )
+
+# Per-URI interface metadata (the `/inspect` response `meta`). `WorkflowRevisionData` has no
+# `meta` field, so the routed workflow's `meta=` (e.g. the agent's `harness_capabilities`) cannot
+# ride the interface registry; this registry carries it so the request-driven inspect path can
+# emit it. Process-local, like the others.
+META_REGISTRY: dict = dict()
 
 # Global registry for workflow handlers organized by URI structure.
 #
@@ -441,6 +466,25 @@ def register_handler(fn: Callable, uri: Optional[str] = None) -> str:
     return uri
 
 
+def register_interface(interface: WorkflowRevisionData, uri: str) -> str:
+    """Register (or OVERRIDE) the interface for a URI in the global interface registry.
+
+    Unlike :func:`register_handler`'s ``setdefault``, this REPLACES any existing entry, so a
+    service process can bind its own richer interface under a builtin URI that the SDK already
+    seeds with a minimal default (e.g. the agent service overrides ``agenta:builtin:agent:v0`` so
+    ``retrieve_interface`` returns the same schemas ``/inspect`` advertises). This is a
+    process-local registration: it changes only the process that calls it (the agent service), not
+    the API process that builds the catalog from the SDK defaults.
+    """
+    provider, kind, key, version = parse_uri(uri)
+    if not provider or not kind or not key or not version:
+        raise ValueError(f"Invalid URI: {uri}")
+    INTERFACE_REGISTRY.setdefault(provider, {}).setdefault(kind, {}).setdefault(
+        key, {}
+    )[version] = interface
+    return uri
+
+
 def _get_with_latest(
     registry: dict,
     provider: Optional[str] = None,
@@ -497,6 +541,31 @@ def retrieve_configuration(uri: Optional[str] = None) -> Optional[dict]:
     return _get_with_latest(CONFIGURATION_REGISTRY, provider, kind, key, version)
 
 
+def register_meta(meta: dict, uri: str) -> str:
+    """Register (or OVERRIDE) the interface ``meta`` for a URI in the meta registry.
+
+    Mirrors :func:`register_interface`: a service process binds the ``meta`` it wants ``/inspect``
+    to publish under a builtin URI (e.g. the agent service registers ``harness_capabilities``).
+    Process-local. The stored dict is copied so a later mutation of the caller's dict cannot leak
+    into the registry.
+    """
+    provider, kind, key, version = parse_uri(uri)
+    if not provider or not kind or not key or not version:
+        raise ValueError(f"Invalid URI: {uri}")
+    META_REGISTRY.setdefault(provider, {}).setdefault(kind, {}).setdefault(key, {})[
+        version
+    ] = dict(meta)
+    return uri
+
+
+def retrieve_meta(uri: Optional[str] = None) -> Optional[dict]:
+    if not uri:
+        return None
+    provider, kind, key, version = parse_uri(uri)
+
+    return _get_with_latest(META_REGISTRY, provider, kind, key, version)
+
+
 def is_user_custom_uri(uri: Optional[str] = None) -> bool:
     if not uri:
         return True
@@ -543,12 +612,12 @@ _AGENTA_ROLE_TABLE: dict = {
     # agenta:builtin:* — application-only (not evaluators)
     ("builtin", "chat"): (True, False, False),
     ("builtin", "completion"): (True, False, False),
+    ("builtin", "agent"): (True, False, False),
     # agenta:builtin:* — both evaluator and application
     ("builtin", "llm"): (True, True, False),
     # agenta:builtin:* — evaluator-only
     ("builtin", "match"): (False, True, False),
     ("builtin", "prompt"): (False, True, False),
-    ("builtin", "agent"): (False, True, False),
     ("builtin", "echo"): (False, True, False),
     ("builtin", "human"): (False, True, False),
     ("builtin", "auto_exact_match"): (False, True, False),
@@ -618,6 +687,7 @@ def infer_flags_from_data(
     is_code = key == "code"
     is_match = key == "match"
     is_feedback = key == "feedback"
+    is_agent = key == "agent"
 
     # schema-derived flags
     inputs_schema = (
@@ -654,10 +724,14 @@ def infer_flags_from_data(
         is_application = flags.is_application
         is_evaluator = flags.is_evaluator
         is_snippet = flags.is_snippet
+        is_skill = flags.is_skill
+        is_platform = flags.is_platform
     else:
         is_application = default_application
         is_evaluator = default_evaluator
         is_snippet = default_snippet
+        is_skill = False
+        is_platform = False
 
     return WorkflowFlags(
         # uri-derived
@@ -668,6 +742,7 @@ def infer_flags_from_data(
         is_code=is_code,
         is_match=is_match,
         is_feedback=is_feedback,
+        is_agent=is_agent,
         # schema-derived
         is_chat=is_chat,
         # interface-derived
@@ -678,6 +753,8 @@ def infer_flags_from_data(
         is_evaluator=is_evaluator,
         is_application=is_application,
         is_snippet=is_snippet,
+        is_skill=is_skill,
+        is_platform=is_platform,
     )
 
 
