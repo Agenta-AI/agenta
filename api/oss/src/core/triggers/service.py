@@ -53,7 +53,7 @@ log = get_module_logger(__name__)
 _ENQUEUE_TIMEOUT_SECONDS = 5.0
 
 # Seconds /subscriptions/test long-polls for a captured event before teardown.
-_TEST_TIMEOUT_SECONDS = 60
+_TEST_TIMEOUT_SECONDS = 300
 
 
 class TriggersService:
