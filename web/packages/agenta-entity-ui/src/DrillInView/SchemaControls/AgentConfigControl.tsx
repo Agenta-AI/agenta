@@ -62,8 +62,8 @@ import {
 import {EnumSelectControl} from "./EnumSelectControl"
 import {GroupedChoiceControl} from "./GroupedChoiceControl"
 import {HarnessSelectControl} from "./HarnessSelectControl"
+import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
-import {MarkdownEditor} from "./MarkdownEditor"
 import {McpServerFormView} from "./McpServerFormView"
 import {SandboxPermissionControl} from "./SandboxPermissionControl"
 import {SkillFormView} from "./SkillFormView"
@@ -326,6 +326,32 @@ function describeSkill(skill: unknown): ItemDescriptor {
     }
 }
 
+/** Strip Markdown syntax to a short single-line preview for an instructions file row. */
+function mdPreview(md: string): string {
+    return (md ?? "")
+        .replace(/```[\s\S]*?```/g, " ")
+        .replace(/^#{1,6}\s+/gm, "")
+        .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+        .replace(/[*_`>#]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 140)
+}
+
+/** Row descriptor for an instructions markdown file (e.g. AGENTS.md). */
+function describeInstruction(filename: string, content: string): ItemDescriptor {
+    return {
+        name: filename,
+        description: mdPreview(content) || "Empty file",
+        mono: "md",
+        color: "#0f766e",
+        icon: <FileText size={14} />,
+        tags: [],
+        typeLabel: "instructions",
+        subtitle: "Markdown instructions for the agent",
+    }
+}
+
 /** Colored avatar square (icon or monogram) at the start of a config-item row. */
 function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
     return (
@@ -441,6 +467,15 @@ export function AgentConfigControl({
         [],
     )
     const closeEditor = useCallback(() => setEditing(null), [])
+
+    // Instructions file editor. The section is modelled as a file list (one AGENTS.md today, more
+    // soon), so each file opens here. Draft + Save mirrors the item drawer: edits apply on Save.
+    const [editingInstruction, setEditingInstruction] = useState<{filename: string} | null>(null)
+    const [instructionDraft, setInstructionDraft] = useState("")
+    const openInstruction = useCallback((filename: string, content: string) => {
+        setInstructionDraft(content)
+        setEditingInstruction({filename})
+    }, [])
 
     // How the config sections are laid out: stacked accordion (default), tabs, or cards.
     // Layout is a global, persisted preference set from the variant header menu (see
@@ -1009,23 +1044,31 @@ export function AgentConfigControl({
         hasInstructions && {
             key: "instructions",
             icon: <FileText size={16} />,
-            title: (
-                <span className="inline-flex items-center gap-2">
-                    Instructions
-                    <Tag className="m-0 font-normal" bordered>
-                        AGENTS.md
-                    </Tag>
-                </span>
-            ),
+            title: "Instructions",
+            summary: countSummary(1, "file"),
+            // The + is inert until the backend stores multiple instruction files; the section is
+            // already a list so it lights up with no rework when that lands.
+            extra: !disabled ? (
+                <Tooltip title="Multiple instruction files coming soon">
+                    <span>
+                        <Button
+                            type="text"
+                            icon={<Plus size={16} />}
+                            disabled
+                            aria-label="Add instruction file"
+                        />
+                    </span>
+                </Tooltip>
+            ) : undefined,
             defaultOpen: true,
             content: (
-                <MarkdownEditor
-                    value={agentsMd ?? ""}
-                    onChange={(v) => setField("agents_md", v)}
-                    placeholder={"# Role\n\nDescribe what the agent does and how it should behave…"}
-                    disabled={disabled}
-                    filename="AGENTS.md"
-                />
+                <div className="flex flex-col gap-2">
+                    <ItemRow
+                        descriptor={describeInstruction("AGENTS.md", agentsMd ?? "")}
+                        onEdit={() => openInstruction("AGENTS.md", agentsMd ?? "")}
+                        disabled={disabled}
+                    />
+                </div>
             ),
         },
         hasTools && {
@@ -1399,6 +1442,21 @@ export function AgentConfigControl({
                             disabled={disabled || isPlatformSkill(draft)}
                         />
                     }
+                />
+            )}
+
+            {editingInstruction && (
+                <InstructionsDrawer
+                    open
+                    filename={editingInstruction.filename}
+                    value={instructionDraft}
+                    onChange={setInstructionDraft}
+                    onCancel={() => setEditingInstruction(null)}
+                    onSave={() => {
+                        setField("agents_md", instructionDraft)
+                        setEditingInstruction(null)
+                    }}
+                    disabled={disabled}
                 />
             )}
         </div>
