@@ -11,7 +11,8 @@ from __future__ import annotations
 import os
 from typing import Any, List, Optional, Sequence
 
-from agenta.sdk.agents.mcp import ResolvedMCPServer
+from agenta.sdk.agents.mcp import MCPDisabledError, ResolvedMCPServer
+from agenta.sdk.agents.mcp.parsing import parse_mcp_server_configs
 from agenta.sdk.agents.platform import resolve_mcp, resolve_tools
 from agenta.sdk.agents.tools.interfaces import ToolSecretProvider
 from agenta.sdk.utils.constants import TRUTHY
@@ -30,8 +31,16 @@ async def resolve_mcp_servers(
 ) -> List[ResolvedMCPServer]:
     """Resolve MCP servers, gated by ``AGENTA_AGENT_ENABLE_MCP`` (off by default).
 
-    Returns the resolved servers when enabled, an empty list when not.
+    When MCP is enabled, returns the resolved servers. When it is disabled and the request
+    declared NO servers, returns an empty list (the common case, unchanged). When it is disabled
+    but the request DID declare servers, raises :class:`MCPDisabledError` instead of silently
+    stripping them — silent-stripping made the runner's fail-loud MCP guards unreachable via
+    ``/invoke`` and ``/messages``, so the user got a run that quietly ignored their MCP config.
     """
     if not _mcp_enabled():
-        return []
+        if not mcp_servers:
+            return []
+        # Parse only to surface the server names in the error; do not resolve secrets (disabled).
+        names = [config.name for config in parse_mcp_server_configs(mcp_servers)]
+        raise MCPDisabledError(server_names=names)
     return await resolve_mcp(mcp_servers, secret_provider=secret_provider)
