@@ -46,6 +46,8 @@ export * as tools from "./tools/index.js";
 export * from "./traces/client/requests/index.js";
 export * as traces from "./traces/index.js";
 export * from "./traces/types/index.js";
+export * from "./triggers/client/requests/index.js";
+export * as triggers from "./triggers/index.js";
 export * from "./users/client/requests/index.js";
 export * as users from "./users/index.js";
 export * from "./webhooks/client/requests/index.js";

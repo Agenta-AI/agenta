@@ -33,7 +33,7 @@ import {
 import { runnerInfo } from "./version.ts";
 import { isEntrypoint } from "./entry.ts";
 
-const PORT = Number(process.env.PORT ?? 8765);
+const PORT = Number(process.env.AGENTA_AGENT_RUNNER_PORT ?? 8765);
 
 // Bind to loopback by default (sidecar-trust step 1): the `/run` body carries plaintext
 // provider secrets and reusable bearer tokens, so the sidecar MUST sit on a trusted,

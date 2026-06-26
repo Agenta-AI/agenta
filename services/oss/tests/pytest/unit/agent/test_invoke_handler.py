@@ -20,7 +20,20 @@ from agenta.sdk.agents import (
     ResolvedToolSet,
 )
 
+from agenta.sdk.models.workflows import WorkflowServiceRequest
+
 from oss.src.agent import app
+
+
+def _request(*, stream=None, session_id=None):
+    """Build the request `_agent` reads stream/session_id off of.
+
+    `_agent` now sources the stream decision from `request.flags.stream` and the
+    session id from `request.session_id` (both set at the route/normalizer edge),
+    instead of receiving them as handler params.
+    """
+    flags = {"stream": stream} if stream is not None else None
+    return WorkflowServiceRequest(flags=flags, session_id=session_id)
 
 
 def _patch_handler(monkeypatch, backend, *, builtins=(), tool_callback=None):
@@ -75,6 +88,7 @@ def patched(monkeypatch, fake_backend):
 
 async def _invoke(harness="pi_core", **agent):
     return await app._agent(
+        request=_request(),
         messages=[{"role": "user", "content": "hi"}],
         parameters={"agent": {"harness": harness, **agent}},
     )
@@ -101,9 +115,9 @@ async def test_messages_session_id_reaches_session_config(patched):
     backend, _ = patched
 
     await app._agent(
+        request=_request(session_id="sess_request"),
         messages=[{"role": "user", "content": "hi"}],
         parameters={"agent": {"harness": "pi_core"}},
-        session_id="sess_request",
     )
 
     assert backend.created_session_ids == ["sess_request"]
@@ -224,9 +238,9 @@ async def test_stream_tool_resolution_failure_is_raised_before_backend_setup(
 
     with pytest.raises(GatewayToolResolutionError, match="gateway unavailable"):
         await app._agent(
+            request=_request(stream=True),
             messages=[{"role": "user", "content": "hi"}],
             parameters={"agent": {"harness": "pi_core"}},
-            stream=True,
         )
 
 

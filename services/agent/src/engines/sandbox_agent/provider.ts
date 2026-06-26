@@ -2,7 +2,7 @@ import { local } from "sandbox-agent/local";
 import { daytona } from "sandbox-agent/daytona";
 
 import type { SandboxPermission } from "../../protocol.ts";
-import { applyDaytonaClientEnv, daytonaEnvVars } from "./daytona.ts";
+import { daytonaEnvVars } from "./daytona.ts";
 
 /**
  * Translate the Layer 2 network policy into Daytona create fields. Daytona enforces egress
@@ -35,7 +35,7 @@ export function daytonaNetworkFields(
  *
  * 15 minutes is the Daytona SDK's own documented default and sits comfortably beyond a normal
  * run (an actively prompting sandbox is BUSY, not idle, so this measures leaked-and-idle time,
- * not total run time). Override with `SANDBOX_AGENT_DAYTONA_AUTOSTOP_MINUTES` if runs idle
+ * not total run time). Override with `DAYTONA_AUTOSTOP` if runs idle
  * longer (e.g. long parked HITL turns).
  */
 export const DEFAULT_DAYTONA_AUTOSTOP_MINUTES = 15;
@@ -55,8 +55,7 @@ export const DEFAULT_DAYTONA_AUTOSTOP_MINUTES = 15;
  * reintroduce the leak). Invalid / non-positive env values fall back to the default.
  */
 export function daytonaAutoStopMinutes(
-  rawValue: string | undefined = process.env
-    .SANDBOX_AGENT_DAYTONA_AUTOSTOP_MINUTES,
+  rawValue: string | undefined = process.env.DAYTONA_AUTOSTOP,
 ): number {
   const parsed = Number(rawValue);
   if (!Number.isFinite(parsed) || parsed < 1) {
@@ -78,8 +77,8 @@ export function buildDaytonaCreate(
   secrets: Record<string, string>,
   sandboxPermission: SandboxPermission | undefined,
 ): Record<string, unknown> {
-  const snapshot = process.env.SANDBOX_AGENT_DAYTONA_SNAPSHOT;
-  const target = process.env.SANDBOX_AGENT_DAYTONA_TARGET;
+  const snapshot = process.env.DAYTONA_SNAPSHOT;
+  const target = process.env.DAYTONA_TARGET;
   return {
     // The sandbox-agent provider always sets a default `image`, which Daytona turns into a
     // build entry that conflicts with `snapshot`. Spreading image:undefined last
@@ -118,8 +117,7 @@ export function buildSandboxProvider(
   sandboxPermission?: SandboxPermission,
 ) {
   if (sandboxId === "daytona") {
-    applyDaytonaClientEnv();
-    const image = process.env.SANDBOX_AGENT_DAYTONA_IMAGE;
+    const image = process.env.DAYTONA_IMAGE;
     return daytona({
       ...(image ? { image } : {}),
       create: buildDaytonaCreate(piExtEnv, secrets, sandboxPermission) as any,

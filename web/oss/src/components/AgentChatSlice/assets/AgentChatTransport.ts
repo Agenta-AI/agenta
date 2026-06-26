@@ -51,7 +51,7 @@ interface ContentBlock {
  * Normalize a batch message into UIMessage `parts`, accepting BOTH shapes the backend may emit:
  *  - a Vercel UIMessage that already has `parts`, or
  *  - a neutral Message `{role, content}` where `content` is a string or a list of content blocks
- *    (what the agent `/messages` batch path actually returns today — confirmed in QA).
+ *    (what the agent `/invoke` batch path actually returns today — confirmed in QA).
  */
 function normalizeToParts(msg: BatchMessage | undefined): BatchPart[] {
     if (!msg) return []

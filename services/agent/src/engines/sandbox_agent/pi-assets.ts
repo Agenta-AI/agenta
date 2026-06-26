@@ -37,25 +37,26 @@ export function buildPiExtensionEnv(
 ): Record<string, string> {
   const env: Record<string, string> = {};
   const trace = tracing ? request.trace : undefined;
-  if (trace?.traceparent) env.AGENTA_TRACEPARENT = trace.traceparent;
-  if (trace?.endpoint) env.AGENTA_OTLP_ENDPOINT = trace.endpoint;
-  if (trace?.authorization) env.AGENTA_OTLP_AUTHORIZATION = trace.authorization;
+  if (trace?.traceparent) env.TRACEPARENT = trace.traceparent;
+  if (trace?.endpoint) env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = trace.endpoint;
+  if (trace?.authorization)
+    env.OTEL_EXPORTER_OTLP_HEADERS = `Authorization=${trace.authorization}`;
   if (trace && trace.captureContent === false)
-    env.AGENTA_CAPTURE_CONTENT = "false";
+    env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED = "false";
   // The skills that materialized for this run (author + forced `_agenta.*`), so Pi's own agent
   // span records which skills loaded (F-029). Only set under tracing (the extension's only span
   // consumer); a JSON array string the extension parses.
   if (trace && opts.skills && opts.skills.length > 0)
-    env.AGENTA_SKILLS_LOADED = JSON.stringify(opts.skills);
+    env.AGENTA_AGENT_SKILLS_LOADED = JSON.stringify(opts.skills);
 
   const specs = publicToolSpecs(
     (request.customTools as ResolvedToolSpec[]) ?? [],
   );
   if (specs.length && opts.relayDir) {
-    env.AGENTA_TOOL_PUBLIC_SPECS = JSON.stringify(specs);
-    env.AGENTA_TOOL_RELAY_DIR = opts.relayDir;
+    env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify(specs);
+    env.AGENTA_AGENT_TOOLS_RELAY_DIR = opts.relayDir;
   }
-  if (opts.usageOutPath) env.AGENTA_USAGE_OUT = opts.usageOutPath;
+  if (opts.usageOutPath) env.AGENTA_AGENT_USAGE_CAPTURE_PATH = opts.usageOutPath;
   return env;
 }
 

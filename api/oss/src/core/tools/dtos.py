@@ -5,12 +5,18 @@ from agenta.sdk.agents.tools import BuiltinToolConfig, GatewayToolConfig
 from agenta.sdk.models.workflows import JsonSchemas
 from pydantic import BaseModel, Field
 
+from oss.src.core.gateway.catalog.dtos import (
+    CatalogIntegration,
+    CatalogProvider,
+)
+from oss.src.core.gateway.connections.dtos import (
+    Connection,
+    ConnectionCreate,
+    ConnectionCreateData,
+    ConnectionStatus,
+)
 from oss.src.core.shared.dtos import (
-    Header,
     Identifier,
-    Lifecycle,
-    Metadata,
-    Slug,
     Json,
     Status,
 )
@@ -56,18 +62,10 @@ class ToolCatalogActionDetails(ToolCatalogAction):
     scopes: Optional[List[str]] = None
 
 
-class ToolCatalogIntegration(BaseModel):
-    key: str
-    #
-    name: str
-    description: Optional[str] = None
-    #
-    categories: List[str] = []
-    logo: Optional[str] = None
-    url: Optional[str] = None
-    #
-    actions_count: Optional[int] = None
-    #
+# Providers + integrations are SHARED across tools and triggers — defined once
+# in gateway/catalog and inherited here so the tool-specific "details" leaves
+# (nested actions) can extend them without duplicating the base shape.
+class ToolCatalogIntegration(CatalogIntegration):
     auth_schemes: Optional[List[ToolAuthScheme]] = None
 
 
@@ -75,90 +73,52 @@ class ToolCatalogIntegrationDetails(ToolCatalogIntegration):
     actions: Optional[List[ToolCatalogAction]] = None
 
 
-class ToolCatalogProvider(BaseModel):
+class ToolCatalogProvider(CatalogProvider):
     key: ToolProviderKind
-    #
-    name: str
-    description: Optional[str] = None
-    #
-    integrations_count: Optional[int] = None
-    #
 
 
 class ToolCatalogProviderDetails(ToolCatalogProvider):
     integrations: Optional[List[ToolCatalogIntegration]] = None
 
 
+class ToolCatalogIntegrationsPage(BaseModel):
+    """A cursor-paginated page of tool integrations."""
+
+    integrations: List[ToolCatalogIntegration] = []
+    next_cursor: Optional[str] = None
+    total: int = 0
+
+
+class ToolCatalogActionsPage(BaseModel):
+    """A cursor-paginated page of tool actions."""
+
+    actions: List[ToolCatalogAction] = []
+    next_cursor: Optional[str] = None
+    total: int = 0
+
+
 # ---------------------------------------------------------------------------
-# Tool Connections
+# Tool Connections — shared `gateway_connections` rows, inherited here so the
+# tools router/models never reference the generic gateway DTOs directly.
 # ---------------------------------------------------------------------------
 
 
-class ToolConnectionStatus(BaseModel):
-    redirect_url: Optional[str] = None
+class ToolConnectionStatus(ConnectionStatus):
+    pass
 
 
-class ToolConnectionCreateData(BaseModel):
-    callback_url: Optional[str] = None
-    #
+class ToolConnectionCreateData(ConnectionCreateData):
     auth_scheme: Optional[ToolAuthScheme] = None
 
 
-class ToolConnection(
-    Identifier,
-    Slug,
-    Header,
-    Lifecycle,
-    Metadata,
-):
+class ToolConnection(Connection):
     provider_key: ToolProviderKind
-    integration_key: str
-    #
-    data: Optional[Json] = None
-    #
     status: Optional[ToolConnectionStatus] = None
 
-    @property
-    def provider_connection_id(self) -> Optional[str]:
-        """Get provider-specific connection ID from data."""
-        if self.data and isinstance(self.data, dict):
-            # For Composio, it's stored as "connected_account_id"
-            return self.data.get("connected_account_id") or self.data.get(
-                "provider_connection_id"
-            )
-        return None
 
-    @property
-    def is_no_auth(self) -> bool:
-        """True for a no-auth toolkit connection (no Composio auth config/account)."""
-        return bool(
-            self.data and isinstance(self.data, dict) and self.data.get("no_auth")
-        )
-
-    @property
-    def is_active(self) -> bool:
-        """Check if connection is active (not deleted)."""
-        if self.flags and isinstance(self.flags, dict):
-            return self.flags.get("is_active", False)
-        return False
-
-    @property
-    def is_valid(self) -> bool:
-        """Check if connection is valid (authenticated)."""
-        if self.flags and isinstance(self.flags, dict):
-            return self.flags.get("is_valid", False)
-        return False
-
-
-class ToolConnectionCreate(
-    Slug,
-    Header,
-    Metadata,
-):
+class ToolConnectionCreate(ConnectionCreate):
     provider_key: ToolProviderKind
-    integration_key: str
-    #
-    data: Optional[ToolConnectionCreateData] = None
+    data: Optional[Union[ToolConnectionCreateData, Json]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -203,32 +163,6 @@ class ToolResult(Identifier):
 
 
 # ---------------------------------------------------------------------------
-# Tool Connection (adapter-level DTOs)
-# ---------------------------------------------------------------------------
-
-
-class ToolConnectionRequest(BaseModel):
-    """Input DTO for initiating a provider connection via a gateway adapter."""
-
-    user_id: str
-    integration_key: str
-    auth_scheme: Optional[str] = None
-    callback_url: Optional[str] = None
-
-
-class ToolConnectionResponse(BaseModel):
-    """Output DTO from ToolsGatewayInterface.initiate_connection.
-
-    The adapter builds ``connection_data`` with provider-specific fields so the
-    service never needs to know which provider it is talking to.
-    """
-
-    provider_connection_id: str
-    redirect_url: Optional[str] = None
-    connection_data: Dict[str, Any] = {}
-
-
-# ---------------------------------------------------------------------------
 # Tool Execution (adapter-level DTOs)
 # ---------------------------------------------------------------------------
 
@@ -252,21 +186,21 @@ class ToolExecutionResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Agent tools (config references + resolution)
+# Tool references + resolution
 # ---------------------------------------------------------------------------
 
 # A provider-agnostic list of tool references lives under an agent revision's
 # ``parameters["tools"]``. Each entry is a discriminated union on ``type``: config
 # holds references and display metadata only, never secrets. The backend resolves
-# them into model-ready specs at invoke time (see ToolsService.resolve_agent_tools).
+# them into model-ready specs at invoke time (see ToolsService.resolve_tools).
 
 
-AgentBuiltinTool = BuiltinToolConfig
-AgentComposioTool = GatewayToolConfig
-AgentToolReference = Union[BuiltinToolConfig, GatewayToolConfig]
+BuiltinTool = BuiltinToolConfig
+ComposioTool = GatewayToolConfig
+ToolReference = Union[BuiltinToolConfig, GatewayToolConfig]
 
 
-class ResolvedAgentTool(BaseModel):
+class ResolvedTool(BaseModel):
     """A runnable reference resolved into a model-ready tool spec.
 
     ``call_ref`` is the ``tools.{provider}.{integration}.{action}.{connection}`` slug
@@ -280,12 +214,12 @@ class ResolvedAgentTool(BaseModel):
     read_only: Optional[bool] = None
 
 
-class AgentToolsResolution(BaseModel):
-    """Outcome of resolving an agent's ``tools`` list.
+class ToolsResolution(BaseModel):
+    """Outcome of resolving a ``tools`` list.
 
     ``builtins`` pass straight into Pi's ``tools: string[]``; ``custom`` become Pi
     ``customTools`` whose ``execute`` routes through ``/tools/call``.
     """
 
     builtins: List[str] = Field(default_factory=list)
-    custom: List[ResolvedAgentTool] = Field(default_factory=list)
+    custom: List[ResolvedTool] = Field(default_factory=list)

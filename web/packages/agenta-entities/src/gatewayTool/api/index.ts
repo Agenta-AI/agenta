@@ -1,15 +1,15 @@
 export {getToolsClient, projectScopedRequest} from "./client"
 export {
-    createConnection,
+    createToolConnection,
     deleteToolConnection,
     executeToolCall,
-    fetchActionDetail,
-    fetchActions,
-    fetchConnection,
-    fetchIntegrationDetail,
-    fetchIntegrations,
-    fetchProviders,
-    queryConnections,
+    fetchToolActionDetail,
+    fetchToolActions,
+    fetchToolConnection,
+    fetchToolIntegrationDetail,
+    fetchToolIntegrations,
+    fetchToolProviders,
+    queryToolConnections,
     refreshToolConnection,
     revokeToolConnection,
 } from "./api"

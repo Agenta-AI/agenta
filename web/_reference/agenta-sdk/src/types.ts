@@ -102,7 +102,7 @@ export interface QueryRevisionResponse {
     } | null
 }
 
-// ─── Webhook / Automation ───────────────────────────────────────────────────
+// ─── Webhook ──────────────────────────────────────--------------─────────────
 
 export type WebhookEventType = "environments.revisions.committed" | "webhooks.subscriptions.tested"
 
@@ -231,7 +231,7 @@ export interface WebhookDeliveriesResponse {
     deliveries: WebhookDelivery[]
 }
 
-// ─── Automation Form Types (UI-level, not API DTOs) ─────────────────────────
+// ─── Webhook Form Types (UI-level, not API DTOs) ──────────----───────────────
 
 export type AutomationProvider = "webhook" | "github"
 

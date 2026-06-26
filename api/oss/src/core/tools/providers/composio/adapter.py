@@ -9,8 +9,6 @@ from agenta.sdk.models.workflows import JsonSchemas
 from oss.src.core.tools.dtos import (
     ToolCatalogActionDetails,
     ToolCatalogProvider,
-    ToolConnectionRequest,
-    ToolConnectionResponse,
     ToolExecutionRequest,
     ToolExecutionResponse,
 )
@@ -20,41 +18,29 @@ from oss.src.core.tools.providers.composio.catalog import (
     ComposioCatalogClient,
     _derive_read_only,
 )
+from oss.src.core.gateway.providers.composio.errors import composio_error_detail
+from oss.src.utils.env import env
 
 
 log = get_module_logger(__name__)
-
-COMPOSIO_DEFAULT_API_URL = "https://backend.composio.dev/api/v3"
-
-
-def _is_no_auth_toolkit(toolkit: Dict[str, Any]) -> bool:
-    """A toolkit needs no auth when every auth_config_details entry is NO_AUTH.
-
-    Composio's GET /toolkits/{slug} reports a single ``{"mode": "NO_AUTH"}`` entry
-    for toolkits like ``codeinterpreter`` and the ``composio`` meta-toolkit.
-    """
-    details = toolkit.get("auth_config_details") or []
-    if not details:
-        return False
-    return all((detail.get("mode") or "").upper() == "NO_AUTH" for detail in details)
 
 
 class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
     """Composio V3 API adapter — uses httpx directly (no SDK).
 
     Catalog operations (list/get integrations and actions) are provided by
-    ``ComposioCatalogClient``. Connection management and tool execution are
-    implemented here.
+    ``ComposioCatalogClient``. Tool execution is implemented here. Connection
+    auth lives in ``ComposioConnectionsAdapter``.
     """
 
     def __init__(
         self,
         *,
         api_key: str,
-        api_url: str = COMPOSIO_DEFAULT_API_URL,
+        api_url: Optional[str] = None,
     ):
         self.api_key = api_key
-        self.api_url = api_url.rstrip("/")
+        self.api_url = (api_url or env.composio.api_url).rstrip("/")
         # Shared client — one connection pool for the adapter's lifetime.
         # Call close() on shutdown (wired in entrypoints/routers.py lifespan).
         self._client = httpx.AsyncClient(timeout=30.0)
@@ -104,14 +90,6 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
         resp.raise_for_status()
         return resp.json()
 
-    async def _delete(self, path: str) -> bool:
-        resp = await self._client.delete(
-            f"{self.api_url}{path}",
-            headers=self._headers(),
-        )
-        resp.raise_for_status()
-        return True
-
     # -----------------------------------------------------------------------
     # Catalog — provider listing
     # -----------------------------------------------------------------------
@@ -153,13 +131,13 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
             raise AdapterError(
                 provider_key="composio",
                 operation="get_action",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
         except httpx.HTTPError as e:
             raise AdapterError(
                 provider_key="composio",
                 operation="get_action",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
 
         input_params = item.get("input_parameters")
@@ -178,227 +156,6 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
             scopes=item.get("scopes") or None,
             read_only=_derive_read_only(item.get("tags")),
         )
-
-    # -----------------------------------------------------------------------
-    # Connections
-    # -----------------------------------------------------------------------
-
-    async def initiate_connection(
-        self,
-        *,
-        request: ToolConnectionRequest,
-    ) -> ToolConnectionResponse:
-        user_id = request.user_id
-        integration_key = request.integration_key
-        auth_scheme = request.auth_scheme
-        callback_url = request.callback_url
-
-        # Step 1: validate the toolkit exists and get its auth scheme info.
-        try:
-            toolkit = await self._get(f"/toolkits/{integration_key}")
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                raise AdapterError(
-                    provider_key="composio",
-                    operation="initiate_connection.validate_toolkit",
-                    detail=f"Integration '{integration_key}' not found",
-                ) from e
-            raise AdapterError(
-                provider_key="composio",
-                operation="initiate_connection.validate_toolkit",
-                detail=str(e),
-            ) from e
-        except httpx.HTTPError as e:
-            raise AdapterError(
-                provider_key="composio",
-                operation="initiate_connection.validate_toolkit",
-                detail=str(e),
-            ) from e
-
-        log.info(
-            "initiate_connection: integration_key=%s auth_scheme=%r",
-            integration_key,
-            auth_scheme,
-        )
-
-        # No-auth toolkits (e.g. codeinterpreter) reject auth-config creation with a
-        # 400. They need neither an auth config nor a connected account — their tools
-        # execute directly. Return a marked connection the service persists as valid.
-        if _is_no_auth_toolkit(toolkit):
-            return ToolConnectionResponse(
-                provider_connection_id="",
-                redirect_url=None,
-                connection_data={"no_auth": True},
-            )
-
-        # Step 2: create an auth config for this integration.
-        # api_key → use_custom_auth; Composio's redirect UI collects the credentials.
-        # oauth / None → use_composio_managed_auth.
-        if auth_scheme == "api_key":
-            # Derive Composio authScheme from toolkit's auth_config_details.
-            # Fall back to "API_KEY" as the common default.
-            composio_auth_scheme = "API_KEY"
-            for detail in toolkit.get("auth_config_details") or []:
-                mode = detail.get("mode", "")
-                if mode and "oauth" not in mode.lower():
-                    composio_auth_scheme = mode
-                    break
-
-            auth_config_body: Dict[str, Any] = {
-                "type": "use_custom_auth",
-                "authScheme": composio_auth_scheme,
-            }
-        else:
-            auth_config_body = {"type": "use_composio_managed_auth"}
-
-        auth_configs_payload = {
-            "toolkit": {"slug": integration_key},
-            "auth_config": auth_config_body,
-        }
-        log.info(
-            "initiate_connection: POST /auth_configs payload=%s", auth_configs_payload
-        )
-
-        try:
-            auth_config_result = await self._post(
-                "/auth_configs",
-                json=auth_configs_payload,
-            )
-        except httpx.HTTPError as e:
-            raise AdapterError(
-                provider_key="composio",
-                operation="initiate_connection.create_auth_config",
-                detail=str(e),
-            ) from e
-
-        auth_config_id = (auth_config_result.get("auth_config") or {}).get("id")
-        if not auth_config_id:
-            raise AdapterError(
-                provider_key="composio",
-                operation="initiate_connection.create_auth_config",
-                detail=f"No auth_config_id in response for integration '{integration_key}'",
-            )
-
-        log.info(
-            "initiate_connection: integration_key=%s auth_config_id=%s",
-            integration_key,
-            auth_config_id,
-        )
-
-        # Step 3: initiate connected account link.
-        payload: Dict[str, Any] = {
-            "user_id": user_id,
-            "auth_config_id": auth_config_id,
-        }
-        if callback_url:
-            payload["callback_url"] = callback_url
-
-        try:
-            result = await self._post("/connected_accounts/link", json=payload)
-        except httpx.HTTPError as e:
-            raise AdapterError(
-                provider_key="composio",
-                operation="initiate_connection",
-                detail=str(e),
-            ) from e
-
-        provider_connection_id = result.get("connected_account_id", "")
-        redirect_url = result.get("redirect_url")
-
-        connection_data: Dict[str, Any] = {
-            "connected_account_id": provider_connection_id,
-            "auth_config_id": auth_config_id,
-        }
-        if redirect_url:
-            connection_data["redirect_url"] = redirect_url
-
-        return ToolConnectionResponse(
-            provider_connection_id=provider_connection_id,
-            redirect_url=redirect_url,
-            connection_data=connection_data,
-        )
-
-    async def get_connection_status(
-        self,
-        *,
-        provider_connection_id: str,
-    ) -> Dict[str, Any]:
-        try:
-            result = await self._get(f"/connected_accounts/{provider_connection_id}")
-        except httpx.HTTPError as e:
-            raise AdapterError(
-                provider_key="composio",
-                operation="get_connection_status",
-                detail=str(e),
-            ) from e
-
-        return {
-            "status": result.get("status"),
-            "is_valid": result.get("status") == "ACTIVE",
-        }
-
-    async def refresh_connection(
-        self,
-        *,
-        provider_connection_id: str,
-        force: bool = False,
-        callback_url: Optional[str] = None,
-        integration_key: Optional[str] = None,
-        user_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        # For Composio OAuth flows, "refresh" means re-initiating the auth link.
-        # The provider does not expose a token-refresh endpoint for OAuth connections,
-        # so we create a new connected_accounts/link which the user must re-authorize.
-        if integration_key and user_id:
-            result = await self.initiate_connection(
-                request=ToolConnectionRequest(
-                    user_id=user_id,
-                    integration_key=integration_key,
-                    callback_url=callback_url,
-                ),
-            )
-            return {
-                "id": result.provider_connection_id,
-                "redirect_url": result.redirect_url,
-                "auth_config_id": result.connection_data.get("auth_config_id"),
-                "is_valid": False,  # Re-auth pending until callback fires
-            }
-
-        payload: Dict[str, Any] = {}
-        if callback_url:
-            payload["callback_url"] = callback_url
-
-        try:
-            result = await self._post(
-                f"/connected_accounts/{provider_connection_id}/refresh",
-                json=payload,
-            )
-        except httpx.HTTPError as e:
-            raise AdapterError(
-                provider_key="composio",
-                operation="refresh_connection",
-                detail=str(e),
-            ) from e
-
-        return {
-            "status": result.get("status"),
-            "is_valid": result.get("status") == "ACTIVE",
-            "redirect_url": result.get("redirect_url"),
-        }
-
-    async def revoke_connection(
-        self,
-        *,
-        provider_connection_id: str,
-    ) -> bool:
-        try:
-            return await self._delete(f"/connected_accounts/{provider_connection_id}")
-        except httpx.HTTPError as e:
-            raise AdapterError(
-                provider_key="composio",
-                operation="revoke_connection",
-                detail=str(e),
-            ) from e
 
     # -----------------------------------------------------------------------
     # Execution
@@ -427,17 +184,16 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
                 json=payload,
             )
         except httpx.HTTPStatusError as e:
-            body = e.response.text if e.response is not None else ""
             raise AdapterError(
                 provider_key="composio",
                 operation="execute",
-                detail=f"{e} — response: {body}",
+                detail=composio_error_detail(e),
             ) from e
         except httpx.HTTPError as e:
             raise AdapterError(
                 provider_key="composio",
                 operation="execute",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
 
         return ToolExecutionResponse(

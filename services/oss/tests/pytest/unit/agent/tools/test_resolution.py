@@ -73,7 +73,7 @@ async def test_missing_tool_secret_is_not_silently_omitted():
 
 async def test_mcp_disabled_with_no_servers_is_an_empty_list(monkeypatch):
     # The common case (MCP off, no servers declared): still a clean empty list, unchanged.
-    monkeypatch.delenv("AGENTA_AGENT_ENABLE_MCP", raising=False)
+    monkeypatch.delenv("AGENTA_AGENT_MCP_SERVERS_ENABLED", raising=False)
     assert await resolve_mcp_servers([]) == []
 
 
@@ -82,7 +82,7 @@ async def test_mcp_disabled_with_servers_fails_loud_instead_of_silent_strip(
 ):
     # F-039: disabling MCP must NOT silently drop user-declared servers. The user gets a clear
     # "MCP servers are disabled" error naming the servers, not a run that quietly ignored them.
-    monkeypatch.delenv("AGENTA_AGENT_ENABLE_MCP", raising=False)
+    monkeypatch.delenv("AGENTA_AGENT_MCP_SERVERS_ENABLED", raising=False)
     with pytest.raises(MCPDisabledError) as excinfo:
         await resolve_mcp_servers(
             [

@@ -125,15 +125,16 @@ service. See [Deploy the agent runner](/self-host/guides/deploy-the-agent-runner
 |---|---|---|
 | `AGENTA_AGENT_RUNNER_URL` | Services API | `agentRunner.externalUrl` or generated from `agentRunner.enabled` |
 | `AGENTA_AGENT_RUNNER_TIMEOUT_SECONDS` | Services API / SDK | n/a |
-| `AGENTA_AGENT_ENABLE_MCP` | Services API | `agentRunner.enableMcp` |
+| `AGENTA_AGENT_MCP_SERVERS_ENABLED` | Services API | `agentRunner.enableMcp` |
 | `SANDBOX_AGENT_PROVIDER` | `sandbox-agent` | `agentRunner.provider` |
 | `SANDBOX_AGENT_LOG_LEVEL` | `sandbox-agent` | `agentRunner.logLevel` |
-| `SANDBOX_AGENT_DAYTONA_API_KEY` | `sandbox-agent` | `agentRunner.daytona.apiKey` |
-| `SANDBOX_AGENT_DAYTONA_API_URL` | `sandbox-agent` | `agentRunner.daytona.apiUrl` |
-| `SANDBOX_AGENT_DAYTONA_TARGET` | `sandbox-agent` | `agentRunner.daytona.target` |
-| `SANDBOX_AGENT_DAYTONA_SNAPSHOT` | `sandbox-agent` | `agentRunner.daytona.snapshot` |
-| `SANDBOX_AGENT_DAYTONA_IMAGE` | `sandbox-agent` | `agentRunner.daytona.image` |
-| `SANDBOX_AGENT_DAYTONA_INSTALL_PI` | `sandbox-agent` | `agentRunner.daytona.installPi` |
+| `DAYTONA_API_KEY` | `sandbox-agent` | `agentRunner.daytona.apiKey` |
+| `DAYTONA_API_URL` | `sandbox-agent` | `agentRunner.daytona.apiUrl` |
+| `DAYTONA_TARGET` | `sandbox-agent` | `agentRunner.daytona.target` |
+| `DAYTONA_SNAPSHOT` | `sandbox-agent` | `agentRunner.daytona.snapshot` |
+| `DAYTONA_IMAGE` | `sandbox-agent` | `agentRunner.daytona.image` |
+| `DAYTONA_AUTOSTOP` | `sandbox-agent` | `agentRunner.daytona.autostopDelay` |
+| `AGENTA_AGENT_SANDBOX_PI_INSTALLED` | `sandbox-agent` | `agentRunner.daytona.installPi` |
 :::warning Custom-code evaluator runner
 `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/evaluation/configure-evaluators/custom-evaluator) execute:
 

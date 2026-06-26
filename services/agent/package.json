@@ -1,5 +1,5 @@
 {
-  "name": "agenta-sandbox-agent",
+  "name": "agenta-agent-runner",
   "version": "0.1.0",
   "private": true,
   "type": "module",

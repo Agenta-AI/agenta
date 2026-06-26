@@ -20,7 +20,7 @@ import {toAgentaMessages} from "./toAgentaMessage"
  *  - **Query params:** `application_id` (the app id) and `project_id` (the current
  *    project, only sent alongside auth — mirroring `executionItems.ts`).
  *  - **Body:** the agent-protocol envelope — `session_id` + `references` at the top level,
- *    and `data: {messages, parameters}` nested (the config resolved from the app's LATEST
+ *    and `data: {inputs: {messages}, parameters}` nested (the config resolved from the app's LATEST
  *    revision via `resolveAppAgConfig`, else a stub). `parameters` is the stored workflow
  *    config (what the backend reads as `data.parameters`); `references` lines up at the top
  *    level. This matches Mahmoud's BE contract (2026-06-19).
@@ -96,11 +96,11 @@ const withQuery = (url: string, params: Record<string, string | undefined>): str
  * the way the playground pipeline builds them so the page can hit a real backend. */
 async function requestMeta(track: AgentChatTrack, appId?: string | null) {
     const jwt = await getJWT()
-    // `Accept: text/event-stream` makes the agent `/messages` endpoint serve the v6 SSE
-    // stream useChat consumes; without it the endpoint negotiates down to batch JSON
-    // (the AI-SDK transport sets no Accept), which useChat can't render.
+    // `Accept: text/event-stream` makes the agent endpoint serve the v6 SSE stream useChat
+    // consumes; without it the endpoint negotiates down to batch JSON (the AI-SDK transport
+    // sets no Accept), which useChat can't render.
     // `x-ag-messages-format` declares the request body's message format (AI-SDK / Vercel
-    // UIMessages) so `/messages` picks the right adapter; "vercel" matches the backend's
+    // UIMessages) so the endpoint picks the right adapter; "vercel" matches the backend's
     // VERCEL_MESSAGE_PROTOCOL identity (sdk/agents/adapters/vercel/routing.py).
     const headers: Record<string, string> = {
         Accept: "text/event-stream",
@@ -135,20 +135,20 @@ export function createAgentChatTransport(track: AgentChatTrack, appId?: string |
                         session_id: id,
                         references,
                         tool_approvals,
-                        data: {messages: agentaMessages, parameters},
+                        data: {inputs: {messages: agentaMessages}, parameters},
                         ...body,
                     },
                 }
             }
 
-            // Track A: post the `UIMessage[]` verbatim — the service reads `data.messages`.
+            // Track A: post the `UIMessage[]` verbatim — the service reads `data.inputs.messages`.
             return {
                 api,
                 headers,
                 body: {
                     session_id: id,
                     references,
-                    data: {messages, parameters},
+                    data: {inputs: {messages}, parameters},
                     ...body,
                 },
             }

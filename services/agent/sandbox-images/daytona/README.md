@@ -13,8 +13,8 @@ Configure the runner service with:
 
 ```bash
 SANDBOX_AGENT_PROVIDER=daytona
-SANDBOX_AGENT_DAYTONA_SNAPSHOT=agenta-sandbox-pi
-SANDBOX_AGENT_DAYTONA_INSTALL_PI=false
+DAYTONA_SNAPSHOT=agenta-sandbox-pi
+AGENTA_AGENT_SANDBOX_PI_INSTALLED=false
 ```
 
 The recipe currently bases on the upstream full sandbox-agent image and adds the Pi CLI.

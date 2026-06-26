@@ -381,7 +381,7 @@ body {
 
 .org-domains-table .ant-table,
 .org-providers-table .ant-table,
-.automations-table .ant-table {
+.webhooks-table .ant-table {
     table-layout: fixed;
 }
 
@@ -392,8 +392,8 @@ body {
     width: 5%;
 }
 
-.automations-table .ant-table-thead > tr > th:nth-child(1),
-.automations-table .ant-table-tbody > tr > td:nth-child(1) {
+.webhooks-table .ant-table-thead > tr > th:nth-child(1),
+.webhooks-table .ant-table-tbody > tr > td:nth-child(1) {
     width: 18%;
 }
 
@@ -404,8 +404,8 @@ body {
     width: 20%;
 }
 
-.automations-table .ant-table-thead > tr > th:nth-child(2),
-.automations-table .ant-table-tbody > tr > td:nth-child(2) {
+.webhooks-table .ant-table-thead > tr > th:nth-child(2),
+.webhooks-table .ant-table-tbody > tr > td:nth-child(2) {
     width: 12%;
 }
 
@@ -416,8 +416,8 @@ body {
     width: 30%;
 }
 
-.automations-table .ant-table-thead > tr > th:nth-child(3),
-.automations-table .ant-table-tbody > tr > td:nth-child(3) {
+.webhooks-table .ant-table-thead > tr > th:nth-child(3),
+.webhooks-table .ant-table-tbody > tr > td:nth-child(3) {
     width: 26%;
 }
 
@@ -428,18 +428,18 @@ body {
     width: 20%;
 }
 
-.automations-table .ant-table-thead > tr > th:nth-child(4),
-.automations-table .ant-table-tbody > tr > td:nth-child(4) {
+.webhooks-table .ant-table-thead > tr > th:nth-child(4),
+.webhooks-table .ant-table-tbody > tr > td:nth-child(4) {
     width: 20%;
 }
 
-.automations-table .ant-table-thead > tr > th:nth-child(5),
-.automations-table .ant-table-tbody > tr > td:nth-child(5) {
+.webhooks-table .ant-table-thead > tr > th:nth-child(5),
+.webhooks-table .ant-table-tbody > tr > td:nth-child(5) {
     width: 12%;
 }
 
-.automations-table .ant-table-thead > tr > th:nth-child(6),
-.automations-table .ant-table-tbody > tr > td:nth-child(6) {
+.webhooks-table .ant-table-thead > tr > th:nth-child(6),
+.webhooks-table .ant-table-tbody > tr > td:nth-child(6) {
     width: 12%;
 }
 

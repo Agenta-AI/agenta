@@ -67,7 +67,7 @@ class AgentaGatewayToolResolver:
         if not api_base:
             error = GatewayToolResolutionError(
                 "Agent has gateway tools configured but the Agenta API base URL "
-                "is unknown. Set AGENTA_AGENT_TOOLS_API_URL or AGENTA_API_URL."
+                "is unknown. Set AGENTA_API_URL."
             )
             log.warning("agent: gateway tool resolution failed: %s", error)
             raise error

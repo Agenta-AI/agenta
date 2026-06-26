@@ -18,7 +18,7 @@ import {
   daytonaNetworkFields,
 } from "../../src/engines/sandbox_agent/provider.ts";
 
-const AUTOSTOP_ENV = "SANDBOX_AGENT_DAYTONA_AUTOSTOP_MINUTES";
+const AUTOSTOP_ENV = "DAYTONA_AUTOSTOP";
 const previousAutoStop = process.env[AUTOSTOP_ENV];
 
 afterEach(() => {
