@@ -88,6 +88,7 @@ from .interfaces import (
 )
 from .mcp import (
     MCPConfigurationError,
+    MCPDisabledError,
     MCPError,
     MCPResolver,
     MCPServerConfig,
@@ -199,6 +200,7 @@ __all__ = [
     "MCPResolver",
     "MCPError",
     "MCPConfigurationError",
+    "MCPDisabledError",
     "MissingMCPSecretError",
     # Skills are a sibling subsystem
     "SkillConfig",
