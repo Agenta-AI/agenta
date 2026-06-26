@@ -25,6 +25,8 @@ import {
     recentEvaluatorIdAtom,
 } from "@/oss/state/workflow"
 
+import {resolveWorkflowEntitySelection} from "./assets/workflowEntitySelection"
+
 interface WorkflowEntityCardProps {
     collapsed: boolean
 }
@@ -142,21 +144,21 @@ const WorkflowEntityCard = memo(({collapsed}: WorkflowEntityCardProps) => {
     const {baseAppURL} = useURL()
     const [switcherOpen, setSwitcherOpen] = useState(false)
 
-    // When the URL doesn't currently point at a workflow (e.g. user is on
-    // /home but the section is shown because they recently visited one), fall
-    // back to the persisted recent IDs so the card still shows something
-    // meaningful instead of a placeholder.
-    const fallbackWorkflow = useMemo<Workflow | null>(() => {
-        if (ctx.workflow) return null
-        const fromEvaluators = recentEvaluatorId
-            ? (evaluators.find((w) => w.id === recentEvaluatorId) ?? null)
-            : null
-        if (fromEvaluators) return fromEvaluators
-        const fromApps = recentAppId ? (apps.find((w) => w.id === recentAppId) ?? null) : null
-        return fromApps
-    }, [ctx.workflow, evaluators, apps, recentEvaluatorId, recentAppId])
-
-    const workflow = ctx.workflow ?? fallbackWorkflow
+    // Route workflow wins. On project-level pages the app sidebar links are built
+    // from recentAppId, so the card must prefer the same app over a stale recent
+    // evaluator to avoid appearing to switch workflow context.
+    const workflow = useMemo<Workflow | null>(
+        () =>
+            resolveWorkflowEntitySelection({
+                currentWorkflow: ctx.workflow,
+                currentWorkflowId: ctx.workflowId,
+                apps,
+                evaluators,
+                recentAppId,
+                recentEvaluatorId,
+            }),
+        [ctx.workflow, ctx.workflowId, apps, evaluators, recentAppId, recentEvaluatorId],
+    )
 
     const workflowId = workflow?.id ?? null
 
