@@ -268,6 +268,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                             disabled={disabled}
                             showToolbar
                             defaultView="rendered"
+                            maxHeight={360}
                         />
                     </LabeledField>
                 ) : (

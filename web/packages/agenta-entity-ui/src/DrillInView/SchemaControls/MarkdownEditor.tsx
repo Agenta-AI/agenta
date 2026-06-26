@@ -51,8 +51,12 @@ export interface MarkdownEditorProps {
     hideHeader?: boolean
     /** Draw a border around the editor. @default true */
     bordered?: boolean
-    /** Fill the available height (tall min-height) instead of sizing to content. @default false */
+    /** Fill the drawer height (fixed, tall) with the toolbar pinned and content scrolling. For an
+     * editor that IS the whole drawer body. @default false */
     fill?: boolean
+    /** Cap the editor height (px or CSS length): content-sized up to the cap, then the toolbar pins
+     * and the content scrolls inside. For an editor that's one field among others. */
+    maxHeight?: number | string
 }
 
 /**
@@ -92,6 +96,7 @@ export function MarkdownEditor({
     hideHeader = false,
     bordered = true,
     fill = false,
+    maxHeight,
 }: MarkdownEditorProps) {
     // Stable id shared by the provider and the editor so they target one composer. Colons from
     // useId() are dropped to keep it id/atom-key safe.
@@ -165,10 +170,14 @@ export function MarkdownEditor({
         </div>
     )
 
-    // `fill` sets a FIXED height on this component's own wrapper (self-sized, so it doesn't depend on
-    // the parent flex/height chain) sized to the drawer body — header + footer + padding ≈ 152px. So
-    // the box always fills the drawer (short content included) and tall content scrolls inside it.
-    const fillStyle: CSSProperties | undefined = fill ? {height: "calc(100vh - 152px)"} : undefined
+    // Bound the box on this component's own wrapper (self-sized, so it doesn't depend on the parent
+    // flex/height chain). `fill` = fixed drawer-body height (≈ header+footer+padding). `maxHeight` =
+    // content-sized up to a cap. Either way the toolbar pins and content scrolls inside.
+    const boundStyle: CSSProperties | undefined = fill
+        ? {height: "calc(100vh - 152px)"}
+        : maxHeight != null
+          ? {maxHeight: typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight}
+          : undefined
 
     const editorEl = (
         <SharedEditor
@@ -203,13 +212,13 @@ export function MarkdownEditor({
             {showToolbar ? (
                 <div
                     className="flex flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-c-BDC7D1,#bdc7d1)]"
-                    style={fillStyle}
+                    style={boundStyle}
                 >
                     {toolbar}
                     <div className="min-h-0 flex-1 overflow-y-auto">{editorEl}</div>
                 </div>
-            ) : fill ? (
-                <div className="overflow-y-auto" style={fillStyle}>
+            ) : boundStyle ? (
+                <div className="overflow-y-auto" style={boundStyle}>
                     {editorEl}
                 </div>
             ) : (
