@@ -192,6 +192,8 @@ export {
     Editor,
     EditorProvider,
     DiffView,
+    MarkdownToolbar,
+    type MarkdownToolbarProps,
     preloadEditorPlugins,
     // Re-exports from Lexical
     useLexicalComposerContext,

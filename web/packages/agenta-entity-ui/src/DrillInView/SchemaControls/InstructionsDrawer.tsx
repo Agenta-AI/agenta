@@ -2,22 +2,23 @@
  * InstructionsDrawer
  *
  * The right-hand editor drawer for a single instructions markdown file (e.g. AGENTS.md), opened
- * from a file row in the Instructions section. It hosts the shared `MarkdownEditor` (which already
- * carries a source ↔ rendered toggle, so Preview comes for free) alongside a right rail of
- * suggested actions and a version-history placeholder.
+ * from a file row in the Instructions section. A header `Edit | Preview` toggle switches between the
+ * editing view (the shared `MarkdownEditor` with a formatting toolbar) and a read-only rendered
+ * Preview that can Expand to fill the drawer. A right rail carries suggested-action scaffolds and a
+ * version-history placeholder.
  *
- * Like the tools/skills drawer, editing happens on a draft the host owns: the drawer reports
- * changes via `onChange`, commits via `onSave`, and discards via `onCancel` / the close button, so
- * an in-progress edit never touches the config until the user confirms.
+ * Like the tools/skills drawer, editing happens on a draft the host owns: the drawer reports changes
+ * via `onChange`, commits via `onSave`, and discards via `onCancel` / the close button, so an
+ * in-progress edit never touches the config until the user confirms.
  *
  * Built on the shared `EnhancedDrawer`. Version history is a stubbed skeleton for now — wiring the
  * revision-diff data is a separate increment.
  */
-import {useCallback} from "react"
+import {useCallback, useState} from "react"
 
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {FileText} from "@phosphor-icons/react"
-import {Button} from "antd"
+import {ArrowsIn, ArrowsOut, FileText} from "@phosphor-icons/react"
+import {Button, Segmented, Tooltip} from "antd"
 
 import {MarkdownEditor} from "./MarkdownEditor"
 
@@ -36,6 +37,8 @@ export interface InstructionsDrawerProps {
     disabled?: boolean
 }
 
+type DrawerMode = "edit" | "preview"
+
 // Suggested section scaffolds — clicking appends a heading to the draft so the author has a
 // starting point. Purely additive; nothing is required.
 const SUGGESTIONS: {label: string; snippet: string}[] = [
@@ -53,17 +56,27 @@ export function InstructionsDrawer({
     onSave,
     disabled = false,
 }: InstructionsDrawerProps) {
+    const [mode, setMode] = useState<DrawerMode>("edit")
+    const [expanded, setExpanded] = useState(false)
+
     const appendSnippet = useCallback(
         (snippet: string) => onChange(`${value}${snippet}`),
         [value, onChange],
     )
+
+    const changeMode = useCallback((next: DrawerMode) => {
+        setMode(next)
+        if (next === "edit") setExpanded(false)
+    }, [])
+
+    const railHidden = mode === "preview" && expanded
 
     return (
         <EnhancedDrawer
             open={open}
             onClose={onCancel}
             placement="right"
-            width={720}
+            width={760}
             // Explicit Cancel/Save only — an outside click must not silently drop the draft.
             closeOnLayoutClick={false}
             destroyOnClose
@@ -72,6 +85,16 @@ export function InstructionsDrawer({
                     <FileText size={16} />
                     <span className="truncate font-mono text-sm font-medium">{filename}</span>
                 </div>
+            }
+            extra={
+                <Segmented<DrawerMode>
+                    value={mode}
+                    onChange={(v) => changeMode(v)}
+                    options={[
+                        {label: "Edit", value: "edit"},
+                        {label: "Preview", value: "preview"},
+                    ]}
+                />
             }
             footer={
                 <div className="flex items-center justify-between gap-3">
@@ -90,58 +113,88 @@ export function InstructionsDrawer({
         >
             <div className="flex gap-4">
                 <div className="min-w-0 flex-1">
-                    <MarkdownEditor
-                        value={value}
-                        onChange={onChange}
-                        disabled={disabled}
-                        placeholder={
-                            "# Role\n\nDescribe what the agent does and how it should behave…"
-                        }
-                    />
-                </div>
-
-                <div className="flex w-[200px] shrink-0 flex-col gap-4 border-l border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pl-4">
-                    <div>
-                        <div className="mb-2 text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
-                            Suggested
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                            {SUGGESTIONS.map((s) => (
+                    {mode === "edit" ? (
+                        <MarkdownEditor
+                            value={value}
+                            onChange={onChange}
+                            disabled={disabled}
+                            showToolbar
+                            defaultView="rendered"
+                            hideHeader
+                            placeholder={
+                                "# Role\n\nDescribe what the agent does and how it should behave…"
+                            }
+                        />
+                    ) : (
+                        <div
+                            className="relative"
+                            style={{minHeight: expanded ? "70vh" : undefined}}
+                        >
+                            <Tooltip title={expanded ? "Collapse" : "Expand"}>
                                 <button
-                                    key={s.label}
                                     type="button"
-                                    disabled={disabled}
-                                    onClick={() => appendSnippet(s.snippet)}
-                                    className="cursor-pointer rounded-full border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] bg-transparent px-2.5 py-1 text-xs text-[var(--ag-c-586673,#586673)] transition-colors hover:border-[var(--ag-c-97A4B0,#97a4b0)] disabled:cursor-not-allowed disabled:opacity-50"
+                                    aria-label={expanded ? "Collapse preview" : "Expand preview"}
+                                    onClick={() => setExpanded((e) => !e)}
+                                    className="absolute right-2 top-2 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] bg-[var(--ag-c-FFFFFF,#fff)] text-[var(--ag-c-586673,#586673)] hover:border-[var(--ag-c-97A4B0,#97a4b0)]"
                                 >
-                                    + {s.label}
+                                    {expanded ? <ArrowsIn size={14} /> : <ArrowsOut size={14} />}
                                 </button>
-                            ))}
+                            </Tooltip>
+                            <MarkdownEditor
+                                value={value}
+                                onChange={onChange}
+                                view="rendered"
+                                editable={false}
+                                hideHeader
+                            />
                         </div>
-                    </div>
-
-                    <div>
-                        <div className="mb-2 flex items-center gap-1.5">
-                            <span className="text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                Version history
-                            </span>
-                            <span className="rounded-full border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-1.5 text-[10px] text-[var(--ag-c-97A4B0,#97a4b0)]">
-                                soon
-                            </span>
-                        </div>
-                        <div className="flex flex-col gap-2.5 opacity-50">
-                            {[42, 32, 38].map((w, i) => (
-                                <div key={i} className="flex items-center gap-2">
-                                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-c-EAEFF5,#eaeff5)]" />
-                                    <span
-                                        className="h-2 rounded bg-[var(--ag-c-EAEFF5,#eaeff5)]"
-                                        style={{width: `${w}%`}}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    )}
                 </div>
+
+                {!railHidden ? (
+                    <div className="flex w-[200px] shrink-0 flex-col gap-4 border-l border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pl-4">
+                        <div>
+                            <div className="mb-2 text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                Suggested
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                                {SUGGESTIONS.map((s) => (
+                                    <button
+                                        key={s.label}
+                                        type="button"
+                                        disabled={disabled || mode === "preview"}
+                                        onClick={() => appendSnippet(s.snippet)}
+                                        className="cursor-pointer rounded-full border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] bg-transparent px-2.5 py-1 text-xs text-[var(--ag-c-586673,#586673)] transition-colors hover:border-[var(--ag-c-97A4B0,#97a4b0)] disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        + {s.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
+                            <div className="mb-2 flex items-center gap-1.5">
+                                <span className="text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                    Version history
+                                </span>
+                                <span className="rounded-full border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-1.5 text-[10px] text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                    soon
+                                </span>
+                            </div>
+                            <div className="flex flex-col gap-2.5 opacity-50">
+                                {[42, 32, 38].map((w, i) => (
+                                    <div key={i} className="flex items-center gap-2">
+                                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-c-EAEFF5,#eaeff5)]" />
+                                        <span
+                                            className="h-2 rounded bg-[var(--ag-c-EAEFF5,#eaeff5)]"
+                                            style={{width: `${w}%`}}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                ) : null}
             </div>
         </EnhancedDrawer>
     )

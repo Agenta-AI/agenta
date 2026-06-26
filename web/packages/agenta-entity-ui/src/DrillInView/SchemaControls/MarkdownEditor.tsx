@@ -6,33 +6,50 @@
  * use — so it carries the same text ↔ markdown-source view toggle. Prompt-variable tokens are
  * disabled (these are documents, not templated prompts).
  *
- * It defaults to the Markdown *source* (plaintext) view; rendering Markdown is an explicit toggle.
- * The shared MarkdownPlugin only swaps view on a `SET_MARKDOWN_VIEW` command (the storage atom
- * alone doesn't), so the view is driven by local `markdownView` state via a small synchronizer
- * mounted inside the composer (after the editor, so the command is registered). The toggle button
- * just flips that state; it doesn't need composer context.
+ * View can be uncontrolled (defaults to `defaultView`, with the header/toolbar toggle flipping it)
+ * or controlled via `view` + `onViewChange`. With `showToolbar`, a formatting toolbar mounts above
+ * the editor (it formats the rendered rich-text view; it's disabled in source view). `editable`
+ * false renders read-only (for a Preview pane), and `hideHeader` drops the built-in filename/toggle
+ * header when the host supplies its own chrome.
  *
- * The whole subtree mounts under an `EditorProvider` with `noProvider` on the editor, so the editor
- * and its header (where the toggle sits) share one composer context.
+ * The whole subtree mounts under an `EditorProvider` with `noProvider` on the editor, so the editor,
+ * its header, and the toolbar share one composer context.
  *
- * Controlled: seeds from `value` and re-syncs when `value` changes from outside (e.g. a skill
+ * Controlled value: seeds from `value` and re-syncs when `value` changes from outside (e.g. a skill
  * upload populating the body), while leaving the cursor alone during local typing.
  */
 import {useEffect, useId, useLayoutEffect, useRef, useState} from "react"
 
-import {EditorProvider, SET_MARKDOWN_VIEW, useLexicalComposerContext} from "@agenta/ui"
+import {
+    EditorProvider,
+    MarkdownToolbar,
+    SET_MARKDOWN_VIEW,
+    useLexicalComposerContext,
+} from "@agenta/ui"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {MarkdownLogoIcon, TextAa} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip} from "antd"
+
+type MarkdownView = "source" | "rendered"
 
 export interface MarkdownEditorProps {
     value: string
     onChange: (next: string) => void
     placeholder?: string
     disabled?: boolean
-    /** Optional file-name tag shown on the left of the editor toolbar (e.g. "AGENTS.md"). Fills
-     * the toolbar band the view toggle would otherwise leave empty. */
+    /** Optional file-name tag shown on the left of the editor toolbar (e.g. "AGENTS.md"). */
     filename?: string
+    /** Show a formatting toolbar (heading/bold/italic/lists/link/code/quote) above the editor. */
+    showToolbar?: boolean
+    /** Initial view when uncontrolled. @default "source" */
+    defaultView?: MarkdownView
+    /** Controlled view. When set, the toggle calls `onViewChange` instead of local state. */
+    view?: MarkdownView
+    onViewChange?: (view: MarkdownView) => void
+    /** Read-only when false (e.g. a Preview pane). @default true */
+    editable?: boolean
+    /** Drop the built-in filename/toggle header (the host supplies its own chrome). */
+    hideHeader?: boolean
 }
 
 /**
@@ -64,6 +81,12 @@ export function MarkdownEditor({
     placeholder,
     disabled,
     filename,
+    showToolbar = false,
+    defaultView = "source",
+    view,
+    onViewChange,
+    editable = true,
+    hideHeader = false,
 }: MarkdownEditorProps) {
     // Stable id shared by the provider and the editor so they target one composer. Colons from
     // useId() are dropped to keep it id/atom-key safe.
@@ -72,8 +95,18 @@ export function MarkdownEditor({
 
     const [text, setText] = useState(value ?? "")
     const lastExternal = useRef(value ?? "")
-    // Default to the Markdown source (plaintext) view — rendering Markdown is an explicit toggle.
-    const [markdownView, setMarkdownView] = useState(true)
+    const [internalView, setInternalView] = useState<MarkdownView>(defaultView)
+
+    const effectiveView = view ?? internalView
+    const markdownView = effectiveView === "source"
+    const readOnly = !editable
+    const editorDisabled = Boolean(disabled) || readOnly
+    // The toggle is available unless the view is controlled with no change handler.
+    const canToggleView = view === undefined || onViewChange !== undefined
+    const setView = (next: MarkdownView) => {
+        if (view !== undefined) onViewChange?.(next)
+        else setInternalView(next)
+    }
 
     // Re-seed only when the value changes from outside (not on our own edits), so an upload that
     // sets the body flows in without fighting the cursor during typing.
@@ -91,14 +124,32 @@ export function MarkdownEditor({
         onChange(next)
     }
 
+    const viewToggle = canToggleView ? (
+        <Tooltip title={markdownView ? "Preview markdown" : "Edit source"}>
+            <Button
+                type="text"
+                icon={markdownView ? <MarkdownLogoIcon size={14} /> : <TextAa size={14} />}
+                onClick={() => setView(markdownView ? "rendered" : "source")}
+                disabled={disabled}
+            />
+        </Tooltip>
+    ) : null
+
     return (
         <EditorProvider
             id={editorId}
             codeOnly={false}
             enableTokens={false}
             showToolbar={false}
-            disabled={disabled}
+            disabled={editorDisabled}
         >
+            {showToolbar ? (
+                <div className="flex items-center gap-1 rounded-t-md border border-b-0 border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-2 py-1">
+                    <MarkdownToolbar disabled={editorDisabled || markdownView} />
+                    <span className="ml-auto" />
+                    {viewToggle}
+                </div>
+            ) : null}
             <SharedEditor
                 id={editorId}
                 noProvider
@@ -106,37 +157,26 @@ export function MarkdownEditor({
                 initialValue={text}
                 value={text}
                 handleChange={handleChange}
-                disabled={disabled}
+                disabled={editorDisabled}
                 placeholder={placeholder}
                 editorProps={{codeOnly: false, enableTokens: false, noProvider: true}}
                 syncWithInitialValueChanges
                 header={
-                    <div className="flex w-full items-center justify-between gap-2">
-                        {filename ? (
-                            <Tag
-                                bordered
-                                className="m-0 font-mono text-[11px] font-normal text-[var(--ag-c-586673,#586673)]"
-                            >
-                                {filename}
-                            </Tag>
-                        ) : (
-                            <span />
-                        )}
-                        <Tooltip title={markdownView ? "Preview markdown" : "Edit source"}>
-                            <Button
-                                type="text"
-                                icon={
-                                    markdownView ? (
-                                        <MarkdownLogoIcon size={14} />
-                                    ) : (
-                                        <TextAa size={14} />
-                                    )
-                                }
-                                onClick={() => setMarkdownView((v) => !v)}
-                                disabled={disabled}
-                            />
-                        </Tooltip>
-                    </div>
+                    showToolbar || hideHeader ? undefined : (
+                        <div className="flex w-full items-center justify-between gap-2">
+                            {filename ? (
+                                <Tag
+                                    bordered
+                                    className="m-0 font-mono text-[11px] font-normal text-[var(--ag-c-586673,#586673)]"
+                                >
+                                    {filename}
+                                </Tag>
+                            ) : (
+                                <span />
+                            )}
+                            {viewToggle}
+                        </div>
+                    )
                 }
             />
             <MarkdownViewSync enabled={markdownView} />
