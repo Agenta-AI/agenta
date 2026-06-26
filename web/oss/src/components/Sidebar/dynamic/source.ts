@@ -5,8 +5,6 @@ import {sidebarOpenGroupsAtomFamily, sidebarPopupGroupsAtom} from "@/oss/lib/ato
 
 import type {SidebarEntityRef, SidebarEntitySource} from "./types"
 
-const DEFAULT_SCOPE_ID = "main"
-
 /**
  * Wraps a list atom with open-state gating. While the group is neither expanded
  * inline nor open as a collapsed flyout, the returned atom short-circuits to
@@ -14,9 +12,9 @@ const DEFAULT_SCOPE_ID = "main"
  * and no fetch happens. The query subscribes (and fetches) only on demand.
  */
 export const gatedSidebarSource = <TRef extends SidebarEntityRef>(
+    scopeId: string,
     parentKey: string,
     listAtom: Atom<ListQueryState<TRef>>,
-    scopeId: string = DEFAULT_SCOPE_ID,
 ): Atom<SidebarEntitySource<TRef>> =>
     atom((get) => {
         const inlineOpen = (get(sidebarOpenGroupsAtomFamily(scopeId)) ?? []).includes(parentKey)

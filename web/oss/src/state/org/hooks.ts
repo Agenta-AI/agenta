@@ -4,6 +4,7 @@ import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useSetAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
+import {buildProjectSwitchHref} from "@/oss/lib/navigation/projectSwitchHref"
 import {OrgDetails} from "@/oss/lib/Types"
 import {fetchSingleOrg} from "@/oss/services/organization/api"
 import {fetchAllProjects} from "@/oss/services/project"
@@ -152,33 +153,16 @@ export const useOrgData = () => {
                 const lastUsedProjectId = getLastUsedProjectId(workspaceId)
                 if (organizationId) cacheWorkspaceOrgPair(workspaceId, organizationId)
 
-                // Extract the current page path to preserve navigation context
                 const projectId = lastUsedProjectId ?? preferredProject?.project_id
-                const currentPathMatch = router.asPath.match(/\/p\/[^/]+\/(.*)/)
-                const currentPagePath = currentPathMatch?.[1]?.split("?")[0] ?? "apps"
-                const isAppScopedPath = currentPagePath.startsWith("apps/")
-
-                let href: string
-                if (projectId) {
-                    if (isAppScopedPath) {
-                        href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
-                    } else {
-                        // Preserve query params for settings tab
-                        const isOnSettingsPage = currentPagePath.startsWith("settings")
-                        const currentTab =
-                            (settingsTab && settingsTab !== "workspace"
-                                ? settingsTab
-                                : undefined) ?? (router.query.tab as string | undefined)
-                        const tabParam =
-                            isOnSettingsPage && currentTab
-                                ? `?tab=${encodeURIComponent(currentTab)}`
-                                : ""
-
-                        href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/${currentPagePath}${tabParam}`
-                    }
-                } else {
-                    href = `/w/${encodeURIComponent(workspaceId)}`
-                }
+                const href = projectId
+                    ? buildProjectSwitchHref({
+                          workspaceId,
+                          projectId,
+                          currentAsPath: router.asPath,
+                          settingsTab,
+                          queryTab: router.query.tab as string | undefined,
+                      })
+                    : `/w/${encodeURIComponent(workspaceId)}`
 
                 navigate({type: "href", href, method: "push", shallow: false})
                 onSuccess?.()

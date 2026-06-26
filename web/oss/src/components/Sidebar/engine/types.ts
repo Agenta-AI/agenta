@@ -10,7 +10,6 @@ export interface SidebarConfig {
     link?: string
     icon: React.JSX.Element
     isHidden?: boolean
-    isBottom?: boolean
     submenu?: SidebarConfig[]
     defaultOpen?: boolean
     onClick?: (e: React.MouseEvent) => void
@@ -18,7 +17,6 @@ export interface SidebarConfig {
     isCloudFeature?: boolean
     cloudFeatureTooltip?: string
     divider?: boolean
-    isAppSection?: boolean
     disabled?: boolean
     dataTour?: string
     isDynamic?: boolean

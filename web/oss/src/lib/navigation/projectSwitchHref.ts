@@ -7,13 +7,11 @@ interface BuildProjectSwitchHrefParams {
 }
 
 /**
- * Builds the target URL when switching to a different project.
+ * Builds the target URL when switching to a different project/workspace context.
  *
- * Only the top-level section (e.g. "apps", "evaluations") is preserved. Nested
- * entity IDs — an evaluation, app, testset, etc. — belong to the previous
- * project and don't exist in the target project, so keeping them in the URL
- * would land the user on an empty screen. The settings tab query param is the
- * one exception that carries over, since tabs exist across all projects.
+ * Only the top-level section is preserved. Nested entity IDs belong to the previous
+ * context, so keeping them in the URL would land the user on stale entity routes.
+ * The settings tab query param is the one exception that carries over.
  */
 export function buildProjectSwitchHref({
     workspaceId,

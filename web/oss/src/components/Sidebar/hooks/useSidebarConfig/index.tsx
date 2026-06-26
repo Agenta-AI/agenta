@@ -40,7 +40,13 @@ import {
 } from "../../dynamic/useSidebarDynamicChildren"
 import {SidebarConfig} from "../../engine/types"
 
-export const useSidebarConfig = () => {
+export interface MainSidebarItems {
+    projectItems: SidebarConfig[]
+    appItems: SidebarConfig[]
+    bottomItems: SidebarConfig[]
+}
+
+export const useSidebarConfig = (): MainSidebarItems => {
     const {doesSessionExist} = useSession()
     const {currentApp, recentlyVisitedAppId} = useAppsData()
     const {appId: routedAppId, routeLayer} = useAppState()
@@ -70,7 +76,7 @@ export const useSidebarConfig = () => {
         [toggle],
     )
 
-    const sidebarConfig = useMemo<SidebarConfig[]>(
+    const projectItems = useMemo<SidebarConfig[]>(
         () => [
             {
                 key: "app-management-link",
@@ -138,13 +144,18 @@ export const useSidebarConfig = () => {
                 icon: <ChartLineUpIcon size={14} />,
                 disabled: !hasProjectURL,
             },
+        ],
+        [baseAppURL, hasProjectURL, projectURL],
+    )
+
+    const appItems = useMemo<SidebarConfig[]>(
+        () => [
             {
                 key: "overview-link",
                 title: "Overview",
                 link: `${appURL || recentlyVisitedAppURL}/overview`,
                 icon: <DesktopIcon size={14} />,
                 isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
-                isAppSection: true,
                 // Enabled for evaluators too — Overview surfaces the workflow's
                 // details, variants, and the evaluation runs that evaluated it
                 // (scoped by the workflow id as the `application` reference).
@@ -156,7 +167,6 @@ export const useSidebarConfig = () => {
                 link: `${appURL || recentlyVisitedAppURL}/playground`,
                 icon: <RocketIcon size={14} />,
                 isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
-                isAppSection: true,
                 disabled: !hasProjectURL,
             },
             {
@@ -164,7 +174,6 @@ export const useSidebarConfig = () => {
                 title: "Registry",
                 link: `${appURL || recentlyVisitedAppURL}/variants`,
                 isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
-                isAppSection: true,
                 icon: <LightningIcon size={14} />,
                 disabled: !hasProjectURL,
                 dataTour: "registry-nav",
@@ -174,7 +183,6 @@ export const useSidebarConfig = () => {
                 title: "Evaluations",
                 link: `${appURL || recentlyVisitedAppURL}/evaluations`,
                 isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
-                isAppSection: true,
                 icon: <FlaskIcon size={14} />,
                 // Enabled for evaluators too — shows the evaluation runs that
                 // evaluated this evaluator (scoped by its id as the `application`
@@ -187,16 +195,27 @@ export const useSidebarConfig = () => {
                 title: "Observability",
                 icon: <TreeViewIcon size={14} />,
                 isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
-                isAppSection: true,
                 link: `${appURL || recentlyVisitedAppURL}/traces`,
                 disabled: !hasProjectURL,
             },
+        ],
+        [
+            appURL,
+            currentApp,
+            hasAppContext,
+            hasProjectURL,
+            recentlyVisitedAppId,
+            recentlyVisitedAppURL,
+        ],
+    )
+
+    const bottomItems = useMemo<SidebarConfig[]>(
+        () => [
             {
                 key: "settings-link",
                 title: "Settings",
                 link: `${projectURL}/settings`,
                 icon: <GearIcon size={14} />,
-                isBottom: true,
                 tooltip: "Settings",
                 disabled: !hasProjectURL,
             },
@@ -205,7 +224,6 @@ export const useSidebarConfig = () => {
                 title: "Invite Teammate",
                 link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
                 icon: <PaperPlaneIcon size={14} />,
-                isBottom: true,
                 tooltip: "Invite Teammate",
                 isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
                 disabled: !hasProjectURL,
@@ -218,7 +236,6 @@ export const useSidebarConfig = () => {
                         <RocketLaunchIcon size={16} />
                     </span>
                 ),
-                isBottom: true,
                 tooltip: "Open the onboarding guide",
                 isHidden: !doesSessionExist,
                 onClick: handleOpenWidget,
@@ -227,7 +244,6 @@ export const useSidebarConfig = () => {
                 key: "support-chat-link",
                 title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
                 icon: <ChatCircleIcon size={14} />,
-                isBottom: true,
                 isHidden: !isDemo() || !isCrispEnabled,
                 onClick: handleToggleSupport,
             },
@@ -235,7 +251,6 @@ export const useSidebarConfig = () => {
                 key: "help-docs-link",
                 title: "Help & Docs",
                 icon: <QuestionIcon size={14} />,
-                isBottom: true,
                 submenu: [
                     {
                         key: "docs",
@@ -267,26 +282,29 @@ export const useSidebarConfig = () => {
             },
         ],
         [
-            appURL,
-            baseAppURL,
             canInviteMembers,
-            currentApp,
             doesSessionExist,
             handleOpenWidget,
             handleToggleSupport,
-            hasAppContext,
             hasProjectURL,
             isCrispEnabled,
             isVisible,
             projectURL,
-            recentlyVisitedAppId,
-            recentlyVisitedAppURL,
             selectedOrg,
         ],
     )
 
+    const projectItemsWithDynamicChildren = useMemo(
+        () => injectDynamicChildren(projectItems, dynamicChildren),
+        [projectItems, dynamicChildren],
+    )
+
     return useMemo(
-        () => injectDynamicChildren(sidebarConfig, dynamicChildren),
-        [sidebarConfig, dynamicChildren],
+        () => ({
+            projectItems: projectItemsWithDynamicChildren,
+            appItems,
+            bottomItems,
+        }),
+        [projectItemsWithDynamicChildren, appItems, bottomItems],
     )
 }

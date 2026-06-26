@@ -19,6 +19,7 @@ import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import {buildProjectSwitchHref} from "@/oss/lib/navigation/projectSwitchHref"
 import {createProject, deleteProject, patchProject} from "@/oss/services/project"
 import type {ProjectsResponse} from "@/oss/services/project/types"
 import {appIdentifiersAtom} from "@/oss/state/appState"
@@ -26,8 +27,6 @@ import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {cacheLastUsedProjectId, useProjectData} from "@/oss/state/project"
 import {settingsTabAtom} from "@/oss/state/settings"
-
-import {buildProjectSwitchHref} from "./assets/projectSwitchHref"
 
 interface ListOfProjectsProps {
     collapsed: boolean

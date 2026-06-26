@@ -1,6 +1,8 @@
 import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {atom} from "jotai"
 
+import {MAIN_SIDEBAR_SCOPE_ID} from "../scopes/constants"
+
 import {gatedSidebarSource} from "./source"
 import type {
     SidebarEntity,
@@ -23,12 +25,13 @@ export const PROMPTS_SIDEBAR_KEY = "project-prompts-link"
  * the ref so the registry can hold all entities in one record.
  */
 export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
+    scopeId: string,
     parentKey: string,
     config: SidebarEntityConfig<TRef>,
 ): SidebarEntity => ({
     parentKey,
     kind: config.kind,
-    activeSourceAtom: gatedSidebarSource(parentKey, config.listAtom),
+    activeSourceAtom: gatedSidebarSource(scopeId, parentKey, config.listAtom),
     getLabel: (ref) => config.getLabel(ref as TRef),
     childLink: (ref, projectURL) => `${projectURL}${config.childPath(ref as TRef)}`,
     emptyLabel: config.emptyLabel,
@@ -42,7 +45,7 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
 // If the entity only exposes query + data atoms (no combined ListQueryState),
 // wrap them: `listAtom: fromParts(xxxListQueryAtom, xxxListDataAtom)`.
 const ENTITIES: SidebarEntity[] = [
-    defineSidebarEntity(PROMPTS_SIDEBAR_KEY, {
+    defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, PROMPTS_SIDEBAR_KEY, {
         kind: "app",
         listAtom: appWorkflowsListQueryStateAtom,
         getLabel: (workflow) => workflow.name || workflow.slug || "Untitled prompt",

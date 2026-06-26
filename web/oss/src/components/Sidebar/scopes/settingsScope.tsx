@@ -16,6 +16,12 @@ import {Button, Divider} from "antd"
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {
+    getSettingsSidebarTabs,
+    resolveSettingsTab,
+    type SettingsAccess,
+    type SettingsTabKey,
+} from "@/oss/components/pages/settings/assets/navigation"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {isBillingEnabled, isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
@@ -32,132 +38,86 @@ import type {
     SidebarSlotContext,
 } from "../engine/types"
 
+import {SETTINGS_SIDEBAR_SCOPE_ID} from "./constants"
+
 interface SettingsScopeOptions {
     lastPath?: string
 }
 
-const useSettingsAccess = () => {
+const useSettingsAccess = (): SettingsAccess => {
     const {selectedOrg} = useOrgData()
     const {user} = useProfileData()
     const {canViewApiKeys, canViewEvents} = useProjectPermissions()
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
-    const canShowOrganization = isEE()
-    const canShowUsageBilling = isEE() && isOwner
     const billingEnabled = isBillingEnabled()
-    const canShowTools = isToolsEnabled()
-    const canShowAuditLog = isEE() && canViewEvents
-    const canShowAccount = isEE()
 
-    return {
-        billingEnabled,
-        canShowAccount,
-        canShowAuditLog,
-        canShowOrganization,
-        canShowTools,
-        canShowUsageBilling,
-        canViewApiKeys,
-        isOwner,
+    return useMemo(
+        () => ({
+            billingEnabled,
+            canShowTools: isToolsEnabled(),
+            canViewApiKeys,
+            canViewEvents,
+            isEE: isEE(),
+            isOwner,
+        }),
+        [billingEnabled, canViewApiKeys, canViewEvents, isOwner],
+    )
+}
+
+const SETTINGS_TAB_DIVIDERS = new Set<SettingsTabKey>(["automations", "account"])
+
+const getSettingsSidebarIcon = (key: SettingsTabKey) => {
+    switch (key) {
+        case "apiKeys":
+            return <Key size={16} className="mt-0.5" />
+        case "secrets":
+            return <Sparkle size={16} className="mt-0.5" />
+        case "tools":
+            return <Wrench size={16} className="mt-0.5" />
+        case "automations":
+            return <Link size={16} className="mt-0.5" />
+        case "workspace":
+            return <UsersThree size={16} className="mt-0.5" />
+        case "organization":
+            return <Buildings size={16} className="mt-0.5" />
+        case "auditLog":
+            return <ClockCounterClockwise size={16} className="mt-0.5" />
+        case "billing":
+            return <Receipt size={16} className="mt-0.5" />
+        case "account":
+            return <User size={16} className="mt-0.5" />
+        case "projects":
+            return <Buildings size={16} className="mt-0.5" />
+        default: {
+            const exhaustiveCheck: never = key
+            return exhaustiveCheck
+        }
     }
 }
 
-const DEFAULT_SETTINGS_TAB = "workspace"
-
-// Single source of truth for the settings tabs: key, label, and visibility. Both the
-// rendered menu and the selection guard read from here, so an item's `isHidden` flag is
-// the only place access rules live — rendering and selection can never drift.
 const useSettingsTabs = (): SidebarConfig[] => {
-    const {
-        billingEnabled,
-        canShowAccount,
-        canShowAuditLog,
-        canShowOrganization,
-        canShowTools,
-        canShowUsageBilling,
-        canViewApiKeys,
-        isOwner,
-    } = useSettingsAccess()
+    const access = useSettingsAccess()
 
     return useMemo<SidebarConfig[]>(
-        () => [
-            {
-                key: "apiKeys",
-                title: "API Keys",
-                icon: <Key size={16} className="mt-0.5" />,
-                isHidden: !canViewApiKeys,
-            },
-            {
-                key: "secrets",
-                title: "Providers & Models",
-                icon: <Sparkle size={16} className="mt-0.5" />,
-            },
-            {
-                key: "tools",
-                title: "Tools",
-                icon: <Wrench size={16} className="mt-0.5" />,
-                isHidden: !canShowTools,
-            },
-            {
-                key: "automations",
-                title: "Automations",
-                icon: <Link size={16} className="mt-0.5" />,
-                divider: true,
-            },
-            {
-                key: "workspace",
-                title: "Members",
-                icon: <UsersThree size={16} className="mt-0.5" />,
-            },
-            {
-                key: "organization",
-                title: "Access & Security",
-                icon: <Buildings size={16} className="mt-0.5" />,
-                isHidden: !(isOwner && canShowOrganization),
-            },
-            {
-                key: "auditLog",
-                title: "Audit Log",
-                icon: <ClockCounterClockwise size={16} className="mt-0.5" />,
-                isHidden: !canShowAuditLog,
-            },
-            {
-                key: "billing",
-                title: billingEnabled ? "Usage & Billing" : "Usage",
-                icon: <Receipt size={16} className="mt-0.5" />,
-                isHidden: !canShowUsageBilling,
-            },
-            {
-                key: "account",
-                title: "Account",
-                icon: <User size={16} className="mt-0.5" />,
-                divider: true,
-                isHidden: !canShowAccount,
-            },
-        ],
-        [
-            canShowUsageBilling,
-            billingEnabled,
-            canShowOrganization,
-            canShowTools,
-            canViewApiKeys,
-            canShowAuditLog,
-            canShowAccount,
-            isOwner,
-        ],
+        () =>
+            getSettingsSidebarTabs(access).map(({key, title, isHidden}) => ({
+                key,
+                title,
+                icon: getSettingsSidebarIcon(key),
+                divider: SETTINGS_TAB_DIVIDERS.has(key),
+                isHidden,
+            })),
+        [access],
     )
 }
 
 const useSettingsSidebarSelection = (): SidebarSelection => {
     const [tab, setTab] = useQueryParam("tab", undefined, "replace")
     const [settingsTab, setSettingsTab] = useAtom(settingsTabAtom)
-    const tabs = useSettingsTabs()
+    const access = useSettingsAccess()
 
-    // Unknown tabs and tabs the user can't see both fall back to the default.
-    const visibleKeys = useMemo(
-        () => new Set(tabs.filter((item) => !item.isHidden).map((item) => item.key)),
-        [tabs],
-    )
-    const requestedTab = tab ?? settingsTab ?? DEFAULT_SETTINGS_TAB
-    const activeTab = visibleKeys.has(requestedTab) ? requestedTab : DEFAULT_SETTINGS_TAB
+    const requestedTab = tab ?? settingsTab
+    const activeTab = resolveSettingsTab(requestedTab, access)
 
     useEffect(() => {
         if (settingsTab !== activeTab) {
@@ -221,7 +181,7 @@ const createSettingsHeader = (lastPath?: string) => {
 }
 
 export const createSettingsSidebarScope = ({lastPath}: SettingsScopeOptions): SidebarScope => ({
-    id: "settings",
+    id: SETTINGS_SIDEBAR_SCOPE_ID,
     useSelection: useSettingsSidebarSelection,
     useSections: useSettingsSidebarSections,
     header: createSettingsHeader(lastPath),

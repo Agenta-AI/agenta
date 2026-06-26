@@ -6,8 +6,10 @@ import SidePanelSubscriptionInfo from "@/oss/components/SidePanel/Subscription"
 
 import ListOfOrgs from "../components/ListOfOrgs"
 import WorkflowEntityCard from "../components/WorkflowEntityCard"
-import type {SidebarConfig, SidebarScope, SidebarSection, SidebarSlotContext} from "../engine/types"
+import type {SidebarScope, SidebarSection, SidebarSlotContext} from "../engine/types"
 import {useSidebarConfig} from "../hooks/useSidebarConfig"
+
+import {MAIN_SIDEBAR_SCOPE_ID} from "./constants"
 
 const MainSidebarHeader = ({collapsed}: SidebarSlotContext) => (
     <>
@@ -33,25 +35,10 @@ const ROUTE_SELECTION = {mode: "route"} as const
 const useMainSidebarSelection = () => ROUTE_SELECTION
 
 const useMainSidebarSections = (): SidebarSection[] => {
-    const menu = useSidebarConfig()
+    const {projectItems, appItems, bottomItems} = useSidebarConfig()
 
-    return useMemo(() => {
-        const projectItems: SidebarConfig[] = []
-        const appItems: SidebarConfig[] = []
-        const bottomItems: SidebarConfig[] = []
-
-        menu.forEach((item) => {
-            if (item.isHidden) return
-            if (item.isBottom) {
-                bottomItems.push(item)
-            } else if (item.isAppSection) {
-                appItems.push(item)
-            } else {
-                projectItems.push(item)
-            }
-        })
-
-        return [
+    return useMemo(
+        () => [
             {
                 key: "project",
                 items: projectItems,
@@ -68,12 +55,13 @@ const useMainSidebarSections = (): SidebarSection[] => {
                 placement: "bottom",
                 mode: "vertical",
             },
-        ]
-    }, [menu])
+        ],
+        [appItems, bottomItems, projectItems],
+    )
 }
 
 export const mainSidebarScope: SidebarScope = {
-    id: "main",
+    id: MAIN_SIDEBAR_SCOPE_ID,
     useSelection: useMainSidebarSelection,
     useSections: useMainSidebarSections,
     header: MainSidebarHeader,

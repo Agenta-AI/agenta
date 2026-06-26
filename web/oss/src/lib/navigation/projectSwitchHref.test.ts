@@ -120,4 +120,13 @@ describe("buildProjectSwitchHref", () => {
         })
         expect(href).toBe("/w/ws-1/p/proj-new/apps")
     })
+
+    it("normalizes deep org-switch routes the same way as project switches", () => {
+        const href = buildProjectSwitchHref({
+            workspaceId: WS,
+            projectId: NEW_PROJECT,
+            currentAsPath: "/w/ws-old/p/proj-old/testsets/testset-123?drawer=open",
+        })
+        expect(href).toBe("/w/ws-1/p/proj-new/testsets")
+    })
 })
