@@ -52,7 +52,11 @@ from agenta.sdk.engines.running.utils import (
     register_interface,
     register_meta,
 )
-from agenta.sdk.models.workflows import WorkflowRevisionData
+from agenta.sdk.models.workflows import (
+    WorkflowRequestFlags,
+    WorkflowRevisionData,
+    WorkflowServiceRequest,
+)
 
 from agenta.sdk.utils.logging import get_module_logger
 
@@ -205,12 +209,16 @@ def select_backend(agent_config: AgentConfig) -> Backend:
 
 
 async def _agent(
+    request: WorkflowServiceRequest,
     inputs: Optional[Dict[str, Any]] = None,
     messages: Optional[List[Any]] = None,
     parameters: Optional[Dict] = None,
-    stream: Optional[bool] = None,
-    session_id: Optional[str] = None,
 ):
+    # The stream decision is a flag, negotiated from Accept at the HTTP edge.
+    stream = WorkflowRequestFlags(**(request.flags or {})).stream
+    # session_id is resolved (echoed/minted) by the normalizer onto the request.
+    session_id = request.session_id
+
     params = parameters or {}
 
     agent_config = AgentConfig.from_params(params, defaults=_default_agent_config())

@@ -21,7 +21,14 @@ from agenta.sdk.models.workflows import (
     WorkflowBaseResponse,
     WorkflowServiceResponseData,
 )
-from agenta.sdk.agents.adapters.vercel.routing import register_agent_message_routes
+from agenta.sdk.agents.adapters.vercel.routing import (
+    register_agent_message_routes,
+    set_vercel_message_protocol_headers,
+)
+from agenta.sdk.agents.adapters.vercel.messages import (
+    vercel_messages_to_agenta_messages,
+)
+from agenta.sdk.middlewares.routing.otel import baggage_value
 from agenta.sdk.agents.adapters.vercel.sse import (
     VERCEL_UI_MESSAGE_STREAM_HEADERS as _VERCEL_UI_MESSAGE_STREAM_HEADERS,
     vercel_sse_stream as _vercel_sse_stream,
@@ -124,6 +131,14 @@ def _parse_accept(request: Request) -> Optional[str]:
     return None  # */* or absent — server picks
 
 
+def _wants_vercel_format(request: Request) -> bool:
+    """Negotiation 2: the `x-ag-messages-format` header selects the message wire
+    representation, separately from `Accept` (a Vercel UI message stream and a
+    plain SSE stream share `text/event-stream`). Default/absent/agenta = canonical.
+    """
+    return request.headers.get("x-ag-messages-format", "").lower() == "vercel"
+
+
 def _stream_wire_format(media_type: str) -> str:
     """Map a streaming Accept media type to its wire format name."""
     if media_type == "text/event-stream":
@@ -176,6 +191,16 @@ def _set_common_headers(
 
     if response.span_id:
         res.headers.setdefault("x-ag-span-id", response.span_id)
+
+    if response.session_id:
+        res.headers.setdefault("x-ag-session-id", response.session_id)
+        # session_id also rides W3C baggage as `ag.session.id` — mirroring the
+        # `session.id` span attribute (namespace `session`), with the `ag.` prefix.
+        _existing_bag = res.headers.get("baggage")
+        _sid_bag = f"ag.session.id={response.session_id}"
+        res.headers["baggage"] = (
+            f"{_existing_bag},{_sid_bag}" if _existing_bag else _sid_bag
+        )
 
     if response.trace_id and response.span_id:
         traceparent = f"00-{response.trace_id}-{response.span_id}-01"
@@ -266,6 +291,20 @@ async def handle_invoke_success(
 
     requested = _parse_accept(req)
 
+    # An errored handler always yields a batch error response, even when the caller
+    # asked for a stream. Surface it as JSON (the real status) instead of 406ing on
+    # the format mismatch — a 406 would mask the actual error from the client.
+    if (
+        is_batch
+        and response.status
+        and response.status.code is not None
+        and response.status.code >= 400
+    ):
+        res = _make_json_response(response)
+        if requested == "text/event-stream" and _wants_vercel_format(req):
+            res = set_vercel_message_protocol_headers(res)
+        return res
+
     # No preference — server picks the natural format for what the handler returned
     if requested is None:
         if is_batch:
@@ -281,6 +320,11 @@ async def handle_invoke_success(
     # Caller wants a stream format — only satisfiable by a stream response
     if requested in STREAM_MEDIA_TYPES:
         if is_stream:
+            # Negotiation 2: `x-ag-messages-format: vercel` selects the Vercel UI
+            # message stream projection (SSE-framed), independently of `Accept`.
+            if requested == "text/event-stream" and _wants_vercel_format(req):
+                res = _make_stream_response(response, "vercel")
+                return set_vercel_message_protocol_headers(res)
             return _make_stream_response(response, _stream_wire_format(requested))
         return _make_not_acceptable_response(requested, response)
 
@@ -446,6 +490,42 @@ class route:
 
         async def invoke_endpoint(req: Request, request: WorkflowInvokeRequest):
             credentials = req.state.auth.get("credentials")
+
+            # `Accept` is HTTP sugar over the canonical `flags.stream` command: a
+            # batch (json / no stream type) Accept means stream=False, so the
+            # normalizer aggregates a streaming handler into a batch instead of the
+            # route 406ing it. An explicit `flags.stream` in the body wins.
+            _accept = _parse_accept(req)
+            _flags = dict(request.flags or {})
+            if "stream" not in _flags:
+                _flags["stream"] = _accept in STREAM_MEDIA_TYPES
+                request.flags = _flags
+
+            # session_id: accept the body field OR the `x-ag-session-id` header OR
+            # baggage `ag.session.id` (there is no W3C standard like traceparent for
+            # it). Normalize all to request.session_id; precedence:
+            # body > x-ag header > baggage.
+            if request.session_id is None:
+                _otel = getattr(req.state, "otel", None) or {}
+                _bag = _otel.get("baggage") or {}
+                _bag_sid = _bag.get("ag.session.id") or baggage_value(
+                    req.headers.get("baggage"), "ag.session.id"
+                )
+                request.session_id = req.headers.get("x-ag-session-id") or _bag_sid
+
+            # Negotiation 2 (input): when the caller speaks vercel, convert the
+            # inbound UIMessage[] in data.inputs.messages to canonical agenta
+            # messages before the handler runs. In code, messages are always agenta.
+            if _wants_vercel_format(req) and request.data and request.data.inputs:
+                _msgs = request.data.inputs.get("messages")
+                if _msgs:
+                    request.data.inputs = {
+                        **request.data.inputs,
+                        "messages": [
+                            m.to_wire()
+                            for m in vercel_messages_to_agenta_messages(_msgs)
+                        ],
+                    }
 
             try:
                 with tracing_context_manager(_get_request_tracing_context(req)):

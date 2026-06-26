@@ -6,9 +6,11 @@ SSE framing, and the ``/messages`` route helpers.
 """
 
 from .messages import (
+    agenta_messages_to_vercel_messages,
     from_ui_messages,
     message_to_vercel_ui_message,
     to_ui_message,
+    vercel_messages_to_agenta_messages,
     vercel_ui_messages_to_messages,
 )
 from .routing import (
@@ -24,6 +26,8 @@ from .sse import VERCEL_UI_MESSAGE_STREAM_HEADERS, vercel_sse_stream
 from .stream import agent_run_to_vercel_parts, ui_message_stream
 
 __all__ = [
+    "vercel_messages_to_agenta_messages",
+    "agenta_messages_to_vercel_messages",
     "vercel_ui_messages_to_messages",
     "message_to_vercel_ui_message",
     "agent_run_to_vercel_parts",

@@ -17,7 +17,7 @@ from agenta.sdk.models.workflows import (
     WorkflowStreamingResponse,
 )
 
-from .messages import vercel_ui_messages_to_messages
+from .messages import vercel_messages_to_agenta_messages
 
 # An opaque, project-scoped session id (RFC §4.1): bounded length, restricted charset.
 _SESSION_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
@@ -96,7 +96,7 @@ def make_messages_endpoint(
 
             request.data.messages = [
                 message.to_wire()
-                for message in vercel_ui_messages_to_messages(request.data.messages)
+                for message in vercel_messages_to_agenta_messages(request.data.messages)
             ]
 
             requested = parse_accept(req)
