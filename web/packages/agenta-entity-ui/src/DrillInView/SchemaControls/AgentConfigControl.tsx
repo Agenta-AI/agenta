@@ -48,14 +48,13 @@ import {
     Warning,
     Wrench,
 } from "@phosphor-icons/react"
-import {Button, Select, Switch, Tabs, Tag, Tooltip, Typography} from "antd"
+import {Button, Select, Tabs, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {agentConfigLayoutAtom} from "./agentConfigLayout"
 import {ClaudePermissionsControl} from "./ClaudePermissionsControl"
-import {CodeEditor} from "./CodeEditor"
 import {ConfigItemDrawer, type ConfigItemView} from "./ConfigItemDrawer"
 import {
     allowedConnectionModes,
@@ -692,46 +691,6 @@ export function AgentConfigControl({
         [vaultSecrets, capabilities, harnessValue, connection.provider],
     )
 
-    // Raw-JSON escape hatch for the whole `config.model` value (collapsed by default).
-    const [showModelJson, setShowModelJson] = useState(false)
-    const [modelJsonText, setModelJsonText] = useState(() =>
-        JSON.stringify(config.model ?? "", null, 2),
-    )
-    const handleModelJsonChange = useCallback(
-        (text: string) => {
-            setModelJsonText(text)
-            try {
-                setField("model", text ? JSON.parse(text) : "")
-            } catch {
-                // Keep the invalid text in the editor; don't propagate until it parses.
-            }
-        },
-        [setField],
-    )
-    const handleToggleModelJson = useCallback(
-        (next: boolean) => {
-            if (next) setModelJsonText(JSON.stringify(config.model ?? "", null, 2))
-            setShowModelJson(next)
-        },
-        [config.model],
-    )
-    // Keep the open JSON buffer in sync when `config.model` changes from OUTSIDE the editor
-    // (the model picker or the authentication cards). Guard with a structural compare so we
-    // only resync on external changes — when the buffer already represents `config.model`
-    // (the user is typing here) we skip, so we never reformat mid-edit or fight the cursor.
-    useEffect(() => {
-        if (!showModelJson) return
-        let bufferValue: unknown
-        try {
-            bufferValue = modelJsonText ? JSON.parse(modelJsonText) : ""
-        } catch {
-            return // invalid in-progress JSON — leave the user's text untouched
-        }
-        if (JSON.stringify(bufferValue) !== JSON.stringify(config.model ?? "")) {
-            setModelJsonText(JSON.stringify(config.model ?? "", null, 2))
-        }
-    }, [config.model, showModelJson, modelJsonText])
-
     // Claude permissions (Layer 1, Claude-only): the Claude harness's own permission knobs, kept in
     // the neutral `harness_kwargs.claude.permissions` bag. Shown in Advanced only for the Claude
     // harness; writes preserve any other harness_kwargs slices.
@@ -1051,7 +1010,7 @@ export function AgentConfigControl({
                             disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
                             selected
                                 ? "border-[var(--ant-color-primary)] bg-[var(--ant-color-fill-secondary)]"
-                                : "border-[var(--ag-c-EAEFF5,#eaeff5)] hover:border-[var(--ag-c-97A4B0,#97a4b0)]",
+                                : "border-[var(--ant-color-border)] bg-[var(--ant-color-fill-quaternary)] hover:border-[var(--ant-color-text-quaternary)] hover:bg-[var(--ant-color-fill-tertiary)]",
                         )}
                     >
                         <div className="flex items-center gap-2">
@@ -1322,22 +1281,6 @@ export function AgentConfigControl({
                         optionFilterProp="label"
                     />
                 </LabeledField>
-            )}
-            <div className="flex items-center gap-2">
-                <Switch
-                    checked={showModelJson}
-                    onChange={handleToggleModelJson}
-                    disabled={disabled}
-                />
-                <Typography.Text className="text-xs">Edit as JSON</Typography.Text>
-            </div>
-            {showModelJson && (
-                <CodeEditor
-                    value={modelJsonText}
-                    onChange={handleModelJsonChange}
-                    language="json"
-                    disabled={disabled}
-                />
             )}
         </div>
     ) : null
