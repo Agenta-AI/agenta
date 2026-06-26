@@ -1,6 +1,7 @@
 # Agent config section drawers
 
-Status: in progress (v1 = Instructions). Branch: `fe-feat/agent-config-section-drawers` (off `big-agents`).
+Status: in progress. Shipped: Instructions, Model & harness, and Advanced as section drawers.
+Branch: `fe-feat/agent-config-section-drawers` (off `big-agents`).
 
 ## Problem
 
@@ -43,15 +44,52 @@ Drawer (`InstructionsDrawer`, on `EnhancedDrawer`):
 
 Data flow: the drawer edits a draft string; Save calls `setField("agents_md", draft)`.
 
+## Model & harness + Advanced (shipped)
+
+Both are singleton sections, so they don't fit the collection (list of rows) shape. Instead the
+accordion header itself opens a drawer: `ConfigAccordionSection` gained an `onOpen` prop (header
+acts as a button with a right chevron, no inline body), and a shared `SectionDrawer` wraps the
+content. Draft/Save is a whole-config snapshot taken on open and restored on Cancel (edits apply
+live through the existing handlers; Cancel reverts). Both drawers are two-panel: settings on the
+left, a (stubbed) version-history rail on the right.
+
+Model & harness drawer (when inspect `harness_capabilities` is present): harness capability cards
+(providers, hosting/deployments, model count, and a per-card keeps/clears-your-model status), the
+model picker, and a compatibility panel (current model/auth reachability + a per-harness "if you
+switch" list). Falls back to the plain harness select when capabilities aren't available.
+
+Advanced drawer: Authentication was moved here from Model & harness. Grouped, explained
+sub-sections — Authentication, Execution environment (sandbox + sandbox permissions), Permissions
+(permission policy + Claude permissions). Conditional rendering is real: Claude permissions only on
+the Claude harness; a note that permission policy isn't used by Pi.
+
+### Known gap — harness capability coverage is partial (do not forget)
+
+`harness_capabilities` (from `/inspect`) currently exposes only **providers, connection modes,
+models, and hosting/deployments**. It does NOT describe which **tools, skills, or MCP servers** a
+harness supports. Consequences:
+
+- The Model & harness compatibility panel + the per-card "keeps/clears your model" status only
+  reason about the MODEL and auth, not about tools/skills/MCP. Switching harness could silently
+  leave tools that the target harness can't run, and we do not warn or gate them.
+- Switching harness clears the model when the current model id isn't valid under the new harness
+  (different namespaces — Claude uses aliases like `sonnet`, Pi uses provider-qualified ids). This
+  is intended and pre-warned by the compatibility panel; we deliberately do NOT remap.
+
+When the backend extends `harness_capabilities` with tool/skill/MCP support, extend the
+compatibility panel to warn (and optionally lock the Tools/Skills/MCP sections) on an unsupported
+switch, mirroring the model warning. Tracked as the harness-gating follow-up.
+
 ## Deferred
 
-- Real multi-file CRUD (add/rename/remove) — lights up when the backend exposes multiple defs.
-- Version-history data wiring (revision diffs of one field) — its own increment.
-- Drawer-level `Edit | Preview` segmented + a Preview **Expand** to a full-height read-only view,
-  and a dedicated markdown formatting toolbar — fast-follow after the structural cut.
-- Applying the same summary + drawer treatment to Model & harness and Advanced.
+- Tool/skill/MCP harness gating — blocked on the `harness_capabilities` extension above.
+- Real multi-file CRUD for Instructions (add/rename/remove) — lights up when the backend exposes
+  multiple defs.
+- Version-history data wiring (real per-field revision diffs) for all three drawers — replaces the
+  shared `versionHistorySkeleton`.
 - Reference (`@ag.reference`) chips in the editor — they live on the embedref branch (#4877) and
-  light up here when that merges; v1 does not depend on them.
+  light up here when that merges.
+- Optional: model remap (instead of clear) when switching harness.
 
 ## Verification
 

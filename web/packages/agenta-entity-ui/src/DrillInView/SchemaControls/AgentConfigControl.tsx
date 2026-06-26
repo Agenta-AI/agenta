@@ -977,6 +977,14 @@ export function AgentConfigControl({
 
     // Harness list + per-harness detail come from the inspect capabilities map. Compatibility is
     // real (provider/model reachability + connection mode), all derived from that same data.
+    //
+    // GAP (intentional, tracked): `harness_capabilities` only covers providers / connection modes /
+    // models / hosting — NOT which tools, skills, or MCP servers a harness supports. So the
+    // compatibility panel and the per-card keeps/clears status reason only about the MODEL + auth,
+    // never about tools/skills/MCP. Switching harness can silently leave unsupported tools, and we
+    // don't warn/gate them. When the backend extends harness_capabilities with tool/skill/MCP
+    // support, extend the compatibility panel to warn (and optionally lock those sections), mirroring
+    // the model warning. See docs/design/agent-config-section-drawers/design.md ("Known gap").
     const harnessList = capabilities ? Object.keys(capabilities) : []
     const modelReachable =
         !modelId ||
