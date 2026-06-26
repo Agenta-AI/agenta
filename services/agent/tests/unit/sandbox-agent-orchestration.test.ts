@@ -27,6 +27,12 @@ interface FakeOptions {
   promptError?: Error;
   permissionDecision?: PermissionDecision;
   emitPermission?: boolean;
+  // Model Claude-over-ACP: the prompt NEVER resolves on its own after a permission gate. The
+  // runner must end the turn another way (the park -> destroySession -> cancel path, F-040).
+  hangPrompt?: boolean;
+  // Make the managed cancel reject (and NOT resolve the hung prompt), so the only thing that
+  // ends the turn is the local park signal — proves the run still terminates if cancel fails.
+  destroySessionError?: Error;
 }
 
 function fakeHarness(options: FakeOptions = {}) {
@@ -43,6 +49,7 @@ function fakeHarness(options: FakeOptions = {}) {
     workspaceCleanup: 0,
     sandboxDestroyed: 0,
     sandboxDisposed: 0,
+    sessionDestroyed: 0,
     toolRelayArgs: undefined as unknown[] | undefined,
     toolRelayStops: 0,
     permissionReplies: [] as Array<{ id: string; reply: string }>,
@@ -57,6 +64,9 @@ function fakeHarness(options: FakeOptions = {}) {
   const events: AgentEvent[] = [];
   let eventHandler: ((event: any) => void) | undefined;
   let permissionHandler: ((request: any) => void) | undefined;
+  // The in-flight prompt resolver, so a `destroySession` (the managed cancel) can resolve a
+  // hung prompt with a cancelled stop reason — mirroring the real sandbox-agent package.
+  let resolveHungPrompt: ((value: any) => void) | undefined;
 
   const session = {
     id: "session-1",
@@ -80,6 +90,13 @@ function fakeHarness(options: FakeOptions = {}) {
         });
       }
       if (options.promptError) throw options.promptError;
+      if (options.hangPrompt) {
+        // Claude does not end a turn on an unanswered gate: the prompt hangs until the
+        // managed cancel (destroySession) resolves it with a cancelled stop reason.
+        return new Promise((resolve) => {
+          resolveHungPrompt = resolve;
+        });
+      }
       return (
         options.promptResult ?? {
           stopReason: "complete",
@@ -93,6 +110,14 @@ function fakeHarness(options: FakeOptions = {}) {
     async createSession(opts: any) {
       calls.createSessionOptions = opts;
       return session;
+    },
+    async destroySession(id: string) {
+      calls.sessionDestroyed += 1;
+      void id;
+      if (options.destroySessionError) throw options.destroySessionError;
+      // Managed cancel: resolve any in-flight prompt with a cancelled stop reason (the runner
+      // races this against the park signal, so the turn ends either way). Mirrors the package.
+      resolveHungPrompt?.({ stopReason: "cancelled" });
     },
     async destroySandbox() {
       calls.sandboxDestroyed += 1;
@@ -685,6 +710,82 @@ describe("runSandboxAgent default HITL responder wiring", () => {
     // call that clobbers the approval prompt on the same tool-call id (F-024). The turn ends
     // with the tool pending; the next turn carrying the decision resolves it.
     assert.deepEqual(calls.permissionReplies, []);
+  });
+
+  it("park ENDS the turn even when the prompt hangs: terminal stopReason 'paused', no harness reply (F-040)", async () => {
+    // The real regression: Claude does NOT end a turn on an unanswered gate, so without the
+    // park->cancel path `session.prompt()` blocks forever and the run never returns. With
+    // hangPrompt the fake prompt never resolves on its own; the run must still RETURN, driven
+    // by the park signal + the managed cancel.
+    const { calls, deps } = (() => {
+      const { calls, deps } = fakeHarness({
+        emitPermission: true,
+        hangPrompt: true,
+      });
+      delete deps.responderFactory; // engine HITLResponder -> parks (human surface, no decision)
+      return { calls, deps };
+    })();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "conv-1",
+        messages: [{ role: "user", content: "edit the file" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+    await flushPromises();
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    // The turn returns terminal-but-incomplete: `paused` tells the egress to emit a clean
+    // `finish` so the FE can resume on the user's decision (no immortal-park hang, F-040).
+    assert.equal(result.stopReason, "paused");
+    // No reply reached the harness (no F-024 clobber).
+    assert.deepEqual(calls.permissionReplies, []);
+    // The session was cancelled (managed `session/cancel` via destroySession) ...
+    assert.equal(calls.sessionDestroyed, 1);
+    // ... and the sandbox was disposed in the finally — the parked turn does NOT leak it.
+    assert.equal(calls.sandboxDestroyed, 1);
+    assert.equal(calls.sandboxDisposed, 1);
+    assert.equal(calls.workspaceCleanup, 1);
+  });
+
+  it("park terminates even if the managed cancel rejects (local park signal still ends the turn)", async () => {
+    // Defense in depth: if destroySession throws (the daemon already tore down, a network
+    // blip, etc.) and the prompt never resolves, the local `parkedSignal` must STILL end the
+    // turn so the run returns and the `finally` disposes the sandbox (no hang, no leak).
+    const { calls, deps } = (() => {
+      const { calls, deps } = fakeHarness({
+        emitPermission: true,
+        hangPrompt: true,
+        destroySessionError: new Error("session already gone"),
+      });
+      delete deps.responderFactory;
+      return { calls, deps };
+    })();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "conv-1",
+        messages: [{ role: "user", content: "edit the file" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+    await flushPromises();
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "paused");
+    assert.equal(calls.sessionDestroyed, 1, "cancel was attempted");
+    // The turn still ended and the sandbox was disposed despite the failed cancel.
+    assert.equal(calls.sandboxDestroyed, 1);
+    assert.equal(calls.sandboxDisposed, 1);
   });
 
   it("human surface with a stored approval resumes the tool (once)", async () => {
