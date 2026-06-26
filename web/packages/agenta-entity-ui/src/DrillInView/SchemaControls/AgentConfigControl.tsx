@@ -23,12 +23,15 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import {vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
+import {MarkdownPreview} from "@agenta/ui"
 import {ConfigAccordionSection, LabeledField} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {
+    CaretDown,
     CaretRight,
+    CaretUp,
     Cpu,
     FileText,
     GraduationCap,
@@ -422,6 +425,75 @@ function ItemRow({
                     >
                         <Trash size={14} />
                     </button>
+                ) : null}
+                <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
+            </div>
+        </div>
+    )
+}
+
+/**
+ * An instructions markdown file row. Clicking the row opens the editor drawer; the caret toggles an
+ * inline, read-only render of the FULL markdown so the content can be reviewed without leaving the
+ * panel (the row preview alone is truncated).
+ */
+function InstructionsFileRow({
+    filename,
+    content,
+    onOpen,
+}: {
+    filename: string
+    content: string
+    onOpen: () => void
+}) {
+    const [expanded, setExpanded] = useState(false)
+    const descriptor = describeInstruction(filename, content)
+    const hasContent = content.trim().length > 0
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            onClick={onOpen}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    onOpen()
+                }
+            }}
+            className="group flex cursor-pointer items-start gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2 transition-colors hover:border-[var(--ag-c-97A4B0,#97a4b0)]"
+        >
+            <ItemAvatar descriptor={descriptor} />
+            <div className="min-w-0 flex-1">
+                <div className="truncate font-mono text-xs font-medium">{filename}</div>
+                {hasContent ? (
+                    // Rendered Markdown preview: clamped to a few lines until expanded.
+                    <div className={expanded ? "mt-1" : "mt-1 max-h-[58px] overflow-hidden"}>
+                        <MarkdownPreview
+                            content={content}
+                            className="text-[var(--ag-c-97A4B0,#97a4b0)]"
+                        />
+                    </div>
+                ) : (
+                    <Typography.Text type="secondary" className="text-xs">
+                        Empty file
+                    </Typography.Text>
+                )}
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+                {hasContent ? (
+                    <Tooltip title={expanded ? "Show less" : "Show full content"}>
+                        <button
+                            type="button"
+                            aria-label={expanded ? "Show less" : "Show full content"}
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                setExpanded((v) => !v)
+                            }}
+                            className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-97A4B0,#97a4b0)] hover:text-[var(--ag-c-586673,#586673)]"
+                        >
+                            {expanded ? <CaretUp size={14} /> : <CaretDown size={14} />}
+                        </button>
+                    </Tooltip>
                 ) : null}
                 <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
             </div>
@@ -1063,10 +1135,10 @@ export function AgentConfigControl({
             defaultOpen: true,
             content: (
                 <div className="flex flex-col gap-2">
-                    <ItemRow
-                        descriptor={describeInstruction("AGENTS.md", agentsMd ?? "")}
-                        onEdit={() => openInstruction("AGENTS.md", agentsMd ?? "")}
-                        disabled={disabled}
+                    <InstructionsFileRow
+                        filename="AGENTS.md"
+                        content={agentsMd ?? ""}
+                        onOpen={() => openInstruction("AGENTS.md", agentsMd ?? "")}
                     />
                 </div>
             ),

@@ -55,6 +55,7 @@
  * - Types and helpers
  */
 export * from "./InfiniteVirtualTable"
+export {MarkdownPreview, type MarkdownPreviewProps} from "./MarkdownPreview"
 
 // ============================================================================
 // COMPONENTS
