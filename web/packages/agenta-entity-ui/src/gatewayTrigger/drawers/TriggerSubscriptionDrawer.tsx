@@ -407,6 +407,14 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         }
     }, [buildData, connectionId, name])
 
+    // Clear the wait if the drawer closes mid-test (the form unmounts via
+    // destroyOnClose) — abort the in-flight long-poll so it doesn't linger.
+    useEffect(() => {
+        return () => {
+            testAbortRef.current?.abort()
+        }
+    }, [])
+
     const handleCancelTest = useCallback(() => {
         testAbortRef.current?.abort()
     }, [])
@@ -568,14 +576,21 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                         </span>
                     </Tooltip>
                 )}
-                <Button
-                    type="primary"
-                    loading={isMutating}
-                    disabled={isTesting}
-                    onClick={handleSubmit}
+                <Tooltip
+                    title={alreadySubscribed ? "Already subscribed — revoke it to replace" : ""}
                 >
-                    {isEdit ? "Save" : "Create"}
-                </Button>
+                    {/* span wrapper so the tooltip still shows over a disabled button */}
+                    <span>
+                        <Button
+                            type="primary"
+                            loading={isMutating}
+                            disabled={isTesting || alreadySubscribed}
+                            onClick={handleSubmit}
+                        >
+                            {isEdit ? "Save" : "Create"}
+                        </Button>
+                    </span>
+                </Tooltip>
             </div>
         </div>
     )
@@ -599,7 +614,7 @@ function CapturedEventField({
     if (!isTesting && !result) return null
 
     return (
-        <Form.Item label="Captured event">
+        <Form.Item label={isTesting ? "Waiting for an event" : "Captured event"}>
             {isTesting ? (
                 <div className="flex items-center gap-2">
                     <Spin size="small" />
