@@ -148,16 +148,17 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         const variantId = refs?.application_variant?.id ?? refs?.application_revision?.id ?? null
         if (!variantId) return
         const appId = refs?.application?.id ?? null
+        const label = state?.defaultBoundLabel ?? appId ?? variantId
         setWorkflowRevId(variantId)
-        setWorkflowLabel(appId ?? variantId)
+        setWorkflowLabel(label)
         setWorkflowSelection({
             type: "workflowRevision",
             id: variantId,
-            label: appId ?? variantId,
+            label,
             path: [],
             metadata: {
                 workflowId: appId ?? "",
-                workflowName: "",
+                workflowName: state?.defaultBoundLabel ?? "",
                 variantId,
                 variantName: "",
                 revision: 0,
@@ -396,11 +397,6 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                                 size="small"
                                 placeholder={workflowLabel ?? "Select workflow revision"}
                             />
-                            {workflowLabel && (
-                                <Typography.Text type="secondary" className="text-xs truncate">
-                                    {workflowLabel}
-                                </Typography.Text>
-                            )}
                         </div>
                     </Form.Item>
 

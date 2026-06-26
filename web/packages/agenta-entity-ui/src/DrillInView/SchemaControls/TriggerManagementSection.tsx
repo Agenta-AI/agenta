@@ -90,6 +90,9 @@ export function useAgentTriggers(entityId: string | null) {
     )
     const appId = revision?.workflow_id ?? null
     const variantId = revision?.workflow_variant_id ?? revision?.variant_id ?? null
+    // Readable label for the default binding so the drawer's bound-workflow field
+    // shows the agent's name instead of a raw id. Falls back when the name is unresolved.
+    const defaultBoundLabel = (revision as {name?: string} | null)?.name ?? "Current agent"
 
     const agentIds = useMemo(() => {
         const ids = new Set<string>()
@@ -124,6 +127,7 @@ export function useAgentTriggers(entityId: string | null) {
 
     return {
         defaultReferences,
+        defaultBoundLabel,
         scopedSubscriptions,
         scopedSchedules,
         count: scopedSubscriptions.length + scopedSchedules.length,
@@ -209,7 +213,7 @@ function TriggerRow({
 }
 
 export function TriggerManagementSection({entityId, disabled}: TriggerManagementSectionProps) {
-    const {scopedSubscriptions, scopedSchedules, count, defaultReferences} =
+    const {scopedSubscriptions, scopedSchedules, count, defaultReferences, defaultBoundLabel} =
         useAgentTriggers(entityId)
 
     const {connections} = useTriggerConnectionsQuery()
@@ -431,7 +435,10 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 visibility (and the catalog renders its own connect flow internally).
                 When a subscription/schedule is created from here it default-binds to
                 this agent. */}
-            <TriggerCatalogDrawer defaultReferences={defaultReferences} />
+            <TriggerCatalogDrawer
+                defaultReferences={defaultReferences}
+                defaultBoundLabel={defaultBoundLabel}
+            />
             <TriggerSubscriptionDrawer />
             <TriggerScheduleDrawer />
             <TriggerDeliveriesDrawer />
@@ -447,7 +454,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
  * `extra` outside the section content.
  */
 export function AddTriggerDropdown({entityId}: {entityId: string | null}) {
-    const {defaultReferences} = useAgentTriggers(entityId)
+    const {defaultReferences, defaultBoundLabel} = useAgentTriggers(entityId)
     const openCatalog = useSetAtom(triggerCatalogDrawerOpenAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
 
@@ -473,10 +480,10 @@ export function AddTriggerDropdown({entityId}: {entityId: string | null}) {
                 key: "schedule",
                 label: "Scheduled trigger",
                 icon: <Clock size={16} />,
-                onClick: () => openScheduleDrawer({defaultReferences}),
+                onClick: () => openScheduleDrawer({defaultReferences, defaultBoundLabel}),
             },
         ],
-        [openCatalog, openScheduleDrawer, defaultReferences],
+        [openCatalog, openScheduleDrawer, defaultReferences, defaultBoundLabel],
     )
 
     return (

@@ -71,9 +71,15 @@ interface Props {
      * Keyed like `data.references` (`application`/`application_variant`).
      */
     defaultReferences?: Record<string, {id: string}>
+    /** Human-readable label for `defaultReferences` (e.g. the agent's name). */
+    defaultBoundLabel?: string
 }
 
-export default function TriggerCatalogDrawer({onConnectionCreated, defaultReferences}: Props) {
+export default function TriggerCatalogDrawer({
+    onConnectionCreated,
+    defaultReferences,
+    defaultBoundLabel,
+}: Props) {
     const [open, setOpen] = useAtom(triggerCatalogDrawerOpenAtom)
     const [selectedIntegration, setSelectedIntegration] =
         useState<TriggerCatalogIntegration | null>(null)
@@ -119,9 +125,10 @@ export default function TriggerCatalogDrawer({onConnectionCreated, defaultRefere
                 integrationName: integration?.name,
                 eventKey,
                 defaultReferences,
+                defaultBoundLabel,
             })
         },
-        [selectedIntegration, handleClose, openSubscription, defaultReferences],
+        [selectedIntegration, handleClose, openSubscription, defaultReferences, defaultBoundLabel],
     )
 
     return (

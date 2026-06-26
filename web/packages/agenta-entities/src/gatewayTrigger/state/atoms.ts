@@ -41,6 +41,9 @@ export interface SubscriptionDrawerState {
     // `data.references` (`application`/`application_variant`); each value is a
     // `{id}` reference. Ignored in edit mode.
     defaultReferences?: Record<string, {id: string}>
+    // Human-readable label for `defaultReferences` (e.g. the agent's name), so
+    // the bound-workflow field shows a name instead of a raw id. Ignored in edit mode.
+    defaultBoundLabel?: string
 }
 export const triggerSubscriptionDrawerAtom = atom<SubscriptionDrawerState | null>(null)
 
@@ -56,6 +59,9 @@ export interface ScheduleDrawerState {
     // (`application`/`application_variant`); each value is a `{id}` reference.
     // Ignored in edit mode.
     defaultReferences?: Record<string, {id: string}>
+    // Human-readable label for `defaultReferences` (e.g. the agent's name), so
+    // the bound-workflow field shows a name instead of a raw id. Ignored in edit mode.
+    defaultBoundLabel?: string
 }
 export const triggerScheduleDrawerAtom = atom<ScheduleDrawerState | null>(null)
 
