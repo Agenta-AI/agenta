@@ -165,18 +165,18 @@ function TriggerRow({
                     onOpen()
                 }
             }}
-            className="group flex cursor-pointer items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2 transition-colors hover:border-[var(--ag-c-97A4B0,#97a4b0)]"
+            className="group flex cursor-pointer items-center gap-2.5 rounded border border-solid border-[var(--ag-colorBorderSecondary)] px-3 py-2 transition-colors hover:border-[var(--ag-colorBorder)]"
         >
-            <span
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--ag-c-97A4B0,#97a4b0)]"
-                style={{background: "var(--ag-c-0517290F)"}}
-            >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]">
                 {icon}
             </span>
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1 truncate text-xs font-medium">
                     <span className="truncate">{name}</span>
-                    <CaretRight size={12} className="shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]" />
+                    <CaretRight
+                        size={12}
+                        className="shrink-0 text-[var(--ag-colorTextSecondary)]"
+                    />
                 </div>
                 <Typography.Text type="secondary" className="block truncate text-xs leading-tight">
                     {subtitle}

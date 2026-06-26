@@ -364,7 +364,10 @@ function CronField({value, onChange}: {value: string; onChange: (next: string) =
                         Next runs (UTC):
                     </Typography.Text>
                     {nextRuns.map((run) => (
-                        <code key={run.toISOString()} className="text-[11px] text-gray-500">
+                        <code
+                            key={run.toISOString()}
+                            className="text-[11px] text-[var(--ag-colorTextSecondary)]"
+                        >
                             {run.toISOString().replace("T", " ").replace(".000Z", " UTC")}
                         </code>
                     ))}
@@ -441,7 +444,7 @@ function InputsField({
             validateStatus={error ? "error" : undefined}
             help={error ?? "Static inputs passed to the workflow on each tick (JSON)"}
         >
-            <div className="rounded-lg border border-solid border-gray-300 dark:border-gray-700 overflow-hidden">
+            <div className="rounded-lg border border-solid border-[var(--ag-colorBorder)] overflow-hidden">
                 <Editor
                     initialValue={value || "{}"}
                     onChange={({textContent}) => onChange(textContent)}

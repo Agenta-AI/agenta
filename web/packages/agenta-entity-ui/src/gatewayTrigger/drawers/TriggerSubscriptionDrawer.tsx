@@ -495,7 +495,7 @@ function CapturedEventField({
                     </Typography.Text>
                 </div>
             ) : (
-                <div className="rounded-lg border border-solid border-gray-300 dark:border-gray-700 overflow-auto max-h-[240px] p-2">
+                <div className="rounded-lg border border-solid border-[var(--ag-colorBorder)] overflow-auto max-h-[240px] p-2">
                     <pre className="text-[11px] leading-snug whitespace-pre-wrap break-words m-0">
                         {JSON.stringify(result?.data?.inputs ?? result?.data ?? {}, null, 2)}
                     </pre>
@@ -617,7 +617,7 @@ function InputsMappingField({
             validateStatus={error ? "error" : undefined}
             help={error ?? "Maps event context to the workflow inputs (JSON)"}
         >
-            <div className="rounded-lg border border-solid border-gray-300 dark:border-gray-700 overflow-hidden">
+            <div className="rounded-lg border border-solid border-[var(--ag-colorBorder)] overflow-hidden">
                 <Editor
                     initialValue={value || "{}"}
                     onChange={({textContent}) => onChange(textContent)}
@@ -642,7 +642,7 @@ function InputsMappingField({
                     {payloadKeys.slice(0, 12).map((k) => (
                         <code
                             key={k}
-                            className="text-[11px] px-1 rounded bg-gray-100 dark:bg-gray-800"
+                            className="text-[11px] px-1 rounded bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorText)]"
                         >
                             $.{k}
                         </code>
@@ -662,15 +662,15 @@ function InputsMappingField({
                             key={`${leaf.key}-${i}`}
                             className="flex items-center gap-1.5 text-[11px] leading-snug"
                         >
-                            <code className="text-gray-500">{leaf.key}</code>
-                            <span className="text-gray-400">→</span>
+                            <code className="text-[var(--ag-colorTextSecondary)]">{leaf.key}</code>
+                            <span className="text-[var(--ag-colorTextTertiary)]">→</span>
                             {leaf.isSelector ? (
                                 leaf.resolved === undefined ? (
                                     <Typography.Text type="warning" className="!text-[11px]">
                                         no sample value
                                     </Typography.Text>
                                 ) : (
-                                    <code className="text-green-600 dark:text-green-400 truncate max-w-[280px]">
+                                    <code className="text-[var(--ag-colorSuccess)] truncate max-w-[280px]">
                                         {leaf.resolved}
                                     </code>
                                 )
