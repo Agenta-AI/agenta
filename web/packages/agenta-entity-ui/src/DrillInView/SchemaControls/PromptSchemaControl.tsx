@@ -494,7 +494,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     }
 
     return (
-        <div className={cn("flex flex-col gap-3", className)}>
+        <div className={cn("flex flex-col gap-2", className)}>
             {/* Messages list */}
             <ChatMessageList
                 messages={messages}
@@ -541,6 +541,8 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                                 showToolbar={false}
                                 enableTokens={false}
                                 id={`tool-editor-${index}`}
+                                // Drop the wrapper's min-h-[70px] so it hugs collapsed cards.
+                                className="!min-h-0"
                             >
                                 {toolControl}
                             </EditorProvider>
