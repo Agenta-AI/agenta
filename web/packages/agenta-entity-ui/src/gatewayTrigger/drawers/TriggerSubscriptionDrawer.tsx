@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {environmentsListQueryAtomFamily} from "@agenta/entities/environment"
 import {
+    isConnectionActive,
     isEntityActive,
     isEntityValid,
     previewValue,
@@ -15,6 +16,7 @@ import {
     useTriggerSubscription,
     useTriggerSubscriptions,
     type TriggerConnection,
+    type TriggerSubscription,
     type TriggerDelivery,
     type TriggerSubscriptionCreate,
     type TriggerSubscriptionData,
@@ -22,17 +24,19 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {Editor} from "@agenta/ui/editor"
-import {Lightning} from "@phosphor-icons/react"
+import {CaretDown, CaretRight, Lightning, Trash} from "@phosphor-icons/react"
 import {
     Button,
     Divider,
     Drawer,
+    Empty,
     Form,
     Input,
     Segmented,
     Select,
     Spin,
     Switch,
+    Tag,
     Tooltip,
     Typography,
     message,
@@ -45,6 +49,7 @@ import {
     EntityPicker,
     type WorkflowRevisionSelectionResult,
 } from "../../selection"
+import ActiveToggle from "../components/ActiveToggle"
 
 const DEFAULT_PROVIDER = "composio"
 
@@ -78,16 +83,171 @@ export default function TriggerSubscriptionDrawer() {
             open={open}
             onClose={handleClose}
             title={isEdit ? "Edit subscription" : "New subscription"}
-            width={640}
+            width={980}
             destroyOnClose
             styles={{
-                body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
+                body: {padding: 0, display: "flex", overflow: "hidden"},
             }}
         >
             {state && (
-                <SubscriptionForm key={state.subscriptionId ?? "new"} onClose={handleClose} />
+                <>
+                    <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
+                        <SubscriptionForm
+                            key={state.subscriptionId ?? "new"}
+                            onClose={handleClose}
+                        />
+                    </div>
+                    <ConnectionsPanel />
+                </>
             )}
         </Drawer>
+    )
+}
+
+// ---------------------------------------------------------------------------
+// ConnectionsPanel — the drawer's right panel. Lists existing connections, each
+// drilling into its subscriptions (event + pause/delete). Seeing and revoking a
+// subscription here frees its event, which directly unblocks the "already
+// subscribed" guard on the form's Test/Create buttons.
+// ---------------------------------------------------------------------------
+
+function ConnectionsPanel() {
+    const {connections, isLoading: connectionsLoading} = useTriggerConnectionsQuery()
+    const {subscriptions} = useTriggerSubscriptions()
+    const {setActive, remove} = useTriggerSubscription()
+    const [expanded, setExpanded] = useState<string | null>(null)
+
+    const subsByConnection = useMemo(() => {
+        const map = new Map<string, TriggerSubscription[]>()
+        for (const s of subscriptions) {
+            if (!s.connection_id) continue
+            const list = map.get(s.connection_id) ?? []
+            list.push(s)
+            map.set(s.connection_id, list)
+        }
+        return map
+    }, [subscriptions])
+
+    const handleToggle = useCallback(
+        (sub: TriggerSubscription) => async (next: boolean) => {
+            if (sub.id) await setActive(sub.id, next)
+        },
+        [setActive],
+    )
+
+    const handleDelete = useCallback(
+        async (sub: TriggerSubscription) => {
+            if (!sub.id) return
+            try {
+                await remove(sub.id)
+                message.success("Subscription deleted")
+            } catch {
+                message.error("Failed to delete subscription")
+            }
+        },
+        [remove],
+    )
+
+    return (
+        <div className="flex w-[340px] shrink-0 flex-col overflow-hidden">
+            <div className="shrink-0 px-4 pb-2 pt-4">
+                <Typography.Text strong className="text-sm">
+                    Connections
+                </Typography.Text>
+                <Typography.Text type="secondary" className="block text-[11px] leading-snug">
+                    Existing connections and their subscriptions. Revoke one to free its event.
+                </Typography.Text>
+            </div>
+            <Divider className="!m-0" />
+            <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-2">
+                {connectionsLoading ? (
+                    <div className="flex justify-center py-8">
+                        <Spin size="small" />
+                    </div>
+                ) : connections.length === 0 ? (
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No connections" />
+                ) : (
+                    <div className="flex flex-col gap-1.5">
+                        {connections.map((c) => {
+                            const cid = c.id ?? ""
+                            const subs = subsByConnection.get(cid) ?? []
+                            const isOpen = expanded === cid
+                            return (
+                                <div
+                                    key={cid}
+                                    className="rounded border border-solid border-[var(--ag-colorBorderSecondary)]"
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpanded(isOpen ? null : cid)}
+                                        className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2.5 py-2 text-left"
+                                    >
+                                        {isOpen ? (
+                                            <CaretDown size={12} className="shrink-0" />
+                                        ) : (
+                                            <CaretRight size={12} className="shrink-0" />
+                                        )}
+                                        <div className="min-w-0 flex-1">
+                                            <div className="truncate text-xs font-medium">
+                                                {c.name || c.slug || c.integration_key}
+                                            </div>
+                                            <div className="truncate text-[11px] text-[var(--ag-colorTextSecondary)]">
+                                                {c.integration_key}
+                                            </div>
+                                        </div>
+                                        {isConnectionActive(c) && (
+                                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+                                        )}
+                                        <Tag bordered={false} className="m-0 text-[11px]">
+                                            {subs.length}
+                                        </Tag>
+                                    </button>
+                                    {isOpen && (
+                                        <div className="border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] px-2.5 py-1.5">
+                                            {subs.length === 0 ? (
+                                                <Typography.Text
+                                                    type="secondary"
+                                                    className="text-[11px]"
+                                                >
+                                                    No subscriptions
+                                                </Typography.Text>
+                                            ) : (
+                                                <div className="flex flex-col gap-1">
+                                                    {subs.map((s) => (
+                                                        <div
+                                                            key={s.id}
+                                                            className="flex items-center gap-1.5"
+                                                        >
+                                                            <code className="min-w-0 flex-1 truncate text-[11px]">
+                                                                {s.data?.event_key ?? "-"}
+                                                            </code>
+                                                            <ActiveToggle
+                                                                active={isEntityActive(s)}
+                                                                onToggle={handleToggle(s)}
+                                                                disabled={
+                                                                    !s.id || !isEntityValid(s)
+                                                                }
+                                                            />
+                                                            <Tooltip title="Delete">
+                                                                <Button
+                                                                    type="text"
+                                                                    icon={<Trash size={14} />}
+                                                                    onClick={() => handleDelete(s)}
+                                                                />
+                                                            </Tooltip>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+            </div>
+        </div>
     )
 }
 
