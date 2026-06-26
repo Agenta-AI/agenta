@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@daytonaio/sdk": "^0.190.1"
+  }
+}
