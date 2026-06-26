@@ -5,6 +5,7 @@ import {
     isEntityValid,
     previewValue,
     resolveSelectorPreview,
+    testTriggerSubscription,
     triggerApiErrorMessage,
     triggerSubscriptionDrawerAtom,
     useTriggerCatalogEvents,
@@ -12,6 +13,7 @@ import {
     useTriggerEvent,
     useTriggerSubscription,
     type TriggerConnection,
+    type TriggerDelivery,
     type TriggerSubscriptionCreate,
     type TriggerSubscriptionData,
     type TriggerSubscriptionEdit,
@@ -99,6 +101,12 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
     const [inputsText, setInputsText] = useState("{}")
     const [inputsError, setInputsError] = useState<string | null>(null)
 
+    // Test = fire-and-inspect: create a transient is_test subscription, wait for
+    // the first captured event, show it. Independent of Save (separate row, torn
+    // down server-side). The binding is NOT required to test.
+    const [isTesting, setIsTesting] = useState(false)
+    const [testResult, setTestResult] = useState<TriggerDelivery | null>(null)
+
     const [configForm] = Form.useForm()
     const configFormRef = useRef<SchemaFormHandle>(null)
 
@@ -139,55 +147,69 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         }
     }, [isEdit, subscription, configForm])
 
+    // Build the subscription `data` from the form. `requireBinding` is false for
+    // Test (which captures the raw event without a bound workflow) and true for
+    // Save (production needs a resolvable reference + selector). Returns null on a
+    // validation failure (after surfacing the message).
+    const buildData = useCallback(
+        async (requireBinding: boolean): Promise<TriggerSubscriptionData | null> => {
+            if (!connectionId) {
+                message.error("Select a connection")
+                return null
+            }
+            if (!eventKey) {
+                message.error("Select an event")
+                return null
+            }
+            if (requireBinding && !workflowRevId) {
+                message.error("Bind a workflow")
+                return null
+            }
+
+            let inputsFields: Record<string, unknown> = {}
+            try {
+                inputsFields = inputsText.trim() ? JSON.parse(inputsText) : {}
+                setInputsError(null)
+            } catch {
+                setInputsError("Invalid JSON")
+                message.error("inputs mapping is not valid JSON")
+                return null
+            }
+
+            let triggerConfig: Record<string, unknown> | undefined
+            try {
+                triggerConfig = (await configFormRef.current?.getValues()) ?? undefined
+            } catch {
+                // form validation failed
+                return null
+            }
+
+            // On a fresh pick, send the application family by the picker's ids (its
+            // leaf is the variant id). Without a re-pick (edit), resend the stored
+            // already-complete references. The BE completes the family either way.
+            const meta = workflowSelection?.metadata
+            const references = meta
+                ? {
+                      ...(meta.workflowId ? {application: {id: meta.workflowId}} : {}),
+                      application_variant: {id: workflowRevId},
+                  }
+                : workflowRevId
+                  ? (subscription?.data?.references ?? {application_variant: {id: workflowRevId}})
+                  : undefined
+
+            return {
+                event_key: eventKey,
+                trigger_config: triggerConfig,
+                inputs_fields: inputsFields,
+                references,
+            }
+        },
+        [connectionId, eventKey, workflowRevId, inputsText, workflowSelection, subscription],
+    )
+
     const handleSubmit = useCallback(async () => {
-        if (!connectionId) {
-            message.error("Select a connection")
-            return
-        }
-        if (!eventKey) {
-            message.error("Select an event")
-            return
-        }
-        if (!workflowRevId) {
-            message.error("Bind a workflow")
-            return
-        }
-
-        let inputsFields: Record<string, unknown> = {}
-        try {
-            inputsFields = inputsText.trim() ? JSON.parse(inputsText) : {}
-            setInputsError(null)
-        } catch {
-            setInputsError("Invalid JSON")
-            message.error("inputs mapping is not valid JSON")
-            return
-        }
-
-        let triggerConfig: Record<string, unknown> | undefined
-        try {
-            triggerConfig = (await configFormRef.current?.getValues()) ?? undefined
-        } catch {
-            // form validation failed
-            return
-        }
-
-        // On a fresh pick, send the application family by the picker's ids (its
-        // leaf is the variant id). Without a re-pick (edit), resend the stored
-        // already-complete references. The BE completes the family either way.
-        const meta = workflowSelection?.metadata
-        const references = meta
-            ? {
-                  ...(meta.workflowId ? {application: {id: meta.workflowId}} : {}),
-                  application_variant: {id: workflowRevId},
-              }
-            : (subscription?.data?.references ?? {application_variant: {id: workflowRevId}})
-
-        const data: TriggerSubscriptionData = {
-            event_key: eventKey,
-            trigger_config: triggerConfig,
-            inputs_fields: inputsFields,
-            references,
-        }
+        const data = await buildData(true)
+        if (!data || !connectionId) return
 
         try {
             if (isEdit && subscription) {
@@ -229,19 +251,35 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         } catch (error) {
             message.error(triggerApiErrorMessage(error, "Failed to save subscription"))
         }
-    }, [
-        connectionId,
-        eventKey,
-        workflowRevId,
-        inputsText,
-        isEdit,
-        subscription,
-        name,
-        enabled,
-        edit,
-        create,
-        onClose,
-    ])
+    }, [buildData, connectionId, isEdit, subscription, name, enabled, edit, create, onClose])
+
+    // Fire-and-inspect: the /test endpoint creates an is_test subscription,
+    // long-polls for the first captured event, then tears it down server-side.
+    // The drawer stays open; re-clicking runs another capture.
+    const handleTest = useCallback(async () => {
+        const data = await buildData(false)
+        if (!data || !connectionId) return
+
+        setIsTesting(true)
+        setTestResult(null)
+        try {
+            const {delivery} = await testTriggerSubscription({
+                name: name || null,
+                connection_id: connectionId,
+                data,
+            })
+            if (delivery) {
+                setTestResult(delivery)
+                message.success("Captured a test event")
+            } else {
+                message.info("No event arrived before the test timed out")
+            }
+        } catch (error) {
+            message.error(triggerApiErrorMessage(error, "Test failed"))
+        } finally {
+            setIsTesting(false)
+        }
+    }, [buildData, connectionId, name])
 
     if (isEdit && subLoading) {
         return (
@@ -352,18 +390,67 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
                     <Form.Item label="Active">
                         <Switch checked={enabled} onChange={setEnabled} />
                     </Form.Item>
+
+                    <CapturedEventField result={testResult} isTesting={isTesting} />
                 </Form>
             </div>
 
             <Divider className="!m-0" />
 
-            <div className="flex justify-end gap-2 px-6 py-3 shrink-0">
-                <Button onClick={onClose}>Cancel</Button>
-                <Button type="primary" loading={isMutating} onClick={handleSubmit}>
-                    {isEdit ? "Save" : "Create"}
+            <div className="flex items-center justify-between gap-2 px-6 py-3 shrink-0">
+                <Button loading={isTesting} disabled={isMutating} onClick={handleTest}>
+                    Test
                 </Button>
+                <div className="flex gap-2">
+                    <Button onClick={onClose}>Cancel</Button>
+                    <Button
+                        type="primary"
+                        loading={isMutating}
+                        disabled={isTesting}
+                        onClick={handleSubmit}
+                    >
+                        {isEdit ? "Save" : "Create"}
+                    </Button>
+                </div>
             </div>
         </div>
+    )
+}
+
+// ---------------------------------------------------------------------------
+// CapturedEventField — shows the event the Test button captured.
+//
+// While a test is in flight it prompts the user to trigger the event from the
+// provider; once a delivery lands it pretty-prints the captured context
+// (delivery.data.inputs — the resolved `$` event by default).
+// ---------------------------------------------------------------------------
+
+function CapturedEventField({
+    result,
+    isTesting,
+}: {
+    result: TriggerDelivery | null
+    isTesting: boolean
+}) {
+    if (!isTesting && !result) return null
+
+    return (
+        <Form.Item label="Captured event">
+            {isTesting ? (
+                <div className="flex items-center gap-2">
+                    <Spin size="small" />
+                    <Typography.Text type="secondary" className="text-xs">
+                        Waiting for an event — trigger it from the provider now.
+                    </Typography.Text>
+                </div>
+            ) : (
+                <div className="rounded-lg border border-solid border-gray-300 dark:border-gray-700 overflow-auto max-h-[240px] p-2">
+                    <pre className="text-[11px] leading-snug whitespace-pre-wrap break-words m-0">
+                        {JSON.stringify(result?.data?.inputs ?? result?.data ?? {}, null, 2)}
+                    </pre>
+                </div>
+            )}
+        </Form.Item>
     )
 }
 

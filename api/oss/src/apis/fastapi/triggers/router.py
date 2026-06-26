@@ -257,6 +257,15 @@ class TriggersRouter:
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
+            "/subscriptions/test",
+            self.test_subscription,
+            methods=["POST"],
+            operation_id="test_trigger_subscription",
+            response_model=TriggerDeliveryResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
             "/subscriptions/{subscription_id}/refresh",
             self.refresh_subscription,
             methods=["POST"],
@@ -989,6 +998,31 @@ class TriggersRouter:
         return TriggerSubscriptionResponse(
             count=1 if subscription else 0,
             subscription=subscription,
+        )
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def test_subscription(
+        self,
+        request: Request,
+        *,
+        body: TriggerSubscriptionCreateRequest,
+    ) -> TriggerDeliveryResponse:
+        await self._check(request, Permission.EDIT_TRIGGERS if is_ee() else None)
+
+        try:
+            delivery = await self.triggers_service.test_subscription(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(str(request.state.user_id)),
+                #
+                subscription=body.subscription,
+            )
+        except ConnectionNotFoundError as e:
+            raise HTTPException(status_code=404, detail=e.message) from e
+
+        return TriggerDeliveryResponse(
+            count=1 if delivery else 0,
+            delivery=delivery,
         )
 
     @intercept_exceptions()

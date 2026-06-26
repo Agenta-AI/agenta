@@ -166,6 +166,9 @@ class TriggerSubscriptionFlags(BaseModel):
     # (Composio can revoke a connection out from under a subscription).
     is_active: bool = True
     is_valid: bool = True
+    # is_test = capture-and-skip mode: no bound-workflow required, events are recorded
+    # as test deliveries (full event context) and the workflow is never invoked.
+    is_test: bool = False
 
 
 class TriggerSubscriptionData(BaseModel):
@@ -195,6 +198,8 @@ class TriggerSubscriptionCreate(Header, Metadata):
     connection_id: UUID
     #
     data: TriggerSubscriptionData
+    #
+    flags: TriggerSubscriptionFlags = Field(default_factory=TriggerSubscriptionFlags)
 
 
 class TriggerSubscriptionEdit(Identifier, Header, Metadata):
@@ -281,6 +286,10 @@ class TriggerDeliveryData(BaseModel):
     #
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
+    #
+    # Self-describing test marker: a capture-and-skip delivery from an is_test
+    # subscription, so the playground can filter without loading the subscription.
+    is_test: Optional[bool] = None
 
 
 class TriggerDelivery(Identifier, Lifecycle):

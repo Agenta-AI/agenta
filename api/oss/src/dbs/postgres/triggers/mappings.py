@@ -49,7 +49,7 @@ def map_subscription_dto_to_dbe_create(
         tags=subscription.tags,
         meta=subscription.meta,
         #
-        flags=TriggerSubscriptionFlags().model_dump(),
+        flags=subscription.flags.model_dump(),
         #
         data=subscription.data.model_dump(mode="json", exclude_none=True),
     )

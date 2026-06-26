@@ -18,8 +18,10 @@ export const triggerSubscriptionsQueryAtom = atomWithQuery<TriggerSubscriptionsR
 export const useTriggerSubscriptions = () => {
     const query = useAtomValue(triggerSubscriptionsQueryAtom)
 
+    // Test subscriptions are transient (the /test endpoint tears them down); hide
+    // any that linger so the list only shows production subscriptions.
     const subscriptions = useMemo<TriggerSubscription[]>(
-        () => query.data?.subscriptions ?? [],
+        () => (query.data?.subscriptions ?? []).filter((s) => !s.flags?.is_test),
         [query.data?.subscriptions],
     )
 

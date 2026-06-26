@@ -29,5 +29,6 @@ export {
     startTriggerSubscription,
     stopTriggerSchedule,
     stopTriggerSubscription,
+    testTriggerSubscription,
 } from "./api"
 export {triggersBaseUrl, projectScopedParams, triggerApiErrorMessage} from "./client"

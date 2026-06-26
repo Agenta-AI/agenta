@@ -309,6 +309,28 @@ export const createTriggerSubscription = async (
     )
 }
 
+/**
+ * One-shot test: create a transient is_test subscription, long-poll for the first
+ * captured event, then tear it down — all in a single backend request. The server
+ * holds the connection open up to its test timeout (default 60s), so override the
+ * axios timeout to outlast it.
+ */
+export const testTriggerSubscription = async (
+    subscription: TriggerSubscriptionCreate,
+): Promise<TriggerDeliveryResponse> => {
+    const {data} = await axios.post(
+        `${triggersBaseUrl()}/subscriptions/test`,
+        {subscription},
+        {...projectScopedParams(), timeout: 70_000},
+    )
+    return (
+        safeParseWithLogging(triggerDeliveryResponseSchema, data, "[testTriggerSubscription]") ?? {
+            count: 0,
+            delivery: null,
+        }
+    )
+}
+
 export const editTriggerSubscription = async (
     subscription: TriggerSubscriptionEdit,
 ): Promise<TriggerSubscriptionResponse> => {

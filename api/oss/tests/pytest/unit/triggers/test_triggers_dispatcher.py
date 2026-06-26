@@ -21,13 +21,20 @@ from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 
 
 def _make_subscription(
-    *, is_active=True, is_valid=True, references=None, inputs_fields=None
+    *,
+    is_active=True,
+    is_valid=True,
+    is_test=False,
+    references=None,
+    inputs_fields=None,
 ):
     return TriggerSubscription(
         id=uuid4(),
         created_by_id=uuid4(),
         connection_id=uuid4(),
-        flags=TriggerSubscriptionFlags(is_active=is_active, is_valid=is_valid),
+        flags=TriggerSubscriptionFlags(
+            is_active=is_active, is_valid=is_valid, is_test=is_test
+        ),
         data=TriggerSubscriptionData(
             event_key="github.issue.opened",
             inputs_fields=inputs_fields,
@@ -212,6 +219,46 @@ async def test_happy_path_invokes_workflow_and_writes_success():
     assert delivery.subscription_id == subscription.id
     assert delivery.schedule_id is None
     assert delivery.data.inputs == {"number": 7}
+
+
+async def test_test_subscription_captures_event_and_skips_workflow():
+    project_id = uuid4()
+    # No references, is_valid=False — a test sub captures regardless of both.
+    subscription = _make_subscription(is_test=True, is_valid=False, references=None)
+    dao = _make_dao()
+    workflows = MagicMock()
+    workflows.invoke_workflow = AsyncMock()
+    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+
+    await dispatcher.dispatch_subscription(
+        project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
+    )
+
+    dao.dedup_seen.assert_awaited_once()
+    workflows.invoke_workflow.assert_not_awaited()
+    dao.write_delivery.assert_awaited_once()
+    delivery = dao.write_delivery.await_args.kwargs["delivery"]
+    assert delivery.status.code == "200"
+    assert delivery.data.is_test is True
+    # Default inputs_fields ("$") captures the whole resolved event context.
+    assert delivery.data.inputs["event"]["attributes"] == {"issue": {"number": 7}}
+    assert delivery.data.error is None
+
+
+async def test_test_subscription_dedups():
+    project_id = uuid4()
+    subscription = _make_subscription(is_test=True)
+    dao = _make_dao(seen=True)
+    workflows = MagicMock()
+    workflows.invoke_workflow = AsyncMock()
+    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+
+    await dispatcher.dispatch_subscription(
+        project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
+    )
+
+    dao.write_delivery.assert_not_awaited()
+    workflows.invoke_workflow.assert_not_awaited()
 
 
 async def test_workflow_non_200_writes_failed_delivery():

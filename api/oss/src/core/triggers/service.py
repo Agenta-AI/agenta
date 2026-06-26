@@ -52,6 +52,9 @@ log = get_module_logger(__name__)
 
 _ENQUEUE_TIMEOUT_SECONDS = 5.0
 
+# Seconds /subscriptions/test long-polls for a captured event before teardown.
+_TEST_TIMEOUT_SECONDS = 60
+
 
 class TriggersService:
     """Triggers domain orchestration.
@@ -364,10 +367,15 @@ class TriggersService:
         subscription: TriggerSubscriptionCreate,
     ) -> TriggerSubscription:
         """Mint the provider-side ``ti_*`` on a shared connection, then persist."""
-        await self._normalize_references(
-            project_id=project_id,
-            references=subscription.data.references,
-        )
+        # A test subscription captures events without a bound workflow, so the
+        # reference requirement is relaxed; it is also always "on".
+        if subscription.flags.is_test:
+            subscription.flags.is_active = True
+        else:
+            await self._normalize_references(
+                project_id=project_id,
+                references=subscription.data.references,
+            )
 
         connection = await self._require_connection(
             project_id=project_id,
@@ -463,10 +471,16 @@ class TriggersService:
         if existing is None:
             return None
 
-        await self._normalize_references(
-            project_id=project_id,
-            references=subscription.data.references,
-        )
+        # Test subscriptions skip the bound-workflow requirement and stay "on".
+        # Turning test OFF (test → prod) re-imposes it: references must resolve,
+        # else the edit is rejected and the user must supply a valid binding.
+        if subscription.flags.is_test:
+            subscription.flags.is_active = True
+        else:
+            await self._normalize_references(
+                project_id=project_id,
+                references=subscription.data.references,
+            )
 
         if subscription.flags.is_active != existing.flags.is_active:
             await self._sync_provider_enabled(
@@ -606,6 +620,47 @@ class TriggersService:
         )
 
         return updated or existing
+
+    async def test_subscription(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        subscription: TriggerSubscriptionCreate,
+    ) -> Optional[TriggerDelivery]:
+        """One-shot test: create a test subscription, wait for the first captured
+        delivery (or a timeout), then tear it down.
+
+        Pure convenience over the primitives — the same create / poll-deliveries /
+        delete lifecycle a client can drive itself. The test subscription is always
+        deleted, including on timeout and on any error.
+        """
+        subscription.flags.is_test = True
+
+        created = await self.create_subscription(
+            project_id=project_id,
+            user_id=user_id,
+            subscription=subscription,
+        )
+
+        try:
+            deadline = asyncio.get_event_loop().time() + _TEST_TIMEOUT_SECONDS
+            while asyncio.get_event_loop().time() < deadline:
+                deliveries = await self.dao.query_deliveries(
+                    project_id=project_id,
+                    delivery=TriggerDeliveryQuery(subscription_id=created.id),
+                    windowing=Windowing(limit=1),
+                )
+                if deliveries:
+                    return deliveries[0]
+                await asyncio.sleep(1.0)
+            return None
+        finally:
+            await self.delete_subscription(
+                project_id=project_id,
+                subscription_id=created.id,
+            )
 
     async def _set_valid(
         self,

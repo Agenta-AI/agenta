@@ -96,6 +96,7 @@ export {
     startTriggerSubscription,
     stopTriggerSchedule,
     stopTriggerSubscription,
+    testTriggerSubscription,
     triggerApiErrorMessage,
 } from "./api"
 

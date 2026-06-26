@@ -206,6 +206,8 @@ export const triggerSubscriptionFlagsSchema = z
     .object({
         is_active: z.boolean().default(true),
         is_valid: z.boolean().default(true),
+        // Capture-and-skip mode: events recorded as test deliveries, no workflow run.
+        is_test: z.boolean().default(false),
     })
     .passthrough()
 export type TriggerSubscriptionFlags = z.infer<typeof triggerSubscriptionFlagsSchema>
@@ -273,7 +275,7 @@ export interface TriggerSubscriptionCreate {
 // Edit body — full PUT: Identifier + Header + Metadata + connection_id + data + flags.
 export interface TriggerSubscriptionEdit extends TriggerSubscriptionCreate {
     id: string
-    flags: {is_active: boolean; is_valid: boolean} & Record<string, unknown>
+    flags: {is_active: boolean; is_valid: boolean; is_test?: boolean} & Record<string, unknown>
 }
 
 export interface TriggerSubscriptionQuery {
@@ -306,6 +308,8 @@ export const triggerDeliveryDataSchema = z
         inputs: z.record(z.string(), z.unknown()).nullish(),
         result: z.record(z.string(), z.unknown()).nullish(),
         error: z.string().nullish(),
+        // Set on capture-and-skip deliveries from an is_test subscription.
+        is_test: z.boolean().nullish(),
     })
     .passthrough()
 export type TriggerDeliveryData = z.infer<typeof triggerDeliveryDataSchema>

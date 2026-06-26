@@ -107,6 +107,40 @@ class TriggersDispatcher:
             )
             return
 
+        # Test mode: capture the resolved event as a test delivery and skip the
+        # workflow entirely (no binding required). Runs after dedup, before the
+        # is_valid gate — a test sub is typically unbound/invalid by design.
+        if subscription.flags.is_test:
+            log.info(
+                "[TRIGGERS DISPATCHER] Subscription %s is test — capturing event %s",
+                subscription.id,
+                event_id,
+            )
+            context = self._build_context(
+                event=event,
+                entity=subscription,
+                project_id=project_id,
+            )
+            template = subscription.data.inputs_fields
+            inputs = resolve_target_fields(
+                template if template is not None else "$", context
+            )
+            await self._write_delivery(
+                project_id=project_id,
+                user_id=subscription.created_by_id,
+                delivery_id=uuid_compat.uuid7(),
+                subscription_id=subscription.id,
+                schedule_id=None,
+                event_id=event_id,
+                status=Status(code="200", message="success"),
+                data=TriggerDeliveryData(
+                    event_key=subscription.data.event_key,
+                    inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
+                    is_test=True,
+                ),
+            )
+            return
+
         # is_valid is NOT a silent skip: write a failed delivery so the user sees
         # why nothing ran, and never invoke the workflow.
         if not subscription.flags.is_valid:
