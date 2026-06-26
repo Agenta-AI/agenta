@@ -50,6 +50,9 @@ export interface MarkdownEditorProps {
     editable?: boolean
     /** Drop the built-in filename/toggle header (the host supplies its own chrome). */
     hideHeader?: boolean
+    /** Draw a border around the editor. Ignored when `showToolbar` (toolbar+editor share a border).
+     * @default true */
+    bordered?: boolean
 }
 
 /**
@@ -87,6 +90,7 @@ export function MarkdownEditor({
     onViewChange,
     editable = true,
     hideHeader = false,
+    bordered = true,
 }: MarkdownEditorProps) {
     // Stable id shared by the provider and the editor so they target one composer. Colons from
     // useId() are dropped to keep it id/atom-key safe.
@@ -135,6 +139,40 @@ export function MarkdownEditor({
         </Tooltip>
     ) : null
 
+    const sharedEditor = (
+        <SharedEditor
+            id={editorId}
+            noProvider
+            // When the toolbar wraps the editor, the editor itself is borderless so they share one
+            // outer border (no nested boxes).
+            editorType={showToolbar || !bordered ? "borderless" : "border"}
+            initialValue={text}
+            value={text}
+            handleChange={handleChange}
+            disabled={editorDisabled}
+            placeholder={placeholder}
+            editorProps={{codeOnly: false, enableTokens: false, noProvider: true}}
+            syncWithInitialValueChanges
+            header={
+                showToolbar || hideHeader ? undefined : (
+                    <div className="flex w-full items-center justify-between gap-2">
+                        {filename ? (
+                            <Tag
+                                bordered
+                                className="m-0 font-mono text-[11px] font-normal text-[var(--ag-c-586673,#586673)]"
+                            >
+                                {filename}
+                            </Tag>
+                        ) : (
+                            <span />
+                        )}
+                        {viewToggle}
+                    </div>
+                )
+            }
+        />
+    )
+
     return (
         <EditorProvider
             id={editorId}
@@ -144,41 +182,17 @@ export function MarkdownEditor({
             disabled={editorDisabled}
         >
             {showToolbar ? (
-                <div className="flex items-center gap-1 rounded-t-md border border-b-0 border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-2 py-1">
-                    <MarkdownToolbar disabled={editorDisabled || markdownView} />
-                    <span className="ml-auto" />
-                    {viewToggle}
+                <div className="overflow-hidden rounded-md border border-solid border-[var(--ag-c-BDC7D1,#bdc7d1)]">
+                    <div className="flex items-center gap-1 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-2 py-1">
+                        <MarkdownToolbar disabled={editorDisabled || markdownView} />
+                        <span className="ml-auto" />
+                        {viewToggle}
+                    </div>
+                    {sharedEditor}
                 </div>
-            ) : null}
-            <SharedEditor
-                id={editorId}
-                noProvider
-                editorType="border"
-                initialValue={text}
-                value={text}
-                handleChange={handleChange}
-                disabled={editorDisabled}
-                placeholder={placeholder}
-                editorProps={{codeOnly: false, enableTokens: false, noProvider: true}}
-                syncWithInitialValueChanges
-                header={
-                    showToolbar || hideHeader ? undefined : (
-                        <div className="flex w-full items-center justify-between gap-2">
-                            {filename ? (
-                                <Tag
-                                    bordered
-                                    className="m-0 font-mono text-[11px] font-normal text-[var(--ag-c-586673,#586673)]"
-                                >
-                                    {filename}
-                                </Tag>
-                            ) : (
-                                <span />
-                            )}
-                            {viewToggle}
-                        </div>
-                    )
-                }
-            />
+            ) : (
+                sharedEditor
+            )}
             <MarkdownViewSync enabled={markdownView} />
         </EditorProvider>
     )

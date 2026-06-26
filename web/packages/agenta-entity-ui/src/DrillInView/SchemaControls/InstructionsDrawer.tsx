@@ -76,7 +76,7 @@ export function InstructionsDrawer({
             open={open}
             onClose={onCancel}
             placement="right"
-            width={760}
+            width={920}
             // Explicit Cancel/Save only — an outside click must not silently drop the draft.
             closeOnLayoutClick={false}
             destroyOnClose
@@ -111,7 +111,7 @@ export function InstructionsDrawer({
             }
             styles={{body: {padding: 16}}}
         >
-            <div className="flex gap-4">
+            <div className="flex gap-6">
                 <div className="min-w-0 flex-1">
                     {mode === "edit" ? (
                         <MarkdownEditor
@@ -146,13 +146,14 @@ export function InstructionsDrawer({
                                 view="rendered"
                                 editable={false}
                                 hideHeader
+                                bordered={false}
                             />
                         </div>
                     )}
                 </div>
 
                 {!railHidden ? (
-                    <div className="flex w-[200px] shrink-0 flex-col gap-4 border-l border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pl-4">
+                    <div className="flex w-[220px] shrink-0 flex-col gap-6">
                         <div>
                             <div className="mb-2 text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
                                 Suggested
