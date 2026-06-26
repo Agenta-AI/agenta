@@ -165,11 +165,10 @@ export function MarkdownEditor({
         </div>
     )
 
-    // `fill` bounds the box height on this component's own wrapper (reliable, unlike the editor's
-    // internal height var) so the content scrolls instead of growing past the viewport.
-    const fillStyle: CSSProperties | undefined = fill
-        ? {maxHeight: "calc(100vh - 240px)"}
-        : undefined
+    // `fill` sets a FIXED height on this component's own wrapper (self-sized, so it doesn't depend on
+    // the parent flex/height chain) sized to the drawer body — header + footer + padding ≈ 152px. So
+    // the box always fills the drawer (short content included) and tall content scrolls inside it.
+    const fillStyle: CSSProperties | undefined = fill ? {height: "calc(100vh - 152px)"} : undefined
 
     const editorEl = (
         <SharedEditor
