@@ -5,6 +5,13 @@ Claude Code with a **Claude subscription (OAuth)** instead of an `ANTHROPIC_API_
 own Claude login is mounted **read-only** into the container; Claude Code is installed at runtime
 and authenticates entirely off that mounted login. No API key is set anywhere.
 
+> **Productized form:** the all-harness self-host sidecar image
+> (`services/agent/docker/Dockerfile.sidecar`) bakes this provisioning — a writable
+> `/pi-agent` so Pi also works, plus the optional Claude Code install — into a single
+> `docker build` + `docker run`. This page is the manual, no-rebuild recipe; the Dockerfile
+> is its productized version. See
+> [`services/agent/docker/README.md` → The all-harness self-host sidecar](../../../../../services/agent/docker/README.md#the-all-harness-self-host-sidecar).
+
 This is a **standalone DEV/TEST target**. It is intentionally **not wired into the app**: it does
 not change the main stack, the compose files, or any app config. Its purpose is to be an easy
 target for testing **self-managed (subscription) Claude authentication** — later reachable through
