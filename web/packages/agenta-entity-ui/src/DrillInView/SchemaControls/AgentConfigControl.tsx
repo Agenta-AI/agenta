@@ -1176,8 +1176,8 @@ export function AgentConfigControl({
     // Model & harness drawer body. With inspect capabilities: harness cards + model picker on the
     // left, a real compatibility panel on the right. Without them: the plain harness select.
     const modelHarnessDrawerBody = capabilities ? (
-        <div className="flex gap-6">
-            <div className="flex min-w-0 flex-1 flex-col gap-4">
+        <div className="flex h-full min-h-0 gap-6">
+            <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
                 <div className="flex gap-2 rounded-md bg-[var(--ant-color-fill-quaternary)] p-2.5">
                     <Lightbulb
                         size={15}
@@ -1196,10 +1196,10 @@ export function AgentConfigControl({
                 </div>
                 {modelPicker}
             </div>
-            <div className="w-[240px] shrink-0">{compatibilityPanel}</div>
+            <div className="w-[240px] shrink-0 overflow-y-auto">{compatibilityPanel}</div>
         </div>
     ) : (
-        <div className="flex flex-col gap-3">
+        <div className="flex h-full flex-col gap-3 overflow-y-auto">
             {props.harness && (
                 <HarnessSelectControl
                     schema={props.harness}
@@ -1307,8 +1307,8 @@ export function AgentConfigControl({
     const hasExecutionGroup = Boolean(props.sandbox || props.sandbox_permission)
     const hasPermissionsGroup = Boolean(props.permission_policy || hasClaudePermissions)
     const advancedDrawerBody = (
-        <div className="flex gap-6">
-            <div className="flex min-w-0 flex-1 flex-col gap-4">
+        <div className="flex h-full min-h-0 gap-6">
+            <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
                 {authControls ? (
                     <div>
                         <div className="mb-0.5 flex items-center gap-1.5">
@@ -1407,7 +1407,7 @@ export function AgentConfigControl({
                     </div>
                 ) : null}
             </div>
-            <div className="w-[240px] shrink-0">{versionHistorySkeleton}</div>
+            <div className="w-[240px] shrink-0 overflow-y-auto">{versionHistorySkeleton}</div>
         </div>
     )
 

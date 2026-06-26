@@ -64,7 +64,9 @@ export function SectionDrawer({
                     </div>
                 </div>
             }
-            styles={{body: {padding: 16}}}
+            // The body itself doesn't scroll — the content (a full-height flex row) gives each
+            // panel its own overflow, so the left and right panels scroll independently.
+            styles={{body: {padding: 16, overflow: "hidden"}}}
         >
             {children}
         </EnhancedDrawer>
