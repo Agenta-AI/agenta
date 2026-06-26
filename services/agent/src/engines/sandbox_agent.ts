@@ -398,9 +398,32 @@ export async function runSandboxAgent(
     // decisions the HITLResponder falls back to the base policy and is byte-identical to the
     // old PolicyResponder, so `/invoke` is unchanged.
     const hasHumanSurface = !!(request.sessionId && request.sessionId.trim());
+    // A park (cross-turn HITL) must END the turn gracefully, not hold the ACP connection open
+    // forever (F-040): Claude does not end a turn on an unanswered gate, so `session.prompt()`
+    // would block indefinitely, the sandbox would leak, and the egress would never emit a
+    // `finish` frame. On the first park we `destroySession`, which (a) resolves the pending
+    // permission RPC with `{outcome:"cancelled"}` — NOT a reject, so no F-024 clobber — and
+    // (b) sends the managed `session/cancel` so the in-flight `prompt()` resolves with a
+    // cancelled stop reason. The resume then cold-replays as a fresh turn (#4854).
+    let parked = false;
+    let resolveParked: (() => void) | undefined;
+    const parkedSignal = new Promise<void>((resolve) => {
+      resolveParked = resolve;
+    });
+    const onPark = (): void => {
+      if (parked) return; // first park wins; later gates this turn are moot once we cancel
+      parked = true;
+      resolveParked?.();
+      // Cancel the in-flight prompt so `session.prompt()` returns instead of hanging. The
+      // managed cancel lives on the SandboxAgent handle (the `Session` wrapper has none).
+      // Best effort: the `finally` disposes the sandbox regardless, and the prompt is also
+      // raced against `parkedSignal` below so the turn ends even if this call rejects.
+      void sandbox.destroySession?.(session.id).catch(() => {});
+    };
     attachPermissionResponder({
       session,
       run,
+      onPark,
       responder:
         deps.responderFactory?.(request.permissionPolicy) ??
         new HITLResponder(
@@ -425,11 +448,29 @@ export async function runSandboxAgent(
       );
     }
 
-    const result = await session.prompt([
-      { type: "text", text: plan.turnText },
+    // Race the prompt against the park signal: on a HITL park the prompt either resolves with
+    // a cancelled stop reason (the managed `session/cancel` landed) or never resolves at all
+    // (the harness ignores it) — either way `parkedSignal` ends the turn so the runner returns
+    // promptly, the `finally` disposes the sandbox (no leak, F-040), and the egress emits a
+    // `finish` frame. When the park wins, the orphaned `prompt()` may later reject as the
+    // cancelled/torn-down connection unwinds; swallow that so it is not an `unhandledRejection`
+    // (the daemon teardown's `fetch failed` is expected on a cancel, not a run error).
+    const PARKED = Symbol("parked");
+    const promptPromise = Promise.resolve(
+      session.prompt([{ type: "text", text: plan.turnText }]),
+    );
+    promptPromise.catch(() => {});
+    const raced = await Promise.race([
+      promptPromise,
+      parkedSignal.then(() => PARKED),
     ]);
     await toolRelay?.stop();
-    const stopReason = (result as any)?.stopReason;
+    // A parked turn is terminal-but-incomplete: stop reason `paused` tells the egress to emit
+    // a clean `finish` (the FE then resumes on the user's decision). A real prompt result keeps
+    // the harness's own stop reason.
+    const stopReason =
+      raced === PARKED || parked ? "paused" : (raced as any)?.stopReason;
+    const result = raced === PARKED ? undefined : raced;
     logger(`prompt stopReason=${stopReason}`);
 
     // Usage: Pi writes its totals to a file via the extension. Other harnesses report the

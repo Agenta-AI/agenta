@@ -26,6 +26,11 @@ _FINISH_REASON_MAP = {
     "function_call": "tool-calls",
     "refusal": "content-filter",
     "content_filter": "content-filter",
+    # A HITL park ends the turn intentionally-but-incomplete (the FE then resumes on the
+    # user's decision). It is neither a model completion nor an error, so map it to the AI
+    # SDK's `other` rather than letting it fall through to `unknown` (F-040).
+    "paused": "other",
+    "cancelled": "other",
 }
 
 
