@@ -249,6 +249,64 @@ def test_parse_spans_into_response_returns_span_list_for_span_focus():
     assert len(response[0].span_id) == 16
 
 
+def test_ingest_accepts_scalar_duration_cumulative():
+    # Canonical scalar shape in attributes — the ingest pipeline accepts it without
+    # error. When start_time and end_time are present the computed wall-clock duration
+    # takes precedence. start_time/end_time are Unix seconds (matching the existing
+    # test fixture convention); Δ = 1_700_000_001 - 1_700_000_000 = 1s = 1000ms.
+    span = OTelSpan(
+        trace_id=TRACE_HEX,
+        span_id=SPAN_HEX,
+        span_name="root",
+        start_time=1_700_000_000,
+        end_time=1_700_000_001,
+        attributes={
+            "ag": {
+                "metrics": {
+                    "duration": {"cumulative": 1922.653},
+                }
+            }
+        },
+    )
+
+    parsed = parse_spans_from_request({"root": span})
+
+    assert len(parsed) == 1
+    metrics = parsed[0].attributes["ag"]["metrics"]
+    # The computed duration (1000ms from timestamps) overwrites the pre-set value;
+    # the key contract is that the result is a plain scalar, not a dict.
+    assert isinstance(metrics["duration"]["cumulative"], (int, float))
+    assert metrics["duration"]["cumulative"] == pytest.approx(1000.0)
+
+
+def test_ingest_normalizes_legacy_dict_duration_cumulative_to_scalar():
+    # Legacy dict shape written by older ingestion code or replayed from query output.
+    # _coerce_scalar_metric_value inside initialize_ag_attributes must collapse it.
+    # No start_time / end_time so the computed-duration override path is skipped;
+    # the normalized value from attributes is returned as-is.
+    span = OTelSpan(
+        trace_id=TRACE_HEX,
+        span_id=SPAN_HEX,
+        span_name="root",
+        attributes={
+            "ag": {
+                "metrics": {
+                    "duration": {"cumulative": {"total": 1922.653}},
+                }
+            }
+        },
+    )
+
+    parsed = parse_spans_from_request({"root": span})
+
+    assert len(parsed) == 1
+    metrics = parsed[0].attributes["ag"]["metrics"]
+    # Legacy {"total": v} dict is collapsed to the canonical scalar by
+    # _coerce_scalar_metric_value inside initialize_ag_attributes.
+    assert isinstance(metrics["duration"]["cumulative"], (int, float))
+    assert metrics["duration"]["cumulative"] == pytest.approx(1922.653)
+
+
 def test_parse_spans_into_response_trace_mode_returns_empty_dict_on_error():
     broken = OTelFlatSpan(
         trace_id=TRACE_UUID,
