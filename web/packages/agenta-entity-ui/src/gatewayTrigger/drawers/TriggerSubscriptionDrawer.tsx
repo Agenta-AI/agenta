@@ -137,6 +137,35 @@ function SubscriptionForm({onClose}: {onClose: () => void}) {
         )
     }, [isEdit, subscription])
 
+    // Create-mode default-bind: when opened with `defaultReferences` (e.g. from an
+    // agent's config panel), pre-bind the new subscription to that workflow so the
+    // user doesn't have to re-pick it. Seed `workflowRevId` from the variant ref and,
+    // when present, the workflow (app) id via the selection metadata so `buildData`
+    // emits the same `{application, application_variant}` shape a fresh pick would.
+    useEffect(() => {
+        if (isEdit) return
+        const refs = state?.defaultReferences
+        const variantId = refs?.application_variant?.id ?? refs?.application_revision?.id ?? null
+        if (!variantId) return
+        const appId = refs?.application?.id ?? null
+        setWorkflowRevId(variantId)
+        setWorkflowLabel(appId ?? variantId)
+        setWorkflowSelection({
+            type: "workflowRevision",
+            id: variantId,
+            label: appId ?? variantId,
+            path: [],
+            metadata: {
+                workflowId: appId ?? "",
+                workflowName: "",
+                variantId,
+                variantName: "",
+                revision: 0,
+            },
+        })
+        // Run once per open; `state` is keyed so the form remounts per drawer open.
+    }, [isEdit])
+
     const selectedConnection = useMemo<TriggerConnection | undefined>(
         () => connections.find((c) => c.id === connectionId),
         [connections, connectionId],

@@ -33,6 +33,11 @@ export interface SubscriptionDrawerState {
     connectionId?: string
     integrationKey?: string
     integrationName?: string
+    // Optional create-mode prefill that pre-binds the new subscription to a
+    // workflow (e.g. opened from an agent's config panel). Keyed like
+    // `data.references` (`application`/`application_variant`); each value is a
+    // `{id}` reference. Ignored in edit mode.
+    defaultReferences?: Record<string, {id: string}>
 }
 export const triggerSubscriptionDrawerAtom = atom<SubscriptionDrawerState | null>(null)
 
@@ -43,6 +48,11 @@ export const triggerSubscriptionDrawerAtom = atom<SubscriptionDrawerState | null
 export interface ScheduleDrawerState {
     // Edit mode when set; create mode otherwise.
     scheduleId?: string
+    // Optional create-mode prefill that pre-binds the new schedule to a workflow
+    // (e.g. opened from an agent's config panel). Keyed like `data.references`
+    // (`application`/`application_variant`); each value is a `{id}` reference.
+    // Ignored in edit mode.
+    defaultReferences?: Record<string, {id: string}>
 }
 export const triggerScheduleDrawerAtom = atom<ScheduleDrawerState | null>(null)
 

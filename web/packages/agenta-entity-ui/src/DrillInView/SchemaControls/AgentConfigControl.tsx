@@ -32,6 +32,7 @@ import {
     Cpu,
     FileText,
     GraduationCap,
+    Lightning,
     Plugs,
     Plus,
     SlidersHorizontal,
@@ -70,6 +71,11 @@ import {SkillFormView} from "./SkillFormView"
 import {ToolFormView} from "./ToolFormView"
 import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover"
 import {parseGatewayFunctionName, type ToolObj} from "./toolUtils"
+import {
+    AddTriggerDropdown,
+    TriggerManagementSection,
+    useAgentTriggers,
+} from "./TriggerManagementSection"
 
 export interface AgentConfigControlProps {
     schema?: SchemaProperty | null
@@ -471,6 +477,9 @@ export function AgentConfigControl({
     // in which case the connectionUtils helpers fall back permissively.
     const drillIn = useOptionalDrillIn<unknown>()
     const revisionId = drillIn?.entityId ?? null
+    // Triggers bound to this agent (for the section count badge). The section body and
+    // the header add-dropdown derive scoping from the same hook.
+    const {count: triggerCount} = useAgentTriggers(revisionId)
     const capabilities = useAtomValue(
         useMemo(() => harnessCapabilitiesAtomFamily(revisionId ?? ""), [revisionId]),
     )
@@ -1160,6 +1169,24 @@ export function AgentConfigControl({
                     )}
                 </>
             ),
+        },
+        {
+            key: "triggers",
+            icon: <Lightning size={16} />,
+            title: (
+                <span className="inline-flex items-center gap-2">
+                    Triggers
+                    {triggerCount > 0 ? (
+                        <Tag className="m-0 font-normal" bordered>
+                            {triggerCount}
+                        </Tag>
+                    ) : null}
+                </span>
+            ),
+            summary: countSummary(triggerCount, "trigger"),
+            extra: !disabled ? <AddTriggerDropdown entityId={revisionId} /> : undefined,
+            defaultOpen: triggerCount > 0,
+            content: <TriggerManagementSection entityId={revisionId} disabled={disabled} />,
         },
         hasAdvanced && {
             key: "advanced",
