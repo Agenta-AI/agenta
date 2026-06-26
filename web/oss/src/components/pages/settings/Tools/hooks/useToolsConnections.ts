@@ -1,7 +1,7 @@
 import {useCallback} from "react"
 
 import {
-    createConnection,
+    createToolConnection,
     deleteToolConnection,
     refreshToolConnection,
     type ToolConnectionCreatePayload,
@@ -53,7 +53,7 @@ export const useToolsConnections = (integrationKey: string) => {
                 },
             }
 
-            const result = await createConnection(request)
+            const result = await createToolConnection(request)
             invalidate()
             return result
         },

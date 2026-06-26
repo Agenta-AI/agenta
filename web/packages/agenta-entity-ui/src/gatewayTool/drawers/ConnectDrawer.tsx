@@ -1,6 +1,6 @@
 import {useCallback, useRef, useState} from "react"
 
-import {createConnection, fetchConnection} from "@agenta/entities/gatewayTool"
+import {createToolConnection, fetchToolConnection} from "@agenta/entities/gatewayTool"
 import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
 import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
@@ -77,7 +77,7 @@ export default function ConnectDrawer({
             const values = await form.validateFields()
             setLoading(true)
 
-            const result = await createConnection({
+            const result = await createToolConnection({
                 connection: {
                     slug: values.slug,
                     name: values.name || values.slug,
@@ -111,7 +111,7 @@ export default function ConnectDrawer({
                     window.focus()
                     if (connectionId) {
                         try {
-                            await fetchConnection(connectionId)
+                            await fetchToolConnection(connectionId)
                         } catch {
                             /* best-effort */
                         }

@@ -74,5 +74,8 @@ export const Permission = {
     ViewTools: "view_tools",
     EditTools: "edit_tools",
     RunTools: "run_tools",
+    ViewTriggers: "view_triggers",
+    EditTriggers: "edit_triggers",
+    RunTriggers: "run_triggers",
 } as const;
 export type Permission = (typeof Permission)[keyof typeof Permission];

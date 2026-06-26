@@ -21,9 +21,9 @@ from oss.src.core.tools.dtos import (
     ToolConnectionCreate,
     # Tool Calls
     ToolResult,
-    # Agent tools
-    AgentToolReference,
-    ResolvedAgentTool,
+    # Tool resolution
+    ToolReference,
+    ResolvedTool,
 )
 
 
@@ -99,16 +99,16 @@ class ToolCallResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Agent tool resolution
+# Tool resolution
 # ---------------------------------------------------------------------------
 
 
 class ToolResolveRequest(BaseModel):
-    tools: List[AgentToolReference] = Field(default_factory=list)
+    tools: List[ToolReference] = Field(default_factory=list)
 
     @field_validator("tools", mode="before")
     @classmethod
-    def _coerce_tools(cls, value: Any) -> List[AgentToolReference]:
+    def _coerce_tools(cls, value: Any) -> List[ToolReference]:
         try:
             configs = coerce_tool_configs(value or []).tool_configs
         except ToolConfigurationError as exc:
@@ -126,4 +126,4 @@ class ToolResolveRequest(BaseModel):
 class ToolResolveResponse(BaseModel):
     count: int = 0
     builtins: List[str] = Field(default_factory=list)
-    custom: List[ResolvedAgentTool] = Field(default_factory=list)
+    custom: List[ResolvedTool] = Field(default_factory=list)

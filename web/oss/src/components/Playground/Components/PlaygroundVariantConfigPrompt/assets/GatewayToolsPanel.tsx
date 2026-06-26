@@ -1,10 +1,10 @@
 import {useMemo} from "react"
 
 import {
-    useConnectionsQuery,
-    catalogDrawerOpenAtom,
-    executionDrawerAtom,
-    useIntegrationDetail,
+    toolCatalogDrawerOpenAtom,
+    toolExecutionDrawerAtom,
+    useToolConnectionsQuery,
+    useToolIntegrationDetail,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {
@@ -22,9 +22,9 @@ interface GatewayToolsPanelProps {
 }
 
 export default function GatewayToolsPanel({mountDrawers = false}: GatewayToolsPanelProps) {
-    const {connections, isLoading, refetch} = useConnectionsQuery()
-    const setCatalogOpen = useSetAtom(catalogDrawerOpenAtom)
-    const setExecutionDrawer = useSetAtom(executionDrawerAtom)
+    const {connections, isLoading, refetch} = useToolConnectionsQuery()
+    const setCatalogOpen = useSetAtom(toolCatalogDrawerOpenAtom)
+    const setExecutionDrawer = useSetAtom(toolExecutionDrawerAtom)
 
     // Group connections by integration
     const grouped = useMemo(() => {
@@ -113,7 +113,7 @@ export default function GatewayToolsPanel({mountDrawers = false}: GatewayToolsPa
 }
 
 function IntegrationSectionLabel({integrationKey}: {integrationKey: string}) {
-    const {integration} = useIntegrationDetail(integrationKey)
+    const {integration} = useToolIntegrationDetail(integrationKey)
     const label = integration?.name || integrationKey.replace(/_/g, " ")
     const logo = integration?.logo
 
@@ -136,7 +136,7 @@ function IntegrationSectionLabel({integrationKey}: {integrationKey: string}) {
 
 function ConnectionRow({connection, onTest}: {connection: ToolConnection; onTest: () => void}) {
     const isReady = connection.flags?.is_active && connection.flags?.is_valid
-    const {integration} = useIntegrationDetail(connection.integration_key)
+    const {integration} = useToolIntegrationDetail(connection.integration_key)
     const label = integration?.name || connection.integration_key.replace(/_/g, " ")
     const logo = integration?.logo
 

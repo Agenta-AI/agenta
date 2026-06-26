@@ -21,6 +21,7 @@ import { TestcasesClient } from "./api/resources/testcases/client/Client.js";
 import { TestsetsClient } from "./api/resources/testsets/client/Client.js";
 import { ToolsClient } from "./api/resources/tools/client/Client.js";
 import { TracesClient } from "./api/resources/traces/client/Client.js";
+import { TriggersClient } from "./api/resources/triggers/client/Client.js";
 import { UsersClient } from "./api/resources/users/client/Client.js";
 import { WebhooksClient } from "./api/resources/webhooks/client/Client.js";
 import { WorkflowsClient } from "./api/resources/workflows/client/Client.js";
@@ -57,6 +58,7 @@ export class AgentaApiClient {
     protected _evaluators: EvaluatorsClient | undefined;
     protected _environments: EnvironmentsClient | undefined;
     protected _tools: ToolsClient | undefined;
+    protected _triggers: TriggersClient | undefined;
     protected _evaluations: EvaluationsClient | undefined;
     protected _status: StatusClient | undefined;
     protected _projects: ProjectsClient | undefined;
@@ -145,6 +147,10 @@ export class AgentaApiClient {
 
     public get tools(): ToolsClient {
         return (this._tools ??= new ToolsClient(this._options));
+    }
+
+    public get triggers(): TriggersClient {
+        return (this._triggers ??= new TriggersClient(this._options));
     }
 
     public get evaluations(): EvaluationsClient {

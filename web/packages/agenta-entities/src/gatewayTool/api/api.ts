@@ -24,11 +24,11 @@ import {getToolsClient, projectScopedRequest} from "./client"
 
 // --- Catalog browse ---
 
-export const fetchProviders = async (): Promise<ToolCatalogProvidersResponse> => {
+export const fetchToolProviders = async (): Promise<ToolCatalogProvidersResponse> => {
     return getToolsClient().listToolProviders({}, projectScopedRequest())
 }
 
-export const fetchIntegrations = async (
+export const fetchToolIntegrations = async (
     providerKey: string,
     params?: {search?: string; sort_by?: string; limit?: number; cursor?: string},
 ): Promise<ToolCatalogIntegrationsResponse> => {
@@ -44,7 +44,7 @@ export const fetchIntegrations = async (
     )
 }
 
-export const fetchIntegrationDetail = async (
+export const fetchToolIntegrationDetail = async (
     providerKey: string,
     integrationKey: string,
 ): Promise<ToolCatalogIntegrationResponse> => {
@@ -54,7 +54,7 @@ export const fetchIntegrationDetail = async (
     )
 }
 
-export const fetchActions = async (
+export const fetchToolActions = async (
     providerKey: string,
     integrationKey: string,
     params?: {
@@ -87,7 +87,7 @@ export const fetchActions = async (
     )
 }
 
-export const fetchActionDetail = async (
+export const fetchToolActionDetail = async (
     providerKey: string,
     integrationKey: string,
     actionKey: string,
@@ -104,7 +104,7 @@ export const fetchActionDetail = async (
 
 // --- Connections ---
 
-export const queryConnections = async (params?: {
+export const queryToolConnections = async (params?: {
     provider_key?: string
     integration_key?: string
 }): Promise<ToolConnectionsResponse> => {
@@ -117,14 +117,16 @@ export const queryConnections = async (params?: {
     )
 }
 
-export const fetchConnection = async (connectionId: string): Promise<ToolConnectionResponse> => {
+export const fetchToolConnection = async (
+    connectionId: string,
+): Promise<ToolConnectionResponse> => {
     return getToolsClient().fetchToolConnection(
         {connection_id: connectionId},
         projectScopedRequest(),
     )
 }
 
-export const createConnection = async (
+export const createToolConnection = async (
     payload: ToolConnectionCreatePayload,
 ): Promise<ToolConnectionResponse> => {
     // Cast through Parameters<...> because Fern's typed payload doesn't

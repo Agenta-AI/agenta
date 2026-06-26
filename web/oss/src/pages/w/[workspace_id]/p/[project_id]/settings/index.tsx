@@ -39,6 +39,10 @@ const Tools = dynamic(() => import("@/oss/components/pages/settings/Tools/Tools"
     ssr: false,
 })
 
+const Triggers = dynamic(() => import("@/oss/components/pages/settings/Triggers/Triggers"), {
+    ssr: false,
+})
+
 const Organization = dynamic(() => import("@/oss/components/pages/settings/Organization"), {
     ssr: false,
 })
@@ -48,12 +52,9 @@ const DeleteAccount = dynamic(
     {ssr: false},
 )
 
-const Automations = dynamic(
-    () => import("@/oss/components/pages/settings/Automations/Automations"),
-    {
-        ssr: false,
-    },
-)
+const Webhooks = dynamic(() => import("@/oss/components/pages/settings/Webhooks/Webhooks"), {
+    ssr: false,
+})
 
 interface SettingsProps {
     AuditLogComponent?: React.ComponentType
@@ -71,12 +72,14 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const canShowBilling = isEE() && isOwner
     const billingEnabled = isBillingEnabled()
     const canShowTools = isToolsEnabled()
+    const canShowTriggers = isToolsEnabled()
     const canShowAuditLog = isEE() && canViewEvents
     const canShowAccount = isEE()
     const resolvedTab =
         (tab === "organization" && !canShowOrganization) ||
         (tab === "billing" && !canShowBilling) ||
         (tab === "tools" && !canShowTools) ||
+        (tab === "triggers" && !canShowTriggers) ||
         (tab === "apiKeys" && !canViewApiKeys) ||
         (tab === "auditLog" && !canShowAuditLog) ||
         (tab === "account" && !canShowAccount)
@@ -121,13 +124,15 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                         case "projects":
                             return "Projects"
                         case "secrets":
-                            return "Providers & Models"
+                            return "Models"
                         case "tools":
                             return "Tools"
+                        case "triggers":
+                            return "Triggers"
                         case "apiKeys":
                             return "API Keys"
-                        case "automations":
-                            return "Automations"
+                        case "webhooks":
+                            return "Webhooks"
                         case "auditLog":
                             return "Audit Log"
                         case "account":
@@ -174,9 +179,11 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                     ),
                 }
             case "secrets":
-                return {content: <Secrets />, title: "Providers & Models"}
+                return {content: <Secrets />, title: "Models"}
             case "tools":
                 return {content: <Tools />, title: "Tools"}
+            case "triggers":
+                return {content: <Triggers />, title: "Triggers"}
             case "apiKeys":
                 return {content: <APIKeys />, title: "API Keys"}
             case "billing":
@@ -184,8 +191,8 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                     content: <Billing />,
                     title: billingEnabled ? "Usage & Billing" : "Usage",
                 }
-            case "automations":
-                return {content: <Automations />, title: "Automations"}
+            case "webhooks":
+                return {content: <Webhooks />, title: "Webhooks"}
             case "auditLog":
                 return {
                     content: AuditLogComponent ? <AuditLogComponent /> : <WorkspaceManage />,

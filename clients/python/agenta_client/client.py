@@ -30,6 +30,7 @@ if typing.TYPE_CHECKING:
     from .testsets.client import AsyncTestsetsClient, TestsetsClient
     from .tools.client import AsyncToolsClient, ToolsClient
     from .traces.client import AsyncTracesClient, TracesClient
+    from .triggers.client import AsyncTriggersClient, TriggersClient
     from .users.client import AsyncUsersClient, UsersClient
     from .webhooks.client import AsyncWebhooksClient, WebhooksClient
     from .workflows.client import AsyncWorkflowsClient, WorkflowsClient
@@ -98,6 +99,7 @@ class AgentaApi:
         self._evaluators: typing.Optional[EvaluatorsClient] = None
         self._environments: typing.Optional[EnvironmentsClient] = None
         self._tools: typing.Optional[ToolsClient] = None
+        self._triggers: typing.Optional[TriggersClient] = None
         self._evaluations: typing.Optional[EvaluationsClient] = None
         self._status: typing.Optional[StatusClient] = None
         self._projects: typing.Optional[ProjectsClient] = None
@@ -245,6 +247,13 @@ class AgentaApi:
         return self._tools
     
     @property
+    def triggers(self):
+        if self._triggers is None:
+            from .triggers.client import TriggersClient  # noqa: E402
+            self._triggers = TriggersClient(client_wrapper=self._client_wrapper)
+        return self._triggers
+    
+    @property
     def evaluations(self):
         if self._evaluations is None:
             from .evaluations.client import EvaluationsClient  # noqa: E402
@@ -342,6 +351,7 @@ class AsyncAgentaApi:
         self._evaluators: typing.Optional[AsyncEvaluatorsClient] = None
         self._environments: typing.Optional[AsyncEnvironmentsClient] = None
         self._tools: typing.Optional[AsyncToolsClient] = None
+        self._triggers: typing.Optional[AsyncTriggersClient] = None
         self._evaluations: typing.Optional[AsyncEvaluationsClient] = None
         self._status: typing.Optional[AsyncStatusClient] = None
         self._projects: typing.Optional[AsyncProjectsClient] = None
@@ -487,6 +497,13 @@ class AsyncAgentaApi:
             from .tools.client import AsyncToolsClient  # noqa: E402
             self._tools = AsyncToolsClient(client_wrapper=self._client_wrapper)
         return self._tools
+    
+    @property
+    def triggers(self):
+        if self._triggers is None:
+            from .triggers.client import AsyncTriggersClient  # noqa: E402
+            self._triggers = AsyncTriggersClient(client_wrapper=self._client_wrapper)
+        return self._triggers
     
     @property
     def evaluations(self):

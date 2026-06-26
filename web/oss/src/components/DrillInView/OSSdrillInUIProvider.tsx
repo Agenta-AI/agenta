@@ -25,11 +25,11 @@ import {useMemo, type ReactNode} from "react"
 
 import {
     buildToolSlug,
-    catalogDrawerOpenAtom,
-    fetchActionDetail as fetchToolActionDetail,
-    useCatalogActions,
-    useConnectionsQuery,
-    useIntegrationDetail,
+    fetchToolActionDetail,
+    toolCatalogDrawerOpenAtom,
+    useToolCatalogActions,
+    useToolConnectionsQuery,
+    useToolIntegrationDetail,
 } from "@agenta/entities/gatewayTool"
 import {DrillInUIProvider, type GatewayToolsBridge} from "@agenta/entity-ui/drill-in"
 import {EditorProvider} from "@agenta/ui/editor"
@@ -44,7 +44,7 @@ interface OSSdrillInUIProviderProps {
 }
 
 function useGatewayToolsIntegrationInfo(integrationKey: string) {
-    const {integration, isLoading} = useIntegrationDetail(integrationKey)
+    const {integration, isLoading} = useToolIntegrationDetail(integrationKey)
     return {
         name: integration?.name,
         logo: integration?.logo,
@@ -53,7 +53,7 @@ function useGatewayToolsIntegrationInfo(integrationKey: string) {
 }
 
 function useGatewayToolsCatalogActions(integrationKey: string) {
-    const res = useCatalogActions(integrationKey)
+    const res = useToolCatalogActions(integrationKey)
     return {
         actions: res.actions.map((action) => ({key: action.key, name: action.name})),
         total: res.total,
@@ -115,8 +115,8 @@ function GatewayToolsEnabledProvider({
     children: ReactNode
     llmProviderConfig: ReturnType<typeof useLLMProviderConfig>["llmProviderConfig"]
 }) {
-    const {connections, isLoading} = useConnectionsQuery()
-    const setCatalogDrawerOpen = useSetAtom(catalogDrawerOpenAtom)
+    const {connections, isLoading} = useToolConnectionsQuery()
+    const setCatalogDrawerOpen = useSetAtom(toolCatalogDrawerOpenAtom)
 
     const gatewayTools = useMemo<GatewayToolsBridge>(
         () => ({

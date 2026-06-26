@@ -105,6 +105,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $v := (default dict .Values.workerEvents).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
+{{- define "agenta.workerTriggers.enabled" -}}
+{{- $v := (default dict .Values.workerTriggers).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- end }}
 {{- define "agenta.ingress.enabled" -}}
 {{- $v := (default dict .Values.ingress).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
@@ -126,6 +130,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.workerTracing.replicas" -}}{{ default 1 (default dict .Values.workerTracing).replicas }}{{- end }}
 {{- define "agenta.workerWebhooks.replicas" -}}{{ default 1 (default dict .Values.workerWebhooks).replicas }}{{- end }}
 {{- define "agenta.workerEvents.replicas" -}}{{ default 1 (default dict .Values.workerEvents).replicas }}{{- end }}
+{{- define "agenta.workerTriggers.replicas" -}}{{ default 1 (default dict .Values.workerTriggers).replicas }}{{- end }}
 
 {{/* ================================================================
    Workers (gunicorn worker count, default 2).
