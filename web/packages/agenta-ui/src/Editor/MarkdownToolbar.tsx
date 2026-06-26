@@ -8,11 +8,17 @@
  */
 import {type ReactNode, useCallback, useEffect, useState} from "react"
 
-import {TOGGLE_LINK_COMMAND} from "@lexical/link"
-import {INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND} from "@lexical/list"
+import {$isLinkNode, TOGGLE_LINK_COMMAND} from "@lexical/link"
+import {INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, ListNode} from "@lexical/list"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
-import {$createHeadingNode, $createQuoteNode} from "@lexical/rich-text"
+import {
+    $createHeadingNode,
+    $createQuoteNode,
+    $isHeadingNode,
+    $isQuoteNode,
+} from "@lexical/rich-text"
 import {$setBlocksType} from "@lexical/selection"
+import {$getNearestNodeOfType} from "@lexical/utils"
 import {
     $getSelection,
     $isRangeSelection,
@@ -38,19 +44,37 @@ export interface MarkdownToolbarProps {
 
 export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
     const [editor] = useLexicalComposerContext()
-    const [active, setActive] = useState({bold: false, italic: false, code: false})
+    const [active, setActive] = useState({
+        bold: false,
+        italic: false,
+        code: false,
+        heading: false,
+        quote: false,
+        bullet: false,
+        ordered: false,
+        link: false,
+    })
 
     useEffect(() => {
         return editor.registerUpdateListener(({editorState}) => {
             editorState.read(() => {
                 const selection = $getSelection()
-                if ($isRangeSelection(selection)) {
-                    setActive({
-                        bold: selection.hasFormat("bold"),
-                        italic: selection.hasFormat("italic"),
-                        code: selection.hasFormat("code"),
-                    })
-                }
+                if (!$isRangeSelection(selection)) return
+                const anchorNode = selection.anchor.getNode()
+                const block = anchorNode.getTopLevelElement()
+                const listNode = $getNearestNodeOfType(anchorNode, ListNode)
+                const listType = listNode ? listNode.getListType() : null
+                const parent = anchorNode.getParent()
+                setActive({
+                    bold: selection.hasFormat("bold"),
+                    italic: selection.hasFormat("italic"),
+                    code: selection.hasFormat("code"),
+                    heading: $isHeadingNode(block),
+                    quote: $isQuoteNode(block),
+                    bullet: listType === "bullet",
+                    ordered: listType === "number",
+                    link: $isLinkNode(anchorNode) || $isLinkNode(parent),
+                })
             })
         })
     }, [editor])
@@ -104,23 +128,43 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
 
     return (
         <div className="flex items-center gap-0.5">
-            {button("h", "Heading", <Heading2 size={15} />, () =>
-                setBlock(() => $createHeadingNode("h2")),
+            {button(
+                "h",
+                "Heading",
+                <Heading2 size={15} />,
+                () => setBlock(() => $createHeadingNode("h2")),
+                active.heading,
             )}
             {button("b", "Bold", <Bold size={15} />, () => formatText("bold"), active.bold)}
             {button("i", "Italic", <Italic size={15} />, () => formatText("italic"), active.italic)}
-            {button("ul", "Bulleted list", <List size={15} />, () =>
-                editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined),
+            {button(
+                "ul",
+                "Bulleted list",
+                <List size={15} />,
+                () => editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined),
+                active.bullet,
             )}
-            {button("ol", "Numbered list", <ListOrdered size={15} />, () =>
-                editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined),
+            {button(
+                "ol",
+                "Numbered list",
+                <ListOrdered size={15} />,
+                () => editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined),
+                active.ordered,
             )}
-            {button("link", "Link", <LinkIcon size={15} />, () =>
-                editor.dispatchCommand(TOGGLE_LINK_COMMAND, "https://"),
+            {button(
+                "link",
+                "Link",
+                <LinkIcon size={15} />,
+                () => editor.dispatchCommand(TOGGLE_LINK_COMMAND, "https://"),
+                active.link,
             )}
             {button("code", "Code", <Code size={15} />, () => formatText("code"), active.code)}
-            {button("quote", "Quote", <Quote size={15} />, () =>
-                setBlock(() => $createQuoteNode()),
+            {button(
+                "quote",
+                "Quote",
+                <Quote size={15} />,
+                () => setBlock(() => $createQuoteNode()),
+                active.quote,
             )}
         </div>
     )
